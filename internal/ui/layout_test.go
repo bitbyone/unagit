@@ -114,33 +114,70 @@ func rowOf(t *testing.T, a *App, sc tcell.SimulationScreen, needle string) int {
 	return -1
 }
 
-// TestModalsDimTheBackground checks the scrim restyles what is underneath
-// instead of just covering part of it.
+// TestModalsDimTheBackground checks the scrim darkens what is underneath while
+// leaving it readable, rather than blanking it out.
 func TestModalsDimTheBackground(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
+	row := rowOf(t, a, sc, "acme/billing")
+	col := strings.Index(strings.Split(a.screenText(sc), "\n")[row], "acme/billing") + 2
+	beforeRune, beforeStyle := cellAt(a, sc, col, row)
+
 	typeRunes(sc, "?")
 	waitFor(t, a, sc, "unagit - keys")
 
-	fg, _, _ := cellStyleAt(a, sc, 1, 1).Decompose()
-	if fg != tcell.Color237 {
-		t.Errorf("the background behind the modal was not dimmed: %v", fg)
+	afterRune, afterStyle := cellAt(a, sc, col, row)
+	if afterRune != beforeRune {
+		t.Fatalf("the text behind the modal changed: %q -> %q", beforeRune, afterRune)
+	}
+	before, _, _ := beforeStyle.Decompose()
+	after, _, _ := afterStyle.Decompose()
+	if after == before {
+		t.Fatalf("the background behind the modal was not dimmed (still %v)", after)
+	}
+	if luminance(after) >= luminance(before) {
+		t.Errorf("dimmed colour %v is not darker than %v", after, before)
+	}
+	if luminance(after) == 0 {
+		t.Errorf("the text behind the modal was blacked out: %v", after)
+	}
+}
+
+func luminance(c tcell.Color) int32 {
+	hex := c.Hex()
+	if hex < 0 {
+		return -1
+	}
+	return (hex>>16)&0xff + (hex>>8)&0xff + hex&0xff
+}
+
+func cellAt(a *App, sc tcell.SimulationScreen, x, y int) (rune, tcell.Style) {
+	type cell struct {
+		r rune
+		s tcell.Style
+	}
+	done := make(chan cell, 1)
+	a.tv.QueueUpdate(func() {
+		cells, w, _ := sc.GetContents()
+		c := cells[y*w+x]
+		r := ' '
+		if len(c.Runes) > 0 {
+			r = c.Runes[0]
+		}
+		done <- cell{r, c.Style}
+	})
+	select {
+	case c := <-done:
+		return c.r, c.s
+	case <-time.After(2 * time.Second):
+		return 0, tcell.StyleDefault
 	}
 }
 
 func cellStyleAt(a *App, sc tcell.SimulationScreen, x, y int) tcell.Style {
-	done := make(chan tcell.Style, 1)
-	a.tv.QueueUpdate(func() {
-		cells, w, _ := sc.GetContents()
-		done <- cells[y*w+x].Style
-	})
-	select {
-	case s := <-done:
-		return s
-	case <-time.After(2 * time.Second):
-		return tcell.StyleDefault
-	}
+	_, style := cellAt(a, sc, x, y)
+	return style
 }
 
 func TestSettingsCyclesGroupScope(t *testing.T) {

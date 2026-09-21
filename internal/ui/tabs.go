@@ -70,14 +70,3 @@ func (a *App) tabKey(r rune) bool {
 	}
 	return false
 }
-
-// centerFixed centres a primitive at a fixed size.
-func centerFixed(p tview.Primitive, width, height int) tview.Primitive {
-	return tview.NewFlex().
-		AddItem(nil, 0, 1, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(nil, 0, 1, false).
-			AddItem(p, height, 0, true).
-			AddItem(nil, 0, 1, false), width, 0, true).
-		AddItem(nil, 0, 1, false)
-}

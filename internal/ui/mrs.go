@@ -22,11 +22,12 @@ func (a *App) newMRsPane() *pane {
 		if !a.mrsUpdated.IsZero() {
 			age = "indexed " + humanAge(a.mrsUpdated)
 		}
-		scope := "[darkgray]all projects[-]"
+		scope := tag(colMuted) + "all projects" + tagEnd
 		if a.mrProjectScope != "" {
-			scope = "[orange]" + a.mrProjectScope + "[-]"
+			scope = tag(colWarn) + a.mrProjectScope + tagEnd
 		}
-		return fmt.Sprintf("[darkgray]%d/%d merge requests  %s  scope:[-] %s", len(filtered), len(a.mrs), age, scope)
+		return fmt.Sprintf("%s%d/%d merge requests · %s · scope %s",
+			tag(colMuted), len(filtered), len(a.mrs), age, tagEnd+scope)
 	}
 
 	render := func(query string) {

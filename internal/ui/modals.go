@@ -12,19 +12,6 @@ import (
 	"github.com/tobola/unagit/internal/fuzzy"
 )
 
-// center wraps a primitive in a box of the given proportions.
-func center(p tview.Primitive, widthPct, heightPct int) tview.Primitive {
-	rest := 100 - widthPct
-	restV := 100 - heightPct
-	return tview.NewFlex().
-		AddItem(nil, 0, rest/2, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(nil, 0, restV/2, false).
-			AddItem(p, 0, heightPct, true).
-			AddItem(nil, 0, restV/2, false), 0, widthPct, true).
-		AddItem(nil, 0, rest/2, false)
-}
-
 // ------------------------------------------------------------------ help
 
 const helpText = `[::b]Tabs[::-]
@@ -84,7 +71,7 @@ func (a *App) showHelp() {
 		"{O}", tag(colOn), "{D}", tag(colDim))
 	view.SetText(r.Replace(helpText))
 	view.SetTextColor(colText)
-	box(view.Box, "unagit - keys")
+	box(view.Box, "unagit - keys").SetBorderPadding(0, 0, 1, 1)
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == '?' || ev.Rune() == 'q' {
 			a.pages.RemovePage(pageHelp)
@@ -92,7 +79,7 @@ func (a *App) showHelp() {
 		}
 		return ev
 	})
-	a.pages.AddPage(pageHelp, overlay(center(view, 80, 90)), true, true)
+	a.pages.AddPage(pageHelp, modalPct(view, 80, 90), true, true)
 	a.tv.SetFocus(view)
 }
 
@@ -136,7 +123,7 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 		}
 		return ev
 	})
-	a.pages.AddPage(pageConfirm, overlay(modal), true, true)
+	a.pages.AddPage(pageConfirm, modalFull(modal), true, true)
 	a.tv.SetFocus(modal)
 }
 
@@ -291,7 +278,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 		AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
 
-	a.pages.AddPage(pagePicker, overlay(center(flex, 70, 70)), true, true)
+	a.pages.AddPage(pagePicker, modalPct(flex, 70, 70), true, true)
 	setMode(true)
 }
 

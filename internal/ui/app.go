@@ -174,23 +174,25 @@ func (a *App) setStatus(msg string) {
 	if a.status == nil {
 		return
 	}
-	left := ""
-	switch a.currentTab() {
-	case pageProjects:
-		left = fmt.Sprintf("%d projects", len(a.projects))
-	case pageMRs:
-		left = fmt.Sprintf("%d merge requests", len(a.mrs))
-		if a.mrProjectScope != "" {
-			left += "  scope: " + a.mrProjectScope
-		}
-	case pageSettings:
-		left = fmt.Sprintf("%d group(s) selected", len(a.cfg.Groups))
-	}
-	text := " " + tag(colMuted) + left + tagEnd
+	// The per-tab line below the table carries the counts; this line is for
+	// messages and the two keys worth repeating.
+	text := " "
 	if msg != "" {
-		text += "  " + msg
+		text += msg + "  "
 	}
-	a.status.SetText(text + "  " + tag(colDim) + "· ? help · q quit" + tagEnd)
+	a.status.SetText(text + tag(colDim) + "? help · q quit" + tagEnd)
+}
+
+// tildePath shortens a path under the home directory for display.
+func tildePath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if rest, ok := strings.CutPrefix(p, home); ok {
+		return "~" + rest
+	}
+	return p
 }
 
 func (a *App) flash(msg string) { a.setStatus(tag(colWarn) + tview.Escape(msg) + tagEnd) }
@@ -436,7 +438,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
-	box(view.Box, title)
+	box(view.Box, title).SetBorderPadding(0, 0, 1, 1)
 
 	done := false
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -448,7 +450,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 		return ev
 	})
 
-	a.pages.AddPage(pageTask, overlay(center(view, 80, 70)), true, true)
+	a.pages.AddPage(pageTask, modalPct(view, 80, 70), true, true)
 	a.tv.SetFocus(view)
 
 	log := func(line string) {

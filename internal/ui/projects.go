@@ -27,7 +27,8 @@ func (a *App) newProjectsPane() *pane {
 		if !a.projUpdated.IsZero() {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
-		return fmt.Sprintf("[darkgray]%d/%d projects  %s  root: %s[-]", len(filtered), len(a.projects), age, a.cfg.RootDir)
+		return fmt.Sprintf("%s%d/%d projects · %s · root %s%s",
+			tag(colMuted), len(filtered), len(a.projects), age, tildePath(a.cfg.Root()), tagEnd)
 	}
 
 	render := func(query string) {

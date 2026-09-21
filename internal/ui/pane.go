@@ -84,9 +84,9 @@ func (a *App) newPane(title string) *pane {
 	p.body = tview.NewFlex().AddItem(p.table, 0, 1, true)
 
 	p.root = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(p.header, 1, 0, false).
 		AddItem(p.filter, 1, 0, false).
-		AddItem(p.body, 0, 1, true)
+		AddItem(p.body, 0, 1, true).
+		AddItem(p.header, 1, 0, false)
 
 	p.filter.SetInputCapture(p.filterKeys)
 	p.table.SetInputCapture(p.tableKeys)

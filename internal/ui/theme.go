@@ -79,6 +79,101 @@ func box(b *tview.Box, title string) *tview.Box {
 	return b
 }
 
+// modalBox centres a primitive over a dimmed copy of whatever is already on
+// screen.
+//
+// It cannot be built out of a Flex: every tview Box fills its rectangle with
+// spaces before drawing, so any wrapper would erase the interface underneath
+// before it could be dimmed. modalBox therefore draws nothing of its own - it
+// restyles the cells that are already there and then lets the content draw on
+// top.
+type modalBox struct {
+	*tview.Box
+	content tview.Primitive
+
+	// Percentages of the available area; zero means the content is handed the
+	// whole area and positions itself (tview.Modal does that).
+	wPct, hPct int
+	// Fixed size, used when non-zero.
+	w, h int
+}
+
+// modalPct centres content at a percentage of the available area.
+func modalPct(content tview.Primitive, wPct, hPct int) *modalBox {
+	return &modalBox{Box: tview.NewBox(), content: content, wPct: wPct, hPct: hPct}
+}
+
+// modalFixed centres content at a fixed size.
+func modalFixed(content tview.Primitive, w, h int) *modalBox {
+	return &modalBox{Box: tview.NewBox(), content: content, w: w, h: h}
+}
+
+// modalFull dims the background and lets the content place itself.
+func modalFull(content tview.Primitive) *modalBox {
+	return &modalBox{Box: tview.NewBox(), content: content}
+}
+
+func (m *modalBox) Draw(screen tcell.Screen) {
+	x, y, w, h := m.GetRect()
+	dimArea(screen, x, y, w, h)
+
+	cw, ch := w, h
+	switch {
+	case m.w > 0 || m.h > 0:
+		cw, ch = min(m.w, w), min(m.h, h)
+	case m.wPct > 0 || m.hPct > 0:
+		cw, ch = w*m.wPct/100, h*m.hPct/100
+	}
+	m.content.SetRect(x+(w-cw)/2, y+(h-ch)/2, cw, ch)
+	m.content.Draw(screen)
+}
+
+func (m *modalBox) Focus(delegate func(p tview.Primitive)) { delegate(m.content) }
+func (m *modalBox) HasFocus() bool                         { return m.content.HasFocus() }
+func (m *modalBox) Blur()                                  { m.content.Blur() }
+
+func (m *modalBox) InputHandler() func(*tcell.EventKey, func(tview.Primitive)) {
+	return m.content.InputHandler()
+}
+
+func (m *modalBox) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	return m.content.MouseHandler()
+}
+
+// dimFactor is how much of the original brightness survives behind a modal.
+const dimFactor = 0.42
+
+// dimArea darkens every cell in the rectangle while keeping its character, so
+// the interface stays recognisable behind the modal.
+func dimArea(screen tcell.Screen, x, y, w, h int) {
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
+			r, combc, style, _ := screen.GetContent(x+i, y+j)
+			fg, bg, attr := style.Decompose()
+			screen.SetContent(x+i, y+j, r, combc, tcell.StyleDefault.
+				Foreground(darken(fg, colDimmedText)).
+				Background(darken(bg, tcell.ColorDefault)).
+				Attributes(attr&^tcell.AttrBold))
+		}
+	}
+}
+
+// colDimmedText stands in for the terminal's own foreground, whose RGB we
+// cannot know.
+var colDimmedText = tcell.Color240
+
+// darken scales a colour towards black. Colours the terminal owns rather than
+// us - the default foreground and background - cannot be scaled, so a fallback
+// is used instead.
+func darken(c tcell.Color, fallback tcell.Color) tcell.Color {
+	if c == tcell.ColorDefault || !c.Valid() {
+		return fallback
+	}
+	hex := c.Hex()
+	scale := func(shift int32) int32 { return int32(float64((hex>>shift)&0xff) * dimFactor) }
+	return tcell.NewRGBColor(scale(16), scale(8), scale(0))
+}
+
 // tag renders a colour as a tview colour tag.
 func tag(c tcell.Color) string { return "[" + c.String() + "]" }
 
@@ -89,29 +184,3 @@ var styleSelected = tcell.StyleDefault.
 	Background(tcell.Color238).
 	Foreground(tcell.Color231).
 	Bold(true)
-
-// scrim dims everything already drawn underneath it, so a modal reads as a
-// layer above the interface instead of a box lost in it.
-type scrim struct{ *tview.Box }
-
-func newScrim() *scrim { return &scrim{Box: tview.NewBox()} }
-
-func (s *scrim) Draw(screen tcell.Screen) {
-	x, y, w, h := s.GetRect()
-	for i := 0; i < w; i++ {
-		for j := 0; j < h; j++ {
-			r, combc, style, _ := screen.GetContent(x+i, y+j)
-			_, bg, _ := style.Decompose()
-			screen.SetContent(x+i, y+j, r, combc,
-				tcell.StyleDefault.Background(bg).Foreground(tcell.Color237))
-		}
-	}
-}
-
-// overlay stacks a modal on top of a dimmed copy of the current screen.
-func overlay(content tview.Primitive) tview.Primitive {
-	pages := tview.NewPages()
-	pages.AddPage("scrim", newScrim(), true, true)
-	pages.AddPage("content", content, true, true)
-	return pages
-}

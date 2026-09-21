@@ -83,7 +83,7 @@ func (a *App) showUnlock() {
 		}()
 	})
 
-	a.pages.AddPage(pageUnlock, overlay(centerFixed(form, 62, 9)), true, true)
+	a.pages.AddPage(pageUnlock, modalFixed(form, 62, 9), true, true)
 	a.tv.SetFocus(input)
 }
 

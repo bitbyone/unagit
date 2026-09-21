@@ -6,7 +6,6 @@ want, and land in `nvim` inside a ready checkout.
 
 ```
  Projects [P] │ Merge requests [M] │ Settings [S]
- DETAIL  84/84 merge requests  indexed 4m ago  scope: all projects
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   PROJECT           MR  TITLE               ││ !42  Fix login rate limiting  │
@@ -20,7 +19,8 @@ want, and land in `nvim` inside a ready checkout.
 │                                             ││ Approvals    1 of 2 · john    │
 │                                             ││ Pipeline     ● running        │
 ╰─────────────────────────────────────────────╯╰───────────────────────────────╯
- 84 merge requests  · ? help · q quit
+ DETAIL  84/84 merge requests · indexed 4m ago · scope all projects
+ ? help · q quit
 ```
 
 ## How it works
@@ -110,6 +110,8 @@ scope.
 
 Inside any modal the same two-stage `Esc` applies: the first one leaves the
 filter input so `j`/`k` move the selection, the second one closes the modal.
+Modals darken the interface behind them rather than hiding it, so you keep the
+context you opened them from.
 
 `●` means the project or merge request is on disk, `○` means it is not.
 
