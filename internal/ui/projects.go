@@ -45,20 +45,19 @@ func (a *App) newProjectsPane() *pane {
 		return a.projects[i], true
 	}
 
+	// Enter loads the detail column, Ctrl-O does the actual checkout.
 	p.onEnter = func() {
-		pr, ok := selected()
-		if !ok {
-			return
+		if pr, ok := selected(); ok {
+			a.showProjectDetail(pr)
 		}
-		a.openProject(pr)
+	}
+	p.onOpen = func() {
+		if pr, ok := selected(); ok {
+			a.openProject(pr)
+		}
 	}
 
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
-		if ev.Key() == tcell.KeyTab {
-			a.show(pageMRs)
-			a.tv.SetFocus(a.mrsPane.table)
-			return nil
-		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
@@ -72,8 +71,7 @@ func (a *App) newProjectsPane() *pane {
 			if pr, ok := selected(); ok {
 				a.mrProjectScope = pr.PathWithNamespace
 				a.mrsPane.reload()
-				a.show(pageMRs)
-				a.tv.SetFocus(a.mrsPane.table)
+				a.switchTab(pageMRs)
 			}
 			return nil
 		case 'd':
@@ -84,15 +82,11 @@ func (a *App) newProjectsPane() *pane {
 		case 'w':
 			if pr, ok := selected(); ok && pr.WebURL != "" {
 				_ = openBrowser(pr.WebURL)
-				a.flash("opened " + pr.WebURL)
+				a.note("opened " + pr.WebURL)
 			}
 			return nil
 		case 'r':
 			a.refreshProjects()
-			return nil
-		case 's':
-			a.show(pageSettings)
-			a.tv.SetFocus(a.settings.tree)
 			return nil
 		}
 		return ev

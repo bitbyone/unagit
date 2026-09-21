@@ -27,36 +27,47 @@ func center(p tview.Primitive, widthPct, heightPct int) tview.Primitive {
 
 // ------------------------------------------------------------------ help
 
-const helpText = `[::b]Navigation[::-]
-  [yellow]Tab[-]          switch between Projects and Merge requests
-  [yellow]j / k, ↑ / ↓[-] move            [yellow]g / G[-]  first / last
-  [yellow]/[-]            filter mode (fuzzy, space separates terms)
-  [yellow]Esc[-]          leave filter mode / clear the filter
-  [yellow]?[-]            this help            [yellow]q[-]  quit
+const helpText = `[::b]Tabs[::-]
+  {A}P{E} Projects    {A}M{E} Merge requests    {A}S{E} Settings
 
-[::b]Projects[::-]
-  [yellow]Enter[-]  clone if missing, fetch + fast-forward, then open the editor
-  [yellow]b[-]      choose a branch (switches the branch in the main clone)
-  [yellow]m[-]      show only the merge requests of this project
-  [yellow]d[-]      delete the clone from disk (incl. its merge request worktrees)
-  [yellow]w[-]      open the project in the browser
-  [yellow]r[-]      refresh the project index from GitLab
+[::b]List[::-]
+  {A}j k, ↑ ↓{E}   move              {A}g G{E}  first / last
+  {A}/{E}          filter mode (fuzzy, space separates terms)
+  {A}Esc{E}        leave filter mode · again clears it · again closes the detail
+  {A}Enter{E}      load the detail column on the right and jump into it
+  {A}Ctrl-O{E}     clone or update, then open the editor
+  {A}l, →{E}       jump to the detail column
+  {A}?{E}          this help            {A}q{E}  quit
 
-[::b]Merge requests[::-]
-  [yellow]Enter[-]  create/update a dedicated worktree for the MR and open the editor
-  [yellow]p[-]      limit the list to one project      [yellow]P[-]  clear that limit
-  [yellow]d[-]      delete the MR worktree from disk
-  [yellow]w[-]      open the merge request in the browser
-  [yellow]r[-]      refresh the merge request index from GitLab
+[::b]Detail column[::-]
+  {A}j k g G{E}    scroll             {A}Ctrl-F Ctrl-B{E}  page
+  {A}h, ←, Esc{E}  back to the list
+  Projects show statistics, languages, the latest pipeline, the last commits
+  and the open merge requests. Merge requests are always fetched fresh:
+  author, reviewers, approvals, pipeline, description and the newest comments.
 
-[::b]Settings[::-] ([yellow]s[-] from any list)
-  [yellow]Space[-]  select / unselect a group (saved immediately)
-  [yellow]G[-]      reload the group tree from GitLab
-  [yellow]p[-]      refresh projects      [yellow]m[-]  refresh merge requests
-  [yellow]Esc[-]    back to the lists
+[::b]Projects tab[::-]
+  {A}Ctrl-O{E}  clone if missing, fetch + fast-forward, then open the editor
+  {A}b{E}       choose a branch (switches the branch in the main clone)
+  {A}m{E}       show only the merge requests of this project
+  {A}d{E}       delete the clone from disk (incl. its merge request worktrees)
+  {A}w{E}       open the project in the browser
+  {A}r{E}       refresh the project index from GitLab
+
+[::b]Merge requests tab[::-]
+  {A}Ctrl-O{E}  create/update a dedicated worktree for the MR, open the editor
+  {A}f{E}       limit the list to one project      {A}F{E}  clear that limit
+  {A}d{E}       delete the MR worktree from disk
+  {A}w{E}       open the merge request in the browser
+  {A}r{E}       refresh the merge request index from GitLab
+
+[::b]Settings tab[::-]
+  {A}Space{E}   select / unselect a group (saved immediately)
+  {A}r{E}       reload the group tree from GitLab
+  {A}p{E}       refresh projects      {A}m{E}  refresh merge requests
 
 [::b]On disk[::-]
-  [green]●[-] present   [darkgray]○[-] not cloned yet
+  {O}●{E} present   {D}○{E} not cloned yet
   <root>/<group>/<project>            main clone, branch switching happens here
   <root>/<group>/<project>.mrs/<iid>-<branch>   one worktree per merge request
   Worktrees share the main clone's objects, so uncommitted changes survive
@@ -64,8 +75,12 @@ const helpText = `[::b]Navigation[::-]
 
 func (a *App) showHelp() {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
-	view.SetText(helpText)
-	view.SetBorder(true).SetTitle(" unagit - keys ").SetTitleAlign(tview.AlignLeft)
+	r := strings.NewReplacer(
+		"{A}", tag(colAccent), "{E}", tagEnd,
+		"{O}", tag(colOn), "{D}", tag(colDim))
+	view.SetText(r.Replace(helpText))
+	view.SetTextColor(colText)
+	box(view.Box, "unagit - keys")
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == '?' || ev.Rune() == 'q' {
 			a.pages.RemovePage(pageHelp)
@@ -83,9 +98,9 @@ func (a *App) showHelp() {
 func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 	text := body
 	if len(warnings) > 0 {
-		text += "\n\n[red]Careful:[-]\n"
+		text += "\n\n" + tag(colBad) + "Careful:" + tagEnd + "\n"
 		for _, w := range warnings {
-			text += "  [red]![-] " + tview.Escape(w) + "\n"
+			text += "  " + tag(colBad) + "!" + tagEnd + " " + tview.Escape(w) + "\n"
 		}
 	}
 	modal := tview.NewModal().
@@ -97,8 +112,10 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 				onYes()
 			}
 		})
-	modal.SetBackgroundColor(tcell.ColorBlack)
-	modal.SetBorder(true).SetTitle(" " + title + " ")
+	modal.SetTextColor(colText)
+	modal.SetButtonBackgroundColor(tcell.ColorDefault)
+	modal.SetButtonTextColor(colText)
+	box(modal.Box, title)
 	modal.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Rune() {
 		case 'y', 'Y':
@@ -131,9 +148,14 @@ type pickItem struct {
 func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)) {
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
-	list.SetSelectedStyle(tcell.StyleDefault.Background(tcell.ColorDarkCyan).Foreground(tcell.ColorWhite).Bold(true))
+	list.SetMainTextColor(colText)
+	list.SetSelectedStyle(tcell.StyleDefault.Foreground(colBorderFocus).Bold(true))
 
-	input := tview.NewInputField().SetLabel("/ ").SetFieldBackgroundColor(tcell.ColorDefault)
+	input := tview.NewInputField().
+		SetLabel(" / ").
+		SetFieldBackgroundColor(tcell.ColorDefault).
+		SetFieldTextColor(colText).
+		SetLabelColor(colAccent)
 
 	shown := make([]pickItem, 0, len(items))
 	rebuild := func(query string) {
@@ -157,7 +179,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 		for _, h := range hits {
 			label := h.it.Label
 			if h.it.Sub != "" {
-				label += "   [darkgray]" + h.it.Sub + "[-]"
+				label += "   " + tag(colDim) + h.it.Sub + tagEnd
 			}
 			shown = append(shown, h.it)
 			list.AddItem(label, "", 0, nil)
@@ -203,7 +225,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(input, 1, 0, true).
 		AddItem(list, 0, 1, false)
-	flex.SetBorder(true).SetTitle(" " + title + " ").SetTitleAlign(tview.AlignLeft)
+	box(flex.Box, title)
 
 	a.pages.AddPage(pagePicker, center(flex, 70, 70), true, true)
 	a.tv.SetFocus(input)

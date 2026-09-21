@@ -26,25 +26,22 @@ func (a *App) newSettingsView() *settingsView {
 	s := &settingsView{app: a}
 
 	s.info = tview.NewTextView().SetDynamicColors(true)
-	s.info.SetBorder(true).SetTitle(" Configuration ").SetTitleAlign(tview.AlignLeft)
+	box(s.info.Box, "Configuration")
 
 	s.tree = tview.NewTreeView()
-	s.tree.SetBorder(true).
-		SetTitle(" Groups - Space select | G reload from GitLab | p refresh projects | m refresh merge requests ").
-		SetTitleAlign(tview.AlignLeft)
+	box(s.tree.Box, "Groups - space select · r reload from GitLab · p refresh projects · m refresh merge requests")
 
 	s.tree.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Key() {
-		case tcell.KeyEsc, tcell.KeyTab:
-			a.show(pageProjects)
-			a.tv.SetFocus(a.projectsPane.table)
+		case tcell.KeyEsc:
+			a.switchTab(pageProjects)
 			return nil
 		case tcell.KeyRune:
 			switch ev.Rune() {
 			case ' ':
 				s.toggleCurrent()
 				return nil
-			case 'G':
+			case 'r':
 				a.refreshGroups()
 				return nil
 			case 'p':
@@ -63,6 +60,9 @@ func (a *App) newSettingsView() *settingsView {
 				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
 			case 'k':
 				return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone)
+			}
+			if a.tabKey(ev.Rune()) {
+				return nil
 			}
 		}
 		return ev
@@ -93,28 +93,30 @@ func (s *settingsView) buildInfo() {
 	sort.Strings(selected)
 	sel := strings.Join(selected, ", ")
 	if sel == "" {
-		sel = "[red]none - select at least one group[-]"
+		sel = tag(colBad) + "none - select at least one group" + tagEnd
 	}
+	dim := tag(colDim)
 	s.info.SetText(fmt.Sprintf(
-		" [darkgray]GitLab:[-]   %s\n [darkgray]Root dir:[-] %s\n [darkgray]Editor:[-]   %s %s\n [darkgray]Config:[-]   %s\n [darkgray]Indexes:[-]  projects %s, merge requests %s\n [darkgray]Groups:[-]   %s",
+		" %sGitLab%s    %s\n %sRoot dir%s  %s\n %sEditor%s    %s %s\n %sConfig%s    %s\n %sIndexes%s   projects %s · merge requests %s\n %sGroups%s    %s",
+		dim, tagEnd,
 		a.cfg.GitLabURL,
-		a.cfg.Root(),
-		a.cfg.Editor, strings.Join(a.cfg.EditorArgs, " "),
-		config.Path(),
-		humanAge(a.projUpdated), humanAge(a.mrsUpdated),
-		sel,
+		dim, tagEnd, a.cfg.Root(),
+		dim, tagEnd, a.cfg.Editor, strings.Join(a.cfg.EditorArgs, " "),
+		dim, tagEnd, config.Path(),
+		dim, tagEnd, humanAge(a.projUpdated), humanAge(a.mrsUpdated),
+		dim, tagEnd, sel,
 	))
 }
 
 // buildTree renders the group tree with the current selection.
 func (s *settingsView) buildTree() {
 	a := s.app
-	rootNode := tview.NewTreeNode("groups you can see").SetSelectable(false).SetColor(tcell.ColorGray)
+	rootNode := tview.NewTreeNode("groups you can see").SetSelectable(false).SetColor(colDim)
 	s.tree.SetRoot(rootNode).SetCurrentNode(rootNode)
 
 	if len(a.groups) == 0 {
-		rootNode.AddChild(tview.NewTreeNode("press G to load the group tree from GitLab").
-			SetColor(tcell.ColorYellow).SetSelectable(false))
+		rootNode.AddChild(tview.NewTreeNode("press r to load the group tree from GitLab").
+			SetColor(colWarn).SetSelectable(false))
 		return
 	}
 
@@ -176,9 +178,9 @@ func (s *settingsView) toggle(node *tview.TreeNode, g gitlab.Group) {
 	}
 	s.buildInfo()
 	if on {
-		s.app.flash(g.FullPath + " selected - press p / m to refresh the indexes")
+		s.app.note(g.FullPath + " selected - press p / m to refresh the indexes")
 	} else {
-		s.app.flash(g.FullPath + " unselected")
+		s.app.note(g.FullPath + " unselected")
 	}
 }
 

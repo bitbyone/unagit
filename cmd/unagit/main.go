@@ -31,7 +31,8 @@ func rootCmd() *cobra.Command {
 		Long: "unagit lists the projects and open merge requests of the GitLab groups you\n" +
 			"selected, clones them under a root directory and opens your editor there.\n\n" +
 			"The GitLab token is stored encrypted (Argon2id + AES-256-GCM). The passphrase\n" +
-			"is asked for on every start and the token only ever exists in memory.",
+			"is asked for in a dialog on every start and the token only ever exists in\n" +
+			"memory.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -54,35 +55,13 @@ func runTUI() error {
 	if _, err := os.Stat(config.TokenPath()); err != nil {
 		return fmt.Errorf("no encrypted token at %s - run 'unagit init' first", config.TokenPath())
 	}
-	token, err := unlock()
+	// The passphrase is asked for inside the TUI, so unagit looks the same
+	// whether it is started from a shell or from inside nvim.
+	blob, err := secret.Load(config.TokenPath())
 	if err != nil {
 		return err
 	}
-	return ui.New(cfg, token).Run()
-}
-
-// unlock asks for the passphrase and decrypts the token into memory.
-func unlock() (string, error) {
-	blob, err := secret.Load(config.TokenPath())
-	if err != nil {
-		return "", err
-	}
-	for attempt := 0; attempt < 3; attempt++ {
-		pass, err := secret.ReadPassphrase("Passphrase: ")
-		if err != nil {
-			return "", err
-		}
-		token, err := secret.Decrypt(blob, pass)
-		zero(pass)
-		if err == nil {
-			return string(token), nil
-		}
-		if err != secret.ErrWrongPassphrase {
-			return "", err
-		}
-		fmt.Fprintln(os.Stderr, "wrong passphrase")
-	}
-	return "", fmt.Errorf("too many failed attempts")
+	return ui.NewLocked(cfg, blob).Run()
 }
 
 func zero(b []byte) {

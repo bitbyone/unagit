@@ -5,7 +5,8 @@ import (
 	"github.com/rivo/tview"
 )
 
-// pane is a table with a fuzzy filter line on top.
+// pane is a table with a fuzzy filter line on top and a detail column that
+// slides in on the right.
 //
 // It has two modes, like vim: in NORMAL mode single letters are commands, in
 // FILTER mode (entered with "/") typing narrows the list while the arrow keys
@@ -13,16 +14,22 @@ import (
 type pane struct {
 	app    *App
 	root   *tview.Flex
+	body   *tview.Flex
 	table  *tview.Table
 	filter *tview.InputField
 	header *tview.TextView
+	detail *tview.TextView
 
-	filtering bool
-	query     string
+	filtering     bool
+	detailSeq     int // guards against a stale async detail arriving late
+	detailShown   bool
+	detailFocused bool
+	query         string
 
 	onQuery  func(string)                          // rebuild rows for a new query
-	onKey    func(*tcell.EventKey) *tcell.EventKey // NORMAL mode commands
-	onEnter  func()                                // Enter on a row
+	onKey    func(*tcell.EventKey) *tcell.EventKey // extra NORMAL mode commands
+	onEnter  func()                                // Enter: load the detail column
+	onOpen   func()                                // Ctrl-O: clone/update and open the editor
 	headline func() string                         // header text
 	reload   func()                                // rebuild rows from the current data
 }
@@ -33,8 +40,10 @@ func (a *App) newPane(title string) *pane {
 	p.header = tview.NewTextView().SetDynamicColors(true)
 
 	p.filter = tview.NewInputField().
-		SetLabel("/ ").
-		SetFieldBackgroundColor(tcell.ColorDefault)
+		SetLabel(" / ").
+		SetFieldBackgroundColor(tcell.ColorDefault).
+		SetFieldTextColor(colText).
+		SetLabelColor(colAccent)
 	p.filter.SetChangedFunc(func(text string) {
 		p.query = text
 		if p.onQuery != nil {
@@ -46,16 +55,27 @@ func (a *App) newPane(title string) *pane {
 		SetSelectable(true, false).
 		SetFixed(1, 0).
 		SetSeparator(' ')
-	p.table.SetSelectedStyle(tcell.StyleDefault.Background(tcell.ColorDarkCyan).Foreground(tcell.ColorWhite).Bold(true))
-	p.table.SetBorder(true).SetTitle(" " + title + " ").SetTitleAlign(tview.AlignLeft)
+	p.table.SetSelectedStyle(tcell.StyleDefault.Foreground(colBorderFocus).Bold(true))
+	box(p.table.Box, title)
+
+	p.detail = tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(true).
+		SetWrap(true).
+		SetWordWrap(true)
+	p.detail.SetTextColor(colText)
+	box(p.detail.Box, "Details").SetBorderPadding(0, 0, 1, 1)
+
+	p.body = tview.NewFlex().AddItem(p.table, 0, 1, true)
 
 	p.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(p.header, 1, 0, false).
 		AddItem(p.filter, 1, 0, false).
-		AddItem(p.table, 0, 1, true)
+		AddItem(p.body, 0, 1, true)
 
 	p.filter.SetInputCapture(p.filterKeys)
 	p.table.SetInputCapture(p.tableKeys)
+	p.detail.SetInputCapture(p.detailKeys)
 	p.table.SetSelectedFunc(func(int, int) {
 		if p.onEnter != nil {
 			p.onEnter()
@@ -64,10 +84,37 @@ func (a *App) newPane(title string) *pane {
 	return p
 }
 
-// focusTable leaves filter mode without clearing the query.
+// focusTarget is the primitive that should receive focus when the tab is shown.
+func (p *pane) focusTarget() tview.Primitive {
+	if p.detailShown && p.detailFocused {
+		return p.detail
+	}
+	if p.filtering {
+		return p.filter
+	}
+	return p.table
+}
+
+// ------------------------------------------------------------------ focus
+
 func (p *pane) focusTable() {
 	p.filtering = false
+	p.detailFocused = false
+	focusBox(p.table.Box, true)
+	focusBox(p.detail.Box, false)
 	p.app.tv.SetFocus(p.table)
+	p.updateHeader()
+}
+
+func (p *pane) focusDetail() {
+	if !p.detailShown {
+		return
+	}
+	p.filtering = false
+	p.detailFocused = true
+	focusBox(p.table.Box, false)
+	focusBox(p.detail.Box, true)
+	p.app.tv.SetFocus(p.detail)
 	p.updateHeader()
 }
 
@@ -83,17 +130,57 @@ func (p *pane) clearFilter() {
 	p.focusTable()
 }
 
+// ----------------------------------------------------------- detail column
+
+// showDetail reveals the right hand column and moves focus into it.
+func (p *pane) showDetail(title, text string) {
+	if !p.detailShown {
+		p.body.AddItem(p.detail, 0, 1, false)
+		p.detailShown = true
+	}
+	p.detail.SetTitle(" " + title + " ")
+	p.detail.SetText(text)
+	p.detail.ScrollToBeginning()
+	p.focusDetail()
+}
+
+// setDetail replaces the text without touching focus, for async updates.
+func (p *pane) setDetail(title, text string) {
+	if !p.detailShown {
+		return
+	}
+	p.detail.SetTitle(" " + title + " ")
+	p.detail.SetText(text)
+	p.detail.ScrollToBeginning()
+}
+
+func (p *pane) hideDetail() {
+	if !p.detailShown {
+		return
+	}
+	p.body.RemoveItem(p.detail)
+	p.detailShown = false
+	p.focusTable()
+}
+
+// ------------------------------------------------------------------ header
+
 func (p *pane) updateHeader() {
 	text := ""
 	if p.headline != nil {
 		text = p.headline()
 	}
-	mode := "[darkcyan]NORMAL[-]"
-	if p.filtering {
-		mode = "[yellow]FILTER[-]"
+	mode := tag(colMuted) + "NORMAL" + tagEnd
+	switch {
+	case p.filtering:
+		mode = tag(colWarn) + "FILTER" + tagEnd
+	case p.detailFocused:
+		mode = tag(colAccent) + "DETAIL" + tagEnd
 	}
 	p.header.SetText(" " + mode + "  " + text)
 }
+
+// ------------------------------------------------------------------- keys
 
 // filterKeys forwards navigation keys to the table while typing.
 func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
@@ -109,6 +196,11 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 			p.onEnter()
 		}
 		return nil
+	case tcell.KeyCtrlO:
+		if p.onOpen != nil {
+			p.onOpen()
+		}
+		return nil
 	case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
 		p.forwardToTable(ev)
 		return nil
@@ -118,9 +210,6 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyCtrlP:
 		p.forwardToTable(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
 		return nil
-	case tcell.KeyTab, tcell.KeyBacktab:
-		p.focusTable()
-		return ev
 	}
 	return ev
 }
@@ -134,12 +223,25 @@ func (p *pane) forwardToTable(ev *tcell.EventKey) {
 // tableKeys implements NORMAL mode.
 func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 	switch ev.Key() {
+	case tcell.KeyCtrlO:
+		if p.onOpen != nil {
+			p.onOpen()
+		}
+		return nil
 	case tcell.KeyEsc:
-		if p.query != "" {
+		switch {
+		case p.query != "":
 			p.clearFilter()
 			if p.onQuery != nil {
 				p.onQuery("")
 			}
+		case p.detailShown:
+			p.hideDetail()
+		}
+		return nil
+	case tcell.KeyRight:
+		if p.detailShown {
+			p.focusDetail()
 			return nil
 		}
 	case tcell.KeyRune:
@@ -159,11 +261,19 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 		case 'k':
 			p.forwardToTable(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
 			return nil
+		case 'l':
+			if p.detailShown {
+				p.focusDetail()
+				return nil
+			}
 		case 'g':
 			p.table.Select(1, 0)
 			return nil
 		case 'G':
 			p.table.Select(p.table.GetRowCount()-1, 0)
+			return nil
+		}
+		if p.app.tabKey(ev.Rune()) {
 			return nil
 		}
 	}
@@ -173,7 +283,41 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 	return ev
 }
 
-// selectedIndex maps the highlighted table row onto the filtered data slice.
+// detailKeys handles the right hand column. Scrolling itself (j/k/g/G/Ctrl-F/
+// Ctrl-B/arrows) is already implemented by tview's TextView.
+func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
+	switch ev.Key() {
+	case tcell.KeyEsc, tcell.KeyLeft:
+		p.focusTable()
+		return nil
+	case tcell.KeyCtrlO:
+		if p.onOpen != nil {
+			p.onOpen()
+		}
+		return nil
+	case tcell.KeyRune:
+		switch ev.Rune() {
+		case 'h':
+			p.focusTable()
+			return nil
+		case 'q':
+			p.app.tv.Stop()
+			return nil
+		case '?':
+			p.app.showHelp()
+			return nil
+		case '/':
+			p.startFilter()
+			return nil
+		}
+		if p.app.tabKey(ev.Rune()) {
+			return nil
+		}
+	}
+	return ev
+}
+
+// selectedIndex maps the highlighted table row onto the underlying data slice.
 // It returns -1 when the list is empty.
 func (p *pane) selectedIndex() int {
 	row, _ := p.table.GetSelection()
@@ -191,12 +335,8 @@ func (p *pane) selectedIndex() int {
 func (p *pane) setHeaders(titles ...string) {
 	for c, t := range titles {
 		cell := tview.NewTableCell(t).
-			SetTextColor(tcell.ColorGray).
-			SetSelectable(false).
-			SetAttributes(tcell.AttrBold)
-		if c == len(titles)-1 {
-			cell.SetExpansion(1)
-		}
+			SetTextColor(colDim).
+			SetSelectable(false)
 		p.table.SetCell(0, c, cell)
 	}
 }

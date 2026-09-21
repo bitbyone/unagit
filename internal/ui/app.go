@@ -17,6 +17,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -29,6 +30,7 @@ const (
 	pageTask     = "task"
 	pageConfirm  = "confirm"
 	pagePicker   = "picker"
+	pageUnlock   = "unlock"
 )
 
 // diskInfo is the cached on-disk state of one project.
@@ -42,10 +44,15 @@ type diskInfo struct {
 type App struct {
 	tv     *tview.Application
 	pages  *tview.Pages
+	tabs   *tview.TextView
+	status *tview.TextView
+	tab    string
+
 	cfg    *config.Config
 	client *gitlab.Client
 	ws     *workspace.Manager
 	token  string
+	blob   *secret.Blob // set while the token is still locked
 
 	projects    []gitlab.Project
 	mrs         []gitlab.MergeRequest
@@ -62,30 +69,45 @@ type App struct {
 	settings     *settingsView
 
 	mrProjectScope string // project path the merge request list is limited to
-
-	status *tview.TextView
 }
 
-// New builds the application. The token is kept in memory only.
+// New builds the application with an already decrypted token.
 func New(cfg *config.Config, token string) *App {
 	a := &App{
-		tv:     tview.NewApplication(),
-		pages:  tview.NewPages(),
-		cfg:    cfg,
-		client: gitlab.New(cfg.GitLabURL, token),
-		token:  token,
-		disk:   map[string]diskInfo{},
+		tv:    tview.NewApplication(),
+		pages: tview.NewPages(),
+		cfg:   cfg,
+		disk:  map[string]diskInfo{},
 	}
-	a.ws = workspace.New(cfg, token, nil)
+	a.setToken(token)
 	return a
 }
 
-// Run loads the cached indexes and starts the event loop.
-func (a *App) Run() error {
-	a.loadIndexes()
+// NewLocked builds the application with the token still encrypted; the
+// passphrase is asked for in a modal once the interface is up.
+func NewLocked(cfg *config.Config, blob *secret.Blob) *App {
+	return &App{
+		tv:    tview.NewApplication(),
+		pages: tview.NewPages(),
+		cfg:   cfg,
+		disk:  map[string]diskInfo{},
+		blob:  blob,
+	}
+}
 
+// setToken wires up everything that needs the decrypted token.
+func (a *App) setToken(token string) {
+	a.token = token
+	a.client = gitlab.New(a.cfg.GitLabURL, token)
+	a.ws = workspace.New(a.cfg, token, nil)
+}
+
+// Run builds the interface and starts the event loop.
+func (a *App) Run() error {
+	applyTheme()
+
+	a.tabs = tview.NewTextView().SetDynamicColors(true)
 	a.status = tview.NewTextView().SetDynamicColors(true)
-	a.status.SetBackgroundColor(tcell.ColorDarkSlateGray)
 
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()
@@ -94,32 +116,42 @@ func (a *App) Run() error {
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
 	a.pages.AddPage(pageSettings, a.settings.root, true, false)
+	a.tab = pageProjects
+	a.drawTabs()
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(a.tabs, 1, 0, false).
 		AddItem(a.pages, 0, 1, true).
 		AddItem(a.status, 1, 0, false)
 
 	a.tv.SetInputCapture(a.globalKeys)
 
+	if a.blob != nil {
+		a.showUnlock()
+	} else {
+		a.start()
+	}
+	return a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+}
+
+// start loads the cached indexes and shows the first tab. It runs once the
+// token is available.
+func (a *App) start() {
+	a.loadIndexes()
 	a.refreshDisk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()
-	a.setStatus("")
+	a.settings.build()
+	a.switchTab(pageProjects)
 
 	if len(a.cfg.Groups) == 0 {
-		a.show(pageSettings)
+		a.switchTab(pageSettings)
 		a.flash("No groups selected yet - pick the groups you work with, then refresh the indexes.")
 	}
-
-	return a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 }
 
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
-	// Modal pages own their keys entirely.
-	if name, _ := a.pages.GetFrontPage(); name == pageTask || name == pageConfirm || name == pageHelp || name == pagePicker {
-		return ev
-	}
 	if ev.Key() == tcell.KeyCtrlC {
 		a.tv.Stop()
 		return nil
@@ -127,15 +159,13 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 	return ev
 }
 
-func (a *App) show(page string) {
-	a.pages.SwitchToPage(page)
-	a.setStatus("")
-}
-
-// current returns the visible non-modal page name.
-func (a *App) currentPage() string {
-	name, _ := a.pages.GetFrontPage()
-	return name
+// modalOpen reports whether a modal page covers the current tab.
+func (a *App) modalOpen() bool {
+	switch name, _ := a.pages.GetFrontPage(); name {
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock:
+		return true
+	}
+	return false
 }
 
 // ---------------------------------------------------------------- status bar
@@ -145,28 +175,28 @@ func (a *App) setStatus(msg string) {
 		return
 	}
 	left := ""
-	switch a.currentPage() {
+	switch a.currentTab() {
 	case pageProjects:
-		left = fmt.Sprintf("[::b]PROJECTS[::-] %d  (mrs: %d)", len(a.projects), len(a.mrs))
+		left = fmt.Sprintf("%d projects", len(a.projects))
 	case pageMRs:
-		scope := "all projects"
+		left = fmt.Sprintf("%d merge requests", len(a.mrs))
 		if a.mrProjectScope != "" {
-			scope = a.mrProjectScope
+			left += "  scope: " + a.mrProjectScope
 		}
-		left = fmt.Sprintf("[::b]MERGE REQUESTS[::-] %d  scope: %s", len(a.mrs), scope)
 	case pageSettings:
-		left = "[::b]SETTINGS[::-]"
+		left = fmt.Sprintf("%d group(s) selected", len(a.cfg.Groups))
 	}
+	text := " " + tag(colMuted) + left + tagEnd
 	if msg != "" {
-		left += "  [yellow]" + tview.Escape(msg) + "[-]"
+		text += "  " + msg
 	}
-	a.status.SetText(" " + left + "  [darkgray]|[-] ? help  [darkgray]|[-] q quit")
+	a.status.SetText(text + "  " + tag(colDim) + "· ? help · q quit" + tagEnd)
 }
 
-func (a *App) flash(msg string) { a.setStatus(msg) }
-
-func (a *App) errorf(format string, args ...any) {
-	a.setStatus("[red]" + fmt.Sprintf(format, args...))
+func (a *App) flash(msg string) { a.setStatus(tag(colWarn) + tview.Escape(msg) + tagEnd) }
+func (a *App) note(msg string)  { a.setStatus(tag(colMuted) + tview.Escape(msg) + tagEnd) }
+func (a *App) errorf(f string, v ...any) {
+	a.setStatus(tag(colBad) + tview.Escape(fmt.Sprintf(f, v...)) + tagEnd)
 }
 
 // ------------------------------------------------------------------- indexes
@@ -234,10 +264,10 @@ func (a *App) snapshotProjectPaths() map[int]string {
 	return m
 }
 
-// RefreshProjects re-reads every selected group's project list from the API.
+// refreshProjects re-reads every selected group's project list from the API.
 func (a *App) refreshProjects() {
 	if len(a.cfg.Groups) == 0 {
-		a.errorf("no groups selected - open settings (s) first")
+		a.errorf("no groups selected - open Settings [S] first")
 		return
 	}
 	groups := a.snapshotGroups()
@@ -265,7 +295,7 @@ func (a *App) refreshProjects() {
 			a.refreshDisk()
 			a.projectsPane.reload()
 			a.mrsPane.reload()
-			a.settings.reload()
+			a.settings.buildInfo()
 		})
 		log(fmt.Sprintf("Done: %d project(s) indexed.", len(all)))
 		return "", nil
@@ -275,7 +305,7 @@ func (a *App) refreshProjects() {
 // refreshMRs re-reads every selected group's open merge requests from the API.
 func (a *App) refreshMRs() {
 	if len(a.cfg.Groups) == 0 {
-		a.errorf("no groups selected - open settings (s) first")
+		a.errorf("no groups selected - open Settings [S] first")
 		return
 	}
 	groups := a.snapshotGroups()
@@ -306,6 +336,7 @@ func (a *App) refreshMRs() {
 			a.refreshDisk()
 			a.mrsPane.reload()
 			a.projectsPane.reload()
+			a.settings.buildInfo()
 		})
 		log(fmt.Sprintf("Done: %d merge request(s) indexed.", len(all)))
 		return "", nil
@@ -328,7 +359,7 @@ func (a *App) refreshGroups() {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.groups = gs
-			a.settings.reload()
+			a.settings.build()
 		})
 		log(fmt.Sprintf("Done: %d group(s).", len(gs)))
 		return "", nil
@@ -392,18 +423,11 @@ func (a *App) refreshDisk() {
 func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
-	view.SetBorder(true).SetTitle(" " + title + " ").SetTitleAlign(tview.AlignLeft)
-
-	frame := tview.NewFlex().
-		AddItem(nil, 0, 1, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(nil, 0, 1, false).
-			AddItem(view, 0, 6, true).
-			AddItem(nil, 0, 1, false), 0, 6, true).
-		AddItem(nil, 0, 1, false)
+	view.SetTextColor(colText)
+	box(view.Box, title)
 
 	done := false
-	frame.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if done && (ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == 'q') {
 			a.pages.RemovePage(pageTask)
 			a.setStatus("")
@@ -412,12 +436,12 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 		return ev
 	})
 
-	a.pages.AddPage(pageTask, frame, true, true)
-	a.tv.SetFocus(frame)
+	a.pages.AddPage(pageTask, center(view, 80, 70), true, true)
+	a.tv.SetFocus(view)
 
 	log := func(line string) {
 		a.tv.QueueUpdateDraw(func() {
-			fmt.Fprintln(view, tview.Escape(line))
+			fmt.Fprintln(view, tag(colMuted)+tview.Escape(line)+tagEnd)
 		})
 	}
 
@@ -426,7 +450,8 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 		a.tv.QueueUpdateDraw(func() {
 			done = true
 			if err != nil {
-				fmt.Fprintf(view, "\n[red]%s[-]\n\n[yellow]Press Esc to close.[-]\n", tview.Escape(err.Error()))
+				fmt.Fprintf(view, "\n%s%s%s\n\n%sPress Esc to close.%s\n",
+					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)
 				return
 			}
 			if dir == "" {
@@ -459,7 +484,7 @@ func (a *App) openEditor(dir string) {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
-		a.setStatus("opened " + dir)
+		a.note("opened " + dir)
 	})
 }
 

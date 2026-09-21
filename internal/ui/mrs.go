@@ -44,29 +44,30 @@ func (a *App) newMRsPane() *pane {
 		return a.mrs[i], true
 	}
 
+	// Enter loads fresh detail from the API, Ctrl-O creates the worktree.
 	p.onEnter = func() {
+		if mr, ok := selected(); ok {
+			a.showMRDetail(mr)
+		}
+	}
+	p.onOpen = func() {
 		if mr, ok := selected(); ok {
 			a.openMR(mr)
 		}
 	}
 
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
-		if ev.Key() == tcell.KeyTab {
-			a.show(pageProjects)
-			a.tv.SetFocus(a.projectsPane.table)
-			return nil
-		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
 		switch ev.Rune() {
-		case 'p':
+		case 'f':
 			a.showProjectScopePicker()
 			return nil
-		case 'P':
+		case 'F':
 			a.mrProjectScope = ""
 			p.reload()
-			a.setStatus("project scope cleared")
+			a.note("project filter cleared")
 			return nil
 		case 'd':
 			if mr, ok := selected(); ok {
@@ -76,15 +77,11 @@ func (a *App) newMRsPane() *pane {
 		case 'w':
 			if mr, ok := selected(); ok && mr.WebURL != "" {
 				_ = openBrowser(mr.WebURL)
-				a.flash("opened " + mr.WebURL)
+				a.note("opened " + mr.WebURL)
 			}
 			return nil
 		case 'r':
 			a.refreshMRs()
-			return nil
-		case 's':
-			a.show(pageSettings)
-			a.tv.SetFocus(a.settings.tree)
 			return nil
 		}
 		return ev
