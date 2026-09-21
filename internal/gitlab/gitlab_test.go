@@ -10,9 +10,10 @@ import (
 )
 
 func TestPaginationAndAuthHeader(t *testing.T) {
-	var seenToken string
+	var seenToken, seenSubgroups string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenToken = r.Header.Get("PRIVATE-TOKEN")
+		seenSubgroups = r.URL.Query().Get("include_subgroups")
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Query().Get("page") {
 		case "1":
@@ -25,7 +26,7 @@ func TestPaginationAndAuthHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	projects, err := New(srv.URL, "secret-token").GroupProjects(context.Background(), 5)
+	projects, err := New(srv.URL, "secret-token").GroupProjects(context.Background(), 5, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +35,16 @@ func TestPaginationAndAuthHeader(t *testing.T) {
 	}
 	if seenToken != "secret-token" {
 		t.Errorf("token header = %q", seenToken)
+	}
+	if seenSubgroups != "true" {
+		t.Errorf("include_subgroups = %q", seenSubgroups)
+	}
+
+	if _, err := New(srv.URL, "t").GroupProjects(context.Background(), 5, false); err != nil {
+		t.Fatal(err)
+	}
+	if seenSubgroups != "false" {
+		t.Errorf("include_subgroups = %q, want false", seenSubgroups)
 	}
 }
 

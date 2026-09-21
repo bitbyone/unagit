@@ -26,10 +26,10 @@ func (a *App) newSettingsView() *settingsView {
 	s := &settingsView{app: a}
 
 	s.info = tview.NewTextView().SetDynamicColors(true)
-	box(s.info.Box, "Configuration")
+	box(s.info.Box, "Configuration").SetBorderPadding(0, 0, 1, 1)
 
 	s.tree = tview.NewTreeView()
-	box(s.tree.Box, "Groups - space select · r reload from GitLab · p refresh projects · m refresh merge requests")
+	box(s.tree.Box, "Groups - space cycles: off → this group only → incl. subgroups · r reload · p refresh projects · m refresh merge requests").SetBorderPadding(0, 0, 1, 1)
 
 	s.tree.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Key() {
@@ -88,7 +88,11 @@ func (s *settingsView) buildInfo() {
 	a := s.app
 	selected := make([]string, 0, len(a.cfg.Groups))
 	for _, g := range a.cfg.Groups {
-		selected = append(selected, g.FullPath)
+		suffix := " (+sub)"
+		if !g.IncludesSubgroups() {
+			suffix = ""
+		}
+		selected = append(selected, g.FullPath+suffix)
 	}
 	sort.Strings(selected)
 	sel := strings.Join(selected, ", ")
@@ -141,7 +145,7 @@ func (s *settingsView) buildTree() {
 			g := g
 			node := tview.NewTreeNode("").SetReference(g).SetSelectable(true)
 			s.label(node, g)
-			node.SetSelectedFunc(func() { s.toggle(node, g) })
+			node.SetSelectedFunc(func() { s.cycle(node, g) })
 			if depth < 1 {
 				node.SetExpanded(true)
 			} else {
@@ -159,27 +163,37 @@ func (s *settingsView) buildTree() {
 }
 
 func (s *settingsView) label(node *tview.TreeNode, g gitlab.Group) {
-	name := g.FullPath
-	if s.app.cfg.HasGroup(g.ID) {
-		node.SetText("[green]✓[-] " + name + "  [darkgray](incl. subgroups)[-]")
-		node.SetColor(tcell.ColorWhite)
-		return
+	node.SetSelectedTextStyle(styleSelected)
+	switch s.app.cfg.GroupScope(g.ID) {
+	case config.ScopeGroup:
+		node.SetText(tag(colOn) + "\u2713" + tagEnd + " " + g.FullPath +
+			"  " + tag(colMuted) + "(this group only)" + tagEnd)
+		node.SetColor(colText)
+	case config.ScopeSubgroups:
+		node.SetText(tag(colOn) + "\u2713" + tagEnd + " " + g.FullPath +
+			"  " + tag(colAccent) + "(incl. subgroups)" + tagEnd)
+		node.SetColor(colText)
+	default:
+		node.SetText(tag(colDim) + "\u00b7" + tagEnd + " " + g.FullPath)
+		node.SetColor(colMuted)
 	}
-	node.SetText("[darkgray]·[-] " + name)
-	node.SetColor(tcell.ColorSilver)
 }
 
-func (s *settingsView) toggle(node *tview.TreeNode, g gitlab.Group) {
-	on := s.app.cfg.ToggleGroup(config.Group{ID: g.ID, FullPath: g.FullPath, Name: g.Name})
+// cycle steps a group through the three selection states.
+func (s *settingsView) cycle(node *tview.TreeNode, g gitlab.Group) {
+	scope := s.app.cfg.CycleGroup(config.Group{ID: g.ID, FullPath: g.FullPath, Name: g.Name})
 	s.label(node, g)
 	if err := s.app.cfg.Save(); err != nil {
 		s.app.errorf("cannot save the config: %v", err)
 		return
 	}
 	s.buildInfo()
-	if on {
-		s.app.note(g.FullPath + " selected - press p / m to refresh the indexes")
-	} else {
+	switch scope {
+	case config.ScopeGroup:
+		s.app.note(g.FullPath + ": only the projects directly in this group - space again to add its subgroups")
+	case config.ScopeSubgroups:
+		s.app.note(g.FullPath + ": the whole tree below it - space again to unselect")
+	default:
 		s.app.note(g.FullPath + " unselected")
 	}
 }
@@ -193,5 +207,5 @@ func (s *settingsView) toggleCurrent() {
 	if !ok {
 		return
 	}
-	s.toggle(node, g)
+	s.cycle(node, g)
 }

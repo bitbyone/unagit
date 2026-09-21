@@ -186,6 +186,13 @@ func waitGone(t *testing.T, a *App, sc tcell.SimulationScreen, gone string) {
 	t.Fatalf("screen still contained %q:\n%s", gone, a.screenText(sc))
 }
 
+// resize changes the terminal size. tcell's simulation screen resizes its
+// buffers but does not announce it, so the event is posted by hand.
+func resize(sc tcell.SimulationScreen, w, h int) {
+	sc.SetSize(w, h)
+	_ = sc.PostEvent(tcell.NewEventResize(w, h))
+}
+
 func typeRunes(sc tcell.SimulationScreen, s string) {
 	for _, r := range s {
 		sc.InjectKey(tcell.KeyRune, r, tcell.ModNone)
@@ -364,10 +371,44 @@ func TestBranchPickerListsBranches(t *testing.T) {
 	waitFor(t, a, sc, "Token bucket")
 
 	// The picker filters too.
+	waitFor(t, a, sc, "FILTER")
 	typeRunes(sc, "feat")
 	waitGone(t, a, sc, "Add rate limiting")
 	waitFor(t, a, sc, "feat/rate")
 
+	// The first Esc leaves the input so j/k drive the selection, the second
+	// one closes the modal.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "NORMAL")
+	waitFor(t, a, sc, "j/k move")
+	if strings.Contains(a.screenText(sc), "Add rate limiting") {
+		t.Error("leaving the input dropped the filter")
+	}
+	typeRunes(sc, "j") // must move the selection, not type into the filter
+	waitFor(t, a, sc, "feat/rate")
+
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Branch - acme/gateway")
+}
+
+func TestPickerNavigatesWithJK(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+
+	typeRunes(sc, "f") // limit merge requests to a project
+	waitFor(t, a, sc, "Limit merge requests to project")
+	waitFor(t, a, sc, "(all projects)")
+
+	// Leave the input, move down twice, pick the highlighted project.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "jj")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+
+	waitGone(t, a, sc, "Limit merge requests to project")
+	if a.mrProjectScope != "acme/gateway" {
+		t.Errorf("scope = %q, want acme/gateway (third entry in the picker)", a.mrProjectScope)
+	}
 }

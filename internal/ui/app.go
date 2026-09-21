@@ -276,8 +276,12 @@ func (a *App) refreshProjects() {
 		defer cancel()
 		var all []gitlab.Project
 		for _, g := range groups {
-			log(fmt.Sprintf("Fetching projects of %s ...", g.FullPath))
-			ps, err := a.client.GroupProjects(ctx, g.ID)
+			scope := "including subgroups"
+			if !g.IncludesSubgroups() {
+				scope = "this group only"
+			}
+			log(fmt.Sprintf("Fetching projects of %s (%s) ...", g.FullPath, scope))
+			ps, err := a.client.GroupProjects(ctx, g.ID, g.IncludesSubgroups())
 			if err != nil {
 				return "", err
 			}
@@ -320,8 +324,16 @@ func (a *App) refreshMRs() {
 			if err != nil {
 				return "", err
 			}
-			log(fmt.Sprintf("  %d open merge request(s)", len(ms)))
-			all = append(all, ms...)
+			// GitLab's group endpoint always descends into subgroups, so a
+			// group selected on its own is narrowed down here.
+			kept := ms[:0]
+			for _, mr := range ms {
+				if g.Owns(resolveMRPath(mr, paths)) {
+					kept = append(kept, mr)
+				}
+			}
+			log(fmt.Sprintf("  %d open merge request(s)", len(kept)))
+			all = append(all, kept...)
 		}
 		all = index.DedupeMergeRequests(all)
 		for i := range all {
@@ -436,7 +448,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 		return ev
 	})
 
-	a.pages.AddPage(pageTask, center(view, 80, 70), true, true)
+	a.pages.AddPage(pageTask, overlay(center(view, 80, 70)), true, true)
 	a.tv.SetFocus(view)
 
 	log := func(line string) {

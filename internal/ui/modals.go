@@ -61,8 +61,12 @@ const helpText = `[::b]Tabs[::-]
   {A}w{E}       open the merge request in the browser
   {A}r{E}       refresh the merge request index from GitLab
 
+[::b]Modals[::-]
+  {A}/{E}      type to filter        {A}j k g G{E}  move        {A}Enter{E}  pick
+  {A}Esc{E}    leaves the filter so j/k work, again closes the modal
+
 [::b]Settings tab[::-]
-  {A}Space{E}   select / unselect a group (saved immediately)
+  {A}Space{E}   cycles a group: off → this group only → including subgroups
   {A}r{E}       reload the group tree from GitLab
   {A}p{E}       refresh projects      {A}m{E}  refresh merge requests
 
@@ -88,7 +92,7 @@ func (a *App) showHelp() {
 		}
 		return ev
 	})
-	a.pages.AddPage(pageHelp, center(view, 80, 90), true, true)
+	a.pages.AddPage(pageHelp, overlay(center(view, 80, 90)), true, true)
 	a.tv.SetFocus(view)
 }
 
@@ -132,7 +136,7 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 		}
 		return ev
 	})
-	a.pages.AddPage(pageConfirm, modal, true, true)
+	a.pages.AddPage(pageConfirm, overlay(modal), true, true)
 	a.tv.SetFocus(modal)
 }
 
@@ -145,17 +149,22 @@ type pickItem struct {
 }
 
 // showPicker opens a fuzzy-filtered single choice list.
+//
+// Like the main lists it has two modes: typing filters, Esc leaves the input so
+// j/k drive the selection, and a second Esc closes the modal.
 func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)) {
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
 	list.SetMainTextColor(colText)
-	list.SetSelectedStyle(tcell.StyleDefault.Foreground(colBorderFocus).Bold(true))
+	list.SetSelectedStyle(styleSelected)
 
 	input := tview.NewInputField().
 		SetLabel(" / ").
 		SetFieldBackgroundColor(tcell.ColorDefault).
 		SetFieldTextColor(colText).
 		SetLabelColor(colAccent)
+
+	footer := tview.NewTextView().SetDynamicColors(true)
 
 	shown := make([]pickItem, 0, len(items))
 	rebuild := func(query string) {
@@ -199,10 +208,29 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 		onSelect(it)
 	}
 
+	setMode := func(filtering bool) {
+		if filtering {
+			footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
+				"   type to narrow · Esc to the list · Enter select" + tagEnd)
+			a.tv.SetFocus(input)
+			return
+		}
+		footer.SetText(" " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) +
+			"   j/k move · / filter · Enter select · Esc close" + tagEnd)
+		a.tv.SetFocus(list)
+	}
+
+	move := func(delta int) {
+		if n := list.GetItemCount(); n > 0 {
+			next := list.GetCurrentItem() + delta
+			list.SetCurrentItem(max(0, min(next, n-1)))
+		}
+	}
+
 	input.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Key() {
 		case tcell.KeyEsc:
-			dismiss()
+			setMode(false)
 			return nil
 		case tcell.KeyEnter:
 			choose()
@@ -213,10 +241,45 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 			}
 			return nil
 		case tcell.KeyCtrlN:
-			list.SetCurrentItem(list.GetCurrentItem() + 1)
+			move(1)
 			return nil
 		case tcell.KeyCtrlP:
-			list.SetCurrentItem(list.GetCurrentItem() - 1)
+			move(-1)
+			return nil
+		}
+		return ev
+	})
+
+	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		switch ev.Key() {
+		case tcell.KeyEsc:
+			dismiss()
+			return nil
+		case tcell.KeyEnter:
+			choose()
+			return nil
+		case tcell.KeyRune:
+			switch ev.Rune() {
+			case '/':
+				setMode(true)
+				return nil
+			case 'j':
+				move(1)
+				return nil
+			case 'k':
+				move(-1)
+				return nil
+			case 'g':
+				list.SetCurrentItem(0)
+				return nil
+			case 'G':
+				list.SetCurrentItem(list.GetItemCount() - 1)
+				return nil
+			case 'q':
+				dismiss()
+				return nil
+			}
+			// Runes are shortcuts in tview's List; nothing here uses them.
 			return nil
 		}
 		return ev
@@ -224,11 +287,12 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(input, 1, 0, true).
-		AddItem(list, 0, 1, false)
+		AddItem(list, 0, 1, false).
+		AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
 
-	a.pages.AddPage(pagePicker, center(flex, 70, 70), true, true)
-	a.tv.SetFocus(input)
+	a.pages.AddPage(pagePicker, overlay(center(flex, 70, 70)), true, true)
+	setMode(true)
 }
 
 // ------------------------------------------------------------- formatting

@@ -28,6 +28,9 @@ want, and land in `nvim` inside a ready checkout.
 * **Three tabs**, switched with `P`, `M` and `S`: *Projects*, *Merge requests*,
   *Settings*. Merge requests are listed across all selected groups and can be
   limited to a single project (`f`), on top of the fuzzy filter.
+* **Groups are picked with a granularity**: `Space` in Settings cycles a group
+  between *off*, *this group only* (the projects sitting directly in it) and
+  *including subgroups* (the whole tree below it).
 * **A detail column** slides in on `Enter` and takes the focus, so `j`/`k`
   scroll it. Projects show visibility, statistics, languages, the latest
   pipeline, the most recent commits and their open merge requests. Merge
@@ -105,6 +108,9 @@ scope.
 | `?` | help |
 | `q` | quit |
 
+Inside any modal the same two-stage `Esc` applies: the first one leaves the
+filter input so `j`/`k` move the selection, the second one closes the modal.
+
 `●` means the project or merge request is on disk, `○` means it is not.
 
 ## Configuration
@@ -121,10 +127,10 @@ groups:
   - id: 42
     full_path: acme/platform
     name: platform
+    scope: subgroups   # or "group" for this group's own projects only
 ```
 
-Selecting a group includes its subgroups. Alongside it live `token.enc` and the
-`index-*.json` caches.
+Alongside it live `token.enc` and the `index-*.json` caches.
 
 ## Commands
 

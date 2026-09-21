@@ -197,10 +197,11 @@ func (c *Client) Groups(ctx context.Context) ([]Group, error) {
 	return getAll[Group](ctx, c, "/groups", q)
 }
 
-// GroupProjects returns the projects of a group, including its subgroups.
-func (c *Client) GroupProjects(ctx context.Context, groupID int) ([]Project, error) {
+// GroupProjects returns the projects of a group, optionally descending into
+// its subgroups.
+func (c *Client) GroupProjects(ctx context.Context, groupID int, includeSubgroups bool) ([]Project, error) {
 	q := url.Values{}
-	q.Set("include_subgroups", "true")
+	q.Set("include_subgroups", strconv.FormatBool(includeSubgroups))
 	q.Set("archived", "false")
 	q.Set("order_by", "last_activity_at")
 	q.Set("with_shared", "false")

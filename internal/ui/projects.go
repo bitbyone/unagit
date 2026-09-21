@@ -119,23 +119,34 @@ func filterProjects(projects []gitlab.Project, query string) []int {
 func (a *App) drawProjects(p *pane, filtered []int) {
 	p.table.Clear()
 	p.setHeaders("", "PROJECT", "BRANCH", "MR", "ACTIVITY")
+
+	branchW, actW := 6, 8
+	for _, idx := range filtered {
+		pr := a.projects[idx]
+		branch := a.disk[pr.PathWithNamespace].Branch
+		if branch == "" {
+			branch = pr.DefaultBranch
+		}
+		branchW = max(branchW, len([]rune(branch)))
+		actW = max(actW, len(humanAge(pr.LastActivityAt)))
+	}
+	branchW = min(branchW, 28)
+	// mark + 4 gaps + MR column
+	projW := max(p.contentWidth()-(2+branchW+3+actW+4), 20)
+
 	for row, idx := range filtered {
 		pr := a.projects[idx]
 		info := a.disk[pr.PathWithNamespace]
 
-		mark := tview.NewTableCell(" ○").SetTextColor(tcell.ColorDimGray)
+		mark := tview.NewTableCell(" ○").SetTextColor(colDim)
 		if info.Cloned {
-			mark = tview.NewTableCell(" ●").SetTextColor(tcell.ColorGreen)
+			mark = tview.NewTableCell(" ●").SetTextColor(colOn)
 		}
 		mark.SetReference(idx)
 
-		branch := info.Branch
+		branch, branchColor := info.Branch, colBranch
 		if !info.Cloned {
-			branch = pr.DefaultBranch
-		}
-		branchCell := tview.NewTableCell(branch).SetTextColor(tcell.ColorSteelBlue)
-		if !info.Cloned {
-			branchCell.SetTextColor(tcell.ColorDimGray)
+			branch, branchColor = pr.DefaultBranch, colDim
 		}
 
 		mrCount := ""
@@ -144,10 +155,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 
 		p.table.SetCell(row+1, 0, mark)
-		p.table.SetCell(row+1, 1, tview.NewTableCell(pr.PathWithNamespace).SetExpansion(1))
-		p.table.SetCell(row+1, 2, branchCell)
-		p.table.SetCell(row+1, 3, tview.NewTableCell(mrCount).SetTextColor(tcell.ColorOrange))
-		p.table.SetCell(row+1, 4, tview.NewTableCell(humanAge(pr.LastActivityAt)).SetTextColor(tcell.ColorGray))
+		p.table.SetCell(row+1, 1, tview.NewTableCell(trunc(pr.PathWithNamespace, projW)).SetTextColor(colText))
+		p.table.SetCell(row+1, 2, tview.NewTableCell(trunc(branch, branchW)).SetTextColor(branchColor))
+		p.table.SetCell(row+1, 3, tview.NewTableCell(mrCount).SetTextColor(colWarn))
+		p.table.SetCell(row+1, 4, tview.NewTableCell(humanAge(pr.LastActivityAt)).SetTextColor(colMuted))
+		p.fill(row+1, 5)
 	}
 	if len(filtered) > 0 {
 		p.table.Select(1, 0)

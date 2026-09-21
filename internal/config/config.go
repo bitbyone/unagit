@@ -10,11 +10,37 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Scopes a selected group can have.
+const (
+	// ScopeGroup takes only the projects that sit directly in the group.
+	ScopeGroup = "group"
+	// ScopeSubgroups takes the whole tree below the group.
+	ScopeSubgroups = "subgroups"
+)
+
 // Group is a GitLab group the user selected in the settings view.
 type Group struct {
 	ID       int    `yaml:"id" json:"id"`
 	FullPath string `yaml:"full_path" json:"full_path"`
 	Name     string `yaml:"name" json:"name"`
+	// Scope is ScopeGroup or ScopeSubgroups; an empty value means subgroups,
+	// which is what older configurations did.
+	Scope string `yaml:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// IncludesSubgroups reports whether the whole tree below the group is wanted.
+func (g Group) IncludesSubgroups() bool { return g.Scope != ScopeGroup }
+
+// Owns reports whether projectPath belongs to this group under its scope.
+func (g Group) Owns(projectPath string) bool {
+	rest, ok := strings.CutPrefix(projectPath, g.FullPath+"/")
+	if !ok {
+		return false
+	}
+	if g.IncludesSubgroups() {
+		return true
+	}
+	return !strings.Contains(rest, "/")
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
@@ -73,6 +99,11 @@ func Load() (*Config, error) {
 		cfg.Editor = "nvim"
 	}
 	cfg.GitLabURL = strings.TrimRight(cfg.GitLabURL, "/")
+	for i := range cfg.Groups {
+		if cfg.Groups[i].Scope == "" {
+			cfg.Groups[i].Scope = ScopeSubgroups
+		}
+	}
 	return cfg, nil
 }
 
@@ -92,25 +123,46 @@ func (c *Config) Save() error {
 func (c *Config) Root() string { return Expand(c.RootDir) }
 
 // HasGroup reports whether the group id is selected.
-func (c *Config) HasGroup(id int) bool {
+func (c *Config) HasGroup(id int) bool { return c.GroupScope(id) != "" }
+
+// GroupScope returns the scope a group is selected with, or "" when it is not
+// selected at all.
+func (c *Config) GroupScope(id int) string {
 	for _, g := range c.Groups {
 		if g.ID == id {
-			return true
+			if g.Scope == "" {
+				return ScopeSubgroups
+			}
+			return g.Scope
 		}
 	}
-	return false
+	return ""
 }
 
-// ToggleGroup adds or removes a group from the selection.
-func (c *Config) ToggleGroup(g Group) bool {
-	for i, existing := range c.Groups {
-		if existing.ID == g.ID {
-			c.Groups = append(c.Groups[:i], c.Groups[i+1:]...)
-			return false
+// CycleGroup steps a group through "not selected" -> "this group only" ->
+// "including subgroups" -> "not selected" and returns the new scope.
+func (c *Config) CycleGroup(g Group) string {
+	switch c.GroupScope(g.ID) {
+	case "":
+		g.Scope = ScopeGroup
+		c.Groups = append(c.Groups, g)
+		return ScopeGroup
+	case ScopeGroup:
+		for i := range c.Groups {
+			if c.Groups[i].ID == g.ID {
+				c.Groups[i].Scope = ScopeSubgroups
+			}
 		}
+		return ScopeSubgroups
+	default:
+		for i, existing := range c.Groups {
+			if existing.ID == g.ID {
+				c.Groups = append(c.Groups[:i], c.Groups[i+1:]...)
+				break
+			}
+		}
+		return ""
 	}
-	c.Groups = append(c.Groups, g)
-	return true
 }
 
 // Expand replaces a leading ~ with the user's home directory.

@@ -21,6 +21,7 @@ type pane struct {
 	detail *tview.TextView
 
 	filtering     bool
+	width         int // inner width of the table, for column layout
 	detailSeq     int // guards against a stale async detail arriving late
 	detailShown   bool
 	detailFocused bool
@@ -55,8 +56,22 @@ func (a *App) newPane(title string) *pane {
 		SetSelectable(true, false).
 		SetFixed(1, 0).
 		SetSeparator(' ')
-	p.table.SetSelectedStyle(tcell.StyleDefault.Foreground(colBorderFocus).Bold(true))
+	p.table.SetSelectedStyle(styleSelected)
 	box(p.table.Box, title)
+	// Track the usable width so the rows can be laid out to fit. The handler
+	// is given the outer rect and has to return the content rect, which for a
+	// bordered box without padding is one cell in on every side.
+	p.table.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		if inner := w - 2; inner != p.width {
+			p.width = inner
+			go p.app.tv.QueueUpdateDraw(func() {
+				if p.reload != nil {
+					p.reload()
+				}
+			})
+		}
+		return x + 1, y + 1, w - 2, h - 2
+	})
 
 	p.detail = tview.NewTextView().
 		SetDynamicColors(true).
@@ -331,7 +346,8 @@ func (p *pane) selectedIndex() int {
 	return -1
 }
 
-// setHeaders writes the table's header row.
+// setHeaders writes the table's header row. A trailing filler column makes the
+// selection band span the whole row instead of stopping after the last word.
 func (p *pane) setHeaders(titles ...string) {
 	for c, t := range titles {
 		cell := tview.NewTableCell(t).
@@ -339,4 +355,33 @@ func (p *pane) setHeaders(titles ...string) {
 			SetSelectable(false)
 		p.table.SetCell(0, c, cell)
 	}
+	p.table.SetCell(0, len(titles), tview.NewTableCell("").SetSelectable(false).SetExpansion(1))
+}
+
+// fill adds the trailing filler cell to a data row.
+func (p *pane) fill(row, column int) {
+	p.table.SetCell(row, column, tview.NewTableCell("").SetExpansion(1))
+}
+
+// contentWidth is the width available for the rows, once the border is gone.
+func (p *pane) contentWidth() int {
+	if p.width > 0 {
+		return p.width
+	}
+	return 80
+}
+
+// trunc shortens s to at most n cells, marking the cut with an ellipsis.
+func trunc(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n == 1 {
+		return "…"
+	}
+	return string(r[:n-1]) + "…"
 }

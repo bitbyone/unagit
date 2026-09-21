@@ -115,31 +115,81 @@ func (a *App) filterMRs(query string) []int {
 	return out
 }
 
+// mrColumns works out how wide each column may be for the current table width.
+// The title takes whatever is left, and every cell is truncated to fit, so the
+// branch column never falls off the right edge.
+type mrColumns struct{ proj, iid, title, author, branch, updated int }
+
+func (a *App) mrColumns(width int, rows []int) mrColumns {
+	c := mrColumns{iid: 3, updated: 8}
+	for _, idx := range rows {
+		mr := a.mrs[idx]
+		c.proj = max(c.proj, len(a.projectPathOfMR(mr)))
+		c.iid = max(c.iid, len(fmt.Sprintf("!%d", mr.IID)))
+		c.author = max(c.author, len(mr.Author.Username))
+		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
+		c.updated = max(c.updated, len(humanAge(mr.UpdatedAt)))
+	}
+	c.proj = min(c.proj, 34)
+	c.author = min(c.author, 14)
+	c.branch = min(c.branch, 26)
+
+	const (
+		markW    = 2
+		gaps     = 6
+		minTitle = 24
+	)
+	fixed := func() int { return markW + c.proj + c.iid + c.author + c.branch + c.updated + gaps }
+	c.title = width - fixed()
+	// Give the title room by shrinking the least important columns first.
+	for _, shrink := range []struct {
+		col *int
+		min int
+	}{{&c.branch, 10}, {&c.proj, 16}, {&c.author, 8}} {
+		if c.title >= minTitle {
+			break
+		}
+		give := min(*shrink.col-shrink.min, minTitle-c.title)
+		if give > 0 {
+			*shrink.col -= give
+			c.title += give
+		}
+	}
+	c.title = max(c.title, 10)
+	return c
+}
+
 func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.Clear()
 	p.setHeaders("", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED")
+	c := a.mrColumns(p.contentWidth(), filtered)
+
 	for row, idx := range filtered {
 		mr := a.mrs[idx]
 		path := a.projectPathOfMR(mr)
 
-		mark := tview.NewTableCell(" ○").SetTextColor(tcell.ColorDimGray)
+		mark := tview.NewTableCell(" ○").SetTextColor(colDim)
 		if _, ok := a.disk[path].MRs[mr.IID]; ok {
-			mark = tview.NewTableCell(" ●").SetTextColor(tcell.ColorGreen)
+			mark = tview.NewTableCell(" ●").SetTextColor(colOn)
 		}
 		mark.SetReference(idx)
 
-		title := mr.Title
+		title := trunc(mr.Title, c.title)
 		if mr.Draft {
-			title = "[gray]draft[-] " + title
+			title = trunc(mr.Title, c.title-6)
+			title = "[::d]draft[::-] " + tview.Escape(title)
+		} else {
+			title = tview.Escape(title)
 		}
 
 		p.table.SetCell(row+1, 0, mark)
-		p.table.SetCell(row+1, 1, tview.NewTableCell(path).SetTextColor(tcell.ColorDarkCyan).SetMaxWidth(34))
-		p.table.SetCell(row+1, 2, tview.NewTableCell(fmt.Sprintf("!%d", mr.IID)).SetTextColor(tcell.ColorOrange))
-		p.table.SetCell(row+1, 3, tview.NewTableCell(tview.Escape(title)).SetExpansion(1))
-		p.table.SetCell(row+1, 4, tview.NewTableCell(mr.Author.Username).SetTextColor(tcell.ColorGray).SetMaxWidth(16))
-		p.table.SetCell(row+1, 5, tview.NewTableCell(mr.SourceBranch).SetTextColor(tcell.ColorSteelBlue).SetMaxWidth(28))
-		p.table.SetCell(row+1, 6, tview.NewTableCell(humanAge(mr.UpdatedAt)).SetTextColor(tcell.ColorGray))
+		p.table.SetCell(row+1, 1, tview.NewTableCell(trunc(path, c.proj)).SetTextColor(colAccent))
+		p.table.SetCell(row+1, 2, tview.NewTableCell(fmt.Sprintf("!%d", mr.IID)).SetTextColor(colWarn))
+		p.table.SetCell(row+1, 3, tview.NewTableCell(title).SetTextColor(colText))
+		p.table.SetCell(row+1, 4, tview.NewTableCell(trunc(mr.Author.Username, c.author)).SetTextColor(colMuted))
+		p.table.SetCell(row+1, 5, tview.NewTableCell(trunc(mr.SourceBranch, c.branch)).SetTextColor(colBranch))
+		p.table.SetCell(row+1, 6, tview.NewTableCell(humanAge(mr.UpdatedAt)).SetTextColor(colMuted))
+		p.fill(row+1, 7)
 	}
 	if len(filtered) > 0 {
 		p.table.Select(1, 0)

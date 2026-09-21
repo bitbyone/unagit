@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"sync"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -18,12 +20,20 @@ var (
 	colOn          = tcell.Color108
 	colWarn        = tcell.Color179
 	colBad         = tcell.Color167
+	colBranch      = tcell.Color109
 	colTabActive   = tcell.Color109
 )
 
 // applyTheme switches tview to single line rounded borders and a muted,
 // background-transparent colour scheme.
-func applyTheme() {
+//
+// tview keeps its styles in package level variables, so this runs once per
+// process rather than once per application.
+func applyTheme() { themeOnce.Do(setTheme) }
+
+var themeOnce sync.Once
+
+func setTheme() {
 	r := tview.Borders
 	r.Horizontal, r.HorizontalFocus = '─', '─'
 	r.Vertical, r.VerticalFocus = '│', '│'
@@ -73,3 +83,35 @@ func box(b *tview.Box, title string) *tview.Box {
 func tag(c tcell.Color) string { return "[" + c.String() + "]" }
 
 const tagEnd = "[-]"
+
+// Selection highlight: a full row band, readable on any terminal background.
+var styleSelected = tcell.StyleDefault.
+	Background(tcell.Color238).
+	Foreground(tcell.Color231).
+	Bold(true)
+
+// scrim dims everything already drawn underneath it, so a modal reads as a
+// layer above the interface instead of a box lost in it.
+type scrim struct{ *tview.Box }
+
+func newScrim() *scrim { return &scrim{Box: tview.NewBox()} }
+
+func (s *scrim) Draw(screen tcell.Screen) {
+	x, y, w, h := s.GetRect()
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
+			r, combc, style, _ := screen.GetContent(x+i, y+j)
+			_, bg, _ := style.Decompose()
+			screen.SetContent(x+i, y+j, r, combc,
+				tcell.StyleDefault.Background(bg).Foreground(tcell.Color237))
+		}
+	}
+}
+
+// overlay stacks a modal on top of a dimmed copy of the current screen.
+func overlay(content tview.Primitive) tview.Primitive {
+	pages := tview.NewPages()
+	pages.AddPage("scrim", newScrim(), true, true)
+	pages.AddPage("content", content, true, true)
+	return pages
+}
