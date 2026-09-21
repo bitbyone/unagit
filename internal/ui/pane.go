@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -29,14 +31,25 @@ type pane struct {
 
 	onQuery  func(string)                          // rebuild rows for a new query
 	onKey    func(*tcell.EventKey) *tcell.EventKey // extra NORMAL mode commands
-	onEnter  func()                                // Enter: load the detail column
+	onDetail func(idx int, focus bool)             // fill the detail column for a row
 	onOpen   func()                                // Ctrl-O: clone/update and open the editor
 	headline func() string                         // header text
 	reload   func()                                // rebuild rows from the current data
+
+	// detailFor is the data index the detail column currently shows, and
+	// debounce delays following the cursor so holding j does not fire a
+	// request per row.
+	detailFor int
+	debounce  *time.Timer
+	debounceN int
 }
 
+// detailDebounce is how long the selection has to settle before the detail
+// column follows it.
+const detailDebounce = 300 * time.Millisecond
+
 func (a *App) newPane(title string) *pane {
-	p := &pane{app: a}
+	p := &pane{app: a, detailFor: -1}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 
@@ -91,12 +104,57 @@ func (a *App) newPane(title string) *pane {
 	p.filter.SetInputCapture(p.filterKeys)
 	p.table.SetInputCapture(p.tableKeys)
 	p.detail.SetInputCapture(p.detailKeys)
-	p.table.SetSelectedFunc(func(int, int) {
-		if p.onEnter != nil {
-			p.onEnter()
-		}
-	})
+	p.table.SetSelectedFunc(func(int, int) { p.enter() })
+	p.table.SetSelectionChangedFunc(func(int, int) { p.followSelection() })
 	return p
+}
+
+// enter loads the detail column for the selected row and moves into it.
+func (p *pane) enter() {
+	i := p.selectedIndex()
+	if i < 0 || p.onDetail == nil {
+		return
+	}
+	p.stopDebounce()
+	p.detailFor = i
+	p.onDetail(i, true)
+}
+
+// followSelection keeps an open detail column in step with the cursor. It does
+// nothing while the column is closed, and waits for the cursor to settle so
+// that scrolling through a list does not fire a request per row.
+func (p *pane) followSelection() {
+	if !p.detailShown || p.onDetail == nil {
+		return
+	}
+	if i := p.selectedIndex(); i < 0 || i == p.detailFor {
+		return
+	}
+	p.stopDebounce()
+	p.debounceN++
+	seq := p.debounceN
+	p.debounce = time.AfterFunc(detailDebounce, func() {
+		p.app.tv.QueueUpdateDraw(func() {
+			// A newer move, a closed column or an Enter in the meantime wins.
+			if seq != p.debounceN || !p.detailShown {
+				return
+			}
+			i := p.selectedIndex()
+			if i < 0 || i == p.detailFor {
+				return
+			}
+			p.detailFor = i
+			p.onDetail(i, false)
+		})
+	})
+}
+
+func (p *pane) stopDebounce() {
+	p.debounceN++
+	if p.debounce != nil {
+		p.debounce.Stop()
+		p.debounce = nil
+	}
 }
 
 // focusTarget is the primitive that should receive focus when the tab is shown.
@@ -147,6 +205,19 @@ func (p *pane) clearFilter() {
 
 // ----------------------------------------------------------- detail column
 
+// openDetail reveals the right hand column, taking the focus only when asked:
+// following the cursor must leave the focus in the list.
+func (p *pane) openDetail(title, text string, focus bool) {
+	if focus || !p.detailShown {
+		p.showDetail(title, text)
+		if !focus {
+			p.focusTable()
+		}
+		return
+	}
+	p.setDetail(title, text)
+}
+
 // showDetail reveals the right hand column and moves focus into it.
 func (p *pane) showDetail(title, text string) {
 	if !p.detailShown {
@@ -173,6 +244,8 @@ func (p *pane) hideDetail() {
 	if !p.detailShown {
 		return
 	}
+	p.stopDebounce()
+	p.detailFor = -1
 	p.body.RemoveItem(p.detail)
 	p.detailShown = false
 	p.focusTable()
@@ -207,9 +280,7 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case tcell.KeyEnter:
 		p.focusTable()
-		if p.onEnter != nil {
-			p.onEnter()
-		}
+		p.enter()
 		return nil
 	case tcell.KeyCtrlO:
 		if p.onOpen != nil {

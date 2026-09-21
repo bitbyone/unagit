@@ -130,11 +130,11 @@ func trim(s string, n int) string {
 
 // showProjectDetail loads everything the API offers about a project and
 // renders it in the right hand column.
-func (a *App) showProjectDetail(pr gitlab.Project) {
+func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 	p := a.projectsPane
 	p.detailSeq++
 	seq := p.detailSeq
-	p.showDetail(pr.PathWithNamespace, a.projectSkeleton(pr))
+	p.openDetail(pr.PathWithNamespace, a.projectSkeleton(pr), focus)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -338,7 +338,7 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 
 // showMRDetail always fetches fresh data: a merge request under review changes
 // while you look at it.
-func (a *App) showMRDetail(mr gitlab.MergeRequest) {
+func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 	p := a.mrsPane
 	path := a.projectPathOfMR(mr)
 	title := fmt.Sprintf("%s !%d", path, mr.IID)
@@ -351,7 +351,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest) {
 	skeleton.sub(path)
 	skeleton.blank()
 	skeleton.raw(tag(colMuted) + "Loading from GitLab…" + tagEnd + "\n")
-	p.showDetail(title, skeleton.String())
+	p.openDetail(title, skeleton.String(), focus)
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)

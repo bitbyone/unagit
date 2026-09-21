@@ -22,6 +22,7 @@ const helpText = `[::b]Tabs[::-]
   {A}/{E}          filter mode (fuzzy, space separates terms)
   {A}Esc{E}        leave filter mode · again clears it · again closes the detail
   {A}Enter{E}      load the detail column on the right and jump into it
+               once it is open it follows the cursor, shortly after you stop
   {A}Ctrl-O{E}     clone or update, then open the editor
   {A}l, →{E}       jump to the detail column
   {A}?{E}          this help            {A}q{E}  quit

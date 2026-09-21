@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,9 +16,18 @@ import (
 	"github.com/tobola/unagit/internal/index"
 )
 
+// fakeServer counts what the interface asks for, so tests can check that a
+// closed detail column stays quiet and that the debounce coalesces movement.
+type fakeServer struct {
+	*httptest.Server
+	requests atomic.Int64
+	mrDetail atomic.Int64
+}
+
 // fakeGitLab serves the handful of endpoints the detail column needs.
-func fakeGitLab(t *testing.T) *httptest.Server {
+func fakeGitLab(t *testing.T) *fakeServer {
 	t.Helper()
+	f := &fakeServer{}
 	mux := http.NewServeMux()
 	json := func(w http.ResponseWriter, body string) {
 		w.Header().Set("Content-Type", "application/json")
@@ -47,7 +57,37 @@ func fakeGitLab(t *testing.T) *httptest.Server {
 			{"name":"feat/rate","commit":{"short_id":"beef123","title":"Token bucket",
 			"committed_date":"2026-09-20T10:00:00Z"}}]`)
 	})
+	mux.HandleFunc("/api/v4/projects/2", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{"id":2,"name":"billing","path_with_namespace":"acme/billing",
+			"description":"Invoicing service","visibility":"private","default_branch":"main"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/repository/commits", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/languages", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{}`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests/9", func(w http.ResponseWriter, r *http.Request) {
+		f.mrDetail.Add(1)
+		json(w, `{"iid":9,"title":"Invoice rounding","description":"Bankers rounding everywhere.",
+			"source_branch":"fix/round","target_branch":"main","project_id":2,
+			"author":{"username":"bob","name":"Bob Ross"},"detailed_merge_status":"mergeable",
+			"created_at":"2026-09-19T10:00:00Z","updated_at":"2026-09-21T07:00:00Z"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/notes", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/commits", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/approvals", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{"approvals_required":0,"approved_by":[]}`)
+	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7", func(w http.ResponseWriter, r *http.Request) {
+		f.mrDetail.Add(1)
 		json(w, `{"iid":7,"title":"Rate limiting","description":"Adds a token bucket.",
 			"source_branch":"feat/rate","target_branch":"main","project_id":1,
 			"author":{"username":"jane","name":"Jane Doe"},
@@ -70,18 +110,29 @@ func fakeGitLab(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approvals", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"approvals_required":2,"approvals_left":1,"approved_by":[{"user":{"username":"john"}}]}`)
 	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return srv
+	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.requests.Add(1)
+		mux.ServeHTTP(w, r)
+	}))
+	t.Cleanup(f.Close)
+	return f
 }
 
 // newTestApp writes index files into a temporary config directory and starts
 // the TUI on a simulation screen.
 func newTestApp(t *testing.T) (*App, tcell.SimulationScreen) {
 	t.Helper()
-	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	a := New(cfg, "test-token")
-	return startApp(t, a)
+	a, sc, _ := newTestAppSrv(t)
+	return a, sc
+}
+
+// newTestAppSrv also hands back the fake GitLab so a test can count requests.
+func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
+	t.Helper()
+	srv := fakeGitLab(t)
+	cfg := writeTestConfig(t, srv.URL)
+	a, sc := startApp(t, New(cfg, "test-token"))
+	return a, sc, srv
 }
 
 func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {

@@ -32,12 +32,15 @@ want, and land in `nvim` inside a ready checkout.
   between *off*, *this group only* (the projects sitting directly in it) and
   *including subgroups* (the whole tree below it).
 * **A detail column** slides in on `Enter` and takes the focus, so `j`/`k`
-  scroll it. Projects show visibility, statistics, languages, the latest
-  pipeline, the most recent commits and their open merge requests. Merge
-  requests are **always fetched fresh** from the API: author, reviewers,
-  assignees, labels, approvals, pipeline, merge status, description, commits
-  and the newest comments. `Esc` goes back to the list, `Esc` again closes the
-  column.
+  scroll it. `Esc` goes back to the list, and from there the column **follows
+  the cursor**: move through the list and the detail catches up once you stop
+  (300 ms), without taking the focus. A closed column asks GitLab for nothing.
+  `Esc` again closes it.
+* Projects show visibility, statistics, languages, the latest pipeline, the
+  most recent commits and their open merge requests. Merge requests are
+  **always fetched fresh** from the API: author, reviewers, assignees, labels,
+  approvals, pipeline, merge status, description, commits and the newest
+  comments.
 * **Projects** are cloned once and reused. `Ctrl-O` fetches, fast-forwards and
   starts the editor. `b` lists every branch in a searchable modal and switches
   the branch **in that same clone**.
