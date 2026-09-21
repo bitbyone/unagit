@@ -33,11 +33,17 @@ const (
 	pageUnlock   = "unlock"
 )
 
+// mrDisk records which worktrees a merge request has on disk.
+type mrDisk struct {
+	Branch bool // .mrs: a real branch, can be committed and pushed
+	Review bool // .reviews: the whole change staged on the merge base
+}
+
 // diskInfo is the cached on-disk state of one project.
 type diskInfo struct {
 	Cloned bool
 	Branch string
-	MRs    map[int]string // merge request iid -> worktree directory name
+	MRs    map[int]mrDisk
 }
 
 // App is the running TUI.
@@ -395,25 +401,38 @@ func (a *App) refreshDisk() {
 		}
 		seen[path] = true
 		dir := a.ws.ProjectDir(path)
-		info := diskInfo{MRs: map[int]string{}}
+		info := diskInfo{MRs: map[int]mrDisk{}}
 		if head, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD")); err == nil {
 			info.Cloned = true
 			info.Branch = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(head)), "ref: refs/heads/"))
 		} else if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && !fi.IsDir() {
 			info.Cloned = true
 		}
-		entries, _ := os.ReadDir(a.ws.MRRoot(path))
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			num := name
-			if i := strings.Index(name, "-"); i > 0 {
-				num = name[:i]
-			}
-			if iid, err := strconv.Atoi(num); err == nil {
-				info.MRs[iid] = name
+		for _, mode := range []struct {
+			root   string
+			review bool
+		}{{a.ws.MRRoot(path), false}, {a.ws.ReviewRoot(path), true}} {
+			entries, _ := os.ReadDir(mode.root)
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				name := e.Name()
+				num := name
+				if i := strings.Index(name, "-"); i > 0 {
+					num = name[:i]
+				}
+				iid, err := strconv.Atoi(num)
+				if err != nil {
+					continue
+				}
+				d := info.MRs[iid]
+				if mode.review {
+					d.Review = true
+				} else {
+					d.Branch = true
+				}
+				info.MRs[iid] = d
 			}
 		}
 		if info.Cloned || len(info.MRs) > 0 {

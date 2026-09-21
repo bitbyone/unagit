@@ -95,6 +95,8 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"labels":["backend"],"detailed_merge_status":"mergeable",
 			"blocking_discussions_resolved":true,"changes_count":"12","user_notes_count":2,
 			"created_at":"2026-09-18T10:00:00Z","updated_at":"2026-09-21T07:00:00Z",
+			"diverged_commits_count":3,
+			"diff_refs":{"base_sha":"base000","head_sha":"head000","start_sha":"base000"},
 			"head_pipeline":{"status":"running"},"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/notes", func(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +106,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"author":{"username":"jane"}}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/commits", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("x-total", "12")
 		json(w, `[{"short_id":"beef123","title":"Token bucket","author_name":"jane",
 			"committed_date":"2026-09-20T10:00:00Z"}]`)
 	})
@@ -352,6 +355,10 @@ func TestMergeRequestDetailPane(t *testing.T) {
 	waitFor(t, a, sc, "COMMENTS")
 	waitFor(t, a, sc, "retry loop")
 	waitFor(t, a, sc, "1 of 2") // approvals
+	waitFor(t, a, sc, "12 commit(s)")
+	waitFor(t, a, sc, "12 file(s)")
+	waitFor(t, a, sc, "3 behind main")
+	waitFor(t, a, sc, "COMMITS (1 OF 12)") // section headings are upper cased
 	// System notes stay out of the comment list.
 	if strings.Contains(a.screenText(sc), "changed title") {
 		t.Error("a system note leaked into the comments")
@@ -461,5 +468,22 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	waitGone(t, a, sc, "Limit merge requests to project")
 	if a.mrProjectScope != "acme/gateway" {
 		t.Errorf("scope = %q, want acme/gateway (third entry in the picker)", a.mrProjectScope)
+	}
+}
+
+// TestReviewKeyAsksForTheDiffRefs checks the v key goes through GitLab for the
+// commit the merge request is diffed against, rather than guessing.
+func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+
+	before := srv.mrDetail.Load()
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "Opening acme/gateway !7 for review")
+	waitFor(t, a, sc, "diffed against")
+	if got := srv.mrDetail.Load(); got == before {
+		t.Error("the merge request detail was never fetched")
 	}
 }

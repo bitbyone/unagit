@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -80,6 +82,11 @@ func (a *App) newMRsPane() *pane {
 			if mr, ok := selected(); ok && mr.WebURL != "" {
 				_ = openBrowser(mr.WebURL)
 				a.note("opened " + mr.WebURL)
+			}
+			return nil
+		case 'v':
+			if mr, ok := selected(); ok {
+				a.openMRReview(mr)
 			}
 			return nil
 		case 'r':
@@ -170,10 +177,8 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		mr := a.mrs[idx]
 		path := a.projectPathOfMR(mr)
 
-		mark := tview.NewTableCell(" ○").SetTextColor(colDim)
-		if _, ok := a.disk[path].MRs[mr.IID]; ok {
-			mark = tview.NewTableCell(" ●").SetTextColor(colOn)
-		}
+		mark := tview.NewTableCell(" " + mrMark(a.disk[path].MRs[mr.IID])).
+			SetTextColor(mrMarkColor(a.disk[path].MRs[mr.IID]))
 		mark.SetReference(idx)
 
 		title := trunc(mr.Title, c.title)
@@ -199,16 +204,62 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.ScrollToBeginning()
 }
 
+// mrMark shows at a glance which worktrees a merge request has on disk.
+func mrMark(d mrDisk) string {
+	switch {
+	case d.Branch && d.Review:
+		return "◉"
+	case d.Review:
+		return "◐"
+	case d.Branch:
+		return "●"
+	}
+	return "○"
+}
+
+func mrMarkColor(d mrDisk) tcell.Color {
+	if d.Branch || d.Review {
+		return colOn
+	}
+	return colDim
+}
+
 // openMR materialises the merge request worktree and opens the editor there.
 func (a *App) openMR(mr gitlab.MergeRequest) {
-	path := a.projectPathOfMR(mr)
-	httpURL := ""
-	if pr, ok := a.projByPath[path]; ok {
-		httpURL = pr.HTTPURLToRepo
-	}
+	path, httpURL := a.mrOrigin(mr)
 	a.runTask(fmt.Sprintf("Opening %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		return a.newManager(log).EnsureMR(mr, path, httpURL)
 	})
+}
+
+// openMRReview prepares the review worktree, where the merge request shows up
+// as pending changes rather than as a stack of commits. The diff base comes
+// from the API, so it is the very commit GitLab renders its own diff against.
+func (a *App) openMRReview(mr gitlab.MergeRequest) {
+	path, httpURL := a.mrOrigin(mr)
+	a.runTask(fmt.Sprintf("Opening %s !%d for review", path, mr.IID), func(log func(string)) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		var rev workspace.Review
+		log("Asking GitLab what this merge request is diffed against ...")
+		if det, err := a.client.MergeRequest(ctx, mr.ProjectID, mr.IID); err != nil {
+			log("! " + err.Error())
+			log("  falling back to the local merge base")
+		} else {
+			rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+		}
+		return a.newManager(log).EnsureMRReview(mr, path, httpURL, rev)
+	})
+}
+
+// mrOrigin resolves where a merge request's project lives.
+func (a *App) mrOrigin(mr gitlab.MergeRequest) (path, httpURL string) {
+	path = a.projectPathOfMR(mr)
+	if pr, ok := a.projByPath[path]; ok {
+		httpURL = pr.HTTPURLToRepo
+	}
+	return path, httpURL
 }
 
 func openBrowser(url string) error { return workspace.OpenBrowser(url) }

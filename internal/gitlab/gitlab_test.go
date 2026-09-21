@@ -83,3 +83,61 @@ func TestMergeRequestDecoding(t *testing.T) {
 		t.Errorf("updated_at = %v", mr.UpdatedAt)
 	}
 }
+
+func TestMergeRequestCommitsReportsTheTotal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("per_page"); got != "10" {
+			t.Errorf("per_page = %q", got)
+		}
+		w.Header().Set("x-total", "27")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"short_id":"abc1234","title":"Fix it"}]`)
+	}))
+	defer srv.Close()
+
+	commits, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), 1, 42, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 1 || total != 27 {
+		t.Fatalf("got %d commit(s), total %d", len(commits), total)
+	}
+}
+
+func TestMergeRequestCommitsWithoutATotal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[]`)
+	}))
+	defer srv.Close()
+
+	// GitLab omits x-total on very large collections; that is "unknown", not 0.
+	if _, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), 1, 42, 10); err != nil || total != -1 {
+		t.Fatalf("total = %d, err = %v", total, err)
+	}
+}
+
+func TestMergeRequestDetailCarriesTheDiffRefs(t *testing.T) {
+	var diverged string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		diverged = r.URL.Query().Get("include_diverged_commits_count")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"iid":42,"target_branch":"main","diverged_commits_count":3,
+			"diff_refs":{"base_sha":"aaa111","head_sha":"bbb222","start_sha":"ccc333"}}`)
+	}))
+	defer srv.Close()
+
+	mr, err := New(srv.URL, "t").MergeRequest(context.Background(), 1, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mr.DiffRefs.BaseSHA != "aaa111" || mr.DiffRefs.HeadSHA != "bbb222" {
+		t.Fatalf("diff refs = %+v", mr.DiffRefs)
+	}
+	if mr.DivergedCommitsCount != 3 {
+		t.Errorf("diverged = %d", mr.DivergedCommitsCount)
+	}
+	if diverged != "true" {
+		t.Errorf("include_diverged_commits_count = %q", diverged)
+	}
+}

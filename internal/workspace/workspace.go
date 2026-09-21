@@ -24,8 +24,15 @@ import (
 	"github.com/tobola/unagit/internal/gitx"
 )
 
-// MRSuffix is appended to a project directory to hold its merge request worktrees.
-const MRSuffix = ".mrs"
+// Suffixes appended to a project directory to hold its merge request worktrees.
+const (
+	// MRSuffix holds branch worktrees: a real branch you can commit and push.
+	MRSuffix = ".mrs"
+	// ReviewSuffix holds review worktrees: HEAD sits on the merge base while
+	// the index and the working tree hold the merge request, so the whole
+	// change shows up as pending changes in an editor.
+	ReviewSuffix = ".reviews"
+)
 
 // Manager performs all disk side effects.
 type Manager struct {
@@ -53,9 +60,23 @@ func (m *Manager) MRRoot(projectPath string) string {
 	return m.ProjectDir(projectPath) + MRSuffix
 }
 
-// MRDir is the worktree directory of a single merge request.
+// MRDir is the branch worktree directory of a single merge request.
 func (m *Manager) MRDir(projectPath string, iid int, sourceBranch string) string {
-	return filepath.Join(m.MRRoot(projectPath), fmt.Sprintf("%d-%s", iid, Sanitize(sourceBranch)))
+	return filepath.Join(m.MRRoot(projectPath), mrDirName(iid, sourceBranch))
+}
+
+// ReviewRoot is the directory holding every review worktree of a project.
+func (m *Manager) ReviewRoot(projectPath string) string {
+	return m.ProjectDir(projectPath) + ReviewSuffix
+}
+
+// ReviewDir is the review worktree directory of a single merge request.
+func (m *Manager) ReviewDir(projectPath string, iid int, sourceBranch string) string {
+	return filepath.Join(m.ReviewRoot(projectPath), mrDirName(iid, sourceBranch))
+}
+
+func mrDirName(iid int, sourceBranch string) string {
+	return fmt.Sprintf("%d-%s", iid, Sanitize(sourceBranch))
 }
 
 // Sanitize turns a branch name into a single safe path segment.
@@ -146,6 +167,11 @@ func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) 
 
 	if Exists(wtDir) {
 		m.log("Updating merge request worktree !%d", mr.IID)
+		// The target branch first: fetching it last would leave FETCH_HEAD
+		// pointing at the wrong commit for the fast-forward below.
+		if mr.TargetBranch != "" {
+			_ = m.git.FetchRefspec(wtDir, mr.TargetBranch)
+		}
 		if err := m.git.FetchRefspec(wtDir, headRef); err != nil {
 			m.log("! fetch failed, opening the worktree as it is")
 			return wtDir, nil
@@ -153,16 +179,21 @@ func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) 
 		st := m.git.Status(wtDir)
 		if st.Dirty {
 			m.log("! worktree has local changes, skipping update")
+			m.recordBranchMeta(wtDir, projectPath, mr)
 			return wtDir, nil
 		}
 		if _, err := m.git.Run(wtDir, "merge", "--ff-only", "FETCH_HEAD"); err != nil {
 			m.log("! cannot fast-forward (local commits or a force push), opening as it is")
 		}
+		m.recordBranchMeta(wtDir, projectPath, mr)
 		return wtDir, nil
 	}
 
 	m.log("Creating worktree for !%d (%s)", mr.IID, mr.SourceBranch)
 	m.git.WorktreePrune(mainDir)
+	if mr.TargetBranch != "" {
+		_ = m.git.FetchRefspec(mainDir, mr.TargetBranch)
+	}
 	if err := m.git.FetchRefspec(mainDir, headRef); err != nil {
 		return "", err
 	}
@@ -189,7 +220,25 @@ func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) 
 	if sameProject && m.git.RemoteBranchExists(mainDir, mr.SourceBranch) {
 		_ = m.git.SetUpstream(wtDir, branch, mr.SourceBranch)
 	}
+	m.recordBranchMeta(wtDir, projectPath, mr)
 	return wtDir, nil
+}
+
+// recordBranchMeta stores the diff base of a branch worktree, so an editor can
+// show the merge request as one change even though it is a stack of commits.
+func (m *Manager) recordBranchMeta(dir, projectPath string, mr gitlab.MergeRequest) {
+	head, err := m.git.RevParse(dir, "HEAD")
+	if err != nil {
+		return
+	}
+	base := ""
+	if mr.TargetBranch != "" {
+		base, _ = m.git.MergeBase(dir, "origin/"+mr.TargetBranch, "HEAD")
+	}
+	m.writeMeta(dir, Meta{
+		IID: mr.IID, Project: projectPath, Source: mr.SourceBranch, Target: mr.TargetBranch,
+		Base: base, Head: head, URL: mr.WebURL, Mode: ModeBranch,
+	})
 }
 
 func (m *Manager) addWorktree(mainDir, wtDir, branch string) error {
@@ -245,18 +294,20 @@ func (m *Manager) InspectProject(projectPath string) Removal {
 			r.Warnings = append(r.Warnings, "main clone: "+s)
 		}
 	}
-	entries, _ := os.ReadDir(m.MRRoot(projectPath))
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		dir := filepath.Join(m.MRRoot(projectPath), e.Name())
-		if !Exists(dir) {
-			continue
-		}
-		r.MRDirs = append(r.MRDirs, dir)
-		if s := m.git.Status(dir).Describe(); s != "" {
-			r.Warnings = append(r.Warnings, "worktree "+e.Name()+": "+s)
+	for _, root := range []string{m.MRRoot(projectPath), m.ReviewRoot(projectPath)} {
+		entries, _ := os.ReadDir(root)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			dir := filepath.Join(root, e.Name())
+			if !Exists(dir) {
+				continue
+			}
+			r.MRDirs = append(r.MRDirs, dir)
+			if s := m.describeWorktree(dir); s != "" {
+				r.Warnings = append(r.Warnings, filepath.Base(root)+"/"+e.Name()+": "+s)
+			}
 		}
 	}
 	return r
@@ -266,21 +317,38 @@ func (m *Manager) InspectProject(projectPath string) Removal {
 func (m *Manager) InspectDir(dir string) Removal {
 	r := Removal{Dir: dir}
 	if Exists(dir) {
-		if s := m.git.Status(dir).Describe(); s != "" {
+		if s := m.describeWorktree(dir); s != "" {
 			r.Warnings = append(r.Warnings, s)
 		}
 	}
 	return r
 }
 
+// describeWorktree summarises local work. A review worktree always has a
+// staged difference by design, so only the reviewer's own unstaged edits count
+// as work that would be lost.
+func (m *Manager) describeWorktree(dir string) string {
+	if m.ReadMeta(dir).Mode == ModeReview {
+		if edits := m.git.UnstagedFiles(dir); len(edits) > 0 {
+			return fmt.Sprintf("%d file(s) edited in the review", len(edits))
+		}
+		return ""
+	}
+	return m.git.Status(dir).Describe()
+}
+
 // RemoveProject deletes the main clone together with all of its merge request
 // worktrees.
 func (m *Manager) RemoveProject(projectPath string) error {
 	dir := m.ProjectDir(projectPath)
-	mrRoot := m.MRRoot(projectPath)
-	m.log("Removing %s", mrRoot)
-	if err := os.RemoveAll(mrRoot); err != nil {
-		return err
+	for _, root := range []string{m.MRRoot(projectPath), m.ReviewRoot(projectPath)} {
+		if _, err := os.Stat(root); err != nil {
+			continue
+		}
+		m.log("Removing %s", root)
+		if err := os.RemoveAll(root); err != nil {
+			return err
+		}
 	}
 	m.log("Removing %s", dir)
 	if err := os.RemoveAll(dir); err != nil {
@@ -290,22 +358,31 @@ func (m *Manager) RemoveProject(projectPath string) error {
 	return nil
 }
 
-// RemoveMR deletes a single merge request worktree.
+// RemoveMR deletes the worktrees of a merge request - both the branch one and
+// the review one, whichever exist.
 func (m *Manager) RemoveMR(projectPath string, iid int, sourceBranch string) error {
-	wtDir := m.MRDir(projectPath, iid, sourceBranch)
 	mainDir := m.ProjectDir(projectPath)
-	if Exists(mainDir) {
-		if err := m.git.WorktreeRemove(mainDir, wtDir, true); err != nil {
-			m.log("! worktree remove failed, deleting the directory directly")
+	for _, wtDir := range []string{
+		m.MRDir(projectPath, iid, sourceBranch),
+		m.ReviewDir(projectPath, iid, sourceBranch),
+	} {
+		if _, err := os.Stat(wtDir); err != nil {
+			continue
 		}
-	}
-	if err := os.RemoveAll(wtDir); err != nil {
-		return err
+		m.log("Removing %s", wtDir)
+		if Exists(mainDir) {
+			if err := m.git.WorktreeRemove(mainDir, wtDir, true); err != nil {
+				m.log("! worktree remove failed, deleting the directory directly")
+			}
+		}
+		if err := os.RemoveAll(wtDir); err != nil {
+			return err
+		}
+		m.pruneEmptyParents(filepath.Dir(wtDir))
 	}
 	if Exists(mainDir) {
 		m.git.WorktreePrune(mainDir)
 	}
-	m.pruneEmptyParents(filepath.Dir(wtDir))
 	return nil
 }
 

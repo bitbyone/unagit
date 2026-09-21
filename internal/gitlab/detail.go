@@ -98,7 +98,15 @@ type MergeRequestDetail struct {
 		Title   string `json:"title"`
 		DueDate string `json:"due_date"`
 	} `json:"milestone"`
-	HeadPipeline         *Pipeline `json:"head_pipeline"`
+	HeadPipeline *Pipeline `json:"head_pipeline"`
+	// DiffRefs are the commits GitLab itself renders the "Changes" tab from:
+	// BaseSHA is the merge base, not the tip of the target branch.
+	DiffRefs struct {
+		BaseSHA  string `json:"base_sha"`
+		HeadSHA  string `json:"head_sha"`
+		StartSHA string `json:"start_sha"`
+	} `json:"diff_refs"`
+	DivergedCommitsCount int `json:"diverged_commits_count"`
 	TaskCompletionStatus *struct {
 		Count          int `json:"count"`
 		CompletedCount int `json:"completed_count"`
@@ -194,10 +202,13 @@ func mrPath(projectID, iid int) string {
 	return projectPath(projectID) + "/merge_requests/" + strconv.Itoa(iid)
 }
 
-// MergeRequest returns the full merge request payload.
+// MergeRequest returns the full merge request payload, including how far the
+// source branch has fallen behind the target.
 func (c *Client) MergeRequest(ctx context.Context, projectID, iid int) (*MergeRequestDetail, error) {
+	q := url.Values{}
+	q.Set("include_diverged_commits_count", "true")
 	var mr MergeRequestDetail
-	if _, err := c.get(ctx, mrPath(projectID, iid), nil, &mr); err != nil {
+	if _, err := c.get(ctx, mrPath(projectID, iid), q, &mr); err != nil {
 		return nil, err
 	}
 	return &mr, nil
@@ -216,15 +227,18 @@ func (c *Client) MergeRequestNotes(ctx context.Context, projectID, iid, limit in
 	return notes, nil
 }
 
-// MergeRequestCommits returns the commits of a merge request.
-func (c *Client) MergeRequestCommits(ctx context.Context, projectID, iid, limit int) ([]Commit, error) {
+// MergeRequestCommits returns the newest commits of a merge request together
+// with how many there are in total - that is, how many commits the merge
+// request adds on top of its target branch.
+func (c *Client) MergeRequestCommits(ctx context.Context, projectID, iid, limit int) ([]Commit, int, error) {
 	q := url.Values{}
 	q.Set("per_page", strconv.Itoa(limit))
 	var commits []Commit
-	if _, err := c.get(ctx, mrPath(projectID, iid)+"/commits", q, &commits); err != nil {
-		return nil, err
+	header, err := c.get(ctx, mrPath(projectID, iid)+"/commits", q, &commits)
+	if err != nil {
+		return nil, 0, err
 	}
-	return commits, nil
+	return commits, total(header), nil
 }
 
 // MergeRequestApprovals returns the approval state. Not every GitLab tier

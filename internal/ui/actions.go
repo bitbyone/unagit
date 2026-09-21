@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/tobola/unagit/internal/gitlab"
@@ -30,17 +31,29 @@ func (a *App) confirmDeleteProject(pr gitlab.Project) {
 	})
 }
 
-// confirmDeleteMR asks before removing a single merge request worktree.
+// confirmDeleteMR asks before removing the worktrees of a merge request.
 func (a *App) confirmDeleteMR(mr gitlab.MergeRequest) {
 	path := a.projectPathOfMR(mr)
-	if _, ok := a.disk[path].MRs[mr.IID]; !ok {
+	disk := a.disk[path].MRs[mr.IID]
+	if !disk.Branch && !disk.Review {
 		a.flash(fmt.Sprintf("!%d is not on disk", mr.IID))
 		return
 	}
-	dir := a.ws.MRDir(path, mr.IID, mr.SourceBranch)
-	r := a.ws.InspectDir(dir)
-	body := fmt.Sprintf("Delete the worktree of [::b]%s !%d[::-]?\n\n%s\n\nThe main clone of the project stays.", path, mr.IID, dir)
-	a.confirm("Delete merge request worktree", body, r.Warnings, func() {
+	var dirs []string
+	var warnings []string
+	if disk.Branch {
+		dir := a.ws.MRDir(path, mr.IID, mr.SourceBranch)
+		dirs = append(dirs, "branch   "+dir)
+		warnings = append(warnings, a.ws.InspectDir(dir).Warnings...)
+	}
+	if disk.Review {
+		dir := a.ws.ReviewDir(path, mr.IID, mr.SourceBranch)
+		dirs = append(dirs, "review   "+dir)
+		warnings = append(warnings, a.ws.InspectDir(dir).Warnings...)
+	}
+	body := fmt.Sprintf("Delete the worktree(s) of [::b]%s !%d[::-]?\n\n%s\n\nThe main clone of the project stays.",
+		path, mr.IID, strings.Join(dirs, "\n"))
+	a.confirm("Delete merge request worktree", body, warnings, func() {
 		a.runTask(fmt.Sprintf("Deleting !%d", mr.IID), func(log func(string)) (string, error) {
 			return "", a.newManager(log).RemoveMR(path, mr.IID, mr.SourceBranch)
 		})

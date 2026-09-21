@@ -221,3 +221,75 @@ func IsRepo(dir string) bool {
 	_, err := os.Stat(dir + "/.git")
 	return err == nil
 }
+
+// CommitExists reports whether an object is present locally and is a commit.
+func (g *Git) CommitExists(dir, sha string) bool {
+	if sha == "" {
+		return false
+	}
+	_, err := g.out(dir, "cat-file", "-e", sha+"^{commit}")
+	return err == nil
+}
+
+// MergeBase returns the common ancestor of two commits.
+func (g *Git) MergeBase(dir, a, b string) (string, error) {
+	return g.out(dir, "merge-base", a, b)
+}
+
+// RevParse resolves a revision to a commit id.
+func (g *Git) RevParse(dir, rev string) (string, error) {
+	return g.out(dir, "rev-parse", rev+"^{commit}")
+}
+
+// WorktreeAddDetached checks a commit out into its own directory with a
+// detached HEAD.
+func (g *Git) WorktreeAddDetached(mainDir, path, commit string) error {
+	_, err := g.Run(mainDir, "worktree", "add", "--detach", path, commit)
+	return err
+}
+
+// ReadTree points the index and the working tree at a commit while leaving
+// HEAD where it is. Local edits that do not conflict are kept.
+func (g *Git) ReadTree(dir, commit string) error {
+	_, err := g.Run(dir, "read-tree", "-u", "-m", commit)
+	return err
+}
+
+// ResetHard moves HEAD, the index and the working tree to a commit.
+func (g *Git) ResetHard(dir, commit string) error {
+	_, err := g.Run(dir, "reset", "--hard", commit)
+	return err
+}
+
+// UnstagedFiles lists the files the working tree changes on top of the index.
+// In a review worktree this is exactly the reviewer's own edits, because the
+// index deliberately differs from HEAD.
+func (g *Git) UnstagedFiles(dir string) []string {
+	out, err := g.out(dir, "diff", "--name-only")
+	if err != nil || out == "" {
+		return nil
+	}
+	return strings.Split(out, "\n")
+}
+
+// EnableWorktreeConfig turns on per-worktree configuration, so that each
+// merge request directory can carry its own metadata.
+func (g *Git) EnableWorktreeConfig(mainDir string) error {
+	_, err := g.Run(mainDir, "config", "extensions.worktreeConfig", "true")
+	return err
+}
+
+// SetWorktreeConfig writes a key into this worktree's own configuration.
+func (g *Git) SetWorktreeConfig(dir, key, value string) error {
+	_, err := g.Run(dir, "config", "--worktree", key, value)
+	return err
+}
+
+// WorktreeConfig reads a configuration key as seen from a worktree.
+func (g *Git) WorktreeConfig(dir, key string) string {
+	v, err := g.out(dir, "config", "--get", key)
+	if err != nil {
+		return ""
+	}
+	return v
+}

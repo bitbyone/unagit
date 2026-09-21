@@ -43,9 +43,10 @@ const helpText = `[::b]Tabs[::-]
   {A}r{E}       refresh the project index from GitLab
 
 [::b]Merge requests tab[::-]
-  {A}Ctrl-O{E}  create/update a dedicated worktree for the MR, open the editor
+  {A}Ctrl-O{E}  check the MR branch out in its own worktree, open the editor
+  {A}v{E}       open the MR for review: the whole change as pending edits
   {A}f{E}       limit the list to one project      {A}F{E}  clear that limit
-  {A}d{E}       delete the MR worktree from disk
+  {A}d{E}       delete the MR worktrees from disk
   {A}w{E}       open the merge request in the browser
   {A}r{E}       refresh the merge request index from GitLab
 
@@ -59,11 +60,27 @@ const helpText = `[::b]Tabs[::-]
   {A}p{E}       refresh projects      {A}m{E}  refresh merge requests
 
 [::b]On disk[::-]
-  {O}●{E} present   {D}○{E} not cloned yet
-  <root>/<group>/<project>            main clone, branch switching happens here
-  <root>/<group>/<project>.mrs/<iid>-<branch>   one worktree per merge request
+  {D}○{E} nothing   {O}●{E} branch worktree   {O}◐{E} review worktree   {O}◉{E} both
+  <root>/<group>/<project>                       main clone, branch switching
+  <root>/<group>/<project>.mrs/<iid>-<branch>    branch worktree per MR
+  <root>/<group>/<project>.reviews/<iid>-<b>     review worktree per MR
   Worktrees share the main clone's objects, so uncommitted changes survive
-  switching between merge requests.`
+  switching between merge requests.
+
+[::b]Reviewing a merge request[::-]
+  {A}Ctrl-O{E} gives you the branch: real commits, you can commit and push.
+  {A}v{E} gives you the review worktree: HEAD sits on the commit the MR
+  branched from, while the index and the working tree hold the MR. The whole
+  change is therefore pending, so gutter signs, {A}]c{E} and diff views work on
+  it as one change instead of a stack of commits.
+
+  Both worktrees record what they are in their own git config:
+    git config unagit.mr.base   the commit GitLab diffs against
+    git config unagit.mr.head   the merge request head
+    git config unagit.mr.iid / .target / .url / .mode
+  So in a branch worktree you can open the same diff with, for example,
+    :DiffviewOpen $(git config unagit.mr.base)...HEAD
+  and in a review worktree plain :Gvdiffsplit or :DiffviewOpen is enough.`
 
 func (a *App) showHelp() {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)

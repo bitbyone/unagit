@@ -358,13 +358,14 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		defer cancel()
 
 		var (
-			wg        sync.WaitGroup
-			mu        sync.Mutex
-			detail    *gitlab.MergeRequestDetail
-			notes     []gitlab.Note
-			commits   []gitlab.Commit
-			approvals *gitlab.Approvals
-			problems  []string
+			wg          sync.WaitGroup
+			mu          sync.Mutex
+			detail      *gitlab.MergeRequestDetail
+			notes       []gitlab.Note
+			commits     []gitlab.Commit
+			commitCount int
+			approvals   *gitlab.Approvals
+			problems    []string
 		)
 		fail := func(what string, err error) {
 			mu.Lock()
@@ -392,12 +393,12 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			c, err := a.client.MergeRequestCommits(ctx, mr.ProjectID, mr.IID, 10)
+			c, n, err := a.client.MergeRequestCommits(ctx, mr.ProjectID, mr.IID, 10)
 			if err != nil {
 				fail("commits", err)
 				return
 			}
-			commits = c
+			commits, commitCount = c, n
 		}()
 		// Approvals are a paid feature on some tiers; a failure is not worth
 		// reporting.
@@ -408,13 +409,14 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 			if p.detailSeq != seq {
 				return
 			}
-			p.setDetail(title, a.renderMR(mr, path, detail, notes, commits, approvals, problems))
+			p.setDetail(title, a.renderMR(mr, path, detail, notes, commits, commitCount, approvals, problems))
 		})
 	}()
 }
 
 func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeRequestDetail,
-	notes []gitlab.Note, commits []gitlab.Commit, approvals *gitlab.Approvals, problems []string) string {
+	notes []gitlab.Note, commits []gitlab.Commit, commitCount int, approvals *gitlab.Approvals,
+	problems []string) string {
 
 	d := &detailBuf{}
 	title := mr.Title
@@ -465,7 +467,21 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 		if det.HeadPipeline != nil {
 			d.kv("Pipeline", pipelineMark(det.HeadPipeline.Status))
 		}
-		d.kv("Changes", esc(det.ChangesCount)+" file(s)")
+		size := ""
+		if commitCount > 0 {
+			size = fmt.Sprintf("%d commit(s)", commitCount)
+		}
+		if det.ChangesCount != "" {
+			if size != "" {
+				size += tag(colDim) + " · " + tagEnd
+			}
+			size += esc(det.ChangesCount) + " file(s)"
+		}
+		if det.DivergedCommitsCount > 0 {
+			size += fmt.Sprintf("%s · %d behind %s%s",
+				tag(colWarn), det.DivergedCommitsCount, esc(det.TargetBranch), tagEnd)
+		}
+		d.kv("Size", size)
 		d.kv("Comments", fmt.Sprintf("%d", det.UserNotesCount))
 		if det.Upvotes+det.Downvotes > 0 {
 			d.kv("Votes", fmt.Sprintf("+%d / -%d", det.Upvotes, det.Downvotes))
@@ -498,7 +514,11 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 	}
 
 	if len(commits) > 0 {
-		d.section(fmt.Sprintf("Commits (%d)", len(commits)))
+		heading := fmt.Sprintf("Commits (%d)", len(commits))
+		if commitCount > len(commits) {
+			heading = fmt.Sprintf("Commits (%d of %d)", len(commits), commitCount)
+		}
+		d.section(heading)
 		commitLines(d, commits)
 	}
 
@@ -535,11 +555,16 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 	}
 
 	d.section("On disk")
-	if name, ok := a.disk[path].MRs[mr.IID]; ok {
-		d.kv("Worktree", tag(colOn)+"●"+tagEnd+" "+esc(a.ws.MRDir(path, mr.IID, mr.SourceBranch)))
-		_ = name
+	disk := a.disk[path].MRs[mr.IID]
+	if disk.Branch {
+		d.kv("Branch", tag(colOn)+"●"+tagEnd+" "+esc(a.ws.MRDir(path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Worktree", tag(colDim)+"○ not checked out (Ctrl-O creates it and opens the editor)"+tagEnd)
+		d.kv("Branch", tag(colDim)+"○ Ctrl-O checks the branch out and opens the editor"+tagEnd)
+	}
+	if disk.Review {
+		d.kv("Review", tag(colOn)+"◐"+tagEnd+" "+esc(a.ws.ReviewDir(path, mr.IID, mr.SourceBranch)))
+	} else {
+		d.kv("Review", tag(colDim)+"○ v opens the change as pending edits to diff through"+tagEnd)
 	}
 
 	if len(problems) > 0 {

@@ -47,7 +47,8 @@ want, and land in `nvim` inside a ready checkout.
 * **Merge requests** get their own directory, so you can keep half-finished
   notes and edits in several reviews at the same time without committing
   anything. They are git worktrees of the project's main clone, which means they
-  cost a checkout, not a full clone.
+  cost a checkout, not a full clone. Each merge request can have two of them:
+  a **branch** worktree (`Ctrl-O`) and a **review** worktree (`v`) - see below.
 * **Indexes are explicit.** Project and merge request lists are cached as JSON
   in the config directory and only refreshed when you ask (`r`, or `p` / `m`
   in settings). Startup is instant and nothing hits the API behind your back.
@@ -55,8 +56,50 @@ want, and land in `nvim` inside a ready checkout.
 Layout under the configured root directory:
 
 ```
-<root>/<group>/<project>                       main clone, branch switching happens here
-<root>/<group>/<project>.mrs/<iid>-<branch>    one worktree per merge request
+<root>/<group>/<project>                           main clone, branch switching
+<root>/<group>/<project>.mrs/<iid>-<branch>        branch worktree per merge request
+<root>/<group>/<project>.reviews/<iid>-<branch>    review worktree per merge request
+```
+
+## Reviewing a merge request
+
+A branch worktree (`Ctrl-O`) is an ordinary checkout of the merge request
+branch: real commits, and you can commit and push. The catch when reviewing is
+that everything is already committed, so a diff view has nothing pending to
+show you, and the change is spread over however many commits the author made.
+
+A review worktree (`v`) turns that around. `HEAD` sits on the commit the merge
+request branched from, while the index and the working tree hold the merge
+request head. The whole change is therefore **pending**, exactly as if you had
+just typed it:
+
+```sh
+git diff --staged        # the entire merge request, as one diff
+git status               # every file it touches, including additions and deletions
+```
+
+Gutter signs, `]c`, `:Gvdiffsplit`, `:DiffviewOpen` - anything that works on
+uncommitted changes now works on the merge request as a whole. Your own edits
+on top survive reopening it, and a rebase or a force push on the other side is
+picked up on the next open.
+
+The base is the one GitLab itself uses (`diff_refs.base_sha`, the merge base),
+not the tip of the target branch - otherwise a target that has moved on would
+show its own commits backwards in your diff.
+
+Both kinds of worktree record what they are in their own git configuration, so
+an editor can pick it up:
+
+```sh
+git config unagit.mr.base    # the commit GitLab diffs against
+git config unagit.mr.head    # the merge request head
+git config unagit.mr.iid     # …and .project, .source, .target, .url, .mode
+```
+
+In a branch worktree that is what you need for the same view over the commits:
+
+```vim
+:DiffviewOpen <C-r>=system('git config unagit.mr.base')<CR>...HEAD
 ```
 
 ## The token
@@ -101,6 +144,7 @@ scope.
 | `j` `k` `g` `G` | move |
 | `Enter` | load the detail column and jump into it |
 | `Ctrl-O` | clone or update, then open the editor |
+| `v` | open a merge request for review: the change as pending edits |
 | `h` `l` `←` `→` | move between the list and the detail column |
 | `b` | pick a branch in a modal (projects only) |
 | `m` | merge requests of the selected project |
@@ -116,7 +160,12 @@ filter input so `j`/`k` move the selection, the second one closes the modal.
 Modals darken the interface behind them rather than hiding it, so you keep the
 context you opened them from.
 
-`●` means the project or merge request is on disk, `○` means it is not.
+On-disk markers: `○` nothing, `●` a branch worktree, `◐` a review worktree,
+`◉` both.
+
+The detail column also reports the size of a merge request - how many commits
+it adds on top of its target, how many files it touches, and how far behind
+the target it has fallen.
 
 ## Configuration
 

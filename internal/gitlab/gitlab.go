@@ -121,35 +121,45 @@ func (e *apiError) Error() string {
 	return fmt.Sprintf("GitLab %s returned %d: %s", e.path, e.status, msg)
 }
 
-// get performs a single GET and decodes the JSON body into out.
-// It returns the value of the x-next-page header.
-func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (string, error) {
+// get performs a single GET and decodes the JSON body into out. It returns the
+// response headers, which carry GitLab's pagination totals.
+func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (http.Header, error) {
 	u := c.baseURL + "/api/v4" + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("PRIVATE-TOKEN", c.token)
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if resp.StatusCode >= 300 {
-		return "", &apiError{status: resp.StatusCode, body: string(body), path: path}
+		return nil, &apiError{status: resp.StatusCode, body: string(body), path: path}
 	}
 	if err := json.Unmarshal(body, out); err != nil {
-		return "", fmt.Errorf("decode %s: %w", path, err)
+		return nil, fmt.Errorf("decode %s: %w", path, err)
 	}
-	return resp.Header.Get("x-next-page"), nil
+	return resp.Header, nil
+}
+
+// total reads GitLab's x-total header, which is absent on very large
+// collections; -1 then means "unknown".
+func total(h http.Header) int {
+	n, err := strconv.Atoi(h.Get("x-total"))
+	if err != nil {
+		return -1
+	}
+	return n
 }
 
 // getAll pages through a collection endpoint until GitLab stops handing out
@@ -169,12 +179,12 @@ func getAll[T any](ctx context.Context, c *Client, path string, q url.Values) ([
 		}
 		q.Set("page", page)
 		var batch []T
-		next, err := c.get(ctx, path, q, &batch)
+		header, err := c.get(ctx, path, q, &batch)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, batch...)
-		page = next
+		page = header.Get("x-next-page")
 	}
 	return all, nil
 }
