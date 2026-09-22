@@ -520,3 +520,109 @@ func TestProtocolSelectIsLegibleWhenFocused(t *testing.T) {
 		}
 	}
 }
+
+// borderColours reads the colour of the two box corners on the Settings
+// header row: the sidebar's and the content pane's.
+func borderColours(t *testing.T, a *App, sc tcell.SimulationScreen) (sidebar, content tcell.Color) {
+	t.Helper()
+	row := rowOf(t, a, sc, "╭ Settings")
+	line := []rune(strings.Split(a.screenText(sc), "\n")[row])
+
+	var corners []int
+	for i, r := range line {
+		if r == '╭' {
+			corners = append(corners, i)
+		}
+	}
+	if len(corners) < 2 {
+		t.Fatalf("expected two boxes on the row, got %d: %q", len(corners), string(line))
+	}
+	fg := func(x int) tcell.Color {
+		_, style := cellAt(a, sc, x, row)
+		c, _, _ := style.Decompose()
+		return c
+	}
+	return fg(corners[0]), fg(corners[1])
+}
+
+// TestSettingsShowsWhichHalfHasTheKeyboard: without it there is no telling
+// whether typing goes to the sidebar or to the pane beside it.
+func TestSettingsShowsWhichHalfHasTheKeyboard(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, "GitLab servers")
+
+	sidebar, content := borderColours(t, a, sc)
+	if sidebar == content {
+		t.Fatalf("both borders are %v; the focused half is not marked", sidebar)
+	}
+	if sidebar != colBorderFocus {
+		t.Errorf("the sidebar has the keyboard but its border is %v", sidebar)
+	}
+
+	// Move into the content and the highlight moves with it.
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	time.Sleep(80 * time.Millisecond)
+	sidebar, content = borderColours(t, a, sc)
+	if content != colBorderFocus {
+		t.Errorf("the content has the keyboard but its border is %v", content)
+	}
+	if sidebar == colBorderFocus {
+		t.Error("the sidebar is still marked as focused")
+	}
+
+	// And back.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	time.Sleep(80 * time.Millisecond)
+	sidebar, content = borderColours(t, a, sc)
+	if sidebar != colBorderFocus || content == colBorderFocus {
+		t.Errorf("after Esc: sidebar %v, content %v", sidebar, content)
+	}
+}
+
+// TestSelectBoxRefusesTyping: tview would otherwise feed the keys into a
+// hidden search field and open the list on them.
+func TestSelectBoxRefusesTyping(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGitLab)
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Edit server")
+
+	form := currentForm(a)
+	done := make(chan struct{})
+	a.tv.QueueUpdateDraw(func() {
+		form.SetFocus(3)
+		a.tv.SetFocus(form)
+		close(done)
+	})
+	<-done
+	waitFor(t, a, sc, "https ▾")
+
+	typeRunes(sc, "ssh")
+	time.Sleep(100 * time.Millisecond)
+
+	// Nothing was typed anywhere, and the value did not change behind our back.
+	waitFor(t, a, sc, "https ▾")
+	drop := make(chan string, 1)
+	a.tv.QueueUpdateDraw(func() {
+		_, text := form.GetFormItem(3).(*tview.DropDown).GetCurrentOption()
+		drop <- text
+	})
+	if got := <-drop; got != config.ProtocolHTTPS {
+		t.Fatalf("typing changed the selection to %q", got)
+	}
+
+	// The arrows still work.
+	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	time.Sleep(100 * time.Millisecond)
+	a.tv.QueueUpdateDraw(func() {
+		_, text := form.GetFormItem(3).(*tview.DropDown).GetCurrentOption()
+		drop <- text
+	})
+	if got := <-drop; got != config.ProtocolSSH {
+		t.Fatalf("the arrows do not select either: %q", got)
+	}
+}

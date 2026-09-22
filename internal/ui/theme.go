@@ -186,7 +186,17 @@ func styleDropDown(d *tview.DropDown) *tview.DropDown {
 	d.SetFieldStyle(field)
 	d.SetFocusedStyle(styleSelected)
 	d.SetListStyles(field, styleSelected)
+	d.SetPrefixStyle(styleSelected)
 	d.SetTextOptions("  ", "  ", "", " ▾", "")
+	// tview feeds every other key into a hidden search field and opens the
+	// list on it. With two fixed options that is only a way of ending up
+	// somewhere nobody asked for, so the arrows and Enter are the way in.
+	d.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyRune {
+			return nil
+		}
+		return ev
+	})
 	return d
 }
 

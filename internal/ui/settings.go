@@ -84,6 +84,7 @@ func (a *App) newSettingsView() *settingsView {
 		AddItem(s.footer, 1, 0, false)
 
 	s.show(sectionGeneral)
+	s.paintFocus()
 	return s
 }
 
@@ -116,6 +117,7 @@ func (s *settingsView) show(section int) {
 	case sectionSecurity:
 		s.content.SwitchToPage("security")
 	}
+	s.paintFocus()
 	s.updateFooter()
 }
 
@@ -138,6 +140,36 @@ func (s *settingsView) focusTarget() tview.Primitive {
 	return s.general
 }
 
+// contentBox is the pane of the section currently shown.
+func (s *settingsView) contentBox() *tview.Box {
+	switch s.current {
+	case sectionGitLab:
+		return s.gitlab.Box
+	case sectionGitHub:
+		return s.github.Box
+	case sectionGroups:
+		return s.tree.Box
+	case sectionSecurity:
+		return s.security.Box
+	}
+	return s.general.Box
+}
+
+// paintFocus brightens the border of whichever half holds the keyboard, the
+// way the two column lists do, so it is never a guess which one typing
+// reaches.
+func (s *settingsView) paintFocus() {
+	focusBox(s.list.Box, !s.contentFocused)
+	for _, b := range []*tview.Box{
+		s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.security.Box,
+	} {
+		focusBox(b, false)
+	}
+	if s.contentFocused {
+		focusBox(s.contentBox(), true)
+	}
+}
+
 func (s *settingsView) focusContent() {
 	s.contentFocused = true
 	switch s.current {
@@ -152,12 +184,14 @@ func (s *settingsView) focusContent() {
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
 	}
+	s.paintFocus()
 	s.updateFooter()
 }
 
 func (s *settingsView) focusList() {
 	s.contentFocused = false
 	s.app.tv.SetFocus(s.list)
+	s.paintFocus()
 	s.updateFooter()
 }
 
