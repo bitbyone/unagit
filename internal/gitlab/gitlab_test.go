@@ -290,3 +290,51 @@ func TestNotesRespectTheLimit(t *testing.T) {
 		t.Fatalf("notes = %+v", notes)
 	}
 }
+
+// TestListingCarriesTheCommentCount: GitLab reports it on the listing, which
+// is what lets the table show it without opening anything.
+func TestListingCarriesTheCommentCount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"iid":42,"title":"Fix login","user_notes_count":7,
+			"source_branch":"feat/x","target_branch":"main","project_id":3,
+			"author":{"username":"jane"},"references":{"full":"acme/app!42"},
+			"updated_at":"2026-01-02T03:04:05Z"},
+			{"iid":43,"title":"Quiet one","user_notes_count":0,"project_id":3,
+			"author":{"username":"bob"},"references":{"full":"acme/app!43"},
+			"updated_at":"2026-01-02T03:04:05Z"}]`)
+	}))
+	defer srv.Close()
+
+	mrs, err := New(srv.URL, "t").GroupMergeRequests(context.Background(), forge.Group{ID: 1}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mrs) != 2 {
+		t.Fatalf("merge requests = %d", len(mrs))
+	}
+	if mrs[0].Comments != 7 {
+		t.Fatalf("comments = %d, want 7", mrs[0].Comments)
+	}
+	if mrs[1].Comments != 0 {
+		t.Errorf("a quiet merge request reported %d comments", mrs[1].Comments)
+	}
+}
+
+// TestDetailCarriesTheCommentCountToo keeps the list and the detail agreeing.
+func TestDetailCarriesTheCommentCount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"iid":42,"title":"Fix login","user_notes_count":7,"project_id":3}`)
+	}))
+	defer srv.Close()
+
+	det, err := New(srv.URL, "t").MergeRequestDetail(context.Background(),
+		forge.MergeRequest{ProjectID: 3, IID: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if det.UserNotesCount != 7 || det.Comments != 7 {
+		t.Fatalf("detail counts: UserNotesCount=%d Comments=%d", det.UserNotesCount, det.Comments)
+	}
+}

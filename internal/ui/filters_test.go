@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -301,5 +302,52 @@ func TestGroupByProject(t *testing.T) {
 	waitFor(t, a, sc, "listed flat again")
 	if strings.Contains(a.screenText(sc), "acme/gateway  (2)") {
 		t.Error("the headings are still there")
+	}
+}
+
+// TestStaleIndexSaysSo: a cache written before a field existed leaves its
+// column empty, which on its own looks like the feature not working.
+func TestStaleIndexSaysSo(t *testing.T) {
+	srv := fakeGitLab(t)
+	cfg := writeTestConfig(t, srv.URL)
+
+	// Rewrite the merge request cache the way an older unagit would have: no
+	// version, and no comment counts.
+	raw, err := os.ReadFile(config.IndexPath("mrs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cached map[string]any
+	if err := json.Unmarshal(raw, &cached); err != nil {
+		t.Fatal(err)
+	}
+	delete(cached, "version")
+	out, err := json.Marshal(cached)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.IndexPath("mrs"), out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	waitFor(t, a, sc, "The cached index is from an older unagit")
+	if !a.staleMRs {
+		t.Error("the merge request index was not noticed as stale")
+	}
+
+	// Refreshing clears it, and brings back what the old cache could not hold.
+	typeRunes(sc, "M")
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "merge request(s) indexed")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	if a.staleMRs {
+		t.Error("still marked stale after a refresh")
+	}
+	waitFor(t, a, sc, "Rate limiting")
+	for _, line := range strings.Split(a.screenText(sc), "\n") {
+		if strings.Contains(line, "Rate limiting") && !strings.Contains(line, " 4 ") {
+			t.Errorf("the comment count did not arrive with the refresh: %q", line)
+		}
 	}
 }

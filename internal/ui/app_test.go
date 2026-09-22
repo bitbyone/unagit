@@ -38,6 +38,24 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, body)
 	}
+	// The group listings, so a refresh has something to read.
+	mux.HandleFunc("/api/v4/groups/1/projects", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",
+			"default_branch":"main","last_activity_at":"2026-09-22T10:00:00Z"},
+			{"id":2,"name":"billing","path_with_namespace":"acme/billing",
+			"default_branch":"main","last_activity_at":"2026-09-22T09:00:00Z"}]`)
+	})
+	mux.HandleFunc("/api/v4/groups/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"iid":7,"title":"Rate limiting","source_branch":"feat/rate","target_branch":"main",
+			"project_id":1,"user_notes_count":4,"author":{"username":"jane"},
+			"references":{"full":"acme/gateway!7"},"updated_at":"2026-09-22T10:00:00Z"},
+			{"iid":8,"title":"Drop the old client","source_branch":"chore/drop","target_branch":"main",
+			"project_id":1,"user_notes_count":1,"author":{"username":"jane"},
+			"references":{"full":"acme/gateway!8"},"updated_at":"2026-09-22T08:00:00Z"},
+			{"iid":9,"title":"Invoice rounding","source_branch":"fix/round","target_branch":"main",
+			"project_id":2,"user_notes_count":0,"author":{"username":"bob"},
+			"references":{"full":"acme/billing!9"},"updated_at":"2026-09-22T09:00:00Z"}]`)
+	})
 	mux.HandleFunc("/api/v4/projects/1", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",
 			"description":"Edge router","visibility":"private","default_branch":"main",

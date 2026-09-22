@@ -12,23 +12,35 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
+// Version is the shape of the cached indexes. It goes up whenever a field is
+// added that an older cache cannot have, so the interface can say a refresh
+// would bring something new rather than leaving a column quietly empty.
+const Version = 1
+
 // Projects is the cached project index.
 type Projects struct {
+	Version   int             `json:"version"`
 	UpdatedAt time.Time       `json:"updated_at"`
 	Items     []forge.Project `json:"items"`
 }
 
 // MergeRequests is the cached merge request index.
 type MergeRequests struct {
+	Version   int                  `json:"version"`
 	UpdatedAt time.Time            `json:"updated_at"`
 	Items     []forge.MergeRequest `json:"items"`
 }
 
 // Groups is the cached group tree.
 type Groups struct {
+	Version   int           `json:"version"`
 	UpdatedAt time.Time     `json:"updated_at"`
 	Items     []forge.Group `json:"items"`
 }
+
+// Stale reports whether a cache was written by a version that knew less than
+// this one does.
+func Stale(version, items int) bool { return items > 0 && version < Version }
 
 // Load reads a JSON index file. A missing file is not an error: it yields the
 // zero value so the TUI can start with an empty list.

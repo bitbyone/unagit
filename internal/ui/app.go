@@ -80,6 +80,10 @@ type App struct {
 	projByKey   map[projectKey]forge.Project
 	projUpdated time.Time
 	mrsUpdated  time.Time
+	// stale marks an index written before unagit knew about a field it shows
+	// now, so a column would be empty until it is refreshed.
+	staleProjects bool
+	staleMRs      bool
 
 	disk map[projectKey]diskInfo
 
@@ -209,6 +213,8 @@ func (a *App) start() {
 	a.switchTab(pageProjects)
 
 	switch {
+	case a.staleProjects || a.staleMRs:
+		a.flash("The cached index is from an older unagit - press r on each tab to fill in what it did not know")
 	case len(a.cfg.Instances) == 0:
 		a.switchTab(pageSettings)
 		a.settings.selectSection(sectionGitLab)
@@ -318,9 +324,11 @@ func (a *App) errorf(f string, v ...any) {
 func (a *App) loadIndexes() {
 	if p, err := index.Load[index.Projects](config.IndexPath("projects")); err == nil {
 		a.projects, a.projUpdated = p.Items, p.UpdatedAt
+		a.staleProjects = index.Stale(p.Version, len(p.Items))
 	}
 	if m, err := index.Load[index.MergeRequests](config.IndexPath("mrs")); err == nil {
 		a.mrs, a.mrsUpdated = m.Items, m.UpdatedAt
+		a.staleMRs = index.Stale(m.Version, len(m.Items))
 	}
 	if g, err := index.Load[index.Groups](config.IndexPath("groups")); err == nil {
 		a.groups = g.Items
@@ -573,12 +581,12 @@ func (a *App) refreshProjects() {
 		}
 
 		all = index.DedupeProjects(all)
-		idx := index.Projects{UpdatedAt: time.Now(), Items: all}
+		idx := index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: all}
 		if err := index.Save(config.IndexPath("projects"), idx); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.projects, a.projUpdated = all, idx.UpdatedAt
+			a.projects, a.projUpdated, a.staleProjects = all, idx.UpdatedAt, false
 			a.reindexProjects()
 			a.refreshDisk()
 			a.projectsPane.reload()
@@ -629,12 +637,12 @@ func (a *App) refreshMRs() {
 		}
 
 		all = index.DedupeMergeRequests(all)
-		idx := index.MergeRequests{UpdatedAt: time.Now(), Items: all}
+		idx := index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all}
 		if err := index.Save(config.IndexPath("mrs"), idx); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.mrs, a.mrsUpdated = all, idx.UpdatedAt
+			a.mrs, a.mrsUpdated, a.staleMRs = all, idx.UpdatedAt, false
 			a.refreshDisk()
 			a.mrsPane.reload()
 			a.projectsPane.reload()
@@ -740,7 +748,7 @@ func (a *App) refreshGroups() {
 			}
 			return all[i].FullPath < all[j].FullPath
 		})
-		if err := index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(), Items: all}); err != nil {
+		if err := index.Save(config.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(), Items: all}); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
