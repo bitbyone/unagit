@@ -136,6 +136,14 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 	seq := p.detailSeq
 	p.openDetail(pr.PathWithNamespace, a.projectSkeleton(pr), focus)
 
+	client := a.client(pr.Instance)
+	if client == nil {
+		p.setDetail(pr.PathWithNamespace,
+			a.renderProject(pr, nil, nil, nil, nil, []string{
+				a.instanceLabel(pr.Instance) + " has no token yet - set one in Settings [S]"}))
+		return
+	}
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -157,7 +165,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		wg.Add(4)
 		go func() {
 			defer wg.Done()
-			d, err := a.client.Project(ctx, pr.ID)
+			d, err := client.Project(ctx, pr.ID)
 			if err != nil {
 				fail("project", err)
 				return
@@ -166,7 +174,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			c, err := a.client.ProjectCommits(ctx, pr.ID, pr.DefaultBranch, 5)
+			c, err := client.ProjectCommits(ctx, pr.ID, pr.DefaultBranch, 5)
 			if err != nil {
 				fail("commits", err)
 				return
@@ -175,7 +183,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			l, err := a.client.ProjectLanguages(ctx, pr.ID)
+			l, err := client.ProjectLanguages(ctx, pr.ID)
 			if err != nil {
 				fail("languages", err)
 				return
@@ -184,7 +192,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			pl, err := a.client.LatestPipeline(ctx, pr.ID, pr.DefaultBranch)
+			pl, err := client.LatestPipeline(ctx, pr.ID, pr.DefaultBranch)
 			if err != nil {
 				fail("pipelines", err)
 				return
@@ -223,6 +231,9 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 	}
 
 	d.section("Project")
+	if a.multiInstance() {
+		d.kv("Server", esc(a.instanceLabel(pr.Instance)))
+	}
 	if det != nil {
 		d.kv("Visibility", esc(det.Visibility))
 		d.kv("Default", esc(det.DefaultBranch))
@@ -295,7 +306,7 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 	// Open merge requests already known from the index.
 	var open []gitlab.MergeRequest
 	for _, mr := range a.mrs {
-		if a.projectPathOfMR(mr) == pr.PathWithNamespace {
+		if mr.Instance == pr.Instance && a.projectPathOfMR(mr) == pr.PathWithNamespace {
 			open = append(open, mr)
 		}
 	}
@@ -314,9 +325,9 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 	}
 
 	d.section("On disk")
-	info := a.disk[pr.PathWithNamespace]
+	info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 	if info.Cloned {
-		d.kv("Clone", tag(colOn)+"●"+tagEnd+" "+esc(a.ws.ProjectDir(pr.PathWithNamespace)))
+		d.kv("Clone", tag(colOn)+"●"+tagEnd+" "+esc(a.projectDir(pr.Instance, pr.PathWithNamespace)))
 		d.kv("Branch", esc(info.Branch))
 	} else {
 		d.kv("Clone", tag(colDim)+"○ not cloned (Ctrl-O clones and opens it)"+tagEnd)
@@ -353,6 +364,13 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 	skeleton.raw(tag(colMuted) + "Loading from GitLab…" + tagEnd + "\n")
 	p.openDetail(title, skeleton.String(), focus)
 
+	client := a.client(mr.Instance)
+	if client == nil {
+		p.setDetail(title, a.renderMR(mr, path, nil, nil, nil, 0, nil, []string{
+			a.instanceLabel(mr.Instance) + " has no token yet - set one in Settings [S]"}))
+		return
+	}
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -375,7 +393,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		wg.Add(3)
 		go func() {
 			defer wg.Done()
-			d, err := a.client.MergeRequest(ctx, mr.ProjectID, mr.IID)
+			d, err := client.MergeRequest(ctx, mr.ProjectID, mr.IID)
 			if err != nil {
 				fail("merge request", err)
 				return
@@ -384,7 +402,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			n, err := a.client.MergeRequestNotes(ctx, mr.ProjectID, mr.IID, 50)
+			n, err := client.MergeRequestNotes(ctx, mr.ProjectID, mr.IID, 50)
 			if err != nil {
 				fail("comments", err)
 				return
@@ -393,7 +411,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			c, n, err := a.client.MergeRequestCommits(ctx, mr.ProjectID, mr.IID, 10)
+			c, n, err := client.MergeRequestCommits(ctx, mr.ProjectID, mr.IID, 10)
 			if err != nil {
 				fail("commits", err)
 				return
@@ -402,7 +420,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		// Approvals are a paid feature on some tiers; a failure is not worth
 		// reporting.
-		approvals, _ = a.client.MergeRequestApprovals(ctx, mr.ProjectID, mr.IID)
+		approvals, _ = client.MergeRequestApprovals(ctx, mr.ProjectID, mr.IID)
 		wg.Wait()
 
 		a.tv.QueueUpdateDraw(func() {
@@ -432,6 +450,9 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 	d.raw(fmt.Sprintf("%s%s → %s%s\n", tag(colAccent), esc(mr.SourceBranch), esc(mr.TargetBranch), tagEnd))
 
 	d.section("Merge request")
+	if a.multiInstance() {
+		d.kv("Server", esc(a.instanceLabel(mr.Instance)))
+	}
 	author := esc(mr.Author.Username)
 	if det != nil {
 		author = esc(det.Author.Username)
@@ -555,14 +576,14 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 	}
 
 	d.section("On disk")
-	disk := a.disk[path].MRs[mr.IID]
+	disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 	if disk.Branch {
-		d.kv("Branch", tag(colOn)+"●"+tagEnd+" "+esc(a.ws.MRDir(path, mr.IID, mr.SourceBranch)))
+		d.kv("Branch", tag(colOn)+"●"+tagEnd+" "+esc(a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
 		d.kv("Branch", tag(colDim)+"○ Ctrl-O checks the branch out and opens the editor"+tagEnd)
 	}
 	if disk.Review {
-		d.kv("Review", tag(colOn)+"◐"+tagEnd+" "+esc(a.ws.ReviewDir(path, mr.IID, mr.SourceBranch)))
+		d.kv("Review", tag(colOn)+"◐"+tagEnd+" "+esc(a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
 		d.kv("Review", tag(colDim)+"○ v opens the change as pending edits to diff through"+tagEnd)
 	}

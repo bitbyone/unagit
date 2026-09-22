@@ -54,7 +54,12 @@ func Encrypt(plaintext, passphrase []byte) (*Blob, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return nil, err
 	}
-	key := derive(passphrase, salt, defaultParams)
+	return seal(derive(passphrase, salt, defaultParams), salt, defaultParams, plaintext)
+}
+
+// seal encrypts with an already derived key, so a vault can be written again
+// without asking for the passphrase a second time.
+func seal(key, salt []byte, p params, plaintext []byte) (*Blob, error) {
 	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
@@ -63,14 +68,13 @@ func Encrypt(plaintext, passphrase []byte) (*Blob, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, err
 	}
-	ct := gcm.Seal(nil, nonce, plaintext, nil)
 	return &Blob{
 		Version: 1,
 		KDF:     kdfArgon2id,
-		Params:  defaultParams,
+		Params:  p,
 		Salt:    base64.StdEncoding.EncodeToString(salt),
 		Nonce:   base64.StdEncoding.EncodeToString(nonce),
-		Data:    base64.StdEncoding.EncodeToString(ct),
+		Data:    base64.StdEncoding.EncodeToString(gcm.Seal(nil, nonce, plaintext, nil)),
 	}, nil
 }
 
@@ -83,6 +87,11 @@ func Decrypt(b *Blob, passphrase []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("corrupt salt: %w", err)
 	}
+	return openWithKey(b, derive(passphrase, salt, b.Params))
+}
+
+// openWithKey decrypts a blob with an already derived key.
+func openWithKey(b *Blob, key []byte) ([]byte, error) {
 	nonce, err := base64.StdEncoding.DecodeString(b.Nonce)
 	if err != nil {
 		return nil, fmt.Errorf("corrupt nonce: %w", err)
@@ -91,7 +100,7 @@ func Decrypt(b *Blob, passphrase []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("corrupt data: %w", err)
 	}
-	gcm, err := newGCM(derive(passphrase, salt, b.Params))
+	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
 	}

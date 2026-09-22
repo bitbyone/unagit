@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/gitlab"
 )
 
@@ -29,7 +28,7 @@ func TestSanitize(t *testing.T) {
 }
 
 func TestPaths(t *testing.T) {
-	m := New(&config.Config{RootDir: "/root", GitLabURL: "https://gl.example"}, "", nil)
+	m := New(Options{Root: "/root", GitLabURL: "https://gl.example"}, nil)
 	if got := m.ProjectDir("group/sub/app"); got != filepath.FromSlash("/root/group/sub/app") {
 		t.Errorf("ProjectDir = %q", got)
 	}
@@ -91,11 +90,10 @@ func newOrigin(t *testing.T) string {
 	return bare
 }
 
-func newManager(t *testing.T, origin string) (*Manager, *config.Config, gitlab.Project) {
+func newManager(t *testing.T, origin string) (*Manager, string, gitlab.Project) {
 	t.Helper()
 	root := t.TempDir()
-	cfg := &config.Config{RootDir: root, GitLabURL: "https://gl.example", Editor: "true"}
-	m := New(cfg, "", func(string) {})
+	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true"}, func(string) {})
 	p := gitlab.Project{
 		ID:                1,
 		Name:              "app",
@@ -103,7 +101,7 @@ func newManager(t *testing.T, origin string) (*Manager, *config.Config, gitlab.P
 		DefaultBranch:     "main",
 		HTTPURLToRepo:     origin,
 	}
-	return m, cfg, p
+	return m, root, p
 }
 
 func TestEnsureProjectClonesThenUpdates(t *testing.T) {
@@ -273,7 +271,7 @@ func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 }
 
 func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
-	m, cfg, p := newManager(t, newOrigin(t))
+	m, root, p := newManager(t, newOrigin(t))
 	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
 		t.Fatal(err)
@@ -281,12 +279,12 @@ func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
 	if err := m.RemoveProject("group/app"); err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{m.ProjectDir("group/app"), m.MRRoot("group/app"), filepath.Join(cfg.Root(), "group")} {
+	for _, dir := range []string{m.ProjectDir("group/app"), m.MRRoot("group/app"), filepath.Join(root, "group")} {
 		if _, err := os.Stat(dir); !os.IsNotExist(err) {
 			t.Errorf("%s still exists", dir)
 		}
 	}
-	if _, err := os.Stat(cfg.Root()); err != nil {
+	if _, err := os.Stat(root); err != nil {
 		t.Errorf("root directory was removed: %v", err)
 	}
 }
@@ -297,8 +295,7 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 	const token = "glpat-super-secret-token-value"
 	origin := newOrigin(t)
 	root := t.TempDir()
-	cfg := &config.Config{RootDir: root, GitLabURL: "https://gl.example", Editor: "true"}
-	m := New(cfg, token, func(string) {})
+	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true", Token: token}, func(string) {})
 	p := gitlab.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
 
 	if _, err := m.EnsureProject(p); err != nil {

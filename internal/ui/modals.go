@@ -54,16 +54,26 @@ const helpText = `[::b]Tabs[::-]
   {A}/{E}      type to filter        {A}j k g G{E}  move        {A}Enter{E}  pick
   {A}Esc{E}    leaves the filter so j/k work, again closes the modal
 
-[::b]Settings tab[::-]
-  {A}Space{E}   cycles a group: off → this group only → including subgroups
-  {A}r{E}       reload the group tree from GitLab
-  {A}p{E}       refresh projects      {A}m{E}  refresh merge requests
+[::b]Settings tab[::-]  everything is configured here, no file to edit
+  {A}j k{E}  move between the sections   {A}Enter{E}  edit one   {A}Esc{E}  back
+  [::b]General[::-]         the default clone root, the editor and its arguments
+  [::b]GitLab servers[::-]  {A}a{E} add   {A}e{E} edit   {A}t{E} token   {A}v{E} verify   {A}d{E} remove
+                  several servers can be used at once, each with its own
+                  token; the lists then show which one a row came from
+  [::b]Groups & roots[::-]  {A}space{E} cycles a group: off → this group only →
+                  including subgroups
+                  {A}d{E} sets the clone directory of a group or of a whole
+                  server; blank inherits the level above
+                  {A}r{E} reload the groups   {A}p{E} {A}m{E} refresh the indexes
+  [::b]Security[::-]        {A}c{E} change the passphrase
 
 [::b]On disk[::-]
   {D}○{E} nothing   {O}●{E} branch worktree   {O}◐{E} review worktree   {O}◉{E} both
   <root>/<group>/<project>                       main clone, branch switching
   <root>/<group>/<project>.mrs/<iid>-<branch>    branch worktree per MR
   <root>/<group>/<project>.reviews/<iid>-<b>     review worktree per MR
+  <root> is the default from Settings, unless the server or the group it
+  belongs to overrides it.
   Worktrees share the main clone's objects, so uncommitted changes survive
   switching between merge requests.
 
@@ -92,7 +102,7 @@ func (a *App) showHelp() {
 	box(view.Box, "unagit - keys").SetBorderPadding(0, 0, 1, 1)
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == '?' || ev.Rune() == 'q' {
-			a.pages.RemovePage(pageHelp)
+			a.closeModal(pageHelp)
 			return nil
 		}
 		return ev
@@ -116,7 +126,7 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 		SetText(text).
 		AddButtons([]string{"Cancel", "Delete"}).
 		SetDoneFunc(func(i int, label string) {
-			a.pages.RemovePage(pageConfirm)
+			a.closeModal(pageConfirm)
 			if label == "Delete" {
 				onYes()
 			}
@@ -128,15 +138,15 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 	modal.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Rune() {
 		case 'y', 'Y':
-			a.pages.RemovePage(pageConfirm)
+			a.closeModal(pageConfirm)
 			onYes()
 			return nil
 		case 'n', 'N', 'q':
-			a.pages.RemovePage(pageConfirm)
+			a.closeModal(pageConfirm)
 			return nil
 		}
 		if ev.Key() == tcell.KeyEsc {
-			a.pages.RemovePage(pageConfirm)
+			a.closeModal(pageConfirm)
 			return nil
 		}
 		return ev
@@ -202,7 +212,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 	rebuild("")
 	input.SetChangedFunc(rebuild)
 
-	dismiss := func() { a.pages.RemovePage(pagePicker) }
+	dismiss := func() { a.closeModal(pagePicker) }
 	choose := func() {
 		i := list.GetCurrentItem()
 		if i < 0 || i >= len(shown) {

@@ -23,14 +23,40 @@ want, and land in `nvim` inside a ready checkout.
  ? help · q quit
 ```
 
+## Setting it up
+
+```sh
+make install     # -> ~/.local/bin/unagit
+unagit           # asks for a passphrase, then walks you into Settings
+```
+
+There is nothing to edit by hand. On the first run unagit asks for a
+passphrase (it encrypts your tokens), then opens **Settings [S]**:
+
+1. **GitLab servers** - press `a`, fill in a name, the URL and a personal
+   access token with the `api` scope. `v` checks the token against the server.
+   Add as many servers as you like; each keeps its own token.
+2. **Groups & roots** - press `r` to load the groups, then `space` on the ones
+   you work with. `space` cycles *off → this group only → including
+   subgroups*. `d` gives a group - or a whole server - its own clone
+   directory.
+3. Press `p` and `m` to build the project and merge request indexes.
+
 ## How it works
 
 * **Three tabs**, switched with `P`, `M` and `S`: *Projects*, *Merge requests*,
-  *Settings*. Merge requests are listed across all selected groups and can be
-  limited to a single project (`f`), on top of the fuzzy filter.
-* **Groups are picked with a granularity**: `Space` in Settings cycles a group
+  *Settings*. Merge requests are listed across all selected groups - of every
+  server - and can be limited to a single project (`f`), on top of the fuzzy
+  filter. With more than one server configured, the lists gain a `SERVER`
+  column.
+* **Groups are picked with a granularity**: `space` in Settings cycles a group
   between *off*, *this group only* (the projects sitting directly in it) and
   *including subgroups* (the whole tree below it).
+* **Where things land is configurable per group.** A project is cloned under
+  the first of: its group's own directory, its server's, the global default.
+  A relative override is taken from the level above, an absolute one (or
+  `~/…`) replaces it - so `acme/platform` can live in `~/work/platform` while
+  everything else stays under `~/unagit`.
 * **A detail column** slides in on `Enter` and takes the focus, so `j`/`k`
   scroll it. `Esc` goes back to the list, and from there the column **follows
   the cursor**: move through the list and the detail catches up once you stop
@@ -123,16 +149,10 @@ The flip side is that a `git pull` you run yourself, outside unagit, will ask
 for credentials — set up a credential helper of your own or use SSH remotes if
 you want that.
 
-## Install
+## Requirements
 
-```sh
-make install          # builds and copies to ~/.local/bin
-unagit init           # asks for URL, root dir, editor, token and passphrase
-unagit                # start; press 'S' to pick groups, then 'p' and 'm'
-```
-
-Requires Go 1.24+, `git`, and a GitLab personal access token with the `api`
-scope.
+Go 1.24+, `git`, and a GitLab personal access token with the `api` scope for
+each server.
 
 ## Keys
 
@@ -169,29 +189,33 @@ the target it has fallen.
 
 ## Configuration
 
+Everything below is written by the Settings tab; it is documented because it
+is your data, not because you have to touch it.
 `~/.config/unagit/config.yaml` (override the directory with `UNAGIT_CONFIG_DIR`
 or `XDG_CONFIG_HOME`):
 
 ```yaml
-gitlab_url: https://gitlab.example.com
-root_dir: ~/unagit
+root_dir: ~/unagit          # the default; everything else is an override
 editor: nvim
 editor_args: ["."]
-groups:
-  - id: 42
-    full_path: acme/platform
-    name: platform
-    scope: subgroups   # or "group" for this group's own projects only
+instances:
+  - id: gitlab-example-com  # stable key: ties the token and the caches to it
+    name: Work
+    url: https://gitlab.example.com
+    root_dir: ~/work        # optional, for this server
+    groups:
+      - id: 42
+        full_path: acme/platform
+        name: platform
+        scope: subgroups    # or "group" for this group's own projects only
+        root_dir: platform  # optional; relative to ~/work here
 ```
 
-Alongside it live `token.enc` and the `index-*.json` caches.
+Alongside it live `tokens.enc` and the `index-*.json` caches.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `unagit` | start the TUI |
-| `unagit init` | create the config and store the encrypted token |
-| `unagit token` | replace the stored token |
-| `unagit passphrase` | change the passphrase |
-| `unagit where` | print the config and index paths |
+| `unagit` | start the TUI - everything is configured inside it |
+| `unagit where` | print the config, vault and index paths |

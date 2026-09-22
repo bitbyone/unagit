@@ -54,7 +54,7 @@ func (a *App) switchTab(page string) {
 	case pageMRs:
 		a.tv.SetFocus(a.mrsPane.focusTarget())
 	case pageSettings:
-		a.tv.SetFocus(a.settings.tree)
+		a.tv.SetFocus(a.settings.focusTarget())
 	}
 	a.drawTabs()
 	a.setStatus("")

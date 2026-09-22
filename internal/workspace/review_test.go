@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/gitlab"
 )
 
@@ -72,9 +71,9 @@ func reviewMR() gitlab.MergeRequest {
 
 func newReviewManager(t *testing.T, origin string) (*Manager, gitlab.Project) {
 	t.Helper()
-	cfg := &config.Config{RootDir: t.TempDir(), GitLabURL: "https://gl.example", Editor: "true"}
 	p := gitlab.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
-	return New(cfg, "", func(string) {}), p
+	opts := Options{Root: t.TempDir(), GitLabURL: "https://gl.example", Editor: "true"}
+	return New(opts, func(string) {}), p
 }
 
 // TestReviewWorktreeStagesTheWholeChange is the point of the whole feature:

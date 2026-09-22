@@ -31,6 +31,7 @@ const (
 	pageConfirm  = "confirm"
 	pagePicker   = "picker"
 	pageUnlock   = "unlock"
+	pageForm     = "form"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -46,6 +47,13 @@ type diskInfo struct {
 	MRs    map[int]mrDisk
 }
 
+// projectKey identifies a project across instances: two servers can host the
+// same path.
+type projectKey struct {
+	Instance string
+	Path     string
+}
+
 // App is the running TUI.
 type App struct {
 	tv     *tview.Application
@@ -54,59 +62,72 @@ type App struct {
 	status *tview.TextView
 	tab    string
 
-	cfg    *config.Config
-	client *gitlab.Client
-	ws     *workspace.Manager
-	token  string
-	blob   *secret.Blob // set while the token is still locked
+	cfg     *config.Config
+	vault   *secret.Vault
+	clients map[string]*gitlab.Client
 
 	projects    []gitlab.Project
 	mrs         []gitlab.MergeRequest
 	groups      []gitlab.Group
-	projByID    map[int]gitlab.Project
-	projByPath  map[string]gitlab.Project
+	projByKey   map[projectKey]gitlab.Project
 	projUpdated time.Time
 	mrsUpdated  time.Time
 
-	disk map[string]diskInfo
+	disk map[projectKey]diskInfo
 
 	projectsPane *pane
 	mrsPane      *pane
 	settings     *settingsView
 
-	mrProjectScope string // project path the merge request list is limited to
+	mrProjectScope projectKey // the project the merge request list is limited to
 }
 
-// New builds the application with an already decrypted token.
-func New(cfg *config.Config, token string) *App {
+// New builds the application with an already open vault, for tests and for
+// callers that unlocked it themselves.
+func New(cfg *config.Config, vault *secret.Vault) *App {
 	a := &App{
 		tv:    tview.NewApplication(),
 		pages: tview.NewPages(),
 		cfg:   cfg,
-		disk:  map[string]diskInfo{},
+		disk:  map[projectKey]diskInfo{},
 	}
-	a.setToken(token)
+	a.setVault(vault)
 	return a
 }
 
-// NewLocked builds the application with the token still encrypted; the
+// NewLocked builds the application with the tokens still encrypted; the
 // passphrase is asked for in a modal once the interface is up.
-func NewLocked(cfg *config.Config, blob *secret.Blob) *App {
+func NewLocked(cfg *config.Config) *App {
 	return &App{
 		tv:    tview.NewApplication(),
 		pages: tview.NewPages(),
 		cfg:   cfg,
-		disk:  map[string]diskInfo{},
-		blob:  blob,
+		disk:  map[projectKey]diskInfo{},
 	}
 }
 
-// setToken wires up everything that needs the decrypted token.
-func (a *App) setToken(token string) {
-	a.token = token
-	a.client = gitlab.New(a.cfg.GitLabURL, token)
-	a.ws = workspace.New(a.cfg, token, nil)
+// setVault wires up everything that needs the decrypted tokens.
+func (a *App) setVault(v *secret.Vault) {
+	a.vault = v
+	a.rebuildClients()
 }
+
+// rebuildClients refreshes the per-instance API clients after the
+// configuration or the tokens changed.
+func (a *App) rebuildClients() {
+	a.clients = make(map[string]*gitlab.Client, len(a.cfg.Instances))
+	if a.vault == nil {
+		return
+	}
+	for _, inst := range a.cfg.Instances {
+		if token := a.vault.Token(inst.ID); token != "" {
+			a.clients[inst.ID] = gitlab.New(inst.URL, token)
+		}
+	}
+}
+
+// client returns the API client of an instance, or nil when it has no token.
+func (a *App) client(instanceID string) *gitlab.Client { return a.clients[instanceID] }
 
 // Run builds the interface and starts the event loop.
 func (a *App) Run() error {
@@ -132,7 +153,7 @@ func (a *App) Run() error {
 
 	a.tv.SetInputCapture(a.globalKeys)
 
-	if a.blob != nil {
+	if a.vault == nil {
 		a.showUnlock()
 	} else {
 		a.start()
@@ -141,19 +162,34 @@ func (a *App) Run() error {
 }
 
 // start loads the cached indexes and shows the first tab. It runs once the
-// token is available.
+// vault is open.
 func (a *App) start() {
 	a.loadIndexes()
 	a.refreshDisk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()
-	a.settings.build()
+	a.settings.reload()
 	a.switchTab(pageProjects)
 
-	if len(a.cfg.Groups) == 0 {
+	switch {
+	case len(a.cfg.Instances) == 0:
 		a.switchTab(pageSettings)
-		a.flash("No groups selected yet - pick the groups you work with, then refresh the indexes.")
+		a.settings.selectSection(sectionServers)
+		a.flash("Add your first GitLab server: press a")
+	case len(a.selectedGroups()) == 0:
+		a.switchTab(pageSettings)
+		a.settings.selectSection(sectionGroups)
+		a.flash("Pick the groups you work with, then refresh the indexes with p and m")
 	}
+}
+
+// selectedGroups counts every group selected across all instances.
+func (a *App) selectedGroups() []config.Group {
+	var all []config.Group
+	for _, inst := range a.cfg.Instances {
+		all = append(all, inst.Groups...)
+	}
+	return all
 }
 
 // globalKeys handles the keys that work on every page.
@@ -165,10 +201,32 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 	return ev
 }
 
+// closeModal removes a modal page and gives the keyboard back to whatever was
+// underneath it. Without this, closing a dialog would leave nothing focused.
+func (a *App) closeModal(page string) {
+	a.pages.RemovePage(page)
+	a.restoreFocus()
+}
+
+// restoreFocus focuses the visible tab again.
+func (a *App) restoreFocus() {
+	if a.modalOpen() {
+		return
+	}
+	switch a.currentTab() {
+	case pageProjects:
+		a.tv.SetFocus(a.projectsPane.focusTarget())
+	case pageMRs:
+		a.tv.SetFocus(a.mrsPane.focusTarget())
+	case pageSettings:
+		a.tv.SetFocus(a.settings.focusTarget())
+	}
+}
+
 // modalOpen reports whether a modal page covers the current tab.
 func (a *App) modalOpen() bool {
 	switch name, _ := a.pages.GetFrontPage(); name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock:
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm:
 		return true
 	}
 	return false
@@ -219,23 +277,59 @@ func (a *App) loadIndexes() {
 	if g, err := index.Load[index.Groups](config.IndexPath("groups")); err == nil {
 		a.groups = g.Items
 	}
+	a.adoptLegacyIndex()
 	a.reindexProjects()
 }
 
-func (a *App) reindexProjects() {
-	a.projByID = make(map[int]gitlab.Project, len(a.projects))
-	a.projByPath = make(map[string]gitlab.Project, len(a.projects))
-	for _, p := range a.projects {
-		a.projByID[p.ID] = p
-		a.projByPath[p.PathWithNamespace] = p
+// adoptLegacyIndex labels items cached before unagit knew about instances.
+func (a *App) adoptLegacyIndex() {
+	if len(a.cfg.Instances) == 0 {
+		return
+	}
+	first := a.cfg.Instances[0].ID
+	for i := range a.projects {
+		if a.projects[i].Instance == "" {
+			a.projects[i].Instance = first
+		}
+	}
+	for i := range a.mrs {
+		if a.mrs[i].Instance == "" {
+			a.mrs[i].Instance = first
+		}
+	}
+	for i := range a.groups {
+		if a.groups[i].Instance == "" {
+			a.groups[i].Instance = first
+		}
 	}
 }
+
+func (a *App) reindexProjects() {
+	a.projByKey = make(map[projectKey]gitlab.Project, len(a.projects))
+	for _, p := range a.projects {
+		a.projByKey[projectKey{p.Instance, p.PathWithNamespace}] = p
+	}
+}
+
+// instanceOf returns the configured instance an item came from.
+func (a *App) instanceOf(id string) *config.Instance { return a.cfg.Instance(id) }
+
+// instanceLabel names an instance for display.
+func (a *App) instanceLabel(id string) string {
+	if inst := a.cfg.Instance(id); inst != nil {
+		return inst.Label()
+	}
+	return id
+}
+
+// multiInstance reports whether the lists have to say where a row came from.
+func (a *App) multiInstance() bool { return len(a.cfg.Instances) > 1 }
 
 // projectPathOfMR resolves the target project path of a merge request, falling
 // back to the "group/project!iid" reference GitLab returns.
 func (a *App) projectPathOfMR(mr gitlab.MergeRequest) string {
-	if p, ok := a.projByID[mr.ProjectID]; ok {
-		return p.PathWithNamespace
+	if mr.ProjectPath != "" {
+		return mr.ProjectPath
 	}
 	return resolveMRPath(mr, nil)
 }
@@ -257,44 +351,104 @@ func resolveMRPath(mr gitlab.MergeRequest, byID map[int]string) string {
 	return ""
 }
 
-// snapshotGroups copies the selected groups so a background refresh cannot
-// race with the settings view.
-func (a *App) snapshotGroups() []config.Group {
-	return append([]config.Group(nil), a.cfg.Groups...)
+// ------------------------------------------------------------ roots and dirs
+
+// rootFor is where a project of an instance is cloned.
+func (a *App) rootFor(instanceID, projectPath string) string {
+	return a.cfg.RootFor(a.cfg.Instance(instanceID), projectPath)
 }
 
-// snapshotProjectPaths copies the project id to path mapping for background use.
-func (a *App) snapshotProjectPaths() map[int]string {
-	m := make(map[int]string, len(a.projects))
-	for _, p := range a.projects {
-		m[p.ID] = p.PathWithNamespace
+func (a *App) projectDir(instanceID, projectPath string) string {
+	return workspace.ProjectDirIn(a.rootFor(instanceID, projectPath), projectPath)
+}
+
+func (a *App) mrRoot(instanceID, projectPath string) string {
+	return workspace.MRRootIn(a.rootFor(instanceID, projectPath), projectPath)
+}
+
+func (a *App) reviewRoot(instanceID, projectPath string) string {
+	return workspace.ReviewRootIn(a.rootFor(instanceID, projectPath), projectPath)
+}
+
+func (a *App) mrDir(instanceID, projectPath string, iid int, branch string) string {
+	return workspace.MRDirIn(a.rootFor(instanceID, projectPath), projectPath, iid, branch)
+}
+
+func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) string {
+	return workspace.ReviewDirIn(a.rootFor(instanceID, projectPath), projectPath, iid, branch)
+}
+
+// newManager builds a workspace manager for one project, with that project's
+// root, the instance's URL and its token.
+func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
+	opts := workspace.Options{
+		Root:       a.rootFor(instanceID, projectPath),
+		Editor:     a.cfg.Editor,
+		EditorArgs: a.cfg.EditorArgs,
 	}
-	return m
+	if inst := a.cfg.Instance(instanceID); inst != nil {
+		opts.GitLabURL = inst.URL
+	}
+	if a.vault != nil {
+		opts.Token = a.vault.Token(instanceID)
+	}
+	return workspace.New(opts, log)
+}
+
+// ------------------------------------------------------------------ refresh
+
+// instancesWithTokens returns the instances unagit can actually talk to.
+func (a *App) instancesWithTokens() ([]config.Instance, error) {
+	var ready []config.Instance
+	var missing []string
+	for _, inst := range a.cfg.Instances {
+		if a.client(inst.ID) == nil {
+			missing = append(missing, inst.Label())
+			continue
+		}
+		if len(inst.Groups) == 0 {
+			continue
+		}
+		ready = append(ready, inst)
+	}
+	if len(ready) == 0 {
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("no token for %s - set one in Settings [S]", strings.Join(missing, ", "))
+		}
+		return nil, fmt.Errorf("no groups selected - open Settings [S] first")
+	}
+	return ready, nil
 }
 
 // refreshProjects re-reads every selected group's project list from the API.
 func (a *App) refreshProjects() {
-	if len(a.cfg.Groups) == 0 {
-		a.errorf("no groups selected - open Settings [S] first")
+	instances, err := a.instancesWithTokens()
+	if err != nil {
+		a.errorf("%v", err)
 		return
 	}
-	groups := a.snapshotGroups()
 	a.runTask("Refreshing projects", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		var all []gitlab.Project
-		for _, g := range groups {
-			scope := "including subgroups"
-			if !g.IncludesSubgroups() {
-				scope = "this group only"
+		for _, inst := range instances {
+			client := a.client(inst.ID)
+			for _, g := range inst.Groups {
+				scope := "including subgroups"
+				if !g.IncludesSubgroups() {
+					scope = "this group only"
+				}
+				log(fmt.Sprintf("%s: fetching projects of %s (%s) ...", inst.Label(), g.FullPath, scope))
+				ps, err := client.GroupProjects(ctx, g.ID, g.IncludesSubgroups())
+				if err != nil {
+					return "", fmt.Errorf("%s: %w", inst.Label(), err)
+				}
+				for i := range ps {
+					ps[i].Instance = inst.ID
+				}
+				log(fmt.Sprintf("  %d project(s)", len(ps)))
+				all = append(all, ps...)
 			}
-			log(fmt.Sprintf("Fetching projects of %s (%s) ...", g.FullPath, scope))
-			ps, err := a.client.GroupProjects(ctx, g.ID, g.IncludesSubgroups())
-			if err != nil {
-				return "", err
-			}
-			log(fmt.Sprintf("  %d project(s)", len(ps)))
-			all = append(all, ps...)
 		}
 		all = index.DedupeProjects(all)
 		idx := index.Projects{UpdatedAt: time.Now(), Items: all}
@@ -307,7 +461,7 @@ func (a *App) refreshProjects() {
 			a.refreshDisk()
 			a.projectsPane.reload()
 			a.mrsPane.reload()
-			a.settings.buildInfo()
+			a.settings.reload()
 		})
 		log(fmt.Sprintf("Done: %d project(s) indexed.", len(all)))
 		return "", nil
@@ -316,37 +470,39 @@ func (a *App) refreshProjects() {
 
 // refreshMRs re-reads every selected group's open merge requests from the API.
 func (a *App) refreshMRs() {
-	if len(a.cfg.Groups) == 0 {
-		a.errorf("no groups selected - open Settings [S] first")
+	instances, err := a.instancesWithTokens()
+	if err != nil {
+		a.errorf("%v", err)
 		return
 	}
-	groups := a.snapshotGroups()
 	paths := a.snapshotProjectPaths()
 	a.runTask("Refreshing merge requests", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		var all []gitlab.MergeRequest
-		for _, g := range groups {
-			log(fmt.Sprintf("Fetching merge requests of %s ...", g.FullPath))
-			ms, err := a.client.GroupMergeRequests(ctx, g.ID)
-			if err != nil {
-				return "", err
-			}
-			// GitLab's group endpoint always descends into subgroups, so a
-			// group selected on its own is narrowed down here.
-			kept := ms[:0]
-			for _, mr := range ms {
-				if g.Owns(resolveMRPath(mr, paths)) {
-					kept = append(kept, mr)
+		for _, inst := range instances {
+			client := a.client(inst.ID)
+			for _, g := range inst.Groups {
+				log(fmt.Sprintf("%s: fetching merge requests of %s ...", inst.Label(), g.FullPath))
+				ms, err := client.GroupMergeRequests(ctx, g.ID)
+				if err != nil {
+					return "", fmt.Errorf("%s: %w", inst.Label(), err)
 				}
+				// GitLab's group endpoint always descends into subgroups, so a
+				// group selected on its own is narrowed down here.
+				kept := ms[:0]
+				for _, mr := range ms {
+					mr.Instance = inst.ID
+					mr.ProjectPath = resolveMRPath(mr, paths[inst.ID])
+					if g.Owns(mr.ProjectPath) {
+						kept = append(kept, mr)
+					}
+				}
+				log(fmt.Sprintf("  %d open merge request(s)", len(kept)))
+				all = append(all, kept...)
 			}
-			log(fmt.Sprintf("  %d open merge request(s)", len(kept)))
-			all = append(all, kept...)
 		}
 		all = index.DedupeMergeRequests(all)
-		for i := range all {
-			all[i].ProjectPath = resolveMRPath(all[i], paths)
-		}
 		idx := index.MergeRequests{UpdatedAt: time.Now(), Items: all}
 		if err := index.Save(config.IndexPath("mrs"), idx); err != nil {
 			return "", err
@@ -356,32 +512,68 @@ func (a *App) refreshMRs() {
 			a.refreshDisk()
 			a.mrsPane.reload()
 			a.projectsPane.reload()
-			a.settings.buildInfo()
+			a.settings.reload()
 		})
 		log(fmt.Sprintf("Done: %d merge request(s) indexed.", len(all)))
 		return "", nil
 	})
 }
 
-// refreshGroups re-reads the group tree from the API.
+// snapshotProjectPaths copies the project id to path mapping per instance, for
+// background use.
+func (a *App) snapshotProjectPaths() map[string]map[int]string {
+	m := make(map[string]map[int]string, len(a.cfg.Instances))
+	for _, p := range a.projects {
+		if m[p.Instance] == nil {
+			m[p.Instance] = map[int]string{}
+		}
+		m[p.Instance][p.ID] = p.PathWithNamespace
+	}
+	return m
+}
+
+// refreshGroups re-reads the group trees from every instance that has a token.
 func (a *App) refreshGroups() {
+	var instances []config.Instance
+	for _, inst := range a.cfg.Instances {
+		if a.client(inst.ID) != nil {
+			instances = append(instances, inst)
+		}
+	}
+	if len(instances) == 0 {
+		a.errorf("no server with a token yet - add one in Settings")
+		return
+	}
 	a.runTask("Refreshing groups", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		log("Fetching every group you are a member of ...")
-		gs, err := a.client.Groups(ctx)
-		if err != nil {
-			return "", err
+		var all []gitlab.Group
+		for _, inst := range instances {
+			log(fmt.Sprintf("%s: fetching every group you are a member of ...", inst.Label()))
+			gs, err := a.client(inst.ID).Groups(ctx)
+			if err != nil {
+				return "", fmt.Errorf("%s: %w", inst.Label(), err)
+			}
+			for i := range gs {
+				gs[i].Instance = inst.ID
+			}
+			log(fmt.Sprintf("  %d group(s)", len(gs)))
+			all = append(all, gs...)
 		}
-		sort.Slice(gs, func(i, j int) bool { return gs[i].FullPath < gs[j].FullPath })
-		if err := index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(), Items: gs}); err != nil {
+		sort.Slice(all, func(i, j int) bool {
+			if all[i].Instance != all[j].Instance {
+				return all[i].Instance < all[j].Instance
+			}
+			return all[i].FullPath < all[j].FullPath
+		})
+		if err := index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(), Items: all}); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.groups = gs
-			a.settings.build()
+			a.groups = all
+			a.settings.reload()
 		})
-		log(fmt.Sprintf("Done: %d group(s).", len(gs)))
+		log(fmt.Sprintf("Done: %d group(s).", len(all)))
 		return "", nil
 	})
 }
@@ -392,15 +584,15 @@ func (a *App) refreshGroups() {
 // It reads .git/HEAD directly instead of shelling out to git, so it stays fast
 // even with hundreds of projects.
 func (a *App) refreshDisk() {
-	disk := make(map[string]diskInfo, len(a.projects))
-	seen := map[string]bool{}
+	disk := make(map[projectKey]diskInfo, len(a.projects))
+	seen := map[projectKey]bool{}
 
-	inspect := func(path string) {
-		if path == "" || seen[path] {
+	inspect := func(key projectKey) {
+		if key.Path == "" || seen[key] {
 			return
 		}
-		seen[path] = true
-		dir := a.ws.ProjectDir(path)
+		seen[key] = true
+		dir := a.projectDir(key.Instance, key.Path)
 		info := diskInfo{MRs: map[int]mrDisk{}}
 		if head, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD")); err == nil {
 			info.Cloned = true
@@ -411,7 +603,10 @@ func (a *App) refreshDisk() {
 		for _, mode := range []struct {
 			root   string
 			review bool
-		}{{a.ws.MRRoot(path), false}, {a.ws.ReviewRoot(path), true}} {
+		}{
+			{a.mrRoot(key.Instance, key.Path), false},
+			{a.reviewRoot(key.Instance, key.Path), true},
+		} {
 			entries, _ := os.ReadDir(mode.root)
 			for _, e := range entries {
 				if !e.IsDir() {
@@ -436,17 +631,22 @@ func (a *App) refreshDisk() {
 			}
 		}
 		if info.Cloned || len(info.MRs) > 0 {
-			disk[path] = info
+			disk[key] = info
 		}
 	}
 
 	for _, p := range a.projects {
-		inspect(p.PathWithNamespace)
+		inspect(projectKey{p.Instance, p.PathWithNamespace})
 	}
 	for _, m := range a.mrs {
-		inspect(a.projectPathOfMR(m))
+		inspect(projectKey{m.Instance, a.projectPathOfMR(m)})
 	}
 	a.disk = disk
+}
+
+// diskOf returns the cached state of one project.
+func (a *App) diskOf(instanceID, projectPath string) diskInfo {
+	return a.disk[projectKey{instanceID, projectPath}]
 }
 
 // --------------------------------------------------------------- long tasks
@@ -462,7 +662,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 	done := false
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if done && (ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == 'q') {
-			a.pages.RemovePage(pageTask)
+			a.closeModal(pageTask)
 			a.setStatus("")
 			return nil
 		}
@@ -488,7 +688,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 				return
 			}
 			if dir == "" {
-				a.pages.RemovePage(pageTask)
+				a.closeModal(pageTask)
 				a.refreshDisk()
 				a.projectsPane.reload()
 				a.mrsPane.reload()
@@ -503,10 +703,11 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 
 // openEditor suspends the TUI, runs the editor and restores the interface.
 func (a *App) openEditor(dir string) {
-	a.tv.QueueUpdateDraw(func() { a.pages.RemovePage(pageTask) })
+	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
 	a.tv.Suspend(func() {
 		fmt.Printf("\n→ %s\n", dir)
-		if err := a.ws.OpenEditor(dir); err != nil {
+		opts := workspace.Options{Editor: a.cfg.Editor, EditorArgs: a.cfg.EditorArgs}
+		if err := workspace.New(opts, nil).OpenEditor(dir); err != nil {
 			fmt.Fprintf(os.Stderr, "editor failed: %v\n", err)
 			fmt.Fprintln(os.Stderr, "press enter to return to unagit")
 			var s string
@@ -521,7 +722,27 @@ func (a *App) openEditor(dir string) {
 	})
 }
 
-// newManager returns a workspace manager whose log lines go to fn.
-func (a *App) newManager(log func(string)) *workspace.Manager {
-	return workspace.New(a.cfg, a.token, log)
+// saveConfig writes the configuration and refreshes everything that depends
+// on it.
+func (a *App) saveConfig() {
+	if err := a.cfg.Save(); err != nil {
+		a.errorf("cannot save the config: %v", err)
+		return
+	}
+	a.rebuildClients()
+	a.refreshDisk()
+	a.projectsPane.reload()
+	a.mrsPane.reload()
+}
+
+// saveVault writes the encrypted tokens.
+func (a *App) saveVault() {
+	if a.vault == nil {
+		return
+	}
+	if err := a.vault.Save(config.VaultPath()); err != nil {
+		a.errorf("cannot save the tokens: %v", err)
+		return
+	}
+	a.rebuildClients()
 }

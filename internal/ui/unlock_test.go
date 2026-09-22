@@ -6,24 +6,29 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/secret"
 )
 
 func newLockedTestApp(t *testing.T, passphrase string) (*App, tcell.SimulationScreen) {
 	t.Helper()
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	blob, err := secret.Encrypt([]byte("glpat-test-token"), []byte(passphrase))
+	v, err := secret.NewVault([]byte(passphrase))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return startApp(t, NewLocked(cfg, blob))
+	v.Set(cfg.Instances[0].ID, "glpat-test-token")
+	if err := v.Save(config.VaultPath()); err != nil {
+		t.Fatal(err)
+	}
+	return startApp(t, NewLocked(cfg))
 }
 
 func TestUnlockModalGatesTheInterface(t *testing.T) {
 	a, sc := newLockedTestApp(t, "hunter2")
 
 	waitFor(t, a, sc, "Passphrase")
-	waitFor(t, a, sc, "The GitLab token is encrypted")
+	waitFor(t, a, sc, "The GitLab tokens are encrypted")
 	if got := a.screenText(sc); contains(got, "acme/gateway") {
 		t.Fatal("the project list was visible before unlocking")
 	}
@@ -33,10 +38,10 @@ func TestUnlockModalGatesTheInterface(t *testing.T) {
 
 	waitFor(t, a, sc, "acme/gateway")
 	waitGone(t, a, sc, "Passphrase")
-	if a.token != "glpat-test-token" {
-		t.Errorf("token = %q", a.token)
+	if got := a.vault.Token(a.cfg.Instances[0].ID); got != "glpat-test-token" {
+		t.Errorf("token = %q", got)
 	}
-	if a.client == nil || a.ws == nil {
+	if a.client(a.cfg.Instances[0].ID) == nil {
 		t.Error("the GitLab client was not wired up after unlocking")
 	}
 }
@@ -49,8 +54,8 @@ func TestUnlockRejectsTheWrongPassphrase(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
 	waitFor(t, a, sc, "Wrong passphrase")
-	if a.token != "" {
-		t.Error("a token was set despite the wrong passphrase")
+	if a.vault != nil {
+		t.Error("the vault was opened despite the wrong passphrase")
 	}
 
 	// The dialog stays usable for another attempt.
@@ -90,5 +95,49 @@ func TestClearMaskedReallyClears(t *testing.T) {
 	feed("second")
 	if got := in.GetText(); got != "second" {
 		t.Fatalf("leftovers from the first attempt: %q", got)
+	}
+}
+
+// TestFirstRunCreatesTheVault: with nothing configured at all, the interface
+// asks for a passphrase, creates the vault and points at the servers section.
+func TestFirstRunCreatesTheVault(t *testing.T) {
+	t.Setenv("UNAGIT_CONFIG_DIR", t.TempDir())
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, sc := startApp(t, NewLocked(cfg))
+
+	waitFor(t, a, sc, "Choose a passphrase")
+	typeRunes(sc, "brand-new")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // on to the repeat field
+	typeRunes(sc, "brand-new")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+
+	waitFor(t, a, sc, "Add your first GitLab server")
+	waitFor(t, a, sc, "No servers yet")
+	if a.vault == nil {
+		t.Fatal("no vault after the first run")
+	}
+	if _, err := secret.OpenVault(config.VaultPath(), []byte("brand-new")); err != nil {
+		t.Errorf("the vault was not written: %v", err)
+	}
+}
+
+// TestFirstRunRejectsMismatchedPassphrases
+func TestFirstRunRejectsMismatchedPassphrases(t *testing.T) {
+	t.Setenv("UNAGIT_CONFIG_DIR", t.TempDir())
+	cfg, _ := config.Load()
+	a, sc := startApp(t, NewLocked(cfg))
+
+	waitFor(t, a, sc, "Choose a passphrase")
+	typeRunes(sc, "one")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	typeRunes(sc, "two")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+
+	waitFor(t, a, sc, "do not match")
+	if a.vault != nil {
+		t.Error("a vault was created despite the mismatch")
 	}
 }

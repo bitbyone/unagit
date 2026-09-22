@@ -25,8 +25,8 @@ func (a *App) newMRsPane() *pane {
 			age = "indexed " + humanAge(a.mrsUpdated)
 		}
 		scope := tag(colMuted) + "all projects" + tagEnd
-		if a.mrProjectScope != "" {
-			scope = tag(colWarn) + a.mrProjectScope + tagEnd
+		if a.mrProjectScope.Path != "" {
+			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s · scope %s",
 			tag(colMuted), len(filtered), len(a.mrs), age, tagEnd+scope)
@@ -69,7 +69,7 @@ func (a *App) newMRsPane() *pane {
 			a.showProjectScopePicker()
 			return nil
 		case 'F':
-			a.mrProjectScope = ""
+			a.mrProjectScope = projectKey{}
 			p.reload()
 			a.note("project filter cleared")
 			return nil
@@ -104,10 +104,12 @@ func (a *App) filterMRs(query string) []int {
 	var hits []scored
 	for i, mr := range a.mrs {
 		path := a.projectPathOfMR(mr)
-		if a.mrProjectScope != "" && path != a.mrProjectScope {
+		key := projectKey{Instance: mr.Instance, Path: path}
+		if a.mrProjectScope.Path != "" && key != a.mrProjectScope {
 			continue
 		}
-		hay := fmt.Sprintf("%s !%d %s %s %s %s", path, mr.IID, mr.Title, mr.Author.Username, mr.SourceBranch, mr.TargetBranch)
+		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
+			mr.Title, mr.Author.Username, mr.SourceBranch, mr.TargetBranch)
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
 			continue
@@ -170,33 +172,53 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 
 func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.Clear()
-	p.setHeaders("", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED")
-	c := a.mrColumns(p.contentWidth(), filtered)
+	withServer := a.multiInstance()
+	headers := []string{"", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED"}
+	if withServer {
+		headers = []string{"", "SERVER", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED"}
+	}
+	p.setHeaders(headers...)
+
+	serverW := 0
+	if withServer {
+		for _, idx := range filtered {
+			serverW = max(serverW, len([]rune(a.instanceLabel(a.mrs[idx].Instance))))
+		}
+		serverW = min(serverW, 16)
+	}
+	c := a.mrColumns(p.contentWidth()-serverW, filtered)
 
 	for row, idx := range filtered {
 		mr := a.mrs[idx]
 		path := a.projectPathOfMR(mr)
+		disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 
-		mark := tview.NewTableCell(" " + mrMark(a.disk[path].MRs[mr.IID])).
-			SetTextColor(mrMarkColor(a.disk[path].MRs[mr.IID]))
+		mark := tview.NewTableCell(" " + mrMark(disk)).SetTextColor(mrMarkColor(disk))
 		mark.SetReference(idx)
 
 		title := trunc(mr.Title, c.title)
 		if mr.Draft {
-			title = trunc(mr.Title, c.title-6)
-			title = "[::d]draft[::-] " + tview.Escape(title)
+			title = "[::d]draft[::-] " + tview.Escape(trunc(mr.Title, c.title-6))
 		} else {
 			title = tview.Escape(title)
 		}
 
-		p.table.SetCell(row+1, 0, mark)
-		p.table.SetCell(row+1, 1, tview.NewTableCell(trunc(path, c.proj)).SetTextColor(colAccent))
-		p.table.SetCell(row+1, 2, tview.NewTableCell(fmt.Sprintf("!%d", mr.IID)).SetTextColor(colWarn))
-		p.table.SetCell(row+1, 3, tview.NewTableCell(title).SetTextColor(colText))
-		p.table.SetCell(row+1, 4, tview.NewTableCell(trunc(mr.Author.Username, c.author)).SetTextColor(colMuted))
-		p.table.SetCell(row+1, 5, tview.NewTableCell(trunc(mr.SourceBranch, c.branch)).SetTextColor(colBranch))
-		p.table.SetCell(row+1, 6, tview.NewTableCell(humanAge(mr.UpdatedAt)).SetTextColor(colMuted))
-		p.fill(row+1, 7)
+		col := 0
+		set := func(cell *tview.TableCell) {
+			p.table.SetCell(row+1, col, cell)
+			col++
+		}
+		set(mark)
+		if withServer {
+			set(tview.NewTableCell(trunc(a.instanceLabel(mr.Instance), serverW)).SetTextColor(colAccent))
+		}
+		set(tview.NewTableCell(trunc(path, c.proj)).SetTextColor(colAccent))
+		set(tview.NewTableCell(fmt.Sprintf("!%d", mr.IID)).SetTextColor(colWarn))
+		set(tview.NewTableCell(title).SetTextColor(colText))
+		set(tview.NewTableCell(trunc(mr.Author.Username, c.author)).SetTextColor(colMuted))
+		set(tview.NewTableCell(trunc(mr.SourceBranch, c.branch)).SetTextColor(colBranch))
+		set(tview.NewTableCell(humanAge(mr.UpdatedAt)).SetTextColor(colMuted))
+		p.fill(row+1, col)
 	}
 	if len(filtered) > 0 {
 		p.table.Select(1, 0)
@@ -228,7 +250,7 @@ func mrMarkColor(d mrDisk) tcell.Color {
 func (a *App) openMR(mr gitlab.MergeRequest) {
 	path, httpURL := a.mrOrigin(mr)
 	a.runTask(fmt.Sprintf("Opening %s !%d", path, mr.IID), func(log func(string)) (string, error) {
-		return a.newManager(log).EnsureMR(mr, path, httpURL)
+		return a.newManager(mr.Instance, path, log).EnsureMR(mr, path, httpURL)
 	})
 }
 
@@ -237,26 +259,31 @@ func (a *App) openMR(mr gitlab.MergeRequest) {
 // from the API, so it is the very commit GitLab renders its own diff against.
 func (a *App) openMRReview(mr gitlab.MergeRequest) {
 	path, httpURL := a.mrOrigin(mr)
+	client := a.client(mr.Instance)
 	a.runTask(fmt.Sprintf("Opening %s !%d for review", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
 		var rev workspace.Review
-		log("Asking GitLab what this merge request is diffed against ...")
-		if det, err := a.client.MergeRequest(ctx, mr.ProjectID, mr.IID); err != nil {
-			log("! " + err.Error())
-			log("  falling back to the local merge base")
+		if client == nil {
+			log("! no token for this server, falling back to the local merge base")
 		} else {
-			rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+			log("Asking GitLab what this merge request is diffed against ...")
+			if det, err := client.MergeRequest(ctx, mr.ProjectID, mr.IID); err != nil {
+				log("! " + err.Error())
+				log("  falling back to the local merge base")
+			} else {
+				rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+			}
 		}
-		return a.newManager(log).EnsureMRReview(mr, path, httpURL, rev)
+		return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, path, httpURL, rev)
 	})
 }
 
 // mrOrigin resolves where a merge request's project lives.
 func (a *App) mrOrigin(mr gitlab.MergeRequest) (path, httpURL string) {
 	path = a.projectPathOfMR(mr)
-	if pr, ok := a.projByPath[path]; ok {
+	if pr, ok := a.projByKey[projectKey{mr.Instance, path}]; ok {
 		httpURL = pr.HTTPURLToRepo
 	}
 	return path, httpURL

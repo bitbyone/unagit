@@ -34,25 +34,64 @@ const (
 	ReviewSuffix = ".reviews"
 )
 
+// Options is everything a Manager needs to know. The root is resolved by the
+// caller, because it depends on the instance and the group a project sits in.
+type Options struct {
+	Root       string
+	GitLabURL  string
+	Editor     string
+	EditorArgs []string
+	Token      string
+}
+
 // Manager performs all disk side effects.
 type Manager struct {
-	cfg *config.Config
-	git *gitx.Git
+	opts Options
+	git  *gitx.Git
 }
 
 // New returns a Manager. log receives progress lines and may be nil.
-func New(cfg *config.Config, token string, log func(string)) *Manager {
-	return &Manager{cfg: cfg, git: gitx.New(token, log)}
+func New(opts Options, log func(string)) *Manager {
+	return &Manager{opts: opts, git: gitx.New(opts.Token, log)}
 }
+
+// Root is the directory this manager clones into.
+func (m *Manager) Root() string { return config.Expand(m.opts.Root) }
 
 // Git exposes the underlying runner for status queries.
 func (m *Manager) Git() *gitx.Git { return m.git }
 
 func (m *Manager) log(format string, a ...any) { m.git.Log(fmt.Sprintf(format, a...)) }
 
+// The layout functions take the root explicitly, because which root a project
+// belongs to depends on its instance and on the group it sits in.
+
+// ProjectDirIn is the main clone directory of a project under root.
+func ProjectDirIn(root, projectPath string) string {
+	return filepath.Join(config.Expand(root), filepath.FromSlash(projectPath))
+}
+
+// MRRootIn holds every branch worktree of a project under root.
+func MRRootIn(root, projectPath string) string { return ProjectDirIn(root, projectPath) + MRSuffix }
+
+// ReviewRootIn holds every review worktree of a project under root.
+func ReviewRootIn(root, projectPath string) string {
+	return ProjectDirIn(root, projectPath) + ReviewSuffix
+}
+
+// MRDirIn is the branch worktree of one merge request under root.
+func MRDirIn(root, projectPath string, iid int, sourceBranch string) string {
+	return filepath.Join(MRRootIn(root, projectPath), mrDirName(iid, sourceBranch))
+}
+
+// ReviewDirIn is the review worktree of one merge request under root.
+func ReviewDirIn(root, projectPath string, iid int, sourceBranch string) string {
+	return filepath.Join(ReviewRootIn(root, projectPath), mrDirName(iid, sourceBranch))
+}
+
 // ProjectDir is the main clone directory of a project.
 func (m *Manager) ProjectDir(projectPath string) string {
-	return filepath.Join(m.cfg.Root(), filepath.FromSlash(projectPath))
+	return ProjectDirIn(m.Root(), projectPath)
 }
 
 // MRRoot is the directory holding every merge request worktree of a project.
@@ -94,7 +133,7 @@ func Exists(dir string) bool { return gitx.IsRepo(dir) }
 
 // cloneURL builds the HTTPS clone URL for a project path.
 func (m *Manager) cloneURL(projectPath string) string {
-	return strings.TrimRight(m.cfg.GitLabURL, "/") + "/" + projectPath + ".git"
+	return strings.TrimRight(m.opts.GitLabURL, "/") + "/" + projectPath + ".git"
 }
 
 // EnsureProject clones the project if needed, then fetches and fast-forwards
@@ -388,7 +427,7 @@ func (m *Manager) RemoveMR(projectPath string, iid int, sourceBranch string) err
 
 // pruneEmptyParents removes empty directories up to (but not including) the root.
 func (m *Manager) pruneEmptyParents(dir string) {
-	root := filepath.Clean(m.cfg.Root())
+	root := filepath.Clean(m.Root())
 	for {
 		dir = filepath.Clean(dir)
 		if dir == root || !strings.HasPrefix(dir, root+string(os.PathSeparator)) {
@@ -408,11 +447,15 @@ func (m *Manager) pruneEmptyParents(dir string) {
 // OpenEditor runs the configured editor in dir and blocks until it exits.
 // The caller must have suspended the TUI first.
 func (m *Manager) OpenEditor(dir string) error {
-	args := m.cfg.EditorArgs
+	args := m.opts.EditorArgs
 	if len(args) == 0 {
 		args = []string{"."}
 	}
-	cmd := exec.Command(m.cfg.Editor, args...)
+	editor := m.opts.Editor
+	if editor == "" {
+		editor = "nvim"
+	}
+	cmd := exec.Command(editor, args...)
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()

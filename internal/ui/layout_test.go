@@ -14,7 +14,7 @@ import (
 
 // longMRs replaces the merge request index with entries whose titles and
 // branches are long enough to compete for the available width.
-func longMRs(t *testing.T) {
+func longMRs(t *testing.T, instanceID string) {
 	t.Helper()
 	author := func(name string) struct {
 		Username string `json:"username"`
@@ -26,11 +26,11 @@ func longMRs(t *testing.T) {
 		}{Username: name}
 	}
 	mrs := []gitlab.MergeRequest{
-		{IID: 29747, ProjectID: 1, ProjectPath: "acme/gateway",
+		{IID: 29747, ProjectID: 1, ProjectPath: "acme/gateway", Instance: instanceID,
 			Title:        "MY2N-29747: Wrap rendered content into the email template and fix the footer",
 			SourceBranch: "feature/MY2N-29747-wrap-rendered-content",
 			Author:       author("Metlicka"), UpdatedAt: time.Now()},
-		{IID: 17, ProjectID: 2, ProjectPath: "acme/billing",
+		{IID: 17, ProjectID: 2, ProjectPath: "acme/billing", Instance: instanceID,
 			Title:        "Invoice rounding",
 			SourceBranch: "renovate/golang-x-crypto-vulnerability",
 			Author:       author("ci"), UpdatedAt: time.Now()},
@@ -40,8 +40,8 @@ func longMRs(t *testing.T) {
 
 func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	longMRs(t)
-	a, sc := startApp(t, New(cfg, "test-token"))
+	longMRs(t, cfg.Instances[0].ID)
+	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "29747")
@@ -180,27 +180,42 @@ func cellStyleAt(a *App, sc tcell.SimulationScreen, x, y int) tcell.Style {
 	return style
 }
 
+// openSection walks the Settings sidebar to a section and moves into it.
+func openSection(t *testing.T, a *App, sc tcell.SimulationScreen, section int) {
+	t.Helper()
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, sectionNames[section])
+	a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })
+	waitFor(t, a, sc, sectionNames[section])
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	time.Sleep(50 * time.Millisecond)
+}
+
 func TestSettingsCyclesGroupScope(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "S")
+	openSection(t, a, sc, sectionGroups)
 	waitFor(t, a, sc, "incl. subgroups") // the fixture starts fully selected
 
+	id := a.cfg.Instances[0].ID
+
+	// The cursor starts on the server node; step onto the group below it.
+	typeRunes(sc, "j")
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "· acme")
-	if a.cfg.GroupScope(1) != "" {
-		t.Fatalf("scope = %q, want unselected", a.cfg.GroupScope(1))
+	if got := a.cfg.Instance(id).GroupScope(1); got != "" {
+		t.Fatalf("scope = %q, want unselected", got)
 	}
 
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "this group only")
-	if got := a.cfg.GroupScope(1); got != config.ScopeGroup {
+	if got := a.cfg.Instance(id).GroupScope(1); got != config.ScopeGroup {
 		t.Fatalf("scope = %q, want %q", got, config.ScopeGroup)
 	}
 
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "incl. subgroups")
-	if got := a.cfg.GroupScope(1); got != config.ScopeSubgroups {
+	if got := a.cfg.Instance(id).GroupScope(1); got != config.ScopeSubgroups {
 		t.Fatalf("scope = %q, want %q", got, config.ScopeSubgroups)
 	}
 
@@ -209,7 +224,7 @@ func TestSettingsCyclesGroupScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.GroupScope(1) != config.ScopeSubgroups {
-		t.Errorf("saved scope = %q", saved.GroupScope(1))
+	if saved.Instance(id).GroupScope(1) != config.ScopeSubgroups {
+		t.Errorf("saved scope = %q", saved.Instance(id).GroupScope(1))
 	}
 }

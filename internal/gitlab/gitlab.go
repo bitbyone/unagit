@@ -22,6 +22,8 @@ type Group struct {
 	FullPath string `json:"full_path"`
 	FullName string `json:"full_name"`
 	WebURL   string `json:"web_url"`
+	// Instance is filled in by unagit: which GitLab server this came from.
+	Instance string `json:"instance,omitempty"`
 }
 
 // Project is a GitLab project.
@@ -37,6 +39,8 @@ type Project struct {
 	Archived          bool      `json:"archived"`
 	LastActivityAt    time.Time `json:"last_activity_at"`
 	GroupID           int       `json:"-"`
+	// Instance is filled in by unagit: which GitLab server this came from.
+	Instance string `json:"instance,omitempty"`
 }
 
 // MergeRequest is an open merge request.
@@ -60,8 +64,9 @@ type MergeRequest struct {
 	References struct {
 		Full string `json:"full"`
 	} `json:"references"`
-	// ProjectPath is filled in by unagit from the project index.
+	// ProjectPath and Instance are filled in by unagit, not by GitLab.
 	ProjectPath string `json:"project_path,omitempty"`
+	Instance    string `json:"instance,omitempty"`
 }
 
 // Branch is a repository branch.

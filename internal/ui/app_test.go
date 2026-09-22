@@ -14,6 +14,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/secret"
 )
 
 // fakeServer counts what the interface asks for, so tests can check that a
@@ -134,36 +135,54 @@ func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
 	t.Helper()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
-	a, sc := startApp(t, New(cfg, "test-token"))
+	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	return a, sc, srv
 }
 
+// testInstanceID is the id the fixture's server gets, derived from its URL.
 func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("UNAGIT_CONFIG_DIR", dir)
 
 	cfg := config.Default()
-	cfg.GitLabURL = gitlabURL
 	cfg.RootDir = t.TempDir()
-	cfg.Groups = []config.Group{{ID: 1, FullPath: "acme"}}
+	inst := cfg.AddInstance(config.Instance{
+		Name:   "acme",
+		URL:    gitlabURL,
+		Groups: []config.Group{{ID: 1, FullPath: "acme", Scope: config.ScopeSubgroups}},
+	})
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
 
+	id := inst.ID
 	projects := []gitlab.Project{
-		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: time.Now()},
-		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: time.Now()},
+		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
+		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
 	}
 	mrs := []gitlab.MergeRequest{
-		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: time.Now()},
-		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: time.Now()},
+		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
+		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
 	}
 	must(t, index.Save(config.IndexPath("projects"), index.Projects{UpdatedAt: time.Now(), Items: projects}))
 	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
 	must(t, index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(),
-		Items: []gitlab.Group{{ID: 1, FullPath: "acme", Name: "acme"}}}))
+		Items: []gitlab.Group{{ID: 1, FullPath: "acme", Name: "acme", Instance: id}}}))
 	return cfg
+}
+
+// testVault is an open vault holding a token for every configured server.
+func testVault(t *testing.T, cfg *config.Config) *secret.Vault {
+	t.Helper()
+	v, err := secret.NewVault([]byte("test-passphrase"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, inst := range cfg.Instances {
+		v.Set(inst.ID, "test-token")
+	}
+	return v
 }
 
 func must(t *testing.T, err error) {
@@ -278,7 +297,7 @@ func TestTabKeysSwitchViews(t *testing.T) {
 	}
 
 	typeRunes(sc, "S")
-	waitFor(t, a, sc, "Configuration")
+	waitFor(t, a, sc, "GitLab servers")
 	if a.currentTab() != pageSettings {
 		t.Fatalf("tab = %q", a.currentTab())
 	}
@@ -378,13 +397,16 @@ func TestHelpOpensAndCloses(t *testing.T) {
 	waitGone(t, a, sc, "unagit - keys")
 }
 
-func TestSettingsShowsTheGroupTree(t *testing.T) {
+func TestSettingsOpensOnItsSections(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
 	typeRunes(sc, "S")
-	waitFor(t, a, sc, "Configuration")
-	waitFor(t, a, sc, "✓ acme")
+	for _, section := range sectionNames {
+		waitFor(t, a, sc, section)
+	}
+	// The first section is shown straight away.
+	waitFor(t, a, sc, "Default root")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "acme/billing")
@@ -401,8 +423,8 @@ func TestProjectFilterOnTheMergeRequestList(t *testing.T) {
 
 	waitFor(t, a, sc, "Invoice rounding")
 	waitGone(t, a, sc, "Rate limiting")
-	if a.mrProjectScope != "acme/billing" {
-		t.Errorf("scope = %q", a.mrProjectScope)
+	if a.mrProjectScope.Path != "acme/billing" {
+		t.Errorf("scope = %+v", a.mrProjectScope)
 	}
 
 	typeRunes(sc, "F")
@@ -466,8 +488,8 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
 	waitGone(t, a, sc, "Limit merge requests to project")
-	if a.mrProjectScope != "acme/gateway" {
-		t.Errorf("scope = %q, want acme/gateway (third entry in the picker)", a.mrProjectScope)
+	if a.mrProjectScope.Path != "acme/gateway" {
+		t.Errorf("scope = %+v, want acme/gateway (third entry in the picker)", a.mrProjectScope)
 	}
 }
 

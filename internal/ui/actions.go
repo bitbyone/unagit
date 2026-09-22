@@ -14,19 +14,20 @@ import (
 // request worktree hanging off it.
 func (a *App) confirmDeleteProject(pr gitlab.Project) {
 	path := pr.PathWithNamespace
-	info := a.disk[path]
+	info := a.diskOf(pr.Instance, path)
 	if !info.Cloned && len(info.MRs) == 0 {
 		a.flash(path + " is not on disk")
 		return
 	}
-	r := a.ws.InspectProject(path)
+	ws := a.newManager(pr.Instance, path, nil)
+	r := ws.InspectProject(path)
 	body := fmt.Sprintf("Delete [::b]%s[::-] from disk?\n\n%s", path, r.Dir)
 	if n := len(r.MRDirs); n > 0 {
-		body += fmt.Sprintf("\n\n…and %d merge request worktree(s) under\n%s", n, a.ws.MRRoot(path))
+		body += fmt.Sprintf("\n\n…and %d merge request worktree(s) under\n%s", n, ws.MRRoot(path))
 	}
 	a.confirm("Delete project", body, r.Warnings, func() {
 		a.runTask("Deleting "+path, func(log func(string)) (string, error) {
-			return "", a.newManager(log).RemoveProject(path)
+			return "", a.newManager(pr.Instance, path, log).RemoveProject(path)
 		})
 	})
 }
@@ -34,28 +35,28 @@ func (a *App) confirmDeleteProject(pr gitlab.Project) {
 // confirmDeleteMR asks before removing the worktrees of a merge request.
 func (a *App) confirmDeleteMR(mr gitlab.MergeRequest) {
 	path := a.projectPathOfMR(mr)
-	disk := a.disk[path].MRs[mr.IID]
+	disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 	if !disk.Branch && !disk.Review {
 		a.flash(fmt.Sprintf("!%d is not on disk", mr.IID))
 		return
 	}
-	var dirs []string
-	var warnings []string
+	ws := a.newManager(mr.Instance, path, nil)
+	var dirs, warnings []string
 	if disk.Branch {
-		dir := a.ws.MRDir(path, mr.IID, mr.SourceBranch)
+		dir := a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)
 		dirs = append(dirs, "branch   "+dir)
-		warnings = append(warnings, a.ws.InspectDir(dir).Warnings...)
+		warnings = append(warnings, ws.InspectDir(dir).Warnings...)
 	}
 	if disk.Review {
-		dir := a.ws.ReviewDir(path, mr.IID, mr.SourceBranch)
+		dir := a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)
 		dirs = append(dirs, "review   "+dir)
-		warnings = append(warnings, a.ws.InspectDir(dir).Warnings...)
+		warnings = append(warnings, ws.InspectDir(dir).Warnings...)
 	}
 	body := fmt.Sprintf("Delete the worktree(s) of [::b]%s !%d[::-]?\n\n%s\n\nThe main clone of the project stays.",
 		path, mr.IID, strings.Join(dirs, "\n"))
 	a.confirm("Delete merge request worktree", body, warnings, func() {
 		a.runTask(fmt.Sprintf("Deleting !%d", mr.IID), func(log func(string)) (string, error) {
-			return "", a.newManager(log).RemoveMR(path, mr.IID, mr.SourceBranch)
+			return "", a.newManager(mr.Instance, path, log).RemoveMR(path, mr.IID, mr.SourceBranch)
 		})
 	})
 }
@@ -63,10 +64,15 @@ func (a *App) confirmDeleteMR(mr gitlab.MergeRequest) {
 // showBranchPicker lists the project's branches and switches the main clone to
 // the chosen one before opening the editor.
 func (a *App) showBranchPicker(pr gitlab.Project) {
+	client := a.client(pr.Instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
+		return
+	}
 	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		branches, err := a.client.ProjectBranches(ctx, pr.ID)
+		branches, err := client.ProjectBranches(ctx, pr.ID)
 		if err != nil {
 			return "", err
 		}
@@ -80,11 +86,11 @@ func (a *App) showBranchPicker(pr gitlab.Project) {
 			items = append(items, pickItem{Label: b.Name, Sub: sub, Data: b.Name})
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.pages.RemovePage(pageTask)
+			a.closeModal(pageTask)
 			a.showPicker("Branch - "+pr.PathWithNamespace, items, func(it pickItem) {
 				branch := it.Data.(string)
 				a.runTask(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch), func(log func(string)) (string, error) {
-					return a.newManager(log).SwitchBranch(pr, branch)
+					return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
 				})
 			})
 		})
@@ -94,27 +100,32 @@ func (a *App) showBranchPicker(pr gitlab.Project) {
 
 // showProjectScopePicker limits the merge request list to a single project.
 func (a *App) showProjectScopePicker() {
-	counts := map[string]int{}
+	counts := map[projectKey]int{}
 	for _, mr := range a.mrs {
-		counts[a.projectPathOfMR(mr)]++
+		counts[projectKey{mr.Instance, a.projectPathOfMR(mr)}]++
 	}
-	paths := make([]string, 0, len(counts))
-	for path := range counts {
-		if path != "" {
-			paths = append(paths, path)
+	keys := make([]projectKey, 0, len(counts))
+	for key := range counts {
+		if key.Path != "" {
+			keys = append(keys, key)
 		}
 	}
-	sort.Strings(paths)
-	items := []pickItem{{Label: "(all projects)", Sub: fmt.Sprintf("%d merge requests", len(a.mrs)), Data: ""}}
-	for _, path := range paths {
-		items = append(items, pickItem{
-			Label: path,
-			Sub:   fmt.Sprintf("%d open", counts[path]),
-			Data:  path,
-		})
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Instance != keys[j].Instance {
+			return keys[i].Instance < keys[j].Instance
+		}
+		return keys[i].Path < keys[j].Path
+	})
+	items := []pickItem{{Label: "(all projects)", Sub: fmt.Sprintf("%d merge requests", len(a.mrs)), Data: projectKey{}}}
+	for _, key := range keys {
+		sub := fmt.Sprintf("%d open", counts[key])
+		if a.multiInstance() {
+			sub = a.instanceLabel(key.Instance) + " · " + sub
+		}
+		items = append(items, pickItem{Label: key.Path, Sub: sub, Data: key})
 	}
 	a.showPicker("Limit merge requests to project", items, func(it pickItem) {
-		a.mrProjectScope = it.Data.(string)
+		a.mrProjectScope = it.Data.(projectKey)
 		a.mrsPane.reload()
 		a.setStatus("")
 	})
