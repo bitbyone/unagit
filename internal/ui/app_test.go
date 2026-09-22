@@ -220,9 +220,11 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
 		{IID: 8, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Drop the old client", SourceBranch: "chore/drop", TargetBranch: "main", UpdatedAt: now.Add(-2 * time.Hour), Comments: 1, Instance: id},
 	}
-	must(t, index.Save(config.IndexPath("projects"), index.Projects{UpdatedAt: time.Now(), Items: projects}))
-	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
-	must(t, index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(),
+	must(t, index.Save(config.IndexPath("projects"),
+		index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: projects}))
+	must(t, index.Save(config.IndexPath("mrs"),
+		index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: mrs}))
+	must(t, index.Save(config.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(),
 		Items: []forge.Group{{ID: 1, FullPath: "acme", Name: "acme", Instance: id}}}))
 	return cfg
 }

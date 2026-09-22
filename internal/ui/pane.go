@@ -54,11 +54,7 @@ func (a *App) newPane(title string) *pane {
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 
-	p.filter = tview.NewInputField().
-		SetLabel(" / ").
-		SetFieldBackgroundColor(tcell.ColorDefault).
-		SetFieldTextColor(colText).
-		SetLabelColor(colAccent)
+	p.filter = filterField(tview.NewInputField())
 	p.filter.SetChangedFunc(func(text string) {
 		p.query = text
 		if p.onQuery != nil {

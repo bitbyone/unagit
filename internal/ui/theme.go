@@ -22,10 +22,32 @@ var (
 	colBad         = tcell.Color167
 	colBranch      = tcell.Color109
 	colTabActive   = tcell.Color109
+	// colSurface is a raised panel: the background of a field or a button at
+	// rest, and the ink on one that is active.
+	colSurface = tcell.Color236
+	colRaised  = tcell.Color238
 )
 
 // applyTheme switches tview to single line rounded borders and a muted,
 // background-transparent colour scheme.
+//
+// tview builds every interactive widget - buttons, drop-downs, check boxes,
+// form fields - out of one pair of colours used both ways round:
+//
+//	at rest:  background ContrastBackgroundColor, text PrimaryTextColor
+//	active:   background PrimaryTextColor,        text ContrastBackgroundColor
+//
+// So the pair has to read in both directions. PrimaryTextColor is the light
+// half and ContrastBackgroundColor the dark one: as a background the dark one
+// is a raised surface, as a text colour it is dark ink on the light active
+// background. Getting this pair right is what keeps every widget legible
+// without being styled one at a time - an earlier version left the dark half
+// as the terminal default, which cannot be reasoned about as ink, and buttons
+// and drop-downs came out invisible.
+//
+// PrimitiveBackgroundColor is the exception that stays at the terminal
+// default: it is only ever a background, so panels can be transparent and sit
+// on whatever the editor around them looks like.
 //
 // tview keeps its styles in package level variables, so this runs once per
 // process rather than once per application.
@@ -45,15 +67,18 @@ func setTheme() {
 	tview.Borders = r
 
 	tview.Styles.PrimitiveBackgroundColor = tcell.ColorDefault
-	tview.Styles.ContrastBackgroundColor = tcell.ColorDefault
-	tview.Styles.MoreContrastBackgroundColor = tcell.ColorDefault
+	// The pair described above.
+	tview.Styles.PrimaryTextColor = colText
+	tview.Styles.ContrastBackgroundColor = colSurface
+	tview.Styles.MoreContrastBackgroundColor = colRaised
+	// Text drawn on a contrasting background, and the quieter text colours.
+	tview.Styles.InverseTextColor = colText
+	tview.Styles.ContrastSecondaryTextColor = colMuted
+	tview.Styles.SecondaryTextColor = colMuted
+	tview.Styles.TertiaryTextColor = colDim
 	tview.Styles.BorderColor = colBorder
 	tview.Styles.TitleColor = colTitle
 	tview.Styles.GraphicsColor = colBorder
-	tview.Styles.PrimaryTextColor = colText
-	tview.Styles.SecondaryTextColor = colMuted
-	tview.Styles.TertiaryTextColor = colDim
-	tview.Styles.InverseTextColor = colAccent
 }
 
 // focusBox brightens the border of the primitive that currently has focus.
@@ -182,12 +207,12 @@ func darken(c tcell.Color, fallback tcell.Color) tcell.Color {
 // the background's own colour. The styles are therefore set by hand, and a
 // marker makes it look like something you can open.
 func styleDropDown(d *tview.DropDown) *tview.DropDown {
-	field := tcell.StyleDefault.Background(tcell.Color236).Foreground(colText)
-	d.SetFieldStyle(field)
+	// The resting look comes from the theme. These two only make the active
+	// one match the selection band the lists use, rather than tview's
+	// inverted default.
 	d.SetFocusedStyle(styleSelected)
-	d.SetListStyles(field, styleSelected)
-	d.SetPrefixStyle(styleSelected)
-	d.SetTextOptions("  ", "  ", "", " ▾", "")
+	d.SetListStyles(tcell.StyleDefault.Background(colSurface).Foreground(colText), styleSelected)
+	d.SetTextOptions("  ", "  ", "", " \u25be", "")
 	// tview feeds every other key into a hidden search field and opens the
 	// list on it. With two fixed options that is only a way of ending up
 	// somewhere nobody asked for, so the arrows and Enter are the way in.
@@ -198,6 +223,16 @@ func styleDropDown(d *tview.DropDown) *tview.DropDown {
 		return ev
 	})
 	return d
+}
+
+// filterField is the "/" line above a list: part of the panel rather than a
+// filled box, because it is always there whether or not it is being typed in.
+func filterField(input *tview.InputField) *tview.InputField {
+	return input.
+		SetLabel(" / ").
+		SetFieldBackgroundColor(tcell.ColorDefault).
+		SetFieldTextColor(colText).
+		SetLabelColor(colAccent)
 }
 
 // tag renders a colour as a tview colour tag.

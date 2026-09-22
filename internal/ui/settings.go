@@ -1012,13 +1012,10 @@ func (s *settingsView) showPassphraseForm() {
 // -------------------------------------------------------------------- forms
 
 // styleForm gives a tview form the muted look of the rest of the interface.
+// Fields and buttons take their colours from the theme; only the active
+// button is set, so it matches the selection band the lists use.
 func styleForm(form *tview.Form) {
-	form.SetLabelColor(colMuted).
-		SetFieldBackgroundColor(tcell.Color236).
-		SetFieldTextColor(colText).
-		SetButtonBackgroundColor(tcell.Color238).
-		SetButtonTextColor(colText).
-		SetButtonActivatedStyle(styleSelected)
+	form.SetLabelColor(colMuted).SetButtonActivatedStyle(styleSelected)
 	form.SetBorderPadding(0, 0, 0, 0)
 }
 

@@ -26,7 +26,7 @@ func (a *App) confirmDeleteProject(pr forge.Project) {
 	if n := len(r.MRDirs); n > 0 {
 		body += fmt.Sprintf("\n\n…and %d merge request worktree(s) under\n%s", n, ws.MRRoot(path))
 	}
-	a.confirm("Delete project", body, r.Warnings, func() {
+	a.confirm("Delete repository", body, r.Warnings, func() {
 		a.runTask("Deleting "+path, func(log func(string)) (string, error) {
 			return "", a.newManager(pr.Instance, path, log).RemoveProject(path)
 		})

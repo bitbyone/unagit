@@ -40,8 +40,7 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 			}
 		})
 	modal.SetTextColor(colText)
-	modal.SetButtonBackgroundColor(tcell.ColorDefault)
-	modal.SetButtonTextColor(colText)
+	modal.SetButtonActivatedStyle(styleSelected)
 	box(modal.Box, title)
 	modal.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Rune() {
@@ -81,11 +80,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 	list.SetMainTextColor(colText)
 	list.SetSelectedStyle(styleSelected)
 
-	input := tview.NewInputField().
-		SetLabel(" / ").
-		SetFieldBackgroundColor(tcell.ColorDefault).
-		SetFieldTextColor(colText).
-		SetLabelColor(colAccent)
+	input := filterField(tview.NewInputField())
 
 	footer := tview.NewTextView().SetDynamicColors(true)
 

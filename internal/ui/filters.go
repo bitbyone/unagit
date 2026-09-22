@@ -122,11 +122,7 @@ func (a *App) showHiddenPicker() {
 		SetMainTextColor(colText).
 		SetSelectedStyle(styleSelected)
 
-	input := tview.NewInputField().
-		SetLabel(" / ").
-		SetFieldBackgroundColor(tcell.ColorDefault).
-		SetFieldTextColor(colText).
-		SetLabelColor(colAccent)
+	input := filterField(tview.NewInputField())
 
 	footer := tview.NewTextView().SetDynamicColors(true)
 
