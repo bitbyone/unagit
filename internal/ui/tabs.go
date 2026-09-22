@@ -15,7 +15,7 @@ type tab struct {
 }
 
 var tabs = []tab{
-	{pageProjects, 'P', "Projects"},
+	{pageProjects, 'R', "Repositories"},
 	{pageMRs, 'M', "Merge requests"},
 	{pageSettings, 'S', "Settings"},
 }

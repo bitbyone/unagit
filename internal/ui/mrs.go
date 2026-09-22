@@ -25,7 +25,7 @@ func (a *App) newMRsPane() *pane {
 		if !a.mrsUpdated.IsZero() {
 			age = "indexed " + humanAge(a.mrsUpdated)
 		}
-		scope := tag(colMuted) + "all projects" + tagEnd
+		scope := tag(colMuted) + "all repositories" + tagEnd
 		if a.mrProjectScope.Path != "" {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
@@ -89,7 +89,7 @@ func (a *App) newMRsPane() *pane {
 		case 'F':
 			a.mrProjectScope = projectKey{}
 			p.reload()
-			a.note("project filter cleared")
+			a.note("repository filter cleared")
 			return nil
 		case 'd':
 			if mr, ok := selected(); ok {
@@ -180,9 +180,10 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
 		c.updated = max(c.updated, len(humanAge(mr.UpdatedAt)))
 	}
-	c.proj = min(c.proj, 34)
-	c.author = min(c.author, 14)
-	c.branch = min(c.branch, 26)
+	c.proj = atLeast(min(c.proj, 34), "REPO")
+	c.author = atLeast(min(c.author, 14), "AUTHOR")
+	c.branch = atLeast(min(c.branch, 26), "BRANCH")
+	c.updated = atLeast(c.updated, "UPDATED")
 
 	const (
 		markW    = 2
@@ -210,6 +211,9 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 	c.title = max(c.title, 10)
 	return c
 }
+
+// atLeast keeps a column wide enough for its own heading.
+func atLeast(width int, heading string) int { return max(width, len(heading)) }
 
 // field is one column of a row: text of a fixed width, in a colour.
 type field struct {
@@ -282,7 +286,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		for _, idx := range filtered {
 			serverW = max(serverW, len([]rune(a.instanceLabel(a.mrs[idx].Instance))))
 		}
-		serverW = min(serverW, 16)
+		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
 	c := a.mrColumns(p.contentWidth()-serverW, filtered)
 	if grouped {
@@ -298,7 +302,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
 	}
 	if !grouped {
-		header = append(header, field{text: "PROJECT", width: c.proj, colour: colDim})
+		header = append(header, field{text: "REPO", width: c.proj, colour: colDim})
 	}
 	header = append(header,
 		field{text: "MR", width: c.iid, colour: colDim},
@@ -346,7 +350,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			titleField,
 			field{text: mr.Author.Username, width: c.author, colour: colMuted},
 			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
-			field{text: comments, width: c.com, colour: colMuted, right: true},
+			field{text: comments, width: c.com, colour: colWarn, right: true},
 			field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).

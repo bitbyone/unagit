@@ -347,7 +347,7 @@ func typeRunes(sc tcell.SimulationScreen, s string) {
 
 func TestStartsOnTheProjectList(t *testing.T) {
 	a, sc := newTestApp(t)
-	waitFor(t, a, sc, "Projects [P]")
+	waitFor(t, a, sc, "Repositories [R]")
 	waitFor(t, a, sc, "Merge requests [M]")
 	waitFor(t, a, sc, "Settings [S]")
 	waitFor(t, a, sc, "acme/gateway")
@@ -372,7 +372,7 @@ func TestTabKeysSwitchViews(t *testing.T) {
 		t.Fatalf("tab = %q", a.currentTab())
 	}
 
-	typeRunes(sc, "P")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "acme/billing")
 	if a.currentTab() != pageProjects {
 		t.Fatalf("tab = %q", a.currentTab())
@@ -404,7 +404,7 @@ func TestProjectDetailPane(t *testing.T) {
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Edge router")
-	waitFor(t, a, sc, "PROJECT")
+	waitFor(t, a, sc, "REPO")
 	waitFor(t, a, sc, "Add rate limiting") // last commits
 	waitFor(t, a, sc, "LANGUAGES")
 	waitFor(t, a, sc, "87.3%")
@@ -548,8 +548,8 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 
 	typeRunes(sc, "f") // limit merge requests to a project
-	waitFor(t, a, sc, "Limit merge requests to project")
-	waitFor(t, a, sc, "(all projects)")
+	waitFor(t, a, sc, "Limit merge requests to a repository")
+	waitFor(t, a, sc, "(all repositories)")
 
 	// Leave the input, move down twice, pick the highlighted project.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -557,7 +557,7 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	typeRunes(sc, "jj")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
-	waitGone(t, a, sc, "Limit merge requests to project")
+	waitGone(t, a, sc, "Limit merge requests to a repository")
 	if a.mrProjectScope.Path != "acme/gateway" {
 		t.Errorf("scope = %+v, want acme/gateway (third entry in the picker)", a.mrProjectScope)
 	}

@@ -68,10 +68,10 @@ func (a *App) toggleClonedOnly() {
 	a.cfg.Filters.ClonedOnly = !a.cfg.Filters.ClonedOnly
 	a.applyFilters()
 	if a.cfg.Filters.ClonedOnly {
-		a.note("Showing only the projects you have cloned")
+		a.note("Showing only the repositories you have cloned")
 		return
 	}
-	a.note("Showing every project again")
+	a.note("Showing every repository again")
 }
 
 // hideProject takes the project under the cursor out of both lists, or puts
@@ -105,7 +105,7 @@ func (a *App) toggleGrouping() {
 func (a *App) showSortPicker() {
 	items := []pickItem{
 		{Label: sortLabel(config.SortActivity), Sub: "what moved most recently, first", Data: config.SortActivity},
-		{Label: sortLabel(config.SortName), Sub: "by project path, merge requests by number", Data: config.SortName},
+		{Label: sortLabel(config.SortName), Sub: "by path, merge requests by number", Data: config.SortName},
 	}
 	a.showPicker("Sort both lists", items, func(it pickItem) {
 		a.cfg.Filters.Sort = it.Data.(string)
@@ -114,7 +114,7 @@ func (a *App) showSortPicker() {
 	})
 }
 
-// showHiddenPicker manages which projects stay out of the lists. It is a
+// showHiddenPicker manages which repositories stay out of the lists. It is a
 // multiple choice, so space toggles and the modal stays open.
 func (a *App) showHiddenPicker() {
 	list := tview.NewList().ShowSecondaryText(false)
@@ -238,7 +238,7 @@ func (a *App) showHiddenPicker() {
 				if n := a.cfg.Filters.ShowAll(); n > 0 {
 					a.applyFilters()
 					rebuild(input.GetText())
-					a.note(fmt.Sprintf("%d project(s) are back", n))
+					a.note(fmt.Sprintf("%d repositor%s back", n, plural(n, "y is", "ies are")))
 				}
 				return nil
 			case '/':
@@ -269,7 +269,7 @@ func (a *App) showHiddenPicker() {
 		AddItem(input, 1, 0, false).
 		AddItem(list, 0, 1, true).
 		AddItem(footer, 1, 0, false)
-	box(flex.Box, "Hidden projects")
+	box(flex.Box, "Hidden repositories")
 
 	a.pages.AddPage(pageHidden, modalPct(flex, 70, 75), true, true)
 	a.tv.SetFocus(list)

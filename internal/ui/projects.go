@@ -20,7 +20,7 @@ type scored struct {
 }
 
 func (a *App) newProjectsPane() *pane {
-	p := a.newPane("Projects")
+	p := a.newPane("Repositories")
 	var filtered []int
 
 	p.headline = func() string {
@@ -28,7 +28,7 @@ func (a *App) newProjectsPane() *pane {
 		if !a.projUpdated.IsZero() {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
-		return fmt.Sprintf("%s%d/%d projects · %s%s%s",
+		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
 			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(), tagEnd)
 	}
 
@@ -139,16 +139,12 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
 	withServer := a.multiInstance()
-	headers := []string{"", "PROJECT", "BRANCH", "MR", "ACTIVITY"}
-	if withServer {
-		headers = []string{"", "SERVER", "PROJECT", "BRANCH", "MR", "ACTIVITY"}
-	}
-	p.setHeaders(headers...)
 
-	branchW, actW, serverW := 6, 8, 0
+	branchW, actW, serverW, pathW := 6, 8, 0, 0
 	for _, idx := range filtered {
 		pr := a.projects[idx]
-		branch := a.diskOf(pr.Instance, pr.PathWithNamespace).Branch
+		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
+		branch := info.Branch
 		if branch == "" {
 			branch = pr.DefaultBranch
 		}
@@ -157,50 +153,105 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if withServer {
 			serverW = max(serverW, len([]rune(a.instanceLabel(pr.Instance))))
 		}
+		if info.Cloned {
+			pathW = max(pathW, len([]rune(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))))
+		}
 	}
-	branchW = min(branchW, 28)
-	serverW = min(serverW, 16)
-	// mark + gaps + the MR count column
-	fixed := 2 + branchW + 3 + actW + len(headers)
+	branchW = atLeast(min(branchW, 24), "BRANCH")
+	actW = atLeast(actW, "ACTIVITY")
 	if withServer {
-		fixed += serverW
+		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
-	projW := max(p.contentWidth()-fixed, 20)
+	if pathW > 0 {
+		pathW = atLeast(min(pathW, 44), "PATH")
+	}
 
-	for row, idx := range filtered {
+	const (
+		markW   = 2
+		mrW     = 2
+		gaps    = 5
+		minName = 20
+	)
+	fixed := markW + branchW + pathW + mrW + actW + gaps
+	if withServer {
+		fixed += serverW + 1
+	}
+	if pathW > 0 {
+		fixed++ // its own gap
+	}
+	nameW := p.contentWidth() - fixed
+	// When it is tight the path goes first, whole: half a directory is worth
+	// nothing, and the repository column already says which row this is.
+	if nameW < minName && pathW > 0 {
+		nameW += pathW + 1
+		pathW = 0
+	}
+	if nameW < minName {
+		give := min(branchW-10, minName-nameW)
+		if give > 0 {
+			branchW -= give
+			nameW += give
+		}
+	}
+	nameW = atLeast(max(nameW, 10), "REPOSITORY")
+
+	header := []field{{text: "", width: markW, colour: colDim}}
+	if withServer {
+		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
+	}
+	header = append(header,
+		field{text: "REPOSITORY", width: nameW, colour: colDim},
+		field{text: "BRANCH", width: branchW, colour: colDim})
+	if pathW > 0 {
+		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
+	}
+	header = append(header,
+		field{text: "MR", width: mrW, colour: colDim, right: true},
+		field{text: "ACTIVITY", width: actW, colour: colDim})
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
+		SetSelectable(false).SetExpansion(1))
+
+	row := 0
+	for _, idx := range filtered {
+		row++
 		pr := a.projects[idx]
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 
-		mark := tview.NewTableCell(" ○").SetTextColor(colDim)
+		mark, markColour := " ○", colDim
 		if info.Cloned {
-			mark = tview.NewTableCell(" ●").SetTextColor(colOn)
+			mark, markColour = " ●", colOn
 		}
-		mark.SetReference(idx)
-
-		branch, branchColor := info.Branch, colBranch
+		branch, branchColour := info.Branch, colBranch
 		if !info.Cloned {
-			branch, branchColor = pr.DefaultBranch, colDim
+			branch, branchColour = pr.DefaultBranch, colDim
+		}
+		path := ""
+		if info.Cloned {
+			path = tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))
 		}
 		mrCount := ""
 		if n := len(info.MRs); n > 0 {
 			mrCount = fmt.Sprintf("%d", n)
 		}
 
-		col := 0
-		set := func(cell *tview.TableCell) {
-			p.table.SetCell(row+1, col, cell)
-			col++
-		}
-		set(mark)
+		fields := []field{{raw: tag(markColour) + mark + tagEnd}}
 		if withServer {
-			set(tview.NewTableCell(trunc(a.instanceLabel(pr.Instance), serverW)).SetTextColor(colAccent))
+			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
 		}
-		set(tview.NewTableCell(trunc(pr.PathWithNamespace, projW)).SetTextColor(colText))
-		set(tview.NewTableCell(trunc(branch, branchW)).SetTextColor(branchColor))
-		set(tview.NewTableCell(mrCount).SetTextColor(colWarn))
-		set(tview.NewTableCell(humanAge(pr.LastActivityAt)).SetTextColor(colMuted))
-		p.fill(row+1, col)
+		fields = append(fields,
+			field{text: pr.PathWithNamespace, width: nameW, colour: colText},
+			field{text: branch, width: branchW, colour: branchColour})
+		if pathW > 0 {
+			fields = append(fields, field{text: path, width: pathW, colour: colMuted})
+		}
+		fields = append(fields,
+			field{text: mrCount, width: mrW, colour: colWarn, right: true},
+			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
+
+		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
+			SetReference(idx).SetExpansion(1))
 	}
+
 	first := 0
 	if len(filtered) > 0 {
 		first = 1

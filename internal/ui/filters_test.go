@@ -42,7 +42,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 	waitFor(t, a, sc, "acme/billing")
 
 	typeRunes(sc, "C")
-	waitFor(t, a, sc, "Showing only the projects you have cloned")
+	waitFor(t, a, sc, "Showing only the repositories you have cloned")
 	waitGone(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "acme/gateway")
 	waitFor(t, a, sc, "cloned only")
@@ -95,7 +95,7 @@ func TestHiddenPickerBringsThemBack(t *testing.T) {
 	waitGone(t, a, sc, "○ acme/gateway")
 
 	typeRunes(sc, "X")
-	waitFor(t, a, sc, "Hidden projects")
+	waitFor(t, a, sc, "Hidden repositories")
 	waitFor(t, a, sc, "space  hide / show")
 	// Both are listed, the hidden one marked.
 	waitFor(t, a, sc, "⊘ acme/gateway")
@@ -110,7 +110,7 @@ func TestHiddenPickerBringsThemBack(t *testing.T) {
 	}
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Hidden projects")
+	waitGone(t, a, sc, "Hidden repositories")
 	waitFor(t, a, sc, "○ acme/gateway")
 }
 
@@ -131,7 +131,7 @@ func TestHiddenPickerShowsAll(t *testing.T) {
 	typeRunes(sc, "X")
 	waitFor(t, a, sc, "2 hidden")
 	typeRunes(sc, "a")
-	waitFor(t, a, sc, "2 project(s) are back")
+	waitFor(t, a, sc, "2 repositories are back")
 	if len(a.cfg.Filters.Hidden) != 0 {
 		t.Fatalf("hidden = %+v", a.cfg.Filters.Hidden)
 	}
@@ -150,8 +150,9 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 	typeRunes(sc, "o")
 	waitFor(t, a, sc, "Sort both lists")
 	waitFor(t, a, sc, "by name")
-	typeRunes(sc, "j") // leave the input, land on the list
+	// The picker opens in filter mode; Esc leaves it so j moves the cursor.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "j/k move")
 	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
@@ -181,7 +182,8 @@ func firstRow(t *testing.T, a *App, sc tcell.SimulationScreen) string {
 	t.Helper()
 	lines := strings.Split(a.screenText(sc), "\n")
 	for i, line := range lines {
-		if strings.Contains(line, "PROJECT") && strings.Contains(line, "│") {
+		if (strings.Contains(line, "REPOSITORY") || strings.Contains(line, "REPO ")) &&
+			strings.Contains(line, "│") {
 			if i+1 < len(lines) {
 				return lines[i+1]
 			}
@@ -353,6 +355,48 @@ func TestStaleIndexSaysSo(t *testing.T) {
 	for _, line := range strings.Split(a.screenText(sc), "\n") {
 		if strings.Contains(line, "Rate limiting") && !strings.Contains(line, " 4 ") {
 			t.Errorf("the comment count did not arrive with the refresh: %q", line)
+		}
+	}
+}
+
+// TestPathColumnShowsWhereItIsCloned: with per-group roots, two repositories
+// can live in different places, and the column is what tells them apart.
+func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	id := a.cfg.Instances[0].ID
+
+	// Nothing is on disk, so there is nothing to point at.
+	if strings.Contains(a.screenText(sc), "PATH") {
+		t.Fatal("the column is there with nothing cloned")
+	}
+
+	cloneOnDisk(t, a, id, "acme/gateway")
+	waitFor(t, a, sc, "PATH")
+
+	want := tildePath(onLoop(a, func() string { return a.projectDir(id, "acme/gateway") }))
+	lines := strings.Split(a.screenText(sc), "\n")
+	var row string
+	for _, l := range lines {
+		if strings.Contains(l, "acme/gateway") && strings.Contains(l, "●") {
+			row = l
+		}
+	}
+	if row == "" {
+		t.Fatalf("no row for the cloned repository:\n%s", strings.Join(lines, "\n"))
+	}
+	// The path is truncated to the column, so its start is what is checked.
+	head := want
+	if len(head) > 20 {
+		head = head[:20]
+	}
+	if !strings.Contains(row, head) {
+		t.Errorf("the row does not show %q:\n%q", head, row)
+	}
+	// The one that is not cloned has nothing there.
+	for _, l := range lines {
+		if strings.Contains(l, "acme/billing") && strings.Contains(l, head) {
+			t.Errorf("an uncloned repository shows a path: %q", l)
 		}
 	}
 }

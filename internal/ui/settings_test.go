@@ -152,7 +152,7 @@ func TestAddServerFromTheInterface(t *testing.T) {
 	}
 	// With two servers the lists say where a row came from.
 	waitFor(t, a, sc, "Personal")
-	typeRunes(sc, "P")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "SERVER")
 }
 

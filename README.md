@@ -7,12 +7,12 @@ once - fuzzy find the one you want, and land in `nvim` inside a ready checkout.
 Pull requests are merge requests here too; one word for one thing.
 
 ```
- Projects [P] │ Merge requests [M] │ Settings [S]
+ Repositories [R] │ Merge requests [M] │ Settings [S]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
-│   PROJECT           MR  TITLE               ││ !42  Fix login rate limiting  │
-│ ● acme/api-gateway  !42 Fix login rate li…  ││ acme/api-gateway              │
-│ ○ acme/billing      !17 Invoice rounding    ││ feat/rate → main              │
+│   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
+│ ● acme/api-gateway  !42 Fix login rat…    7 ││ acme/api-gateway              │
+│ ○ acme/billing      !17 Invoice roundi…     ││ feat/rate → main              │
 │                                             ││                               │
 │                                             ││ MERGE REQUEST                 │
 │                                             ││ Author       jane (Jane Doe)  │
@@ -56,8 +56,8 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 
 ## How it works
 
-* **Three tabs**, switched with `P`, `M` and `S`: *Projects*, *Merge requests*,
-  *Settings*. Merge requests are listed across all selected groups - of every
+* **Three tabs**, switched with `R`, `M` and `S`: *Repositories*, *Merge
+  requests*, *Settings*. Merge requests are listed across all selected groups - of every
   server - and can be limited to a single project (`f`), on top of the fuzzy
   filter. With more than one server configured, the lists gain a `SERVER`
   column.
@@ -83,7 +83,9 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
   are lists, code is code. The detail column keeps the three newest; `c` opens
   the whole conversation in its own view, where `i` writes a reply and `a`
   approves.
-* **Projects** are cloned once and reused. `Ctrl-O` fetches, fast-forwards and
+* **Repositories** are cloned once and reused. The list shows where each one
+  is on disk, which is worth seeing once a group or a server has a root of its
+  own. `Ctrl-O` fetches, fast-forwards and
   starts the editor. `b` lists every branch in a searchable modal and switches
   the branch **in that same clone**.
 * **Merge requests** get their own directory, so you can keep half-finished
@@ -199,7 +201,7 @@ on GitHub.
 
 | Key | Action |
 | --- | --- |
-| `P` `M` `S` | switch to Projects / Merge requests / Settings |
+| `R` `M` `S` | switch to Repositories / Merge requests / Settings |
 | `/` | filter mode (fuzzy, space separated terms) |
 | `Esc` | leave filter mode; again clears it; again closes the detail column |
 | `j` `k` `g` `G` | move |

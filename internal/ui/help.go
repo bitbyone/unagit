@@ -27,7 +27,7 @@ func blank() helpLine                { return helpLine{} }
 func helpRows() []helpLine {
 	return []helpLine{
 		section("Getting around"),
-		key("P  M  S", "Projects · Merge requests · Settings"),
+		key("R  M  S", "Repositories · Merge requests · Settings"),
 		key("j  k", "move up and down"),
 		key("g  G", "first · last"),
 		key("/", "filter: fuzzy, spaces separate terms"),
@@ -41,9 +41,9 @@ func helpRows() []helpLine {
 		key("j k g G", "scroll"),
 		key("Ctrl-F Ctrl-B", "page"),
 		key("h  ←  Esc", "back to the list"),
-		note("Projects show statistics, languages, the latest pipeline, the most " +
-			"recent commits and their open merge requests. Merge requests are always " +
-			"fetched fresh."),
+		note("Repositories show statistics, languages, the latest pipeline, the " +
+			"most recent commits and their open merge requests. Merge requests are " +
+			"always fetched fresh."),
 		blank(),
 
 		section("Both lists"),
@@ -54,25 +54,27 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Filters · shared by both lists"),
-		key("C", "only the projects you have cloned"),
-		key("x", "hide the project under the cursor, or bring it back"),
-		key("X", "manage the hidden projects"),
+		key("C", "only the repositories you have cloned"),
+		key("x", "hide the repository under the cursor, or bring it back"),
+		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
-		key("Ctrl-G", "gather the merge requests under their project"),
-		note("Hiding a project takes its merge requests with it. The header under " +
-			"each list says what is being left out."),
+		key("Ctrl-G", "gather the merge requests under their repository"),
+		note("Hiding a repository takes its merge requests with it. The header " +
+			"under each list says what is being left out."),
 		blank(),
 
-		section("Projects"),
+		section("Repositories"),
 		key("b", "pick a branch and switch the main clone to it"),
-		key("m", "show only the merge requests of this project"),
+		key("m", "show only the merge requests of this repository"),
+		note("The PATH column is where a repository is cloned, which is worth " +
+			"seeing when a group or a server has a root of its own."),
 		blank(),
 
 		section("Merge requests"),
 		key("Ctrl-R", "open for review: the whole change as pending edits"),
 		key("c", "read the conversation, and write a comment"),
 		key("a", "approve - it asks first"),
-		key("f  F", "limit the list to one project · clear that limit"),
+		key("f  F", "limit the list to one repository · clear that limit"),
 		note("The COM column is how many comments a merge request has. GitLab " +
 			"reports it on the listing; GitHub only on a single merge request, so " +
 			"there it fills in once you have opened one."),
@@ -110,12 +112,13 @@ func helpRows() []helpLine {
 		section("On disk"),
 		key("○ ● ◐ ◉", "nothing · branch worktree · review worktree · both"),
 		key("⊘", "hidden from the lists"),
-		note("<root>/<group>/<project> is the main clone, where branch switching " +
-			"happens. <project>.mrs/<iid>-<branch> is a branch worktree and " +
-			"<project>.reviews/<iid>-<branch> a review one. They share the main " +
+		note("<root>/<group>/<repo> is the main clone, where branch switching " +
+			"happens. <repo>.mrs/<iid>-<branch> is a branch worktree and " +
+			"<repo>.reviews/<iid>-<branch> a review one. They share the main " +
 			"clone's objects, so uncommitted changes survive switching between " +
 			"merge requests. <root> comes from Settings, unless the server or the " +
-			"group overrides it."),
+			"group overrides it. The Repositories tab shows it in the PATH " +
+			"column."),
 	}
 }
 

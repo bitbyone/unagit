@@ -120,7 +120,7 @@ func (a *App) showProjectScopePicker() {
 		}
 		return keys[i].Path < keys[j].Path
 	})
-	items := []pickItem{{Label: "(all projects)", Sub: fmt.Sprintf("%d merge requests", len(a.mrs)), Data: projectKey{}}}
+	items := []pickItem{{Label: "(all repositories)", Sub: fmt.Sprintf("%d merge requests", len(a.mrs)), Data: projectKey{}}}
 	for _, key := range keys {
 		sub := fmt.Sprintf("%d open", counts[key])
 		if a.multiInstance() {
@@ -128,7 +128,7 @@ func (a *App) showProjectScopePicker() {
 		}
 		items = append(items, pickItem{Label: key.Path, Sub: sub, Data: key})
 	}
-	a.showPicker("Limit merge requests to project", items, func(it pickItem) {
+	a.showPicker("Limit merge requests to a repository", items, func(it pickItem) {
 		a.mrProjectScope = it.Data.(projectKey)
 		a.mrsPane.reload()
 		a.setStatus("")
