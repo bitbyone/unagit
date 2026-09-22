@@ -66,6 +66,12 @@ func (a *App) newMRsPane() *pane {
 		if shared(ev) {
 			return nil
 		}
+		// Ctrl-G gathers the list under the projects; g is taken by "go to
+		// the first row".
+		if ev.Key() == tcell.KeyCtrlG {
+			a.toggleGrouping()
+			return nil
+		}
 		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
 		if ev.Key() == tcell.KeyCtrlR {
 			if mr, ok := selected(); ok {
@@ -159,13 +165,13 @@ func (a *App) filterMRs(query string) []int {
 	return out
 }
 
-// mrColumns works out how wide each column may be for the current table width.
-// The title takes whatever is left, and every cell is truncated to fit, so the
-// branch column never falls off the right edge.
-type mrColumns struct{ proj, iid, title, author, branch, updated int }
+// mrColumns works out how wide each column may be for the current table
+// width. The title takes whatever is left, and every cell is truncated to
+// fit, so the branch column never falls off the right edge.
+type mrColumns struct{ proj, iid, title, author, branch, com, updated int }
 
 func (a *App) mrColumns(width int, rows []int) mrColumns {
-	c := mrColumns{iid: 3, updated: 8}
+	c := mrColumns{iid: 3, updated: 8, com: 3}
 	for _, idx := range rows {
 		mr := a.mrs[idx]
 		c.proj = max(c.proj, len(a.projectPathOfMR(mr)))
@@ -180,10 +186,12 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 
 	const (
 		markW    = 2
-		gaps     = 6
+		gaps     = 7
 		minTitle = 24
 	)
-	fixed := func() int { return markW + c.proj + c.iid + c.author + c.branch + c.updated + gaps }
+	fixed := func() int {
+		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.updated + gaps
+	}
 	c.title = width - fixed()
 	// Give the title room by shrinking the least important columns first.
 	for _, shrink := range []struct {
@@ -203,14 +211,70 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 	return c
 }
 
+// field is one column of a row: text of a fixed width, in a colour.
+type field struct {
+	text   string
+	width  int
+	colour tcell.Color
+	right  bool
+	// raw is already marked up and its width already right.
+	raw string
+}
+
+// rowText lays the fields out at their widths. The merge request table draws
+// each row as a single cell, because tview cannot make a heading span the
+// columns and the widths are worked out here anyway.
+func rowText(fields []field) string {
+	var b strings.Builder
+	for i, f := range fields {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		if f.raw != "" {
+			b.WriteString(f.raw)
+			continue
+		}
+		text := trunc(f.text, f.width)
+		pad := strings.Repeat(" ", max(0, f.width-len([]rune(text))))
+		if f.right {
+			b.WriteString(pad + tag(f.colour) + tview.Escape(text) + tagEnd)
+			continue
+		}
+		b.WriteString(tag(f.colour) + tview.Escape(text) + tagEnd + pad)
+	}
+	return b.String()
+}
+
+// mrGroup is the merge requests of one project, in the order the filter put
+// them.
+type mrGroup struct {
+	key  projectKey
+	rows []int
+}
+
+// groupByProject gathers the rows under their project, keeping the order the
+// filter produced: the first merge request of a project decides where the
+// project sits, and the rest follow inside it.
+func (a *App) groupByProject(filtered []int) []mrGroup {
+	var groups []mrGroup
+	at := map[projectKey]int{}
+	for _, idx := range filtered {
+		mr := a.mrs[idx]
+		key := projectKey{Instance: mr.Instance, Path: a.projectPathOfMR(mr)}
+		if i, ok := at[key]; ok {
+			groups[i].rows = append(groups[i].rows, idx)
+			continue
+		}
+		at[key] = len(groups)
+		groups = append(groups, mrGroup{key: key, rows: []int{idx}})
+	}
+	return groups
+}
+
 func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.Clear()
-	withServer := a.multiInstance()
-	headers := []string{"", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED"}
-	if withServer {
-		headers = []string{"", "SERVER", "PROJECT", "MR", "TITLE", "AUTHOR", "BRANCH", "UPDATED"}
-	}
-	p.setHeaders(headers...)
+	grouped := a.cfg.Filters.GroupByProject
+	withServer := a.multiInstance() && !grouped
 
 	serverW := 0
 	if withServer {
@@ -220,41 +284,99 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		serverW = min(serverW, 16)
 	}
 	c := a.mrColumns(p.contentWidth()-serverW, filtered)
+	if grouped {
+		// The project moves into the heading, so its width goes to the title.
+		// The gap it leaves behind pays for the indent on every row.
+		c.title += c.proj
+		c.proj = 0
+	}
 
-	for row, idx := range filtered {
+	// The header is laid out the same way the rows are.
+	header := []field{{text: "", width: 2, colour: colDim}}
+	if withServer {
+		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
+	}
+	if !grouped {
+		header = append(header, field{text: "PROJECT", width: c.proj, colour: colDim})
+	}
+	header = append(header,
+		field{text: "MR", width: c.iid, colour: colDim},
+		field{text: "TITLE", width: c.title, colour: colDim},
+		field{text: "AUTHOR", width: c.author, colour: colDim},
+		field{text: "BRANCH", width: c.branch, colour: colDim},
+		field{text: "COM", width: c.com, colour: colDim, right: true},
+		field{text: "UPDATED", width: c.updated, colour: colDim})
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
+		SetSelectable(false).SetExpansion(1))
+
+	row := 0
+	first := -1
+	drawRow := func(idx int) {
+		row++
 		mr := a.mrs[idx]
 		path := a.projectPathOfMR(mr)
 		disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 
-		mark := tview.NewTableCell(" " + mrMark(disk)).SetTextColor(mrMarkColor(disk))
-		mark.SetReference(idx)
-
+		mark := " " + mrMark(disk)
+		if grouped {
+			mark = "  " + mrMark(disk)
+		}
 		title := trunc(mr.Title, c.title)
+		titleField := field{text: title, width: c.title, colour: colText}
 		if mr.Draft {
-			title = "[::d]draft[::-] " + tview.Escape(trunc(mr.Title, c.title-6))
-		} else {
-			title = tview.Escape(title)
+			short := trunc(mr.Title, c.title-6)
+			pad := strings.Repeat(" ", max(0, c.title-len([]rune(short))-6))
+			titleField = field{raw: "[::d]draft[::-] " + tag(colText) + tview.Escape(short) + tagEnd + pad}
+		}
+		comments := ""
+		if mr.Comments > 0 {
+			comments = fmt.Sprintf("%d", mr.Comments)
 		}
 
-		col := 0
-		set := func(cell *tview.TableCell) {
-			p.table.SetCell(row+1, col, cell)
-			col++
-		}
-		set(mark)
+		fields := []field{{raw: tag(mrMarkColor(disk)) + mark + tagEnd}}
 		if withServer {
-			set(tview.NewTableCell(trunc(a.instanceLabel(mr.Instance), serverW)).SetTextColor(colAccent))
+			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: colAccent})
 		}
-		set(tview.NewTableCell(trunc(path, c.proj)).SetTextColor(colAccent))
-		set(tview.NewTableCell(fmt.Sprintf("!%d", mr.IID)).SetTextColor(colWarn))
-		set(tview.NewTableCell(title).SetTextColor(colText))
-		set(tview.NewTableCell(trunc(mr.Author.Username, c.author)).SetTextColor(colMuted))
-		set(tview.NewTableCell(trunc(mr.SourceBranch, c.branch)).SetTextColor(colBranch))
-		set(tview.NewTableCell(humanAge(mr.UpdatedAt)).SetTextColor(colMuted))
-		p.fill(row+1, col)
+		if !grouped {
+			fields = append(fields, field{text: path, width: c.proj, colour: colAccent})
+		}
+		fields = append(fields,
+			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: colWarn},
+			titleField,
+			field{text: mr.Author.Username, width: c.author, colour: colMuted},
+			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
+			field{text: comments, width: c.com, colour: colMuted, right: true},
+			field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
+
+		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
+			SetReference(idx).SetExpansion(1))
+		if first < 0 {
+			first = row
+		}
 	}
-	if len(filtered) > 0 {
-		p.table.Select(1, 0)
+
+	if !grouped {
+		for _, idx := range filtered {
+			drawRow(idx)
+		}
+	} else {
+		for _, group := range a.groupByProject(filtered) {
+			row++
+			heading := group.key.Path
+			if a.multiInstance() {
+				heading = a.instanceLabel(group.key.Instance) + " · " + heading
+			}
+			p.table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("%s[::b]%s[::-]%s  %s(%d)%s",
+				tag(colAccent), tview.Escape(heading), tagEnd, tag(colDim), len(group.rows), tagEnd)).
+				SetSelectable(false).SetExpansion(1))
+			for _, idx := range group.rows {
+				drawRow(idx)
+			}
+		}
+	}
+
+	if first > 0 {
+		p.table.Select(first, 0)
 	}
 	p.table.ScrollToBeginning()
 }

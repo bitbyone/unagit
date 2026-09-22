@@ -95,6 +95,10 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 * **Indexes are explicit.** Project and merge request lists are cached as JSON
   in the config directory and only refreshed when you ask (`r`, or `p` / `m`
   in settings). Startup is instant and nothing hits the API behind your back.
+* **Merge requests can be grouped by project** (`Ctrl-G`): each project gets a
+  heading with how many it has, and the merge requests inside keep the shared
+  order. The `COM` column counts the comments - GitLab reports that on the
+  listing, GitHub only on a single merge request.
 * **Three filters, shared by both lists**, reachable and changeable from
   either: *cloned only* (`C`), *hidden projects* (`x` on a row, `X` for the
   list) and the *order* (`o`, by activity or by name). Hiding a project takes
@@ -215,6 +219,7 @@ on GitHub.
 | `x` | hide the project under the cursor, or bring it back |
 | `X` | manage the hidden projects |
 | `o` | order: by activity, or by name |
+| `Ctrl-G` | gather the merge requests under their project |
 | `?` | help |
 | `q` | quit |
 

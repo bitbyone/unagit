@@ -77,6 +77,10 @@ type MergeRequest struct {
 	TargetProjectID int       `json:"target_project_id"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	Author          User      `json:"author"`
+	// Comments is how many people have said something. GitLab reports it on
+	// the listing; GitHub only on a single merge request, so there it stays
+	// zero until the detail is opened.
+	Comments int `json:"comments,omitempty"`
 	// ProjectPath and Instance are filled in by unagit, not by the server.
 	ProjectPath string `json:"project_path,omitempty"`
 	Instance    string `json:"instance,omitempty"`

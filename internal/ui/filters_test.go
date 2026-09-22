@@ -213,3 +213,93 @@ func TestFiltersSurviveARestart(t *testing.T) {
 		t.Error("Active should report that something is narrowing the lists")
 	}
 }
+
+// TestCommentCountInTheList: the number is worth seeing before opening
+// anything.
+func TestCommentCountInTheList(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+	waitFor(t, a, sc, "COM")
+
+	lines := strings.Split(a.screenText(sc), "\n")
+	var rate, invoice string
+	for _, l := range lines {
+		if strings.Contains(l, "Rate limiting") {
+			rate = l
+		}
+		if strings.Contains(l, "Invoice rounding") {
+			invoice = l
+		}
+	}
+	// The fixture gives !7 four comments and !9 none.
+	if !strings.Contains(rate, " 4 ") {
+		t.Errorf("the count is missing from %q", rate)
+	}
+	if strings.Contains(invoice, " 0 ") {
+		t.Errorf("a merge request with no comments should show nothing: %q", invoice)
+	}
+}
+
+// TestGroupByProject: the merge requests gather under their project and keep
+// the shared order inside it.
+func TestGroupByProject(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+
+	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Merge requests grouped by project")
+	waitFor(t, a, sc, "grouped")
+
+	lines := strings.Split(a.screenText(sc), "\n")
+	at := func(needle string) int {
+		for i, l := range lines {
+			if strings.Contains(l, needle) {
+				return i
+			}
+		}
+		t.Fatalf("%q is not on screen:\n%s", needle, strings.Join(lines, "\n"))
+		return -1
+	}
+	// The project heading says how many, and its merge requests follow it in
+	// the shared order - newest first.
+	gateway := at("acme/gateway  (2)")
+	rate := at("Rate limiting")
+	drop := at("Drop the old client")
+	billing := at("acme/billing  (1)")
+	invoice := at("Invoice rounding")
+	if !(gateway < rate && rate < drop && drop < billing && billing < invoice) {
+		t.Fatalf("order: heading %d, !7 %d, !8 %d, heading %d, !9 %d",
+			gateway, rate, drop, billing, invoice)
+	}
+
+	// The cursor skips the headings: the first row is a merge request.
+	if got := a.mrsPane.selectedIndex(); got < 0 {
+		t.Fatal("no merge request is selected")
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Jane Doe")
+
+	// Switching the order re-sorts inside the groups.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	done := make(chan struct{})
+	a.tv.QueueUpdateDraw(func() {
+		a.cfg.Filters.Sort = config.SortName
+		a.applyFilters()
+		close(done)
+	})
+	<-done
+	lines = strings.Split(a.screenText(sc), "\n")
+	if at("acme/billing  (1)") > at("acme/gateway  (2)") {
+		t.Error("by name, billing should come before gateway")
+	}
+
+	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "listed flat again")
+	if strings.Contains(a.screenText(sc), "acme/gateway  (2)") {
+		t.Error("the headings are still there")
+	}
+}

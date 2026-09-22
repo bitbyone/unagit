@@ -61,7 +61,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	var narrow string
 	for time.Now().Before(deadline) {
 		narrow = a.screenText(sc)
-		if strings.Contains(narrow, "renovate/golang") && !strings.Contains(narrow, "fix the footer") {
+		if strings.Contains(narrow, "renovate/") && !strings.Contains(narrow, "fix the footer") {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -69,7 +69,9 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	if strings.Contains(narrow, "fix the footer") {
 		t.Errorf("the title was not truncated at 84 columns:\n%s", narrow)
 	}
-	if !strings.Contains(narrow, "renovate/golang") {
+	// The column is narrower now that the comment count has its own, so only
+	// the start of the branch survives.
+	if !strings.Contains(narrow, "renovate/") {
 		t.Errorf("the branch column was pushed off the screen at 84 columns:\n%s", narrow)
 	}
 	for _, line := range strings.Split(narrow, "\n") {

@@ -208,6 +208,9 @@ type mergeRequest struct {
 	References struct {
 		Full string `json:"full"`
 	} `json:"references"`
+	// GitLab spells the comment count differently on the listing than the
+	// shared field does.
+	UserNotesCount int `json:"user_notes_count"`
 }
 
 // GroupMergeRequests returns open merge requests targeting projects in a group.
@@ -224,6 +227,7 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 	out := make([]forge.MergeRequest, 0, len(raw))
 	for _, mr := range raw {
 		m := mr.MergeRequest
+		m.Comments = mr.UserNotesCount
 		if m.ProjectPath == "" {
 			if i := strings.Index(mr.References.Full, "!"); i > 0 {
 				m.ProjectPath = mr.References.Full[:i]
@@ -407,6 +411,7 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 	if _, err := c.get(ctx, mrPath(mr), q, &raw); err != nil {
 		return nil, err
 	}
+	raw.MergeRequest.Comments = raw.UserNotesCount
 	d := &forge.MergeRequestDetail{
 		MergeRequest:                raw.MergeRequest,
 		Description:                 raw.Description,

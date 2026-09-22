@@ -442,6 +442,8 @@ func (p pull) mergeRequest(projectPath string) forge.MergeRequest {
 	if p.Head.Repo != nil {
 		mr.SourceProjectID = p.Head.Repo.ID
 	}
+	// The listing carries no counts; a single pull request does.
+	mr.Comments = p.Comments + p.ReviewComments
 	return mr
 }
 

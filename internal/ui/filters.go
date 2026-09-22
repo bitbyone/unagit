@@ -40,6 +40,9 @@ func (a *App) filterSummary() string {
 	if n := len(f.Hidden); n > 0 {
 		parts = append(parts, fmt.Sprintf("%s%s %d%s", tag(colWarn), hiddenMark, n, tagEnd)+tag(colMuted))
 	}
+	if f.GroupByProject {
+		parts = append(parts, tag(colOn)+"grouped"+tagEnd+tag(colMuted))
+	}
 	return " · " + strings.Join(parts, " · ")
 }
 
@@ -84,6 +87,18 @@ func (a *App) hideProject(instance, path string) {
 		return
 	}
 	a.note(path + " is back")
+}
+
+// toggleGrouping gathers the merge requests under their project, or lets
+// them run flat again.
+func (a *App) toggleGrouping() {
+	a.cfg.Filters.GroupByProject = !a.cfg.Filters.GroupByProject
+	a.applyFilters()
+	if a.cfg.Filters.GroupByProject {
+		a.note("Merge requests grouped by project, sorted " + sortLabel(a.cfg.Filters.Order()) + " inside each")
+		return
+	}
+	a.note("Merge requests listed flat again")
 }
 
 // showSortPicker chooses the order both lists are drawn in.

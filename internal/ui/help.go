@@ -58,6 +58,7 @@ func helpRows() []helpLine {
 		key("x", "hide the project under the cursor, or bring it back"),
 		key("X", "manage the hidden projects"),
 		key("o", "order: by activity, or by name"),
+		key("Ctrl-G", "gather the merge requests under their project"),
 		note("Hiding a project takes its merge requests with it. The header under " +
 			"each list says what is being left out."),
 		blank(),
@@ -72,6 +73,9 @@ func helpRows() []helpLine {
 		key("c", "read the conversation, and write a comment"),
 		key("a", "approve - it asks first"),
 		key("f  F", "limit the list to one project · clear that limit"),
+		note("The COM column is how many comments a merge request has. GitLab " +
+			"reports it on the listing; GitHub only on a single merge request, so " +
+			"there it fills in once you have opened one."),
 		blank(),
 
 		section("Comments  (c)"),

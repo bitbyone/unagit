@@ -200,6 +200,9 @@ type Filters struct {
 	Sort string `yaml:"sort,omitempty" json:"sort,omitempty"`
 	// Hidden are the projects kept out of both lists.
 	Hidden []Hidden `yaml:"hidden,omitempty" json:"hidden,omitempty"`
+	// GroupByProject gathers the merge requests under the project they
+	// belong to. It means nothing to the project list.
+	GroupByProject bool `yaml:"group_by_project,omitempty" json:"group_by_project,omitempty"`
 }
 
 // Order is the sort to apply, normalised.

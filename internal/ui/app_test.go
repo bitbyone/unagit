@@ -197,8 +197,9 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: now.Add(-time.Hour), Instance: id},
 	}
 	mrs := []forge.MergeRequest{
-		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Instance: id},
+		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Comments: 4, Instance: id},
 		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
+		{IID: 8, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Drop the old client", SourceBranch: "chore/drop", TargetBranch: "main", UpdatedAt: now.Add(-2 * time.Hour), Comments: 1, Instance: id},
 	}
 	must(t, index.Save(config.IndexPath("projects"), index.Projects{UpdatedAt: time.Now(), Items: projects}))
 	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
