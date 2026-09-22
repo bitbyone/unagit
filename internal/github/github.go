@@ -223,6 +223,45 @@ func (c *Client) whoami(ctx context.Context) (string, error) {
 	return c.login, c.err
 }
 
+// Scopes returns what a classic personal access token is allowed to do, as
+// GitHub reports it on every authenticated response. A fine grained token
+// carries no such header, so the answer is then empty and unknown.
+func (c *Client) Scopes(ctx context.Context) ([]string, bool) {
+	header, err := c.get(ctx, "/user", nil, nil)
+	if err != nil {
+		return nil, false
+	}
+	raw, ok := header["X-Oauth-Scopes"]
+	if !ok || len(raw) == 0 {
+		return nil, false
+	}
+	var scopes []string
+	for _, scope := range strings.Split(raw[0], ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			scopes = append(scopes, scope)
+		}
+	}
+	return scopes, true
+}
+
+// ExplainMissingOrgs says why the organisation list came back empty, which
+// GitHub reports by simply answering with nothing at all.
+func (c *Client) ExplainMissingOrgs(ctx context.Context) string {
+	scopes, classic := c.Scopes(ctx)
+	if !classic {
+		return "no organisations came back. A fine grained token only sees an " +
+			"organisation that has approved it - check the token's Resource owner."
+	}
+	for _, scope := range scopes {
+		if scope == "read:org" || scope == "admin:org" || scope == "write:org" {
+			return "no organisations came back, and the token may read them - " +
+				"so you are probably not a member of any."
+		}
+	}
+	return "no organisations came back: the token has no read:org scope (it has " +
+		strings.Join(scopes, ", ") + "), so GitHub hides them. Re-issue it with read:org."
+}
+
 // Groups returns the organisations the token can see, plus the account itself
 // so personal repositories are reachable too.
 func (c *Client) Groups(ctx context.Context) ([]forge.Group, error) {

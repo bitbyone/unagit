@@ -657,6 +657,24 @@ func (a *App) snapshotProjectPaths() map[string]map[int]string {
 	return m
 }
 
+// orgExplainer is implemented by providers that can say why a group listing
+// came back thinner than expected.
+type orgExplainer interface {
+	ExplainMissingOrgs(ctx context.Context) string
+}
+
+// countOrgs counts the groups that are not the account itself. GitHub's own
+// account is listed with a negative id, which no real organisation has.
+func countOrgs(groups []forge.Group) int {
+	n := 0
+	for _, g := range groups {
+		if g.ID > 0 {
+			n++
+		}
+	}
+	return n
+}
+
 // refreshGroups re-reads the group trees from every server that has a token,
 // all of them at once.
 func (a *App) refreshGroups() {
@@ -702,6 +720,11 @@ func (a *App) refreshGroups() {
 					gs[i].Instance = job.inst.ID
 				}
 				log(fmt.Sprintf("%s: %d group(s)", job.inst.Label(), len(gs)))
+				// GitHub answers an unreadable organisation list with silence
+				// rather than an error, which looks exactly like having none.
+				if explainer, ok := job.client.(orgExplainer); ok && countOrgs(gs) == 0 {
+					log("! " + job.inst.Label() + ": " + explainer.ExplainMissingOrgs(ctx))
+				}
 				all = append(all, gs...)
 			}(job)
 		}

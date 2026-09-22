@@ -468,3 +468,68 @@ func TestCommentGoesToTheConversation(t *testing.T) {
 		t.Errorf("payload = %q", body)
 	}
 }
+
+// TestExplainMissingOrgsNamesTheScope: GitHub answers an org listing the
+// token may not read with an empty array, not an error, so the interface has
+// to say what happened.
+func TestExplainMissingOrgsNamesTheScope(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-OAuth-Scopes", "repo, gist")
+		fmt.Fprint(w, userJSON)
+	})
+
+	got := s.client().ExplainMissingOrgs(context.Background())
+	if !strings.Contains(got, "read:org") {
+		t.Fatalf("the missing scope is not named: %q", got)
+	}
+	if !strings.Contains(got, "repo, gist") {
+		t.Errorf("what the token does have is not shown: %q", got)
+	}
+}
+
+func TestExplainMissingOrgsWhenTheScopeIsThere(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-OAuth-Scopes", "repo, read:org")
+		fmt.Fprint(w, userJSON)
+	})
+
+	got := s.client().ExplainMissingOrgs(context.Background())
+	if strings.Contains(got, "no read:org") {
+		t.Fatalf("blamed the scope although it is granted: %q", got)
+	}
+	if !strings.Contains(got, "not a member") {
+		t.Errorf("got %q", got)
+	}
+}
+
+// TestExplainMissingOrgsForFineGrainedTokens: those carry no scope header.
+func TestExplainMissingOrgsForFineGrained(t *testing.T) {
+	s := newStub(t)
+	s.handle("/user", userJSON)
+
+	got := s.client().ExplainMissingOrgs(context.Background())
+	if !strings.Contains(got, "fine grained") {
+		t.Fatalf("got %q", got)
+	}
+	if scopes, classic := s.client().Scopes(context.Background()); classic || scopes != nil {
+		t.Errorf("scopes = %v, classic = %v", scopes, classic)
+	}
+}
+
+func TestScopesAreParsed(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-OAuth-Scopes", "repo, read:org,  gist ")
+		fmt.Fprint(w, userJSON)
+	})
+
+	scopes, classic := s.client().Scopes(context.Background())
+	if !classic {
+		t.Fatal("a scope header means a classic token")
+	}
+	if len(scopes) != 3 || scopes[0] != "repo" || scopes[1] != "read:org" || scopes[2] != "gist" {
+		t.Fatalf("scopes = %#v", scopes)
+	}
+}

@@ -39,8 +39,11 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
    access token with the `api` scope. `v` checks the token against the server.
    Add as many as you like; each keeps its own token.
 2. **GitHub accounts** - the same, without a URL: github.com is the only
-   address there is (GitHub Enterprise is not supported). The token needs the
-   `repo` scope.
+   address there is (GitHub Enterprise is not supported). A classic token
+   needs `repo` **and `read:org`** - without the latter GitHub answers the
+   organisation listing with an empty array rather than an error, so your
+   organisations simply would not appear. A fine-grained token has to be
+   approved by each organisation instead.
    Both sections have a **Clone over** setting: `https` hands the token to git
    through a one-shot credential helper, `ssh` uses your key and keeps the
    token for the API alone. Changing it offers to repoint the repositories
