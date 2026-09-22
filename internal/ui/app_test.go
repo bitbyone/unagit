@@ -177,14 +177,17 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 		t.Fatal(err)
 	}
 
+	// Distinct timestamps: the lists are sorted by activity by default, so
+	// equal ones would leave the order to chance.
 	id := inst.ID
+	now := time.Now()
 	projects := []forge.Project{
-		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
-		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
+		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: now, Instance: id},
+		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: now.Add(-time.Hour), Instance: id},
 	}
 	mrs := []forge.MergeRequest{
-		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
-		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
+		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Instance: id},
+		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
 	}
 	must(t, index.Save(config.IndexPath("projects"), index.Projects{UpdatedAt: time.Now(), Items: projects}))
 	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
@@ -410,12 +413,12 @@ func TestHelpOpensAndCloses(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 
 	typeRunes(sc, "?")
-	waitFor(t, a, sc, "unagit - keys")
-	waitFor(t, a, sc, "Tabs")
+	waitFor(t, a, sc, "unagit · keys")
+	waitFor(t, a, sc, "GETTING AROUND")
 	waitFor(t, a, sc, "clone or update, then open the editor")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "unagit - keys")
+	waitGone(t, a, sc, "unagit · keys")
 }
 
 func TestSettingsOpensOnItsSections(t *testing.T) {

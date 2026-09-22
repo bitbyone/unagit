@@ -8,6 +8,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 )
@@ -27,8 +28,8 @@ func (a *App) newProjectsPane() *pane {
 		if !a.projUpdated.IsZero() {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
-		return fmt.Sprintf("%s%d/%d projects · %s · root %s%s",
-			tag(colMuted), len(filtered), len(a.projects), age, tildePath(a.cfg.Root()), tagEnd)
+		return fmt.Sprintf("%s%d/%d projects · %s%s%s",
+			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(), tagEnd)
 	}
 
 	render := func(query string) {
@@ -59,7 +60,11 @@ func (a *App) newProjectsPane() *pane {
 		}
 	}
 
+	shared := a.filterKeysFor(p)
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
+		if shared(ev) {
+			return nil
+		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
@@ -101,6 +106,9 @@ func (a *App) newProjectsPane() *pane {
 func (a *App) filterProjects(projects []forge.Project, query string) []int {
 	var hits []scored
 	for i, p := range projects {
+		if !a.passesFilters(p.Instance, p.PathWithNamespace) {
+			continue
+		}
 		hay := p.PathWithNamespace + " " + p.Name + " " + p.Description + " " + a.instanceLabel(p.Instance)
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
@@ -108,8 +116,17 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 		}
 		hits = append(hits, scored{idx: i, score: score})
 	}
+	// A query ranks by how well it matched; without one the shared order wins.
 	if strings.TrimSpace(query) != "" {
 		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	} else if a.cfg.Filters.Order() == config.SortName {
+		sort.SliceStable(hits, func(i, j int) bool {
+			return projects[hits[i].idx].PathWithNamespace < projects[hits[j].idx].PathWithNamespace
+		})
+	} else {
+		sort.SliceStable(hits, func(i, j int) bool {
+			return projects[hits[i].idx].LastActivityAt.After(projects[hits[j].idx].LastActivityAt)
+		})
 	}
 	out := make([]int, len(hits))
 	for i, h := range hits {

@@ -33,7 +33,7 @@ func longMRs(t *testing.T, instanceID string) {
 		{IID: 17, ProjectID: 2, ProjectPath: "acme/billing", Instance: instanceID,
 			Title:        "Invoice rounding",
 			SourceBranch: "renovate/golang-x-crypto-vulnerability",
-			Author:       author("ci"), UpdatedAt: time.Now()},
+			Author:       author("ci"), UpdatedAt: time.Now().Add(-time.Hour)},
 	}
 	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
 }
@@ -125,7 +125,7 @@ func TestModalsDimTheBackground(t *testing.T) {
 	beforeRune, beforeStyle := cellAt(a, sc, col, row)
 
 	typeRunes(sc, "?")
-	waitFor(t, a, sc, "unagit - keys")
+	waitFor(t, a, sc, "unagit · keys")
 
 	afterRune, afterStyle := cellAt(a, sc, col, row)
 	if afterRune != beforeRune {

@@ -298,3 +298,75 @@ func TestGitHubGroupOwnsItsRepos(t *testing.T) {
 		t.Error("other/api should not belong to widgets")
 	}
 }
+
+func TestFiltersHideAndShow(t *testing.T) {
+	var f Filters
+	if f.Active() || f.Order() != SortActivity {
+		t.Fatalf("a fresh filter set is %+v", f)
+	}
+	if hidden := f.ToggleHidden("work", "acme/api"); !hidden || !f.IsHidden("work", "acme/api") {
+		t.Fatalf("hiding failed: %+v", f.Hidden)
+	}
+	// The same path on another server is a different project.
+	if f.IsHidden("personal", "acme/api") {
+		t.Error("hidden on the wrong server")
+	}
+	if !f.Active() {
+		t.Error("Active should notice a hidden project")
+	}
+	if hidden := f.ToggleHidden("work", "acme/api"); hidden || len(f.Hidden) != 0 {
+		t.Fatalf("unhiding failed: %+v", f.Hidden)
+	}
+}
+
+func TestFiltersShowAll(t *testing.T) {
+	var f Filters
+	f.ToggleHidden("work", "a")
+	f.ToggleHidden("work", "b")
+	if n := f.ShowAll(); n != 2 || len(f.Hidden) != 0 {
+		t.Fatalf("ShowAll returned %d, left %+v", n, f.Hidden)
+	}
+	if n := f.ShowAll(); n != 0 {
+		t.Errorf("ShowAll on an empty set returned %d", n)
+	}
+}
+
+func TestFiltersOrderDefaults(t *testing.T) {
+	var f Filters
+	if f.Order() != SortActivity {
+		t.Errorf("empty order = %q", f.Order())
+	}
+	f.Sort = SortName
+	if f.Order() != SortName {
+		t.Errorf("order = %q", f.Order())
+	}
+	f.Sort = "nonsense"
+	if f.Order() != SortActivity {
+		t.Errorf("an unknown order should fall back to activity, got %q", f.Order())
+	}
+}
+
+// TestFiltersSurviveTheFile
+func TestFiltersSurviveTheFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UNAGIT_CONFIG_DIR", dir)
+
+	cfg := Default()
+	cfg.Filters.ClonedOnly = true
+	cfg.Filters.Sort = SortName
+	cfg.Filters.ToggleHidden("work", "acme/api")
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Filters.ClonedOnly || got.Filters.Order() != SortName {
+		t.Fatalf("filters = %+v", got.Filters)
+	}
+	if !got.Filters.IsHidden("work", "acme/api") {
+		t.Fatalf("hidden = %+v", got.Filters.Hidden)
+	}
+}

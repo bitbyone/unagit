@@ -176,12 +176,79 @@ func (i *Instance) CycleGroup(g Group) string {
 	}
 }
 
+// Orders the lists can be sorted in.
+const (
+	// SortActivity puts what moved most recently first.
+	SortActivity = "activity"
+	// SortName sorts by path, and merge requests by project then number.
+	SortName = "name"
+)
+
+// Hidden is one project kept out of the lists.
+type Hidden struct {
+	Instance string `yaml:"instance" json:"instance"`
+	Path     string `yaml:"path" json:"path"`
+}
+
+// Filters are the view settings the project and merge request lists share.
+// They are a lasting preference, so they live in the configuration rather
+// than in the session.
+type Filters struct {
+	// ClonedOnly narrows both lists to projects that are on disk.
+	ClonedOnly bool `yaml:"cloned_only,omitempty" json:"cloned_only,omitempty"`
+	// Sort is SortActivity or SortName; empty means activity.
+	Sort string `yaml:"sort,omitempty" json:"sort,omitempty"`
+	// Hidden are the projects kept out of both lists.
+	Hidden []Hidden `yaml:"hidden,omitempty" json:"hidden,omitempty"`
+}
+
+// Order is the sort to apply, normalised.
+func (f *Filters) Order() string {
+	if f.Sort == SortName {
+		return SortName
+	}
+	return SortActivity
+}
+
+// IsHidden reports whether a project is kept out of the lists.
+func (f *Filters) IsHidden(instance, path string) bool {
+	for _, h := range f.Hidden {
+		if h.Instance == instance && h.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// ToggleHidden hides or unhides a project and reports the new state.
+func (f *Filters) ToggleHidden(instance, path string) bool {
+	for i, h := range f.Hidden {
+		if h.Instance == instance && h.Path == path {
+			f.Hidden = append(f.Hidden[:i], f.Hidden[i+1:]...)
+			return false
+		}
+	}
+	f.Hidden = append(f.Hidden, Hidden{Instance: instance, Path: path})
+	return true
+}
+
+// ShowAll unhides everything and reports how many were hidden.
+func (f *Filters) ShowAll() int {
+	n := len(f.Hidden)
+	f.Hidden = nil
+	return n
+}
+
+// Active reports whether anything is narrowing the lists.
+func (f *Filters) Active() bool { return f.ClonedOnly || len(f.Hidden) > 0 }
+
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
 // Tokens are not stored here; they live encrypted in the vault.
 type Config struct {
 	RootDir    string     `yaml:"root_dir"`
 	Editor     string     `yaml:"editor"`
 	EditorArgs []string   `yaml:"editor_args"`
+	Filters    Filters    `yaml:"filters,omitempty"`
 	Instances  []Instance `yaml:"instances"`
 
 	// Written by unagit before it grew multiple instances; read once and

@@ -95,6 +95,11 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 * **Indexes are explicit.** Project and merge request lists are cached as JSON
   in the config directory and only refreshed when you ask (`r`, or `p` / `m`
   in settings). Startup is instant and nothing hits the API behind your back.
+* **Three filters, shared by both lists**, reachable and changeable from
+  either: *cloned only* (`C`), *hidden projects* (`x` on a row, `X` for the
+  list) and the *order* (`o`, by activity or by name). Hiding a project takes
+  its merge requests with it, and the header under each list says what is
+  being left out. They are remembered in the configuration.
 * **Refreshing fans out.** Every selected group is asked in parallel, a few at
   a time, across all servers at once. GitHub has no group wide merge request
   listing, so each of its repositories is asked separately - also in parallel.
@@ -203,6 +208,10 @@ on GitHub.
 | `d` | delete from disk, with a warning about uncommitted or unpushed work |
 | `w` | open in the browser |
 | `r` | refresh the current index from GitLab (groups in Settings) |
+| `C` | show only the projects you have cloned |
+| `x` | hide the project under the cursor, or bring it back |
+| `X` | manage the hidden projects |
+| `o` | order: by activity, or by name |
 | `?` | help |
 | `q` | quit |
 
@@ -212,7 +221,7 @@ Modals darken the interface behind them rather than hiding it, so you keep the
 context you opened them from.
 
 On-disk markers: `○` nothing, `●` a branch worktree, `◐` a review worktree,
-`◉` both.
+`◉` both. `⊘` marks a project hidden from the lists.
 
 Merge request heads are fetched from `refs/merge-requests/<n>/head` on GitLab
 and `refs/pull/<n>/head` on GitHub; everything downstream of that is the same.

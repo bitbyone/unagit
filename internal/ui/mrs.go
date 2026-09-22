@@ -10,6 +10,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/workspace"
@@ -28,8 +29,8 @@ func (a *App) newMRsPane() *pane {
 		if a.mrProjectScope.Path != "" {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
-		return fmt.Sprintf("%s%d/%d merge requests · %s · scope %s",
-			tag(colMuted), len(filtered), len(a.mrs), age, tagEnd+scope)
+		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
+			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -60,7 +61,11 @@ func (a *App) newMRsPane() *pane {
 		}
 	}
 
+	shared := a.filterKeysFor(p)
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
+		if shared(ev) {
+			return nil
+		}
 		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
 		if ev.Key() == tcell.KeyCtrlR {
 			if mr, ok := selected(); ok {
@@ -120,6 +125,9 @@ func (a *App) filterMRs(query string) []int {
 		if a.mrProjectScope.Path != "" && key != a.mrProjectScope {
 			continue
 		}
+		if !a.passesFilters(mr.Instance, path) {
+			continue
+		}
 		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
 			mr.Title, mr.Author.Username, mr.SourceBranch, mr.TargetBranch)
 		score, ok := fuzzy.Match(query, hay)
@@ -128,8 +136,21 @@ func (a *App) filterMRs(query string) []int {
 		}
 		hits = append(hits, scored{idx: i, score: score})
 	}
+	// A query ranks by how well it matched; without one the shared order wins.
 	if strings.TrimSpace(query) != "" {
 		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	} else if a.cfg.Filters.Order() == config.SortName {
+		sort.SliceStable(hits, func(i, j int) bool {
+			left, right := a.mrs[hits[i].idx], a.mrs[hits[j].idx]
+			if lp, rp := a.projectPathOfMR(left), a.projectPathOfMR(right); lp != rp {
+				return lp < rp
+			}
+			return left.IID < right.IID
+		})
+	} else {
+		sort.SliceStable(hits, func(i, j int) bool {
+			return a.mrs[hits[i].idx].UpdatedAt.After(a.mrs[hits[j].idx].UpdatedAt)
+		})
 	}
 	out := make([]int, len(hits))
 	for i, h := range hits {
