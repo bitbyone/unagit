@@ -480,3 +480,43 @@ func TestNewServersDefaultToHTTPS(t *testing.T) {
 		t.Errorf("protocol = %q", added.Protocol())
 	}
 }
+
+// TestProtocolSelectIsLegibleWhenFocused pins a fix: tview builds a focused
+// drop-down out of Styles.PrimaryTextColor on Styles.ContrastBackgroundColor,
+// and this interface leaves the latter at the terminal default so panels stay
+// transparent - which painted the text in its own background's colour and left
+// a blank block on screen.
+func TestProtocolSelectIsLegibleWhenFocused(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGitLab)
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Edit server")
+
+	form := currentForm(a)
+	done := make(chan struct{})
+	a.tv.QueueUpdateDraw(func() {
+		form.SetFocus(3) // the Clone over select
+		a.tv.SetFocus(form)
+		close(done)
+	})
+	<-done
+	// It says what is selected, and looks like something that opens.
+	waitFor(t, a, sc, "https ▾")
+
+	row := rowOf(t, a, sc, "Clone over")
+	line := strings.Split(a.screenText(sc), "\n")[row]
+	at := strings.Index(line, "https")
+	if at < 0 {
+		t.Fatalf("the value is not on screen: %q", line)
+	}
+	// The line is full of box drawing, so byte offsets are not columns.
+	col := len([]rune(line[:at]))
+	for _, x := range []int{col, col + 1, col + 2} {
+		r, style := cellAt(a, sc, x, row)
+		fg, bg, _ := style.Decompose()
+		if fg == bg {
+			t.Fatalf("%q at column %d is invisible: foreground and background are both %v", r, x, fg)
+		}
+	}
+}

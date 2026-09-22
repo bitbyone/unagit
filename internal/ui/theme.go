@@ -174,6 +174,22 @@ func darken(c tcell.Color, fallback tcell.Color) tcell.Color {
 	return tcell.NewRGBColor(scale(16), scale(8), scale(0))
 }
 
+// styleDropDown makes a select box readable and recognisable.
+//
+// tview builds a focused drop-down out of Styles.PrimaryTextColor on
+// Styles.ContrastBackgroundColor, and this interface leaves the latter at the
+// terminal default so that panels stay transparent - which paints the text in
+// the background's own colour. The styles are therefore set by hand, and a
+// marker makes it look like something you can open.
+func styleDropDown(d *tview.DropDown) *tview.DropDown {
+	field := tcell.StyleDefault.Background(tcell.Color236).Foreground(colText)
+	d.SetFieldStyle(field)
+	d.SetFocusedStyle(styleSelected)
+	d.SetListStyles(field, styleSelected)
+	d.SetTextOptions("  ", "  ", "", " ▾", "")
+	return d
+}
+
 // tag renders a colour as a tview colour tag.
 func tag(c tcell.Color) string { return "[" + c.String() + "]" }
 
