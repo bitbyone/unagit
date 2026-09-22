@@ -82,8 +82,7 @@ func TestReviewWorktreeStagesTheWholeChange(t *testing.T) {
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
-	dir, err := m.EnsureMRReview(reviewMR(), p.PathWithNamespace, p.HTTPURLToRepo,
-		Review{BaseSHA: base, HeadSHA: head})
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +121,7 @@ func TestReviewWorktreeRecordsItsMetadata(t *testing.T) {
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
-	dir, err := m.EnsureMRReview(reviewMR(), p.PathWithNamespace, p.HTTPURLToRepo,
-		Review{BaseSHA: base, HeadSHA: head})
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,12 +144,11 @@ func TestBranchAndReviewWorktreesAreIndependent(t *testing.T) {
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
 
-	branchDir, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	branchDir, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviewDir, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo,
-		Review{BaseSHA: base, HeadSHA: head})
+	reviewDir, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,14 +179,14 @@ func TestReviewWorktreeKeepsYourEdits(t *testing.T) {
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
 
-	dir, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo, Review{BaseSHA: base, HeadSHA: head})
+	dir, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
 	write(t, dir, "added.go", "package main\n// REVIEW: naming?\n")
 	write(t, dir, "notes.txt", "my notes\n")
 
-	if _, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
 		t.Fatal(err)
 	}
 	if got := readFile(t, dir, "added.go"); !strings.Contains(got, "REVIEW: naming?") {
@@ -207,7 +204,7 @@ func TestReviewWorktreeFollowsAForcePush(t *testing.T) {
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
 
-	dir, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo, Review{BaseSHA: base, HeadSHA: head})
+	dir, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,8 +219,7 @@ func TestReviewWorktreeFollowsAForcePush(t *testing.T) {
 	newBase := git(t, work, "rev-parse", "origin/main")
 	newHead := git(t, work, "rev-parse", "HEAD")
 
-	if _, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo,
-		Review{BaseSHA: newBase, HeadSHA: newHead}); err != nil {
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: newBase, HeadSHA: newHead}); err != nil {
 		t.Fatal(err)
 	}
 	if got := git(t, dir, "rev-parse", "HEAD"); got != newBase {
@@ -246,7 +242,7 @@ func TestReviewFallsBackToTheLocalMergeBase(t *testing.T) {
 	origin, base, _ := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
-	dir, err := m.EnsureMRReview(reviewMR(), p.PathWithNamespace, p.HTTPURLToRepo, Review{})
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,11 +257,11 @@ func TestRemoveMRRemovesBothWorktrees(t *testing.T) {
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
 
-	branchDir, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	branchDir, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviewDir, err := m.EnsureMRReview(mr, p.PathWithNamespace, p.HTTPURLToRepo, Review{BaseSHA: base, HeadSHA: head})
+	reviewDir, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,8 +284,7 @@ func TestInspectProjectSeesReviewEdits(t *testing.T) {
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
-	dir, err := m.EnsureMRReview(reviewMR(), p.PathWithNamespace, p.HTTPURLToRepo,
-		Review{BaseSHA: base, HeadSHA: head})
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,14 +331,14 @@ func TestHeadRefFormatFollowsTheForge(t *testing.T) {
 		SourceProjectID: 1, TargetProjectID: 1}
 	opts := Options{Root: t.TempDir(), GitLabURL: "https://github.com", Editor: "true"}
 
-	if _, err := New(opts, func(string) {}).EnsureMR(mr, "acme/app", bare); err == nil {
+	if _, err := New(opts, func(string) {}).EnsureMR(mr, forge.Project{PathWithNamespace: "acme/app", HTTPURLToRepo: bare}); err == nil {
 		t.Fatal("GitLab's ref layout should not find a GitHub pull request")
 	}
 
 	opts.Root = t.TempDir()
 	opts.HeadRefFormat = "refs/pull/%d/head"
 	m := New(opts, func(string) {})
-	wt, err := m.EnsureMR(mr, "acme/app", bare)
+	wt, err := m.EnsureMR(mr, forge.Project{PathWithNamespace: "acme/app", HTTPURLToRepo: bare})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -63,8 +63,27 @@ type Instance struct {
 	Name string `yaml:"name" json:"name"`
 	URL  string `yaml:"url" json:"url"`
 	// RootDir overrides the global root for everything on this instance.
-	RootDir string  `yaml:"root_dir,omitempty" json:"root_dir,omitempty"`
-	Groups  []Group `yaml:"groups" json:"groups"`
+	RootDir string `yaml:"root_dir,omitempty" json:"root_dir,omitempty"`
+	// CloneProtocol is ProtocolHTTPS or ProtocolSSH. Over SSH git uses your
+	// key and the token is only ever spent on the API.
+	CloneProtocol string  `yaml:"clone_protocol,omitempty" json:"clone_protocol,omitempty"`
+	Groups        []Group `yaml:"groups" json:"groups"`
+}
+
+// Clone protocols. They mirror the workspace's, which cannot be imported here
+// without a cycle.
+const (
+	ProtocolHTTPS = "https"
+	ProtocolSSH   = "ssh"
+)
+
+// Protocol is how this instance's repositories are cloned, defaulting to
+// HTTPS, which is what unagit did before it could do anything else.
+func (i Instance) Protocol() string {
+	if i.CloneProtocol == ProtocolSSH {
+		return ProtocolSSH
+	}
+	return ProtocolHTTPS
 }
 
 // Label is what the instance is called in the interface.
@@ -254,6 +273,9 @@ func (c *Config) normalise() {
 		}
 		if inst.Kind == KindGitHub {
 			inst.URL = GitHubURL
+		}
+		if inst.CloneProtocol != ProtocolSSH {
+			inst.CloneProtocol = ProtocolHTTPS
 		}
 		inst.URL = strings.TrimRight(inst.URL, "/")
 		if inst.ID == "" {

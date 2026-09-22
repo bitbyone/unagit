@@ -115,10 +115,11 @@ func TestAddServerFromTheInterface(t *testing.T) {
 	if form == nil {
 		t.Fatal("no form on screen")
 	}
+	// Name, URL, Root directory, Clone over, Token.
 	setField(t, a, form, 0, "Personal")
 	setField(t, a, form, 1, "https://gitlab.com")
 	setField(t, a, form, 2, "~/personal")
-	setField(t, a, form, 3, "glpat-personal-token")
+	setField(t, a, form, 4, "glpat-personal-token")
 	pressButton(t, a, sc, form, "Save")
 
 	if len(a.cfg.Instances) != 2 {
@@ -328,12 +329,16 @@ func TestAddGitHubAccount(t *testing.T) {
 	if form == nil {
 		t.Fatal("no form on screen")
 	}
-	if got := form.GetFormItemCount(); got != 4 {
+	// Name, Root directory, Clone over, Token, and the note: no URL.
+	if got := form.GetFormItemCount(); got != 5 {
 		t.Fatalf("the GitHub form has %d items; it should not ask for a URL", got)
 	}
+	if label := form.GetFormItem(1).(*tview.InputField).GetLabel(); !strings.HasPrefix(label, "Root") {
+		t.Fatalf("item 1 is %q, so the URL was asked for after all", label)
+	}
 	setField(t, a, form, 0, "Personal")
-	setField(t, a, form, 1, "~/github") // root directory sits where the URL would
-	setField(t, a, form, 2, "ghp-token")
+	setField(t, a, form, 1, "~/github")
+	setField(t, a, form, 3, "ghp-token")
 	pressButton(t, a, sc, form, "Save")
 
 	gh := a.cfg.InstancesOfKind(config.KindGitHub)
@@ -393,5 +398,85 @@ func TestGitHubOrgIsOnOrOff(t *testing.T) {
 	waitFor(t, a, sc, "unselected")
 	if got := a.cfg.Instance(id).GroupScope(10); got != "" {
 		t.Fatalf("scope = %q, want unselected", got)
+	}
+}
+
+// setDropDown picks an option of a form's select box.
+func setDropDown(t *testing.T, a *App, form *tview.Form, index int, option string) {
+	t.Helper()
+	done := make(chan struct{})
+	a.tv.QueueUpdateDraw(func() {
+		defer close(done)
+		drop, ok := form.GetFormItem(index).(*tview.DropDown)
+		if !ok {
+			t.Errorf("form item %d is not a drop down", index)
+			return
+		}
+		for i := 0; i < drop.GetOptionCount(); i++ {
+			drop.SetCurrentOption(i)
+			if _, text := drop.GetCurrentOption(); text == option {
+				return
+			}
+		}
+		t.Errorf("no option %q", option)
+	})
+	<-done
+}
+
+// TestSwitchingToSSHOffersToRepointExistingClones is the whole point of the
+// setting: the repositories already on disk keep the old protocol otherwise.
+func TestSwitchingToSSHOffersToRepointExistingClones(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	id := a.cfg.Instances[0].ID
+	if got := a.cfg.Instance(id).Protocol(); got != config.ProtocolHTTPS {
+		t.Fatalf("protocol starts at %q", got)
+	}
+
+	openSection(t, a, sc, sectionGitLab)
+	waitFor(t, a, sc, "https")
+
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Edit server")
+	form := currentForm(a)
+	setDropDown(t, a, form, 3, config.ProtocolSSH)
+	pressButton(t, a, sc, form, "Save")
+
+	if got := a.cfg.Instance(id).Protocol(); got != config.ProtocolSSH {
+		t.Fatalf("protocol = %q", got)
+	}
+	// Nothing is cloned in this fixture, so it says so rather than asking.
+	waitFor(t, a, sc, "will be cloned over ssh from now on")
+	// And the table shows it.
+	waitFor(t, a, sc, "ssh")
+
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Instance(id).Protocol() != config.ProtocolSSH {
+		t.Errorf("not written to disk: %q", saved.Instance(id).Protocol())
+	}
+}
+
+// TestNewServersDefaultToHTTPS keeps the behaviour unagit always had.
+func TestNewServersDefaultToHTTPS(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGitLab)
+	typeRunes(sc, "a")
+	waitFor(t, a, sc, "Add a GitLab server")
+
+	form := currentForm(a)
+	setField(t, a, form, 0, "Other")
+	setField(t, a, form, 1, "https://gitlab.other")
+	pressButton(t, a, sc, form, "Save")
+
+	added := a.cfg.Instance("gitlab-other")
+	if added == nil {
+		t.Fatalf("instances = %+v", a.cfg.Instances)
+	}
+	if added.Protocol() != config.ProtocolHTTPS {
+		t.Errorf("protocol = %q", added.Protocol())
 	}
 }

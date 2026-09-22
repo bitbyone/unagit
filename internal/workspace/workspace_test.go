@@ -38,8 +38,8 @@ func TestPaths(t *testing.T) {
 	if got := m.MRDir("group/app", 42, "feature/x"); got != filepath.FromSlash("/root/group/app.mrs/42-feature-x") {
 		t.Errorf("MRDir = %q", got)
 	}
-	if got := m.cloneURL("group/app"); got != "https://gl.example/group/app.git" {
-		t.Errorf("cloneURL = %q", got)
+	if got := m.RemoteURL(forge.Project{PathWithNamespace: "group/app"}); got != "https://gl.example/group/app.git" {
+		t.Errorf("RemoteURL = %q", got)
 	}
 }
 
@@ -132,7 +132,7 @@ func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}
 
-	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	wt, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
 	if err := os.WriteFile(scratch, []byte("review notes\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
+	if _, err := m.EnsureMR(mr, p); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(scratch); err != nil {
@@ -175,7 +175,7 @@ func TestEnsureMRFromForkUsesMergeRequestRef(t *testing.T) {
 	// Different source project: the source branch does not exist on origin.
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 99, TargetProjectID: 1}
 
-	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	wt, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestEnsureMRWhenBranchIsCheckedOutInMainClone(t *testing.T) {
 	}
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 
-	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	wt, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatalf("worktree fallback failed: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestInspectReportsLocalWork(t *testing.T) {
 func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
-	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
+	wt, err := m.EnsureMR(mr, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
 	m, root, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
-	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
+	if _, err := m.EnsureMR(mr, p); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.RemoveProject("group/app"); err != nil {
@@ -302,7 +302,7 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 		t.Fatal(err)
 	}
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
-	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
+	if _, err := m.EnsureMR(mr, p); err != nil {
 		t.Fatal(err)
 	}
 
@@ -325,5 +325,72 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 	}
 	if len(found) > 0 {
 		t.Fatalf("the token was written to %v", found)
+	}
+}
+
+// TestRemoteURLFollowsTheProtocol: over SSH the address the forge reported
+// wins, because it knows about custom ports and hosts.
+func TestRemoteURLFollowsTheProtocol(t *testing.T) {
+	p := forge.Project{
+		PathWithNamespace: "group/app",
+		HTTPURLToRepo:     "https://gl.example/group/app.git",
+		SSHURLToRepo:      "ssh://git@gl.example:2222/group/app.git",
+	}
+	https := New(Options{Root: "/r", GitLabURL: "https://gl.example"}, nil)
+	ssh := New(Options{Root: "/r", GitLabURL: "https://gl.example", CloneProtocol: ProtocolSSH}, nil)
+
+	if got := https.RemoteURL(p); got != p.HTTPURLToRepo {
+		t.Errorf("https = %q", got)
+	}
+	if got := ssh.RemoteURL(p); got != p.SSHURLToRepo {
+		t.Errorf("ssh = %q, want the address the forge gave", got)
+	}
+
+	// Without the forge's answer it is built from the server address.
+	bare := forge.Project{PathWithNamespace: "group/app"}
+	if got := https.RemoteURL(bare); got != "https://gl.example/group/app.git" {
+		t.Errorf("built https = %q", got)
+	}
+	if got := ssh.RemoteURL(bare); got != "git@gl.example:group/app.git" {
+		t.Errorf("built ssh = %q", got)
+	}
+}
+
+// TestSetRemoteSwitchesAnExistingClone
+func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
+	origin := newOrigin(t)
+	root := t.TempDir()
+	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main",
+		HTTPURLToRepo: origin, SSHURLToRepo: "ssh://git@gl.example/group/app.git"}
+
+	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true"}, func(string) {})
+	dir, err := m.EnsureProject(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m.Git().RemoteURL(dir, "origin"); got != origin {
+		t.Fatalf("cloned from %q", got)
+	}
+
+	ssh := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true",
+		CloneProtocol: ProtocolSSH}, func(string) {})
+	changed, err := ssh.SetRemote(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed != p.SSHURLToRepo {
+		t.Errorf("reported %q", changed)
+	}
+	if got, _ := ssh.Git().RemoteURL(dir, "origin"); got != p.SSHURLToRepo {
+		t.Errorf("remote = %q", got)
+	}
+	// Running it again is a no-op and says so.
+	if changed, err := ssh.SetRemote(p); err != nil || changed != "" {
+		t.Errorf("second run: %q %v", changed, err)
+	}
+	// And a project that is not on disk is left alone.
+	missing := forge.Project{PathWithNamespace: "group/nope"}
+	if changed, err := ssh.SetRemote(missing); err != nil || changed != "" {
+		t.Errorf("missing project: %q %v", changed, err)
 	}
 }

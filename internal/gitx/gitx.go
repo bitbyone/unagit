@@ -61,6 +61,10 @@ func (g *Git) Run(dir string, args ...string) (string, error) {
 		userEnv+"="+g.user,
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_LFS_SKIP_SMUDGE=0",
+		// Over SSH, a locked key would otherwise leave git waiting for a
+		// passphrase nobody can type into a captured pipe. Batch mode turns
+		// that into an immediate, legible refusal; the agent still works.
+		"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
 	)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
@@ -226,6 +230,17 @@ func (g *Git) LocalBranches(dir string) []string {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+// RemoteURL returns the address a remote points at.
+func (g *Git) RemoteURL(dir, remote string) (string, error) {
+	return g.out(dir, "remote", "get-url", remote)
+}
+
+// SetRemoteURL points a remote at another address.
+func (g *Git) SetRemoteURL(dir, remote, url string) error {
+	_, err := g.Run(dir, "remote", "set-url", remote, url)
+	return err
 }
 
 // IsRepo reports whether dir is the top level of a git working tree.

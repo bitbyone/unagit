@@ -13,6 +13,7 @@ package workspace
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,12 +37,21 @@ const (
 
 // Options is everything a Manager needs to know. The root is resolved by the
 // caller, because it depends on the instance and the group a project sits in.
+// Clone protocols.
+const (
+	ProtocolHTTPS = "https"
+	ProtocolSSH   = "ssh"
+)
+
 type Options struct {
 	Root       string
 	GitLabURL  string
 	Editor     string
 	EditorArgs []string
 	Token      string
+	// CloneProtocol is ProtocolHTTPS or ProtocolSSH; empty means HTTPS, which
+	// is what unagit did before it could do anything else.
+	CloneProtocol string
 	// GitUser is the user name the HTTPS credential helper hands to git.
 	GitUser string
 	// HeadRefFormat is where the forge publishes a merge request head, with a
@@ -145,9 +155,28 @@ func Sanitize(s string) string {
 // Exists reports whether a git working tree is present at dir.
 func Exists(dir string) bool { return gitx.IsRepo(dir) }
 
-// cloneURL builds the HTTPS clone URL for a project path.
-func (m *Manager) cloneURL(projectPath string) string {
-	return strings.TrimRight(m.opts.GitLabURL, "/") + "/" + projectPath + ".git"
+// RemoteURL is where a project is cloned from, under the configured protocol.
+// The address the forge itself reported is preferred - it knows about custom
+// SSH ports and hosts - and only built by hand when it is missing.
+func (m *Manager) RemoteURL(p forge.Project) string {
+	if m.opts.CloneProtocol == ProtocolSSH {
+		if p.SSHURLToRepo != "" {
+			return p.SSHURLToRepo
+		}
+		return "git@" + hostOf(m.opts.GitLabURL) + ":" + p.PathWithNamespace + ".git"
+	}
+	if p.HTTPURLToRepo != "" {
+		return p.HTTPURLToRepo
+	}
+	return strings.TrimRight(m.opts.GitLabURL, "/") + "/" + p.PathWithNamespace + ".git"
+}
+
+// hostOf is the host part of a server URL.
+func hostOf(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(raw, "https://"), "http://"), "/")
 }
 
 // EnsureProject clones the project if needed, then fetches and fast-forwards
@@ -155,15 +184,11 @@ func (m *Manager) cloneURL(projectPath string) string {
 func (m *Manager) EnsureProject(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
 	if !Exists(dir) {
-		url := p.HTTPURLToRepo
-		if url == "" {
-			url = m.cloneURL(p.PathWithNamespace)
-		}
 		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 			return "", err
 		}
 		m.log("Cloning %s", p.PathWithNamespace)
-		if err := m.git.Clone(url, dir); err != nil {
+		if err := m.git.Clone(m.RemoteURL(p), dir); err != nil {
 			return "", err
 		}
 		return dir, nil
@@ -177,19 +202,30 @@ func (m *Manager) EnsureProject(p forge.Project) (string, error) {
 
 // ensureMain makes sure the main clone exists; it is the object store every
 // merge request worktree hangs off.
-func (m *Manager) ensureMain(projectPath, httpURL string) (string, error) {
-	dir := m.ProjectDir(projectPath)
+func (m *Manager) ensureMain(p forge.Project) (string, error) {
+	dir := m.ProjectDir(p.PathWithNamespace)
 	if Exists(dir) {
 		return dir, nil
-	}
-	if httpURL == "" {
-		httpURL = m.cloneURL(projectPath)
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return "", err
 	}
-	m.log("Cloning %s (base clone for merge request worktrees)", projectPath)
-	return dir, m.git.Clone(httpURL, dir)
+	m.log("Cloning %s (base clone for merge request worktrees)", p.PathWithNamespace)
+	return dir, m.git.Clone(m.RemoteURL(p), dir)
+}
+
+// SetRemote points an existing clone at another address, for switching a
+// project between HTTPS and SSH.
+func (m *Manager) SetRemote(p forge.Project) (string, error) {
+	dir := m.ProjectDir(p.PathWithNamespace)
+	if !Exists(dir) {
+		return "", nil
+	}
+	want := m.RemoteURL(p)
+	if current, err := m.git.RemoteURL(dir, "origin"); err == nil && current == want {
+		return "", nil
+	}
+	return want, m.git.SetRemoteURL(dir, "origin", want)
 }
 
 func (m *Manager) pullIfClean(dir string) error {
@@ -207,11 +243,12 @@ func (m *Manager) pullIfClean(dir string) error {
 // EnsureMR prepares an isolated worktree for a merge request and returns its
 // directory. The merge request head is fetched from refs/merge-requests/<iid>/head,
 // which also works for merge requests opened from a fork.
-func (m *Manager) EnsureMR(mr forge.MergeRequest, projectPath, httpURL string) (string, error) {
+func (m *Manager) EnsureMR(mr forge.MergeRequest, project forge.Project) (string, error) {
+	projectPath := project.PathWithNamespace
 	if projectPath == "" {
 		return "", fmt.Errorf("unknown project path for merge request !%d - refresh the project index", mr.IID)
 	}
-	mainDir, err := m.ensureMain(projectPath, httpURL)
+	mainDir, err := m.ensureMain(project)
 	if err != nil {
 		return "", err
 	}
@@ -306,7 +343,7 @@ func (m *Manager) addWorktree(mainDir, wtDir, branch string) error {
 // SwitchBranch checks a branch out in the main clone of a project, cloning it
 // first when needed.
 func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
-	dir, err := m.ensureMain(p.PathWithNamespace, p.HTTPURLToRepo)
+	dir, err := m.ensureMain(p)
 	if err != nil {
 		return "", err
 	}

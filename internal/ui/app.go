@@ -431,6 +431,7 @@ func (a *App) newManager(instanceID, projectPath string, log func(string)) *work
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
 		opts.GitLabURL = inst.URL
+		opts.CloneProtocol = inst.Protocol()
 	}
 	if a.vault != nil {
 		opts.Token = a.vault.Token(instanceID)

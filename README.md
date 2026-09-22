@@ -41,6 +41,10 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 2. **GitHub accounts** - the same, without a URL: github.com is the only
    address there is (GitHub Enterprise is not supported). The token needs the
    `repo` scope.
+   Both sections have a **Clone over** setting: `https` hands the token to git
+   through a one-shot credential helper, `ssh` uses your key and keeps the
+   token for the API alone. Changing it offers to repoint the repositories
+   already on disk.
 3. **Groups & roots** - press `r` to load the groups, then `space` on the ones
    you work with. On GitLab `space` cycles *off → this group only → including
    subgroups*; a GitHub organisation is simply on or off. `d` gives a group -

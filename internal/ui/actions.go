@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 )
 
@@ -132,4 +133,52 @@ func (a *App) showProjectScopePicker() {
 		a.mrsPane.reload()
 		a.setStatus("")
 	})
+}
+
+// confirmSwitchRemotes offers to repoint the clones already on disk after the
+// protocol of a server changed. New clones follow the setting on their own;
+// these would otherwise keep talking over the old one.
+func (a *App) confirmSwitchRemotes(inst config.Instance, was string) {
+	var cloned []forge.Project
+	for _, p := range a.projects {
+		if p.Instance == inst.ID && a.diskOf(p.Instance, p.PathWithNamespace).Cloned {
+			cloned = append(cloned, p)
+		}
+	}
+	if len(cloned) == 0 {
+		a.note(fmt.Sprintf("%s will be cloned over %s from now on", inst.Label(), inst.Protocol()))
+		return
+	}
+	body := fmt.Sprintf("%s now clones over [::b]%s[::-] instead of %s.\n\n"+
+		"Repoint the %d repositor%s already on disk?\n\n"+
+		"Their worktrees follow along; nothing else is touched.",
+		inst.Label(), inst.Protocol(), was, len(cloned), plural(len(cloned), "y", "ies"))
+
+	a.confirmWith("Switch remotes", body, "Switch", nil, func() {
+		a.runTask("Switching remotes of "+inst.Label(), func(log func(string)) (string, error) {
+			switched := 0
+			for _, p := range cloned {
+				url, err := a.newManager(p.Instance, p.PathWithNamespace, nil).SetRemote(p)
+				if err != nil {
+					log(fmt.Sprintf("! %s: %v", p.PathWithNamespace, err))
+					continue
+				}
+				if url == "" {
+					continue
+				}
+				log(fmt.Sprintf("%s → %s", p.PathWithNamespace, url))
+				switched++
+			}
+			log(fmt.Sprintf("Done: %d repositor%s switched.", switched, plural(switched, "y", "ies")))
+			return "", nil
+		})
+	})
+}
+
+// plural picks the ending that fits the count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }

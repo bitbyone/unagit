@@ -349,9 +349,9 @@ func (s *settingsView) fillServerTables() {
 
 func (s *settingsView) fillServerTable(t *tview.Table, kind string) {
 	t.Clear()
-	headers := []string{"", "NAME", "URL", "TOKEN", "GROUPS", "ROOT"}
+	headers := []string{"", "NAME", "URL", "TOKEN", "CLONE", "GROUPS", "ROOT"}
 	if kind == config.KindGitHub {
-		headers = []string{"", "NAME", "ACCOUNT", "TOKEN", "ORGS", "ROOT"}
+		headers = []string{"", "NAME", "ACCOUNT", "TOKEN", "CLONE", "ORGS", "ROOT"}
 	}
 	for c, h := range headers {
 		t.SetCell(0, c, tview.NewTableCell(h).SetTextColor(colDim).SetSelectable(false))
@@ -384,10 +384,15 @@ func (s *settingsView) fillServerTable(t *tview.Table, kind string) {
 		t.SetCell(i+1, 0, mark)
 		t.SetCell(i+1, 1, tview.NewTableCell(inst.Label()).SetTextColor(colText))
 		t.SetCell(i+1, 2, tview.NewTableCell(who).SetTextColor(colMuted))
+		protocol := tview.NewTableCell(inst.Protocol()).SetTextColor(colMuted)
+		if inst.Protocol() == config.ProtocolSSH {
+			protocol.SetTextColor(colOn)
+		}
 		t.SetCell(i+1, 3, token)
-		t.SetCell(i+1, 4, tview.NewTableCell(fmt.Sprintf("%d", len(inst.Groups))).SetTextColor(colMuted))
-		t.SetCell(i+1, 5, tview.NewTableCell(root).SetTextColor(colMuted))
-		t.SetCell(i+1, 6, tview.NewTableCell("").SetExpansion(1))
+		t.SetCell(i+1, 4, protocol)
+		t.SetCell(i+1, 5, tview.NewTableCell(fmt.Sprintf("%d", len(inst.Groups))).SetTextColor(colMuted))
+		t.SetCell(i+1, 6, tview.NewTableCell(root).SetTextColor(colMuted))
+		t.SetCell(i+1, 7, tview.NewTableCell("").SetExpansion(1))
 	}
 	if row, _ := t.GetSelection(); row < 1 || row >= t.GetRowCount() {
 		t.Select(1, 0)
@@ -430,43 +435,58 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 
 	form := tview.NewForm()
 	styleForm(form)
+
+	// Remember where each field lands: the URL is missing on GitHub.
+	at := func() int { return form.GetFormItemCount() }
+	nameAt := at()
 	form.AddInputField("Name", current.Name, 44, nil, nil)
+	urlAt := -1
 	if !isGitHub {
+		urlAt = at()
 		form.AddInputField("URL", current.URL, 44, nil, nil)
 	}
+	rootAt := at()
 	form.AddInputField("Root directory", current.RootDir, 44, nil, nil)
+
+	protocols := []string{config.ProtocolHTTPS, config.ProtocolSSH}
+	selected := 0
+	if current.Protocol() == config.ProtocolSSH {
+		selected = 1
+	}
+	protoAt := at()
+	form.AddDropDown("Clone over", protocols, selected, nil)
 
 	tokenLabel := "Token"
 	if !adding && a.vault != nil && a.vault.Has(current.ID) {
 		tokenLabel = "Token (stored)"
 	}
+	tokenAt := at()
 	form.AddPasswordField(tokenLabel, "", 44, maskRune, nil)
 	if isGitHub {
-		form.AddTextView("", "Token: a personal access token with repo scope.\n"+
-			"github.com only; Enterprise is not supported.\n"+
-			"Root directory: blank means the default.", 44, 3, true, false)
+		form.AddTextView("", "Token: a personal access token, repo scope.\n"+
+			"github.com only; Enterprise is unsupported.\n"+
+			"Over ssh, git uses your key and the token\n"+
+			"is only ever spent on the API.", 44, 4, true, false)
 	} else {
 		form.AddTextView("", "Token: a personal access token (api scope).\n"+
 			"Leave it empty to keep the stored one.\n"+
-			"Root directory: blank means the default.", 44, 3, true, false)
+			"Over ssh, git uses your key and the token\n"+
+			"is only ever spent on the API.", 44, 4, true, false)
 	}
 
-	// The fields shift by one when there is no URL to ask for.
-	field := func(i int) *tview.InputField {
-		if isGitHub && i > 0 {
-			i--
-		}
-		return form.GetFormItem(i).(*tview.InputField)
+	text := func(i int) string {
+		return strings.TrimSpace(form.GetFormItem(i).(*tview.InputField).GetText())
 	}
 
 	form.AddButton("Save", func() {
-		name := strings.TrimSpace(field(0).GetText())
+		name := text(nameAt)
 		url := config.GitHubURL
-		if !isGitHub {
-			url = strings.TrimRight(strings.TrimSpace(field(1).GetText()), "/")
+		if urlAt >= 0 {
+			url = strings.TrimRight(text(urlAt), "/")
 		}
-		root := strings.TrimSpace(field(2).GetText())
-		token := field(3).GetText()
+		root := text(rootAt)
+		token := form.GetFormItem(tokenAt).(*tview.InputField).GetText()
+		_, protocol := form.GetFormItem(protoAt).(*tview.DropDown).GetCurrentOption()
 
 		if url == "" || url == "https://" {
 			a.errorf("a server needs a URL")
@@ -476,11 +496,13 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 			name = config.Host(url)
 		}
 		target := inst
+		was := current.Protocol()
 		if adding {
 			target = a.cfg.AddInstance(config.Instance{Kind: kind, Name: name, URL: url, RootDir: root})
 		} else {
 			target.Name, target.URL, target.RootDir = name, url, root
 		}
+		target.CloneProtocol = protocol
 		if token != "" && a.vault != nil {
 			a.vault.Set(target.ID, token)
 			a.saveVault()
@@ -489,13 +511,16 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 		a.closeModal(pageForm)
 		s.reload()
 		a.note("Saved " + target.Label())
-		if a.vault != nil && !a.vault.Has(target.ID) {
+		switch {
+		case a.vault != nil && !a.vault.Has(target.ID):
 			a.flash(target.Label() + " has no token yet - press t to add one")
+		case !adding && protocol != was:
+			a.confirmSwitchRemotes(*target, was)
 		}
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 
-	a.showFormModal(title, form, 18)
+	a.showFormModal(title, form, 21)
 }
 
 // showTokenForm replaces the token of one server.

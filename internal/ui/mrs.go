@@ -260,9 +260,9 @@ func mrMarkColor(d mrDisk) tcell.Color {
 
 // openMR materialises the merge request worktree and opens the editor there.
 func (a *App) openMR(mr forge.MergeRequest) {
-	path, httpURL := a.mrOrigin(mr)
-	a.runTask(fmt.Sprintf("Opening %s !%d", path, mr.IID), func(log func(string)) (string, error) {
-		return a.newManager(mr.Instance, path, log).EnsureMR(mr, path, httpURL)
+	project := a.mrProject(mr)
+	a.runTask(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID), func(log func(string)) (string, error) {
+		return a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
 	})
 }
 
@@ -270,7 +270,8 @@ func (a *App) openMR(mr forge.MergeRequest) {
 // as pending changes rather than as a stack of commits. The diff base comes
 // from the API, so it is the very commit GitLab renders its own diff against.
 func (a *App) openMRReview(mr forge.MergeRequest) {
-	path, httpURL := a.mrOrigin(mr)
+	project := a.mrProject(mr)
+	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
 	a.runTask(fmt.Sprintf("Opening %s !%d for review", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -288,17 +289,19 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 				rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
 			}
 		}
-		return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, path, httpURL, rev)
+		return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
 	})
 }
 
-// mrOrigin resolves where a merge request's project lives.
-func (a *App) mrOrigin(mr forge.MergeRequest) (path, httpURL string) {
-	path = a.projectPathOfMR(mr)
+// mrProject is the repository a merge request belongs to. The project index
+// has the clone addresses; without it, only the path is known and the manager
+// builds the address from the server's own.
+func (a *App) mrProject(mr forge.MergeRequest) forge.Project {
+	path := a.projectPathOfMR(mr)
 	if pr, ok := a.projByKey[projectKey{mr.Instance, path}]; ok {
-		httpURL = pr.HTTPURLToRepo
+		return pr
 	}
-	return path, httpURL
+	return forge.Project{PathWithNamespace: path, Instance: mr.Instance}
 }
 
 func openBrowser(url string) error { return workspace.OpenBrowser(url) }

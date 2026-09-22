@@ -46,11 +46,11 @@ const (
 
 // prepareMR makes sure the main clone exists and the merge request head plus
 // its target branch are on disk. It returns the main clone and the head commit.
-func (m *Manager) prepareMR(mr forge.MergeRequest, projectPath, httpURL string) (string, string, error) {
-	if projectPath == "" {
+func (m *Manager) prepareMR(mr forge.MergeRequest, project forge.Project) (string, string, error) {
+	if project.PathWithNamespace == "" {
 		return "", "", fmt.Errorf("unknown project path for merge request !%d - refresh the project index", mr.IID)
 	}
-	mainDir, err := m.ensureMain(projectPath, httpURL)
+	mainDir, err := m.ensureMain(project)
 	if err != nil {
 		return "", "", err
 	}
@@ -90,8 +90,9 @@ func (m *Manager) resolveBase(mainDir string, mr forge.MergeRequest, rev Review,
 // working tree hold the merge request head. Diff tools, gutter signs and
 // hunk navigation then work on the change as a whole, instead of on the
 // individual commits.
-func (m *Manager) EnsureMRReview(mr forge.MergeRequest, projectPath, httpURL string, rev Review) (string, error) {
-	mainDir, head, err := m.prepareMR(mr, projectPath, httpURL)
+func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, rev Review) (string, error) {
+	projectPath := project.PathWithNamespace
+	mainDir, head, err := m.prepareMR(mr, project)
 	if err != nil {
 		return "", err
 	}

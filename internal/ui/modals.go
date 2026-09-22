@@ -67,6 +67,10 @@ const helpText = `[::b]Tabs[::-]
   [::b]General[::-]         the default clone root, the editor and its arguments
   [::b]GitLab servers[::-]  {A}a{E} add   {A}e{E} edit   {A}t{E} token   {A}v{E} verify   {A}d{E} remove
   [::b]GitHub accounts[::-] the same, without a URL: github.com only
+                  Clone over: https sends the token to git through a one
+                  shot credential helper; ssh uses your key instead and
+                  the token is then only ever spent on the API. Changing
+                  it offers to repoint the clones already on disk.
                   several servers can be used at once, each with its own
                   token; the lists then show which one a row came from,
                   and pull requests are merge requests here too
