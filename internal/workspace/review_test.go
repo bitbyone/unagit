@@ -76,9 +76,9 @@ func newReviewManager(t *testing.T, origin string) (*Manager, forge.Project) {
 	return New(opts, func(string) {}), p
 }
 
-// TestReviewWorktreeStagesTheWholeChange is the point of the whole feature:
+// TestReviewWorktreeHoldsTheWholeChange is the point of the whole feature:
 // what git reports as pending must be exactly what GitLab shows as Changes.
-func TestReviewWorktreeStagesTheWholeChange(t *testing.T) {
+func TestReviewWorktreeHoldsTheWholeChange(t *testing.T) {
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -103,15 +103,52 @@ func TestReviewWorktreeStagesTheWholeChange(t *testing.T) {
 	}
 
 	// And the pending change equals the three dot diff GitLab renders.
-	staged := git(t, dir, "diff", "--cached", "--name-status")
+	pending := git(t, dir, "diff", "--name-status")
 	want := git(t, m.ProjectDir("group/app"), "diff", "--name-status", base+".."+head)
-	if staged != want {
-		t.Errorf("staged change does not match the merge request diff:\ngot:\n%s\nwant:\n%s", staged, want)
+	if pending != want {
+		t.Errorf("pending change does not match the merge request diff:\ngot:\n%s\nwant:\n%s", pending, want)
 	}
 	// The target's own commit must not show up reversed, which is what
 	// diffing against the tip of the target branch would do.
-	if strings.Contains(staged, "keep.txt") {
-		t.Errorf("the target branch's own change leaked into the diff:\n%s", staged)
+	if strings.Contains(pending, "keep.txt") {
+		t.Errorf("the target branch's own change leaked into the diff:\n%s", pending)
+	}
+}
+
+// TestReviewWorktreeIsWhatAGutterReads: editors draw their gutter by comparing
+// the file against the index, so the index has to be the merge base and
+// nothing may be staged. Staging the change instead leaves gitsigns, gitgutter
+// and a plain git diff with nothing to show.
+func TestReviewWorktreeIsWhatAGutterReads(t *testing.T) {
+	origin, base, head := newDivergedOrigin(t)
+	m, p := newReviewManager(t, origin)
+
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if staged := git(t, dir, "diff", "--cached", "--name-status"); staged != "" {
+		t.Errorf("the index differs from HEAD, so a gutter sees nothing:\n%s", staged)
+	}
+	// What an editor reads for a modified file: the index still holds the
+	// merge base, so every line the merge request changes is a sign.
+	if got := git(t, dir, "show", ":mod.txt"); got != "old" {
+		t.Errorf("git show :mod.txt = %q, want the merge base content", got)
+	}
+	// A file the merge request adds is in the index as an intent to add, so
+	// it reads as a whole new file rather than as something untracked.
+	if got := git(t, dir, "show", ":added.go"); got != "" {
+		t.Errorf("git show :added.go = %q, want an empty intent-to-add entry", got)
+	}
+	if got := git(t, dir, "status", "--porcelain"); strings.Contains(got, "??") {
+		t.Errorf("nothing should be untracked, got:\n%s", got)
+	}
+	// Every part of the change is unstaged work: modified, added and deleted
+	// alike. (git here trims the leading blank staged column.)
+	for path, want := range map[string]string{"mod.txt": "M", "added.go": "A", "del.txt": "D"} {
+		if got := git(t, dir, "status", "--porcelain", "--", path); got != want+" "+path {
+			t.Errorf("status of %s = %q, want %q", path, got, want+" "+path)
+		}
 	}
 }
 
@@ -227,12 +264,12 @@ func TestReviewWorktreeFollowsAForcePush(t *testing.T) {
 	}
 	// After the rebase the target's change is part of the base, so it must
 	// still be absent from the pending diff.
-	staged := git(t, dir, "diff", "--cached", "--name-status")
-	if strings.Contains(staged, "keep.txt") {
-		t.Errorf("target change leaked into the diff after the rebase:\n%s", staged)
+	pending := git(t, dir, "diff", "--name-status")
+	if strings.Contains(pending, "keep.txt") {
+		t.Errorf("target change leaked into the diff after the rebase:\n%s", pending)
 	}
-	if !strings.Contains(staged, "added.go") {
-		t.Errorf("the merge request's own change is missing:\n%s", staged)
+	if !strings.Contains(pending, "added.go") {
+		t.Errorf("the merge request's own change is missing:\n%s", pending)
 	}
 }
 
@@ -279,7 +316,7 @@ func TestRemoveMRRemovesBothWorktrees(t *testing.T) {
 }
 
 // TestInspectProjectSeesReviewEdits: only the reviewer's own edits count as
-// work worth warning about, the staged merge request itself does not.
+// work worth warning about, the pending merge request itself does not.
 func TestInspectProjectSeesReviewEdits(t *testing.T) {
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)

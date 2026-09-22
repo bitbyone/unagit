@@ -166,20 +166,26 @@ branch: real commits, and you can commit and push. The catch when reviewing is
 that everything is already committed, so a diff view has nothing pending to
 show you, and the change is spread over however many commits the author made.
 
-A review worktree (`Ctrl-R`) turns that around. `HEAD` sits on the commit the merge
-request branched from, while the index and the working tree hold the merge
-request head. The whole change is therefore **pending**, exactly as if you had
-just typed it:
+A review worktree (`Ctrl-R`) turns that around. `HEAD` and the index sit on the
+commit the merge request branched from, while the working tree holds the merge
+request head. The whole change is therefore **pending and unstaged**, exactly
+as if you had just typed it:
 
 ```sh
-git diff --staged        # the entire merge request, as one diff
+git diff                 # the entire merge request, as one diff
 git status               # every file it touches, including additions and deletions
 ```
 
-Gutter signs, `]c`, `:Gvdiffsplit`, `:DiffviewOpen` - anything that works on
-uncommitted changes now works on the merge request as a whole. Your own edits
-on top survive reopening it, and a rebase or a force push on the other side is
-picked up on the next open.
+Unstaged is the part that matters: an editor draws its gutter by comparing the
+file against the **index**, so the index has to be the merge base. Files the
+merge request adds are entered as intent-to-add, which is what keeps them in
+`git diff` instead of leaving them untracked and invisible.
+
+Gutter signs (gitsigns, gitgutter), `]c`, `:Gvdiffsplit`, `:DiffviewOpen` -
+anything that works on uncommitted changes now works on the merge request as a
+whole, with nothing to configure. Your own edits on top survive reopening it
+(they are what the working tree adds on top of the merge request head), and a
+rebase or a force push on the other side is picked up on the next open.
 
 The base is the one GitLab itself uses (`diff_refs.base_sha`, the merge base),
 not the tip of the target branch - otherwise a target that has moved on would

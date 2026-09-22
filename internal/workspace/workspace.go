@@ -414,12 +414,12 @@ func (m *Manager) InspectDir(dir string) Removal {
 	return r
 }
 
-// describeWorktree summarises local work. A review worktree always has a
-// staged difference by design, so only the reviewer's own unstaged edits count
-// as work that would be lost.
+// describeWorktree summarises local work. A review worktree is pending against
+// the merge base by design, so only what the reviewer changed on top of the
+// merge request counts as work that would be lost.
 func (m *Manager) describeWorktree(dir string) string {
-	if m.ReadMeta(dir).Mode == ModeReview {
-		if edits := m.git.UnstagedFiles(dir); len(edits) > 0 {
+	if meta := m.ReadMeta(dir); meta.Mode == ModeReview {
+		if edits := m.ownEdits(dir, meta); len(edits) > 0 {
 			return fmt.Sprintf("%d file(s) edited in the review", len(edits))
 		}
 		return ""

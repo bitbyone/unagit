@@ -86,10 +86,10 @@ func (m *Manager) resolveBase(mainDir string, mr forge.MergeRequest, rev Review,
 }
 
 // EnsureMRReview prepares a worktree in which the whole merge request shows up
-// as pending changes: HEAD stays on the merge base while the index and the
-// working tree hold the merge request head. Diff tools, gutter signs and
-// hunk navigation then work on the change as a whole, instead of on the
-// individual commits.
+// as one pending change: HEAD and the index stay on the merge base while the
+// working tree holds the merge request head. Diff tools, gutter signs and hunk
+// navigation then work on the change as a whole, instead of on the individual
+// commits.
 func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, rev Review) (string, error) {
 	projectPath := project.PathWithNamespace
 	mainDir, head, err := m.prepareMR(mr, project)
@@ -112,9 +112,10 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 
 	if Exists(dir) {
 		m.log("Updating review worktree for !%d", mr.IID)
-		// The index always differs from HEAD here, so "dirty" means the
-		// reviewer's own unstaged edits - those must survive.
-		if edits := m.git.UnstagedFiles(dir); len(edits) > 0 {
+		// Everything the merge request changes is pending here by design, so
+		// the reviewer's own edits are what the worktree adds on top of the
+		// head it was last given - and those must survive.
+		if edits := m.ownEdits(dir, m.ReadMeta(dir)); len(edits) > 0 {
 			m.log("! %d file(s) with your own edits, leaving the worktree alone", len(edits))
 			m.writeMeta(dir, meta)
 			return dir, nil
@@ -122,7 +123,7 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 		if err := m.git.ResetHard(dir, base); err != nil {
 			return dir, err
 		}
-		if err := m.git.ReadTree(dir, head); err != nil {
+		if err := m.pendChange(dir, base, head); err != nil {
 			return dir, err
 		}
 		m.writeMeta(dir, meta)
@@ -136,14 +137,47 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 	if err := m.git.WorktreeAddDetached(mainDir, dir, base); err != nil {
 		return "", err
 	}
-	if err := m.git.ReadTree(dir, head); err != nil {
+	if err := m.pendChange(dir, base, head); err != nil {
 		return "", err
 	}
 	m.writeMeta(dir, meta)
-	m.log("The merge request is now staged on top of the merge base:")
-	m.log("  git diff --staged        the whole change")
+	m.log("The merge request is now pending on top of the merge base:")
+	m.log("  git diff                 the whole change")
 	m.log("  git config unagit.mr.base / .head   the two ends of it")
 	return dir, nil
+}
+
+// pendChange puts the merge request in the working tree while leaving HEAD and
+// the index on the merge base, so the change reads as unstaged work.
+//
+// Unstaged is what makes it show up everywhere without being told: a plain git
+// diff, and every editor that draws its gutter, compare the file against the
+// index. Staging it instead would leave both of them with nothing to report.
+func (m *Manager) pendChange(dir, base, head string) error {
+	if err := m.git.ReadTree(dir, head); err != nil {
+		return err
+	}
+	// read-tree moved the index along with the working tree; putting the index
+	// back on HEAD is what turns the change from staged into pending.
+	if err := m.git.ResetIndex(dir); err != nil {
+		return err
+	}
+	// Files the merge request adds would now be untracked, and untracked files
+	// are what git diff passes over. Intent-to-add entries make them read as
+	// new files instead, without putting their content in the index.
+	return m.git.IntentToAdd(dir, m.git.AddedPaths(dir, base, head))
+}
+
+// ownEdits lists what the reviewer changed on top of the head unagit last put
+// in the worktree.
+func (m *Manager) ownEdits(dir string, previous Meta) []string {
+	if previous.Head == "" || !m.git.CommitExists(dir, previous.Head) {
+		// Nothing to compare against, so everything pending has to count as
+		// the reviewer's: better a worktree that will not update than one that
+		// throws away work it could not account for.
+		return m.git.UnstagedFiles(dir)
+	}
+	return m.git.ChangedSince(dir, previous.Head)
 }
 
 // writeMeta records the merge request in the worktree's own configuration.

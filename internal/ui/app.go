@@ -43,7 +43,7 @@ const (
 // mrDisk records which worktrees a merge request has on disk.
 type mrDisk struct {
 	Branch bool // .mrs: a real branch, can be committed and pushed
-	Review bool // .reviews: the whole change staged on the merge base
+	Review bool // .reviews: the whole change pending on the merge base
 }
 
 // diskInfo is the cached on-disk state of one project.

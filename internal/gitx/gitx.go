@@ -311,14 +311,53 @@ func (g *Git) ResetHard(dir, commit string) error {
 }
 
 // UnstagedFiles lists the files the working tree changes on top of the index.
-// In a review worktree this is exactly the reviewer's own edits, because the
-// index deliberately differs from HEAD.
 func (g *Git) UnstagedFiles(dir string) []string {
-	out, err := g.out(dir, "diff", "--name-only")
+	return g.names(dir, "diff", "--name-only")
+}
+
+// ChangedSince lists the working tree files that differ from a commit. In a
+// review worktree, where the merge request itself is pending by design, this
+// is what tells the reviewer's own edits apart from it.
+func (g *Git) ChangedSince(dir, commit string) []string {
+	return g.names(dir, "diff", "--name-only", commit)
+}
+
+// AddedPaths lists the files head adds on top of base.
+func (g *Git) AddedPaths(dir, base, head string) []string {
+	return g.names(dir, "diff", "--name-only", "--diff-filter=A", base, head)
+}
+
+func (g *Git) names(dir string, args ...string) []string {
+	out, err := g.out(dir, args...)
 	if err != nil || out == "" {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+// ResetIndex points the index back at HEAD and leaves the working tree as it
+// is, so what was staged reads as unstaged work instead.
+func (g *Git) ResetIndex(dir string) error {
+	_, err := g.Run(dir, "reset", "-q")
+	return err
+}
+
+// IntentToAdd records paths in the index without their content. A file that
+// is only in the working tree is untracked, and git diff - along with every
+// editor that draws its gutter from it - passes untracked files by; an
+// intent-to-add entry makes one read as a whole new file instead.
+func (g *Git) IntentToAdd(dir string, paths []string) error {
+	// Long enough to keep it to one call for any realistic merge request,
+	// short enough to stay well inside the argument limit.
+	const perCall = 200
+	for len(paths) > 0 {
+		n := min(perCall, len(paths))
+		if _, err := g.Run(dir, append([]string{"add", "-N", "--"}, paths[:n]...)...); err != nil {
+			return err
+		}
+		paths = paths[n:]
+	}
+	return nil
 }
 
 // EnableWorktreeConfig turns on per-worktree configuration, so that each

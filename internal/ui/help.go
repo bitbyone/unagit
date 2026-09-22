@@ -101,10 +101,10 @@ func helpRows() []helpLine {
 
 		section("Reviewing"),
 		note("Ctrl-O gives you the branch: real commits, you can commit and push."),
-		note("Ctrl-R gives you the review worktree: HEAD sits on the commit the " +
-			"merge request branched from while the index and the working tree hold " +
-			"the merge request, so the whole change is pending. Gutter signs, ]c and " +
-			"diff views then work on it as one change."),
+		note("Ctrl-R gives you the review worktree: HEAD and the index sit on the " +
+			"commit the merge request branched from while the working tree holds the " +
+			"merge request, so the whole change is pending and unstaged. git diff, " +
+			"gutter signs, ]c and diff views then work on it as one change."),
 		note("Both record what they are: git config unagit.mr.base / .head / .iid " +
 			"/ .target / .url / .mode."),
 		blank(),
