@@ -533,3 +533,37 @@ func TestScopesAreParsed(t *testing.T) {
 		t.Fatalf("scopes = %#v", scopes)
 	}
 }
+
+// TestReviewCommentsCarryTheirThread: GitHub hangs review comments off each
+// other with in_reply_to_id, which is what lets them be drawn as a thread.
+func TestReviewCommentsCarryTheirThread(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/issues/7/comments",
+		`[{"id":10,"body":"general remark","created_at":"2026-09-20T10:00:00Z","user":{"login":"john"}}]`)
+	s.handle("/repos/acme/api/pulls/7/comments", `[
+		{"id":20,"body":"is this right?","created_at":"2026-09-19T10:00:00Z","user":{"login":"ann"},
+		 "path":"rate.go","line":42},
+		{"id":21,"body":"yes","created_at":"2026-09-19T11:00:00Z","user":{"login":"bob"},
+		 "in_reply_to_id":20}
+	]`)
+
+	notes, err := s.client().MergeRequestNotes(context.Background(),
+		forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[int]forge.Note{}
+	for _, n := range notes {
+		byID[n.ID] = n
+	}
+	if len(byID) != 3 {
+		t.Fatalf("notes = %+v", notes)
+	}
+	if byID[20].Thread != "20" || byID[21].Thread != "20" {
+		t.Fatalf("the reply is not in its root's thread: %q and %q", byID[20].Thread, byID[21].Thread)
+	}
+	// A comment on the conversation stands on its own.
+	if byID[10].Thread != "10" {
+		t.Errorf("issue comment thread = %q", byID[10].Thread)
+	}
+}

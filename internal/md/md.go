@@ -247,9 +247,13 @@ func (r *renderer) inline(n ast.Node) {
 
 		case *ast.Link:
 			r.flush()
-			r.write("[" + r.theme.Link + "::u]")
+			// Colour only: tview's "u" flag sets tcell's underline style and
+			// then overwrites the attribute mask it lives beside, so the flag
+			// that would turn it off never sees it again and the underline
+			// runs to the end of the text.
+			r.write("[" + r.theme.Link + "]")
 			r.inline(c)
-			r.write("[-:-:-]")
+			r.write("[-]")
 			if dest := string(c.Destination); dest != "" {
 				r.write(" " + r.colour(r.theme.Muted, r.escape(dest)))
 			}

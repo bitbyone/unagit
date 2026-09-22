@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -442,42 +443,55 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 	return d, nil
 }
 
-// MergeRequestNotes returns the newest comments, most recent first.
+// note is GitLab's comment shape.
+type note struct {
+	ID         int       `json:"id"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+	System     bool      `json:"system"`
+	Resolvable bool      `json:"resolvable"`
+	Resolved   bool      `json:"resolved"`
+	Author     struct {
+		Username string `json:"username"`
+		Name     string `json:"name"`
+	} `json:"author"`
+	Position *struct {
+		NewPath string `json:"new_path"`
+		NewLine int    `json:"new_line"`
+	} `json:"position"`
+}
+
+// discussion is a conversation: one comment, or a thread of them.
+type discussion struct {
+	ID    string `json:"id"`
+	Notes []note `json:"notes"`
+}
+
+// MergeRequestNotes returns the newest comments, most recent first. They come
+// from the discussions endpoint rather than the flat one, because that is
+// where GitLab says which comments are replies to which.
 func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
-	q := url.Values{}
-	q.Set("per_page", strconv.Itoa(limit))
-	q.Set("order_by", "created_at")
-	q.Set("sort", "desc")
-	var raw []struct {
-		ID         int       `json:"id"`
-		Body       string    `json:"body"`
-		CreatedAt  time.Time `json:"created_at"`
-		System     bool      `json:"system"`
-		Resolvable bool      `json:"resolvable"`
-		Resolved   bool      `json:"resolved"`
-		Author     struct {
-			Username string `json:"username"`
-			Name     string `json:"name"`
-		} `json:"author"`
-		Position *struct {
-			NewPath string `json:"new_path"`
-			NewLine int    `json:"new_line"`
-		} `json:"position"`
-	}
-	if _, err := c.get(ctx, mrPath(mr)+"/notes", q, &raw); err != nil {
+	discussions, err := getAll[discussion](ctx, c, mrPath(mr)+"/discussions", nil)
+	if err != nil {
 		return nil, err
 	}
-	out := make([]forge.Note, 0, len(raw))
-	for _, n := range raw {
-		note := forge.Note{
-			ID: n.ID, Body: n.Body, CreatedAt: n.CreatedAt, System: n.System,
-			Resolvable: n.Resolvable, Resolved: n.Resolved,
-			Author: forge.User{Username: n.Author.Username, Name: n.Author.Name},
+	var out []forge.Note
+	for _, d := range discussions {
+		for _, n := range d.Notes {
+			converted := forge.Note{
+				ID: n.ID, Thread: d.ID, Body: n.Body, CreatedAt: n.CreatedAt,
+				System: n.System, Resolvable: n.Resolvable, Resolved: n.Resolved,
+				Author: forge.User{Username: n.Author.Username, Name: n.Author.Name},
+			}
+			if n.Position != nil {
+				converted.Path, converted.Line = n.Position.NewPath, n.Position.NewLine
+			}
+			out = append(out, converted)
 		}
-		if n.Position != nil {
-			note.Path, note.Line = n.Position.NewPath, n.Position.NewLine
-		}
-		out = append(out, note)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }

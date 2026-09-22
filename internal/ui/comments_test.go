@@ -154,3 +154,53 @@ func TestApproveFromTheCommentsModal(t *testing.T) {
 	// And the conversation is still there.
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 }
+
+// TestCommentsAreGroupedIntoThreads: a reply belongs under what it answers,
+// not wherever its timestamp happens to fall.
+func TestCommentsAreGroupedIntoThreads(t *testing.T) {
+	a, sc := newTestApp(t)
+	openMRDetail(t, a, sc)
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitFor(t, a, sc, "retry loop")
+
+	lines := strings.Split(a.screenText(sc), "\n")
+	line := func(needle string) int {
+		for i, l := range lines {
+			if strings.Contains(l, needle) {
+				return i
+			}
+		}
+		t.Fatalf("%q is not on screen:\n%s", needle, strings.Join(lines, "\n"))
+		return -1
+	}
+
+	// The conversations are in the order they were started, and the reply
+	// follows the comment it answers even though other comments are older.
+	oldest := line("oldest comment")
+	third := line("third comment")
+	root := line("first thing")
+	reply := line("retry loop")
+	if !(oldest < third && third < root && root < reply) {
+		t.Fatalf("order on screen: oldest %d, third %d, root %d, reply %d", oldest, third, root, reply)
+	}
+
+	// The reply is marked, and its byline sits further right than its root's.
+	replyLine, rootLine := lines[reply-1], lines[root-1]
+	if !strings.Contains(replyLine, "↳") {
+		t.Errorf("the reply is not marked: %q", replyLine)
+	}
+	if column(replyLine, "john") <= column(rootLine, "ann") {
+		t.Errorf("the reply is not indented:\n%q\n%q", rootLine, replyLine)
+	}
+}
+
+// column is where a word starts on screen. The lines are full of box drawing,
+// so a byte offset is not a column.
+func column(line, word string) int {
+	at := strings.Index(line, word)
+	if at < 0 {
+		return -1
+	}
+	return len([]rune(line[:at]))
+}

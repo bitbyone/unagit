@@ -747,6 +747,9 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 		User      user      `json:"user"`
 		Path      string    `json:"path"`
 		Line      int       `json:"line"`
+		// Review comments hang off each other; the conversation is named
+		// after the one that started it.
+		InReplyTo int `json:"in_reply_to_id"`
 	}
 	q := url.Values{}
 	q.Set("per_page", strconv.Itoa(limit))
@@ -776,8 +779,12 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 			mu.Lock()
 			defer mu.Unlock()
 			for _, cm := range raw {
+				thread := strconv.Itoa(cm.ID)
+				if cm.InReplyTo != 0 {
+					thread = strconv.Itoa(cm.InReplyTo)
+				}
 				notes = append(notes, forge.Note{
-					ID: cm.ID, Body: cm.Body, CreatedAt: cm.CreatedAt,
+					ID: cm.ID, Thread: thread, Body: cm.Body, CreatedAt: cm.CreatedAt,
 					Author: forge.User{Username: cm.User.Login, Name: cm.User.Name},
 					Path:   cm.Path, Line: cm.Line,
 				})

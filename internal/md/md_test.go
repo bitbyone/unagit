@@ -155,3 +155,19 @@ func TestHTMLIsStrippedNotShown(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// TestNoUnderlineFlag pins a tview quirk: its "u" style flag reaches tcell's
+// underline, which lives beside the attribute mask that tview then overwrites
+// with the value it read before. The bit is lost, the underline is not, and
+// nothing can turn it off again - so every line after a link came out
+// underlined. Colour alone marks a link.
+func TestNoUnderlineFlag(t *testing.T) {
+	got := render(t, "see [the docs](https://example.com) and more text\n\nanother paragraph")
+	if strings.Contains(got, "u]") || strings.Contains(got, ":u") {
+		t.Fatalf("the markup asks for an underline: %q", got)
+	}
+	// The link is still marked out, and closed.
+	if !strings.Contains(got, "[link]the docs[-]") {
+		t.Errorf("the link lost its colour: %q", got)
+	}
+}

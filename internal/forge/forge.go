@@ -133,9 +133,11 @@ type Pipeline struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Note is a comment.
+// Note is a comment. Notes that share a Thread are one conversation, and the
+// earliest of them is what it was started with.
 type Note struct {
 	ID         int       `json:"id"`
+	Thread     string    `json:"thread,omitempty"`
 	Body       string    `json:"body"`
 	CreatedAt  time.Time `json:"created_at"`
 	System     bool      `json:"system"`

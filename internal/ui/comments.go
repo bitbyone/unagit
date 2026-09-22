@@ -112,8 +112,9 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	load()
 }
 
-// renderConversation lays the comments out oldest first, the way they were
-// written.
+// renderConversation lays the comments out as the threads they belong to:
+// each conversation in the order it was written, replies indented under what
+// they answer, and the conversations themselves oldest first.
 func renderConversation(notes []forge.Note) string {
 	var human []forge.Note
 	for _, n := range notes {
@@ -124,24 +125,66 @@ func renderConversation(notes []forge.Note) string {
 	if len(human) == 0 {
 		return tag(colMuted) + "No comments yet. Press i to write the first one." + tagEnd
 	}
-	sort.SliceStable(human, func(i, j int) bool { return human[i].CreatedAt.Before(human[j].CreatedAt) })
 
+	threads := groupIntoThreads(human)
 	var b strings.Builder
-	for i, n := range human {
+	for i, thread := range threads {
 		if i > 0 {
 			b.WriteString("\n" + tag(colDim) + strings.Repeat("┈", 40) + tagEnd + "\n\n")
 		}
-		b.WriteString(noteHeader(n) + "\n")
-		if body := renderMarkdown(n.Body, "  "); body != "" {
-			b.WriteString(body + "\n")
+		for j, n := range thread {
+			indent := ""
+			if j > 0 {
+				// A reply sits under what it answers.
+				indent = "  "
+				b.WriteString("\n")
+			}
+			b.WriteString(indent + noteHeader(n, j > 0) + "\n")
+			if body := renderMarkdown(n.Body, indent+"  "); body != "" {
+				b.WriteString(body + "\n")
+			}
 		}
 	}
 	return b.String()
 }
 
-// noteHeader is the byline of one comment.
-func noteHeader(n forge.Note) string {
-	head := fmt.Sprintf("%s%s%s  %s%s", tag(colAccent), tview.Escape(n.Author.Username), tagEnd,
+// groupIntoThreads collects the notes of each conversation, oldest first
+// inside a thread and by when the conversation started between them. Notes
+// from a forge that does not thread carry no thread of their own and each
+// stand alone.
+func groupIntoThreads(notes []forge.Note) [][]forge.Note {
+	var threads [][]forge.Note
+	byThread := map[string]int{}
+	for _, n := range notes {
+		if n.Thread == "" {
+			threads = append(threads, []forge.Note{n})
+			continue
+		}
+		if at, ok := byThread[n.Thread]; ok {
+			threads[at] = append(threads[at], n)
+			continue
+		}
+		byThread[n.Thread] = len(threads)
+		threads = append(threads, []forge.Note{n})
+	}
+	for _, thread := range threads {
+		sort.SliceStable(thread, func(i, j int) bool {
+			return thread[i].CreatedAt.Before(thread[j].CreatedAt)
+		})
+	}
+	sort.SliceStable(threads, func(i, j int) bool {
+		return threads[i][0].CreatedAt.Before(threads[j][0].CreatedAt)
+	})
+	return threads
+}
+
+// noteHeader is the byline of one comment; a reply is marked as one.
+func noteHeader(n forge.Note, reply bool) string {
+	head := ""
+	if reply {
+		head = tag(colDim) + "↳ " + tagEnd
+	}
+	head += fmt.Sprintf("%s%s%s  %s%s", tag(colAccent), tview.Escape(n.Author.Username), tagEnd,
 		tag(colDim), humanAge(n.CreatedAt))
 	if n.Path != "" {
 		head += fmt.Sprintf(" · %s:%d", tview.Escape(n.Path), n.Line)

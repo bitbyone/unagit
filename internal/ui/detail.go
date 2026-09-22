@@ -566,7 +566,7 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 					tag(colDim), total-shown, tagEnd))
 				break
 			}
-			d.raw("  " + noteHeader(n) + "\n")
+			d.raw("  " + noteHeader(n, false) + "\n")
 			d.markdown(trimBody(n.Body))
 			d.blank()
 		}

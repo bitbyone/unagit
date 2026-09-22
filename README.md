@@ -115,8 +115,11 @@ Layout under the configured root directory:
 
 ## Reading and answering
 
-`c` on a merge request opens the conversation, oldest comment first, with the
-markdown rendered. From there `i` writes a comment (`Ctrl-S` sends it) and `a`
+`c` on a merge request opens the conversation with the markdown rendered.
+Comments are grouped into the threads they belong to - replies indented under
+what they answer, marked with `↳` - and the threads run oldest first. On
+GitLab that comes from the discussions endpoint, on GitHub from a review
+comment's `in_reply_to_id`. From there `i` writes a comment (`Ctrl-S` sends it) and `a`
 approves - approving asks for confirmation first, because everyone on the
 merge request sees it. Both work straight from the list too.
 

@@ -210,3 +210,83 @@ func TestApproveReportsWhatWentWrong(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// TestNotesComeFromDiscussions: the flat notes endpoint cannot say which
+// comment answers which, the discussions one can.
+func TestNotesComeFromDiscussions(t *testing.T) {
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[
+			{"id":"thread-a","notes":[
+				{"id":1,"body":"is this right?","created_at":"2026-09-19T10:00:00Z",
+				 "author":{"username":"ann"},"resolvable":true,"resolved":false,
+				 "position":{"new_path":"rate.go","new_line":42}},
+				{"id":2,"body":"yes","created_at":"2026-09-19T11:00:00Z","author":{"username":"bob"},
+				 "resolvable":true,"resolved":false}
+			]},
+			{"id":"thread-b","notes":[
+				{"id":3,"body":"LGTM","created_at":"2026-09-21T10:00:00Z","author":{"username":"carol"}}
+			]},
+			{"id":"thread-c","notes":[
+				{"id":4,"body":"changed title","system":true,"created_at":"2026-09-20T10:00:00Z",
+				 "author":{"username":"dave"}}
+			]}
+		]`)
+	}))
+	defer srv.Close()
+
+	notes, err := New(srv.URL, "t").MergeRequestNotes(context.Background(),
+		forge.MergeRequest{ProjectID: 1, IID: 7}, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/api/v4/projects/1/merge_requests/7/discussions" {
+		t.Fatalf("path = %q", path)
+	}
+	if len(notes) != 4 {
+		t.Fatalf("notes = %d", len(notes))
+	}
+	// Newest first, as the detail column wants them.
+	if notes[0].ID != 3 || notes[len(notes)-1].ID != 1 {
+		t.Fatalf("order = %d …%d", notes[0].ID, notes[len(notes)-1].ID)
+	}
+	// The two halves of the conversation know they belong together.
+	byID := map[int]forge.Note{}
+	for _, n := range notes {
+		byID[n.ID] = n
+	}
+	if byID[1].Thread == "" || byID[1].Thread != byID[2].Thread {
+		t.Fatalf("threads: %q and %q", byID[1].Thread, byID[2].Thread)
+	}
+	if byID[3].Thread == byID[1].Thread {
+		t.Error("a separate comment landed in the same thread")
+	}
+	if byID[1].Path != "rate.go" || byID[1].Line != 42 || !byID[1].Resolvable {
+		t.Errorf("inline details lost: %+v", byID[1])
+	}
+	if !byID[4].System {
+		t.Error("system notes should still be marked, the interface filters them")
+	}
+}
+
+func TestNotesRespectTheLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"id":"t","notes":[
+			{"id":1,"body":"a","created_at":"2026-09-19T10:00:00Z","author":{"username":"ann"}},
+			{"id":2,"body":"b","created_at":"2026-09-20T10:00:00Z","author":{"username":"ann"}},
+			{"id":3,"body":"c","created_at":"2026-09-21T10:00:00Z","author":{"username":"ann"}}]}]`)
+	}))
+	defer srv.Close()
+
+	notes, err := New(srv.URL, "t").MergeRequestNotes(context.Background(),
+		forge.MergeRequest{ProjectID: 1, IID: 7}, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 2 || notes[0].ID != 3 || notes[1].ID != 2 {
+		t.Fatalf("notes = %+v", notes)
+	}
+}

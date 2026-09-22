@@ -105,23 +105,34 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"head_pipeline":{"status":"running"},"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/notes", func(w http.ResponseWriter, r *http.Request) {
+		// Only writing goes here; reading goes through the discussions, which
+		// is where GitLab says what answers what.
 		if r.Method == http.MethodPost {
 			b, _ := io.ReadAll(r.Body)
 			f.postedComment.Store(string(b))
 			json(w, `{"id":99}`)
 			return
 		}
-		// Newest first, the way GitLab answers, and with markdown in them.
-		json(w, `[{"id":1,"body":"Looks good apart from the **retry loop**","system":false,
-			"created_at":"2026-09-21T06:00:00Z","author":{"username":"john"}},
-			{"id":2,"body":"- first thing\n- second thing","system":false,
-			"created_at":"2026-09-20T12:00:00Z","author":{"username":"ann"}},
-			{"id":3,"body":"third comment","system":false,
-			"created_at":"2026-09-19T12:00:00Z","author":{"username":"bob"}},
-			{"id":4,"body":"oldest comment","system":false,
-			"created_at":"2026-09-18T12:00:00Z","author":{"username":"carol"}},
-			{"id":5,"body":"changed title","system":true,"created_at":"2026-09-20T06:00:00Z",
-			"author":{"username":"jane"}}]`)
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/discussions", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[
+			{"id":"thread-old","notes":[
+				{"id":4,"body":"oldest comment","created_at":"2026-09-18T12:00:00Z",
+				 "author":{"username":"carol"}}]},
+			{"id":"thread-mid","notes":[
+				{"id":3,"body":"third comment","created_at":"2026-09-19T12:00:00Z",
+				 "author":{"username":"bob"}}]},
+			{"id":"thread-live","notes":[
+				{"id":2,"body":"- first thing\n- second thing","created_at":"2026-09-20T12:00:00Z",
+				 "author":{"username":"ann"},"resolvable":true,"resolved":false},
+				{"id":1,"body":"Looks good apart from the **retry loop**",
+				 "created_at":"2026-09-21T06:00:00Z","author":{"username":"john"},
+				 "resolvable":true,"resolved":false}]},
+			{"id":"thread-sys","notes":[
+				{"id":5,"body":"changed title","system":true,
+				 "created_at":"2026-09-20T06:00:00Z","author":{"username":"jane"}}]}
+		]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approve", func(w http.ResponseWriter, r *http.Request) {
 		f.approvals.Add(1)
