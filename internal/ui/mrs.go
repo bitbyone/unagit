@@ -13,6 +13,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
+	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -406,9 +407,11 @@ func mrMarkColor(d mrDisk) tcell.Color {
 // openMR materialises the merge request worktree and opens the editor there.
 func (a *App) openMR(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
-	a.runTask(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID), func(log func(string)) (string, error) {
-		return a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
-	})
+	a.runTaskOpening(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
+		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch),
+		func(log func(string)) (string, error) {
+			return a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
+		})
 }
 
 // openMRReview prepares the review worktree, where the merge request shows up
@@ -418,24 +421,39 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
-	a.runTask(fmt.Sprintf("Opening %s !%d for review", path, mr.IID), func(log func(string)) (string, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
+	a.runTaskOpening(fmt.Sprintf("Opening %s !%d for review", path, mr.IID),
+		a.sessionOf(mr, path, session.ModeReview),
+		func(log func(string)) (string, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
 
-		var rev workspace.Review
-		if client == nil {
-			log("! no token for this server, falling back to the local merge base")
-		} else {
-			log("Asking GitLab what this merge request is diffed against ...")
-			if det, err := client.MergeRequestDetail(ctx, mr); err != nil {
-				log("! " + err.Error())
-				log("  falling back to the local merge base")
+			var rev workspace.Review
+			if client == nil {
+				log("! no token for this server, falling back to the local merge base")
 			} else {
-				rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+				log("Asking GitLab what this merge request is diffed against ...")
+				if det, err := client.MergeRequestDetail(ctx, mr); err != nil {
+					log("! " + err.Error())
+					log("  falling back to the local merge base")
+				} else {
+					rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+				}
 			}
-		}
-		return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
-	})
+			return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
+		})
+}
+
+// sessionOf describes what an editor is about to be handed, for the record
+// another terminal reads.
+func (a *App) sessionOf(mr forge.MergeRequest, path, mode string) session.Record {
+	return session.Record{
+		Instance: mr.Instance,
+		Server:   a.instanceLabel(mr.Instance),
+		Project:  path,
+		IID:      mr.IID,
+		Title:    mr.Title,
+		Mode:     mode,
+	}
 }
 
 // mrProject is the repository a merge request belongs to. The project index

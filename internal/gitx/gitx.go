@@ -78,9 +78,28 @@ func (g *Git) Run(dir string, args ...string) (string, error) {
 		}
 	}
 	if err != nil {
-		return out, fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(out))
+		return out, fmt.Errorf("git %s: %w\n%s%s",
+			strings.Join(args, " "), err, strings.TrimSpace(out), hint(out))
 	}
 	return out, nil
+}
+
+// hint turns git's own words into something to do about them. Only the
+// failures a person can act on are worth a line.
+func hint(out string) string {
+	switch {
+	case strings.Contains(out, "Permission denied (publickey"):
+		return "\n\nThe ssh key is not available. unagit runs git in batch mode, so a key " +
+			"that needs a passphrase fails here rather than waiting for one nobody can type. " +
+			"Load it once with:\n    ssh-add ~/.ssh/id_rsa\n" +
+			"and check the key is on the server with: ssh -T git@<host>"
+	case strings.Contains(out, "Host key verification failed"):
+		return "\n\nThe host is not in your known_hosts yet. Connect once by hand to accept it:" +
+			"\n    ssh -T git@<host>"
+	case strings.Contains(out, "could not read Username"), strings.Contains(out, "Authentication failed"):
+		return "\n\nThe token was refused. Check it in Settings [S], or clone over ssh instead."
+	}
+	return ""
 }
 
 func (g *Git) out(dir string, args ...string) (string, error) {

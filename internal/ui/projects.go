@@ -11,6 +11,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
+	"github.com/tobola/unagit/internal/session"
 )
 
 // projFiltered holds the indexes into App.projects currently shown.
@@ -261,7 +262,12 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 
 // openProject clones or updates the main checkout and opens the editor.
 func (a *App) openProject(pr forge.Project) {
-	a.runTask("Opening "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.runTaskOpening("Opening "+pr.PathWithNamespace, session.Record{
+		Instance: pr.Instance,
+		Server:   a.instanceLabel(pr.Instance),
+		Project:  pr.PathWithNamespace,
+		Mode:     session.ModeRepository,
+	}, func(log func(string)) (string, error) {
 		return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureProject(pr)
 	})
 }

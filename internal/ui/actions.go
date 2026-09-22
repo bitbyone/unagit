@@ -9,6 +9,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/session"
 )
 
 // confirmDeleteProject asks before removing a main clone and every merge
@@ -93,9 +94,16 @@ func (a *App) showBranchPicker(pr forge.Project) {
 			a.closeModal(pageTask)
 			a.showPicker("Branch - "+pr.PathWithNamespace, items, func(it pickItem) {
 				branch := it.Data.(string)
-				a.runTask(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch), func(log func(string)) (string, error) {
-					return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
-				})
+				a.runTaskOpening(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
+					session.Record{
+						Instance: pr.Instance,
+						Server:   a.instanceLabel(pr.Instance),
+						Project:  pr.PathWithNamespace,
+						Title:    branch,
+						Mode:     session.ModeRepository,
+					}, func(log func(string)) (string, error) {
+						return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
+					})
 			})
 		})
 		return "", nil

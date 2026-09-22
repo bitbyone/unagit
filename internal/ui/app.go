@@ -21,6 +21,7 @@ import (
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/secret"
+	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -67,9 +68,10 @@ type App struct {
 	status *tview.TextView
 	tab    string
 
-	cfg     *config.Config
-	vault   *secret.Vault
-	clients map[string]forge.Provider
+	cfg      *config.Config
+	sessions *session.Store
+	vault    *secret.Vault
+	clients  map[string]forge.Provider
 	// logins maps an instance to the account its token belongs to, filled in
 	// when a token is verified.
 	logins map[string]string
@@ -98,10 +100,11 @@ type App struct {
 // callers that unlocked it themselves.
 func New(cfg *config.Config, vault *secret.Vault) *App {
 	a := &App{
-		tv:    tview.NewApplication(),
-		pages: tview.NewPages(),
-		cfg:   cfg,
-		disk:  map[projectKey]diskInfo{},
+		tv:       tview.NewApplication(),
+		pages:    tview.NewPages(),
+		cfg:      cfg,
+		sessions: session.New(config.Dir()),
+		disk:     map[projectKey]diskInfo{},
 	}
 	a.setVault(vault)
 	return a
@@ -111,10 +114,11 @@ func New(cfg *config.Config, vault *secret.Vault) *App {
 // passphrase is asked for in a modal once the interface is up.
 func NewLocked(cfg *config.Config) *App {
 	return &App{
-		tv:    tview.NewApplication(),
-		pages: tview.NewPages(),
-		cfg:   cfg,
-		disk:  map[projectKey]diskInfo{},
+		tv:       tview.NewApplication(),
+		pages:    tview.NewPages(),
+		cfg:      cfg,
+		sessions: session.New(config.Dir()),
+		disk:     map[projectKey]diskInfo{},
 	}
 }
 
@@ -836,6 +840,13 @@ func (a *App) diskOf(instanceID, projectPath string) diskInfo {
 // runTask shows a log modal and runs fn on a background goroutine. When fn
 // returns a directory, the TUI is suspended and the editor is opened there.
 func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
+	a.runTaskOpening(title, session.Record{}, fn)
+}
+
+// runTaskOpening is runTask for the tasks that end in an editor: what they
+// are opening is written down while it is open, so another terminal can find
+// the directory.
+func (a *App) runTaskOpening(title string, what session.Record, fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
@@ -878,14 +889,19 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 			}
 		})
 		if err == nil && dir != "" {
-			a.openEditor(dir)
+			a.openEditor(dir, what)
 		}
 	}()
 }
 
 // openEditor suspends the TUI, runs the editor and restores the interface.
-func (a *App) openEditor(dir string) {
+// unagit stays alive throughout - the editor is its child - so the directory
+// is on record for exactly as long as it is open, and another terminal can
+// find its way there.
+func (a *App) openEditor(dir string, what session.Record) {
 	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
+	what.Dir = dir
+	defer a.sessions.Open(what)()
 	a.tv.Suspend(func() {
 		fmt.Printf("\n→ %s\n", dir)
 		opts := workspace.Options{Editor: a.cfg.Editor, EditorArgs: a.cfg.EditorArgs}

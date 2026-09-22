@@ -39,7 +39,7 @@ func rootCmd() *cobra.Command {
 			return ui.NewLocked(cfg).Run()
 		},
 	}
-	root.AddCommand(whereCmd())
+	root.AddCommand(cdCmd(), sessionsCmd(), whereCmd())
 	return root
 }
 

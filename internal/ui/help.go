@@ -109,6 +109,13 @@ func helpRows() []helpLine {
 			"/ .target / .url / .mode."),
 		blank(),
 
+		section("From another terminal"),
+		note("Opening an editor does not end unagit: it suspends itself and waits, so " +
+			"it knows what you have open. Another window can follow it there with " +
+			"cd \"$(unagit cd)\" - it asks which when more than one is open, and takes a " +
+			"search to narrow it. unagit sessions lists them."),
+		blank(),
+
 		section("On disk"),
 		key("○ ● ◐ ◉", "nothing · branch worktree · review worktree · both"),
 		key("⊘", "hidden from the lists"),

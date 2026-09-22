@@ -119,6 +119,29 @@ Layout under the configured root directory:
 <root>/<group>/<project>.reviews/<iid>-<branch>    review worktree per merge request
 ```
 
+## Following it into another terminal
+
+Opening an editor does not end unagit: it suspends the interface and waits for
+the editor to exit, so for exactly as long as something is open it knows where.
+It writes that down in its configuration directory, one file per running
+process, and another terminal can follow it:
+
+```sh
+cd "$(unagit cd)"          # asks which, when more than one is open
+cd "$(unagit cd calling)"  # a search narrows it; one match needs no asking
+unagit sessions            # what is open, for scripts
+```
+
+Worth keeping in your shell:
+
+```sh
+ug() { cd "$(unagit cd "$@")" || return; }
+```
+
+The chooser draws on the terminal itself, not on standard output, which is what
+leaves the directory usable in a command substitution. Records whose process is
+gone are swept up on the next read, so a crash leaves nothing behind.
+
 ## Reading and answering
 
 `c` on a merge request opens the conversation with the markdown rendered.
@@ -280,4 +303,6 @@ Alongside it live `tokens.enc` and the `index-*.json` caches.
 | Command | Purpose |
 | --- | --- |
 | `unagit` | start the TUI - everything is configured inside it |
+| `unagit cd [search]` | print the directory of what is open in an editor |
+| `unagit sessions` | list what is open in an editor |
 | `unagit where` | print the config, vault and index paths |
