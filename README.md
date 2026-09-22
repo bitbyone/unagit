@@ -127,19 +127,26 @@ It writes that down in its configuration directory, one file per running
 process, and another terminal can follow it:
 
 ```sh
-cd "$(unagit cd)"          # asks which, when more than one is open
-cd "$(unagit cd calling)"  # a search narrows it; one match needs no asking
-unagit sessions            # what is open, for scripts
+unagit cd          # asks which, when more than one is open
+unagit cd calling  # a search narrows it; one match needs no asking
+unagit sessions    # what is open, for scripts
 ```
 
-Worth keeping in your shell:
+`unagit cd` starts a shell there and leaving it puts you back where you were,
+the way `chezmoi cd` does: a process cannot change the directory of the shell
+that started it, so it is a shell of its own. `$SHELL` is what runs, with
+`OLDPWD` set so `cd -` goes back and `UNAGIT_CD` naming the merge request for
+a prompt to pick up.
+
+To change the current shell's directory instead, `--print` writes the path and
+nothing else:
 
 ```sh
-ug() { cd "$(unagit cd "$@")" || return; }
+ug() { cd "$(unagit cd --print "$@")" || return; }
 ```
 
 The chooser draws on the terminal itself, not on standard output, which is what
-leaves the directory usable in a command substitution. Records whose process is
+leaves `--print` usable in a command substitution. Records whose process is
 gone are swept up on the next read, so a crash leaves nothing behind.
 
 ## Reading and answering
@@ -303,6 +310,6 @@ Alongside it live `tokens.enc` and the `index-*.json` caches.
 | Command | Purpose |
 | --- | --- |
 | `unagit` | start the TUI - everything is configured inside it |
-| `unagit cd [search]` | print the directory of what is open in an editor |
+| `unagit cd [search]` | open a shell in the directory of what is open in an editor (`--print` writes the path instead) |
 | `unagit sessions` | list what is open in an editor |
 | `unagit where` | print the config, vault and index paths |

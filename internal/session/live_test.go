@@ -9,7 +9,7 @@ import (
 )
 
 // TestAnotherProcessCanReadIt is the point of the whole thing: while one
-// process holds a directory open, another one finds it.
+// process holds a directory open, another one finds it - and lands there.
 func TestAnotherProcessCanReadIt(t *testing.T) {
 	home := t.TempDir()
 	worktree := t.TempDir()
@@ -22,14 +22,14 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("building the command: %v\n%s", err, out)
 	}
-	cmd := exec.Command(binary, "cd", "calling")
+	cmd := exec.Command(binary, "cd", "--print", "calling")
 	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home)
 	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("unagit cd: %v", err)
+		t.Fatalf("unagit cd --print: %v", err)
 	}
 	if got := strings.TrimSpace(string(out)); got != worktree {
-		t.Fatalf("unagit cd printed %q, want %q", got, worktree)
+		t.Fatalf("unagit cd --print printed %q, want %q", got, worktree)
 	}
 
 	// And nothing else goes to standard output, or the command substitution
@@ -40,9 +40,23 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 
 	// A search that matches nothing fails rather than printing something
 	// unexpected into a cd.
-	cmd = exec.Command(binary, "cd", "nonsense")
+	cmd = exec.Command(binary, "cd", "--print", "nonsense")
 	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home)
 	if out, err := cmd.Output(); err == nil {
 		t.Errorf("a search matching nothing printed %q", out)
+	}
+
+	// Without --print it is the shell itself that ends up there, which is the
+	// whole point: feed one a command and see where it thinks it is.
+	cmd = exec.Command(binary, "cd", "calling")
+	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "SHELL=/bin/sh")
+	cmd.Stdin = strings.NewReader("pwd; echo \"$UNAGIT_CD\"\n")
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("unagit cd: %v", err)
+	}
+	want := worktree + "\n" + worktree + "\n"
+	if string(out) != want {
+		t.Errorf("the shell started in %q, want %q", out, want)
 	}
 }

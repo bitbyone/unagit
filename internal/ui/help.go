@@ -111,9 +111,10 @@ func helpRows() []helpLine {
 
 		section("From another terminal"),
 		note("Opening an editor does not end unagit: it suspends itself and waits, so " +
-			"it knows what you have open. Another window can follow it there with " +
-			"cd \"$(unagit cd)\" - it asks which when more than one is open, and takes a " +
-			"search to narrow it. unagit sessions lists them."),
+			"it knows what you have open. unagit cd in another window starts a shell " +
+			"there and exit comes back; it asks which when more than one is open, and " +
+			"takes a search to narrow it. unagit cd --print writes the path instead, " +
+			"for cd \"$(unagit cd --print)\". unagit sessions lists them."),
 		blank(),
 
 		section("On disk"),
