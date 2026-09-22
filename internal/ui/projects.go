@@ -8,8 +8,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
-	"github.com/tobola/unagit/internal/gitlab"
 )
 
 // projFiltered holds the indexes into App.projects currently shown.
@@ -38,10 +38,10 @@ func (a *App) newProjectsPane() *pane {
 	}
 	p.onQuery = render
 
-	selected := func() (gitlab.Project, bool) {
+	selected := func() (forge.Project, bool) {
 		i := p.selectedIndex()
 		if i < 0 || i >= len(a.projects) {
-			return gitlab.Project{}, false
+			return forge.Project{}, false
 		}
 		return a.projects[i], true
 	}
@@ -98,7 +98,7 @@ func (a *App) newProjectsPane() *pane {
 	return p
 }
 
-func (a *App) filterProjects(projects []gitlab.Project, query string) []int {
+func (a *App) filterProjects(projects []forge.Project, query string) []int {
 	var hits []scored
 	for i, p := range projects {
 		hay := p.PathWithNamespace + " " + p.Name + " " + p.Description + " " + a.instanceLabel(p.Instance)
@@ -190,7 +190,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 }
 
 // openProject clones or updates the main checkout and opens the editor.
-func (a *App) openProject(pr gitlab.Project) {
+func (a *App) openProject(pr forge.Project) {
 	a.runTask("Opening "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureProject(pr)
 	})

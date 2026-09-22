@@ -10,8 +10,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
-	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -39,10 +39,10 @@ func (a *App) newMRsPane() *pane {
 	}
 	p.onQuery = render
 
-	selected := func() (gitlab.MergeRequest, bool) {
+	selected := func() (forge.MergeRequest, bool) {
 		i := p.selectedIndex()
 		if i < 0 || i >= len(a.mrs) {
-			return gitlab.MergeRequest{}, false
+			return forge.MergeRequest{}, false
 		}
 		return a.mrs[i], true
 	}
@@ -247,7 +247,7 @@ func mrMarkColor(d mrDisk) tcell.Color {
 }
 
 // openMR materialises the merge request worktree and opens the editor there.
-func (a *App) openMR(mr gitlab.MergeRequest) {
+func (a *App) openMR(mr forge.MergeRequest) {
 	path, httpURL := a.mrOrigin(mr)
 	a.runTask(fmt.Sprintf("Opening %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		return a.newManager(mr.Instance, path, log).EnsureMR(mr, path, httpURL)
@@ -257,7 +257,7 @@ func (a *App) openMR(mr gitlab.MergeRequest) {
 // openMRReview prepares the review worktree, where the merge request shows up
 // as pending changes rather than as a stack of commits. The diff base comes
 // from the API, so it is the very commit GitLab renders its own diff against.
-func (a *App) openMRReview(mr gitlab.MergeRequest) {
+func (a *App) openMRReview(mr forge.MergeRequest) {
 	path, httpURL := a.mrOrigin(mr)
 	client := a.client(mr.Instance)
 	a.runTask(fmt.Sprintf("Opening %s !%d for review", path, mr.IID), func(log func(string)) (string, error) {
@@ -269,7 +269,7 @@ func (a *App) openMRReview(mr gitlab.MergeRequest) {
 			log("! no token for this server, falling back to the local merge base")
 		} else {
 			log("Asking GitLab what this merge request is diffed against ...")
-			if det, err := client.MergeRequest(ctx, mr.ProjectID, mr.IID); err != nil {
+			if det, err := client.MergeRequestDetail(ctx, mr); err != nil {
 				log("! " + err.Error())
 				log("  falling back to the local merge base")
 			} else {
@@ -281,7 +281,7 @@ func (a *App) openMRReview(mr gitlab.MergeRequest) {
 }
 
 // mrOrigin resolves where a merge request's project lives.
-func (a *App) mrOrigin(mr gitlab.MergeRequest) (path, httpURL string) {
+func (a *App) mrOrigin(mr forge.MergeRequest) (path, httpURL string) {
 	path = a.projectPathOfMR(mr)
 	if pr, ok := a.projByKey[projectKey{mr.Instance, path}]; ok {
 		httpURL = pr.HTTPURLToRepo

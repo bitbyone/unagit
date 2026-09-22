@@ -12,7 +12,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/tobola/unagit/internal/config"
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/secret"
 )
@@ -157,18 +157,18 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 	}
 
 	id := inst.ID
-	projects := []gitlab.Project{
+	projects := []forge.Project{
 		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
 		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: time.Now(), Instance: id},
 	}
-	mrs := []gitlab.MergeRequest{
+	mrs := []forge.MergeRequest{
 		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
 		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: time.Now(), Instance: id},
 	}
 	must(t, index.Save(config.IndexPath("projects"), index.Projects{UpdatedAt: time.Now(), Items: projects}))
 	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
 	must(t, index.Save(config.IndexPath("groups"), index.Groups{UpdatedAt: time.Now(),
-		Items: []gitlab.Group{{ID: 1, FullPath: "acme", Name: "acme", Instance: id}}}))
+		Items: []forge.Group{{ID: 1, FullPath: "acme", Name: "acme", Instance: id}}}))
 	return cfg
 }
 

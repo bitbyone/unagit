@@ -10,7 +10,7 @@ import (
 
 	"github.com/rivo/tview"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // detailBuf builds the text of the right hand column.
@@ -97,7 +97,7 @@ func pipelineMark(status string) string {
 	return tag(c) + "●" + tagEnd + " " + status
 }
 
-func users(list []gitlab.User) string {
+func users(list []forge.User) string {
 	if len(list) == 0 {
 		return ""
 	}
@@ -108,7 +108,7 @@ func users(list []gitlab.User) string {
 	return esc(strings.Join(names, ", "))
 }
 
-func commitLines(d *detailBuf, commits []gitlab.Commit) {
+func commitLines(d *detailBuf, commits []forge.Commit) {
 	for _, c := range commits {
 		d.raw(fmt.Sprintf("  %s%-8s%s %s%s%s\n",
 			tag(colAccent), c.ShortID, tagEnd,
@@ -130,7 +130,7 @@ func trim(s string, n int) string {
 
 // showProjectDetail loads everything the API offers about a project and
 // renders it in the right hand column.
-func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
+func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 	p := a.projectsPane
 	p.detailSeq++
 	seq := p.detailSeq
@@ -151,10 +151,10 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		var (
 			wg       sync.WaitGroup
 			mu       sync.Mutex
-			detail   *gitlab.ProjectDetail
-			commits  []gitlab.Commit
+			detail   *forge.ProjectDetail
+			commits  []forge.Commit
 			langs    map[string]float64
-			pipeline *gitlab.Pipeline
+			pipeline *forge.Pipeline
 			problems []string
 		)
 		fail := func(what string, err error) {
@@ -165,7 +165,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		wg.Add(4)
 		go func() {
 			defer wg.Done()
-			d, err := client.Project(ctx, pr.ID)
+			d, err := client.ProjectDetail(ctx, pr)
 			if err != nil {
 				fail("project", err)
 				return
@@ -174,7 +174,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			c, err := client.ProjectCommits(ctx, pr.ID, pr.DefaultBranch, 5)
+			c, err := client.ProjectCommits(ctx, pr, pr.DefaultBranch, 5)
 			if err != nil {
 				fail("commits", err)
 				return
@@ -183,7 +183,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			l, err := client.ProjectLanguages(ctx, pr.ID)
+			l, err := client.ProjectLanguages(ctx, pr)
 			if err != nil {
 				fail("languages", err)
 				return
@@ -192,7 +192,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			pl, err := client.LatestPipeline(ctx, pr.ID, pr.DefaultBranch)
+			pl, err := client.LatestPipeline(ctx, pr, pr.DefaultBranch)
 			if err != nil {
 				fail("pipelines", err)
 				return
@@ -210,7 +210,7 @@ func (a *App) showProjectDetail(pr gitlab.Project, focus bool) {
 	}()
 }
 
-func (a *App) projectSkeleton(pr gitlab.Project) string {
+func (a *App) projectSkeleton(pr forge.Project) string {
 	d := &detailBuf{}
 	d.title(pr.PathWithNamespace)
 	d.sub(pr.Description)
@@ -219,8 +219,8 @@ func (a *App) projectSkeleton(pr gitlab.Project) string {
 	return d.String()
 }
 
-func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commits []gitlab.Commit,
-	langs map[string]float64, pipeline *gitlab.Pipeline, problems []string) string {
+func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits []forge.Commit,
+	langs map[string]float64, pipeline *forge.Pipeline, problems []string) string {
 
 	d := &detailBuf{}
 	d.title(pr.PathWithNamespace)
@@ -243,19 +243,17 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 		d.kv("Forks", fmt.Sprintf("%d", det.ForksCount))
 		d.kv("Open issues", fmt.Sprintf("%d", det.OpenIssuesCount))
 		d.kv("Merge method", esc(det.MergeMethod))
-		if det.License != nil {
-			d.kv("License", esc(det.License.Name))
-		}
+		d.kv("License", esc(det.License))
 		if len(det.Topics) > 0 {
 			d.kv("Topics", esc(strings.Join(det.Topics, ", ")))
 		}
-		if det.Statistics != nil {
-			d.kv("Commits", fmt.Sprintf("%d", det.Statistics.CommitCount))
-			d.kv("Repo size", humanBytes(det.Statistics.RepositorySize))
+		if det.CommitCount > 0 {
+			d.kv("Commits", fmt.Sprintf("%d", det.CommitCount))
 		}
-		if det.ForkedFromLink != nil {
-			d.kv("Forked from", esc(det.ForkedFromLink.PathWithNamespace))
+		if det.RepositorySize > 0 {
+			d.kv("Repo size", humanBytes(det.RepositorySize))
 		}
+		d.kv("Forked from", esc(det.ForkedFrom))
 		if det.Archived {
 			d.kv("Archived", tag(colWarn)+"yes"+tagEnd)
 		}
@@ -304,7 +302,7 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 	}
 
 	// Open merge requests already known from the index.
-	var open []gitlab.MergeRequest
+	var open []forge.MergeRequest
 	for _, mr := range a.mrs {
 		if mr.Instance == pr.Instance && a.projectPathOfMR(mr) == pr.PathWithNamespace {
 			open = append(open, mr)
@@ -349,7 +347,7 @@ func (a *App) renderProject(pr gitlab.Project, det *gitlab.ProjectDetail, commit
 
 // showMRDetail always fetches fresh data: a merge request under review changes
 // while you look at it.
-func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
+func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 	p := a.mrsPane
 	path := a.projectPathOfMR(mr)
 	title := fmt.Sprintf("%s !%d", path, mr.IID)
@@ -378,11 +376,11 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		var (
 			wg          sync.WaitGroup
 			mu          sync.Mutex
-			detail      *gitlab.MergeRequestDetail
-			notes       []gitlab.Note
-			commits     []gitlab.Commit
+			detail      *forge.MergeRequestDetail
+			notes       []forge.Note
+			commits     []forge.Commit
 			commitCount int
-			approvals   *gitlab.Approvals
+			approvals   *forge.Approvals
 			problems    []string
 		)
 		fail := func(what string, err error) {
@@ -393,7 +391,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		wg.Add(3)
 		go func() {
 			defer wg.Done()
-			d, err := client.MergeRequest(ctx, mr.ProjectID, mr.IID)
+			d, err := client.MergeRequestDetail(ctx, mr)
 			if err != nil {
 				fail("merge request", err)
 				return
@@ -402,7 +400,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			n, err := client.MergeRequestNotes(ctx, mr.ProjectID, mr.IID, 50)
+			n, err := client.MergeRequestNotes(ctx, mr, 50)
 			if err != nil {
 				fail("comments", err)
 				return
@@ -411,7 +409,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		go func() {
 			defer wg.Done()
-			c, n, err := client.MergeRequestCommits(ctx, mr.ProjectID, mr.IID, 10)
+			c, n, err := client.MergeRequestCommits(ctx, mr, 10)
 			if err != nil {
 				fail("commits", err)
 				return
@@ -420,7 +418,7 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 		}()
 		// Approvals are a paid feature on some tiers; a failure is not worth
 		// reporting.
-		approvals, _ = client.MergeRequestApprovals(ctx, mr.ProjectID, mr.IID)
+		approvals, _ = client.MergeRequestApprovals(ctx, mr)
 		wg.Wait()
 
 		a.tv.QueueUpdateDraw(func() {
@@ -432,8 +430,8 @@ func (a *App) showMRDetail(mr gitlab.MergeRequest, focus bool) {
 	}()
 }
 
-func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeRequestDetail,
-	notes []gitlab.Note, commits []gitlab.Commit, commitCount int, approvals *gitlab.Approvals,
+func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeRequestDetail,
+	notes []forge.Note, commits []forge.Commit, commitCount int, approvals *forge.Approvals,
 	problems []string) string {
 
 	d := &detailBuf{}
@@ -469,13 +467,8 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 		if len(det.Labels) > 0 {
 			d.kv("Labels", esc(strings.Join(det.Labels, ", ")))
 		}
-		if det.Milestone != nil {
-			d.kv("Milestone", esc(det.Milestone.Title))
-		}
-		status := det.DetailedMergeStatus
-		if status == "" {
-			status = det.MergeStatus
-		}
+		d.kv("Milestone", esc(det.Milestone))
+		status := det.MergeStatus
 		if det.HasConflicts {
 			status = tag(colBad) + "conflicts" + tagEnd + tag(colDim) + " (" + esc(status) + ")" + tagEnd
 		} else {
@@ -485,8 +478,8 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 		if !det.BlockingDiscussionsResolved {
 			d.kv("Discussions", tag(colWarn)+"unresolved threads block the merge"+tagEnd)
 		}
-		if det.HeadPipeline != nil {
-			d.kv("Pipeline", pipelineMark(det.HeadPipeline.Status))
+		if det.Pipeline != nil {
+			d.kv("Pipeline", pipelineMark(det.Pipeline.Status))
 		}
 		size := ""
 		if commitCount > 0 {
@@ -507,21 +500,19 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 		if det.Upvotes+det.Downvotes > 0 {
 			d.kv("Votes", fmt.Sprintf("+%d / -%d", det.Upvotes, det.Downvotes))
 		}
-		if det.TaskCompletionStatus != nil && det.TaskCompletionStatus.Count > 0 {
-			d.kv("Tasks", fmt.Sprintf("%d/%d done",
-				det.TaskCompletionStatus.CompletedCount, det.TaskCompletionStatus.Count))
+		if det.TasksTotal > 0 {
+			d.kv("Tasks", fmt.Sprintf("%d/%d done", det.TasksDone, det.TasksTotal))
 		}
 	} else {
 		d.kv("Updated", when(mr.UpdatedAt))
 	}
 	if approvals != nil {
-		var by []string
-		for _, ab := range approvals.ApprovedBy {
-			by = append(by, ab.User.Username)
+		text := fmt.Sprintf("%d", len(approvals.ApprovedBy))
+		if approvals.Required > 0 {
+			text = fmt.Sprintf("%d of %d", len(approvals.ApprovedBy), approvals.Required)
 		}
-		text := fmt.Sprintf("%d of %d", len(approvals.ApprovedBy), approvals.ApprovalsRequired)
-		if len(by) > 0 {
-			text += tag(colDim) + " · " + esc(strings.Join(by, ", ")) + tagEnd
+		if len(approvals.ApprovedBy) > 0 {
+			text += tag(colDim) + " · " + esc(strings.Join(approvals.ApprovedBy, ", ")) + tagEnd
 		}
 		d.kv("Approvals", text)
 	}
@@ -544,7 +535,7 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 	}
 
 	// Only real comments; GitLab's system notes are bookkeeping noise.
-	var human []gitlab.Note
+	var human []forge.Note
 	for _, n := range notes {
 		if !n.System {
 			human = append(human, n)
@@ -559,8 +550,8 @@ func (a *App) renderMR(mr gitlab.MergeRequest, path string, det *gitlab.MergeReq
 			}
 			meta := fmt.Sprintf("%s%s%s %s%s", tag(colAccent), esc(n.Author.Username), tagEnd,
 				tag(colDim), humanAge(n.CreatedAt))
-			if n.Position != nil && n.Position.NewPath != "" {
-				meta += fmt.Sprintf(" · %s:%d", esc(n.Position.NewPath), n.Position.NewLine)
+			if n.Path != "" {
+				meta += fmt.Sprintf(" · %s:%d", esc(n.Path), n.Line)
 			}
 			if n.Resolvable {
 				if n.Resolved {

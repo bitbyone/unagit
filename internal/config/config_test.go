@@ -225,3 +225,76 @@ func TestSlug(t *testing.T) {
 		}
 	}
 }
+
+// TestGitHubInstancesAreAlwaysGithubCom: there is no self hosted GitHub here.
+func TestGitHubInstancesAreAlwaysGithubCom(t *testing.T) {
+	cfg := Default()
+	inst := cfg.AddInstance(Instance{Kind: KindGitHub, Name: "Personal", URL: "https://ghe.internal"})
+	if inst.URL != GitHubURL {
+		t.Errorf("url = %q, want %q", inst.URL, GitHubURL)
+	}
+	if !inst.IsGitHub() {
+		t.Error("kind was lost")
+	}
+	if inst.ID != "github-com" {
+		t.Errorf("id = %q", inst.ID)
+	}
+}
+
+func TestInstancesDefaultToGitLab(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UNAGIT_CONFIG_DIR", dir)
+	old := []byte("instances:\n  - id: work\n    name: Work\n    url: https://gitlab.example.com\n    groups: []\n")
+	if err := os.WriteFile(Path(), old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Instances[0].Kind != KindGitLab {
+		t.Errorf("kind = %q, want %q", cfg.Instances[0].Kind, KindGitLab)
+	}
+}
+
+func TestInstancesOfKind(t *testing.T) {
+	cfg := Default()
+	cfg.AddInstance(Instance{Kind: KindGitLab, URL: "https://gitlab.example.com"})
+	cfg.AddInstance(Instance{Kind: KindGitHub})
+	cfg.AddInstance(Instance{Kind: KindGitHub, Name: "Second"})
+
+	if got := len(cfg.InstancesOfKind(KindGitLab)); got != 1 {
+		t.Errorf("gitlab = %d", got)
+	}
+	gh := cfg.InstancesOfKind(KindGitHub)
+	if len(gh) != 2 {
+		t.Fatalf("github = %+v", gh)
+	}
+	if gh[0].ID == gh[1].ID {
+		t.Errorf("two accounts share the id %q", gh[0].ID)
+	}
+}
+
+// TestToggleGroupIsTwoStates covers what GitHub needs: on or off.
+func TestToggleGroupIsTwoStates(t *testing.T) {
+	inst := &Instance{Kind: KindGitHub}
+	g := Group{ID: 10, FullPath: "widgets"}
+	if got := inst.ToggleGroup(g); got != ScopeGroup || len(inst.Groups) != 1 {
+		t.Fatalf("on: %q %v", got, inst.Groups)
+	}
+	if got := inst.ToggleGroup(g); got != "" || len(inst.Groups) != 0 {
+		t.Fatalf("off: %q %v", got, inst.Groups)
+	}
+}
+
+// TestGitHubGroupOwnsItsRepos: an organisation's repositories are exactly one
+// segment below it.
+func TestGitHubGroupOwnsItsRepos(t *testing.T) {
+	g := Group{FullPath: "widgets", Scope: ScopeGroup}
+	if !g.Owns("widgets/api") {
+		t.Error("widgets/api should belong to widgets")
+	}
+	if g.Owns("other/api") {
+		t.Error("other/api should not belong to widgets")
+	}
+}

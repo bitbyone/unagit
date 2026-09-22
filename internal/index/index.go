@@ -9,25 +9,25 @@ import (
 	"sort"
 	"time"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // Projects is the cached project index.
 type Projects struct {
-	UpdatedAt time.Time        `json:"updated_at"`
-	Items     []gitlab.Project `json:"items"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	Items     []forge.Project `json:"items"`
 }
 
 // MergeRequests is the cached merge request index.
 type MergeRequests struct {
-	UpdatedAt time.Time             `json:"updated_at"`
-	Items     []gitlab.MergeRequest `json:"items"`
+	UpdatedAt time.Time            `json:"updated_at"`
+	Items     []forge.MergeRequest `json:"items"`
 }
 
 // Groups is the cached group tree.
 type Groups struct {
-	UpdatedAt time.Time      `json:"updated_at"`
-	Items     []gitlab.Group `json:"items"`
+	UpdatedAt time.Time     `json:"updated_at"`
+	Items     []forge.Group `json:"items"`
 }
 
 // Load reads a JSON index file. A missing file is not an error: it yields the
@@ -65,9 +65,9 @@ func Save(path string, v any) error {
 
 // DedupeProjects removes projects seen through more than one selected group
 // and sorts them by path.
-func DedupeProjects(in []gitlab.Project) []gitlab.Project {
+func DedupeProjects(in []forge.Project) []forge.Project {
 	seen := make(map[int]bool, len(in))
-	out := make([]gitlab.Project, 0, len(in))
+	out := make([]forge.Project, 0, len(in))
 	for _, p := range in {
 		if seen[p.ID] {
 			continue
@@ -80,9 +80,9 @@ func DedupeProjects(in []gitlab.Project) []gitlab.Project {
 }
 
 // DedupeMergeRequests removes duplicates and sorts by most recently updated.
-func DedupeMergeRequests(in []gitlab.MergeRequest) []gitlab.MergeRequest {
+func DedupeMergeRequests(in []forge.MergeRequest) []forge.MergeRequest {
 	seen := make(map[int]bool, len(in))
-	out := make([]gitlab.MergeRequest, 0, len(in))
+	out := make([]forge.MergeRequest, 0, len(in))
 	for _, m := range in {
 		if seen[m.ID] {
 			continue

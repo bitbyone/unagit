@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // newDivergedOrigin builds a bare repository where both the target branch and
@@ -62,16 +62,16 @@ func write(t *testing.T, dir, name, content string) {
 	}
 }
 
-func reviewMR() gitlab.MergeRequest {
-	return gitlab.MergeRequest{
+func reviewMR() forge.MergeRequest {
+	return forge.MergeRequest{
 		IID: 1, SourceBranch: "feature/login", TargetBranch: "main",
 		SourceProjectID: 1, TargetProjectID: 1,
 	}
 }
 
-func newReviewManager(t *testing.T, origin string) (*Manager, gitlab.Project) {
+func newReviewManager(t *testing.T, origin string) (*Manager, forge.Project) {
 	t.Helper()
-	p := gitlab.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
+	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
 	opts := Options{Root: t.TempDir(), GitLabURL: "https://gl.example", Editor: "true"}
 	return New(opts, func(string) {}), p
 }
@@ -310,4 +310,47 @@ func readFile(t *testing.T, dir, name string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// TestHeadRefFormatFollowsTheForge: GitHub publishes pull request heads under
+// refs/pull/<n>/head, GitLab under refs/merge-requests/<n>/head.
+func TestHeadRefFormatFollowsTheForge(t *testing.T) {
+	dir := t.TempDir()
+	work := filepath.Join(dir, "work")
+	bare := filepath.Join(dir, "origin.git")
+	git(t, dir, "init", "--bare", "--initial-branch=main", bare)
+	git(t, dir, "init", "--initial-branch=main", work)
+	write(t, work, "readme.md", "hi\n")
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-m", "initial")
+	git(t, work, "remote", "add", "origin", bare)
+	git(t, work, "push", "origin", "main")
+	git(t, work, "checkout", "-b", "feature/login")
+	write(t, work, "login.go", "package main\n")
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-m", "add login")
+	// Only GitHub's layout is published, so GitLab's format cannot find it.
+	git(t, work, "push", "origin", "HEAD:refs/pull/1/head")
+
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main",
+		SourceProjectID: 1, TargetProjectID: 1}
+	opts := Options{Root: t.TempDir(), GitLabURL: "https://github.com", Editor: "true"}
+
+	if _, err := New(opts, func(string) {}).EnsureMR(mr, "acme/app", bare); err == nil {
+		t.Fatal("GitLab's ref layout should not find a GitHub pull request")
+	}
+
+	opts.Root = t.TempDir()
+	opts.HeadRefFormat = "refs/pull/%d/head"
+	m := New(opts, func(string) {})
+	wt, err := m.EnsureMR(mr, "acme/app", bare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(wt, "login.go")); err != nil {
+		t.Errorf("the pull request content is missing: %v", err)
+	}
+	if got := m.ReadMeta(wt).IID; got != 1 {
+		t.Errorf("meta iid = %d", got)
+	}
 }

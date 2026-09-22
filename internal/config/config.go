@@ -51,12 +51,15 @@ func (g Group) Owns(projectPath string) bool {
 	return !strings.Contains(rest, "/")
 }
 
-// Instance is one GitLab server, with its own token and its own group
-// selection.
+// Instance is one server - a GitLab installation or a GitHub account - with
+// its own token and its own group selection.
 type Instance struct {
 	// ID is a stable key: it ties the cached indexes and the stored token to
 	// this instance and never changes once assigned.
-	ID   string `yaml:"id" json:"id"`
+	ID string `yaml:"id" json:"id"`
+	// Kind is forge.KindGitLab or forge.KindGitHub; empty means GitLab, which
+	// is all unagit spoke to at first.
+	Kind string `yaml:"kind,omitempty" json:"kind,omitempty"`
 	Name string `yaml:"name" json:"name"`
 	URL  string `yaml:"url" json:"url"`
 	// RootDir overrides the global root for everything on this instance.
@@ -71,6 +74,20 @@ func (i Instance) Label() string {
 	}
 	return Host(i.URL)
 }
+
+// IsGitHub reports whether this is a github.com account.
+func (i Instance) IsGitHub() bool { return i.Kind == KindGitHub }
+
+// Kinds of server. They mirror forge's, which cannot be imported here without
+// a cycle.
+const (
+	KindGitLab = "gitlab"
+	KindGitHub = "github"
+)
+
+// GitHubURL is the only address a GitHub instance can have: github.com is not
+// self hosted.
+const GitHubURL = "https://github.com"
 
 // GroupScope returns the scope a group is selected with, or "" when it is not
 // selected at all.
@@ -97,6 +114,23 @@ func (i *Instance) Group(id int) *Group {
 		}
 	}
 	return nil
+}
+
+// ToggleGroup selects or unselects a group outright. GitHub has no subgroups,
+// so there is nothing to cycle through there.
+func (i *Instance) ToggleGroup(g Group) string {
+	if i.GroupScope(g.ID) != "" {
+		for idx, existing := range i.Groups {
+			if existing.ID == g.ID {
+				i.Groups = append(i.Groups[:idx], i.Groups[idx+1:]...)
+				break
+			}
+		}
+		return ""
+	}
+	g.Scope = ScopeGroup
+	i.Groups = append(i.Groups, g)
+	return ScopeGroup
 }
 
 // CycleGroup steps a group through "not selected" -> "this group only" ->
@@ -205,6 +239,7 @@ func (c *Config) normalise() {
 	if len(c.Instances) == 0 && c.LegacyURL != "" {
 		c.Instances = []Instance{{
 			ID:     LegacyInstanceID,
+			Kind:   KindGitLab,
 			Name:   Host(c.LegacyURL),
 			URL:    c.LegacyURL,
 			Groups: c.LegacyGroups,
@@ -214,6 +249,12 @@ func (c *Config) normalise() {
 
 	for i := range c.Instances {
 		inst := &c.Instances[i]
+		if inst.Kind == "" {
+			inst.Kind = KindGitLab
+		}
+		if inst.Kind == KindGitHub {
+			inst.URL = GitHubURL
+		}
 		inst.URL = strings.TrimRight(inst.URL, "/")
 		if inst.ID == "" {
 			inst.ID = c.freeID(Slug(Host(inst.URL)), inst.ID)
@@ -250,6 +291,12 @@ func (c *Config) Instance(id string) *Instance {
 
 // AddInstance appends an instance, giving it a unique id derived from its URL.
 func (c *Config) AddInstance(inst Instance) *Instance {
+	if inst.Kind == "" {
+		inst.Kind = KindGitLab
+	}
+	if inst.Kind == KindGitHub {
+		inst.URL = GitHubURL
+	}
 	inst.URL = strings.TrimRight(inst.URL, "/")
 	inst.ID = c.freeID(Slug(Host(inst.URL)), "")
 	c.Instances = append(c.Instances, inst)
@@ -365,4 +412,15 @@ var notSlug = regexp.MustCompile(`[^a-z0-9]+`)
 // Slug turns a host name into something usable as a file name component.
 func Slug(s string) string {
 	return strings.Trim(notSlug.ReplaceAllString(strings.ToLower(s), "-"), "-")
+}
+
+// InstancesOfKind lists the configured servers of one kind, in order.
+func (c *Config) InstancesOfKind(kind string) []Instance {
+	var out []Instance
+	for _, inst := range c.Instances {
+		if inst.Kind == kind {
+			out = append(out, inst)
+		}
+	}
+	return out
 }

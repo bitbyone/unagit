@@ -9,12 +9,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/github"
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/secret"
@@ -64,12 +67,15 @@ type App struct {
 
 	cfg     *config.Config
 	vault   *secret.Vault
-	clients map[string]*gitlab.Client
+	clients map[string]forge.Provider
+	// logins maps an instance to the account its token belongs to, filled in
+	// when a token is verified.
+	logins map[string]string
 
-	projects    []gitlab.Project
-	mrs         []gitlab.MergeRequest
-	groups      []gitlab.Group
-	projByKey   map[projectKey]gitlab.Project
+	projects    []forge.Project
+	mrs         []forge.MergeRequest
+	groups      []forge.Group
+	projByKey   map[projectKey]forge.Project
 	projUpdated time.Time
 	mrsUpdated  time.Time
 
@@ -115,19 +121,48 @@ func (a *App) setVault(v *secret.Vault) {
 // rebuildClients refreshes the per-instance API clients after the
 // configuration or the tokens changed.
 func (a *App) rebuildClients() {
-	a.clients = make(map[string]*gitlab.Client, len(a.cfg.Instances))
+	a.clients = make(map[string]forge.Provider, len(a.cfg.Instances))
 	if a.vault == nil {
 		return
 	}
 	for _, inst := range a.cfg.Instances {
-		if token := a.vault.Token(inst.ID); token != "" {
-			a.clients[inst.ID] = gitlab.New(inst.URL, token)
+		token := a.vault.Token(inst.ID)
+		if token == "" {
+			continue
 		}
+		if inst.IsGitHub() {
+			a.clients[inst.ID] = github.New(token)
+			continue
+		}
+		a.clients[inst.ID] = gitlab.New(inst.URL, token)
 	}
 }
 
 // client returns the API client of an instance, or nil when it has no token.
-func (a *App) client(instanceID string) *gitlab.Client { return a.clients[instanceID] }
+func (a *App) client(instanceID string) forge.Provider { return a.clients[instanceID] }
+
+// rememberLogin records who a token belongs to, so the settings can show the
+// account behind a GitHub entry.
+func (a *App) rememberLogin(instanceID, login string) {
+	if a.logins == nil {
+		a.logins = map[string]string{}
+	}
+	a.logins[instanceID] = login
+}
+
+// githubLogin is the account a GitHub token belongs to, once it has been
+// verified.
+func (a *App) githubLogin(instanceID string) string {
+	if login := a.logins[instanceID]; login != "" {
+		return "github.com/" + login
+	}
+	return "github.com"
+}
+
+// forgeGroup turns a selected group back into what a provider takes.
+func forgeGroup(g config.Group) forge.Group {
+	return forge.Group{ID: g.ID, Name: g.Name, Path: g.Name, FullPath: g.FullPath}
+}
 
 // Run builds the interface and starts the event loop.
 func (a *App) Run() error {
@@ -174,8 +209,8 @@ func (a *App) start() {
 	switch {
 	case len(a.cfg.Instances) == 0:
 		a.switchTab(pageSettings)
-		a.settings.selectSection(sectionServers)
-		a.flash("Add your first GitLab server: press a")
+		a.settings.selectSection(sectionGitLab)
+		a.flash("Add your first GitLab server: press a - GitHub is the section below")
 	case len(a.selectedGroups()) == 0:
 		a.switchTab(pageSettings)
 		a.settings.selectSection(sectionGroups)
@@ -305,7 +340,7 @@ func (a *App) adoptLegacyIndex() {
 }
 
 func (a *App) reindexProjects() {
-	a.projByKey = make(map[projectKey]gitlab.Project, len(a.projects))
+	a.projByKey = make(map[projectKey]forge.Project, len(a.projects))
 	for _, p := range a.projects {
 		a.projByKey[projectKey{p.Instance, p.PathWithNamespace}] = p
 	}
@@ -327,26 +362,21 @@ func (a *App) multiInstance() bool { return len(a.cfg.Instances) > 1 }
 
 // projectPathOfMR resolves the target project path of a merge request, falling
 // back to the "group/project!iid" reference GitLab returns.
-func (a *App) projectPathOfMR(mr gitlab.MergeRequest) string {
+func (a *App) projectPathOfMR(mr forge.MergeRequest) string {
 	if mr.ProjectPath != "" {
 		return mr.ProjectPath
 	}
 	return resolveMRPath(mr, nil)
 }
 
-// resolveMRPath is the goroutine-safe variant: byID is a snapshot taken on the
-// event loop before the refresh starts.
-func resolveMRPath(mr gitlab.MergeRequest, byID map[int]string) string {
-	if path, ok := byID[mr.ProjectID]; ok && path != "" {
-		return path
-	}
+// resolveMRPath falls back to the project index when a provider could not say
+// which repository a merge request belongs to.
+func resolveMRPath(mr forge.MergeRequest, byID map[int]string) string {
 	if mr.ProjectPath != "" {
 		return mr.ProjectPath
 	}
-	if ref := mr.References.Full; ref != "" {
-		if i := strings.Index(ref, "!"); i > 0 {
-			return ref[:i]
-		}
+	if path, ok := byID[mr.ProjectID]; ok {
+		return path
 	}
 	return ""
 }
@@ -379,7 +409,8 @@ func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) 
 }
 
 // newManager builds a workspace manager for one project, with that project's
-// root, the instance's URL and its token.
+// root, its server's URL and token, and the way that forge publishes merge
+// request heads.
 func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
 	opts := workspace.Options{
 		Root:       a.rootFor(instanceID, projectPath),
@@ -391,6 +422,10 @@ func (a *App) newManager(instanceID, projectPath string, log func(string)) *work
 	}
 	if a.vault != nil {
 		opts.Token = a.vault.Token(instanceID)
+	}
+	if client := a.client(instanceID); client != nil {
+		opts.GitUser = client.GitUser()
+		opts.HeadRefFormat = strings.Replace(client.HeadRef(0), "0", "%d", 1)
 	}
 	return workspace.New(opts, log)
 }
@@ -420,6 +455,75 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 	return ready, nil
 }
 
+// refreshFanOut is how many groups are asked about at once. Each one is a
+// separate conversation with a server, and GitHub adds a request per
+// repository on top of that.
+const refreshFanOut = 6
+
+// groupJob is one selected group on one server, with the client to ask.
+type groupJob struct {
+	inst   config.Instance
+	group  config.Group
+	client forge.Provider
+}
+
+// groupJobs pairs every selected group with its client, on the event loop, so
+// the workers never touch shared state.
+func (a *App) groupJobs(instances []config.Instance) []groupJob {
+	var jobs []groupJob
+	for _, inst := range instances {
+		client := a.client(inst.ID)
+		if client == nil {
+			continue
+		}
+		for _, g := range inst.Groups {
+			jobs = append(jobs, groupJob{inst: inst, group: g, client: client})
+		}
+	}
+	return jobs
+}
+
+// fanOut runs the jobs a few at a time and gathers what they return. The first
+// failure cancels the rest: a half refreshed index is worse than none.
+func fanOut[T any](ctx context.Context, jobs []groupJob, work func(context.Context, groupJob) ([]T, error)) ([]T, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		mu       sync.Mutex
+		out      []T
+		firstErr error
+		wg       sync.WaitGroup
+	)
+	sem := make(chan struct{}, refreshFanOut)
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(job groupJob) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+
+			items, err := work(ctx, job)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if firstErr == nil && ctx.Err() == nil {
+					firstErr = fmt.Errorf("%s · %s: %w", job.inst.Label(), job.group.FullPath, err)
+					cancel()
+				}
+				return
+			}
+			out = append(out, items...)
+		}(job)
+	}
+	wg.Wait()
+	return out, firstErr
+}
+
 // refreshProjects re-reads every selected group's project list from the API.
 func (a *App) refreshProjects() {
 	instances, err := a.instancesWithTokens()
@@ -427,29 +531,33 @@ func (a *App) refreshProjects() {
 		a.errorf("%v", err)
 		return
 	}
+	jobs := a.groupJobs(instances)
 	a.runTask("Refreshing projects", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		var all []gitlab.Project
-		for _, inst := range instances {
-			client := a.client(inst.ID)
-			for _, g := range inst.Groups {
-				scope := "including subgroups"
-				if !g.IncludesSubgroups() {
-					scope = "this group only"
-				}
-				log(fmt.Sprintf("%s: fetching projects of %s (%s) ...", inst.Label(), g.FullPath, scope))
-				ps, err := client.GroupProjects(ctx, g.ID, g.IncludesSubgroups())
-				if err != nil {
-					return "", fmt.Errorf("%s: %w", inst.Label(), err)
-				}
-				for i := range ps {
-					ps[i].Instance = inst.ID
-				}
-				log(fmt.Sprintf("  %d project(s)", len(ps)))
-				all = append(all, ps...)
+
+		log(fmt.Sprintf("Asking %d group(s) on %d server(s), %d at a time …",
+			len(jobs), len(instances), refreshFanOut))
+		all, err := fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.Project, error) {
+			scope := "including subgroups"
+			if !job.group.IncludesSubgroups() {
+				scope = "this group only"
 			}
+			log(fmt.Sprintf("%s · %s (%s) …", job.inst.Label(), job.group.FullPath, scope))
+			ps, err := job.client.GroupProjects(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
+			if err != nil {
+				return nil, err
+			}
+			for i := range ps {
+				ps[i].Instance = job.inst.ID
+			}
+			log(fmt.Sprintf("%s · %s: %d project(s)", job.inst.Label(), job.group.FullPath, len(ps)))
+			return ps, nil
+		})
+		if err != nil {
+			return "", err
 		}
+
 		all = index.DedupeProjects(all)
 		idx := index.Projects{UpdatedAt: time.Now(), Items: all}
 		if err := index.Save(config.IndexPath("projects"), idx); err != nil {
@@ -475,33 +583,37 @@ func (a *App) refreshMRs() {
 		a.errorf("%v", err)
 		return
 	}
+	jobs := a.groupJobs(instances)
 	paths := a.snapshotProjectPaths()
 	a.runTask("Refreshing merge requests", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		var all []gitlab.MergeRequest
-		for _, inst := range instances {
-			client := a.client(inst.ID)
-			for _, g := range inst.Groups {
-				log(fmt.Sprintf("%s: fetching merge requests of %s ...", inst.Label(), g.FullPath))
-				ms, err := client.GroupMergeRequests(ctx, g.ID)
-				if err != nil {
-					return "", fmt.Errorf("%s: %w", inst.Label(), err)
-				}
-				// GitLab's group endpoint always descends into subgroups, so a
-				// group selected on its own is narrowed down here.
-				kept := ms[:0]
-				for _, mr := range ms {
-					mr.Instance = inst.ID
-					mr.ProjectPath = resolveMRPath(mr, paths[inst.ID])
-					if g.Owns(mr.ProjectPath) {
-						kept = append(kept, mr)
-					}
-				}
-				log(fmt.Sprintf("  %d open merge request(s)", len(kept)))
-				all = append(all, kept...)
+
+		log(fmt.Sprintf("Asking %d group(s) on %d server(s), %d at a time …",
+			len(jobs), len(instances), refreshFanOut))
+		all, err := fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.MergeRequest, error) {
+			log(fmt.Sprintf("%s · %s …", job.inst.Label(), job.group.FullPath))
+			ms, err := job.client.GroupMergeRequests(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
+			if err != nil {
+				return nil, err
 			}
+			// GitLab's group endpoint always descends into subgroups, so a
+			// group selected on its own is narrowed down here.
+			kept := ms[:0]
+			for _, mr := range ms {
+				mr.Instance = job.inst.ID
+				mr.ProjectPath = resolveMRPath(mr, paths[job.inst.ID])
+				if job.group.Owns(mr.ProjectPath) {
+					kept = append(kept, mr)
+				}
+			}
+			log(fmt.Sprintf("%s · %s: %d open merge request(s)", job.inst.Label(), job.group.FullPath, len(kept)))
+			return kept, nil
+		})
+		if err != nil {
+			return "", err
 		}
+
 		all = index.DedupeMergeRequests(all)
 		idx := index.MergeRequests{UpdatedAt: time.Now(), Items: all}
 		if err := index.Save(config.IndexPath("mrs"), idx); err != nil {
@@ -532,34 +644,59 @@ func (a *App) snapshotProjectPaths() map[string]map[int]string {
 	return m
 }
 
-// refreshGroups re-reads the group trees from every instance that has a token.
+// refreshGroups re-reads the group trees from every server that has a token,
+// all of them at once.
 func (a *App) refreshGroups() {
-	var instances []config.Instance
+	type serverJob struct {
+		inst   config.Instance
+		client forge.Provider
+	}
+	var jobs []serverJob
 	for _, inst := range a.cfg.Instances {
-		if a.client(inst.ID) != nil {
-			instances = append(instances, inst)
+		if client := a.client(inst.ID); client != nil {
+			jobs = append(jobs, serverJob{inst, client})
 		}
 	}
-	if len(instances) == 0 {
+	if len(jobs) == 0 {
 		a.errorf("no server with a token yet - add one in Settings")
 		return
 	}
 	a.runTask("Refreshing groups", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		var all []gitlab.Group
-		for _, inst := range instances {
-			log(fmt.Sprintf("%s: fetching every group you are a member of ...", inst.Label()))
-			gs, err := a.client(inst.ID).Groups(ctx)
-			if err != nil {
-				return "", fmt.Errorf("%s: %w", inst.Label(), err)
-			}
-			for i := range gs {
-				gs[i].Instance = inst.ID
-			}
-			log(fmt.Sprintf("  %d group(s)", len(gs)))
-			all = append(all, gs...)
+
+		var (
+			mu       sync.Mutex
+			all      []forge.Group
+			firstErr error
+			wg       sync.WaitGroup
+		)
+		for _, job := range jobs {
+			wg.Add(1)
+			go func(job serverJob) {
+				defer wg.Done()
+				log(fmt.Sprintf("%s: fetching the groups you are a member of …", job.inst.Label()))
+				gs, err := job.client.Groups(ctx)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					if firstErr == nil {
+						firstErr = fmt.Errorf("%s: %w", job.inst.Label(), err)
+					}
+					return
+				}
+				for i := range gs {
+					gs[i].Instance = job.inst.ID
+				}
+				log(fmt.Sprintf("%s: %d group(s)", job.inst.Label(), len(gs)))
+				all = append(all, gs...)
+			}(job)
 		}
+		wg.Wait()
+		if firstErr != nil {
+			return "", firstErr
+		}
+
 		sort.Slice(all, func(i, j int) bool {
 			if all[i].Instance != all[j].Instance {
 				return all[i].Instance < all[j].Instance

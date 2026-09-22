@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"github.com/tobola/unagit/internal/config"
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
 )
 
@@ -42,6 +42,11 @@ type Options struct {
 	Editor     string
 	EditorArgs []string
 	Token      string
+	// GitUser is the user name the HTTPS credential helper hands to git.
+	GitUser string
+	// HeadRefFormat is where the forge publishes a merge request head, with a
+	// single %d for the number. Empty means GitLab's layout.
+	HeadRefFormat string
 }
 
 // Manager performs all disk side effects.
@@ -52,7 +57,16 @@ type Manager struct {
 
 // New returns a Manager. log receives progress lines and may be nil.
 func New(opts Options, log func(string)) *Manager {
-	return &Manager{opts: opts, git: gitx.New(opts.Token, log)}
+	return &Manager{opts: opts, git: gitx.New(opts.Token, log).WithUser(opts.GitUser)}
+}
+
+// headRef is where the merge request head can be fetched from.
+func (m *Manager) headRef(iid int) string {
+	format := m.opts.HeadRefFormat
+	if format == "" {
+		format = "refs/merge-requests/%d/head"
+	}
+	return fmt.Sprintf(format, iid)
 }
 
 // Root is the directory this manager clones into.
@@ -138,7 +152,7 @@ func (m *Manager) cloneURL(projectPath string) string {
 
 // EnsureProject clones the project if needed, then fetches and fast-forwards
 // the current branch. It returns the directory to open.
-func (m *Manager) EnsureProject(p gitlab.Project) (string, error) {
+func (m *Manager) EnsureProject(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
 	if !Exists(dir) {
 		url := p.HTTPURLToRepo
@@ -193,7 +207,7 @@ func (m *Manager) pullIfClean(dir string) error {
 // EnsureMR prepares an isolated worktree for a merge request and returns its
 // directory. The merge request head is fetched from refs/merge-requests/<iid>/head,
 // which also works for merge requests opened from a fork.
-func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) (string, error) {
+func (m *Manager) EnsureMR(mr forge.MergeRequest, projectPath, httpURL string) (string, error) {
 	if projectPath == "" {
 		return "", fmt.Errorf("unknown project path for merge request !%d - refresh the project index", mr.IID)
 	}
@@ -202,7 +216,7 @@ func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) 
 		return "", err
 	}
 	wtDir := m.MRDir(projectPath, mr.IID, mr.SourceBranch)
-	headRef := fmt.Sprintf("refs/merge-requests/%d/head", mr.IID)
+	headRef := m.headRef(mr.IID)
 
 	if Exists(wtDir) {
 		m.log("Updating merge request worktree !%d", mr.IID)
@@ -265,7 +279,7 @@ func (m *Manager) EnsureMR(mr gitlab.MergeRequest, projectPath, httpURL string) 
 
 // recordBranchMeta stores the diff base of a branch worktree, so an editor can
 // show the merge request as one change even though it is a stack of commits.
-func (m *Manager) recordBranchMeta(dir, projectPath string, mr gitlab.MergeRequest) {
+func (m *Manager) recordBranchMeta(dir, projectPath string, mr forge.MergeRequest) {
 	head, err := m.git.RevParse(dir, "HEAD")
 	if err != nil {
 		return
@@ -291,7 +305,7 @@ func (m *Manager) addWorktree(mainDir, wtDir, branch string) error {
 
 // SwitchBranch checks a branch out in the main clone of a project, cloning it
 // first when needed.
-func (m *Manager) SwitchBranch(p gitlab.Project, branch string) (string, error) {
+func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
 	dir, err := m.ensureMain(p.PathWithNamespace, p.HTTPURLToRepo)
 	if err != nil {
 		return "", err

@@ -58,10 +58,12 @@ const helpText = `[::b]Tabs[::-]
   {A}j k{E}  move between the sections   {A}Enter{E}  edit one   {A}Esc{E}  back
   [::b]General[::-]         the default clone root, the editor and its arguments
   [::b]GitLab servers[::-]  {A}a{E} add   {A}e{E} edit   {A}t{E} token   {A}v{E} verify   {A}d{E} remove
+  [::b]GitHub accounts[::-] the same, without a URL: github.com only
                   several servers can be used at once, each with its own
-                  token; the lists then show which one a row came from
-  [::b]Groups & roots[::-]  {A}space{E} cycles a group: off → this group only →
-                  including subgroups
+                  token; the lists then show which one a row came from,
+                  and pull requests are merge requests here too
+  [::b]Groups & roots[::-]  {A}space{E} cycles a GitLab group: off → this group only →
+                  including subgroups; a GitHub organisation is on or off
                   {A}d{E} sets the clone directory of a group or of a whole
                   server; blank inherits the level above
                   {A}r{E} reload the groups   {A}p{E} {A}m{E} refresh the indexes

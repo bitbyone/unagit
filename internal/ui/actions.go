@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // confirmDeleteProject asks before removing a main clone and every merge
 // request worktree hanging off it.
-func (a *App) confirmDeleteProject(pr gitlab.Project) {
+func (a *App) confirmDeleteProject(pr forge.Project) {
 	path := pr.PathWithNamespace
 	info := a.diskOf(pr.Instance, path)
 	if !info.Cloned && len(info.MRs) == 0 {
@@ -33,7 +33,7 @@ func (a *App) confirmDeleteProject(pr gitlab.Project) {
 }
 
 // confirmDeleteMR asks before removing the worktrees of a merge request.
-func (a *App) confirmDeleteMR(mr gitlab.MergeRequest) {
+func (a *App) confirmDeleteMR(mr forge.MergeRequest) {
 	path := a.projectPathOfMR(mr)
 	disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 	if !disk.Branch && !disk.Review {
@@ -63,7 +63,7 @@ func (a *App) confirmDeleteMR(mr gitlab.MergeRequest) {
 
 // showBranchPicker lists the project's branches and switches the main clone to
 // the chosen one before opening the editor.
-func (a *App) showBranchPicker(pr gitlab.Project) {
+func (a *App) showBranchPicker(pr forge.Project) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
@@ -72,14 +72,17 @@ func (a *App) showBranchPicker(pr gitlab.Project) {
 	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		branches, err := client.ProjectBranches(ctx, pr.ID)
+		branches, err := client.ProjectBranches(ctx, pr)
 		if err != nil {
 			return "", err
 		}
 		log(fmt.Sprintf("%d branch(es)", len(branches)))
 		items := make([]pickItem, 0, len(branches))
 		for _, b := range branches {
-			sub := humanAge(b.Commit.CommittedDate) + "  " + b.Commit.Title
+			sub := strings.TrimSpace(humanAge(b.CommittedDate) + "  " + b.CommitTitle)
+			if b.CommittedDate.IsZero() {
+				sub = b.CommitShortID
+			}
 			if b.Default {
 				sub = "default  " + sub
 			}

@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/forge"
 )
 
 func TestPaginationAndAuthHeader(t *testing.T) {
@@ -26,7 +28,7 @@ func TestPaginationAndAuthHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	projects, err := New(srv.URL, "secret-token").GroupProjects(context.Background(), 5, true)
+	projects, err := New(srv.URL, "secret-token").GroupProjects(context.Background(), forge.Group{ID: 5}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestPaginationAndAuthHeader(t *testing.T) {
 		t.Errorf("include_subgroups = %q", seenSubgroups)
 	}
 
-	if _, err := New(srv.URL, "t").GroupProjects(context.Background(), 5, false); err != nil {
+	if _, err := New(srv.URL, "t").GroupProjects(context.Background(), forge.Group{ID: 5}, false); err != nil {
 		t.Fatal(err)
 	}
 	if seenSubgroups != "false" {
@@ -71,13 +73,17 @@ func TestMergeRequestDecoding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	mrs, err := New(srv.URL, "t").GroupMergeRequests(context.Background(), 1)
+	mrs, err := New(srv.URL, "t").GroupMergeRequests(context.Background(), forge.Group{ID: 1}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mr := mrs[0]
-	if mr.IID != 42 || mr.Author.Username != "jane" || !mr.Draft || mr.References.Full != "acme/app!42" {
+	if mr.IID != 42 || mr.Author.Username != "jane" || !mr.Draft {
 		t.Fatalf("mr = %+v", mr)
+	}
+	// The project path is recovered from GitLab's reference.
+	if mr.ProjectPath != "acme/app" {
+		t.Errorf("project path = %q", mr.ProjectPath)
 	}
 	if mr.UpdatedAt.Year() != 2026 {
 		t.Errorf("updated_at = %v", mr.UpdatedAt)
@@ -95,7 +101,7 @@ func TestMergeRequestCommitsReportsTheTotal(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	commits, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), 1, 42, 10)
+	commits, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 42}, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +118,7 @@ func TestMergeRequestCommitsWithoutATotal(t *testing.T) {
 	defer srv.Close()
 
 	// GitLab omits x-total on very large collections; that is "unknown", not 0.
-	if _, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), 1, 42, 10); err != nil || total != -1 {
+	if _, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 42}, 10); err != nil || total != -1 {
 		t.Fatalf("total = %d, err = %v", total, err)
 	}
 }
@@ -127,7 +133,7 @@ func TestMergeRequestDetailCarriesTheDiffRefs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	mr, err := New(srv.URL, "t").MergeRequest(context.Background(), 1, 42)
+	mr, err := New(srv.URL, "t").MergeRequestDetail(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 42})
 	if err != nil {
 		t.Fatal(err)
 	}

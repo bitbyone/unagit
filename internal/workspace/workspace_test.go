@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 func TestSanitize(t *testing.T) {
@@ -90,11 +90,11 @@ func newOrigin(t *testing.T) string {
 	return bare
 }
 
-func newManager(t *testing.T, origin string) (*Manager, string, gitlab.Project) {
+func newManager(t *testing.T, origin string) (*Manager, string, forge.Project) {
 	t.Helper()
 	root := t.TempDir()
 	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true"}, func(string) {})
-	p := gitlab.Project{
+	p := forge.Project{
 		ID:                1,
 		Name:              "app",
 		PathWithNamespace: "group/app",
@@ -130,7 +130,7 @@ func TestEnsureProjectClonesThenUpdates(t *testing.T) {
 
 func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}
 
 	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
 func TestEnsureMRFromForkUsesMergeRequestRef(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	// Different source project: the source branch does not exist on origin.
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 99, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 99, TargetProjectID: 1}
 
 	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
 	if err != nil {
@@ -192,7 +192,7 @@ func TestEnsureMRWhenBranchIsCheckedOutInMainClone(t *testing.T) {
 	if _, err := m.SwitchBranch(p, "feature/login"); err != nil {
 		t.Fatal(err)
 	}
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 
 	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
 	if err != nil {
@@ -254,7 +254,7 @@ func TestInspectReportsLocalWork(t *testing.T) {
 
 func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	wt, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo)
 	if err != nil {
 		t.Fatal(err)
@@ -272,7 +272,7 @@ func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 
 func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
 	m, root, p := newManager(t, newOrigin(t))
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
 		t.Fatal(err)
 	}
@@ -296,12 +296,12 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 	origin := newOrigin(t)
 	root := t.TempDir()
 	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true", Token: token}, func(string) {})
-	p := gitlab.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
+	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
 
 	if _, err := m.EnsureProject(p); err != nil {
 		t.Fatal(err)
 	}
-	mr := gitlab.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	if _, err := m.EnsureMR(mr, p.PathWithNamespace, p.HTTPURLToRepo); err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/tobola/unagit/internal/config"
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 )
 
@@ -25,7 +25,7 @@ func longMRs(t *testing.T, instanceID string) {
 			Name     string `json:"name"`
 		}{Username: name}
 	}
-	mrs := []gitlab.MergeRequest{
+	mrs := []forge.MergeRequest{
 		{IID: 29747, ProjectID: 1, ProjectPath: "acme/gateway", Instance: instanceID,
 			Title:        "MY2N-29747: Wrap rendered content into the email template and fix the footer",
 			SourceBranch: "feature/MY2N-29747-wrap-rendered-content",

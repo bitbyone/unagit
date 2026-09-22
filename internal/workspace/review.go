@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // Review pins the two commits GitLab itself renders a merge request diff from.
@@ -46,7 +46,7 @@ const (
 
 // prepareMR makes sure the main clone exists and the merge request head plus
 // its target branch are on disk. It returns the main clone and the head commit.
-func (m *Manager) prepareMR(mr gitlab.MergeRequest, projectPath, httpURL string) (string, string, error) {
+func (m *Manager) prepareMR(mr forge.MergeRequest, projectPath, httpURL string) (string, string, error) {
 	if projectPath == "" {
 		return "", "", fmt.Errorf("unknown project path for merge request !%d - refresh the project index", mr.IID)
 	}
@@ -55,7 +55,7 @@ func (m *Manager) prepareMR(mr gitlab.MergeRequest, projectPath, httpURL string)
 		return "", "", err
 	}
 	m.git.WorktreePrune(mainDir)
-	if err := m.git.FetchRefspec(mainDir, fmt.Sprintf("refs/merge-requests/%d/head", mr.IID)); err != nil {
+	if err := m.git.FetchRefspec(mainDir, m.headRef(mr.IID)); err != nil {
 		return "", "", err
 	}
 	head, err := m.git.RevParse(mainDir, "FETCH_HEAD")
@@ -73,7 +73,7 @@ func (m *Manager) prepareMR(mr gitlab.MergeRequest, projectPath, httpURL string)
 
 // resolveBase picks the commit the merge request should be diffed against:
 // GitLab's own base when we have it, the local merge base otherwise.
-func (m *Manager) resolveBase(mainDir string, mr gitlab.MergeRequest, rev Review, head string) string {
+func (m *Manager) resolveBase(mainDir string, mr forge.MergeRequest, rev Review, head string) string {
 	if m.git.CommitExists(mainDir, rev.BaseSHA) {
 		return rev.BaseSHA
 	}
@@ -90,7 +90,7 @@ func (m *Manager) resolveBase(mainDir string, mr gitlab.MergeRequest, rev Review
 // working tree hold the merge request head. Diff tools, gutter signs and
 // hunk navigation then work on the change as a whole, instead of on the
 // individual commits.
-func (m *Manager) EnsureMRReview(mr gitlab.MergeRequest, projectPath, httpURL string, rev Review) (string, error) {
+func (m *Manager) EnsureMRReview(mr forge.MergeRequest, projectPath, httpURL string, rev Review) (string, error) {
 	mainDir, head, err := m.prepareMR(mr, projectPath, httpURL)
 	if err != nil {
 		return "", err

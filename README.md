@@ -1,8 +1,10 @@
 # unagit
 
-A GitLab TUI for people who review a lot of merge requests: list every project
-and open merge request across the groups you care about, fuzzy find the one you
-want, and land in `nvim` inside a ready checkout.
+A TUI for people who review a lot of merge requests: list every project and
+open merge request across the groups you care about - on GitLab and GitHub at
+once - fuzzy find the one you want, and land in `nvim` inside a ready checkout.
+
+Pull requests are merge requests here too; one word for one thing.
 
 ```
  Projects [P] │ Merge requests [M] │ Settings [S]
@@ -35,12 +37,15 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 
 1. **GitLab servers** - press `a`, fill in a name, the URL and a personal
    access token with the `api` scope. `v` checks the token against the server.
-   Add as many servers as you like; each keeps its own token.
-2. **Groups & roots** - press `r` to load the groups, then `space` on the ones
-   you work with. `space` cycles *off → this group only → including
-   subgroups*. `d` gives a group - or a whole server - its own clone
-   directory.
-3. Press `p` and `m` to build the project and merge request indexes.
+   Add as many as you like; each keeps its own token.
+2. **GitHub accounts** - the same, without a URL: github.com is the only
+   address there is (GitHub Enterprise is not supported). The token needs the
+   `repo` scope.
+3. **Groups & roots** - press `r` to load the groups, then `space` on the ones
+   you work with. On GitLab `space` cycles *off → this group only → including
+   subgroups*; a GitHub organisation is simply on or off. `d` gives a group -
+   or a whole server - its own clone directory.
+4. Press `p` and `m` to build the project and merge request indexes.
 
 ## How it works
 
@@ -78,6 +83,10 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
 * **Indexes are explicit.** Project and merge request lists are cached as JSON
   in the config directory and only refreshed when you ask (`r`, or `p` / `m`
   in settings). Startup is instant and nothing hits the API behind your back.
+* **Refreshing fans out.** Every selected group is asked in parallel, a few at
+  a time, across all servers at once. GitHub has no group wide merge request
+  listing, so each of its repositories is asked separately - also in parallel.
+  The first failure stops the rest rather than leaving half an index behind.
 
 Layout under the configured root directory:
 
@@ -111,7 +120,8 @@ picked up on the next open.
 
 The base is the one GitLab itself uses (`diff_refs.base_sha`, the merge base),
 not the tip of the target branch - otherwise a target that has moved on would
-show its own commits backwards in your diff.
+show its own commits backwards in your diff. GitHub does not publish a merge
+base, so there unagit works it out from the repository.
 
 Both kinds of worktree record what they are in their own git configuration, so
 an editor can pick it up:
@@ -151,8 +161,8 @@ you want that.
 
 ## Requirements
 
-Go 1.24+, `git`, and a GitLab personal access token with the `api` scope for
-each server.
+Go 1.24+, `git`, and a token per server: `api` scope on GitLab, `repo` scope
+on GitHub.
 
 ## Keys
 
@@ -183,6 +193,9 @@ context you opened them from.
 On-disk markers: `○` nothing, `●` a branch worktree, `◐` a review worktree,
 `◉` both.
 
+Merge request heads are fetched from `refs/merge-requests/<n>/head` on GitLab
+and `refs/pull/<n>/head` on GitHub; everything downstream of that is the same.
+
 The detail column also reports the size of a merge request - how many commits
 it adds on top of its target, how many files it touches, and how far behind
 the target it has fallen.
@@ -200,6 +213,7 @@ editor: nvim
 editor_args: ["."]
 instances:
   - id: gitlab-example-com  # stable key: ties the token and the caches to it
+    kind: gitlab
     name: Work
     url: https://gitlab.example.com
     root_dir: ~/work        # optional, for this server
@@ -209,6 +223,14 @@ instances:
         name: platform
         scope: subgroups    # or "group" for this group's own projects only
         root_dir: platform  # optional; relative to ~/work here
+  - id: github-com
+    kind: github
+    name: Personal
+    url: https://github.com
+    groups:
+      - id: 10
+        full_path: widgets  # an organisation, or your own account
+        scope: group
 ```
 
 Alongside it live `tokens.enc` and the `index-*.json` caches.

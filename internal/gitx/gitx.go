@@ -14,14 +14,20 @@ import (
 	"strings"
 )
 
-const tokenEnv = "UNAGIT_GIT_TOKEN"
+const (
+	tokenEnv = "UNAGIT_GIT_TOKEN"
+	userEnv  = "UNAGIT_GIT_USER"
+)
 
-// credentialHelper answers git's credential query from the environment.
-const credentialHelper = `!f() { if [ "$1" = get ]; then echo username=oauth2; echo "password=$` + tokenEnv + `"; fi; }; f`
+// credentialHelper answers git's credential query from the environment. Both
+// halves come from there, because the user name differs per forge: GitLab
+// wants oauth2, GitHub x-access-token.
+const credentialHelper = `!f() { if [ "$1" = get ]; then echo "username=$` + userEnv + `"; echo "password=$` + tokenEnv + `"; fi; }; f`
 
 // Git runs git commands with the in-memory token attached.
 type Git struct {
 	token string
+	user  string
 	Log   func(string)
 }
 
@@ -30,7 +36,15 @@ func New(token string, log func(string)) *Git {
 	if log == nil {
 		log = func(string) {}
 	}
-	return &Git{token: token, Log: log}
+	return &Git{token: token, user: "oauth2", Log: log}
+}
+
+// WithUser sets the user name the credential helper hands to git.
+func (g *Git) WithUser(user string) *Git {
+	if user != "" {
+		g.user = user
+	}
+	return g
 }
 
 // Run executes git in dir and returns its combined output.
@@ -44,6 +58,7 @@ func (g *Git) Run(dir string, args ...string) (string, error) {
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
 		tokenEnv+"="+g.token,
+		userEnv+"="+g.user,
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_LFS_SKIP_SMUDGE=0",
 	)

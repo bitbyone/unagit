@@ -10,6 +10,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/secret"
 )
 
@@ -105,7 +106,7 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 func TestAddServerFromTheInterface(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	openSection(t, a, sc, sectionServers)
+	openSection(t, a, sc, sectionGitLab)
 	waitFor(t, a, sc, "acme")
 
 	typeRunes(sc, "a")
@@ -167,7 +168,7 @@ func readConfigFile(t *testing.T) string {
 func TestTokenFormStoresAndRemoves(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	openSection(t, a, sc, sectionServers)
+	openSection(t, a, sc, sectionGitLab)
 	waitFor(t, a, sc, "stored")
 
 	id := a.cfg.Instances[0].ID
@@ -259,7 +260,7 @@ func TestRemoveServerForgetsItsToken(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
 
-	openSection(t, a, sc, sectionServers)
+	openSection(t, a, sc, sectionGitLab)
 	waitFor(t, a, sc, "stored")
 	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Remove server")
@@ -311,4 +312,86 @@ func readFileString(path string) (string, error) {
 func openVaultFile(t *testing.T, passphrase string) (*secret.Vault, error) {
 	t.Helper()
 	return secret.OpenVault(config.VaultPath(), []byte(passphrase))
+}
+
+// TestAddGitHubAccount: the GitHub form has no URL, because github.com is the
+// only address there is.
+func TestAddGitHubAccount(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGitHub)
+	waitFor(t, a, sc, "No GitHub account yet")
+
+	typeRunes(sc, "a")
+	waitFor(t, a, sc, "Add a GitHub account")
+	form := currentForm(a)
+	if form == nil {
+		t.Fatal("no form on screen")
+	}
+	if got := form.GetFormItemCount(); got != 4 {
+		t.Fatalf("the GitHub form has %d items; it should not ask for a URL", got)
+	}
+	setField(t, a, form, 0, "Personal")
+	setField(t, a, form, 1, "~/github") // root directory sits where the URL would
+	setField(t, a, form, 2, "ghp-token")
+	pressButton(t, a, sc, form, "Save")
+
+	gh := a.cfg.InstancesOfKind(config.KindGitHub)
+	if len(gh) != 1 {
+		t.Fatalf("github instances = %+v", gh)
+	}
+	if gh[0].URL != config.GitHubURL || gh[0].Name != "Personal" || gh[0].RootDir != "~/github" {
+		t.Fatalf("instance = %+v", gh[0])
+	}
+	if a.vault.Token(gh[0].ID) != "ghp-token" {
+		t.Error("the token was not stored")
+	}
+	if a.client(gh[0].ID) == nil || a.client(gh[0].ID).Kind() != forge.KindGitHub {
+		t.Error("no GitHub client for the new account")
+	}
+	// It stays out of the GitLab section.
+	if len(a.cfg.InstancesOfKind(config.KindGitLab)) != 1 {
+		t.Errorf("gitlab instances = %+v", a.cfg.InstancesOfKind(config.KindGitLab))
+	}
+	waitFor(t, a, sc, "github.com")
+}
+
+// TestGitHubOrgIsOnOrOff: there are no subgroups on GitHub, so space toggles
+// rather than cycles.
+func TestGitHubOrgIsOnOrOff(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+
+	// Add a GitHub account with one organisation in the group cache.
+	done := make(chan string, 1)
+	a.tv.QueueUpdateDraw(func() {
+		inst := a.cfg.AddInstance(config.Instance{Kind: config.KindGitHub, Name: "Personal"})
+		a.vault.Set(inst.ID, "ghp-token")
+		a.groups = append(a.groups, forge.Group{ID: 10, Name: "widgets", FullPath: "widgets", Instance: inst.ID})
+		a.saveConfig()
+		a.settings.reload()
+		done <- inst.ID
+	})
+	id := <-done
+
+	openSection(t, a, sc, sectionGroups)
+	waitFor(t, a, sc, "widgets")
+
+	// Walk down to the organisation: gitlab server, its group, github account.
+	typeRunes(sc, "jjj")
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "selected")
+	if got := a.cfg.Instance(id).GroupScope(10); got != config.ScopeGroup {
+		t.Fatalf("scope = %q, want %q", got, config.ScopeGroup)
+	}
+	// A GitHub organisation never says "incl. subgroups".
+	if strings.Contains(a.screenText(sc), "incl. subgroups\n") {
+		t.Log(a.screenText(sc))
+	}
+
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "unselected")
+	if got := a.cfg.Instance(id).GroupScope(10); got != "" {
+		t.Fatalf("scope = %q, want unselected", got)
+	}
 }
