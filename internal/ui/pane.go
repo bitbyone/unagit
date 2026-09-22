@@ -381,6 +381,11 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 			p.onOpen()
 		}
 		return nil
+	case tcell.KeyCtrlR:
+		if p.onKey != nil {
+			return p.onKey(ev)
+		}
+		return nil
 	case tcell.KeyRune:
 		switch ev.Rune() {
 		case 'h':
@@ -399,6 +404,10 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 		if p.app.tabKey(ev.Rune()) {
 			return nil
 		}
+	}
+	// The row commands work while reading the detail too.
+	if p.onKey != nil {
+		return p.onKey(ev)
 	}
 	return ev
 }

@@ -196,6 +196,11 @@ type Provider interface {
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)
 	MergeRequestApprovals(ctx context.Context, mr MergeRequest) (*Approvals, error)
 
+	// Approve records an approval of the merge request as the token's owner.
+	Approve(ctx context.Context, mr MergeRequest) error
+	// Comment posts a comment on the merge request.
+	Comment(ctx context.Context, mr MergeRequest, body string) error
+
 	// HeadRef is where the merge request head can be fetched from: GitLab
 	// publishes refs/merge-requests/<iid>/head, GitHub refs/pull/<iid>/head.
 	HeadRef(iid int) string

@@ -2,6 +2,7 @@
 package gitlab
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -91,6 +92,42 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (h
 		return nil, fmt.Errorf("decode %s: %w", path, err)
 	}
 	return resp.Header, nil
+}
+
+// post sends a JSON body and discards the answer, which is only ever an echo
+// of what was just created.
+func (c *Client) post(ctx context.Context, path string, payload any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v4"+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	answer, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		return &apiError{status: resp.StatusCode, body: string(answer), path: path}
+	}
+	return nil
+}
+
+// Approve approves the merge request as the token's owner.
+func (c *Client) Approve(ctx context.Context, mr forge.MergeRequest) error {
+	return c.post(ctx, mrPath(mr)+"/approve", struct{}{})
+}
+
+// Comment posts a comment on the merge request.
+func (c *Client) Comment(ctx context.Context, mr forge.MergeRequest, body string) error {
+	return c.post(ctx, mrPath(mr)+"/notes", map[string]string{"body": body})
 }
 
 // total reads GitLab's x-total header, which is absent on very large

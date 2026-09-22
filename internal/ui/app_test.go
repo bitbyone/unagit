@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,8 +22,11 @@ import (
 // closed detail column stays quiet and that the debounce coalesces movement.
 type fakeServer struct {
 	*httptest.Server
-	requests atomic.Int64
-	mrDetail atomic.Int64
+	requests  atomic.Int64
+	mrDetail  atomic.Int64
+	approvals atomic.Int64
+	// postedComment holds the body of the last comment posted.
+	postedComment atomic.Value
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -101,10 +105,27 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"head_pipeline":{"status":"running"},"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/notes", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `[{"id":1,"body":"Looks good apart from the retry loop","system":false,
+		if r.Method == http.MethodPost {
+			b, _ := io.ReadAll(r.Body)
+			f.postedComment.Store(string(b))
+			json(w, `{"id":99}`)
+			return
+		}
+		// Newest first, the way GitLab answers, and with markdown in them.
+		json(w, `[{"id":1,"body":"Looks good apart from the **retry loop**","system":false,
 			"created_at":"2026-09-21T06:00:00Z","author":{"username":"john"}},
-			{"id":2,"body":"changed title","system":true,"created_at":"2026-09-20T06:00:00Z",
+			{"id":2,"body":"- first thing\n- second thing","system":false,
+			"created_at":"2026-09-20T12:00:00Z","author":{"username":"ann"}},
+			{"id":3,"body":"third comment","system":false,
+			"created_at":"2026-09-19T12:00:00Z","author":{"username":"bob"}},
+			{"id":4,"body":"oldest comment","system":false,
+			"created_at":"2026-09-18T12:00:00Z","author":{"username":"carol"}},
+			{"id":5,"body":"changed title","system":true,"created_at":"2026-09-20T06:00:00Z",
 			"author":{"username":"jane"}}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approve", func(w http.ResponseWriter, r *http.Request) {
+		f.approvals.Add(1)
+		json(w, `{"approvals_left":0}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/commits", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-total", "12")
@@ -502,10 +523,13 @@ func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 
 	before := srv.mrDetail.Load()
-	typeRunes(sc, "v")
+	sc.InjectKey(tcell.KeyCtrlR, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Opening acme/gateway !7 for review")
 	waitFor(t, a, sc, "diffed against")
 	if got := srv.mrDetail.Load(); got == before {
 		t.Error("the merge request detail was never fetched")
 	}
+	// The task then tries to clone from the stub, which fails. Wait for it so
+	// git is finished before the temporary directories are cleaned up.
+	waitFor(t, a, sc, "Press Esc to close")
 }

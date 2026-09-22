@@ -61,6 +61,13 @@ func (a *App) newMRsPane() *pane {
 	}
 
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
+		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
+		if ev.Key() == tcell.KeyCtrlR {
+			if mr, ok := selected(); ok {
+				a.openMRReview(mr)
+			}
+			return nil
+		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
@@ -84,9 +91,14 @@ func (a *App) newMRsPane() *pane {
 				a.note("opened " + mr.WebURL)
 			}
 			return nil
-		case 'v':
+		case 'a':
 			if mr, ok := selected(); ok {
-				a.openMRReview(mr)
+				a.approveMR(mr, nil)
+			}
+			return nil
+		case 'c':
+			if mr, ok := selected(); ok {
+				a.showComments(mr)
 			}
 			return nil
 		case 'r':

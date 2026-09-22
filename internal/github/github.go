@@ -5,6 +5,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -111,6 +112,42 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (h
 		}
 	}
 	return resp.Header, nil
+}
+
+// post sends a JSON body and discards the answer.
+func (c *Client) post(ctx context.Context, path string, payload any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	answer, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		return &apiError{status: resp.StatusCode, body: string(answer), path: path}
+	}
+	return nil
+}
+
+// Approve submits an approving review.
+func (c *Client) Approve(ctx context.Context, mr forge.MergeRequest) error {
+	return c.post(ctx, c.pullPath(mr)+"/reviews", map[string]string{"event": "APPROVE"})
+}
+
+// Comment posts a comment on the pull request's conversation.
+func (c *Client) Comment(ctx context.Context, mr forge.MergeRequest, body string) error {
+	return c.post(ctx, c.issuePath(mr)+"/comments", map[string]string{"body": body})
 }
 
 // nextLink pulls the "next" URL out of a Link header.

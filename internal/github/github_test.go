@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -420,5 +421,50 @@ func TestErrorsMentionTheScope(t *testing.T) {
 	_, err := s.client().CurrentUser(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "rejected the token") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestApproveSubmitsAReview(t *testing.T) {
+	s := newStub(t)
+	var path, method, body string
+	s.mux.HandleFunc("/repos/acme/api/pulls/7/reviews", func(w http.ResponseWriter, r *http.Request) {
+		path, method = r.URL.Path, r.Method
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		fmt.Fprint(w, `{}`)
+	})
+
+	err := s.client().Approve(context.Background(), forge.MergeRequest{ProjectPath: "acme/api", IID: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != http.MethodPost || path != "/repos/acme/api/pulls/7/reviews" {
+		t.Errorf("%s %s", method, path)
+	}
+	if !strings.Contains(body, `"event":"APPROVE"`) {
+		t.Errorf("payload = %q", body)
+	}
+}
+
+func TestCommentGoesToTheConversation(t *testing.T) {
+	s := newStub(t)
+	var path, body string
+	s.mux.HandleFunc("/repos/acme/api/issues/7/comments", func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		fmt.Fprint(w, `{}`)
+	})
+
+	err := s.client().Comment(context.Background(),
+		forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, "nice work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/repos/acme/api/issues/7/comments" {
+		t.Errorf("path = %q", path)
+	}
+	if !strings.Contains(body, `"body":"nice work"`) {
+		t.Errorf("payload = %q", body)
 	}
 }

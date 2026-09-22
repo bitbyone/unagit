@@ -3,6 +3,7 @@ package gitlab
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -145,5 +146,67 @@ func TestMergeRequestDetailCarriesTheDiffRefs(t *testing.T) {
 	}
 	if diverged != "true" {
 		t.Errorf("include_diverged_commits_count = %q", diverged)
+	}
+}
+
+func TestApprovePostsToTheApproveEndpoint(t *testing.T) {
+	var path, method, token string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, method, token = r.URL.Path, r.Method, r.Header.Get("PRIVATE-TOKEN")
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	err := New(srv.URL, "secret").Approve(context.Background(),
+		forge.MergeRequest{ProjectID: 3, IID: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != http.MethodPost {
+		t.Errorf("method = %q", method)
+	}
+	if path != "/api/v4/projects/3/merge_requests/42/approve" {
+		t.Errorf("path = %q", path)
+	}
+	if token != "secret" {
+		t.Errorf("token header = %q", token)
+	}
+}
+
+func TestCommentPostsTheBody(t *testing.T) {
+	var path, body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	err := New(srv.URL, "t").Comment(context.Background(),
+		forge.MergeRequest{ProjectID: 3, IID: 42}, "looks **good**")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/api/v4/projects/3/merge_requests/42/notes" {
+		t.Errorf("path = %q", path)
+	}
+	if !strings.Contains(body, `"body":"looks **good**"`) {
+		t.Errorf("payload = %q", body)
+	}
+}
+
+// TestApproveReportsWhatWentWrong: approving is a paid feature on some tiers,
+// so the error has to be legible.
+func TestApproveReportsWhatWentWrong(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+	}))
+	defer srv.Close()
+
+	err := New(srv.URL, "t").Approve(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 2})
+	if err == nil || !strings.Contains(err.Error(), "denied access") {
+		t.Fatalf("err = %v", err)
 	}
 }

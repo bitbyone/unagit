@@ -44,11 +44,19 @@ const helpText = `[::b]Tabs[::-]
 
 [::b]Merge requests tab[::-]
   {A}Ctrl-O{E}  check the MR branch out in its own worktree, open the editor
-  {A}v{E}       open the MR for review: the whole change as pending edits
+  {A}Ctrl-R{E}  open the MR for review: the whole change as pending edits
+  {A}c{E}       read the whole conversation, and write a comment
+  {A}a{E}       approve the merge request - it asks first
   {A}f{E}       limit the list to one project      {A}F{E}  clear that limit
   {A}d{E}       delete the MR worktrees from disk
   {A}w{E}       open the merge request in the browser
-  {A}r{E}       refresh the merge request index from GitLab
+  {A}r{E}       refresh the merge request index
+
+[::b]Comments[::-] ({A}c{E})
+  The whole conversation, oldest first, with the markdown rendered: bold is
+  bold, lists are lists, code is code. The detail column shows the three
+  newest, the rest are in here.
+  {A}i{E}  write a comment, {A}Ctrl-S{E} sends it   {A}a{E}  approve   {A}r{E}  reload
 
 [::b]Modals[::-]
   {A}/{E}      type to filter        {A}j k g G{E}  move        {A}Enter{E}  pick
@@ -81,7 +89,7 @@ const helpText = `[::b]Tabs[::-]
 
 [::b]Reviewing a merge request[::-]
   {A}Ctrl-O{E} gives you the branch: real commits, you can commit and push.
-  {A}v{E} gives you the review worktree: HEAD sits on the commit the MR
+  {A}Ctrl-R{E} gives you the review worktree: HEAD sits on the commit the MR
   branched from, while the index and the working tree hold the MR. The whole
   change is therefore pending, so gutter signs, {A}]c{E} and diff views work on
   it as one change instead of a stack of commits.
@@ -115,8 +123,13 @@ func (a *App) showHelp() {
 
 // --------------------------------------------------------------- confirm
 
-// confirm shows a yes/no dialog. warnings are rendered in red.
+// confirm shows a yes/no dialog for something destructive.
 func (a *App) confirm(title, body string, warnings []string, onYes func()) {
+	a.confirmWith(title, body, "Delete", warnings, onYes)
+}
+
+// confirmWith shows a yes/no dialog whose accepting button says what it does.
+func (a *App) confirmWith(title, body, accept string, warnings []string, onYes func()) {
 	text := body
 	if len(warnings) > 0 {
 		text += "\n\n" + tag(colBad) + "Careful:" + tagEnd + "\n"
@@ -126,10 +139,10 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 	}
 	modal := tview.NewModal().
 		SetText(text).
-		AddButtons([]string{"Cancel", "Delete"}).
+		AddButtons([]string{"Cancel", accept}).
 		SetDoneFunc(func(i int, label string) {
 			a.closeModal(pageConfirm)
-			if label == "Delete" {
+			if label == accept {
 				onYes()
 			}
 		})

@@ -72,6 +72,10 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
   **always fetched fresh** from the API: author, reviewers, assignees, labels,
   approvals, pipeline, merge status, description, commits and the newest
   comments.
+* **Comments are markdown, and are shown as markdown** - bold is bold, lists
+  are lists, code is code. The detail column keeps the three newest; `c` opens
+  the whole conversation in its own view, where `i` writes a reply and `a`
+  approves.
 * **Projects** are cloned once and reused. `Ctrl-O` fetches, fast-forwards and
   starts the editor. `b` lists every branch in a searchable modal and switches
   the branch **in that same clone**.
@@ -79,7 +83,8 @@ passphrase (it encrypts your tokens), then opens **Settings [S]**:
   notes and edits in several reviews at the same time without committing
   anything. They are git worktrees of the project's main clone, which means they
   cost a checkout, not a full clone. Each merge request can have two of them:
-  a **branch** worktree (`Ctrl-O`) and a **review** worktree (`v`) - see below.
+  a **branch** worktree (`Ctrl-O`) and a **review** worktree (`Ctrl-R`) - see
+  below.
 * **Indexes are explicit.** Project and merge request lists are cached as JSON
   in the config directory and only refreshed when you ask (`r`, or `p` / `m`
   in settings). Startup is instant and nothing hits the API behind your back.
@@ -96,6 +101,13 @@ Layout under the configured root directory:
 <root>/<group>/<project>.reviews/<iid>-<branch>    review worktree per merge request
 ```
 
+## Reading and answering
+
+`c` on a merge request opens the conversation, oldest comment first, with the
+markdown rendered. From there `i` writes a comment (`Ctrl-S` sends it) and `a`
+approves - approving asks for confirmation first, because everyone on the
+merge request sees it. Both work straight from the list too.
+
 ## Reviewing a merge request
 
 A branch worktree (`Ctrl-O`) is an ordinary checkout of the merge request
@@ -103,7 +115,7 @@ branch: real commits, and you can commit and push. The catch when reviewing is
 that everything is already committed, so a diff view has nothing pending to
 show you, and the change is spread over however many commits the author made.
 
-A review worktree (`v`) turns that around. `HEAD` sits on the commit the merge
+A review worktree (`Ctrl-R`) turns that around. `HEAD` sits on the commit the merge
 request branched from, while the index and the working tree hold the merge
 request head. The whole change is therefore **pending**, exactly as if you had
 just typed it:
@@ -174,7 +186,9 @@ on GitHub.
 | `j` `k` `g` `G` | move |
 | `Enter` | load the detail column and jump into it |
 | `Ctrl-O` | clone or update, then open the editor |
-| `v` | open a merge request for review: the change as pending edits |
+| `Ctrl-R` | open a merge request for review: the change as pending edits |
+| `c` | read the whole conversation, and write a comment |
+| `a` | approve the merge request (it asks first) |
 | `h` `l` `←` `→` | move between the list and the detail column |
 | `b` | pick a branch in a modal (projects only) |
 | `m` | merge requests of the selected project |

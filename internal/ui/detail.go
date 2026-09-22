@@ -50,6 +50,13 @@ func (d *detailBuf) text(s string) {
 	}
 }
 
+// markdown renders a comment or a description with its formatting intact.
+func (d *detailBuf) markdown(s string) {
+	if out := renderMarkdown(s, "  "); out != "" {
+		d.raw(out + "\n")
+	}
+}
+
 func esc(s string) string { return tview.Escape(s) }
 
 // ---------------------------------------------------------------- helpers
@@ -522,7 +529,7 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 
 	if det != nil && strings.TrimSpace(det.Description) != "" {
 		d.section("Description")
-		d.text(det.Description)
+		d.markdown(det.Description)
 	}
 
 	if len(commits) > 0 {
@@ -534,34 +541,33 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 		commitLines(d, commits)
 	}
 
-	// Only real comments; GitLab's system notes are bookkeeping noise.
+	// Only real comments; the system notes are bookkeeping noise. The detail
+	// column shows the three newest, the whole conversation lives behind c.
 	var human []forge.Note
 	for _, n := range notes {
-		if !n.System {
+		if !n.System && strings.TrimSpace(n.Body) != "" {
 			human = append(human, n)
 		}
 	}
 	if len(human) > 0 {
-		d.section(fmt.Sprintf("Comments (%d newest)", len(human)))
+		const shown = 3
+		total := len(human)
+		if det != nil && det.UserNotesCount > total {
+			total = det.UserNotesCount
+		}
+		heading := fmt.Sprintf("Comments (%d)", total)
+		if total > shown {
+			heading = fmt.Sprintf("Comments (%d newest of %d)", shown, total)
+		}
+		d.section(heading)
 		for i, n := range human {
-			if i == 15 {
-				d.raw(fmt.Sprintf("  %s… %d more%s\n", tag(colDim), len(human)-i, tagEnd))
+			if i == shown {
+				d.raw(fmt.Sprintf("  %s… %d more · press c to read them all%s\n",
+					tag(colDim), total-shown, tagEnd))
 				break
 			}
-			meta := fmt.Sprintf("%s%s%s %s%s", tag(colAccent), esc(n.Author.Username), tagEnd,
-				tag(colDim), humanAge(n.CreatedAt))
-			if n.Path != "" {
-				meta += fmt.Sprintf(" · %s:%d", esc(n.Path), n.Line)
-			}
-			if n.Resolvable {
-				if n.Resolved {
-					meta += " · resolved"
-				} else {
-					meta += tagEnd + tag(colWarn) + " · unresolved"
-				}
-			}
-			d.raw("  " + meta + tagEnd + "\n")
-			d.text(trimBody(n.Body))
+			d.raw("  " + noteHeader(n) + "\n")
+			d.markdown(trimBody(n.Body))
 			d.blank()
 		}
 	}
@@ -576,7 +582,7 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 	if disk.Review {
 		d.kv("Review", tag(colOn)+"◐"+tagEnd+" "+esc(a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Review", tag(colDim)+"○ v opens the change as pending edits to diff through"+tagEnd)
+		d.kv("Review", tag(colDim)+"○ Ctrl-R opens the change as pending edits to diff through"+tagEnd)
 	}
 
 	if len(problems) > 0 {

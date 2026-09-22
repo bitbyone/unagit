@@ -35,6 +35,7 @@ const (
 	pagePicker   = "picker"
 	pageUnlock   = "unlock"
 	pageForm     = "form"
+	pageComments = "comments"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -240,7 +241,21 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 // underneath it. Without this, closing a dialog would leave nothing focused.
 func (a *App) closeModal(page string) {
 	a.pages.RemovePage(page)
+	// Modals stack: closing one can leave another underneath.
+	if name, prim := a.pages.GetFrontPage(); isModalPage(name) {
+		a.tv.SetFocus(prim)
+		return
+	}
 	a.restoreFocus()
+}
+
+// isModalPage reports whether a page name is one of the overlays.
+func isModalPage(name string) bool {
+	switch name {
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments:
+		return true
+	}
+	return false
 }
 
 // restoreFocus focuses the visible tab again.
@@ -260,11 +275,8 @@ func (a *App) restoreFocus() {
 
 // modalOpen reports whether a modal page covers the current tab.
 func (a *App) modalOpen() bool {
-	switch name, _ := a.pages.GetFrontPage(); name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm:
-		return true
-	}
-	return false
+	name, _ := a.pages.GetFrontPage()
+	return isModalPage(name)
 }
 
 // ---------------------------------------------------------------- status bar
