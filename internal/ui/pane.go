@@ -23,8 +23,9 @@ type pane struct {
 	detail *tview.TextView
 
 	filtering     bool
-	width         int // inner width of the table, for column layout
-	detailSeq     int // guards against a stale async detail arriving late
+	width         int    // inner width of the table, for column layout
+	lastQuery     string // the query the rows were last drawn for
+	detailSeq     int    // guards against a stale async detail arriving late
 	detailShown   bool
 	detailFocused bool
 	query         string
@@ -410,6 +411,34 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 		return p.onKey(ev)
 	}
 	return ev
+}
+
+// selectRow puts the cursor back where it was after the rows were rebuilt.
+//
+// A redraw happens for all sorts of reasons - a resize, the detail column
+// opening beside the table, a refresh - and none of them should move the
+// cursor. A new filter should, though: there the best match is what you want
+// to land on.
+func (p *pane) selectRow(previous, first int) {
+	if first <= 0 {
+		p.lastQuery = p.query
+		return
+	}
+	if previous >= 0 && p.query == p.lastQuery {
+		for row := 1; row < p.table.GetRowCount(); row++ {
+			cell := p.table.GetCell(row, 0)
+			if cell == nil {
+				continue
+			}
+			if i, ok := cell.GetReference().(int); ok && i == previous {
+				p.lastQuery = p.query
+				p.table.Select(row, 0)
+				return
+			}
+		}
+	}
+	p.lastQuery = p.query
+	p.table.Select(first, 0)
 }
 
 // selectedIndex maps the highlighted table row onto the underlying data slice.

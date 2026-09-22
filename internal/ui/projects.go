@@ -136,6 +136,7 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 }
 
 func (a *App) drawProjects(p *pane, filtered []int) {
+	previous := p.selectedIndex()
 	p.table.Clear()
 	withServer := a.multiInstance()
 	headers := []string{"", "PROJECT", "BRANCH", "MR", "ACTIVITY"}
@@ -200,10 +201,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		set(tview.NewTableCell(humanAge(pr.LastActivityAt)).SetTextColor(colMuted))
 		p.fill(row+1, col)
 	}
+	first := 0
 	if len(filtered) > 0 {
-		p.table.Select(1, 0)
+		first = 1
 	}
-	p.table.ScrollToBeginning()
+	p.selectRow(previous, first)
 }
 
 // openProject clones or updates the main checkout and opens the editor.

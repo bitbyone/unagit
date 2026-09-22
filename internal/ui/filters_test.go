@@ -332,17 +332,22 @@ func TestStaleIndexSaysSo(t *testing.T) {
 
 	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "The cached index is from an older unagit")
-	if !a.staleMRs {
+	if !onLoop(a, func() bool { return a.staleMRs }) {
 		t.Error("the merge request index was not noticed as stale")
 	}
 
-	// Refreshing clears it, and brings back what the old cache could not hold.
+	// Refreshing clears it, and brings back what the old cache could not
+	// hold. The task closes itself when it succeeds, so the effect is what
+	// gets waited for rather than the line it logs.
 	typeRunes(sc, "M")
 	typeRunes(sc, "r")
-	waitFor(t, a, sc, "merge request(s) indexed")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	if a.staleMRs {
-		t.Error("still marked stale after a refresh")
+	stale := func() bool { return onLoop(a, func() bool { return a.staleMRs }) }
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && stale() {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if stale() {
+		t.Fatal("still marked stale after a refresh")
 	}
 	waitFor(t, a, sc, "Rate limiting")
 	for _, line := range strings.Split(a.screenText(sc), "\n") {

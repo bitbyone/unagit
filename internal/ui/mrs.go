@@ -272,6 +272,7 @@ func (a *App) groupByProject(filtered []int) []mrGroup {
 }
 
 func (a *App) drawMRs(p *pane, filtered []int) {
+	previous := p.selectedIndex()
 	p.table.Clear()
 	grouped := a.cfg.Filters.GroupByProject
 	withServer := a.multiInstance() && !grouped
@@ -375,10 +376,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 	}
 
-	if first > 0 {
-		p.table.Select(first, 0)
-	}
-	p.table.ScrollToBeginning()
+	p.selectRow(previous, first)
 }
 
 // mrMark shows at a glance which worktrees a merge request has on disk.

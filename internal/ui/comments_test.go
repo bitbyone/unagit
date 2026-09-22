@@ -204,3 +204,76 @@ func column(line, word string) int {
 	}
 	return len([]rune(line[:at]))
 }
+
+// TestEnterOpensTheRowYouAreOn is a bug that made the lists nearly unusable:
+// opening the detail narrows the table, which redraws it, and the redraw put
+// the cursor back on the first row - so Enter on the fourth merge request
+// showed the first one instead.
+func TestEnterOpensTheRowYouAreOn(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+
+	typeRunes(sc, "j") // onto the second row, acme/billing !9
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+
+	waitFor(t, a, sc, "Bankers rounding everywhere")
+	if strings.Contains(a.screenText(sc), "Adds a token bucket") {
+		t.Fatal("the detail is of the first row, not the selected one")
+	}
+	// And it stays there once the follow debounce has had its say.
+	time.Sleep(2 * detailDebounce)
+	if !strings.Contains(a.screenText(sc), "Bankers rounding everywhere") {
+		t.Fatalf("the detail drifted back to another row:\n%s", a.screenText(sc))
+	}
+	if got := onLoop(a, a.mrsPane.selectedIndex); got != 1 {
+		t.Errorf("selected index = %d, want 1", got)
+	}
+}
+
+// TestRedrawKeepsTheCursor: a refresh, a resize or a filter toggle must not
+// move it either.
+func TestRedrawKeepsTheCursor(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "jj") // the third row
+
+	// Queued reads can overtake key events that have not been handled yet,
+	// so the cursor is waited for rather than read once.
+	before := 2
+	waitSelected(t, a, a.mrsPane, before)
+
+	resize(sc, 100, 30)
+	time.Sleep(150 * time.Millisecond)
+	if got := onLoop(a, a.mrsPane.selectedIndex); got != before {
+		t.Errorf("a resize moved the cursor from %d to %d", before, got)
+	}
+
+	done := make(chan struct{})
+	a.tv.QueueUpdateDraw(func() { a.applyFilters(); close(done) })
+	<-done
+	if got := onLoop(a, a.mrsPane.selectedIndex); got != before {
+		t.Errorf("a redraw moved the cursor from %d to %d", before, got)
+	}
+
+	// A new filter is different: there the best match is what you want.
+	typeRunes(sc, "/inv")
+	waitSelected(t, a, a.mrsPane, 1)
+}
+
+// waitSelected waits for the cursor to land on a data row.
+func waitSelected(t *testing.T, a *App, p *pane, want int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	got := -1
+	for time.Now().Before(deadline) {
+		if got = onLoop(a, p.selectedIndex); got == want {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("the cursor is on %d, want %d", got, want)
+}
