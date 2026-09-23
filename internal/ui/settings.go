@@ -21,9 +21,10 @@ const (
 	sectionGitHub
 	sectionGroups
 	sectionSecurity
+	sectionIntegrations
 )
 
-var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Security"}
+var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Security", "Integrations"}
 
 // settingsView is the whole configuration: a list of sections on the left and
 // the section's editor on the right. Nothing here needs the file to be edited
@@ -35,11 +36,12 @@ type settingsView struct {
 	content *tview.Pages
 	footer  *tview.TextView
 
-	general  *tview.Form
-	gitlab   *tview.Table
-	github   *tview.Table
-	tree     *tview.TreeView
-	security *tview.TextView
+	integrations *integrationsView
+	general      *tview.Form
+	gitlab       *tview.Table
+	github       *tview.Table
+	tree         *tview.TreeView
+	security     *tview.TextView
 
 	current int
 	// contentFocused remembers which side had the keyboard, so closing a
@@ -63,12 +65,14 @@ func (a *App) newSettingsView() *settingsView {
 	box(s.list.Box, "Settings")
 
 	s.general = s.newGeneralForm()
+	s.integrations = s.newIntegrationsView()
 	s.gitlab = s.newServerTable(config.KindGitLab, "GitLab servers")
 	s.github = s.newServerTable(config.KindGitHub, "GitHub accounts")
 	s.tree = s.newGroupTree()
 	s.security = s.newSecurityPane()
 
 	s.content = tview.NewPages()
+	s.content.AddPage("integrations", s.integrations, true, false)
 	s.content.AddPage("general", s.general, true, true)
 	s.content.AddPage("gitlab", s.gitlab, true, false)
 	s.content.AddPage("github", s.github, true, false)
@@ -91,6 +95,7 @@ func (a *App) newSettingsView() *settingsView {
 // reload rebuilds every section from the current configuration.
 func (s *settingsView) reload() {
 	s.fillGeneral()
+	s.fillIntegrations()
 	s.fillServerTables()
 	s.fillTree()
 	s.fillSecurity()
@@ -106,6 +111,9 @@ func (s *settingsView) selectSection(section int) {
 func (s *settingsView) show(section int) {
 	s.current = section
 	switch section {
+	case sectionIntegrations:
+		s.fillIntegrations()
+		s.content.SwitchToPage("integrations")
 	case sectionGeneral:
 		s.content.SwitchToPage("general")
 	case sectionGitLab:
@@ -134,6 +142,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.github
 	case sectionGroups:
 		return s.tree
+	case sectionIntegrations:
+		return s.integrations
 	case sectionSecurity:
 		return s.security
 	}
@@ -149,6 +159,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.github.Box
 	case sectionGroups:
 		return s.tree.Box
+	case sectionIntegrations:
+		return s.integrations.cards[s.integrations.current].view.Box
 	case sectionSecurity:
 		return s.security.Box
 	}
@@ -159,9 +171,10 @@ func (s *settingsView) contentBox() *tview.Box {
 // way the two column lists do, so it is never a guess which one typing
 // reaches.
 func (s *settingsView) paintFocus() {
+	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.security.Box,
+		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.security.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -173,6 +186,8 @@ func (s *settingsView) paintFocus() {
 func (s *settingsView) focusContent() {
 	s.contentFocused = true
 	switch s.current {
+	case sectionIntegrations:
+		s.app.tv.SetFocus(s.integrations)
 	case sectionGeneral:
 		s.app.tv.SetFocus(s.general)
 	case sectionGitLab:
@@ -203,6 +218,8 @@ func (s *settingsView) updateFooter() {
 	keys := "j k  move   ·   Enter  edit this section   ·   Esc  back to the lists"
 	if !s.list.HasFocus() {
 		switch s.current {
+		case sectionIntegrations:
+			keys = "Tab / j k  move between integrations   ·   Esc  back"
 		case sectionGeneral:
 			keys = "Tab  next field   ·   Enter on a button applies it   ·   Esc  back"
 		case sectionGitLab, sectionGitHub:
@@ -1025,4 +1042,8 @@ func (a *App) showFormModal(title string, form *tview.Form, height int) {
 	form.SetCancelFunc(func() { a.closeModal(pageForm) })
 	a.pages.AddPage(pageForm, modalFixed(form, 72, height), true, true)
 	a.tv.SetFocus(form)
+}
+
+func (s *settingsView) fillIntegrations() {
+	s.integrations.check()
 }

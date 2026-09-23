@@ -13,6 +13,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
@@ -421,6 +422,7 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
+	integrate := a.cfg.Integrations.Incomm
 	a.runTaskOpening(fmt.Sprintf("Opening %s !%d for review", path, mr.IID),
 		a.sessionOf(mr, path, session.ModeReview),
 		func(log func(string)) (string, error) {
@@ -439,7 +441,23 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 					rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
 				}
 			}
-			return a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
+
+			dir, err := a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
+			if err != nil || !integrate {
+				return dir, err
+			}
+			if client == nil {
+				return "", fmt.Errorf("incomm needs comments from the server; configure its token in Settings")
+			}
+			log("Importing merge request comments into Incomm ...")
+			notes, err := client.MergeRequestNotes(ctx, mr, 0)
+			if err != nil {
+				return "", fmt.Errorf("load comments for incomm: %w", err)
+			}
+			if err := incomm.Import(ctx, dir, mr, notes, log); err != nil {
+				return "", err
+			}
+			return dir, nil
 		})
 }
 

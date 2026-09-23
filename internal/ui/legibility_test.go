@@ -124,7 +124,7 @@ func TestSettingsIsLegible(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionSecurity} {
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionSecurity, sectionIntegrations} {
 		openSection(t, a, sc, section)
 		waitFor(t, a, sc, sectionNames[section])
 		assertLegible(t, a, sc, "settings: "+sectionNames[section])

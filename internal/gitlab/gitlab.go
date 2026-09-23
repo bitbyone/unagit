@@ -461,6 +461,8 @@ type note struct {
 		Name     string `json:"name"`
 	} `json:"author"`
 	Position *struct {
+		OldPath string `json:"old_path"`
+		OldLine int    `json:"old_line"`
 		NewPath string `json:"new_path"`
 		NewLine int    `json:"new_line"`
 	} `json:"position"`
@@ -490,6 +492,13 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 			}
 			if n.Position != nil {
 				converted.Path, converted.Line = n.Position.NewPath, n.Position.NewLine
+				if converted.Line == 0 && n.Position.OldLine > 0 {
+					converted.Line = n.Position.OldLine
+					converted.Orphaned = true
+					if converted.Path == "" {
+						converted.Path = n.Position.OldPath
+					}
+				}
 			}
 			out = append(out, converted)
 		}

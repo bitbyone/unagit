@@ -567,3 +567,44 @@ func TestReviewCommentsCarryTheirThread(t *testing.T) {
 		t.Errorf("issue comment thread = %q", byID[10].Thread)
 	}
 }
+
+func TestAllNotesIncludesEveryPage(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/issues/7/comments", "[]")
+	s.mux.HandleFunc("/repos/acme/api/pulls/7/comments", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "2" {
+			fmt.Fprint(w, `[{"id":2,"body":"second","path":"a.go","line":2}]`)
+			return
+		}
+		w.Header().Set("Link", fmt.Sprintf("<%s/repos/acme/api/pulls/7/comments?page=2>; rel=\"next\"", s.URL))
+		fmt.Fprint(w, `[{"id":1,"body":"first","path":"a.go","line":1}]`)
+	})
+	notes, err := s.client().MergeRequestNotes(context.Background(), forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("got %d comments, want both pages", len(notes))
+	}
+}
+
+func TestDeletedAndOutdatedCommentLocations(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/issues/7/comments", "[]")
+	s.handle("/repos/acme/api/pulls/7/comments", `[
+ {"id":1,"path":"a.go","line":5,"side":"LEFT"},
+ {"id":2,"path":"a.go","line":null,"original_line":8,"side":"RIGHT"},
+ {"id":3,"path":"a.go","line":4,"side":"RIGHT"}
+ ]`)
+	notes, err := s.client().MergeRequestNotes(context.Background(), forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[int]forge.Note{}
+	for _, n := range notes {
+		byID[n.ID] = n
+	}
+	if !byID[1].Orphaned || byID[1].Line != 5 || !byID[2].Orphaned || byID[2].Line != 8 || byID[3].Orphaned {
+		t.Fatalf("locations: %+v", byID)
+	}
+}

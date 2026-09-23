@@ -140,6 +140,8 @@ type Pipeline struct {
 // Note is a comment. Notes that share a Thread are one conversation, and the
 // earliest of them is what it was started with.
 type Note struct {
+	// Orphaned means the location belongs to an old or deleted line.
+	Orphaned   bool      `json:"orphaned,omitempty"`
 	ID         int       `json:"id"`
 	Thread     string    `json:"thread,omitempty"`
 	Body       string    `json:"body"`
@@ -197,6 +199,7 @@ type Provider interface {
 	ProjectBranches(ctx context.Context, p Project) ([]Branch, error)
 
 	MergeRequestDetail(ctx context.Context, mr MergeRequest) (*MergeRequestDetail, error)
+	// MergeRequestNotes returns all comments when limit is zero.
 	MergeRequestNotes(ctx context.Context, mr MergeRequest, limit int) ([]Note, error)
 	// MergeRequestCommits returns the newest commits and how many there are.
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)

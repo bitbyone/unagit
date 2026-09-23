@@ -626,3 +626,50 @@ func TestSelectBoxRefusesTyping(t *testing.T) {
 		t.Fatalf("the arrows do not select either: %q", got)
 	}
 }
+
+func TestIncommIntegrationSetting(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "not installed")
+	typeRunes(sc, "e")
+	if onLoop(a, func() bool { return a.cfg.Integrations.Incomm }) {
+		t.Fatal("missing binary can be enabled")
+	}
+	if err := os.WriteFile(bin+"/incomm", []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "● disabled")
+	waitFor(t, a, sc, "e toggle")
+	assertLegible(t, a, sc, "disabled integration")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "● enabled")
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.Integrations.Incomm {
+		t.Fatal("integration was not saved")
+	}
+	assertLegible(t, a, sc, "enabled integration")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "● disabled")
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Integrations.Incomm {
+		t.Fatal("disabled integration was not saved")
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	deadline := time.Now().Add(2 * time.Second)
+	for onLoop(a, func() bool { return strings.Contains(a.settings.integrations.cards[0].view.GetText(true), "e toggle") }) {
+		if time.Now().After(deadline) {
+			t.Fatal("unfocused integration still shows action keys")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

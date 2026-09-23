@@ -245,14 +245,19 @@ func (f *Filters) ShowAll() int {
 // Active reports whether anything is narrowing the lists.
 func (f *Filters) Active() bool { return f.ClonedOnly || len(f.Hidden) > 0 }
 
+type Integrations struct {
+	Incomm bool `yaml:"incomm,omitempty"`
+}
+
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
 // Tokens are not stored here; they live encrypted in the vault.
 type Config struct {
-	RootDir    string     `yaml:"root_dir"`
-	Editor     string     `yaml:"editor"`
-	EditorArgs []string   `yaml:"editor_args"`
-	Filters    Filters    `yaml:"filters,omitempty"`
-	Instances  []Instance `yaml:"instances"`
+	Integrations Integrations `yaml:"integrations,omitempty"`
+	RootDir      string       `yaml:"root_dir"`
+	Editor       string       `yaml:"editor"`
+	EditorArgs   []string     `yaml:"editor_args"`
+	Filters      Filters      `yaml:"filters,omitempty"`
+	Instances    []Instance   `yaml:"instances"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.

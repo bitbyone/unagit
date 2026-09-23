@@ -743,20 +743,18 @@ func (c *Client) issuePath(mr forge.MergeRequest) string {
 // newest first.
 func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
 	type ghComment struct {
-		ID        int       `json:"id"`
-		Body      string    `json:"body"`
-		CreatedAt time.Time `json:"created_at"`
-		User      user      `json:"user"`
-		Path      string    `json:"path"`
-		Line      int       `json:"line"`
+		ID           int       `json:"id"`
+		Body         string    `json:"body"`
+		CreatedAt    time.Time `json:"created_at"`
+		User         user      `json:"user"`
+		Path         string    `json:"path"`
+		Line         int       `json:"line"`
+		OriginalLine int       `json:"original_line"`
+		Side         string    `json:"side"`
 		// Review comments hang off each other; the conversation is named
 		// after the one that started it.
 		InReplyTo int `json:"in_reply_to_id"`
 	}
-	q := url.Values{}
-	q.Set("per_page", strconv.Itoa(limit))
-	q.Set("sort", "created")
-	q.Set("direction", "desc")
 
 	var (
 		mu       sync.Mutex
@@ -769,8 +767,8 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			var raw []ghComment
-			if _, err := c.get(ctx, path, q, &raw); err != nil {
+			raw, err := getAll[ghComment](ctx, c, path, url.Values{"sort": {"created"}, "direction": {"desc"}})
+			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = err
@@ -785,10 +783,15 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 				if cm.InReplyTo != 0 {
 					thread = strconv.Itoa(cm.InReplyTo)
 				}
+				line := cm.Line
+				orphaned := cm.Side == "LEFT"
+				if line == 0 && cm.OriginalLine > 0 {
+					line, orphaned = cm.OriginalLine, true
+				}
 				notes = append(notes, forge.Note{
 					ID: cm.ID, Thread: thread, Body: cm.Body, CreatedAt: cm.CreatedAt,
 					Author: forge.User{Username: cm.User.Login, Name: cm.User.Name},
-					Path:   cm.Path, Line: cm.Line,
+					Path:   cm.Path, Line: line, Orphaned: orphaned,
 				})
 			}
 		}(path)
@@ -798,7 +801,7 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 		return nil, firstErr
 	}
 	sort.Slice(notes, func(i, j int) bool { return notes[i].CreatedAt.After(notes[j].CreatedAt) })
-	if len(notes) > limit {
+	if limit > 0 && len(notes) > limit {
 		notes = notes[:limit]
 	}
 	return notes, nil

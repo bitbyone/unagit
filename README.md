@@ -90,6 +90,17 @@ in Settings, and it applies to everything cloned afterwards.
 
 ## Reviewing: the part worth stealing
 
+**Settings → Integrations → Incomm** imports inline merge request
+comments before opening the review editor. Press `e` on its card to enable or
+disable it, and `c` to check installation. The toggle is available when
+`incomm` is on PATH. Comments are written through its CLI into the review
+worktree, with the reviewer name and source MR link; unchanged comments are
+not duplicated on reopening. Replies inherit their thread's file location.
+General comments without a file location are skipped. Comments on deleted
+lines, missing files or lines beyond the current file become orphaned comments
+visible in Incomm’s explorer;
+an import failure stops editor startup and is shown in the task log.
+
 Press `Ctrl-R` on a merge request and unagit builds a worktree where
 
 ```

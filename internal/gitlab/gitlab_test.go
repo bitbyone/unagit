@@ -338,3 +338,30 @@ func TestDetailCarriesTheCommentCount(t *testing.T) {
 		t.Fatalf("detail counts: UserNotesCount=%d Comments=%d", det.UserNotesCount, det.Comments)
 	}
 }
+
+func TestDeletedLineKeepsItsLocation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[{"id":"deleted","notes":[
+   {"id":1,"position":{"old_path":"old.go","new_path":"renamed.go","old_line":7}},
+   {"id":2,"position":{"old_path":"gone.go","old_line":12}},
+   {"id":3,"position":{"old_path":"same.go","new_path":"same.go","old_line":2,"new_line":3}}
+  ]}]`)
+	}))
+	defer srv.Close()
+	notes, err := New(srv.URL, "t").MergeRequestNotes(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 1}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 3 {
+		t.Fatalf("notes: %+v", notes)
+	}
+	if notes[0].Path != "renamed.go" || notes[0].Line != 7 || !notes[0].Orphaned {
+		t.Fatalf("deleted line: %+v", notes[0])
+	}
+	if notes[1].Path != "gone.go" || notes[1].Line != 12 || !notes[1].Orphaned {
+		t.Fatalf("deleted file: %+v", notes[1])
+	}
+	if notes[2].Line != 3 || notes[2].Orphaned {
+		t.Fatalf("current line: %+v", notes[2])
+	}
+}
