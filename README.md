@@ -4,8 +4,7 @@
 
 ### **U**niversal **Nav**igator **A**round **GIT**
 
-*(the face is Ross Geller's, who says it about something else entirely - the
-name works both ways.)*
+*(Or, if you happen to watch Friends - any resemblance is purely coincidental.)*
 
 **One place to see every repository you work with, decide where each one lands
 on disk, and get into it.** Clone it, switch its branch, open it in your
