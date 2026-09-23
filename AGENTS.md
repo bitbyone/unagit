@@ -4,6 +4,12 @@ Notes for whoever - person or model - works on unagit next. The README says
 what it is for; this says how it is built and which mistakes have already been
 made.
 
+The name expands to *Universal Navigator Around GIT*, and that is the wider
+job: reviewing merge requests is the sharpest part of it, but the tool is a
+navigator over every repository the user works with - what exists, where on
+disk it goes, and getting inside it. Keep both halves in mind when you add
+something.
+
 ## The one hard rule
 
 **The tokens are deliberately out of your reach.** They live encrypted in

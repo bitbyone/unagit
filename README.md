@@ -2,13 +2,18 @@
 
 <img src="docs/unagit.png" alt="UNAGIT" width="520">
 
-**Review merge requests without leaving the terminal.**
+### **U**niversal **Nav**igator **A**round **GIT**
 
-Every project and every open merge request across GitLab *and* GitHub in one
-list. Fuzzy-find the one you want, press a key, and land in your editor inside
-a checkout where the entire change is already sitting there as pending edits.
+*(the face is Ross Geller's, who says it about something else entirely - the
+name works both ways.)*
 
-Pull requests are merge requests here too - one word for one thing.
+**One place to see every repository you work with, decide where each one lands
+on disk, and get into it.** Clone it, switch its branch, open it in your
+editor - and when it is a merge request you are after, land in a checkout where
+the whole change is already sitting there as pending edits.
+
+GitLab and GitHub at the same time, in one list. Pull requests are merge
+requests here too - one word for one thing.
 
 ```
  Repositories [R] │ Merge requests [M] │ Settings [S]
@@ -31,13 +36,14 @@ Pull requests are merge requests here too - one word for one thing.
 
 ## Why
 
-Reviewing a merge request usually means a browser tab for the diff, a terminal
-for the code, and a small ritual of `fetch`, `checkout`, `stash` every time you
-switch between two of them. And once you are on the branch, the change you came
-to read is spread over however many commits the author happened to make.
+Work spread over a few dozen repositories and two forges turns into a mess of
+its own: half of them cloned, half not, nobody remembers where, and the ones
+you cloned last year sit in whatever directory you happened to be in at the
+time. Add a review and it is a browser tab for the diff, a terminal for the
+code, and a ritual of `fetch`, `checkout`, `stash` every time you switch.
 
-unagit collapses that into one list and one keystroke, and gives you the change
-the way your editor already knows how to show it.
+unagit is the navigator over that: one list of everything, a layout on disk
+that you decide instead of inherit, and one keystroke to be inside any of it.
 
 ## Install
 
@@ -55,7 +61,35 @@ with an empty array rather than an error, so your orgs simply would not show up.
 
 Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 
-## The part worth stealing: review worktrees
+## Navigating
+
+`R` lists every repository across every server and group you picked. `○ ● ◐ ◉`
+say what is on disk, and the path column says where - which matters once
+different groups live in different places.
+
+- `Ctrl-O` clones it if it is not there, fetches and fast-forwards it if it is,
+  then opens your editor in it.
+- `b` lists every branch in a searchable modal and switches it **in that same
+  clone**, so there is one working copy per repository, not a directory per
+  branch.
+- `m` jumps to that repository's merge requests, `w` opens it in the browser,
+  `d` deletes it from disk - after warning about uncommitted or unpushed work.
+- `/` fuzzy-finds, `C` hides everything you have not cloned, `x` hides a
+  repository you never want to see.
+
+**Where things land is yours to decide.** A repository is cloned under the
+first of: its group's own directory, its server's, the global default. So
+`acme/platform` can live in `~/work/platform` while everything else stays under
+`~/unagit`, and a subgroup can override its parent. It is one keystroke (`d`)
+in Settings, and it applies to everything cloned afterwards.
+
+```
+<root>/<group>/<repo>                        the clone you switch branches in
+<root>/<group>/<repo>.mrs/<iid>-<branch>     a branch worktree for one MR
+<root>/<group>/<repo>.reviews/<iid>-<branch> a review worktree for one MR
+```
+
+## Reviewing: the part worth stealing
 
 Press `Ctrl-R` on a merge request and unagit builds a worktree where
 
@@ -87,10 +121,11 @@ checkout instead, when you mean to commit and push.
 ## The rest of it
 
 - **One list, several servers.** Any number of GitLab instances plus GitHub,
-  each with its own token, refreshed in parallel.
+  each with its own token, refreshed in parallel. Groups are picked with a
+  granularity: a group's own repositories, or the whole tree below it.
 - **A worktree per merge request**, so three half-finished reviews can sit on
   disk at once without committing anything - and they cost a checkout, not a
-  clone.
+  clone, because they share the repository's object store.
 - **Detail column** on `Enter` that follows the cursor as you move, with
   everything the API knows: reviewers, approvals, pipeline, labels, commits,
   how far behind the target it is.
@@ -140,20 +175,13 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 On-disk markers: `○` nothing, `●` branch worktree, `◐` review worktree, `◉`
 both, `⊘` hidden.
 
-## Where things live
+## Where unagit keeps its own things
 
 ```
 ~/.config/unagit/config.yaml      written by the Settings tab
 ~/.config/unagit/tokens.enc       sealed with your passphrase
 ~/.config/unagit/index-*.json     the cached lists
 ~/.config/unagit/sessions/        what is open in an editor right now
-
-<root>/<group>/<repo>                        main clone, branch switching
-<root>/<group>/<repo>.mrs/<iid>-<branch>     branch worktree
-<root>/<group>/<repo>.reviews/<iid>-<branch> review worktree
 ```
-
-Each group, or each server, can have a root of its own - set it in Settings
-with `d`.
 
 Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.
