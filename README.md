@@ -1,10 +1,12 @@
 # unagit
 
-A TUI for people who review a lot of merge requests: list every project and
-open merge request across the groups you care about - on GitLab and GitHub at
-once - fuzzy find the one you want, and land in `nvim` inside a ready checkout.
+**Review merge requests without leaving the terminal.**
 
-Pull requests are merge requests here too; one word for one thing.
+Every project and every open merge request across GitLab *and* GitHub in one
+list. Fuzzy-find the one you want, press a key, and land in your editor inside
+a checkout where the entire change is already sitting there as pending edits.
+
+Pull requests are merge requests here too - one word for one thing.
 
 ```
  Repositories [R] │ Merge requests [M] │ Settings [S]
@@ -25,297 +27,131 @@ Pull requests are merge requests here too; one word for one thing.
  ? help · q quit
 ```
 
-## Setting it up
+## Why
+
+Reviewing a merge request usually means a browser tab for the diff, a terminal
+for the code, and a small ritual of `fetch`, `checkout`, `stash` every time you
+switch between two of them. And once you are on the branch, the change you came
+to read is spread over however many commits the author happened to make.
+
+unagit collapses that into one list and one keystroke, and gives you the change
+the way your editor already knows how to show it.
+
+## Install
 
 ```sh
 make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-There is nothing to edit by hand. On the first run unagit asks for a
-passphrase (it encrypts your tokens), then opens **Settings [S]**:
+Nothing to edit by hand. In **Settings [S]** you add servers (`a`), paste a
+token, pick the groups you work with (`space`) and say where they should be
+cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
+**and `read:org`** - without the latter GitHub answers the organisation listing
+with an empty array rather than an error, so your orgs simply would not show up.
+`v` checks a token against the server before you trust it.
 
-1. **GitLab servers** - press `a`, fill in a name, the URL and a personal
-   access token with the `api` scope. `v` checks the token against the server.
-   Add as many as you like; each keeps its own token.
-2. **GitHub accounts** - the same, without a URL: github.com is the only
-   address there is (GitHub Enterprise is not supported). A classic token
-   needs `repo` **and `read:org`** - without the latter GitHub answers the
-   organisation listing with an empty array rather than an error, so your
-   organisations simply would not appear. A fine-grained token has to be
-   approved by each organisation instead.
-   Both sections have a **Clone over** setting: `https` hands the token to git
-   through a one-shot credential helper, `ssh` uses your key and keeps the
-   token for the API alone. Changing it offers to repoint the repositories
-   already on disk.
-3. **Groups & roots** - press `r` to load the groups, then `space` on the ones
-   you work with. On GitLab `space` cycles *off → this group only → including
-   subgroups*; a GitHub organisation is simply on or off. `d` gives a group -
-   or a whole server - its own clone directory.
-4. Press `p` and `m` to build the project and merge request indexes.
+Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 
-## How it works
+## The part worth stealing: review worktrees
 
-* **Three tabs**, switched with `R`, `M` and `S`: *Repositories*, *Merge
-  requests*, *Settings*. Merge requests are listed across all selected groups - of every
-  server - and can be limited to a single project (`f`), on top of the fuzzy
-  filter. With more than one server configured, the lists gain a `SERVER`
-  column.
-* **Groups are picked with a granularity**: `space` in Settings cycles a group
-  between *off*, *this group only* (the projects sitting directly in it) and
-  *including subgroups* (the whole tree below it).
-* **Where things land is configurable per group.** A project is cloned under
-  the first of: its group's own directory, its server's, the global default.
-  A relative override is taken from the level above, an absolute one (or
-  `~/…`) replaces it - so `acme/platform` can live in `~/work/platform` while
-  everything else stays under `~/unagit`.
-* **A detail column** slides in on `Enter` and takes the focus, so `j`/`k`
-  scroll it. `Esc` goes back to the list, and from there the column **follows
-  the cursor**: move through the list and the detail catches up once you stop
-  (300 ms), without taking the focus. A closed column asks GitLab for nothing.
-  `Esc` again closes it.
-* Projects show visibility, statistics, languages, the latest pipeline, the
-  most recent commits and their open merge requests. Merge requests are
-  **always fetched fresh** from the API: author, reviewers, assignees, labels,
-  approvals, pipeline, merge status, description, commits and the newest
-  comments.
-* **Comments are markdown, and are shown as markdown** - bold is bold, lists
-  are lists, code is code. The detail column keeps the three newest; `c` opens
-  the whole conversation in its own view, where `i` writes a reply and `a`
-  approves.
-* **Repositories** are cloned once and reused. The list shows where each one
-  is on disk, which is worth seeing once a group or a server has a root of its
-  own. `Ctrl-O` fetches, fast-forwards and
-  starts the editor. `b` lists every branch in a searchable modal and switches
-  the branch **in that same clone**.
-* **Merge requests** get their own directory, so you can keep half-finished
-  notes and edits in several reviews at the same time without committing
-  anything. They are git worktrees of the project's main clone, which means they
-  cost a checkout, not a full clone. Each merge request can have two of them:
-  a **branch** worktree (`Ctrl-O`) and a **review** worktree (`Ctrl-R`) - see
-  below.
-* **Indexes are explicit.** Project and merge request lists are cached as JSON
-  in the config directory and only refreshed when you ask (`r`, or `p` / `m`
-  in settings). Startup is instant and nothing hits the API behind your back.
-* **Merge requests can be grouped by project** (`Ctrl-G`): each project gets a
-  heading with how many it has, and the merge requests inside keep the shared
-  order. The `COM` column counts the comments - GitLab reports that on the
-  listing, GitHub only on a single merge request.
-* **Three filters, shared by both lists**, reachable and changeable from
-  either: *cloned only* (`C`), *hidden projects* (`x` on a row, `X` for the
-  list) and the *order* (`o`, by activity or by name). Hiding a project takes
-  its merge requests with it, and the header under each list says what is
-  being left out. They are remembered in the configuration.
-* **Refreshing fans out.** Every selected group is asked in parallel, a few at
-  a time, across all servers at once. GitHub has no group wide merge request
-  listing, so each of its repositories is asked separately - also in parallel.
-  The first failure stops the rest rather than leaving half an index behind.
-
-Layout under the configured root directory:
+Press `Ctrl-R` on a merge request and unagit builds a worktree where
 
 ```
-<root>/<group>/<project>                           main clone, branch switching
-<root>/<group>/<project>.mrs/<iid>-<branch>        branch worktree per merge request
-<root>/<group>/<project>.reviews/<iid>-<branch>    review worktree per merge request
+HEAD = the merge base     index = the merge base     files = the merge request
 ```
 
-## Following it into another terminal
-
-Opening an editor does not end unagit: it suspends the interface and waits for
-the editor to exit, so for exactly as long as something is open it knows where.
-It writes that down in its configuration directory, one file per running
-process, and another terminal can follow it:
+so the whole merge request reads as **one pending, unstaged change**:
 
 ```sh
-unagit cd          # asks which, when more than one is open
-unagit cd calling  # a search narrows it; one match needs no asking
-unagit sessions    # what is open, for scripts
+git diff        # the entire merge request, as a single diff
+git status      # every file it touches, additions and deletions included
 ```
 
-`unagit cd` starts a shell there and leaving it puts you back where you were,
-the way `chezmoi cd` does: a process cannot change the directory of the shell
-that started it, so it is a shell of its own. `$SHELL` is what runs, with
-`OLDPWD` set so `cd -` goes back and `UNAGIT_CD` naming the merge request for
-a prompt to pick up.
+Unstaged is the point. Editors draw their gutter by comparing the file against
+the index, so the index has to be the merge base - then gitsigns, gitgutter,
+`]c`, `:Gvdiffsplit` and `:DiffviewOpen` all work on the merge request as a
+whole, with nothing to configure. Files the merge request adds go in as
+intent-to-add, so they read as new files instead of vanishing into untracked.
 
-To change the current shell's directory instead, `--print` writes the path and
-nothing else:
+The base is the one GitLab itself diffs against (`diff_refs.base_sha`), not the
+tip of the target branch - otherwise a target that moved on would show its own
+commits backwards in your diff.
+
+Notes you type into the files survive reopening, and a force push on the other
+side is picked up on the next open. `Ctrl-O` gives you the ordinary branch
+checkout instead, when you mean to commit and push.
+
+## The rest of it
+
+- **One list, several servers.** Any number of GitLab instances plus GitHub,
+  each with its own token, refreshed in parallel.
+- **A worktree per merge request**, so three half-finished reviews can sit on
+  disk at once without committing anything - and they cost a checkout, not a
+  clone.
+- **Detail column** on `Enter` that follows the cursor as you move, with
+  everything the API knows: reviewers, approvals, pipeline, labels, commits,
+  how far behind the target it is.
+- **Comments as markdown**, threaded the way they were written. `c` opens the
+  conversation, `i` replies, `a` approves (it asks first - everyone sees it).
+- **Filters that stick**: cloned-only, hidden repositories, sort order, group
+  by repository, plus a fuzzy filter on everything.
+- **Instant startup.** The lists are cached on disk and only refreshed when you
+  ask; nothing hits the API behind your back.
+- **Your tokens are encrypted** with Argon2id + AES-256-GCM and exist in
+  plaintext only in memory, for as long as unagit runs. The passphrase is asked
+  for in a dialog on every start and is never read from a flag, an environment
+  variable or a pipe. git gets the token through a one-shot credential helper,
+  so it never reaches `.git/config` or a remote URL - or you can clone over SSH
+  and keep the token for the API alone.
+
+## Follow it into another terminal
+
+Opening an editor does not end unagit: it suspends itself and waits, so for as
+long as something is open it knows where. Another window can go there:
 
 ```sh
-ug() { cd "$(unagit cd --print "$@")" || return; }
+unagit cd            # asks which, when more than one is open
+unagit cd calling    # a search narrows it; one match needs no asking
+unagit sessions      # what is open, for scripts
 ```
 
-The chooser draws on the terminal itself, not on standard output, which is what
-leaves `--print` usable in a command substitution. Records whose process is
-gone are swept up on the next read, so a crash leaves nothing behind.
-
-## Reading and answering
-
-`c` on a merge request opens the conversation with the markdown rendered.
-Comments are grouped into the threads they belong to - replies indented under
-what they answer, marked with `↳` - and the threads run oldest first. On
-GitLab that comes from the discussions endpoint, on GitHub from a review
-comment's `in_reply_to_id`. From there `i` writes a comment (`Ctrl-S` sends it) and `a`
-approves - approving asks for confirmation first, because everyone on the
-merge request sees it. Both work straight from the list too.
-
-## Reviewing a merge request
-
-A branch worktree (`Ctrl-O`) is an ordinary checkout of the merge request
-branch: real commits, and you can commit and push. The catch when reviewing is
-that everything is already committed, so a diff view has nothing pending to
-show you, and the change is spread over however many commits the author made.
-
-A review worktree (`Ctrl-R`) turns that around. `HEAD` and the index sit on the
-commit the merge request branched from, while the working tree holds the merge
-request head. The whole change is therefore **pending and unstaged**, exactly
-as if you had just typed it:
-
-```sh
-git diff                 # the entire merge request, as one diff
-git status               # every file it touches, including additions and deletions
-```
-
-Unstaged is the part that matters: an editor draws its gutter by comparing the
-file against the **index**, so the index has to be the merge base. Files the
-merge request adds are entered as intent-to-add, which is what keeps them in
-`git diff` instead of leaving them untracked and invisible.
-
-Gutter signs (gitsigns, gitgutter), `]c`, `:Gvdiffsplit`, `:DiffviewOpen` -
-anything that works on uncommitted changes now works on the merge request as a
-whole, with nothing to configure. Your own edits on top survive reopening it
-(they are what the working tree adds on top of the merge request head), and a
-rebase or a force push on the other side is picked up on the next open.
-
-The base is the one GitLab itself uses (`diff_refs.base_sha`, the merge base),
-not the tip of the target branch - otherwise a target that has moved on would
-show its own commits backwards in your diff. GitHub does not publish a merge
-base, so there unagit works it out from the repository.
-
-Both kinds of worktree record what they are in their own git configuration, so
-an editor can pick it up:
-
-```sh
-git config unagit.mr.base    # the commit GitLab diffs against
-git config unagit.mr.head    # the merge request head
-git config unagit.mr.iid     # …and .project, .source, .target, .url, .mode
-```
-
-In a branch worktree that is what you need for the same view over the commits:
-
-```vim
-:DiffviewOpen <C-r>=system('git config unagit.mr.base')<CR>...HEAD
-```
-
-## The token
-
-The GitLab token is stored **encrypted** in `~/.config/unagit/token.enc`:
-Argon2id derives a key from a passphrase, AES-256-GCM seals the token. The
-passphrase is asked for in a dialog inside the TUI on every start — so it looks
-the same whether you run unagit from a shell or from inside nvim — and the
-decrypted token only ever lives in process memory.
-
-During `unagit init` the token and the passphrase are read straight from
-`/dev/tty` with echo off. Neither can be supplied through arguments,
-environment variables or a pipe, so nothing that inspects your shell history,
-your process list or your files can pick them up.
-
-Git also never sees the token on disk: HTTPS pushes and fetches are
-authenticated by a one-shot credential helper that reads it from the
-environment of that single git process. Your `.git/config` stays clean, and
-the remote URL contains no credentials (there is a test that enforces this).
-The flip side is that a `git pull` you run yourself, outside unagit, will ask
-for credentials — set up a credential helper of your own or use SSH remotes if
-you want that.
-
-## Requirements
-
-Go 1.24+, `git`, and a token per server: `api` scope on GitLab, `repo` scope
-on GitHub.
+`unagit cd` starts a shell in that directory and leaving it puts you back,
+the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
+`ug() { cd "$(unagit cd --print "$@")" || return; }`.
 
 ## Keys
 
-| Key | Action |
+| Key | |
 | --- | --- |
-| `R` `M` `S` | switch to Repositories / Merge requests / Settings |
-| `/` | filter mode (fuzzy, space separated terms) |
-| `Esc` | leave filter mode; again clears it; again closes the detail column |
-| `j` `k` `g` `G` | move |
-| `Enter` | load the detail column and jump into it |
+| `R` `M` `S` | Repositories · Merge requests · Settings |
+| `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
+| `Enter` | detail column, and jump into it |
 | `Ctrl-O` | clone or update, then open the editor |
-| `Ctrl-R` | open a merge request for review: the change as pending edits |
-| `c` | read the whole conversation, and write a comment |
-| `a` | approve the merge request (it asks first) |
-| `h` `l` `←` `→` | move between the list and the detail column |
-| `b` | pick a branch in a modal (projects only) |
-| `m` | merge requests of the selected project |
-| `f` / `F` | limit merge requests to a project / clear that limit |
-| `d` | delete from disk, with a warning about uncommitted or unpushed work |
-| `w` | open in the browser |
-| `r` | refresh the current index from GitLab (groups in Settings) |
-| `C` | show only the projects you have cloned |
-| `x` | hide the project under the cursor, or bring it back |
-| `X` | manage the hidden projects |
-| `o` | order: by activity, or by name |
-| `Ctrl-G` | gather the merge requests under their project |
-| `?` | help |
-| `q` | quit |
+| `Ctrl-R` | open a merge request for review - the change as pending edits |
+| `c` `a` | read and write comments · approve |
+| `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
+| `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group by repo |
+| `d` `w` `r` | delete from disk · open in the browser · refresh |
+| `?` `q` | help · quit |
 
-Inside any modal the same two-stage `Esc` applies: the first one leaves the
-filter input so `j`/`k` move the selection, the second one closes the modal.
-Modals darken the interface behind them rather than hiding it, so you keep the
-context you opened them from.
+On-disk markers: `○` nothing, `●` branch worktree, `◐` review worktree, `◉`
+both, `⊘` hidden.
 
-On-disk markers: `○` nothing, `●` a branch worktree, `◐` a review worktree,
-`◉` both. `⊘` marks a project hidden from the lists.
+## Where things live
 
-Merge request heads are fetched from `refs/merge-requests/<n>/head` on GitLab
-and `refs/pull/<n>/head` on GitHub; everything downstream of that is the same.
+```
+~/.config/unagit/config.yaml      written by the Settings tab
+~/.config/unagit/tokens.enc       sealed with your passphrase
+~/.config/unagit/index-*.json     the cached lists
+~/.config/unagit/sessions/        what is open in an editor right now
 
-The detail column also reports the size of a merge request - how many commits
-it adds on top of its target, how many files it touches, and how far behind
-the target it has fallen.
-
-## Configuration
-
-Everything below is written by the Settings tab; it is documented because it
-is your data, not because you have to touch it.
-`~/.config/unagit/config.yaml` (override the directory with `UNAGIT_CONFIG_DIR`
-or `XDG_CONFIG_HOME`):
-
-```yaml
-root_dir: ~/unagit          # the default; everything else is an override
-editor: nvim
-editor_args: ["."]
-instances:
-  - id: gitlab-example-com  # stable key: ties the token and the caches to it
-    kind: gitlab
-    name: Work
-    url: https://gitlab.example.com
-    root_dir: ~/work        # optional, for this server
-    groups:
-      - id: 42
-        full_path: acme/platform
-        name: platform
-        scope: subgroups    # or "group" for this group's own projects only
-        root_dir: platform  # optional; relative to ~/work here
-  - id: github-com
-    kind: github
-    name: Personal
-    url: https://github.com
-    groups:
-      - id: 10
-        full_path: widgets  # an organisation, or your own account
-        scope: group
+<root>/<group>/<repo>                        main clone, branch switching
+<root>/<group>/<repo>.mrs/<iid>-<branch>     branch worktree
+<root>/<group>/<repo>.reviews/<iid>-<branch> review worktree
 ```
 
-Alongside it live `tokens.enc` and the `index-*.json` caches.
+Each group, or each server, can have a root of its own - set it in Settings
+with `d`.
 
-## Commands
-
-| Command | Purpose |
-| --- | --- |
-| `unagit` | start the TUI - everything is configured inside it |
-| `unagit cd [search]` | open a shell in the directory of what is open in an editor (`--print` writes the path instead) |
-| `unagit sessions` | list what is open in an editor |
-| `unagit where` | print the config, vault and index paths |
+Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.
