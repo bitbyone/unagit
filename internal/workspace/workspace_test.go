@@ -394,3 +394,29 @@ func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
 		t.Errorf("missing project: %q %v", changed, err)
 	}
 }
+
+func TestCloneProjectLeavesExistingCheckoutAlone(t *testing.T) {
+	m, _, p := newManager(t, newOrigin(t))
+	dir, err := m.CloneProject(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "checkout", "-b", "local-work")
+	dirty := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(dirty, []byte("local edits\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// An unreachable remote proves repeating clone does not fetch or pull.
+	git(t, dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing.git"))
+	again, err := m.CloneProject(p)
+	if err != nil || again != dir {
+		t.Fatalf("repeat clone: %q, %v", again, err)
+	}
+	if branch := git(t, dir, "branch", "--show-current"); branch != "local-work" {
+		t.Fatalf("branch changed to %q", branch)
+	}
+	data, err := os.ReadFile(dirty)
+	if err != nil || string(data) != "local edits\n" {
+		t.Fatalf("local edits changed: %q, %v", data, err)
+	}
+}

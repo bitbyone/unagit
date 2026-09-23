@@ -66,6 +66,7 @@ Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
+- `Ctrl-C` clones it to disk without opening the editor.
 - `Ctrl-O` clones it if it is not there, fetches and fast-forwards it if it is,
   then opens your editor in it.
 - `b` lists every branch in a searchable modal and switches it **in that same
@@ -182,6 +183,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `R` `M` `S` | Repositories · Merge requests · Settings |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
+| `Ctrl-C` | in Repositories: clone to disk without opening the editor |
 | `Ctrl-O` | clone or update, then open the editor |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
 | `c` `a` | read and write comments · approve |

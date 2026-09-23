@@ -271,3 +271,11 @@ func (a *App) openProject(pr forge.Project) {
 		return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureProject(pr)
 	})
 }
+
+// cloneProject keeps the task's directory empty so completion returns to the list.
+func (a *App) cloneProject(pr forge.Project) {
+	a.runTask("Cloning "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+		_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
+		return "", err
+	})
+}

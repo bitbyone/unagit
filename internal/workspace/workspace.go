@@ -184,15 +184,9 @@ func hostOf(raw string) string {
 func (m *Manager) EnsureProject(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
 	if !Exists(dir) {
-		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-			return "", err
-		}
-		m.log("Cloning %s", p.PathWithNamespace)
-		if err := m.git.Clone(m.RemoteURL(p), dir); err != nil {
-			return "", err
-		}
-		return dir, nil
+		return m.CloneProject(p)
 	}
+
 	m.log("Updating %s", p.PathWithNamespace)
 	if err := m.git.Fetch(dir); err != nil {
 		return dir, err
@@ -203,6 +197,11 @@ func (m *Manager) EnsureProject(p forge.Project) (string, error) {
 // ensureMain makes sure the main clone exists; it is the object store every
 // merge request worktree hangs off.
 func (m *Manager) ensureMain(p forge.Project) (string, error) {
+	return m.CloneProject(p)
+}
+
+// CloneProject leaves an existing checkout alone, including its branch and edits.
+func (m *Manager) CloneProject(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
 	if Exists(dir) {
 		return dir, nil
@@ -210,7 +209,7 @@ func (m *Manager) ensureMain(p forge.Project) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return "", err
 	}
-	m.log("Cloning %s (base clone for merge request worktrees)", p.PathWithNamespace)
+	m.log("Cloning %s", p.PathWithNamespace)
 	return dir, m.git.Clone(m.RemoteURL(p), dir)
 }
 

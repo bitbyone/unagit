@@ -242,6 +242,13 @@ func (a *App) selectedGroups() []config.Group {
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 	if ev.Key() == tcell.KeyCtrlC {
+		if a.currentTab() == pageProjects && !a.modalOpen() {
+			idx := a.projectsPane.selectedIndex()
+			if idx >= 0 && idx < len(a.projects) {
+				a.cloneProject(a.projects[idx])
+			}
+			return nil
+		}
 		a.tv.Stop()
 		return nil
 	}

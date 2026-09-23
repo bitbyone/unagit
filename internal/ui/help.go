@@ -64,6 +64,7 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Repositories"),
+		key("Ctrl-C", "clone to disk without opening the editor"),
 		key("b", "pick a branch and switch the main clone to it"),
 		key("m", "show only the merge requests of this repository"),
 		note("The PATH column is where a repository is cloned, which is worth " +
