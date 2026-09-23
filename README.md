@@ -88,18 +88,26 @@ in Settings, and it applies to everything cloned afterwards.
 <root>/<group>/<repo>.reviews/<iid>-<branch> a review worktree for one MR
 ```
 
-## Reviewing: the part worth stealing
+## Integrations
 
-**Settings → Integrations → Incomm** imports inline merge request
-comments before opening the review editor. Press `e` on its card to enable or
-disable it, and `c` to check installation. The toggle is available when
-`incomm` is on PATH. Comments are written through its CLI into the review
-worktree, with the reviewer name and source MR link; unchanged comments are
-not duplicated on reopening. Replies inherit their thread's file location.
-General comments without a file location are skipped. Comments on deleted
-lines, missing files or lines beyond the current file become orphaned comments
-visible in Incomm’s explorer;
-an import failure stops editor startup and is shown in the task log.
+Configure integrations in **Settings → Integrations**. Each integration has
+its own card: press `e` to enable or disable it and `c` to check installation.
+
+### [Incomm](https://github.com/bitbyone/incomm)
+
+Incomm displays merge request comments in your editor. Install `incomm` on
+PATH, then enable its integration. When you open a review with `Ctrl-R`,
+unagit imports comments before starting the editor.
+
+Imported comments keep the reviewer name and a link to the merge request.
+Replies use their thread's file location, and unchanged comments are not
+duplicated when you reopen the review. General comments without a file
+location are skipped. Comments on deleted lines or missing files are marked
+as orphaned and remain visible in Incomm's explorer.
+
+If the import fails, unagit shows the error before opening the editor.
+
+## Reviewing merge requests
 
 Press `Ctrl-R` on a merge request and unagit builds a worktree where
 
