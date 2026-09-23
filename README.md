@@ -1,5 +1,7 @@
 # unagit
 
+<img src="docs/unagit.png" alt="UNAGIT" width="520">
+
 **Review merge requests without leaving the terminal.**
 
 Every project and every open merge request across GitLab *and* GitHub in one
