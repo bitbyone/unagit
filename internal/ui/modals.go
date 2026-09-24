@@ -83,6 +83,17 @@ type pickItem struct {
 // Like the main lists it has two modes: typing filters, Esc leaves the input so
 // j/k drive the selection, and a second Esc closes the modal.
 func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)) {
+	a.showPickerActions(title, items, onSelect, nil, nil)
+}
+
+// showPickerActions is showPicker with two extra, optional keys available
+// while browsing (not filtering): 'n' calls onNew instead of picking
+// anything, and 'd' calls onDelete with the highlighted item instead of
+// onSelect. Both dismiss the picker first, the same order choose() uses, so
+// whatever dialog they open lands cleanly on the page underneath. Either may
+// be nil, in which case its key does nothing - the callers that only need a
+// plain choice list are unaffected.
+func (a *App) showPickerActions(title string, items []pickItem, onSelect func(pickItem), onNew func(), onDelete func(pickItem)) {
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
 	list.SetMainTextColor(colText)
@@ -141,8 +152,14 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 			a.tv.SetFocus(input)
 			return
 		}
-		footer.SetText(" " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) +
-			"   j/k move · / filter · Enter select · Esc close" + tagEnd)
+		hint := "   j/k move · / filter · Enter select"
+		if onNew != nil {
+			hint += " · n new"
+		}
+		if onDelete != nil {
+			hint += " · d delete"
+		}
+		footer.SetText(" " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + " · Esc close" + tagEnd)
 		a.tv.SetFocus(list)
 	}
 
@@ -203,6 +220,21 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 				return nil
 			case 'q':
 				dismiss()
+				return nil
+			case 'n':
+				if onNew != nil {
+					dismiss()
+					onNew()
+				}
+				return nil
+			case 'd':
+				if onDelete != nil {
+					if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+						it := shown[i]
+						dismiss()
+						onDelete(it)
+					}
+				}
 				return nil
 			}
 			// Runes are shortcuts in tview's List; nothing here uses them.

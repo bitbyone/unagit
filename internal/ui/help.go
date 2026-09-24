@@ -163,8 +163,12 @@ func helpRows() []helpLine {
 		key("Ctrl-C", "clone to disk without opening the editor"),
 		key("e", "set the exact clone directory of an uncloned repository"),
 		key("b", "pick a branch and switch the main clone to it"),
+		key("Ctrl-W", "pick a branch - or 'n' for a new one - and open it in its own worktree"),
 		key("m", "show only the merge requests of this repository"),
 		note("PATH shows the clone destination; dim paths are planned, not yet cloned."),
+		note("d deletes the bare clone directly; with any worktree on top it opens a " +
+			"list instead, so a single merge request or branch worktree can go on its " +
+			"own, or the [main clone] entry for everything at once."),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),
@@ -239,11 +243,12 @@ func helpRows() []helpLine {
 		key("⊘", "hidden from the lists"),
 		note("<root>/<group>/<repo> is the main clone, where branch switching " +
 			"happens. .unagit/<repo>/<iid>-<branch> is a branch worktree and " +
-			".unagit/<repo>/review-<iid>-<branch> a review one. They share the main " +
-			"clone's objects, so uncommitted changes survive switching between " +
-			"merge requests. <root> comes from Settings, unless the server or the " +
-			"group overrides it. The Repositories tab shows it in the PATH " +
-			"column."),
+			".unagit/<repo>/review-<iid>-<branch> a review one; .unagit/<repo>/wt-<branch> " +
+			"is a worktree for a plain branch, opened with Ctrl-W and counted in the " +
+			"Repositories tab's WT column. They all share the main clone's objects, so " +
+			"uncommitted changes survive switching between them. <root> comes from " +
+			"Settings, unless the server or the group overrides it. The Repositories " +
+			"tab shows it in the PATH column."),
 	}
 	var scope helpContext
 	for i := range rows {

@@ -68,6 +68,14 @@ func (a *App) newProjectsPane() *pane {
 		if shared(ev) {
 			return nil
 		}
+		// Ctrl-W opens a worktree for a branch of its own; w (below) is
+		// already taken by "open in the browser".
+		if ev.Key() == tcell.KeyCtrlW {
+			if pr, ok := selected(); ok {
+				a.showWorktreePicker(pr)
+			}
+			return nil
+		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
@@ -91,7 +99,7 @@ func (a *App) newProjectsPane() *pane {
 			return nil
 		case 'd':
 			if pr, ok := selected(); ok {
-				a.confirmDeleteProject(pr)
+				a.manageWorktrees(pr)
 			}
 			return nil
 		case 'w':
@@ -175,10 +183,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	const (
 		markW   = 2
 		mrW     = 2
-		gaps    = 5
+		wtW     = 2
+		gaps    = 6
 		minName = 20
 	)
-	fixed := markW + branchW + pathW + mrW + actW + gaps
+	fixed := markW + branchW + pathW + mrW + wtW + actW + gaps
 	if withServer {
 		fixed += serverW + 1
 	}
@@ -213,6 +222,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 	header = append(header,
 		field{text: "MR", width: mrW, colour: colDim, right: true},
+		field{text: "WT", width: wtW, colour: colDim, right: true},
 		field{text: "ACTIVITY", width: actW, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
@@ -240,6 +250,10 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if n := len(info.MRs); n > 0 {
 			mrCount = fmt.Sprintf("%d", n)
 		}
+		wtCount := ""
+		if info.Worktrees > 0 {
+			wtCount = fmt.Sprintf("%d", info.Worktrees)
+		}
 
 		fields := []field{{raw: tag(markColour) + mark + tagEnd}}
 		if withServer {
@@ -253,6 +267,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		fields = append(fields,
 			field{text: mrCount, width: mrW, colour: colWarn, right: true},
+			field{text: wtCount, width: wtW, colour: colWarn, right: true},
 			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).

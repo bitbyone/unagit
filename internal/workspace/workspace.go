@@ -3,12 +3,13 @@
 //
 // Layout:
 //
-//	<root>/<group>/<project>            main clone, branch switching happens here
-//	<root>/<group>/.unagit/<project>/<iid>-<branch>   git worktree per merge request
+//	<root>/<group>/<project>                        main clone, branch switching happens here
+//	<root>/<group>/.unagit/<project>/<iid>-<branch>  git worktree per merge request
+//	<root>/<group>/.unagit/<project>/wt-<branch>     git worktree for a plain branch
 //
-// Worktrees share the main clone's object store, so a merge request checkout is
-// cheap, yet each one has its own independent working tree - uncommitted
-// changes survive switching between them.
+// Worktrees share the main clone's object store, so a checkout is cheap, yet
+// each one has its own independent working tree - uncommitted changes survive
+// switching between them.
 package workspace
 
 import (
@@ -18,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/tobola/unagit/internal/config"
@@ -140,6 +142,16 @@ func (m *Manager) ReviewDir(projectPath string, iid int, sourceBranch string) st
 	}
 	return filepath.Join(m.ReviewRoot(projectPath), "review-"+mrDirName(iid, sourceBranch))
 }
+
+// WorktreeDir is the worktree directory of a plain branch checkout, not tied
+// to any merge request. It shares the merge request worktree root, with a
+// "wt-" prefix that keeps it from ever colliding with an <iid>-<branch> or
+// review-<iid>-<branch> name.
+func (m *Manager) WorktreeDir(projectPath, branch string) string {
+	return filepath.Join(m.MRRoot(projectPath), worktreeDirName(branch))
+}
+
+func worktreeDirName(branch string) string { return "wt-" + Sanitize(branch) }
 
 // WorktreeRoot stays beside the clone, including when its destination is overridden.
 func WorktreeRoot(projectDir string) string {
@@ -346,12 +358,64 @@ func (m *Manager) recordBranchMeta(dir, projectPath string, mr forge.MergeReques
 }
 
 func (m *Manager) addWorktree(mainDir, wtDir, branch string) error {
+	return m.addWorktreeFrom(mainDir, wtDir, branch, "FETCH_HEAD")
+}
+
+// addWorktreeFrom creates branch at startPoint when it does not already
+// exist locally, then checks it out into its own worktree directory.
+func (m *Manager) addWorktreeFrom(mainDir, wtDir, branch, startPoint string) error {
 	if !m.git.LocalBranchExists(mainDir, branch) {
-		if err := m.git.CreateBranch(mainDir, branch, "FETCH_HEAD"); err != nil {
+		if err := m.git.CreateBranch(mainDir, branch, startPoint); err != nil {
 			return err
 		}
 	}
 	return m.git.WorktreeAdd(mainDir, wtDir, branch)
+}
+
+// EnsureWorktree prepares a worktree for a plain branch - not tied to any
+// merge request - and returns its directory. A new branch is created from
+// the main clone's current HEAD; an existing one is checked out from the
+// local branch if there is one, from origin otherwise.
+func (m *Manager) EnsureWorktree(p forge.Project, branch string, isNew bool) (string, error) {
+	projectPath := p.PathWithNamespace
+	mainDir, err := m.ensureMain(p)
+	if err != nil {
+		return "", err
+	}
+	wtDir := m.WorktreeDir(projectPath, branch)
+
+	if Exists(wtDir) {
+		m.log("Updating worktree for %s", branch)
+		if err := m.git.Fetch(wtDir); err != nil {
+			m.log("! fetch failed, opening the worktree as it is")
+			return wtDir, nil
+		}
+		return wtDir, m.pullIfClean(wtDir)
+	}
+
+	m.log("Creating worktree for %s", branch)
+	m.git.WorktreePrune(mainDir)
+	if err := os.MkdirAll(filepath.Dir(wtDir), 0o755); err != nil {
+		return "", err
+	}
+
+	switch {
+	case isNew:
+		if err := m.addWorktreeFrom(mainDir, wtDir, branch, "HEAD"); err != nil {
+			return "", err
+		}
+	case m.git.LocalBranchExists(mainDir, branch):
+		if err := m.git.WorktreeAdd(mainDir, wtDir, branch); err != nil {
+			return "", err
+		}
+	default:
+		_ = m.git.FetchRefspec(mainDir, branch)
+		if err := m.addWorktreeFrom(mainDir, wtDir, branch, "origin/"+branch); err != nil {
+			return "", err
+		}
+		_ = m.git.SetUpstream(wtDir, branch, branch)
+	}
+	return wtDir, nil
 }
 
 // SwitchBranch checks a branch out in the main clone of a project, cloning it
@@ -466,29 +530,130 @@ func (m *Manager) RemoveProject(projectPath string) error {
 // RemoveMR deletes the worktrees of a merge request - both the branch one and
 // the review one, whichever exist.
 func (m *Manager) RemoveMR(projectPath string, iid int, sourceBranch string) error {
-	mainDir := m.ProjectDir(projectPath)
 	for _, wtDir := range []string{
 		m.MRDir(projectPath, iid, sourceBranch),
 		m.ReviewDir(projectPath, iid, sourceBranch),
 	} {
-		if _, err := os.Stat(wtDir); err != nil {
-			continue
-		}
-		m.log("Removing %s", wtDir)
-		if Exists(mainDir) {
-			if err := m.git.WorktreeRemove(mainDir, wtDir, true); err != nil {
-				m.log("! worktree remove failed, deleting the directory directly")
-			}
-		}
-		if err := os.RemoveAll(wtDir); err != nil {
+		if err := m.RemoveWorktreeDir(projectPath, wtDir); err != nil {
 			return err
 		}
-		m.pruneEmptyParents(filepath.Dir(wtDir))
 	}
+	return nil
+}
+
+// RemoveWorktreeDir detaches and deletes a single worktree directory,
+// whatever kind of worktree it is. It is a no-op when dir does not exist.
+func (m *Manager) RemoveWorktreeDir(projectPath, dir string) error {
+	if _, err := os.Stat(dir); err != nil {
+		return nil
+	}
+	mainDir := m.ProjectDir(projectPath)
+	m.log("Removing %s", dir)
+	if Exists(mainDir) {
+		if err := m.git.WorktreeRemove(mainDir, dir, true); err != nil {
+			m.log("! worktree remove failed, deleting the directory directly")
+		}
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	m.pruneEmptyParents(filepath.Dir(dir))
 	if Exists(mainDir) {
 		m.git.WorktreePrune(mainDir)
 	}
 	return nil
+}
+
+// WorktreeEntry is one thing hanging off a project's main clone that can be
+// deleted on its own: a merge request's worktree(s), grouped under its IID,
+// or a plain branch worktree.
+type WorktreeEntry struct {
+	Label string   // "!42 fix-bug" for a merge request, the branch name otherwise
+	Kind  string   // "merge request" or "branch"
+	Dirs  []string // every directory this entry removes
+}
+
+// WorktreeEntries lists every worktree hanging off a project's main clone,
+// merge request ones grouped by IID and plain branch ones on their own. It
+// reads each entry's branch name straight from git, so it works even for a
+// merge request no longer in the open-MR index.
+func (m *Manager) WorktreeEntries(projectPath string) []WorktreeEntry {
+	type group struct{ branch, review string }
+	groups := map[int]*group{}
+	var order []int
+	groupFor := func(iid int) *group {
+		g, ok := groups[iid]
+		if !ok {
+			g = &group{}
+			groups[iid] = g
+			order = append(order, iid)
+		}
+		return g
+	}
+
+	var plain []WorktreeEntry
+	for _, root := range m.WorktreeRoots(projectPath) {
+		entries, _ := os.ReadDir(root)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			dir := filepath.Join(root, e.Name())
+			if !Exists(dir) {
+				continue
+			}
+			name := e.Name()
+			switch {
+			case strings.HasPrefix(name, "wt-"):
+				branch := m.git.CurrentBranch(dir)
+				if branch == "" {
+					branch = strings.TrimPrefix(name, "wt-")
+				}
+				plain = append(plain, WorktreeEntry{Label: branch, Kind: "branch", Dirs: []string{dir}})
+			case strings.HasPrefix(name, "review-"):
+				if iid := leadingIID(strings.TrimPrefix(name, "review-")); iid > 0 {
+					groupFor(iid).review = dir
+				}
+			default:
+				if iid := leadingIID(name); iid > 0 {
+					groupFor(iid).branch = dir
+				}
+			}
+		}
+	}
+
+	out := make([]WorktreeEntry, 0, len(order)+len(plain))
+	for _, iid := range order {
+		g := groups[iid]
+		dir := g.branch
+		if dir == "" {
+			dir = g.review
+		}
+		label := fmt.Sprintf("!%d", iid)
+		if branch := m.git.CurrentBranch(dir); branch != "" {
+			label += " " + branch
+		}
+		var dirs []string
+		if g.branch != "" {
+			dirs = append(dirs, g.branch)
+		}
+		if g.review != "" {
+			dirs = append(dirs, g.review)
+		}
+		out = append(out, WorktreeEntry{Label: label, Kind: "merge request", Dirs: dirs})
+	}
+	return append(out, plain...)
+}
+
+// leadingIID parses the merge request number a worktree directory name
+// starts with, or 0 when there is none.
+func leadingIID(name string) int {
+	num, _, _ := strings.Cut(name, "-")
+	iid, err := strconv.Atoi(num)
+	if err != nil {
+		return 0
+	}
+	return iid
 }
 
 // pruneEmptyParents removes empty directories up to (but not including) the root.

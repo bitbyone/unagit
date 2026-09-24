@@ -48,9 +48,10 @@ type mrDisk struct {
 
 // diskInfo is the cached on-disk state of one project.
 type diskInfo struct {
-	Cloned bool
-	Branch string
-	MRs    map[int]mrDisk
+	Cloned    bool
+	Branch    string
+	MRs       map[int]mrDisk
+	Worktrees int // plain branch worktrees, not tied to any merge request
 }
 
 // projectKey identifies a project across instances: two servers can host the
@@ -811,6 +812,10 @@ func (a *App) refreshDisk() {
 					continue
 				}
 				name := e.Name()
+				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "wt-") {
+					info.Worktrees++
+					continue
+				}
 				review := root == dir+".reviews"
 				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "review-") {
 					review = true
@@ -831,7 +836,7 @@ func (a *App) refreshDisk() {
 			}
 		}
 
-		if info.Cloned || len(info.MRs) > 0 {
+		if info.Cloned || len(info.MRs) > 0 || info.Worktrees > 0 {
 			disk[key] = info
 		}
 	}

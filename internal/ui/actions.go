@@ -7,9 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rivo/tview"
+
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/workspace"
 )
 
 // confirmDeleteProject asks before removing a main clone and every merge
@@ -61,6 +64,146 @@ func (a *App) confirmDeleteMR(mr forge.MergeRequest) {
 			return "", a.newManager(mr.Instance, path, log).RemoveMR(path, mr.IID, mr.SourceBranch)
 		})
 	})
+}
+
+// manageWorktrees deletes a project from disk. A bare clone with nothing else
+// hanging off it goes straight through the usual confirmation; one with
+// merge request or branch worktrees gets a navigable list first, so any one
+// of them - or everything at once - can be removed on its own.
+func (a *App) manageWorktrees(pr forge.Project) {
+	path := pr.PathWithNamespace
+	entries := a.newManager(pr.Instance, path, nil).WorktreeEntries(path)
+	if len(entries) == 0 {
+		a.confirmDeleteProject(pr)
+		return
+	}
+
+	items := []pickItem{{Label: "[main clone] " + path,
+		Sub: "deletes everything below, including every worktree"}}
+	for _, e := range entries {
+		items = append(items, pickItem{Label: e.Label, Sub: e.Kind, Data: e})
+	}
+	act := func(it pickItem) {
+		if it.Data == nil {
+			a.confirmDeleteProject(pr)
+			return
+		}
+		a.confirmDeleteWorktreeEntry(pr, it.Data.(workspace.WorktreeEntry))
+	}
+	a.showPickerActions("Worktrees - "+path, items, act, nil, act)
+}
+
+// confirmDeleteWorktreeEntry asks before removing a single worktree found by
+// manageWorktrees, leaving the main clone and every other worktree alone.
+func (a *App) confirmDeleteWorktreeEntry(pr forge.Project, e workspace.WorktreeEntry) {
+	ws := a.newManager(pr.Instance, pr.PathWithNamespace, nil)
+	var warnings []string
+	for _, dir := range e.Dirs {
+		warnings = append(warnings, ws.InspectDir(dir).Warnings...)
+	}
+	body := fmt.Sprintf("Delete the %s worktree [::b]%s[::-]?\n\n%s\n\nThe main clone of the project stays.",
+		e.Kind, e.Label, strings.Join(e.Dirs, "\n"))
+	a.confirm("Delete worktree", body, warnings, func() {
+		a.runTask("Deleting "+e.Label, func(log func(string)) (string, error) {
+			ws := a.newManager(pr.Instance, pr.PathWithNamespace, log)
+			for _, dir := range e.Dirs {
+				if err := ws.RemoveWorktreeDir(pr.PathWithNamespace, dir); err != nil {
+					return "", err
+				}
+			}
+			return "", nil
+		})
+	})
+}
+
+// showWorktreePicker lists the project's branches - local and remote - and
+// opens the chosen one in its own worktree; 'n' offers a brand new branch
+// instead.
+func (a *App) showWorktreePicker(pr forge.Project) {
+	client := a.client(pr.Instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
+		return
+	}
+	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		branches, err := client.ProjectBranches(ctx, pr)
+		if err != nil {
+			return "", err
+		}
+		log(fmt.Sprintf("%d branch(es)", len(branches)))
+
+		known := make(map[string]bool, len(branches))
+		items := make([]pickItem, 0, len(branches))
+		for _, b := range branches {
+			known[b.Name] = true
+			sub := strings.TrimSpace(humanAge(b.CommittedDate) + "  " + b.CommitTitle)
+			if b.CommittedDate.IsZero() {
+				sub = b.CommitShortID
+			}
+			if b.Default {
+				sub = "default  " + sub
+			}
+			items = append(items, pickItem{Label: b.Name, Sub: sub, Data: b.Name})
+		}
+		// A branch that only exists locally - never pushed - would otherwise
+		// be invisible here, even though it can still be given its own
+		// worktree.
+		if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+			mgr := a.pathManager(pr.Instance, pr.PathWithNamespace)
+			for _, name := range mgr.Git().LocalBranches(mgr.ProjectDir(pr.PathWithNamespace)) {
+				if known[name] {
+					continue
+				}
+				items = append(items, pickItem{Label: name, Sub: "local only", Data: name})
+			}
+		}
+
+		a.tv.QueueUpdateDraw(func() {
+			a.closeModal(pageTask)
+			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false) }
+			onNew := func() { a.promptNewWorktreeBranch(pr) }
+			a.showPickerActions("Worktree branch - "+pr.PathWithNamespace, items, onSelect, onNew, nil)
+		})
+		return "", nil
+	})
+}
+
+// promptNewWorktreeBranch asks for the name of a brand new branch, created
+// from the main clone's current HEAD, and opens it in its own worktree.
+func (a *App) promptNewWorktreeBranch(pr forge.Project) {
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField("Branch name", "", 40, nil, nil)
+	form.AddTextView("", "Created from the current HEAD of the main checkout.", 40, 2, true, false)
+	apply := func() {
+		name := strings.TrimSpace(form.GetFormItem(0).(*tview.InputField).GetText())
+		if name == "" {
+			a.flash("enter a branch name")
+			return
+		}
+		a.closeModal(pageForm)
+		a.createWorktree(pr, name, true)
+	}
+	form.AddButton("Create", apply)
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModal("New worktree branch - "+pr.PathWithNamespace, form, 10)
+}
+
+// createWorktree materialises a plain branch worktree and opens the editor
+// there, the same way openMR does for a merge request's.
+func (a *App) createWorktree(pr forge.Project, branch string, isNew bool) {
+	a.runTaskOpening(fmt.Sprintf("Opening %s (%s)", pr.PathWithNamespace, branch),
+		session.Record{
+			Instance: pr.Instance,
+			Server:   a.instanceLabel(pr.Instance),
+			Project:  pr.PathWithNamespace,
+			Title:    branch,
+			Mode:     session.ModeBranch,
+		}, func(log func(string)) (string, error) {
+			return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureWorktree(pr, branch, isNew)
+		})
 }
 
 // showBranchPicker lists the project's branches and switches the main clone to
