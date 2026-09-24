@@ -26,6 +26,7 @@ type pane struct {
 
 	filtering     bool
 	width         int    // inner width of the table, for column layout
+	bodyDirection int    // current tview.Flex direction of body, so we only set it on change
 	lastQuery     string // the query the rows were last drawn for
 	detailSeq     int    // guards against a stale async detail arriving late
 	detailShown   bool
@@ -52,8 +53,13 @@ type pane struct {
 // column follows it.
 const detailDebounce = 300 * time.Millisecond
 
+// narrowBodyWidth is the body width below which the detail column stacks
+// under the list instead of sitting beside it: side by side needs enough
+// room for both the table's columns and readable detail prose.
+const narrowBodyWidth = 100
+
 func (a *App) newPane(title string) *pane {
-	p := &pane{app: a, detailFor: -1}
+	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
@@ -97,6 +103,19 @@ func (a *App) newPane(title string) *pane {
 	box(p.detail.Box, "Details").SetBorderPadding(0, 0, 1, 1)
 
 	p.body = tview.NewFlex().AddItem(p.table, 0, 1, true)
+	// Stack the list and the detail column vertically once the body is too
+	// narrow for both to be readable side by side.
+	p.body.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		direction := tview.FlexColumn
+		if w < narrowBodyWidth {
+			direction = tview.FlexRow
+		}
+		if direction != p.bodyDirection {
+			p.bodyDirection = direction
+			p.body.SetDirection(direction)
+		}
+		return x, y, w, h
+	})
 
 	p.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(p.filter, 1, 0, false).
