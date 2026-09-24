@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -30,12 +31,13 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 			text += "  " + tag(colBad) + "!" + tagEnd + " " + tview.Escape(w) + "\n"
 		}
 	}
+	keys := buttonKeys([]string{"Cancel", accept})
 	modal := tview.NewModal().
 		SetText(text).
 		AddButtons([]string{"Cancel", accept}).
 		SetDoneFunc(func(i int, label string) {
 			a.closeModal(pageConfirm)
-			if label == accept {
+			if i == 1 {
 				onYes()
 			}
 		})
@@ -43,22 +45,28 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 	modal.SetButtonActivatedStyle(styleSelected)
 	box(modal.Box, title)
 	modal.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		switch ev.Rune() {
-		case 'y', 'Y':
-			a.closeModal(pageConfirm)
-			onYes()
-			return nil
-		case 'n', 'N', 'q':
-			a.closeModal(pageConfirm)
-			return nil
-		}
 		if ev.Key() == tcell.KeyEsc {
 			a.closeModal(pageConfirm)
 			return nil
 		}
+		if ev.Key() != tcell.KeyRune || ev.Modifiers()&(tcell.ModCtrl|tcell.ModAlt) != 0 {
+			return ev
+		}
+		key := unicode.ToLower(ev.Rune())
+		switch {
+		case key == keys[0] || key == 'n' || key == 'q':
+			a.closeModal(pageConfirm)
+			return nil
+		case key == keys[1] || key == 'y':
+			a.closeModal(pageConfirm)
+			onYes()
+			return nil
+		}
 		return ev
 	})
-	a.pages.AddPage(pageConfirm, modalFull(modal), true, true)
+
+	hint := fmt.Sprintf("c cancel · %c %s · Esc back", keys[1], strings.ToLower(accept))
+	a.pages.AddPage(pageConfirm, modalFull(&confirmationHint{Modal: modal, hint: hint}), true, true)
 	a.tv.SetFocus(modal)
 }
 
@@ -209,6 +217,7 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 		AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
 
+	fitFooter(flex, footer, 1)
 	a.pages.AddPage(pagePicker, modalPct(flex, 70, 70), true, true)
 	setMode(true)
 }
@@ -235,4 +244,117 @@ func humanAge(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dy ago", int(d.Hours()/24/365))
 	}
+}
+
+// Reserve c for Cancel even when an earlier action also starts with c.
+func buttonKeys(labels []string) []rune {
+	keys := make([]rune, len(labels))
+	used := map[rune]bool{}
+	for i, label := range labels {
+		if label == "Cancel" {
+			keys[i] = 'c'
+			used['c'] = true
+		}
+	}
+	for i, label := range labels {
+		if keys[i] != 0 {
+			continue
+		}
+		for _, key := range strings.ToLower(label) + "1234567890" {
+			if !used[key] && (unicode.IsLetter(key) || unicode.IsDigit(key)) {
+				keys[i] = key
+				used[key] = true
+				break
+			}
+		}
+	}
+	return keys
+}
+
+func formButtonLabels(form *tview.Form) []string {
+	labels := make([]string, form.GetButtonCount())
+	for i := range labels {
+		labels[i] = form.GetButton(i).GetLabel()
+	}
+	return labels
+}
+
+func formButtonHint(form *tview.Form) string {
+	labels := formButtonLabels(form)
+	keys := buttonKeys(labels)
+	hints := make([]string, 0, len(labels)+1)
+	for i, label := range labels {
+		shortcut := fmt.Sprintf("Alt-%c", keys[i])
+		if _, focused := form.GetFocusedItemIndex(); focused >= 0 {
+			shortcut = string(keys[i])
+		}
+		if label == "Send" {
+			shortcut += "/Ctrl-S"
+		}
+		hints = append(hints, shortcut+" "+strings.ToLower(label))
+	}
+	return strings.Join(append(hints, "Esc back"), " · ")
+}
+
+// A modal leaves one empty line beneath its buttons. Draw there after its
+// internal frame, which would otherwise erase the hint.
+type confirmationHint struct {
+	*tview.Modal
+	hint string
+}
+
+func (m *confirmationHint) Draw(screen tcell.Screen) {
+	m.Modal.Draw(screen)
+	x, y, w, h := m.GetRect()
+	tview.Print(screen, m.hint, x+2, y+h-2, max(0, w-4), tview.AlignCenter, colDim)
+}
+
+// Forms keep their hints outside the scrollable fields and button row.
+func hintForm(form *tview.Form) {
+	hintPanel(form.Box, func() string { return formButtonHint(form) }, 1, 1, 2, 2)
+}
+
+// Reserve space inside the border so scrolling content cannot overwrite hints.
+func hintPanel(panel *tview.Box, hint func() string, top, bottom, left, right int) {
+	panel.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		width := max(0, w-2-left-right)
+		lines := tview.WordWrap(hint(), max(1, width))
+		for i, line := range lines {
+			tview.Print(screen, line, x+1+left, y+h-1-len(lines)+i, width, tview.AlignLeft, colDim)
+		}
+		return x + 1 + left, y + 1 + top, width, max(0, h-2-top-bottom-len(lines))
+	})
+}
+
+// Plain letters belong to the focused field. Alt shortcuts also work while
+// editing, and button activation goes through tview so disabled buttons stay inert.
+func bindFormButtons(form *tview.Form) {
+	previous := form.GetInputCapture()
+	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyRune && ev.Modifiers()&tcell.ModCtrl == 0 {
+			_, focusedButton := form.GetFocusedItemIndex()
+			if ev.Modifiers()&tcell.ModAlt != 0 || focusedButton >= 0 {
+				for i, key := range buttonKeys(formButtonLabels(form)) {
+					if unicode.ToLower(ev.Rune()) == key {
+						form.GetButton(i).InputHandler()(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone), func(tview.Primitive) {})
+						return nil
+					}
+				}
+			}
+		}
+		if previous != nil {
+			return previous(ev)
+		}
+		return ev
+	})
+}
+
+// Hints wrap with their block instead of disappearing off the terminal edge.
+func fitFooter(block *tview.Flex, footer *tview.TextView, inset int) {
+	block.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		width := max(1, w-2*inset)
+		lines := len(tview.WordWrap(footer.GetText(false), width))
+		block.ResizeItem(footer, max(1, lines), 0)
+		return x + inset, y + inset, max(0, w-2*inset), max(0, h-2*inset)
+	})
 }

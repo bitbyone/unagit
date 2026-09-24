@@ -96,7 +96,7 @@ func TestHiddenPickerBringsThemBack(t *testing.T) {
 
 	typeRunes(sc, "X")
 	waitFor(t, a, sc, "Hidden repositories")
-	waitFor(t, a, sc, "space  hide / show")
+	waitFor(t, a, sc, "space/Enter hide/show")
 	// Both are listed, the hidden one marked.
 	waitFor(t, a, sc, "⊘ acme/gateway")
 	waitFor(t, a, sc, "· acme/billing")
@@ -366,10 +366,8 @@ func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
 
-	// Nothing is on disk, so there is nothing to point at.
-	if strings.Contains(a.screenText(sc), "PATH") {
-		t.Fatal("the column is there with nothing cloned")
-	}
+	// Planned destinations are visible before the first clone.
+	waitFor(t, a, sc, "PATH")
 
 	cloneOnDisk(t, a, id, "acme/gateway")
 	waitFor(t, a, sc, "PATH")
@@ -393,10 +391,24 @@ func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
 	if !strings.Contains(row, head) {
 		t.Errorf("the row does not show %q:\n%q", head, row)
 	}
-	// The one that is not cloned has nothing there.
+	// The path alone changes brightness; both rows remain selectable.
+	onLoop(a, func() bool {
+		for row := 1; row < a.projectsPane.table.GetRowCount(); row++ {
+			cell := a.projectsPane.table.GetCell(row, 0)
+			colour := colDim
+			if strings.Contains(cell.Text, "acme/gateway") {
+				colour = colMuted
+			}
+			if !strings.Contains(cell.Text, tag(colour)+head) {
+				t.Errorf("path has wrong colour: %q", cell.Text)
+			}
+		}
+		return true
+	})
+	// The uncloned repository still shows its planned destination.
 	for _, l := range lines {
-		if strings.Contains(l, "acme/billing") && strings.Contains(l, head) {
-			t.Errorf("an uncloned repository shows a path: %q", l)
+		if strings.Contains(l, "acme/billing") && !strings.Contains(l, head) {
+			t.Errorf("an uncloned repository is missing its planned path: %q", l)
 		}
 	}
 }

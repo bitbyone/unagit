@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/workspace"
 )
 
 // projFiltered holds the indexes into App.projects currently shown.
@@ -70,6 +72,11 @@ func (a *App) newProjectsPane() *pane {
 			return ev
 		}
 		switch ev.Rune() {
+		case 'e':
+			if pr, ok := selected(); ok {
+				a.showProjectDirectory(pr)
+			}
+			return nil
 		case 'b':
 			if pr, ok := selected(); ok {
 				a.showBranchPicker(pr)
@@ -154,9 +161,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if withServer {
 			serverW = max(serverW, len([]rune(a.instanceLabel(pr.Instance))))
 		}
-		if info.Cloned {
-			pathW = max(pathW, len([]rune(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))))
-		}
+		pathW = max(pathW, len([]rune(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))))
 	}
 	branchW = atLeast(min(branchW, 24), "BRANCH")
 	actW = atLeast(actW, "ACTIVITY")
@@ -226,9 +231,10 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if !info.Cloned {
 			branch, branchColour = pr.DefaultBranch, colDim
 		}
-		path := ""
+		path := tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))
+		pathColour := colDim
 		if info.Cloned {
-			path = tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))
+			pathColour = colMuted
 		}
 		mrCount := ""
 		if n := len(info.MRs); n > 0 {
@@ -243,7 +249,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			field{text: pr.PathWithNamespace, width: nameW, colour: colText},
 			field{text: branch, width: branchW, colour: branchColour})
 		if pathW > 0 {
-			fields = append(fields, field{text: path, width: pathW, colour: colMuted})
+			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
 		}
 		fields = append(fields,
 			field{text: mrCount, width: mrW, colour: colWarn, right: true},
@@ -278,4 +284,61 @@ func (a *App) cloneProject(pr forge.Project) {
 		_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
 		return "", err
 	})
+}
+
+// An override is a destination, so group and server roots must not be added to it.
+func (a *App) showProjectDirectory(pr forge.Project) {
+	inst := a.cfg.Instance(pr.Instance)
+	if inst == nil {
+		return
+	}
+	if workspace.Exists(a.projectDir(pr.Instance, pr.PathWithNamespace)) {
+		a.flash("repository is already cloned; move or delete it before changing its directory")
+		return
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField("Directory", inst.ProjectDirs[pr.PathWithNamespace], 46, nil, nil)
+	form.AddTextView("", "Enter the full repository directory (absolute or ~/…).\nBlank restores the group and server rules.", 46, 3, true, false)
+	apply := func(value string) {
+		if workspace.Exists(a.projectDir(pr.Instance, pr.PathWithNamespace)) {
+			a.flash("repository is already cloned; delete it before changing its directory")
+			return
+		}
+		value = config.Expand(strings.TrimSpace(value))
+		if value != "" && (!filepath.IsAbs(value) || filepath.Clean(value) == string(filepath.Separator)) {
+			a.flash("enter an absolute repository directory, or leave it blank to inherit")
+			return
+		}
+		if value != "" {
+			value = filepath.Clean(value)
+		}
+		old := inst.ProjectDirs[pr.PathWithNamespace]
+		if inst.ProjectDirs == nil {
+			inst.ProjectDirs = map[string]string{}
+		}
+		if value == "" {
+			delete(inst.ProjectDirs, pr.PathWithNamespace)
+		} else {
+			inst.ProjectDirs[pr.PathWithNamespace] = value
+		}
+		if err := a.cfg.Save(); err != nil {
+			if old == "" {
+				delete(inst.ProjectDirs, pr.PathWithNamespace)
+			} else {
+				inst.ProjectDirs[pr.PathWithNamespace] = old
+			}
+			a.flash(err.Error())
+			return
+		}
+		a.closeModal(pageForm)
+		a.refreshDisk()
+		a.projectsPane.reload()
+		a.mrsPane.reload()
+		a.note("Clone directory: " + tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
+	}
+	form.AddButton("Save", func() { apply(form.GetFormItem(0).(*tview.InputField).GetText()) })
+	form.AddButton("Inherit", func() { apply("") })
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModal("Clone directory · "+pr.PathWithNamespace, form, 12)
 }

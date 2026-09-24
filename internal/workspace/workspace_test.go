@@ -32,10 +32,10 @@ func TestPaths(t *testing.T) {
 	if got := m.ProjectDir("group/sub/app"); got != filepath.FromSlash("/root/group/sub/app") {
 		t.Errorf("ProjectDir = %q", got)
 	}
-	if got := m.MRRoot("group/app"); got != filepath.FromSlash("/root/group/app.mrs") {
+	if got := m.MRRoot("group/app"); got != filepath.FromSlash("/root/group/.unagit/app") {
 		t.Errorf("MRRoot = %q", got)
 	}
-	if got := m.MRDir("group/app", 42, "feature/x"); got != filepath.FromSlash("/root/group/app.mrs/42-feature-x") {
+	if got := m.MRDir("group/app", 42, "feature/x"); got != filepath.FromSlash("/root/group/.unagit/app/42-feature-x") {
 		t.Errorf("MRDir = %q", got)
 	}
 	if got := m.RemoteURL(forge.Project{PathWithNamespace: "group/app"}); got != "https://gl.example/group/app.git" {
@@ -418,5 +418,43 @@ func TestCloneProjectLeavesExistingCheckoutAlone(t *testing.T) {
 	data, err := os.ReadFile(dirty)
 	if err != nil || string(data) != "local edits\n" {
 		t.Fatalf("local edits changed: %q, %v", data, err)
+	}
+}
+
+func TestExactDestinationAndLegacyWorktrees(t *testing.T) {
+	m, _, p := newManager(t, newOrigin(t))
+	parent := t.TempDir()
+	m.opts.ProjectDirectory = filepath.Join(parent, "renamed")
+	dir, err := m.EnsureProject(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir != m.opts.ProjectDirectory {
+		t.Fatalf("clone = %q", dir)
+	}
+	branch := m.MRDir(p.PathWithNamespace, 42, "feature/x")
+	review := m.ReviewDir(p.PathWithNamespace, 42, "feature/x")
+	if branch != filepath.Join(parent, ".unagit", "renamed", "42-feature-x") {
+		t.Fatalf("branch = %q", branch)
+	}
+	if review != filepath.Join(parent, ".unagit", "renamed", "review-42-feature-x") {
+		t.Fatalf("review = %q", review)
+	}
+	legacy := filepath.Join(dir+".mrs", "42-feature-x")
+	git(t, dir, "worktree", "add", "--detach", legacy, "HEAD")
+	if got := m.MRDir(p.PathWithNamespace, 42, "feature/x"); got != legacy {
+		t.Fatalf("lost existing worktree: %q", got)
+	}
+	if got := m.InspectProject(p.PathWithNamespace); len(got.MRDirs) != 1 {
+		t.Fatalf("worktrees = %v", got.MRDirs)
+	}
+	if err := m.RemoveProject(p.PathWithNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(parent); err != nil {
+		t.Fatalf("removed destination parent: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy worktree left behind: %v", err)
 	}
 }

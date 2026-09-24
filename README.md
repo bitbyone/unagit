@@ -78,16 +78,22 @@ different groups live in different places.
   repository you never want to see.
 
 **Where things land is yours to decide.** A repository is cloned under the
-first of: its group's own directory, its server's, the global default. So
+first of: its exact repository destination (`e` in Repositories), its group's
+own directory, its server's, the global default. So
 `acme/platform` can live in `~/work/platform` while everything else stays under
 `~/unagit`, and a subgroup can override its parent. It is one keystroke (`d`)
 in Settings, and it applies to everything cloned afterwards.
 
 ```
 <root>/<group>/<repo>                        the clone you switch branches in
-<root>/<group>/<repo>.mrs/<iid>-<branch>     a branch worktree for one MR
-<root>/<group>/<repo>.reviews/<iid>-<branch> a review worktree for one MR
+<root>/<group>/.unagit/<repo>/<iid>-<branch>     a branch worktree for one MR
+<root>/<group>/.unagit/<repo>/review-<iid>-<branch> a review worktree for one MR
 ```
+
+The repository PATH column shows planned destinations in a dim colour until cloned.
+Repository directory overrides bypass all root and group rules. Worktrees live in
+`.unagit/<directory-name>` beside that exact destination. Existing `.mrs` and
+`.reviews` worktrees remain available in their original locations.
 
 ## Integrations
 
@@ -183,6 +189,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `R` `M` `S` | Repositories · Merge requests · Settings |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
+| `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `Ctrl-C` | in Repositories: clone to disk without opening the editor |
 | `Ctrl-O` | clone or update, then open the editor |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
@@ -205,3 +212,10 @@ both, `⊘` hidden.
 ```
 
 Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.
+
+Press `?` in a main view for contextual help: relevant shortcuts appear first
+in normal text, and shortcuts for other contexts remain dimmed. Modals and
+simple blocks with up to five actions keep dim inline hints at the bottom.
+Confirmation dialogs accept the action letter directly (`c` cancels, `d` deletes).
+In forms, use `Alt` plus the hinted letter while typing, or the letter alone
+when a button has focus.

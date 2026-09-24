@@ -125,6 +125,14 @@ func (a *App) showHiddenPicker() {
 	input := filterField(tview.NewInputField())
 
 	footer := tview.NewTextView().SetDynamicColors(true)
+	filtering := false
+	updateFooter := func() {
+		keys := "j/k move · space/Enter hide/show · a show all · / search · Esc close"
+		if filtering {
+			keys = "type to search · ↑/↓ move · Enter hide/show · Esc list"
+		}
+		footer.SetText(fmt.Sprintf(" %s%s%s · %d hidden", tag(colDim), keys, tagEnd, len(a.cfg.Filters.Hidden)))
+	}
 
 	// Every project of every server, hidden ones included: this is the one
 	// place they can be found again.
@@ -170,8 +178,7 @@ func (a *App) showHiddenPicker() {
 		if current > 0 && current < list.GetItemCount() {
 			list.SetCurrentItem(current)
 		}
-		footer.SetText(fmt.Sprintf(" %sspace  hide / show   ·   a  show all   ·   /  search   ·   Esc  close%s   %s%d hidden%s",
-			tag(colDim), tagEnd, tag(colWarn), len(a.cfg.Filters.Hidden), tagEnd))
+		updateFooter()
 	}
 	rebuild("")
 	input.SetChangedFunc(rebuild)
@@ -192,7 +199,9 @@ func (a *App) showHiddenPicker() {
 			list.SetCurrentItem(max(0, min(list.GetCurrentItem()+delta, n-1)))
 		}
 	}
-	setMode := func(filtering bool) {
+	setMode := func(active bool) {
+		filtering = active
+		updateFooter()
 		if filtering {
 			a.tv.SetFocus(input)
 			return
@@ -267,6 +276,7 @@ func (a *App) showHiddenPicker() {
 		AddItem(footer, 1, 0, false)
 	box(flex.Box, "Hidden repositories")
 
+	fitFooter(flex, footer, 1)
 	a.pages.AddPage(pageHidden, modalPct(flex, 70, 75), true, true)
 	a.tv.SetFocus(list)
 }

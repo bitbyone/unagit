@@ -57,6 +57,13 @@ func (a *App) switchTab(page string) {
 		a.tv.SetFocus(a.settings.focusTarget())
 	}
 	a.drawTabs()
+	if a.helpHint != nil {
+		if page == pageSettings {
+			a.helpHint.SetText(tag(colDim) + "? help" + tagEnd)
+		} else {
+			a.helpHint.SetText("")
+		}
+	}
 	a.setStatus("")
 }
 

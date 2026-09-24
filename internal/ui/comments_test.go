@@ -27,6 +27,7 @@ func TestDetailShowsOnlyTheNewestComments(t *testing.T) {
 	waitFor(t, a, sc, "COMMENTS (3 NEWEST OF 4)")
 	waitFor(t, a, sc, "retry loop")    // newest
 	waitFor(t, a, sc, "third comment") // third newest
+	typeRunes(sc, "G")
 	waitFor(t, a, sc, "1 more · press c to read them all")
 	if strings.Contains(a.screenText(sc), "oldest comment") {
 		t.Error("the fourth comment should not be in the detail column")

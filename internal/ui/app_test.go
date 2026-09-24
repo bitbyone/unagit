@@ -412,12 +412,14 @@ func TestProjectDetailPane(t *testing.T) {
 	waitFor(t, a, sc, "87.3%")
 	waitFor(t, a, sc, "success") // latest pipeline
 	waitFor(t, a, sc, "MIT")
+	// The footer stays visible while the detail scrolls.
+	typeRunes(sc, "G")
 	waitFor(t, a, sc, "ON DISK")
 	waitFor(t, a, sc, "not cloned")
 
 	// Focus moved into the detail column.
 	waitFor(t, a, sc, "DETAIL")
-	if !a.projectsPane.detailFocused {
+	if !onLoop(a, func() bool { return a.projectsPane.detailFocused }) {
 		t.Error("focus did not move into the detail column")
 	}
 
@@ -462,7 +464,7 @@ func TestHelpOpensAndCloses(t *testing.T) {
 
 	typeRunes(sc, "?")
 	waitFor(t, a, sc, "unagit · keys")
-	waitFor(t, a, sc, "GETTING AROUND")
+	waitFor(t, a, sc, "REPOSITORIES")
 	waitFor(t, a, sc, "clone or update, then open the editor")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

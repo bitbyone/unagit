@@ -1,43 +1,134 @@
 package ui
 
 import (
+	"math/bits"
+	"sort"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
+// Help captures focus before opening its overlay; it describes the place the
+// user came from, not the help table which now owns the keyboard.
+type helpContext uint32
+
+const (
+	helpRepoList helpContext = 1 << iota
+	helpRepoDetail
+	helpMRList
+	helpMRDetail
+	helpSettingsList
+	helpServers
+	helpGroups
+	helpGeneral
+	helpIntegrations
+	helpSecurity
+	helpRepositories  = helpRepoList | helpRepoDetail
+	helpMergeRequests = helpMRList | helpMRDetail
+	helpLists         = helpRepositories | helpMergeRequests
+	helpDetails       = helpRepoDetail | helpMRDetail
+	helpNavigation    = helpLists | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity
+)
+
+func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
+
+func (a *App) helpContext() (helpContext, string) {
+	switch a.currentTab() {
+	case pageProjects:
+		if a.projectsPane.detailFocused {
+			return helpRepoDetail, "Repository detail"
+		}
+		return helpRepoList, "Repositories"
+	case pageMRs:
+		if a.mrsPane.detailFocused {
+			return helpMRDetail, "Merge request detail"
+		}
+		return helpMRList, "Merge requests"
+	default:
+		if !a.settings.contentFocused {
+			return helpSettingsList, "Settings"
+		}
+		switch a.settings.current {
+		case sectionGeneral:
+			return helpGeneral, "General settings"
+		case sectionGitLab, sectionGitHub:
+			return helpServers, "Servers"
+		case sectionGroups:
+			return helpGroups, "Groups"
+		case sectionIntegrations:
+			return helpIntegrations, "Integrations"
+		case sectionSecurity:
+			return helpSecurity, "Security"
+		}
+	}
+	return 0, "Help"
+}
+
+// Keep the most specific active sections first, without hiding the reference
+// for other contexts. Stable ordering keeps equally relevant sections familiar.
+func contextHelpRows(context helpContext) []helpLine {
+	var groups [][]helpLine
+	for _, line := range helpRows() {
+		if line.section != "" {
+			groups = append(groups, nil)
+		}
+		groups[len(groups)-1] = append(groups[len(groups)-1], line)
+	}
+	rank := func(group []helpLine) int {
+		scope := group[0].scope
+		if scope&context == 0 {
+			return 100
+		}
+		score := bits.OnesCount32(uint32(scope))
+		for _, line := range group {
+			if line.keys != "" {
+				return score
+			}
+		}
+		return 20 + score
+	}
+
+	sort.SliceStable(groups, func(i, j int) bool { return rank(groups[i]) < rank(groups[j]) })
+	var rows []helpLine
+	for _, group := range groups {
+		rows = append(rows, group...)
+	}
+	return rows
+}
+
 // helpLine is one row of the help: a section heading, a key with what it
 // does, or a paragraph of explanation.
 type helpLine struct {
+	scope   helpContext
 	section string
 	keys    string
 	text    string
 	note    string
 }
 
-func section(name string) helpLine   { return helpLine{section: name} }
-func key(keys, text string) helpLine { return helpLine{keys: keys, text: text} }
-func note(text string) helpLine      { return helpLine{note: text} }
-func blank() helpLine                { return helpLine{} }
+func section(name string, scope helpContext) helpLine { return helpLine{section: name, scope: scope} }
+func key(keys, text string) helpLine                  { return helpLine{keys: keys, text: text} }
+func note(text string) helpLine                       { return helpLine{note: text} }
+func blank() helpLine                                 { return helpLine{} }
 
 // helpRows is the whole of the help, in the order it is read. Keeping it as
 // data rather than as one long string is what lets the keys line up in their
 // own column.
 func helpRows() []helpLine {
-	return []helpLine{
-		section("Getting around"),
+	rows := []helpLine{
+		section("Getting around", helpNavigation),
 		key("R  M  S", "Repositories · Merge requests · Settings"),
 		key("j  k", "move up and down"),
-		key("g  G", "first · last"),
-		key("/", "filter: fuzzy, spaces separate terms"),
-		key("Esc", "leave the filter · again clears it · again closes the detail"),
-		key("?", "this help"),
+		key("g  G", "first · last").in(helpLists),
+		key("/", "filter: fuzzy, spaces separate terms").in(helpLists),
+		key("Esc", "clear the filter or close the detail").in(helpRepoList | helpMRList),
+		key("Enter", "load it and jump in; it then follows the cursor").in(helpRepoList | helpMRList),
+		key("?", "this help").in(helpNavigation | helpGeneral),
 		key("q", "quit"),
 		blank(),
 
-		section("The detail column"),
-		key("Enter", "load it and jump in; it then follows the cursor"),
+		section("The detail column", helpDetails),
 		key("j k g G", "scroll"),
 		key("Ctrl-F Ctrl-B", "page"),
 		key("h  ←  Esc", "back to the list"),
@@ -46,32 +137,37 @@ func helpRows() []helpLine {
 			"always fetched fresh."),
 		blank(),
 
-		section("Both lists"),
+		section("Dialogs", 0),
+		note("Modals and blocks with up to five actions show inline hints: c cancels, d deletes, a approves. " +
+			"Forms use Alt + the shown letter while editing; on buttons the letter alone works too. Esc goes back."),
+		blank(),
+
+		section("Both lists", helpLists),
 		key("Ctrl-O", "clone or update, then open the editor"),
 		key("d", "delete from disk, warning about work that would be lost"),
 		key("w", "open in the browser"),
 		key("r", "refresh this list's index from the server"),
 		blank(),
 
-		section("Filters · shared by both lists"),
+		section("Filters · shared by both lists", helpLists),
 		key("C", "only the repositories you have cloned"),
 		key("x", "hide the repository under the cursor, or bring it back"),
 		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
-		key("Ctrl-G", "gather the merge requests under their repository"),
+		key("Ctrl-G", "gather the merge requests under their repository").in(helpMergeRequests),
 		note("Hiding a repository takes its merge requests with it. The header " +
 			"under each list says what is being left out."),
 		blank(),
 
-		section("Repositories"),
+		section("Repositories", helpRepositories),
 		key("Ctrl-C", "clone to disk without opening the editor"),
+		key("e", "set the exact clone directory of an uncloned repository"),
 		key("b", "pick a branch and switch the main clone to it"),
 		key("m", "show only the merge requests of this repository"),
-		note("The PATH column is where a repository is cloned, which is worth " +
-			"seeing when a group or a server has a root of its own."),
+		note("PATH shows the clone destination; dim paths are planned, not yet cloned."),
 		blank(),
 
-		section("Merge requests"),
+		section("Merge requests", helpMergeRequests),
 		key("Ctrl-R", "open for review: the whole change as pending edits"),
 		key("c", "read the conversation, and write a comment"),
 		key("a", "approve - it asks first"),
@@ -81,7 +177,7 @@ func helpRows() []helpLine {
 			"there it fills in once you have opened one."),
 		blank(),
 
-		section("Comments  (c)"),
+		section("Comments  (c)", 0),
 		key("i", "write one, Ctrl-S sends it"),
 		key("a", "approve"),
 		key("r", "reload"),
@@ -89,18 +185,38 @@ func helpRows() []helpLine {
 			"the three newest."),
 		blank(),
 
-		section("Settings  (S)"),
+		section("Settings  (S)", helpSettingsList),
 		key("j  k", "move between the sections"),
 		key("Enter", "edit the section"),
-		key("a e t v d", "in a server list: add · edit · token · verify · remove"),
+		blank(),
+		section("Settings · servers", helpServers),
+		key("a e t v d", "add · edit · token · verify · remove"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · groups", helpGroups),
 		key("space", "in the group tree: a GitLab group cycles off → this group "+
 			"only → including subgroups; a GitHub organisation is on or off"),
 		key("d", "in the group tree: the clone directory of a group or a server"),
 		key("r  p  m", "reload the groups · refresh projects · refresh merge requests"),
-		key("c", "under Security: change the passphrase"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · security", helpSecurity),
+		key("c", "change the passphrase"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · general", helpGeneral),
+		key("Alt-s / Alt-r", "save / revert; plain s / r also work on buttons"),
+		key("Tab / Shift-Tab", "next / previous field"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · integrations", helpIntegrations),
+		key("e", "toggle the selected integration"),
+		key("c", "check installation"),
+		key("Tab / j k", "move between integrations"),
+		key("Esc", "back to the sections"),
 		blank(),
 
-		section("Reviewing"),
+		section("Reviewing", helpMergeRequests),
 		note("Ctrl-O gives you the branch: real commits, you can commit and push."),
 		note("Ctrl-R gives you the review worktree: HEAD and the index sit on the " +
 			"commit the merge request branched from while the working tree holds the " +
@@ -110,7 +226,7 @@ func helpRows() []helpLine {
 			"/ .target / .url / .mode."),
 		blank(),
 
-		section("From another terminal"),
+		section("From another terminal", 0),
 		note("Opening an editor does not end unagit: it suspends itself and waits, so " +
 			"it knows what you have open. unagit cd in another window starts a shell " +
 			"there and exit comes back; it asks which when more than one is open, and " +
@@ -118,17 +234,28 @@ func helpRows() []helpLine {
 			"for cd \"$(unagit cd --print)\". unagit sessions lists them."),
 		blank(),
 
-		section("On disk"),
+		section("On disk", helpLists),
 		key("○ ● ◐ ◉", "nothing · branch worktree · review worktree · both"),
 		key("⊘", "hidden from the lists"),
 		note("<root>/<group>/<repo> is the main clone, where branch switching " +
-			"happens. <repo>.mrs/<iid>-<branch> is a branch worktree and " +
-			"<repo>.reviews/<iid>-<branch> a review one. They share the main " +
+			"happens. .unagit/<repo>/<iid>-<branch> is a branch worktree and " +
+			".unagit/<repo>/review-<iid>-<branch> a review one. They share the main " +
 			"clone's objects, so uncommitted changes survive switching between " +
 			"merge requests. <root> comes from Settings, unless the server or the " +
 			"group overrides it. The Repositories tab shows it in the PATH " +
 			"column."),
 	}
+	var scope helpContext
+	for i := range rows {
+		if rows[i].section != "" {
+			scope = rows[i].scope
+		}
+		if rows[i].scope == 0 {
+			rows[i].scope = scope
+		}
+	}
+	return rows
+
 }
 
 // wrapText breaks a paragraph into lines that fit a width, on word
@@ -162,9 +289,10 @@ func wrapText(text string, width int) []string {
 // to the width the modal actually got.
 func (a *App) showHelp() {
 	table := tview.NewTable().SetSelectable(false, false)
-	box(table.Box, "unagit · keys").SetBorderPadding(0, 0, 2, 2)
+	context, title := a.helpContext()
+	box(table.Box, "unagit · keys · "+title).SetBorderPadding(0, 0, 2, 2)
 
-	rows := helpRows()
+	rows := contextHelpRows(context)
 	keyWidth := 0
 	for _, line := range rows {
 		keyWidth = max(keyWidth, len([]rune(line.keys)))
@@ -188,20 +316,24 @@ func (a *App) showHelp() {
 			row++
 		}
 		for _, line := range rows {
+			keyColour, textColour, headingColour := colDim, colDim, colDim
+			if line.scope&context != 0 {
+				keyColour, textColour, headingColour = colText, colText, colTitle
+			}
 			switch {
 			case line.section != "":
-				put("", strings.ToUpper(line.section), colDim, colWarn, tcell.AttrBold)
+				put("", strings.ToUpper(line.section), colDim, headingColour, tcell.AttrBold)
 			case line.keys != "":
 				for i, text := range wrapText(line.text, textWidth) {
 					if i == 0 {
-						put(line.keys, text, colAccent, colText, tcell.AttrNone)
+						put(line.keys, text, keyColour, textColour, tcell.AttrNone)
 						continue
 					}
-					put("", text, colDim, colText, tcell.AttrNone)
+					put("", text, colDim, textColour, tcell.AttrNone)
 				}
 			case line.note != "":
 				for _, text := range wrapText(line.note, textWidth) {
-					put("", text, colDim, colMuted, tcell.AttrNone)
+					put("", text, colDim, textColour, tcell.AttrNone)
 				}
 			default:
 				put("", "", colDim, colDim, tcell.AttrNone)
@@ -246,6 +378,9 @@ func (a *App) showHelp() {
 		return ev
 	})
 
-	a.pages.AddPage(pageHelp, modalPct(table, 82, 90), true, true)
+	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Enter/Esc/?/q close")
+	block := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(table, 0, 1, true).AddItem(footer, 1, 0, false)
+	fitFooter(block, footer, 0)
+	a.pages.AddPage(pageHelp, modalPct(block, 82, 90), true, true)
 	a.tv.SetFocus(table)
 }

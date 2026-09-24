@@ -79,6 +79,14 @@ configuration UI, `comments.go` the conversation, `filters.go` the shared
 filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
 the `?` screen as data.
 
+Main views expose shortcuts through `?`: help keeps actions for the opening
+context in normal text and dims the rest. Keep inline hints in modals and in
+simple blocks with up to five actions, such as integrations. Dialog buttons
+use local action letters; forms use Alt plus the letter while editing, and
+plain letters when a button has focus. Inline hints stay below their context
+and wrap when the terminal narrows. Keep `? help` in the global status line
+below all panels, including Settings; do not repeat it in panel footers.
+
 ## Decisions worth knowing before changing them
 
 **One vocabulary.** Nothing above `internal/forge` knows whether it is talking
@@ -98,8 +106,9 @@ bounded worker count and first-error cancellation - half an index is worse
 than none.
 
 **Worktrees, not clones.** One main clone per repository; each merge request
-gets `<repo>.mrs/<iid>-<branch>` (a real branch, for committing) and/or
-`<repo>.reviews/<iid>-<branch>` (see below). They share the object store, so a
+gets `<parent>/.unagit/<repo>/<iid>-<branch>` (a real branch, for committing) and/or
+`<parent>/.unagit/<repo>/review-<iid>-<branch>` (see below). Existing `.mrs` and
+`.reviews` worktrees are still discovered and reused at their old paths. They share the object store, so a
 second review costs a checkout. Per-worktree git config
 (`extensions.worktreeConfig`) carries `unagit.mr.base/.head/.iid/.project/
 .source/.target/.url/.mode`, which is how an editor - or a later unagit - knows

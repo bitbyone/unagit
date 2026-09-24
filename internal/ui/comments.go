@@ -60,6 +60,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		AddItem(view, 0, 1, true).
 		AddItem(footer, 1, 0, false)
 
+	fitFooter(frame, footer, 0)
 	var load func()
 	load = func() {
 		client := a.client(mr.Instance)

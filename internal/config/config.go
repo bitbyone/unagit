@@ -54,6 +54,8 @@ func (g Group) Owns(projectPath string) bool {
 // Instance is one server - a GitLab installation or a GitHub account - with
 // its own token and its own group selection.
 type Instance struct {
+	// ProjectDirs are exact clone destinations, keyed by repository namespace.
+	ProjectDirs map[string]string `yaml:"project_dirs,omitempty" json:"project_dirs,omitempty"`
 	// ID is a stable key: it ties the cached indexes and the stored token to
 	// this instance and never changes once assigned.
 	ID string `yaml:"id" json:"id"`
@@ -520,4 +522,14 @@ func (c *Config) InstancesOfKind(kind string) []Instance {
 		}
 	}
 	return out
+}
+
+// ProjectDir resolves an exact repository override before the inherited roots.
+func (c *Config) ProjectDir(inst *Instance, projectPath string) string {
+	if inst != nil {
+		if dir := inst.ProjectDirs[projectPath]; dir != "" {
+			return Expand(dir)
+		}
+	}
+	return filepath.Join(c.RootFor(inst, projectPath), filepath.FromSlash(projectPath))
 }

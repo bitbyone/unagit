@@ -42,8 +42,8 @@ const (
 
 // mrDisk records which worktrees a merge request has on disk.
 type mrDisk struct {
-	Branch bool // .mrs: a real branch, can be committed and pushed
-	Review bool // .reviews: the whole change pending on the merge base
+	Branch bool // a real branch, can be committed and pushed
+	Review bool // the whole change pending on the merge base
 }
 
 // diskInfo is the cached on-disk state of one project.
@@ -62,11 +62,12 @@ type projectKey struct {
 
 // App is the running TUI.
 type App struct {
-	tv     *tview.Application
-	pages  *tview.Pages
-	tabs   *tview.TextView
-	status *tview.TextView
-	tab    string
+	tv       *tview.Application
+	pages    *tview.Pages
+	tabs     *tview.TextView
+	status   *tview.TextView
+	helpHint *tview.TextView
+	tab      string
 
 	cfg      *config.Config
 	sessions *session.Store
@@ -180,6 +181,7 @@ func (a *App) Run() error {
 
 	a.tabs = tview.NewTextView().SetDynamicColors(true)
 	a.status = tview.NewTextView().SetDynamicColors(true)
+	a.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
 
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()
@@ -187,14 +189,17 @@ func (a *App) Run() error {
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
-	a.pages.AddPage(pageSettings, a.settings.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
+	settingsLayout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(a.settings.root, 0, 1, true).
+		AddItem(tview.NewFlex().AddItem(a.status, 0, 1, false).AddItem(a.helpHint, 8, 0, false), 1, 0, false)
+	a.pages.AddPage(pageSettings, settingsLayout, true, false)
+
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(a.tabs, 1, 0, false).
-		AddItem(a.pages, 0, 1, true).
-		AddItem(a.status, 1, 0, false)
+		AddItem(a.pages, 0, 1, true)
 
 	a.tv.SetInputCapture(a.globalKeys)
 
@@ -303,13 +308,21 @@ func (a *App) setStatus(msg string) {
 	if a.status == nil {
 		return
 	}
-	// The per-tab line below the table carries the counts; this line is for
-	// messages and the two keys worth repeating.
-	text := " "
-	if msg != "" {
-		text += msg + "  "
+	if a.currentTab() == pageSettings {
+		a.status.SetText(" " + msg)
+		return
 	}
-	a.status.SetText(text + tag(colDim) + "? help · q quit" + tagEnd)
+	a.status.SetText("")
+	var p *pane
+	if a.currentTab() == pageMRs {
+		p = a.mrsPane
+	} else {
+		p = a.projectsPane
+	}
+	if p != nil {
+		p.statusMessage = msg
+		p.updateHeader()
+	}
 }
 
 // tildePath shortens a path under the home directory for display.
@@ -421,23 +434,20 @@ func (a *App) rootFor(instanceID, projectPath string) string {
 }
 
 func (a *App) projectDir(instanceID, projectPath string) string {
-	return workspace.ProjectDirIn(a.rootFor(instanceID, projectPath), projectPath)
-}
-
-func (a *App) mrRoot(instanceID, projectPath string) string {
-	return workspace.MRRootIn(a.rootFor(instanceID, projectPath), projectPath)
-}
-
-func (a *App) reviewRoot(instanceID, projectPath string) string {
-	return workspace.ReviewRootIn(a.rootFor(instanceID, projectPath), projectPath)
+	return a.cfg.ProjectDir(a.cfg.Instance(instanceID), projectPath)
 }
 
 func (a *App) mrDir(instanceID, projectPath string, iid int, branch string) string {
-	return workspace.MRDirIn(a.rootFor(instanceID, projectPath), projectPath, iid, branch)
+	return a.pathManager(instanceID, projectPath).MRDir(projectPath, iid, branch)
 }
 
 func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) string {
-	return workspace.ReviewDirIn(a.rootFor(instanceID, projectPath), projectPath, iid, branch)
+	return a.pathManager(instanceID, projectPath).ReviewDir(projectPath, iid, branch)
+}
+
+// Path lookups do not need credentials or an API client.
+func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
+	return workspace.New(workspace.Options{Root: a.rootFor(instanceID, projectPath), ProjectDirectory: a.projectDir(instanceID, projectPath)}, nil)
 }
 
 // newManager builds a workspace manager for one project, with that project's
@@ -450,6 +460,7 @@ func (a *App) newManager(instanceID, projectPath string, log func(string)) *work
 		EditorArgs: a.cfg.EditorArgs,
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
+		opts.ProjectDirectory = inst.ProjectDirs[projectPath]
 		opts.GitLabURL = inst.URL
 		opts.CloneProtocol = inst.Protocol()
 	}
@@ -793,29 +804,25 @@ func (a *App) refreshDisk() {
 		} else if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && !fi.IsDir() {
 			info.Cloned = true
 		}
-		for _, mode := range []struct {
-			root   string
-			review bool
-		}{
-			{a.mrRoot(key.Instance, key.Path), false},
-			{a.reviewRoot(key.Instance, key.Path), true},
-		} {
-			entries, _ := os.ReadDir(mode.root)
+		for _, root := range a.pathManager(key.Instance, key.Path).WorktreeRoots(key.Path) {
+			entries, _ := os.ReadDir(root)
 			for _, e := range entries {
-				if !e.IsDir() {
+				if !e.IsDir() || !workspace.Exists(filepath.Join(root, e.Name())) {
 					continue
 				}
 				name := e.Name()
-				num := name
-				if i := strings.Index(name, "-"); i > 0 {
-					num = name[:i]
+				review := root == dir+".reviews"
+				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "review-") {
+					review = true
+					name = strings.TrimPrefix(name, "review-")
 				}
+				num, _, _ := strings.Cut(name, "-")
 				iid, err := strconv.Atoi(num)
 				if err != nil {
 					continue
 				}
 				d := info.MRs[iid]
-				if mode.review {
+				if review {
 					d.Review = true
 				} else {
 					d.Branch = true
@@ -823,6 +830,7 @@ func (a *App) refreshDisk() {
 				info.MRs[iid] = d
 			}
 		}
+
 		if info.Cloned || len(info.MRs) > 0 {
 			disk[key] = info
 		}
@@ -869,7 +877,10 @@ func (a *App) runTaskOpening(title string, what session.Record, fn func(log func
 		return ev
 	})
 
-	a.pages.AddPage(pageTask, modalPct(view, 80, 70), true, true)
+	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Ctrl-F/B page")
+	block := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(view, 0, 1, true).AddItem(footer, 1, 0, false)
+	fitFooter(block, footer, 0)
+	a.pages.AddPage(pageTask, modalPct(block, 80, 70), true, true)
 	a.tv.SetFocus(view)
 
 	log := func(line string) {
@@ -882,6 +893,7 @@ func (a *App) runTaskOpening(title string, what session.Record, fn func(log func
 		dir, err := fn(log)
 		a.tv.QueueUpdateDraw(func() {
 			done = true
+			footer.SetText("j/k scroll · g/G first/last · Ctrl-F/B page · Enter/Esc/q close")
 			if err != nil {
 				fmt.Fprintf(view, "\n%s%s%s\n\n%sPress Esc to close.%s\n",
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)

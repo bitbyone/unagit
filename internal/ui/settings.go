@@ -34,7 +34,6 @@ type settingsView struct {
 	root    *tview.Flex
 	list    *tview.List
 	content *tview.Pages
-	footer  *tview.TextView
 
 	integrations *integrationsView
 	general      *tview.Form
@@ -79,13 +78,15 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("groups", s.tree, true, false)
 	s.content.AddPage("security", s.security, true, false)
 
-	s.footer = tview.NewTextView().SetDynamicColors(true)
-
-	s.root = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(tview.NewFlex().
-			AddItem(s.list, 24, 0, true).
-			AddItem(s.content, 0, 1, false), 0, 1, true).
-		AddItem(s.footer, 1, 0, false)
+	for _, panel := range []*tview.Box{s.gitlab.Box, s.github.Box} {
+		hintPanel(panel, func() string { return "a add · e edit · t token · v verify · d remove" }, 0, 0, 1, 1)
+	}
+	hintPanel(s.tree.Box, func() string {
+		return "Space select · d root directory · r reload groups · p refresh repositories · m refresh merge requests"
+	}, 0, 0, 1, 1)
+	hintPanel(s.security.Box, func() string { return "c change passphrase · Esc back" }, 1, 1, 2, 2)
+	hintPanel(s.integrations.Box, func() string { return "Tab / j k move · Esc back" }, 1, 0, 1, 1)
+	s.root = tview.NewFlex().AddItem(s.list, 24, 0, true).AddItem(s.content, 0, 1, false)
 
 	s.show(sectionGeneral)
 	s.paintFocus()
@@ -99,7 +100,6 @@ func (s *settingsView) reload() {
 	s.fillServerTables()
 	s.fillTree()
 	s.fillSecurity()
-	s.updateFooter()
 }
 
 // selectSection jumps to a section, for the first-run nudges.
@@ -126,7 +126,6 @@ func (s *settingsView) show(section int) {
 		s.content.SwitchToPage("security")
 	}
 	s.paintFocus()
-	s.updateFooter()
 }
 
 // focusTarget is where focus lands when the Settings tab is shown, or when a
@@ -200,37 +199,12 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.security)
 	}
 	s.paintFocus()
-	s.updateFooter()
 }
 
 func (s *settingsView) focusList() {
 	s.contentFocused = false
 	s.app.tv.SetFocus(s.list)
 	s.paintFocus()
-	s.updateFooter()
-}
-
-// updateFooter shows the keys that work where the focus currently is.
-func (s *settingsView) updateFooter() {
-	if s.footer == nil {
-		return
-	}
-	keys := "j k  move   ·   Enter  edit this section   ·   Esc  back to the lists"
-	if !s.list.HasFocus() {
-		switch s.current {
-		case sectionIntegrations:
-			keys = "Tab / j k  move between integrations   ·   Esc  back"
-		case sectionGeneral:
-			keys = "Tab  next field   ·   Enter on a button applies it   ·   Esc  back"
-		case sectionGitLab, sectionGitHub:
-			keys = "a  add   ·   e  edit   ·   t  token   ·   v  verify   ·   d  remove   ·   Esc  back"
-		case sectionGroups:
-			keys = "space  select   ·   d  root directory   ·   r  reload groups   ·   p m  refresh indexes   ·   Esc  back"
-		case sectionSecurity:
-			keys = "c  change the passphrase   ·   Esc  back"
-		}
-	}
-	s.footer.SetText(" " + tag(colDim) + keys + tagEnd)
 }
 
 // listKeys drives the section list.
@@ -304,8 +278,16 @@ func (s *settingsView) newGeneralForm() *tview.Form {
 			s.focusList()
 			return nil
 		}
+		if ev.Key() == tcell.KeyRune && ev.Rune() == '?' {
+			if _, button := form.GetFocusedItemIndex(); button >= 0 {
+				s.app.showHelp()
+				return nil
+			}
+		}
+
 		return ev
 	})
+	bindFormButtons(form)
 	return form
 }
 
@@ -330,6 +312,7 @@ func (s *settingsView) fillGeneral() {
 		s.fillGeneral()
 		s.app.note("Reverted")
 	})
+	hintForm(form)
 }
 
 // ------------------------------------------------------------------ servers
@@ -1038,9 +1021,11 @@ func styleForm(form *tview.Form) {
 
 // showFormModal centres a form over the dimmed interface.
 func (a *App) showFormModal(title string, form *tview.Form, height int) {
+	hintForm(form)
+	bindFormButtons(form)
 	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)
 	form.SetCancelFunc(func() { a.closeModal(pageForm) })
-	a.pages.AddPage(pageForm, modalFixed(form, 72, height), true, true)
+	a.pages.AddPage(pageForm, modalFixed(form, 72, height+2), true, true)
 	a.tv.SetFocus(form)
 }
 

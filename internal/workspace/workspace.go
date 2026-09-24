@@ -4,7 +4,7 @@
 // Layout:
 //
 //	<root>/<group>/<project>            main clone, branch switching happens here
-//	<root>/<group>/<project>.mrs/<iid>-<branch>   git worktree per merge request
+//	<root>/<group>/.unagit/<project>/<iid>-<branch>   git worktree per merge request
 //
 // Worktrees share the main clone's object store, so a merge request checkout is
 // cheap, yet each one has its own independent working tree - uncommitted
@@ -25,16 +25,6 @@ import (
 	"github.com/tobola/unagit/internal/gitx"
 )
 
-// Suffixes appended to a project directory to hold its merge request worktrees.
-const (
-	// MRSuffix holds branch worktrees: a real branch you can commit and push.
-	MRSuffix = ".mrs"
-	// ReviewSuffix holds review worktrees: HEAD sits on the merge base while
-	// the index and the working tree hold the merge request, so the whole
-	// change shows up as pending changes in an editor.
-	ReviewSuffix = ".reviews"
-)
-
 // Options is everything a Manager needs to know. The root is resolved by the
 // caller, because it depends on the instance and the group a project sits in.
 // Clone protocols.
@@ -44,11 +34,13 @@ const (
 )
 
 type Options struct {
-	Root       string
-	GitLabURL  string
-	Editor     string
-	EditorArgs []string
-	Token      string
+	Root string
+	// ProjectDirectory is the exact clone destination, resolved by the caller.
+	ProjectDirectory string
+	GitLabURL        string
+	Editor           string
+	EditorArgs       []string
+	Token            string
 	// CloneProtocol is ProtocolHTTPS or ProtocolSSH; empty means HTTPS, which
 	// is what unagit did before it could do anything else.
 	CloneProtocol string
@@ -96,11 +88,11 @@ func ProjectDirIn(root, projectPath string) string {
 }
 
 // MRRootIn holds every branch worktree of a project under root.
-func MRRootIn(root, projectPath string) string { return ProjectDirIn(root, projectPath) + MRSuffix }
+func MRRootIn(root, projectPath string) string { return WorktreeRoot(ProjectDirIn(root, projectPath)) }
 
 // ReviewRootIn holds every review worktree of a project under root.
 func ReviewRootIn(root, projectPath string) string {
-	return ProjectDirIn(root, projectPath) + ReviewSuffix
+	return MRRootIn(root, projectPath)
 }
 
 // MRDirIn is the branch worktree of one merge request under root.
@@ -110,32 +102,55 @@ func MRDirIn(root, projectPath string, iid int, sourceBranch string) string {
 
 // ReviewDirIn is the review worktree of one merge request under root.
 func ReviewDirIn(root, projectPath string, iid int, sourceBranch string) string {
-	return filepath.Join(ReviewRootIn(root, projectPath), mrDirName(iid, sourceBranch))
+	return filepath.Join(ReviewRootIn(root, projectPath), "review-"+mrDirName(iid, sourceBranch))
 }
 
 // ProjectDir is the main clone directory of a project.
 func (m *Manager) ProjectDir(projectPath string) string {
+	if m.opts.ProjectDirectory != "" {
+		return config.Expand(m.opts.ProjectDirectory)
+	}
 	return ProjectDirIn(m.Root(), projectPath)
 }
 
 // MRRoot is the directory holding every merge request worktree of a project.
 func (m *Manager) MRRoot(projectPath string) string {
-	return m.ProjectDir(projectPath) + MRSuffix
+	return WorktreeRoot(m.ProjectDir(projectPath))
 }
 
 // MRDir is the branch worktree directory of a single merge request.
 func (m *Manager) MRDir(projectPath string, iid int, sourceBranch string) string {
+	legacy := filepath.Join(m.ProjectDir(projectPath)+".mrs", mrDirName(iid, sourceBranch))
+	if Exists(legacy) {
+		return legacy
+	}
 	return filepath.Join(m.MRRoot(projectPath), mrDirName(iid, sourceBranch))
 }
 
 // ReviewRoot is the directory holding every review worktree of a project.
 func (m *Manager) ReviewRoot(projectPath string) string {
-	return m.ProjectDir(projectPath) + ReviewSuffix
+	return m.MRRoot(projectPath)
 }
 
 // ReviewDir is the review worktree directory of a single merge request.
 func (m *Manager) ReviewDir(projectPath string, iid int, sourceBranch string) string {
-	return filepath.Join(m.ReviewRoot(projectPath), mrDirName(iid, sourceBranch))
+	legacy := filepath.Join(m.ProjectDir(projectPath)+".reviews", mrDirName(iid, sourceBranch))
+	if Exists(legacy) {
+		return legacy
+	}
+	return filepath.Join(m.ReviewRoot(projectPath), "review-"+mrDirName(iid, sourceBranch))
+}
+
+// WorktreeRoot stays beside the clone, including when its destination is overridden.
+func WorktreeRoot(projectDir string) string {
+	return filepath.Join(filepath.Dir(projectDir), ".unagit", filepath.Base(projectDir))
+}
+
+// WorktreeRoots includes old layouts so existing checkouts remain visible and
+// deletion still accounts for all local work. New worktrees use the hidden root.
+func (m *Manager) WorktreeRoots(projectPath string) []string {
+	dir := m.ProjectDir(projectPath)
+	return []string{m.MRRoot(projectPath), dir + ".mrs", dir + ".reviews"}
 }
 
 func mrDirName(iid int, sourceBranch string) string {
@@ -383,7 +398,7 @@ func (m *Manager) InspectProject(projectPath string) Removal {
 			r.Warnings = append(r.Warnings, "main clone: "+s)
 		}
 	}
-	for _, root := range []string{m.MRRoot(projectPath), m.ReviewRoot(projectPath)} {
+	for _, root := range m.WorktreeRoots(projectPath) {
 		entries, _ := os.ReadDir(root)
 		for _, e := range entries {
 			if !e.IsDir() {
@@ -430,7 +445,7 @@ func (m *Manager) describeWorktree(dir string) string {
 // worktrees.
 func (m *Manager) RemoveProject(projectPath string) error {
 	dir := m.ProjectDir(projectPath)
-	for _, root := range []string{m.MRRoot(projectPath), m.ReviewRoot(projectPath)} {
+	for _, root := range m.WorktreeRoots(projectPath) {
 		if _, err := os.Stat(root); err != nil {
 			continue
 		}
@@ -438,6 +453,7 @@ func (m *Manager) RemoveProject(projectPath string) error {
 		if err := os.RemoveAll(root); err != nil {
 			return err
 		}
+		m.pruneEmptyParents(filepath.Dir(root))
 	}
 	m.log("Removing %s", dir)
 	if err := os.RemoveAll(dir); err != nil {
@@ -478,6 +494,9 @@ func (m *Manager) RemoveMR(projectPath string, iid int, sourceBranch string) err
 // pruneEmptyParents removes empty directories up to (but not including) the root.
 func (m *Manager) pruneEmptyParents(dir string) {
 	root := filepath.Clean(m.Root())
+	if m.opts.ProjectDirectory != "" {
+		root = filepath.Dir(m.ProjectDir(""))
+	}
 	for {
 		dir = filepath.Clean(dir)
 		if dir == root || !strings.HasPrefix(dir, root+string(os.PathSeparator)) {

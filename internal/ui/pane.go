@@ -14,13 +14,15 @@ import (
 // FILTER mode (entered with "/") typing narrows the list while the arrow keys
 // and Enter still drive the table.
 type pane struct {
-	app    *App
-	root   *tview.Flex
-	body   *tview.Flex
-	table  *tview.Table
-	filter *tview.InputField
-	header *tview.TextView
-	detail *tview.TextView
+	app       *App
+	root      *tview.Flex
+	body      *tview.Flex
+	table     *tview.Table
+	filter    *tview.InputField
+	header    *tview.TextView
+	headerRow *tview.Flex
+	helpHint  *tview.TextView
+	detail    *tview.TextView
 
 	filtering     bool
 	width         int    // inner width of the table, for column layout
@@ -29,6 +31,7 @@ type pane struct {
 	detailShown   bool
 	detailFocused bool
 	query         string
+	statusMessage string
 
 	onQuery  func(string)                          // rebuild rows for a new query
 	onKey    func(*tcell.EventKey) *tcell.EventKey // extra NORMAL mode commands
@@ -53,6 +56,8 @@ func (a *App) newPane(title string) *pane {
 	p := &pane{app: a, detailFor: -1}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
+	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
+	p.headerRow = tview.NewFlex().AddItem(p.header, 0, 1, false).AddItem(p.helpHint, 8, 0, false)
 
 	p.filter = filterField(tview.NewInputField())
 	p.filter.SetChangedFunc(func(text string) {
@@ -96,7 +101,7 @@ func (a *App) newPane(title string) *pane {
 	p.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(p.filter, 1, 0, false).
 		AddItem(p.body, 0, 1, true).
-		AddItem(p.header, 1, 0, false)
+		AddItem(p.headerRow, 1, 0, false)
 
 	p.filter.SetInputCapture(p.filterKeys)
 	p.table.SetInputCapture(p.tableKeys)
@@ -261,6 +266,9 @@ func (p *pane) updateHeader() {
 		mode = tag(colWarn) + "FILTER" + tagEnd
 	case p.detailFocused:
 		mode = tag(colAccent) + "DETAIL" + tagEnd
+	}
+	if p.statusMessage != "" {
+		text += "   " + p.statusMessage
 	}
 	p.header.SetText(" " + mode + "  " + text)
 }

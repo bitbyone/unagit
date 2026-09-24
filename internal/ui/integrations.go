@@ -83,9 +83,9 @@ func (v *integrationsView) paintFocus(active bool) {
 		text += "\n\n"
 		if focused {
 			if card.binary != "" {
-				text += tag(colAccent) + "e" + tagEnd + " toggle   ·   "
+				text += tag(colDim) + "e toggle · " + tagEnd
 			}
-			text += tag(colAccent) + "c" + tagEnd + " check"
+			text += tag(colDim) + "c check" + tagEnd
 		}
 		card.view.SetText(text)
 	}

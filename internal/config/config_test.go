@@ -370,3 +370,17 @@ func TestFiltersSurviveTheFile(t *testing.T) {
 		t.Fatalf("hidden = %+v", got.Filters.Hidden)
 	}
 }
+
+func TestExactProjectDirectory(t *testing.T) {
+	cfg := &Config{RootDir: "/base"}
+	inst := &Instance{RootDir: "/server", Groups: []Group{{FullPath: "group/sub", RootDir: "/group", Scope: ScopeSubgroups}}, ProjectDirs: map[string]string{"group/sub/app": "/custom/renamed"}}
+	if got := cfg.ProjectDir(inst, "group/sub/app"); got != "/custom/renamed" {
+		t.Fatalf("override = %q", got)
+	}
+	if got := cfg.ProjectDir(inst, "group/sub/other"); got != "/group/group/sub/other" {
+		t.Fatalf("inherited = %q", got)
+	}
+	if got := cfg.ProjectDir(&Instance{}, "group/sub/app"); got != "/base/group/sub/app" {
+		t.Fatalf("another server = %q", got)
+	}
+}
