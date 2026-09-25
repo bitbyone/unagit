@@ -116,7 +116,7 @@ func TestApproveAsksFirst(t *testing.T) {
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "Rate limiting")
 
-	typeRunes(sc, "a")
+	typeRunes(sc, "A")
 	waitFor(t, a, sc, "Approve")
 	waitFor(t, a, sc, "Everyone on the merge request will see it")
 	if srv.approvals.Load() != 0 {
@@ -129,7 +129,7 @@ func TestApproveAsksFirst(t *testing.T) {
 		t.Fatal("cancelling still approved")
 	}
 
-	typeRunes(sc, "a")
+	typeRunes(sc, "A")
 	waitFor(t, a, sc, "Everyone on the merge request will see it")
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Approved acme/gateway !7")
@@ -145,7 +145,7 @@ func TestApproveFromTheCommentsModal(t *testing.T) {
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 
-	typeRunes(sc, "a")
+	typeRunes(sc, "A")
 	waitFor(t, a, sc, "Everyone on the merge request will see it")
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Approved acme/gateway !7")
@@ -186,10 +186,11 @@ func TestCommentsAreGroupedIntoThreads(t *testing.T) {
 		t.Fatalf("order on screen: oldest %d, third %d, root %d, reply %d", oldest, third, root, reply)
 	}
 
-	// The reply is marked, and its byline sits further right than its root's.
+	// Every comment is a box of its own, and the reply's box sits further right
+	// than its root's, which is how a reply is told from a comment.
 	replyLine, rootLine := lines[reply-1], lines[root-1]
-	if !strings.Contains(replyLine, "↳") {
-		t.Errorf("the reply is not marked: %q", replyLine)
+	if !strings.Contains(replyLine, "john") || !strings.Contains(rootLine, "ann") {
+		t.Errorf("a byline is not in the row above its text:\n%q\n%q", rootLine, replyLine)
 	}
 	if column(replyLine, "john") <= column(rootLine, "ann") {
 		t.Errorf("the reply is not indented:\n%q\n%q", rootLine, replyLine)

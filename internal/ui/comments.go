@@ -55,15 +55,18 @@ func (a *App) showComments(mr forge.MergeRequest) {
 
 	footer := tview.NewTextView().SetDynamicColors(true)
 	footer.SetText(" " + tag(colDim) +
-		"i  write a comment   ·   a  approve   ·   r  reload   ·   j k  scroll   ·   Esc  close" + tagEnd)
+		"i  write a comment   ·   A  approve   ·   r  reload   ·   j k  scroll   ·   Esc  close" + tagEnd)
 
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(view, 0, 1, true).
 		AddItem(footer, 1, 0, false)
 
 	fitFooter(frame, footer, 0)
+	// The conversation is drawn as boxes, which have to know how wide they are.
+	fit := a.widthAware(view)
 	var load func()
 	load = func() {
+		fit(nil)
 		client := a.client(mr.Instance)
 		if client == nil {
 			view.SetText(tag(colBad) + a.instanceLabel(mr.Instance) + " has no token" + tagEnd)
@@ -80,17 +83,19 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			notes, err := client.MergeRequestNotes(ctx, mr, 200)
-			local := renderLocalThreads(incomm.ThreadsOf(dirs...))
+			localThreads := incomm.ThreadsOf(dirs...)
 			a.tv.QueueUpdateDraw(func() {
 				if err != nil {
 					view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)
 					return
 				}
-				text := renderConversation(notes)
-				if local != "" {
-					text += "\n\n" + tag(colDim) + strings.Repeat("━", 40) + tagEnd + "\n\n" + local
-				}
-				view.SetText(text)
+				fit(func(width int) string {
+					text := renderConversation(notes, width)
+					if local := renderLocalThreads(localThreads, width); local != "" {
+						text += "\n\n" + tag(colDim) + strings.Repeat("━", 40) + tagEnd + "\n\n" + local
+					}
+					return text
+				})
 				view.ScrollToEnd()
 			})
 		}()
@@ -109,7 +114,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			case 'i':
 				a.showComposer(mr, load)
 				return nil
-			case 'a':
+			case 'A':
 				a.approveMR(mr, load)
 				return nil
 			case 'r':
@@ -126,9 +131,9 @@ func (a *App) showComments(mr forge.MergeRequest) {
 }
 
 // renderConversation lays the comments out as the threads they belong to:
-// each conversation in the order it was written, replies indented under what
-// they answer, and the conversations themselves oldest first.
-func renderConversation(notes []forge.Note) string {
+// each conversation as boxes in the order it was written, replies nested under
+// what they answer, and the conversations themselves oldest first.
+func renderConversation(notes []forge.Note, width int) string {
 	var human []forge.Note
 	for _, n := range notes {
 		if !n.System && strings.TrimSpace(n.Body) != "" {
@@ -140,25 +145,31 @@ func renderConversation(notes []forge.Note) string {
 	}
 
 	threads := groupIntoThreads(human)
-	var b strings.Builder
+	parts := make([]string, len(threads))
 	for i, thread := range threads {
-		if i > 0 {
-			b.WriteString("\n" + tag(colDim) + strings.Repeat("┈", 40) + tagEnd + "\n\n")
-		}
-		for j, n := range thread {
-			indent := ""
-			if j > 0 {
-				// A reply sits under what it answers.
-				indent = "  "
-				b.WriteString("\n")
-			}
-			b.WriteString(indent + noteHeader(n, j > 0) + "\n")
-			if body := renderMarkdown(n.Body, indent+"  "); body != "" {
-				b.WriteString(body + "\n")
-			}
-		}
+		parts[i] = renderBubbles(threadBubbles(thread, false), width)
 	}
-	return b.String()
+	return strings.Join(parts, "\n\n")
+}
+
+// threadBubbles is a conversation as boxes: the first comment, then its
+// replies nested under it. short cuts a very long comment down.
+func threadBubbles(thread []forge.Note, short bool) []bubble {
+	bubbles := make([]bubble, len(thread))
+	for j, n := range thread {
+		body := n.Body
+		if short {
+			body = trimBody(body)
+		}
+		b := bubble{Name: n.Author.Username, Colour: colAccent, Meta: noteMeta(n, j > 0), Body: body}
+		if j > 0 {
+			b.Indent = 2
+		} else if n.Path != "" {
+			b.Where = fmt.Sprintf("%s:%d", n.Path, n.Line)
+		}
+		bubbles[j] = b
+	}
+	return bubbles
 }
 
 // groupIntoThreads collects the notes of each conversation, oldest first
@@ -191,26 +202,20 @@ func groupIntoThreads(notes []forge.Note) [][]forge.Note {
 	return threads
 }
 
-// noteHeader is the byline of one comment; a reply is marked as one.
-func noteHeader(n forge.Note, reply bool) string {
-	head := ""
-	if reply {
-		head = tag(colDim) + "↳ " + tagEnd
-	}
-	head += fmt.Sprintf("%s%s%s  %s%s", tag(colAccent), tview.Escape(n.Author.Username), tagEnd,
-		tag(colDim), humanAge(n.CreatedAt))
-	if n.Path != "" {
-		head += fmt.Sprintf(" · %s:%d", tview.Escape(n.Path), n.Line)
-	}
-	head += tagEnd
-	if n.Resolvable {
+// noteMeta is what a comment's box says after its author: when it was written
+// and, on the first comment of a conversation, whether the conversation is
+// resolved. Being resolved belongs to the conversation, not to each reply, and
+// where it is anchored goes in the box's own place row.
+func noteMeta(n forge.Note, reply bool) string {
+	meta := tag(colDim) + humanAge(n.CreatedAt) + tagEnd
+	if n.Resolvable && !reply {
 		if n.Resolved {
-			head += tag(colDim) + " · resolved" + tagEnd
+			meta += tag(colDim) + " · resolved" + tagEnd
 		} else {
-			head += tag(colWarn) + " · unresolved" + tagEnd
+			meta += tag(colWarn) + " · unresolved" + tagEnd
 		}
 	}
-	return head
+	return meta
 }
 
 // showComposer writes a new comment. onSent runs once it is posted.

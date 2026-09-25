@@ -97,7 +97,20 @@ func TestPendingCommentsAreCountedInThePubColumn(t *testing.T) {
 	}
 }
 
+// fakeIncommCLI puts an incomm on PATH that knows the format and re-anchors
+// nothing, which is all the confirmation needs from it.
+func fakeIncommCLI(t *testing.T) {
+	t.Helper()
+	bin := t.TempDir()
+	script := "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = version ]; then echo '{\"version\":\"1.1.0\",\"formatVersion\":2}'; exit 0; fi\ndone\necho '{\"changed\":0}'\n"
+	if err := os.WriteFile(filepath.Join(bin, "incomm"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
+	fakeIncommCLI(t)
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	gatewayWorktrees(t, a)
@@ -144,7 +157,7 @@ func TestLocalCommentsShowWhatIsNotPublished(t *testing.T) {
  {"id":"e","file":"e.go","startLine":7,"author":"user","content":"answered later","audience":"agent+external","source":{"id":5},
   "replies":[{"id":"e1","author":"user","content":"new reply","audience":"agent+external"}]}
 ]}`))
-	got := renderLocalThreads(threads)
+	got := renderLocalThreads(threads, 80)
 	for _, want := range []string{"Local comments", "a.go:3", "not published", "Agent (Opus 5)", "my answer",
 		"b.go:4", "local", "e.go:7", "new reply"} {
 		if !strings.Contains(got, want) {
@@ -158,7 +171,7 @@ func TestLocalCommentsShowWhatIsNotPublished(t *testing.T) {
 			t.Errorf("%q should not be shown:\n%s", unwanted, got)
 		}
 	}
-	if renderLocalThreads(nil) != "" {
+	if renderLocalThreads(nil, 80) != "" {
 		t.Error("no threads, no section")
 	}
 }
@@ -173,6 +186,28 @@ func worktreeOf(t *testing.T, notes string) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+func TestPublishSummaryCountsResolvesToo(t *testing.T) {
+	post := incomm.Step{File: "a.go", Line: 3, IsRoot: true, Comment: incomm.Comment{Author: "user", Content: "hello"}}
+	resolve := incomm.Step{File: "a.go", Line: 3, Resolve: true}
+	mr := forge.MergeRequest{IID: 7}
+
+	both := publishSummary("acme/gateway", mr, []incomm.Step{post, resolve, resolve})
+	for _, want := range []string{"Publish 1 comment and resolve 2 threads to", "a.go:3  resolve thread", "closes the conversation", "posted with your token"} {
+		if !strings.Contains(both, want) {
+			t.Errorf("missing %q in:\n%s", want, both)
+		}
+	}
+	only := publishSummary("acme/gateway", mr, []incomm.Step{resolve})
+	if !strings.Contains(only, "Resolve 1 thread on") || strings.Contains(only, "posted with your token") {
+		t.Errorf("resolve only:\n%s", only)
+	}
+	orphan := post
+	orphan.Orphaned = true
+	if got := publishSummary("acme/gateway", mr, []incomm.Step{orphan}); !strings.Contains(got, "orphaned") {
+		t.Errorf("an orphan must be marked:\n%s", got)
+	}
 }
 
 func TestPublishSummaryKeepsToOneScreen(t *testing.T) {

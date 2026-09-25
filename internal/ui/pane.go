@@ -23,6 +23,9 @@ type pane struct {
 	headerRow *tview.Flex
 	helpHint  *tview.TextView
 	detail    *tview.TextView
+	// fitDetail lays the detail out to the width it is drawn at, for content
+	// that is drawn as boxes; nil goes back to plain text.
+	fitDetail func(render func(width int) string)
 
 	filtering     bool
 	width         int    // inner width of the table, for column layout
@@ -101,6 +104,7 @@ func (a *App) newPane(title string) *pane {
 		SetWordWrap(true)
 	p.detail.SetTextColor(colText)
 	box(p.detail.Box, "Details").SetBorderPadding(0, 0, 1, 1)
+	p.fitDetail = a.widthAware(p.detail)
 
 	p.body = tview.NewFlex().AddItem(p.table, 0, 1, true)
 	// Stack the list and the detail column vertically once the body is too
@@ -246,6 +250,7 @@ func (p *pane) showDetail(title, text string) {
 		p.detailShown = true
 	}
 	p.detail.SetTitle(" " + title + " ")
+	p.fitDetail(nil)
 	p.detail.SetText(text)
 	p.detail.ScrollToBeginning()
 	p.focusDetail()
@@ -257,7 +262,20 @@ func (p *pane) setDetail(title, text string) {
 		return
 	}
 	p.detail.SetTitle(" " + title + " ")
+	p.fitDetail(nil)
 	p.detail.SetText(text)
+	p.detail.ScrollToBeginning()
+}
+
+// setDetailFunc is setDetail for content that has to be laid out to a width:
+// render is called with the width the column is drawn at, and again when that
+// changes.
+func (p *pane) setDetailFunc(title string, render func(width int) string) {
+	if !p.detailShown {
+		return
+	}
+	p.detail.SetTitle(" " + title + " ")
+	p.fitDetail(render)
 	p.detail.ScrollToBeginning()
 }
 

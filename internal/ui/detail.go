@@ -373,7 +373,7 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		p.setDetail(title, a.renderMR(mr, path, nil, nil, nil, 0, nil, []string{
-			a.instanceLabel(mr.Instance) + " has no token yet - set one in Settings [S]"}))
+			a.instanceLabel(mr.Instance) + " has no token yet - set one in Settings [S]"}, 0))
 		return
 	}
 
@@ -433,14 +433,23 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 			if p.detailSeq != seq {
 				return
 			}
-			p.setDetail(title, a.renderMR(mr, path, detail, notes, commits, commitCount, approvals, problems))
+			p.setDetailFunc(title, func(width int) string {
+				return a.renderMR(mr, path, detail, notes, commits, commitCount, approvals, problems, width)
+			})
+			// The detail is as fresh as the server, so the row should be too, its
+			// time included. The order is not: this runs while the cursor is
+			// moving, so a row that jumped would carry the cursor away. It moves
+			// on r, or when the request is opened.
+			if detail != nil {
+				a.applyMRUpdate(withDetail(mr, detail), false, true)
+			}
 		})
 	}()
 }
 
 func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeRequestDetail,
 	notes []forge.Note, commits []forge.Commit, commitCount int, approvals *forge.Approvals,
-	problems []string) string {
+	problems []string, width int) string {
 
 	d := &detailBuf{}
 	title := mr.Title
@@ -551,25 +560,32 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 		}
 	}
 	if len(human) > 0 {
+		// The newest conversations, whole, until three comments are on show.
 		const shown = 3
 		total := len(human)
 		if det != nil && det.UserNotesCount > total {
 			total = det.UserNotesCount
 		}
+		threads := groupIntoThreads(human)
+		var picked [][]forge.Note
+		count := 0
+		for i := len(threads) - 1; i >= 0 && count < shown; i-- {
+			picked = append([][]forge.Note{threads[i]}, picked...)
+			count += len(threads[i])
+		}
 		heading := fmt.Sprintf("Comments (%d)", total)
-		if total > shown {
-			heading = fmt.Sprintf("Comments (%d newest of %d)", shown, total)
+		if count < total {
+			heading = fmt.Sprintf("Comments (%d newest of %d)", count, total)
 		}
 		d.section(heading)
-		for i, n := range human {
-			if i == shown {
-				d.raw(fmt.Sprintf("  %s… %d more · press c to read them all%s\n",
-					tag(colDim), total-shown, tagEnd))
-				break
-			}
-			d.raw("  " + noteHeader(n, false) + "\n")
-			d.markdown(trimBody(n.Body))
-			d.blank()
+		if width <= 0 {
+			width = defaultBubbleWidth
+		}
+		for _, thread := range picked {
+			d.raw(renderBubbles(threadBubbles(thread, true), width) + "\n\n")
+		}
+		if count < total {
+			d.raw(fmt.Sprintf("%s… %d more · press c to read them all%s\n", tag(colDim), total-count, tagEnd))
 		}
 	}
 

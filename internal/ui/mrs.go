@@ -14,6 +14,7 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/incomm"
+	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
@@ -104,7 +105,7 @@ func (a *App) newMRsPane() *pane {
 				a.note("opened " + mr.WebURL)
 			}
 			return nil
-		case 'a':
+		case 'A':
 			if mr, ok := selected(); ok {
 				a.approveMR(mr, nil)
 			}
@@ -162,7 +163,7 @@ func (a *App) filterMRs(query string) []int {
 		})
 	} else {
 		sort.SliceStable(hits, func(i, j int) bool {
-			return a.mrs[hits[i].idx].UpdatedAt.After(a.mrs[hits[j].idx].UpdatedAt)
+			return a.mrSortTime(a.mrs[hits[i].idx]).After(a.mrSortTime(a.mrs[hits[j].idx]))
 		})
 	}
 	out := make([]int, len(hits))
@@ -429,11 +430,119 @@ func mrMarkColor(d mrDisk) tcell.Color {
 // openMR materialises the merge request worktree and opens the editor there.
 func (a *App) openMR(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
+	client := a.client(mr.Instance)
+	integrate := a.cfg.Integrations.Incomm
 	a.runTaskOpening(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
 		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch),
 		func(log func(string)) (string, error) {
-			return a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
+			mr := a.refreshMR(client, mr, log)
+			dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
+			if err == nil && integrate {
+				reanchorAfterUpdate(dir, log)
+			}
+			return dir, err
 		})
+}
+
+// reanchorAfterUpdate puts the Incomm comments of a worktree back on their code.
+// It runs right after the worktree was brought up to date, because that is when
+// the code moves under them; it is idempotent, so running it when nothing moved
+// costs a moment and changes nothing. A failure is only logged: the worktree is
+// fine, and Incomm re-anchors again whenever it lists.
+func reanchorAfterUpdate(dir string, log func(string)) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if err := incomm.Reanchor(ctx, dir); err != nil {
+		log("! Incomm could not re-anchor the comments: " + err.Error())
+		return
+	}
+	log("Incomm: comments are on their code")
+}
+
+// refreshMR asks the forge for this one merge request and puts what it says into
+// its row, so opening it leaves the list as current as the worktree. The rest of
+// the list waits for r. The fresh values are also what the checkout should use:
+// a merge request retargeted since the index was made would otherwise be fetched
+// and diffed against its old target. When the forge cannot be asked, the request
+// is opened as the index knew it. The client comes from the caller because this
+// runs off the event loop.
+func (a *App) refreshMR(client forge.Provider, mr forge.MergeRequest, log func(string)) forge.MergeRequest {
+	if client == nil {
+		return mr
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	det, err := client.MergeRequestDetail(ctx, mr)
+	if err != nil {
+		log("! could not refresh the merge request: " + err.Error())
+		return mr
+	}
+	fresh := withDetail(mr, det)
+	a.tv.QueueUpdateDraw(func() { a.applyMRUpdate(fresh, true, false) })
+	return fresh
+}
+
+// withDetail is mr with what the forge just said about it. Instance and
+// ProjectPath are unagit's own and stay.
+func withDetail(mr forge.MergeRequest, det *forge.MergeRequestDetail) forge.MergeRequest {
+	mr.Title, mr.Draft, mr.State = det.Title, det.Draft, det.State
+	mr.SourceBranch, mr.TargetBranch = det.SourceBranch, det.TargetBranch
+	mr.UpdatedAt, mr.Comments = det.UpdatedAt, det.UserNotesCount
+	if det.WebURL != "" {
+		mr.WebURL = det.WebURL
+	}
+	if det.Author.Username != "" {
+		mr.Author = det.Author
+	}
+	return mr
+}
+
+// sameRow reports whether two versions of a merge request agree on everything
+// the list shows, so a refresh that found nothing new redraws nothing.
+func sameRow(a, b forge.MergeRequest) bool {
+	return a.Title == b.Title && a.Draft == b.Draft && a.State == b.State &&
+		a.SourceBranch == b.SourceBranch && a.TargetBranch == b.TargetBranch &&
+		a.WebURL == b.WebURL && a.Comments == b.Comments && a.UpdatedAt.Equal(b.UpdatedAt) &&
+		a.Author == b.Author
+}
+
+// applyMRUpdate replaces one row of the index and redraws it, without touching
+// the rest of the list or the time the list was indexed. It does nothing when the
+// row already says the same, which is what keeps a detail that follows the cursor
+// from redrawing the list on every step. redetail also reloads the detail column
+// when it shows this request. keepOrder shows the fresh time without moving the
+// row (see sortHold); opening a request lets it move. It runs on the event loop.
+func (a *App) applyMRUpdate(fresh forge.MergeRequest, redetail, keepOrder bool) {
+	for i := range a.mrs {
+		if a.mrs[i].Instance != fresh.Instance || a.mrs[i].IID != fresh.IID || a.mrs[i].ID != fresh.ID {
+			continue
+		}
+		key := keyOfMR(fresh)
+		if sameRow(a.mrs[i], fresh) {
+			if !keepOrder {
+				delete(a.sortHold, key)
+			}
+			return
+		}
+		if keepOrder {
+			if _, held := a.sortHold[key]; !held && !a.mrs[i].UpdatedAt.Equal(fresh.UpdatedAt) {
+				if a.sortHold == nil {
+					a.sortHold = map[mrKey]time.Time{}
+				}
+				a.sortHold[key] = a.mrs[i].UpdatedAt
+			}
+		} else {
+			delete(a.sortHold, key)
+		}
+		a.mrs[i] = fresh
+		_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
+			Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
+		a.mrsPane.reload()
+		if redetail {
+			a.reloadMRDetail(fresh)
+		}
+		return
+	}
 }
 
 // openMRReview prepares the review worktree, where the merge request shows up
@@ -450,6 +559,7 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
+			mr := a.refreshMR(client, mr, log)
 			var rev workspace.Review
 			if client == nil {
 				log("! no token for this server, falling back to the local merge base")
@@ -467,6 +577,7 @@ func (a *App) openMRReview(mr forge.MergeRequest) {
 			if err != nil || !integrate {
 				return dir, err
 			}
+			reanchorAfterUpdate(dir, log)
 			if client == nil {
 				return "", fmt.Errorf("incomm needs comments from the server; configure its token in Settings")
 			}

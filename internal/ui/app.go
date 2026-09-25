@@ -28,17 +28,18 @@ import (
 
 // page names
 const (
-	pageProjects = "projects"
-	pageMRs      = "mrs"
-	pageSettings = "settings"
-	pageHelp     = "help"
-	pageTask     = "task"
-	pageConfirm  = "confirm"
-	pagePicker   = "picker"
-	pageUnlock   = "unlock"
-	pageForm     = "form"
-	pageComments = "comments"
-	pageHidden   = "hidden"
+	pageProjects  = "projects"
+	pageMRs       = "mrs"
+	pageWorktrees = "worktrees"
+	pageSettings  = "settings"
+	pageHelp      = "help"
+	pageTask      = "task"
+	pageConfirm   = "confirm"
+	pagePicker    = "picker"
+	pageUnlock    = "unlock"
+	pageForm      = "form"
+	pageComments  = "comments"
+	pageHidden    = "hidden"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -95,11 +96,39 @@ type App struct {
 
 	disk map[projectKey]diskInfo
 
-	projectsPane *pane
-	mrsPane      *pane
-	settings     *settingsView
+	projectsPane  *pane
+	mrsPane       *pane
+	worktreesPane *pane
+	settings      *settingsView
+
+	// worktrees are the plain branch worktrees on disk, made from Repositories
+	// rather than for a merge request; refreshDisk fills them in.
+	worktrees []worktreeRow
 
 	mrProjectScope projectKey // the project the merge request list is limited to
+
+	// sortHold keeps a merge request where the list has it, when the detail found
+	// it newer than the index: the row shows the fresh time, but the order waits
+	// for a refresh or for the request to be opened. Without it, a row would jump
+	// away from under the cursor while the detail follows it down the list.
+	sortHold map[mrKey]time.Time
+}
+
+// mrKey identifies a merge request across servers and projects.
+type mrKey struct {
+	Instance  string
+	ProjectID int
+	IID       int
+}
+
+func keyOfMR(mr forge.MergeRequest) mrKey { return mrKey{mr.Instance, mr.ProjectID, mr.IID} }
+
+// mrSortTime is the time a merge request is ordered by.
+func (a *App) mrSortTime(mr forge.MergeRequest) time.Time {
+	if held, ok := a.sortHold[keyOfMR(mr)]; ok {
+		return held
+	}
+	return mr.UpdatedAt
 }
 
 // New builds the application with an already open vault, for tests and for
@@ -190,10 +219,12 @@ func (a *App) Run() error {
 
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()
+	a.worktreesPane = a.newWorktreesPane()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
+	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -296,6 +327,8 @@ func (a *App) restoreFocus() {
 		a.tv.SetFocus(a.projectsPane.focusTarget())
 	case pageMRs:
 		a.tv.SetFocus(a.mrsPane.focusTarget())
+	case pageWorktrees:
+		a.tv.SetFocus(a.worktreesPane.focusTarget())
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}
@@ -319,9 +352,12 @@ func (a *App) setStatus(msg string) {
 	}
 	a.status.SetText("")
 	var p *pane
-	if a.currentTab() == pageMRs {
+	switch a.currentTab() {
+	case pageMRs:
 		p = a.mrsPane
-	} else {
+	case pageWorktrees:
+		p = a.worktreesPane
+	default:
 		p = a.projectsPane
 	}
 	if p != nil {
@@ -670,6 +706,7 @@ func (a *App) refreshMRs() {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.mrs, a.mrsUpdated, a.staleMRs = all, idx.UpdatedAt, false
+			a.sortHold = nil
 			a.refreshDisk()
 			a.mrsPane.reload()
 			a.projectsPane.reload()
@@ -795,6 +832,7 @@ func (a *App) refreshGroups() {
 func (a *App) refreshDisk() {
 	disk := make(map[projectKey]diskInfo, len(a.projects))
 	seen := map[projectKey]bool{}
+	var worktrees []worktreeRow
 	// Counting what waits to be published reads a small file per worktree, and
 	// only means something when Incomm is in use.
 	countPending := a.cfg.Integrations.Incomm
@@ -821,6 +859,10 @@ func (a *App) refreshDisk() {
 				name := e.Name()
 				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "wt-") {
 					info.Worktrees++
+					wtDir := filepath.Join(root, name)
+					branch, moved := workspace.WorktreeHead(wtDir)
+					worktrees = append(worktrees, worktreeRow{
+						Instance: key.Instance, Path: key.Path, Branch: branch, Dir: wtDir, Moved: moved})
 					continue
 				}
 				review := root == dir+".reviews"
@@ -858,6 +900,10 @@ func (a *App) refreshDisk() {
 		inspect(projectKey{m.Instance, a.projectPathOfMR(m)})
 	}
 	a.disk = disk
+	a.worktrees = worktrees
+	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
+		a.worktreesPane.reload()
+	}
 }
 
 // diskOf returns the cached state of one project.

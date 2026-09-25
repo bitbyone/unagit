@@ -18,6 +18,8 @@ const (
 	helpRepoDetail
 	helpMRList
 	helpMRDetail
+	helpWorktreeList
+	helpWorktreeDetail
 	helpSettingsList
 	helpServers
 	helpGroups
@@ -26,9 +28,10 @@ const (
 	helpSecurity
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
+	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
-	helpDetails       = helpRepoDetail | helpMRDetail
-	helpNavigation    = helpLists | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity
+	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
+	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -45,6 +48,11 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpMRDetail, "Merge request detail"
 		}
 		return helpMRList, "Merge requests"
+	case pageWorktrees:
+		if a.worktreesPane.detailFocused {
+			return helpWorktreeDetail, "Worktree detail"
+		}
+		return helpWorktreeList, "Worktrees"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -118,12 +126,12 @@ func blank() helpLine                                 { return helpLine{} }
 func helpRows() []helpLine {
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
-		key("R  M  S", "Repositories · Merge requests · Settings"),
+		key("R  M  W  S", "Repositories · Merge requests · Worktrees · Settings"),
 		key("j  k", "move up and down"),
-		key("g  G", "first · last").in(helpLists),
-		key("/", "filter: fuzzy, spaces separate terms").in(helpLists),
-		key("Esc", "clear the filter or close the detail").in(helpRepoList | helpMRList),
-		key("Enter", "load it and jump in; it then follows the cursor").in(helpRepoList | helpMRList),
+		key("g  G", "first · last").in(helpLists | helpWorktreeList),
+		key("/", "filter: fuzzy, spaces separate terms").in(helpLists | helpWorktreeList),
+		key("Esc", "clear the filter or close the detail").in(helpRepoList | helpMRList | helpWorktreeList),
+		key("Enter", "load it and jump in; it then follows the cursor").in(helpRepoList | helpMRList | helpWorktreeList),
 		key("?", "this help").in(helpNavigation | helpGeneral),
 		key("q", "quit"),
 		blank(),
@@ -171,11 +179,20 @@ func helpRows() []helpLine {
 			"own, or the [main clone] entry for everything at once."),
 		blank(),
 
+		section("Worktrees", helpWorktrees),
+		note("Ctrl-O brings a worktree up to date and opens the editor, d deletes it " +
+			"(warning about work that would be lost), r looks at the disk again."),
+		note("Every worktree made with Ctrl-W in Repositories, whichever repository it " +
+			"belongs to, with what it has checked out and when it last moved. Enter shows " +
+			"whether it is clean and pushed, and its latest commits. Worktrees that belong " +
+			"to a merge request are on the Merge requests tab."),
+		blank(),
+
 		section("Merge requests", helpMergeRequests),
 		key("Ctrl-R", "open for review: the whole change as pending edits"),
 		key("c", "read the conversation, and write a comment"),
-		key("a", "approve - it asks first"),
-		key("P", "publish the Incomm comments marked for the merge request - it lists them first"),
+		key("A", "approve - it asks first (capital, like P for publish: both are seen by everyone)"),
+		key("P", "publish the Incomm comments marked for the merge request, and resolve the threads you resolved - it lists them first"),
 		key("f  F", "limit the list to one repository · clear that limit"),
 		note("The COM column is how many comments a merge request has. GitLab " +
 			"reports it on the listing; GitHub only on a single merge request, so " +
@@ -187,11 +204,22 @@ func helpRows() []helpLine {
 			"failure half way never posts anything twice. What the agent wrote is " +
 			"marked as the agent's in the text, because the forge shows your name. " +
 			"Nothing is ever published without P."),
+		note("Incomm re-anchors the comments whenever a worktree is updated (Ctrl-O, " +
+			"Ctrl-R), so each one is on the line its code is on; P posts the lines Incomm " +
+			"has stored. One whose code is gone is marked orphaned and is posted on the " +
+			"conversation with its file, not at a stale line. A thread you resolved in Incomm that is on the forge, and open " +
+			"there, is listed as \"resolve thread\" and resolved after its posts " +
+			"(GitLab only: GitHub's API cannot resolve threads, and unagit says so)."),
+		note("Comments come in from the forge on Ctrl-R only, at the file and line " +
+			"the forge gives; running it again adds the new ones and leaves the ones " +
+			"already there where they are. Edits and deletions on the forge are not " +
+			"synced. Resolved only moves one way: a thread the forge has resolved is " +
+			"resolved in Incomm, but nothing is ever reopened, on either side."),
 		blank(),
 
 		section("Comments  (c)", 0),
 		key("i", "write one, Ctrl-S sends it"),
-		key("a", "approve"),
+		key("A", "approve"),
 		key("r", "reload"),
 		note("Oldest first, with the markdown rendered. The detail column keeps " +
 			"the three newest."),
@@ -229,6 +257,10 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Reviewing", helpMergeRequests),
+		note("Opening a merge request (Ctrl-O or Ctrl-R) also asks the server about that one " +
+			"request, so its row and its checkout are current; the rest of the list waits for r. " +
+			"The detail column refreshes its row too, except the time the list is ordered by, " +
+			"so the list does not shuffle while you move through it."),
 		note("Ctrl-O gives you the branch: real commits, you can commit and push."),
 		note("Ctrl-R gives you the review worktree: HEAD and the index sit on the " +
 			"commit the merge request branched from while the working tree holds the " +

@@ -7,7 +7,7 @@ import (
 	"github.com/rivo/tview"
 )
 
-// tab describes one of the three top level views.
+// tab describes one of the top level views.
 type tab struct {
 	page  string
 	key   rune
@@ -17,6 +17,7 @@ type tab struct {
 var tabs = []tab{
 	{pageProjects, 'R', "Repositories"},
 	{pageMRs, 'M', "Merge requests"},
+	{pageWorktrees, 'W', "Worktrees"},
 	{pageSettings, 'S', "Settings"},
 }
 
@@ -44,7 +45,7 @@ func (a *App) currentTab() string {
 	return a.tab
 }
 
-// switchTab shows one of the three main pages.
+// switchTab shows one of the main pages.
 func (a *App) switchTab(page string) {
 	a.tab = page
 	a.pages.SwitchToPage(page)
@@ -53,6 +54,8 @@ func (a *App) switchTab(page string) {
 		a.tv.SetFocus(a.projectsPane.focusTarget())
 	case pageMRs:
 		a.tv.SetFocus(a.mrsPane.focusTarget())
+	case pageWorktrees:
+		a.tv.SetFocus(a.worktreesPane.focusTarget())
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}
