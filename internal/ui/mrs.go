@@ -109,6 +109,11 @@ func (a *App) newMRsPane() *pane {
 				a.approveMR(mr, nil)
 			}
 			return nil
+		case 'P':
+			if mr, ok := selected(); ok {
+				a.publishMR(mr)
+			}
+			return nil
 		case 'c':
 			if mr, ok := selected(); ok {
 				a.showComments(mr)
@@ -170,10 +175,13 @@ func (a *App) filterMRs(query string) []int {
 // mrColumns works out how wide each column may be for the current table
 // width. The title takes whatever is left, and every cell is truncated to
 // fit, so the branch column never falls off the right edge.
-type mrColumns struct{ proj, iid, title, author, branch, com, updated int }
+type mrColumns struct{ proj, iid, title, author, branch, com, pub, updated int }
 
 func (a *App) mrColumns(width int, rows []int) mrColumns {
 	c := mrColumns{iid: 3, updated: 8, com: 3}
+	if a.cfg.Integrations.Incomm {
+		c.pub = 3 // PUB: what waits to be published from Incomm
+	}
 	for _, idx := range rows {
 		mr := a.mrs[idx]
 		c.proj = max(c.proj, len(a.projectPathOfMR(mr)))
@@ -189,11 +197,14 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 
 	const (
 		markW    = 2
-		gaps     = 7
 		minTitle = 24
 	)
+	gaps := 7
+	if c.pub > 0 {
+		gaps++ // its own gap
+	}
 	fixed := func() int {
-		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.updated + gaps
+		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.updated + gaps
 	}
 	c.title = width - fixed()
 	// Give the title room by shrinking the least important columns first.
@@ -311,8 +322,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		field{text: "TITLE", width: c.title, colour: colDim},
 		field{text: "AUTHOR", width: c.author, colour: colDim},
 		field{text: "BRANCH", width: c.branch, colour: colDim},
-		field{text: "COM", width: c.com, colour: colDim, right: true},
-		field{text: "UPDATED", width: c.updated, colour: colDim})
+		field{text: "COM", width: c.com, colour: colDim, right: true})
+	if c.pub > 0 {
+		header = append(header, field{text: "PUB", width: c.pub, colour: colDim, right: true})
+	}
+	header = append(header, field{text: "UPDATED", width: c.updated, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
@@ -339,6 +353,10 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if mr.Comments > 0 {
 			comments = fmt.Sprintf("%d", mr.Comments)
 		}
+		pending := ""
+		if disk.Pending > 0 {
+			pending = fmt.Sprintf("%d", disk.Pending)
+		}
 
 		fields := []field{{raw: tag(mrMarkColor(disk)) + mark + tagEnd}}
 		if withServer {
@@ -352,8 +370,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			titleField,
 			field{text: mr.Author.Username, width: c.author, colour: colMuted},
 			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
-			field{text: comments, width: c.com, colour: colWarn, right: true},
-			field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
+			field{text: comments, width: c.com, colour: colWarn, right: true})
+		if c.pub > 0 {
+			fields = append(fields, field{text: pending, width: c.pub, colour: colWarn, right: true})
+		}
+		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
 			SetReference(idx).SetExpansion(1))

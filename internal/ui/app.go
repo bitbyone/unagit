@@ -19,6 +19,7 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/github"
 	"github.com/tobola/unagit/internal/gitlab"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/session"
@@ -44,6 +45,9 @@ const (
 type mrDisk struct {
 	Branch bool // a real branch, can be committed and pushed
 	Review bool // the whole change pending on the merge base
+	// Pending counts the Incomm comments and replies in both worktrees that are
+	// meant for the merge request and have not been published yet.
+	Pending int
 }
 
 // diskInfo is the cached on-disk state of one project.
@@ -791,6 +795,9 @@ func (a *App) refreshGroups() {
 func (a *App) refreshDisk() {
 	disk := make(map[projectKey]diskInfo, len(a.projects))
 	seen := map[projectKey]bool{}
+	// Counting what waits to be published reads a small file per worktree, and
+	// only means something when Incomm is in use.
+	countPending := a.cfg.Integrations.Incomm
 
 	inspect := func(key projectKey) {
 		if key.Path == "" || seen[key] {
@@ -831,6 +838,9 @@ func (a *App) refreshDisk() {
 					d.Review = true
 				} else {
 					d.Branch = true
+				}
+				if countPending {
+					d.Pending += incomm.PendingIn(filepath.Join(root, e.Name()))
 				}
 				info.MRs[iid] = d
 			}

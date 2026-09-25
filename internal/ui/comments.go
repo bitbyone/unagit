@@ -11,6 +11,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/md"
 )
 
@@ -69,16 +70,27 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			return
 		}
 		view.SetText(tag(colMuted) + "Loading the conversation…" + tagEnd)
+		// The worktrees are looked up here, where the configuration belongs to
+		// the event loop; reading their files can wait for the goroutine.
+		dirs := []string(nil)
+		if a.cfg.Integrations.Incomm {
+			dirs = a.mrWorktrees(mr)
+		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			notes, err := client.MergeRequestNotes(ctx, mr, 200)
+			local := renderLocalThreads(incomm.ThreadsOf(dirs...))
 			a.tv.QueueUpdateDraw(func() {
 				if err != nil {
 					view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)
 					return
 				}
-				view.SetText(renderConversation(notes))
+				text := renderConversation(notes)
+				if local != "" {
+					text += "\n\n" + tag(colDim) + strings.Repeat("━", 40) + tagEnd + "\n\n" + local
+				}
+				view.SetText(text)
 				view.ScrollToEnd()
 			})
 		}()

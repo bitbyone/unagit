@@ -175,10 +175,18 @@ func helpRows() []helpLine {
 		key("Ctrl-R", "open for review: the whole change as pending edits"),
 		key("c", "read the conversation, and write a comment"),
 		key("a", "approve - it asks first"),
+		key("P", "publish the Incomm comments marked for the merge request - it lists them first"),
 		key("f  F", "limit the list to one repository · clear that limit"),
 		note("The COM column is how many comments a merge request has. GitLab " +
 			"reports it on the listing; GitHub only on a single merge request, so " +
 			"there it fills in once you have opened one."),
+		note("With Incomm on, the PUB column counts the comments and replies in the " +
+			"merge request's worktrees that are meant for the forge and have not gone " +
+			"there yet. P posts them one by one, the conversation's first comment " +
+			"before its replies, and writes each one's forge id back at once, so a " +
+			"failure half way never posts anything twice. What the agent wrote is " +
+			"marked as the agent's in the text, because the forge shows your name. " +
+			"Nothing is ever published without P."),
 		blank(),
 
 		section("Comments  (c)", 0),
