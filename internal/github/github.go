@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -116,6 +117,11 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (h
 
 // post sends a JSON body and discards the answer.
 func (c *Client) post(ctx context.Context, path string, payload any) error {
+	return c.postDecode(ctx, path, payload, nil)
+}
+
+// postDecode is post for the callers that need what was created - its id.
+func (c *Client) postDecode(ctx context.Context, path string, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -137,6 +143,11 @@ func (c *Client) post(ctx context.Context, path string, payload any) error {
 	if resp.StatusCode >= 300 {
 		return &apiError{status: resp.StatusCode, body: string(answer), path: path}
 	}
+	if out != nil {
+		if err := json.Unmarshal(answer, out); err != nil {
+			return fmt.Errorf("decode %s: %w", path, err)
+		}
+	}
 	return nil
 }
 
@@ -148,6 +159,100 @@ func (c *Client) Approve(ctx context.Context, mr forge.MergeRequest) error {
 // Comment posts a comment on the pull request's conversation.
 func (c *Client) Comment(ctx context.Context, mr forge.MergeRequest, body string) error {
 	return c.post(ctx, c.issuePath(mr)+"/comments", map[string]string{"body": body})
+}
+
+// CommentNote posts a comment on the pull request's conversation and returns
+// it. Nothing can be replied to as a thread there, so it has no Thread.
+func (c *Client) CommentNote(ctx context.Context, mr forge.MergeRequest, body string) (*forge.Note, error) {
+	var created ghComment
+	if err := c.postDecode(ctx, c.issuePath(mr)+"/comments", map[string]string{"body": body}, &created); err != nil {
+		return nil, err
+	}
+	n := created.note()
+	n.Thread = ""
+	return &n, nil
+}
+
+// ghComment is GitHub's comment shape, for review comments and for the
+// conversation alike.
+type ghComment struct {
+	ID           int       `json:"id"`
+	Body         string    `json:"body"`
+	CreatedAt    time.Time `json:"created_at"`
+	User         user      `json:"user"`
+	Path         string    `json:"path"`
+	Line         int       `json:"line"`
+	OriginalLine int       `json:"original_line"`
+	Side         string    `json:"side"`
+	HTMLURL      string    `json:"html_url"`
+	// Review comments hang off each other; the conversation is named
+	// after the one that started it.
+	InReplyTo int `json:"in_reply_to_id"`
+}
+
+// note converts a comment. A thread is named by the id of the comment that
+// started it, which for a comment that stands on its own is its own.
+func (cm ghComment) note() forge.Note {
+	thread := strconv.Itoa(cm.ID)
+	if cm.InReplyTo != 0 {
+		thread = strconv.Itoa(cm.InReplyTo)
+	}
+	line := cm.Line
+	orphaned := cm.Side == "LEFT"
+	if line == 0 && cm.OriginalLine > 0 {
+		line, orphaned = cm.OriginalLine, true
+	}
+	return forge.Note{
+		ID: cm.ID, Thread: thread, Body: cm.Body, CreatedAt: cm.CreatedAt,
+		Author: forge.User{Username: cm.User.Login, Name: cm.User.Name},
+		Path:   cm.Path, Line: line, Orphaned: orphaned, URL: cm.HTMLURL,
+	}
+}
+
+// CreateDiscussion starts a review thread on line of path, on the pull
+// request's new side. GitHub answers a line that is not part of the diff with
+// a 422; the comment then goes to the conversation, with a "path:line"
+// reference opening the body, and comes back without a Path and Line. Such a
+// comment cannot be replied to.
+func (c *Client) CreateDiscussion(ctx context.Context, mr forge.MergeRequest, path string, line int, body string) (*forge.Note, error) {
+	var p pull
+	if _, err := c.get(ctx, c.pullPath(mr), nil, &p); err != nil {
+		return nil, err
+	}
+	var created ghComment
+	err := c.postDecode(ctx, c.pullPath(mr)+"/comments", map[string]any{
+		"body": body, "commit_id": p.Head.SHA, "path": path, "line": line, "side": "RIGHT",
+	}, &created)
+	var refused *apiError
+	onConversation := false
+	if errors.As(err, &refused) && refused.status == http.StatusUnprocessableEntity {
+		fallback := fmt.Sprintf("`%s:%d`\n\n%s", path, line, body)
+		created = ghComment{}
+		if err := c.postDecode(ctx, c.issuePath(mr)+"/comments", map[string]string{"body": fallback}, &created); err != nil {
+			return nil, err
+		}
+		onConversation = true
+	} else if err != nil {
+		return nil, err
+	}
+	n := created.note()
+	if onConversation {
+		// A conversation comment is not a thread: there is nothing to reply to.
+		n.Thread = ""
+	}
+	return &n, nil
+}
+
+// ReplyToDiscussion answers a review thread. thread is the id of the comment
+// that started it, which is what MergeRequestNotes reports as its Thread.
+func (c *Client) ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, body string) (*forge.Note, error) {
+	var created ghComment
+	if err := c.postDecode(ctx, c.pullPath(mr)+"/comments/"+url.PathEscape(thread)+"/replies", map[string]string{"body": body}, &created); err != nil {
+		return nil, err
+	}
+	n := created.note()
+	n.Thread = thread
+	return &n, nil
 }
 
 // nextLink pulls the "next" URL out of a Link header.
@@ -742,20 +847,6 @@ func (c *Client) issuePath(mr forge.MergeRequest) string {
 // MergeRequestNotes returns the conversation and the inline review comments,
 // newest first.
 func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
-	type ghComment struct {
-		ID           int       `json:"id"`
-		Body         string    `json:"body"`
-		CreatedAt    time.Time `json:"created_at"`
-		User         user      `json:"user"`
-		Path         string    `json:"path"`
-		Line         int       `json:"line"`
-		OriginalLine int       `json:"original_line"`
-		Side         string    `json:"side"`
-		// Review comments hang off each other; the conversation is named
-		// after the one that started it.
-		InReplyTo int `json:"in_reply_to_id"`
-	}
-
 	var (
 		mu       sync.Mutex
 		notes    []forge.Note
@@ -779,20 +870,7 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 			mu.Lock()
 			defer mu.Unlock()
 			for _, cm := range raw {
-				thread := strconv.Itoa(cm.ID)
-				if cm.InReplyTo != 0 {
-					thread = strconv.Itoa(cm.InReplyTo)
-				}
-				line := cm.Line
-				orphaned := cm.Side == "LEFT"
-				if line == 0 && cm.OriginalLine > 0 {
-					line, orphaned = cm.OriginalLine, true
-				}
-				notes = append(notes, forge.Note{
-					ID: cm.ID, Thread: thread, Body: cm.Body, CreatedAt: cm.CreatedAt,
-					Author: forge.User{Username: cm.User.Login, Name: cm.User.Name},
-					Path:   cm.Path, Line: line, Orphaned: orphaned,
-				})
+				notes = append(notes, cm.note())
 			}
 		}(path)
 	}

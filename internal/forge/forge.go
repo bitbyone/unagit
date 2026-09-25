@@ -111,7 +111,10 @@ type MergeRequestDetail struct {
 	// from the repository instead.
 	DiffRefs struct {
 		BaseSHA string `json:"base_sha"`
-		HeadSHA string `json:"head_sha"`
+		// StartSHA is GitLab's start of the diff, which a positioned comment
+		// has to name; GitHub has no such thing and leaves it empty.
+		StartSHA string `json:"start_sha"`
+		HeadSHA  string `json:"head_sha"`
 	} `json:"diff_refs"`
 	DivergedCommitsCount int `json:"diverged_commits_count"`
 }
@@ -152,6 +155,8 @@ type Note struct {
 	Author     User      `json:"author"`
 	Path       string    `json:"path"`
 	Line       int       `json:"line"`
+	// URL links to the comment itself, when the forge says where it lives.
+	URL string `json:"url,omitempty"`
 }
 
 // Approvals is the review state.
@@ -209,6 +214,24 @@ type Provider interface {
 	Approve(ctx context.Context, mr MergeRequest) error
 	// Comment posts a comment on the merge request.
 	Comment(ctx context.Context, mr MergeRequest, body string) error
+	// CommentNote is Comment for the caller that needs to know what it created:
+	// the note comes back with its ID and URL. It has no Thread, because a
+	// comment on the conversation cannot be replied to as a thread.
+	CommentNote(ctx context.Context, mr MergeRequest, body string) (*Note, error)
+	// CreateDiscussion starts a thread on line of path, on the new side of the
+	// merge request, and returns the comment it created (ID, URL and Thread).
+	//
+	// When the forge refuses the position - the line is not part of the diff -
+	// the comment is posted on the conversation instead, its body opening with
+	// a "path:line" reference. That is signalled by the returned note's Path
+	// and Line being empty; a note that was positioned carries both.
+	CreateDiscussion(ctx context.Context, mr MergeRequest, path string, line int, body string) (*Note, error)
+	// ReplyToDiscussion adds a comment to an existing thread. thread is a
+	// Note.Thread as MergeRequestNotes or CreateDiscussion report it: GitLab's
+	// discussion id, or the id of the review comment that started a GitHub
+	// thread. The returned note carries thread unchanged. A GitHub comment on
+	// the conversation cannot be replied to, and the call fails.
+	ReplyToDiscussion(ctx context.Context, mr MergeRequest, thread string, body string) (*Note, error)
 
 	// HeadRef is where the merge request head can be fetched from: GitLab
 	// publishes refs/merge-requests/<iid>/head, GitHub refs/pull/<iid>/head.

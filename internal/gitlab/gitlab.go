@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -98,6 +99,11 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) (h
 // post sends a JSON body and discards the answer, which is only ever an echo
 // of what was just created.
 func (c *Client) post(ctx context.Context, path string, payload any) error {
+	return c.postDecode(ctx, path, payload, nil)
+}
+
+// postDecode is post for the callers that need what was created - its id.
+func (c *Client) postDecode(ctx context.Context, path string, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -118,6 +124,11 @@ func (c *Client) post(ctx context.Context, path string, payload any) error {
 	if resp.StatusCode >= 300 {
 		return &apiError{status: resp.StatusCode, body: string(answer), path: path}
 	}
+	if out != nil {
+		if err := json.Unmarshal(answer, out); err != nil {
+			return fmt.Errorf("decode %s: %w", path, err)
+		}
+	}
 	return nil
 }
 
@@ -129,6 +140,99 @@ func (c *Client) Approve(ctx context.Context, mr forge.MergeRequest) error {
 // Comment posts a comment on the merge request.
 func (c *Client) Comment(ctx context.Context, mr forge.MergeRequest, body string) error {
 	return c.post(ctx, mrPath(mr)+"/notes", map[string]string{"body": body})
+}
+
+// CommentNote posts a comment on the merge request and returns it.
+func (c *Client) CommentNote(ctx context.Context, mr forge.MergeRequest, body string) (*forge.Note, error) {
+	var created note
+	if err := c.postDecode(ctx, mrPath(mr)+"/notes", map[string]string{"body": body}, &created); err != nil {
+		return nil, err
+	}
+	return convertNote(mr, "", created), nil
+}
+
+// CreateDiscussion starts a diff thread on line of path. GitLab refuses a
+// position that is not part of the merge request's diff with a 400; the
+// discussion is then started without a position, on the conversation, with a
+// "path:line" reference opening the body. That fallback comes back without a
+// Path and Line.
+func (c *Client) CreateDiscussion(ctx context.Context, mr forge.MergeRequest, path string, line int, body string) (*forge.Note, error) {
+	var refs struct {
+		DiffRefs struct {
+			BaseSHA  string `json:"base_sha"`
+			StartSHA string `json:"start_sha"`
+			HeadSHA  string `json:"head_sha"`
+		} `json:"diff_refs"`
+	}
+	if _, err := c.get(ctx, mrPath(mr), nil, &refs); err != nil {
+		return nil, err
+	}
+	position := map[string]any{
+		"position_type": "text",
+		"base_sha":      refs.DiffRefs.BaseSHA,
+		"start_sha":     refs.DiffRefs.StartSHA,
+		"head_sha":      refs.DiffRefs.HeadSHA,
+		"old_path":      path,
+		"new_path":      path,
+		"new_line":      line,
+	}
+	var created discussion
+	err := c.postDecode(ctx, mrPath(mr)+"/discussions", map[string]any{"body": body, "position": position}, &created)
+	var refused *apiError
+	if errors.As(err, &refused) && refused.status == http.StatusBadRequest {
+		fallback := fmt.Sprintf("`%s:%d`\n\n%s", path, line, body)
+		created = discussion{}
+		if err := c.postDecode(ctx, mrPath(mr)+"/discussions", map[string]any{"body": fallback}, &created); err != nil {
+			return nil, err
+		}
+		return firstNote(mr, created)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return firstNote(mr, created)
+}
+
+// ReplyToDiscussion adds a note to an existing discussion. thread is the
+// discussion id MergeRequestNotes reports.
+func (c *Client) ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, body string) (*forge.Note, error) {
+	var created note
+	if err := c.postDecode(ctx, mrPath(mr)+"/discussions/"+url.PathEscape(thread)+"/notes", map[string]string{"body": body}, &created); err != nil {
+		return nil, err
+	}
+	return convertNote(mr, thread, created), nil
+}
+
+// firstNote is the note a new discussion was started with.
+func firstNote(mr forge.MergeRequest, d discussion) (*forge.Note, error) {
+	if len(d.Notes) == 0 {
+		return nil, fmt.Errorf("GitLab created the discussion %q without a note", d.ID)
+	}
+	return convertNote(mr, d.ID, d.Notes[0]), nil
+}
+
+// convertNote turns GitLab's note into forge's, with the link GitLab does not
+// send: the merge request page anchored on the note.
+func convertNote(mr forge.MergeRequest, thread string, n note) *forge.Note {
+	converted := forge.Note{
+		ID: n.ID, Thread: thread, Body: n.Body, CreatedAt: n.CreatedAt,
+		System: n.System, Resolvable: n.Resolvable, Resolved: n.Resolved,
+		Author: forge.User{Username: n.Author.Username, Name: n.Author.Name},
+	}
+	if mr.WebURL != "" {
+		converted.URL = fmt.Sprintf("%s#note_%d", mr.WebURL, n.ID)
+	}
+	if n.Position != nil {
+		converted.Path, converted.Line = n.Position.NewPath, n.Position.NewLine
+		if converted.Line == 0 && n.Position.OldLine > 0 {
+			converted.Line = n.Position.OldLine
+			converted.Orphaned = true
+			if converted.Path == "" {
+				converted.Path = n.Position.OldPath
+			}
+		}
+	}
+	return &converted
 }
 
 // total reads GitLab's x-total header, which is absent on very large
@@ -403,8 +507,9 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 			CompletedCount int `json:"completed_count"`
 		} `json:"task_completion_status"`
 		DiffRefs struct {
-			BaseSHA string `json:"base_sha"`
-			HeadSHA string `json:"head_sha"`
+			BaseSHA  string `json:"base_sha"`
+			StartSHA string `json:"start_sha"`
+			HeadSHA  string `json:"head_sha"`
 		} `json:"diff_refs"`
 		DivergedCommitsCount int `json:"diverged_commits_count"`
 	}
@@ -444,6 +549,7 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 		d.TasksTotal = raw.TaskCompletionStatus.Count
 	}
 	d.DiffRefs.BaseSHA = raw.DiffRefs.BaseSHA
+	d.DiffRefs.StartSHA = raw.DiffRefs.StartSHA
 	d.DiffRefs.HeadSHA = raw.DiffRefs.HeadSHA
 	return d, nil
 }
@@ -485,22 +591,7 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 	var out []forge.Note
 	for _, d := range discussions {
 		for _, n := range d.Notes {
-			converted := forge.Note{
-				ID: n.ID, Thread: d.ID, Body: n.Body, CreatedAt: n.CreatedAt,
-				System: n.System, Resolvable: n.Resolvable, Resolved: n.Resolved,
-				Author: forge.User{Username: n.Author.Username, Name: n.Author.Name},
-			}
-			if n.Position != nil {
-				converted.Path, converted.Line = n.Position.NewPath, n.Position.NewLine
-				if converted.Line == 0 && n.Position.OldLine > 0 {
-					converted.Line = n.Position.OldLine
-					converted.Orphaned = true
-					if converted.Path == "" {
-						converted.Path = n.Position.OldPath
-					}
-				}
-			}
-			out = append(out, converted)
+			out = append(out, *convertNote(mr, d.ID, n))
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
