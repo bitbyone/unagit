@@ -660,18 +660,12 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 	// Title and description take whatever the modal has left after the labels,
 	// so they follow the terminal instead of being drawn over the frame.
 	form.AddInputField("Title", title, 0, nil, nil)
-	form.AddDropDown("Target branch", targets, selected, nil)
+	addSelect(form, "Target branch", targets, selected)
 	form.AddTextArea("Description", description, 0, 5, 0, nil)
-	form.AddCheckbox("Draft", false, nil)
+	addCheckbox(form, "Draft", false)
 	if gitlab {
-		form.AddCheckbox(labelDeleteBranch, false, nil)
-		form.AddCheckbox(labelSquash, false, nil)
-	}
-	// An unticked box is otherwise an empty cell of the field colour.
-	for i := 0; i < form.GetFormItemCount(); i++ {
-		if box, ok := form.GetFormItem(i).(*tview.Checkbox); ok {
-			box.SetCheckedString(tview.Escape("[x]")).SetUncheckedString(tview.Escape("[ ]"))
-		}
+		addCheckbox(form, labelDeleteBranch, false)
+		addCheckbox(form, labelSquash, false)
 	}
 	checked := func(label string) bool {
 		item := form.GetFormItemByLabel(label)

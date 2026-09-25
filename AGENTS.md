@@ -35,7 +35,9 @@ Everything must be gofmt-clean, vet-clean and race-clean before a commit. The
 UI package's tests run a real tview application against a simulation screen and
 take ~15 s; that is normal.
 
-Commit only when asked. Commit messages are a sentence in the imperative
+Commit and push every finished change, in every repository you touched (unagit
+and `../incomm`), without waiting to be asked: the user wants nothing left
+unpushed. Never force-push. Commit messages are a sentence in the imperative
 ("Make a review worktree read the way a gutter reads"), then a paragraph about
 *why*, not a list of touched files.
 
@@ -53,6 +55,35 @@ about it.
 things - and several times a scripted replacement silently matched nothing
 because the anchor text had been reformatted since it was last read. If a
 replacement reports zero matches, re-read the file rather than retrying.
+
+## Repeated UI elements are one component
+
+**Anything that appears in more than one place is built once and reused, so it
+looks and behaves the same everywhere.** If you are about to configure a widget
+a second time, stop and look for the existing way first - for a form that is
+`ui/fields.go`, for styling `ui/theme.go`, for lists `showPicker`, for
+confirmations `confirm`/`confirmWith`, for a form in a modal `showFormModal`.
+
+This has gone wrong twice. A select box in the merge request form was made with
+plain `AddDropDown`: its open list was an unreadable pale slab, and typed
+letters went into tview's hidden search field. Settings already had the right
+select (`styleDropDown`), it just was not reused. The rules:
+
+- **Select boxes** come from `addSelect`, checkboxes from `addCheckbox`. Never
+  call `AddDropDown`, `NewDropDown`, `AddCheckbox` or `NewCheckbox` outside
+  `fields.go`; `TestSharedFieldsAreTheOnlyWayToMakeThem` fails if you do.
+- A select ignores typed letters (arrows and Enter open it) and draws its list
+  with the same selection band as every list. Do not "improve" one of them on
+  its own; change `styleDropDown` and every select follows.
+- A new kind of field that will be used twice goes into `fields.go` first, with
+  a test, and the old call sites move to it in the same change.
+- **Look at what you built.** This is a terminal UI and it can be drawn: render
+  it on the simulation screen, print `screenText`, and read it before you say
+  it works. Every new dialog gets a layout test at several terminal sizes
+  (`mrform_layout_test.go` is the model): no field wider than its frame, the
+  frame's border intact on every row, every label on screen, and
+  `assertLegible` after opening whatever can open. Checking widget rectangles is
+  not enough - tview draws an over-wide field past its rectangle.
 
 ## The map
 
@@ -193,6 +224,13 @@ server. Rules learned the hard way:
   own and `dimArea` darkens what is beneath.
 - A draw function is handed the **outer** rectangle and must return the
   **inner** one; returning it unchanged makes tables overflow their border.
+- A `DropDown` feeds every typed letter into a hidden search field, and a fresh
+  one is drawn in the theme's colours, which here paint text in the background's
+  own colour. Use `addSelect`, never the bare widget.
+- An `InputField` or `TextArea` given a fixed width wider than the room left
+  after its label is drawn over the modal's frame (its rectangle is right, the
+  drawing is not). Give a field in a modal width `0` so it fills what is left,
+  and choose the modal width with `showFormModalSized`.
 - The `u` (underline) style flag is broken in this version: setting attributes
   afterwards loses the bit but keeps tcell's underline, so everything after a
   link came out underlined. Links use colour only.

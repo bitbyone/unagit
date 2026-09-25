@@ -488,8 +488,7 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 		selected = 1
 	}
 	protoAt := at()
-	form.AddDropDown("Clone over", protocols, selected, nil)
-	styleDropDown(form.GetFormItem(protoAt).(*tview.DropDown))
+	addSelect(form, "Clone over", protocols, selected)
 
 	tokenLabel := "Token"
 	if !adding && a.vault != nil && a.vault.Has(current.ID) {
