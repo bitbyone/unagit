@@ -77,6 +77,7 @@ type existing struct {
 	View     string // the view it is visible in, which its later commands must use
 	SourceID int
 	Orphaned bool
+	Resolved bool
 	Content  string
 	Replies  []int // source ids of the replies that came from the forge
 }
@@ -86,6 +87,7 @@ type listed struct {
 		ID       string `json:"id"`
 		Content  string `json:"content"`
 		Orphaned bool   `json:"orphaned"`
+		Resolved bool   `json:"resolved"`
 		Source   *struct {
 			ID int `json:"id"`
 		} `json:"source"`
@@ -116,7 +118,7 @@ func (c *cli) existingNotes() ([]*existing, error) {
 				continue
 			}
 			seen[n.ID] = true
-			e := &existing{ID: n.ID, View: view, Orphaned: n.Orphaned, Content: n.Content}
+			e := &existing{ID: n.ID, View: view, Orphaned: n.Orphaned, Resolved: n.Resolved, Content: n.Content}
 			if n.Source != nil {
 				e.SourceID = n.Source.ID
 			}
@@ -158,6 +160,16 @@ func authorName(n forge.Note) string {
 // Each forge comment becomes an Incomm comment addressed to the agent and to
 // the forge, remembering where it came from; replies become replies. Running it
 // again adds nothing: a comment is recognised by the id the forge gave it.
+//
+// What running it again does and does not do:
+//   - A comment that is new on the forge is added where the forge says it is,
+//     as the forge gave it: its line is not recomputed.
+//   - A comment already here is not repositioned; Incomm keeps its own comments
+//     on their code through its text anchors.
+//   - Edits and deletions on the forge are not synced.
+//   - Resolving only ever moves toward resolved. A thread resolved on the forge
+//     is resolved here; one resolved here is never reopened because the forge
+//     still has it open, and one reopened on the forge does not reopen here.
 func Import(ctx context.Context, dir string, mr forge.MergeRequest, notes []forge.Note, log func(string)) error {
 	threads := importThreads(notes)
 	if len(threads) == 0 {
@@ -234,7 +246,7 @@ func Import(ctx context.Context, dir string, mr forge.MergeRequest, notes []forg
 		migrated++
 	}
 
-	added, orphaned, replies := 0, 0, 0
+	added, orphaned, replies, resolved := 0, 0, 0, 0
 	for _, t := range threads {
 		n := t.Root
 		// A forge path must stay inside the worktree, including through symlinks.
@@ -292,9 +304,20 @@ func Import(ctx context.Context, dir string, mr forge.MergeRequest, notes []forg
 				}
 				id = created.ID
 			}
-			rec = &existing{ID: id, View: viewAgent, SourceID: n.ID}
+			// An orphan is written with the forge's state; a comment added
+			// through the CLI starts open.
+			rec = &existing{ID: id, View: viewAgent, SourceID: n.ID, Orphaned: n.Orphaned, Resolved: n.Orphaned && n.Resolved}
 			byID[n.ID] = rec
 			added++
+		}
+		// The forge resolved this thread: resolve it here too. Only in that
+		// direction - a thread is never reopened.
+		if t.Root.Resolvable && t.Root.Resolved && !rec.Resolved {
+			if _, err := c.run(rec.View, "resolve", rec.ID); err != nil {
+				return err
+			}
+			rec.Resolved = true
+			resolved++
 		}
 		for _, r := range t.Replies {
 			if replied[r.ID] || byID[r.ID] != nil {
@@ -320,6 +343,9 @@ func Import(ctx context.Context, dir string, mr forge.MergeRequest, notes []forg
 		}
 		if orphaned > 0 {
 			log(fmt.Sprintf("Incomm: imported %d orphaned comments", orphaned))
+		}
+		if resolved > 0 {
+			log(fmt.Sprintf("Incomm: resolved %d threads that are resolved on the forge", resolved))
 		}
 		if migrated > 0 {
 			log(fmt.Sprintf("Incomm: recorded the origin of %d comments imported earlier", migrated))

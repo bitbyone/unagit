@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -199,5 +200,12 @@ func TestCommentNoteReturnsWhatItCreatedWithoutAThread(t *testing.T) {
 	}
 	if n.ID != 802 || n.Thread != "" || n.URL != "https://github.com/acme/api/pull/7#issuecomment-802" {
 		t.Errorf("note = %+v", n)
+	}
+}
+
+func TestResolveDiscussionIsNotSupported(t *testing.T) {
+	err := New("token").ResolveDiscussion(context.Background(), forge.MergeRequest{}, "1", true)
+	if !errors.Is(err, forge.ErrNotSupported) {
+		t.Fatalf("err = %v, want forge.ErrNotSupported", err)
 	}
 }

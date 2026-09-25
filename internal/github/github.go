@@ -173,6 +173,12 @@ func (c *Client) CommentNote(ctx context.Context, mr forge.MergeRequest, body st
 	return &n, nil
 }
 
+// ResolveDiscussion is not something GitHub's REST API can do: resolving a
+// review thread exists only in its GraphQL API.
+func (c *Client) ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, resolved bool) error {
+	return forge.ErrNotSupported
+}
+
 // ghComment is GitHub's comment shape, for review comments and for the
 // conversation alike.
 type ghComment struct {

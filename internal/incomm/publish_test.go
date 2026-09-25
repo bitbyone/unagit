@@ -12,13 +12,14 @@ import (
 
 // fakeForge records what is posted and answers with ids in sequence.
 type fakeForge struct {
-	calls     []string
-	next      int
-	failAt    int    // 1-based call number that fails; 0 never
-	rootPath  string // what a created discussion reports as its path ("" is the fallback)
-	rootLine  int
-	noThread  bool // a created discussion cannot be replied to
-	lastReply string
+	calls      []string
+	next       int
+	failAt     int    // 1-based call number that fails; 0 never
+	rootPath   string // what a created discussion reports as its path ("" is the fallback)
+	rootLine   int
+	noThread   bool // a created discussion cannot be replied to
+	lastReply  string
+	resolveErr error // what ResolveDiscussion answers
 }
 
 func (f *fakeForge) note(kind string, thread string) (*forge.Note, error) {
@@ -45,6 +46,11 @@ func (f *fakeForge) CreateDiscussion(_ context.Context, _ forge.MergeRequest, pa
 func (f *fakeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, thread, body string) (*forge.Note, error) {
 	f.calls = append(f.calls, fmt.Sprintf("reply %s %q", thread, body))
 	return f.note("reply", thread)
+}
+
+func (f *fakeForge) ResolveDiscussion(_ context.Context, _ forge.MergeRequest, thread string, resolved bool) error {
+	f.calls = append(f.calls, fmt.Sprintf("resolve %s %v", thread, resolved))
+	return f.resolveErr
 }
 
 func (f *fakeForge) CommentNote(_ context.Context, _ forge.MergeRequest, body string) (*forge.Note, error) {

@@ -2,6 +2,7 @@ package incomm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,6 +14,7 @@ type Poster interface {
 	CreateDiscussion(ctx context.Context, mr forge.MergeRequest, path string, line int, body string) (*forge.Note, error)
 	ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, body string) (*forge.Note, error)
 	CommentNote(ctx context.Context, mr forge.MergeRequest, body string) (*forge.Note, error)
+	ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, resolved bool) error
 }
 
 // Step is one post to the forge: a comment that starts a conversation, or a
@@ -25,6 +27,12 @@ type Step struct {
 	Comment Comment // what this step publishes
 	IsRoot  bool    // this step publishes Root
 	Parent  bool    // Root goes out only because a reply to it needs a place
+	// Orphaned: the code Root was written against is gone. It is posted on the
+	// conversation, with the file but not a line, rather than at a stale one.
+	Orphaned bool
+	// Resolve: this step resolves the conversation on the forge, once its posts
+	// are out. Comment is not used.
+	Resolve bool
 }
 
 // Plan lists what publishing would post, in the order it must happen: a
@@ -32,25 +40,37 @@ type Step struct {
 // plus the first comment of a conversation that is not on the forge yet when a
 // reply to it is pending, since a reply needs something to answer. Nothing else
 // is ever published - a private comment is not in the threads at all.
-func Plan(threads []Thread) []Step {
+func Plan(threads []Thread) []Step { return PlanResolving(threads, nil) }
+
+// PlanResolving is Plan with the threads that should be resolved on the forge:
+// one that is resolved here and is on the forge, or goes out in this very plan,
+// and is not resolved there yet. forgeResolved says which threads the forge has
+// and whether it holds them resolved, keyed by thread id (see ForgeResolved);
+// nil means the forge's state is not known, and then nothing is resolved. A
+// thread that is only in Incomm - never published, and not in this plan - is
+// never resolved on the forge.
+func PlanResolving(threads []Thread, forgeResolved map[string]bool) []Step {
 	var steps []Step
 	for _, t := range threads {
-		base := Step{Dir: t.Dir, File: t.File, Line: t.Line, Root: t.Root}
+		base := Step{Dir: t.Dir, File: t.File, Line: t.Line, Root: t.Root, Orphaned: t.Orphaned}
 		replies := 0
 		for _, r := range t.Replies {
 			if r.Pending() {
 				replies++
 			}
 		}
+		rootGoesOut := false
 		switch {
 		case t.Root.Pending():
 			s := base
 			s.Comment, s.IsRoot = t.Root, true
 			steps = append(steps, s)
+			rootGoesOut = true
 		case replies > 0 && !t.Root.OnForge():
 			s := base
 			s.Comment, s.IsRoot, s.Parent = t.Root, true, true
 			steps = append(steps, s)
+			rootGoesOut = true
 		}
 		for _, r := range t.Replies {
 			if r.Pending() {
@@ -59,8 +79,95 @@ func Plan(threads []Thread) []Step {
 				steps = append(steps, s)
 			}
 		}
+		if forgeResolved != nil && t.Resolved && resolvesOnForge(t, rootGoesOut, forgeResolved) {
+			s := base
+			s.Resolve = true
+			steps = append(steps, s)
+		}
 	}
 	return steps
+}
+
+// resolvesOnForge says whether a thread that is resolved here should be resolved
+// there: it has to exist there (a thread id it can be found by, or a root that
+// is posted in this plan) and not be resolved already.
+func resolvesOnForge(t Thread, rootGoesOut bool, forgeResolved map[string]bool) bool {
+	if rootGoesOut {
+		return true
+	}
+	if !t.Root.OnForge() || t.Root.Source.Thread == "" {
+		return false
+	}
+	resolved, known := forgeResolved[t.Root.Source.Thread]
+	return known && !resolved
+}
+
+// NeedsForgeState reports whether the forge has to be asked before resolving is
+// planned: some thread that is resolved here is already on the forge, and only
+// the forge can say whether it is resolved there. A thread that goes out in the
+// plan is new there, and needs no asking.
+func NeedsForgeState(threads []Thread) bool {
+	for _, t := range threads {
+		if t.Resolved && t.Root.OnForge() && t.Root.Source.Thread != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// ForgeResolved reads which threads the forge holds resolved: a thread counts
+// as resolved when its first comment is resolvable and resolved, which is how
+// the forge reports a thread that was resolved as a whole. Only threads it has a
+// resolvable first comment for are in the map.
+func ForgeResolved(notes []forge.Note) map[string]bool {
+	first := map[string]forge.Note{}
+	for _, n := range notes {
+		if n.System || n.Thread == "" {
+			continue
+		}
+		if cur, ok := first[n.Thread]; !ok || n.CreatedAt.Before(cur.CreatedAt) || (n.CreatedAt.Equal(cur.CreatedAt) && n.ID < cur.ID) {
+			first[n.Thread] = n
+		}
+	}
+	state := map[string]bool{}
+	for thread, n := range first {
+		if n.Resolvable {
+			state[thread] = n.Resolved
+		}
+	}
+	return state
+}
+
+// Confirmed keeps, of the steps planned now, the ones that were in the plan the
+// person confirmed, in today's order and with today's file and line. Anything
+// that has gone from the plan since (it was published elsewhere, or deleted) is
+// dropped, and anything new is not added: what goes out is what was agreed to.
+func Confirmed(planned, confirmed []Step) []Step {
+	type key struct {
+		dir, id string
+		resolve bool
+	}
+	agreed := map[key]bool{}
+	for _, s := range confirmed {
+		agreed[key{s.Dir, s.Comment.ID, s.Resolve}] = true
+	}
+	// A resolve step carries no comment: it stands for its conversation.
+	for _, s := range confirmed {
+		if s.Resolve {
+			agreed[key{s.Dir, s.Root.ID, true}] = true
+		}
+	}
+	var kept []Step
+	for _, s := range planned {
+		id := s.Comment.ID
+		if s.Resolve {
+			id = s.Root.ID
+		}
+		if agreed[key{s.Dir, id, s.Resolve}] {
+			kept = append(kept, s)
+		}
+	}
+	return kept
 }
 
 // Body is the text that goes to the forge. The forge posts everything as the
@@ -79,6 +186,9 @@ func Body(c Comment) string {
 
 // Summary is a line for the confirmation: where, what kind, and how it starts.
 func (s Step) Summary() string {
+	if s.Resolve {
+		return fmt.Sprintf("%s:%d  resolve thread", s.File, s.Line)
+	}
 	kind := "reply"
 	switch {
 	case s.Parent:
@@ -94,7 +204,13 @@ func (s Step) Summary() string {
 	if s.Comment.Author == "agent" {
 		who = "agent"
 	}
-	return fmt.Sprintf("%s:%d  %s by %s: %s", s.File, s.Line, kind, who, text)
+	where := fmt.Sprintf("%s:%d", s.File, s.Line)
+	if s.Orphaned && s.IsRoot {
+		where = s.File + " (orphaned: its code has changed, posted on the conversation)"
+	} else if s.Orphaned {
+		where = s.File + " (orphaned)"
+	}
+	return fmt.Sprintf("%s  %s by %s: %s", where, kind, who, text)
 }
 
 // Publisher posts the steps of a plan and remembers, comment by comment, that
@@ -127,11 +243,53 @@ func (p Publisher) Publish(ctx context.Context, steps []Step) (int, error) {
 	links := map[string]string{}   // conversation -> where its first comment is
 	key := func(s Step) string { return s.Dir + "\x00" + s.Root.ID }
 	done := 0
+	unsupported := false
+	var notResolved []string
 	for _, s := range steps {
+		if s.Resolve {
+			// After the conversation's posts, which come before it in the plan.
+			// Failing here never undoes them.
+			thread, known := threads[key(s)]
+			if !known {
+				thread = s.Root.Source.Thread
+			}
+			switch {
+			case unsupported:
+			case thread == "":
+				p.log("%s:%d has no thread on the forge to resolve; left as it is", s.File, s.Line)
+			default:
+				err := p.Poster.ResolveDiscussion(ctx, p.MR, thread, true)
+				switch {
+				case errors.Is(err, forge.ErrNotSupported):
+					unsupported = true
+					p.log("This forge cannot resolve threads through its API; resolve them there.")
+				case err != nil:
+					p.log("! could not resolve %s:%d: %v", s.File, s.Line, err)
+					notResolved = append(notResolved, fmt.Sprintf("%s:%d", s.File, s.Line))
+					continue
+				default:
+					p.log("Resolved %s:%d", s.File, s.Line)
+				}
+			}
+			done++
+			continue
+		}
 		var note *forge.Note
 		var err error
 		audience := ""
 		switch {
+		case s.IsRoot && s.Orphaned:
+			// The code this was written against is gone, so there is no line to
+			// put it on; say where it was about and leave it on the conversation.
+			body := fmt.Sprintf("`%s` (the code this comment was written against has changed)\n\n%s", s.File, Body(s.Comment))
+			note, err = p.Poster.CommentNote(ctx, p.MR, body)
+			if err == nil {
+				p.log("%s is orphaned: posted on the conversation, not on a line", s.File)
+				threads[key(s)], links[key(s)] = note.Thread, note.URL
+				if s.Parent {
+					audience = audienceBoth
+				}
+			}
 		case s.IsRoot:
 			note, err = p.Poster.CreateDiscussion(ctx, p.MR, s.File, s.Line, Body(s.Comment))
 			if err == nil {
@@ -181,6 +339,10 @@ func (p Publisher) Publish(ctx context.Context, steps []Step) (int, error) {
 		}
 		done++
 		p.log("Published %s", s.Summary())
+	}
+	if len(notResolved) > 0 {
+		return done, fmt.Errorf("%d thread(s) could not be resolved on the forge (%s); everything else went out",
+			len(notResolved), strings.Join(notResolved, ", "))
 	}
 	return done, nil
 }

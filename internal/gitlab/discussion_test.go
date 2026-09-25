@@ -192,3 +192,43 @@ func TestCommentNoteReturnsWhatItCreated(t *testing.T) {
 		t.Errorf("note = %+v", n)
 	}
 }
+
+func TestResolveDiscussionSendsAPutWithTheState(t *testing.T) {
+	var posts []recorded
+	srv := discussionServer(t, &posts, func(w http.ResponseWriter, _ int) {
+		fmt.Fprint(w, `{"id":"abc123","notes":[]}`)
+	})
+	c := New(srv.URL, "secret-token")
+	if err := c.ResolveDiscussion(context.Background(), discussionMR, "abc123", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ResolveDiscussion(context.Background(), discussionMR, "abc123", false); err != nil {
+		t.Fatal(err)
+	}
+	if len(posts) != 2 {
+		t.Fatalf("requests = %+v", posts)
+	}
+	for i, want := range []bool{true, false} {
+		r := posts[i]
+		if r.method != http.MethodPut || r.path != "/api/v4/projects/42/merge_requests/7/discussions/abc123" {
+			t.Errorf("request %d = %s %s", i, r.method, r.path)
+		}
+		if r.token != "secret-token" {
+			t.Errorf("token header = %q", r.token)
+		}
+		if got, ok := r.body["resolved"].(bool); !ok || got != want {
+			t.Errorf("request %d body = %v, want resolved=%v", i, r.body, want)
+		}
+	}
+}
+
+func TestResolveDiscussionReportsARefusal(t *testing.T) {
+	var posts []recorded
+	srv := discussionServer(t, &posts, func(w http.ResponseWriter, _ int) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+	})
+	if err := New(srv.URL, "t").ResolveDiscussion(context.Background(), discussionMR, "abc", true); err == nil {
+		t.Fatal("a refusal must be an error")
+	}
+}

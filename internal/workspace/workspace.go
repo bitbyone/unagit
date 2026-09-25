@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
@@ -386,11 +387,7 @@ func (m *Manager) EnsureWorktree(p forge.Project, branch string, isNew bool) (st
 
 	if Exists(wtDir) {
 		m.log("Updating worktree for %s", branch)
-		if err := m.git.Fetch(wtDir); err != nil {
-			m.log("! fetch failed, opening the worktree as it is")
-			return wtDir, nil
-		}
-		return wtDir, m.pullIfClean(wtDir)
+		return m.UpdateWorktree(wtDir)
 	}
 
 	m.log("Creating worktree for %s", branch)
@@ -525,6 +522,52 @@ func (m *Manager) RemoveProject(projectPath string) error {
 	}
 	m.pruneEmptyParents(filepath.Dir(dir))
 	return nil
+}
+
+// UpdateWorktree brings an existing worktree up to date the way opening it does:
+// fetch, then fast-forward when it is clean. A failed fetch only means it is
+// opened as it is.
+func (m *Manager) UpdateWorktree(dir string) (string, error) {
+	if err := m.git.Fetch(dir); err != nil {
+		m.log("! fetch failed, opening the worktree as it is")
+		return dir, nil
+	}
+	return dir, m.pullIfClean(dir)
+}
+
+// WorktreeHead says which branch a worktree has checked out and when it last
+// moved, by reading the files git keeps rather than running it, so a list of
+// them costs nothing. A detached HEAD is reported as "(detached)". A worktree it
+// cannot read gets an empty branch.
+func WorktreeHead(dir string) (branch string, moved time.Time) {
+	gitDir := filepath.Join(dir, ".git")
+	if fi, err := os.Stat(gitDir); err == nil && !fi.IsDir() {
+		data, err := os.ReadFile(gitDir)
+		if err != nil {
+			return "", time.Time{}
+		}
+		target := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(data)), "gitdir:"))
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(dir, target)
+		}
+		gitDir = target
+	}
+	head, err := os.ReadFile(filepath.Join(gitDir, "HEAD"))
+	if err != nil {
+		return "", time.Time{}
+	}
+	text := strings.TrimSpace(string(head))
+	if ref, ok := strings.CutPrefix(text, "ref: refs/heads/"); ok {
+		branch = ref
+	} else {
+		branch = "(detached)"
+	}
+	for _, name := range []string{filepath.Join("logs", "HEAD"), "HEAD"} {
+		if fi, err := os.Stat(filepath.Join(gitDir, name)); err == nil {
+			return branch, fi.ModTime()
+		}
+	}
+	return branch, time.Time{}
 }
 
 // RemoveMR deletes the worktrees of a merge request - both the branch one and

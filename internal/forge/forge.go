@@ -7,8 +7,13 @@ package forge
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotSupported is what a provider returns for something the forge's API
+// cannot do, so a caller can tell "not possible here" from a failure.
+var ErrNotSupported = errors.New("not supported by this forge")
 
 // Kinds of forge unagit can talk to.
 const (
@@ -232,6 +237,10 @@ type Provider interface {
 	// thread. The returned note carries thread unchanged. A GitHub comment on
 	// the conversation cannot be replied to, and the call fails.
 	ReplyToDiscussion(ctx context.Context, mr MergeRequest, thread string, body string) (*Note, error)
+
+	// ResolveDiscussion marks a thread resolved, or reopens it. It returns
+	// ErrNotSupported where the forge's API cannot do that.
+	ResolveDiscussion(ctx context.Context, mr MergeRequest, thread string, resolved bool) error
 
 	// HeadRef is where the merge request head can be fetched from: GitLab
 	// publishes refs/merge-requests/<iid>/head, GitHub refs/pull/<iid>/head.

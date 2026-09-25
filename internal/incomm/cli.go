@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -111,4 +113,30 @@ func (c *cli) setSource(view, id, reply string, src Source, audience string) err
 	}
 	_, err := c.run(view, args...)
 	return err
+}
+
+// Reanchor has Incomm put every comment of the given worktrees back on its code,
+// so the file and line read afterwards are where the code is now and a comment
+// whose code is gone is marked orphaned. `incomm reanchor` works on the whole
+// note set whatever the view, so nothing hidden is touched. A directory with
+// no Incomm state is skipped, and so is the CLI when there is none anywhere.
+func Reanchor(ctx context.Context, dirs ...string) error {
+	seen := map[string]bool{}
+	for _, dir := range dirs {
+		if dir == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		if fi, err := os.Stat(filepath.Join(dir, ".incomm")); err != nil || !fi.IsDir() {
+			continue
+		}
+		c, err := newCLI(ctx, dir)
+		if err != nil {
+			return err
+		}
+		if _, err := c.run(viewAgent, "reanchor"); err != nil {
+			return err
+		}
+	}
+	return nil
 }

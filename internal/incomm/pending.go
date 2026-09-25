@@ -60,6 +60,7 @@ type Thread struct {
 	File     string
 	Line     int
 	Orphaned bool
+	Resolved bool // resolved in Incomm
 	Root     Comment
 	Replies  []Comment // without the private ones
 }
@@ -89,6 +90,7 @@ type notesFile struct {
 		File        string  `json:"file"`
 		StartLine   int     `json:"startLine"`
 		Orphaned    bool    `json:"orphaned"`
+		Resolved    bool    `json:"resolved"`
 		Content     string  `json:"content"`
 		Author      string  `json:"author"`
 		AuthorTitle string  `json:"authorTitle"`
@@ -137,7 +139,7 @@ func ReadThreads(dir string) []Thread {
 				continue
 			}
 			t := Thread{
-				Dir: dir, File: n.File, Line: n.StartLine, Orphaned: n.Orphaned,
+				Dir: dir, File: n.File, Line: n.StartLine, Orphaned: n.Orphaned, Resolved: n.Resolved,
 				Root: comment(n.ID, n.Author, n.AuthorTitle, n.Audience, n.Content, n.Source),
 			}
 			for _, r := range n.Replies {

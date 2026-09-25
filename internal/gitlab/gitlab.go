@@ -104,11 +104,17 @@ func (c *Client) post(ctx context.Context, path string, payload any) error {
 
 // postDecode is post for the callers that need what was created - its id.
 func (c *Client) postDecode(ctx context.Context, path string, payload any, out any) error {
+	return c.send(ctx, http.MethodPost, path, payload, out)
+}
+
+// send performs a request with a JSON body and decodes the answer into out,
+// when there is one to decode into.
+func (c *Client) send(ctx context.Context, method, path string, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v4"+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/api/v4"+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -191,6 +197,12 @@ func (c *Client) CreateDiscussion(ctx context.Context, mr forge.MergeRequest, pa
 		return nil, err
 	}
 	return firstNote(mr, created)
+}
+
+// ResolveDiscussion resolves a discussion, or reopens it.
+func (c *Client) ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, resolved bool) error {
+	return c.send(ctx, http.MethodPut, mrPath(mr)+"/discussions/"+url.PathEscape(thread),
+		map[string]bool{"resolved": resolved}, nil)
 }
 
 // ReplyToDiscussion adds a note to an existing discussion. thread is the
