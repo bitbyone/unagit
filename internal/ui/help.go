@@ -181,7 +181,13 @@ func helpRows() []helpLine {
 
 		section("Worktrees", helpWorktrees),
 		note("Ctrl-O brings a worktree up to date and opens the editor, d deletes it " +
-			"(warning about work that would be lost), r looks at the disk again."),
+			"(warning about work that would be lost), r looks at the disk and at origin again. " +
+			"REMOTE says whether the branch has an upstream and how far it has drifted; " +
+			"P pushes it (with -u when it has none; never forced, and refused when origin " +
+			"is ahead), and n creates a merge request for it: title, target branch, " +
+			"description, draft, and on GitLab deleting the source branch and squashing. " +
+			"It offers to push first when the branch is not on origin, and MR shows the " +
+			"open merge request a branch already has."),
 		note("Every worktree made with Ctrl-W in Repositories, whichever repository it " +
 			"belongs to, with what it has checked out and when it last moved. Enter shows " +
 			"whether it is clean and pushed, and its latest commits. Worktrees that belong " +

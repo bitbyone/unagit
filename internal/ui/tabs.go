@@ -56,6 +56,7 @@ func (a *App) switchTab(page string) {
 		a.tv.SetFocus(a.mrsPane.focusTarget())
 	case pageWorktrees:
 		a.tv.SetFocus(a.worktreesPane.focusTarget())
+		a.loadWorktreeRemotes()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

@@ -104,6 +104,11 @@ type App struct {
 	// worktrees are the plain branch worktrees on disk, made from Repositories
 	// rather than for a merge request; refreshDisk fills them in.
 	worktrees []worktreeRow
+	// wtRemote is where each worktree's branch stands against origin, by
+	// directory, and wtGen numbers the loads so a slow one cannot overwrite a
+	// newer answer.
+	wtRemote map[string]remoteState
+	wtGen    int
 
 	mrProjectScope projectKey // the project the merge request list is limited to
 
@@ -709,6 +714,7 @@ func (a *App) refreshMRs() {
 			a.sortHold = nil
 			a.refreshDisk()
 			a.mrsPane.reload()
+			a.worktreesPane.reload()
 			a.projectsPane.reload()
 			a.settings.reload()
 		})
@@ -901,6 +907,7 @@ func (a *App) refreshDisk() {
 	}
 	a.disk = disk
 	a.worktrees = worktrees
+	a.loadWorktreeRemotes()
 	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
 		a.worktreesPane.reload()
 	}

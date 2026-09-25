@@ -27,6 +27,8 @@ type fakeServer struct {
 	approvals atomic.Int64
 	// postedComment holds the body of the last comment posted.
 	postedComment atomic.Value
+	// postedMR holds the JSON body of the last merge request created.
+	postedMR atomic.Value
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -74,6 +76,18 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":9,"status":"success","ref":"main","updated_at":"2026-09-21T09:00:00Z"}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			json(w, `[]`)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		f.postedMR.Store(string(b))
+		w.WriteHeader(http.StatusCreated)
+		json(w, `{"id":142,"iid":42,"project_id":1,"title":"created","state":"opened",
+			"source_branch":"feat/new-thing","target_branch":"main","author":{"username":"jane"},
+			"web_url":"https://gl.test/acme/gateway/-/merge_requests/42","updated_at":"2026-09-25T10:00:00Z"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/repository/branches", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"name":"main","default":true,"commit":{"short_id":"a1b2c3d","title":"Add rate limiting",
