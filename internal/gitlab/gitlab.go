@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -203,6 +204,70 @@ func (c *Client) CreateDiscussion(ctx context.Context, mr forge.MergeRequest, pa
 func (c *Client) ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, resolved bool) error {
 	return c.send(ctx, http.MethodPut, mrPath(mr)+"/discussions/"+url.PathEscape(thread),
 		map[string]bool{"resolved": resolved}, nil)
+}
+
+// CreateMergeRequest opens a merge request. GitLab marks a draft by its title,
+// so a title that does not say so already gets the "Draft: " prefix. A 409 means
+// a request is already open for the source branch, and GitLab says which.
+func (c *Client) CreateMergeRequest(ctx context.Context, p forge.Project, req forge.NewMergeRequest) (*forge.MergeRequest, error) {
+	title := req.Title
+	if req.Draft && !isDraftTitle(title) {
+		title = "Draft: " + title
+	}
+	var created mergeRequest
+	err := c.postDecode(ctx, projectPath(p)+"/merge_requests", map[string]any{
+		"source_branch":        req.SourceBranch,
+		"target_branch":        req.TargetBranch,
+		"title":                title,
+		"description":          req.Description,
+		"remove_source_branch": req.RemoveSourceBranch,
+		"squash":               req.Squash,
+	}, &created)
+	var refused *apiError
+	if errors.As(err, &refused) && refused.status == http.StatusConflict {
+		return nil, existsError(p, refused.body)
+	}
+	if err != nil {
+		return nil, err
+	}
+	mr := created.MergeRequest
+	mr.Comments = created.UserNotesCount
+	if mr.ProjectID == 0 {
+		mr.ProjectID = p.ID
+	}
+	if mr.ProjectPath == "" {
+		mr.ProjectPath = p.PathWithNamespace
+	}
+	if !mr.Draft && isDraftTitle(mr.Title) {
+		mr.Draft = true
+	}
+	return &mr, nil
+}
+
+// isDraftTitle reports whether a title already marks the request as a draft,
+// in any of the spellings GitLab accepts.
+func isDraftTitle(title string) bool {
+	t := strings.ToLower(strings.TrimSpace(title))
+	for _, prefix := range []string{"draft:", "draft ", "[draft]", "(draft)"} {
+		if strings.HasPrefix(t, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+var existingMR = regexp.MustCompile(`!(\d+)`)
+
+// existsError is ErrMergeRequestExists with the request GitLab named, if it did.
+func existsError(p forge.Project, body string) error {
+	m := existingMR.FindStringSubmatch(body)
+	if m == nil {
+		return fmt.Errorf("%w", forge.ErrMergeRequestExists)
+	}
+	if p.WebURL != "" {
+		return fmt.Errorf("%w: !%s %s/-/merge_requests/%s", forge.ErrMergeRequestExists, m[1], strings.TrimRight(p.WebURL, "/"), m[1])
+	}
+	return fmt.Errorf("%w: !%s", forge.ErrMergeRequestExists, m[1])
 }
 
 // ReplyToDiscussion adds a note to an existing discussion. thread is the

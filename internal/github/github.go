@@ -179,6 +179,47 @@ func (c *Client) ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, t
 	return forge.ErrNotSupported
 }
 
+// CreateMergeRequest opens a pull request from a branch of the repository into
+// another. RemoveSourceBranch and Squash have no counterpart when a pull
+// request is created, so they are ignored. A 422 that says a pull request
+// already exists for the branch comes back as ErrMergeRequestExists, naming it
+// when it can be found.
+func (c *Client) CreateMergeRequest(ctx context.Context, p forge.Project, req forge.NewMergeRequest) (*forge.MergeRequest, error) {
+	path := "/repos/" + p.PathWithNamespace + "/pulls"
+	var created pull
+	err := c.postDecode(ctx, path, map[string]any{
+		"title": req.Title, "body": req.Description,
+		"head": req.SourceBranch, "base": req.TargetBranch, "draft": req.Draft,
+	}, &created)
+	var refused *apiError
+	if errors.As(err, &refused) && refused.status == http.StatusUnprocessableEntity &&
+		strings.Contains(strings.ToLower(refused.body), "already exists") {
+		return nil, c.existsError(ctx, p, req.SourceBranch)
+	}
+	if err != nil {
+		return nil, err
+	}
+	mr := created.mergeRequest(p.PathWithNamespace)
+	if mr.ProjectID == 0 {
+		mr.ProjectID = p.ID
+	}
+	return &mr, nil
+}
+
+// existsError is ErrMergeRequestExists, with the pull request that is open for
+// the branch when GitHub can be asked which.
+func (c *Client) existsError(ctx context.Context, p forge.Project, branch string) error {
+	owner, _, _ := strings.Cut(p.PathWithNamespace, "/")
+	q := url.Values{}
+	q.Set("head", owner+":"+branch)
+	q.Set("state", "open")
+	var open []pull
+	if _, err := c.get(ctx, "/repos/"+p.PathWithNamespace+"/pulls", q, &open); err == nil && len(open) > 0 {
+		return fmt.Errorf("%w: !%d %s", forge.ErrMergeRequestExists, open[0].Number, open[0].HTMLURL)
+	}
+	return fmt.Errorf("%w", forge.ErrMergeRequestExists)
+}
+
 // ghComment is GitHub's comment shape, for review comments and for the
 // conversation alike.
 type ghComment struct {

@@ -15,6 +15,11 @@ import (
 // cannot do, so a caller can tell "not possible here" from a failure.
 var ErrNotSupported = errors.New("not supported by this forge")
 
+// ErrMergeRequestExists is what CreateMergeRequest returns, wrapped in a message
+// that names the request when the forge said which, when an open merge request
+// already exists for that source branch.
+var ErrMergeRequestExists = errors.New("a merge request is already open for this branch")
+
 // Kinds of forge unagit can talk to.
 const (
 	KindGitLab = "gitlab"
@@ -89,6 +94,19 @@ type MergeRequest struct {
 	// ProjectPath and Instance are filled in by unagit, not by the server.
 	ProjectPath string `json:"project_path,omitempty"`
 	Instance    string `json:"instance,omitempty"`
+}
+
+// NewMergeRequest is what a merge request is created from.
+type NewMergeRequest struct {
+	Title        string
+	Description  string
+	SourceBranch string
+	TargetBranch string
+	// Draft opens it as a draft. RemoveSourceBranch and Squash are GitLab's
+	// options; GitHub has no such fields on creation and ignores them.
+	Draft              bool
+	RemoveSourceBranch bool
+	Squash             bool
 }
 
 // MergeRequestDetail is the full payload.
@@ -237,6 +255,14 @@ type Provider interface {
 	// thread. The returned note carries thread unchanged. A GitHub comment on
 	// the conversation cannot be replied to, and the call fails.
 	ReplyToDiscussion(ctx context.Context, mr MergeRequest, thread string, body string) (*Note, error)
+
+	// CreateMergeRequest opens a merge request (a pull request on GitHub) from
+	// one branch of p into another. It returns the request as the list would
+	// hold it, without Instance, which is unagit's own. When one is already
+	// open for the source branch the error wraps ErrMergeRequestExists and says
+	// which, when the forge did. RemoveSourceBranch and Squash are GitLab
+	// options and GitHub ignores them.
+	CreateMergeRequest(ctx context.Context, p Project, req NewMergeRequest) (*MergeRequest, error)
 
 	// ResolveDiscussion marks a thread resolved, or reopens it. It returns
 	// ErrNotSupported where the forge's API cannot do that.

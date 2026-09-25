@@ -381,3 +381,78 @@ func (g *Git) WorktreeConfig(dir, key string) string {
 	}
 	return v
 }
+
+// Upstream is where a local branch stands against the branch it tracks.
+type Upstream struct {
+	Name   string // the upstream's short name, "origin/feat/x"; empty when there is none
+	Ahead  int    // commits here the upstream lacks
+	Behind int    // commits there this one lacks
+	Gone   bool   // the upstream is configured but no longer exists
+}
+
+// BranchUpstreams says, for every local branch, what it tracks and how far it has
+// drifted, from one for-each-ref rather than a command per branch.
+func (g *Git) BranchUpstreams(dir string) map[string]Upstream {
+	out, err := g.out(dir, "for-each-ref",
+		"--format=%(refname:short)%09%(upstream:short)%09%(upstream:track)", "refs/heads")
+	if err != nil {
+		return nil
+	}
+	branches := map[string]Upstream{}
+	for _, line := range strings.Split(out, "\n") {
+		// The last line has lost its trailing tab, and with it the empty track field.
+		parts := append(strings.SplitN(line, "\t", 3), "", "")
+		if parts[0] == "" {
+			continue
+		}
+		u := Upstream{Name: parts[1]}
+		for _, field := range strings.Split(strings.Trim(parts[2], "[]"), ",") {
+			field = strings.TrimSpace(field)
+			switch {
+			case field == "gone":
+				u.Gone = true
+			case strings.HasPrefix(field, "ahead "):
+				u.Ahead, _ = strconv.Atoi(strings.TrimPrefix(field, "ahead "))
+			case strings.HasPrefix(field, "behind "):
+				u.Behind, _ = strconv.Atoi(strings.TrimPrefix(field, "behind "))
+			}
+		}
+		branches[parts[0]] = u
+	}
+	return branches
+}
+
+// Push sends a branch to origin, and with setUpstream makes origin's copy the one
+// it tracks. It never forces: a branch that origin has moved past is refused.
+func (g *Git) Push(dir, branch string, setUpstream bool) error {
+	args := []string{"push"}
+	if setUpstream {
+		args = append(args, "-u")
+	}
+	_, err := g.Run(dir, append(args, "origin", branch)...)
+	return err
+}
+
+// CommitMsg is what a commit says.
+type CommitMsg struct {
+	Subject string
+	Body    string
+}
+
+// CommitsAhead lists the commits of HEAD that base lacks, oldest first.
+func (g *Git) CommitsAhead(dir, base string) ([]CommitMsg, error) {
+	out, err := g.Run(dir, "log", "--reverse", "--format=%s%x1f%b%x1e", base+"..HEAD")
+	if err != nil {
+		return nil, err
+	}
+	var commits []CommitMsg
+	for _, record := range strings.Split(out, "\x1e") {
+		record = strings.Trim(record, "\n")
+		if record == "" {
+			continue
+		}
+		subject, body, _ := strings.Cut(record, "\x1f")
+		commits = append(commits, CommitMsg{Subject: strings.TrimSpace(subject), Body: strings.TrimSpace(body)})
+	}
+	return commits, nil
+}
