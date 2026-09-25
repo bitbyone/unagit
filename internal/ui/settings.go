@@ -1021,11 +1021,18 @@ func styleForm(form *tview.Form) {
 
 // showFormModal centres a form over the dimmed interface.
 func (a *App) showFormModal(title string, form *tview.Form, height int) {
+	a.showFormModalSized(title, form, 72, height)
+}
+
+// showFormModalSized is showFormModal for a form that needs more than 72 cells.
+// The modal never grows past the terminal, so fields that should follow it have
+// to be given no width of their own.
+func (a *App) showFormModalSized(title string, form *tview.Form, width, height int) {
 	hintForm(form)
 	bindFormButtons(form)
 	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)
 	form.SetCancelFunc(func() { a.closeModal(pageForm) })
-	a.pages.AddPage(pageForm, modalFixed(form, 72, height+2), true, true)
+	a.pages.AddPage(pageForm, modalFixed(form, width, height+2), true, true)
 	a.tv.SetFocus(form)
 }
 

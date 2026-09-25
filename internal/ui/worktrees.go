@@ -638,6 +638,12 @@ func (a *App) prepareMergeRequest(r worktreeRow, pr forge.Project, client forge.
 	})
 }
 
+// Labels of the GitLab-only options; the form's labels are also how it finds them.
+const (
+	labelDeleteBranch = "Delete source branch"
+	labelSquash       = "Squash commits"
+)
+
 // showMergeRequestForm asks for what the forge requires of a new merge request.
 func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge.Provider,
 	targets []string, defaultBranch, title, description string) {
@@ -651,13 +657,21 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 			selected = i
 		}
 	}
-	form.AddInputField("Title", title, 56, nil, nil)
+	// Title and description take whatever the modal has left after the labels,
+	// so they follow the terminal instead of being drawn over the frame.
+	form.AddInputField("Title", title, 0, nil, nil)
 	form.AddDropDown("Target branch", targets, selected, nil)
-	form.AddTextArea("Description", description, 56, 5, 0, nil)
+	form.AddTextArea("Description", description, 0, 5, 0, nil)
 	form.AddCheckbox("Draft", false, nil)
 	if gitlab {
-		form.AddCheckbox("Delete source branch when merged", false, nil)
-		form.AddCheckbox("Squash commits", false, nil)
+		form.AddCheckbox(labelDeleteBranch, false, nil)
+		form.AddCheckbox(labelSquash, false, nil)
+	}
+	// An unticked box is otherwise an empty cell of the field colour.
+	for i := 0; i < form.GetFormItemCount(); i++ {
+		if box, ok := form.GetFormItem(i).(*tview.Checkbox); ok {
+			box.SetCheckedString(tview.Escape("[x]")).SetUncheckedString(tview.Escape("[ ]"))
+		}
 	}
 	checked := func(label string) bool {
 		item := form.GetFormItemByLabel(label)
@@ -673,8 +687,8 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 		}
 		_, req.TargetBranch = form.GetFormItemByLabel("Target branch").(*tview.DropDown).GetCurrentOption()
 		if gitlab {
-			req.RemoveSourceBranch = checked("Delete source branch when merged")
-			req.Squash = checked("Squash commits")
+			req.RemoveSourceBranch = checked(labelDeleteBranch)
+			req.Squash = checked(labelSquash)
 		}
 		switch {
 		case req.Title == "":
@@ -689,7 +703,7 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 	}
 	form.AddButton("Create", create)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModal(fmt.Sprintf("New merge request · %s · %s", pr.PathWithNamespace, r.Branch), form, 17)
+	a.showFormModalSized(fmt.Sprintf("New merge request · %s · %s", pr.PathWithNamespace, r.Branch), form, 92, 17)
 }
 
 // createMergeRequest sends the form to the forge, and on success puts the new

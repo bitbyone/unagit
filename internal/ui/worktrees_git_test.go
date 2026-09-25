@@ -312,7 +312,7 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 	if opts := onLoop(a, func() int { return form.GetFormItemByLabel("Target branch").(*tview.DropDown).GetOptionCount() }); opts != 2 {
 		t.Errorf("target branches = %d, want 2", opts)
 	}
-	for _, label := range []string{"Draft", "Delete source branch when merged", "Squash commits"} {
+	for _, label := range []string{"Draft", labelDeleteBranch, labelSquash} {
 		if onLoop(a, func() bool { return form.GetFormItemByLabel(label) != nil }) == false {
 			t.Errorf("the form lacks %q", label)
 		}
@@ -321,7 +321,7 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 	// Create it, as a draft, with squash.
 	a.tv.QueueUpdateDraw(func() {
 		form.GetFormItemByLabel("Draft").(*tview.Checkbox).SetChecked(true)
-		form.GetFormItemByLabel("Squash commits").(*tview.Checkbox).SetChecked(true)
+		form.GetFormItemByLabel(labelSquash).(*tview.Checkbox).SetChecked(true)
 		form.GetFormItemByLabel("Title").(*tview.InputField).SetText("Add the new thing, properly")
 	})
 	time.Sleep(100 * time.Millisecond)
