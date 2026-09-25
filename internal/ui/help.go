@@ -150,11 +150,11 @@ func helpRows() []helpLine {
 			"Forms use Alt + the shown letter while editing; on buttons the letter alone works too. Esc goes back."),
 		blank(),
 
-		section("Both lists", helpLists),
+		section("Every list", helpLists|helpWorktreeList),
 		key("Ctrl-O", "clone or update, then open the editor"),
 		key("d", "delete from disk, warning about work that would be lost"),
-		key("w", "open in the browser"),
-		key("r", "refresh this list's index from the server"),
+		key("w", "open in the browser").in(helpLists),
+		key("r", "refresh: the index from the server, or the worktrees from disk and origin"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
@@ -180,18 +180,13 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Worktrees", helpWorktrees),
-		note("Ctrl-O brings a worktree up to date and opens the editor, d deletes it " +
-			"(warning about work that would be lost), r looks at the disk and at origin again. " +
-			"REMOTE says whether the branch has an upstream and how far it has drifted; " +
-			"P pushes it (with -u when it has none; never forced, and refused when origin " +
-			"is ahead), and n creates a merge request for it: title, target branch, " +
-			"description, draft, and on GitLab deleting the source branch and squashing. " +
-			"It offers to push first when the branch is not on origin, and MR shows the " +
-			"open merge request a branch already has."),
+		key("P", "push the branch, with -u when it has no upstream; never forced"),
+		key("n", "open a merge request for it; offers to push first"),
+		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · upstream gone").in(helpWorktrees),
+		key("MR", "the open merge request the branch already has").in(helpWorktrees),
 		note("Every worktree made with Ctrl-W in Repositories, whichever repository it " +
-			"belongs to, with what it has checked out and when it last moved. Enter shows " +
-			"whether it is clean and pushed, and its latest commits. Worktrees that belong " +
-			"to a merge request are on the Merge requests tab."),
+			"belongs to; Enter shows whether one is clean and pushed, and its latest " +
+			"commits. Worktrees that belong to a merge request are on the Merge requests tab."),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),
