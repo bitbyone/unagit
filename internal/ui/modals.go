@@ -94,16 +94,26 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 // be nil, in which case its key does nothing - the callers that only need a
 // plain choice list are unaffected.
 func (a *App) showPickerActions(title string, items []pickItem, onSelect func(pickItem), onNew func(), onDelete func(pickItem)) {
-	a.showPickerWith(title, items, 0, onSelect, onNew, onDelete)
+	a.showPickerWith(title, items, pickerOptions{onNew: onNew, onDelete: onDelete}, onSelect)
 }
 
 // showPickerAt is showPicker with the cursor on items[start] rather than the
 // first one, for a list whose likely choice is somewhere in the middle.
 func (a *App) showPickerAt(title string, items []pickItem, start int, onSelect func(pickItem)) {
-	a.showPickerWith(title, items, start, onSelect, nil, nil)
+	a.showPickerWith(title, items, pickerOptions{start: start}, onSelect)
 }
 
-func (a *App) showPickerWith(title string, items []pickItem, start int, onSelect func(pickItem), onNew func(), onDelete func(pickItem)) {
+// pickerOptions are the ways a picker can differ from the plain one.
+type pickerOptions struct {
+	start    int            // the item the cursor starts on
+	onNew    func()         // n while browsing, when set
+	onDelete func(pickItem) // d while browsing, when set
+	browse   bool           // open on the list rather than the filter
+	again    rune           // while browsing, picks like Enter: the key that opened it
+}
+
+func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) {
+	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
 	list.SetMainTextColor(colText)
@@ -166,6 +176,9 @@ func (a *App) showPickerWith(title string, items []pickItem, start int, onSelect
 			return
 		}
 		hint := "   j/k move · / filter · Enter select"
+		if opts.again != 0 {
+			hint = fmt.Sprintf("   j/k move · / filter · Enter or %c select", opts.again)
+		}
 		if onNew != nil {
 			hint += " · n new"
 		}
@@ -215,6 +228,10 @@ func (a *App) showPickerWith(title string, items []pickItem, start int, onSelect
 			choose()
 			return nil
 		case tcell.KeyRune:
+			if opts.again != 0 && ev.Rune() == opts.again {
+				choose()
+				return nil
+			}
 			switch ev.Rune() {
 			case '/':
 				setMode(true)
@@ -264,7 +281,7 @@ func (a *App) showPickerWith(title string, items []pickItem, start int, onSelect
 
 	fitFooter(flex, footer, 1)
 	a.pages.AddPage(pagePicker, modalPct(flex, 70, 70), true, true)
-	setMode(true)
+	setMode(!opts.browse)
 }
 
 // ------------------------------------------------------------- formatting

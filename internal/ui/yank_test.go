@@ -34,8 +34,8 @@ func fakeClipboard(t *testing.T, works bool) *clipboard {
 	return c
 }
 
-// TestYankCopiesTheLinkFirst: y then Enter is the link, and the menu names
-// the other things there are to copy.
+// TestYankCopiesTheLinkFirst: yy is the link, and the menu names the other
+// things there are to copy.
 func TestYankCopiesTheLinkFirst(t *testing.T) {
 	c := fakeClipboard(t, true)
 	a, sc := newTestApp(t)
@@ -52,16 +52,26 @@ func TestYankCopiesTheLinkFirst(t *testing.T) {
 			t.Errorf("%q is not offered:\n%s", want, text)
 		}
 	}
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	// The menu opens on the list with the link under the cursor: yy.
+	typeRunes(sc, "y")
 	waitFor(t, a, sc, "copied link")
 	if got := c.get(); got != "https://gl.example/acme/gateway/-/merge_requests/7" {
 		t.Errorf("clipboard = %q", got)
 	}
 
-	// Filtering picks another one.
+	// j moves to the next one, and y takes it.
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Copy acme/gateway!7")
-	typeRunes(sc, "source")
+	typeRunes(sc, "jy")
+	waitFor(t, a, sc, "copied reference")
+	if got := c.get(); got != "acme/gateway!7" {
+		t.Errorf("clipboard = %q, want the reference", got)
+	}
+
+	// / still filters.
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Copy acme/gateway!7")
+	typeRunes(sc, "/source")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "copied source branch")
 	if got := c.get(); got != "feat/rate" {
@@ -77,7 +87,7 @@ func TestYankFallsBackToTheTerminal(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Copy acme/gateway")
-	typeRunes(sc, "path")
+	typeRunes(sc, "/path")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "terminal's clipboard")
 	if got := onLoop(a, func() string { return string(sc.GetClipboardData()) }); got != "acme/gateway" {

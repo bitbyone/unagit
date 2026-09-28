@@ -15,7 +15,7 @@ var copyToClipboard = workspace.CopyToClipboard
 type yankItem struct{ what, text string }
 
 // showYank offers what can be copied about the row under the cursor, the
-// link first, so y and Enter is the common case.
+// link first, so yy is the common case.
 func (a *App) showYank(title string, items []yankItem) {
 	width := 0
 	for _, it := range items {
@@ -35,7 +35,9 @@ func (a *App) showYank(title string, items []yankItem) {
 		a.flash("nothing to copy here")
 		return
 	}
-	a.showPicker(title, picks, func(p pickItem) {
+	// It opens on the list with the link under the cursor, so y again copies
+	// it: yy, as in vim. / still filters.
+	a.showPickerWith(title, picks, pickerOptions{browse: true, again: 'y'}, func(p pickItem) {
 		it := p.Data.(yankItem)
 		a.yank(it.what, it.text)
 	})
