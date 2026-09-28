@@ -35,9 +35,8 @@ func (a *App) showYank(title string, items []yankItem) {
 		a.flash("nothing to copy here")
 		return
 	}
-	// It opens on the list with the link under the cursor, so y again copies
-	// it: yy, as in vim. / still filters.
-	a.showPickerWith(title, picks, pickerOptions{browse: true, again: 'y'}, func(p pickItem) {
+	// The link is under the cursor, so y again copies it: yy, as in vim.
+	a.showPickerWith(title, picks, pickerOptions{again: 'y'}, func(p pickItem) {
 		it := p.Data.(yankItem)
 		a.yank(it.what, it.text)
 	})

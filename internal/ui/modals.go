@@ -80,8 +80,10 @@ type pickItem struct {
 
 // showPicker opens a fuzzy-filtered single choice list.
 //
-// Like the main lists it has two modes: typing filters, Esc leaves the input so
-// j/k drive the selection, and a second Esc closes the modal.
+// Like the main lists it has two modes, and it opens in the list one: j/k move,
+// Enter picks, / starts the filter, Esc there goes back to the list, and Esc
+// in the list closes the modal. Opening on the filter made every letter a
+// search, so the keys the footer offers did nothing until Esc.
 func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)) {
 	a.showPickerActions(title, items, onSelect, nil, nil)
 }
@@ -108,7 +110,6 @@ type pickerOptions struct {
 	start    int            // the item the cursor starts on
 	onNew    func()         // n while browsing, when set
 	onDelete func(pickItem) // d while browsing, when set
-	browse   bool           // open on the list rather than the filter
 	again    rune           // while browsing, picks like Enter: the key that opened it
 }
 
@@ -168,7 +169,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		onSelect(it)
 	}
 
-	setMode := func(filtering bool) {
+	filtering := false
+	setMode := func(filter bool) {
+		filtering = filter
 		if filtering {
 			footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
 				"   type to narrow · Esc to the list · Enter select" + tagEnd)
@@ -274,15 +277,32 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(input, 1, 0, true).
-		AddItem(list, 0, 1, false).
+		AddItem(input, 1, 0, false).
+		AddItem(list, 0, 1, true).
 		AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
 
 	fitFooter(flex, footer, 1)
-	a.pages.AddPage(pagePicker, modalPct(flex, 70, 70), true, true)
-	setMode(!opts.browse)
+	frame := &pickerFrame{Flex: flex, target: func() tview.Primitive {
+		if filtering {
+			return input
+		}
+		return list
+	}}
+	a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
+	setMode(false)
 }
+
+// pickerFrame hands focus to whichever half of the picker its mode is in. A
+// Flex would give it to the item it was built with, and focus comes back that
+// way whenever a modal above closes - a task that opened the picker closes its
+// own page after it - which left a list in NORMAL mode typing into its filter.
+type pickerFrame struct {
+	*tview.Flex
+	target func() tview.Primitive
+}
+
+func (f *pickerFrame) Focus(delegate func(p tview.Primitive)) { delegate(f.target()) }
 
 // ------------------------------------------------------------- formatting
 

@@ -75,6 +75,9 @@ select (`styleDropDown`), it just was not reused. The rules:
 - A select ignores typed letters (arrows and Enter open it) and draws its list
   with the same selection band as every list. Do not "improve" one of them on
   its own; change `styleDropDown` and every select follows.
+- A list to choose from is `showPicker` (or `showPickerWith` for its options),
+  and it opens on the list: j/k move, Enter picks, `/` starts the filter. Do
+  not open one on the filter; typed letters then vanish into a search.
 - A new kind of field that will be used twice goes into `fields.go` first, with
   a test, and the old call sites move to it in the same change.
 - **Look at what you built.** This is a terminal UI and it can be drawn: render

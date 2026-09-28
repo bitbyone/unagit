@@ -111,7 +111,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 			typeRunes(sc, "v")
 			waitFor(t, a, sc, "Review !7 from a commit")
 			text := a.screenText(sc)
-			for _, want := range []string{"Add a token bucket", "Count per client", "Esc to the list"} {
+			for _, want := range []string{"Add a token bucket", "Count per client", "/ filter"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}

@@ -548,16 +548,17 @@ func TestBranchPickerListsBranches(t *testing.T) {
 	waitFor(t, a, sc, "default")
 	waitFor(t, a, sc, "Token bucket")
 
-	// The picker filters too.
+	// It opens on the list; / starts the filter. (Its own footer, not the
+	// status line, which says NORMAL too.)
+	waitFor(t, a, sc, "j/k move · / filter")
+	typeRunes(sc, "/")
 	waitFor(t, a, sc, "FILTER")
 	typeRunes(sc, "feat")
 	waitGone(t, a, sc, "Add rate limiting")
 	waitFor(t, a, sc, "feat/rate")
 
-	// The first Esc leaves the input so j/k drive the selection, the second
-	// one closes the modal.
+	// Esc leaves the filter for the list and keeps what it narrowed to.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "NORMAL")
 	waitFor(t, a, sc, "j/k move")
 	if strings.Contains(a.screenText(sc), "Add rate limiting") {
 		t.Error("leaving the input dropped the filter")
@@ -579,9 +580,8 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	waitFor(t, a, sc, "Limit merge requests to a repository")
 	waitFor(t, a, sc, "(all repositories)")
 
-	// Leave the input, move down twice, pick the highlighted project.
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "NORMAL")
+	// It opens on the list: move down twice, pick the highlighted project.
+	waitFor(t, a, sc, "j/k move · / filter")
 	typeRunes(sc, "jj")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
