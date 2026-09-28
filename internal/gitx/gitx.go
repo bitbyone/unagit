@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -373,6 +374,14 @@ func (g *Git) SetWorktreeConfig(dir, key, value string) error {
 	return err
 }
 
+// UnsetWorktreeConfig removes a key from this worktree's own configuration. A
+// key that is not there is not an error.
+func (g *Git) UnsetWorktreeConfig(dir, key string) {
+	if g.WorktreeConfig(dir, key) != "" {
+		_, _ = g.Run(dir, "config", "--worktree", "--unset", key)
+	}
+}
+
 // WorktreeConfig reads a configuration key as seen from a worktree.
 func (g *Git) WorktreeConfig(dir, key string) string {
 	v, err := g.out(dir, "config", "--get", key)
@@ -455,4 +464,60 @@ func (g *Git) CommitsAhead(dir, base string) ([]CommitMsg, error) {
 		commits = append(commits, CommitMsg{Subject: strings.TrimSpace(subject), Body: strings.TrimSpace(body)})
 	}
 	return commits, nil
+}
+
+// LogEntry is one commit as a list of them shows it.
+type LogEntry struct {
+	SHA     string
+	Subject string
+	Author  string
+	When    time.Time
+	Merge   bool // it has more than one parent
+}
+
+// Commits lists the commits of to that from lacks, oldest first.
+func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
+	out, err := g.out(dir, "log", "--reverse", "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%s", from+".."+to)
+	if err != nil {
+		return nil, err
+	}
+	var entries []LogEntry
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.SplitN(line, "\x1f", 5)
+		if len(f) < 5 {
+			continue
+		}
+		unix, _ := strconv.ParseInt(f[3], 10, 64)
+		entries = append(entries, LogEntry{
+			SHA:     f[0],
+			Merge:   len(strings.Fields(f[1])) > 1,
+			Author:  f[2],
+			When:    time.Unix(unix, 0),
+			Subject: f[4],
+		})
+	}
+	return entries, nil
+}
+
+// IsAncestor reports whether a is reachable from b.
+func (g *Git) IsAncestor(dir, a, b string) bool {
+	_, err := g.out(dir, "merge-base", "--is-ancestor", a, b)
+	return err == nil
+}
+
+// Unseen lists the commits of base..head that seen neither contains nor has an
+// equivalent of. git cherry compares patches rather than commit ids, so a
+// commit that a rebase rewrote still counts as seen.
+func (g *Git) Unseen(dir, seen, head, base string) (map[string]bool, error) {
+	out, err := g.out(dir, "cherry", seen, head, base)
+	if err != nil {
+		return nil, err
+	}
+	unseen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		if sha, ok := strings.CutPrefix(line, "+ "); ok {
+			unseen[strings.TrimSpace(sha)] = true
+		}
+	}
+	return unseen, nil
 }

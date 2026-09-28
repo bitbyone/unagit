@@ -94,6 +94,16 @@ func (a *App) showPicker(title string, items []pickItem, onSelect func(pickItem)
 // be nil, in which case its key does nothing - the callers that only need a
 // plain choice list are unaffected.
 func (a *App) showPickerActions(title string, items []pickItem, onSelect func(pickItem), onNew func(), onDelete func(pickItem)) {
+	a.showPickerWith(title, items, 0, onSelect, onNew, onDelete)
+}
+
+// showPickerAt is showPicker with the cursor on items[start] rather than the
+// first one, for a list whose likely choice is somewhere in the middle.
+func (a *App) showPickerAt(title string, items []pickItem, start int, onSelect func(pickItem)) {
+	a.showPickerWith(title, items, start, onSelect, nil, nil)
+}
+
+func (a *App) showPickerWith(title string, items []pickItem, start int, onSelect func(pickItem), onNew func(), onDelete func(pickItem)) {
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
 	list.SetMainTextColor(colText)
@@ -132,6 +142,9 @@ func (a *App) showPickerActions(title string, items []pickItem, onSelect func(pi
 		}
 	}
 	rebuild("")
+	if start > 0 && start < list.GetItemCount() {
+		list.SetCurrentItem(start)
+	}
 	input.SetChangedFunc(rebuild)
 
 	dismiss := func() { a.closeModal(pagePicker) }

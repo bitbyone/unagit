@@ -191,6 +191,7 @@ func helpRows() []helpLine {
 
 		section("Merge requests", helpMergeRequests),
 		key("Ctrl-R", "open for review: the whole change as pending edits"),
+		key("v", "review from a commit to the head: only what came after it is pending; ● marks commits new since your last review"),
 		key("c", "read the conversation, and write a comment"),
 		key("A", "approve - it asks first (capital, like P for publish: both are seen by everyone)"),
 		key("P", "publish the Incomm comments marked for the merge request, and resolve the threads you resolved - it lists them first"),
@@ -211,7 +212,12 @@ func helpRows() []helpLine {
 			"conversation with its file, not at a stale line. A thread you resolved in Incomm that is on the forge, and open " +
 			"there, is listed as \"resolve thread\" and resolved after its posts " +
 			"(GitLab only: GitHub's API cannot resolve threads, and unagit says so)."),
-		note("Comments come in from the forge on Ctrl-R only, at the file and line " +
+		note("v reads the commits and puts the cursor on the first one the review " +
+			"worktree has not been given yet, recognising a rebased commit as one " +
+			"already seen. Enter opens the review with that commit and everything " +
+			"after it pending, the rest already committed; Ctrl-R opens the whole " +
+			"change again. A worktree with your own edits is not narrowed."),
+		note("Comments come in from the forge on Ctrl-R and v only, at the file and line " +
 			"the forge gives; running it again adds the new ones and leaves the ones " +
 			"already there where they are. Edits and deletions on the forge are not " +
 			"synced. Resolved only moves one way: a thread the forge has resolved is " +

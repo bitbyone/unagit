@@ -581,7 +581,7 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	}
 }
 
-// TestReviewKeyAsksForTheDiffRefs checks the v key goes through GitLab for the
+// TestReviewKeyAsksForTheDiffRefs checks Ctrl-R goes through GitLab for the
 // commit the merge request is diffed against, rather than guessing.
 func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)

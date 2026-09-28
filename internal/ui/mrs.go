@@ -120,6 +120,11 @@ func (a *App) newMRsPane() *pane {
 				a.showComments(mr)
 			}
 			return nil
+		case 'v':
+			if mr, ok := selected(); ok {
+				a.pickReviewStart(mr)
+			}
+			return nil
 		case 'r':
 			a.refreshMRs()
 			return nil
@@ -549,29 +554,108 @@ func (a *App) applyMRUpdate(fresh forge.MergeRequest, redetail, keepOrder bool) 
 // as pending changes rather than as a stack of commits. The diff base comes
 // from the API, so it is the very commit GitLab renders its own diff against.
 func (a *App) openMRReview(mr forge.MergeRequest) {
+	a.openMRReviewFrom(mr, "")
+}
+
+// reviewRefs asks the forge which two commits it diffs the merge request
+// between. Without an answer the review falls back to the local merge base.
+func reviewRefs(ctx context.Context, client forge.Provider, mr forge.MergeRequest, log func(string)) workspace.Review {
+	if client == nil {
+		log("! no token for this server, falling back to the local merge base")
+		return workspace.Review{}
+	}
+	log("Asking the forge what this merge request is diffed against ...")
+	det, err := client.MergeRequestDetail(ctx, mr)
+	if err != nil {
+		log("! " + err.Error())
+		log("  falling back to the local merge base")
+		return workspace.Review{}
+	}
+	return workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
+}
+
+// pickReviewStart lists the commits of a merge request and opens the review
+// from the chosen one up to the head: after the author answered the comments
+// in new commits, those are what is left to read. The cursor starts on the
+// first commit the review worktree has not been given yet.
+func (a *App) pickReviewStart(mr forge.MergeRequest) {
+	project := a.mrProject(mr)
+	path := project.PathWithNamespace
+	client := a.client(mr.Instance)
+	a.runTask(fmt.Sprintf("Reading the commits of %s !%d", path, mr.IID), func(log func(string)) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		mr := a.refreshMR(client, mr, log)
+		commits, err := a.newManager(mr.Instance, path, log).MRCommits(mr, project, reviewRefs(ctx, client, mr, log))
+		if err != nil {
+			return "", err
+		}
+		if len(commits) == 0 {
+			return "", fmt.Errorf("!%d has no commits of its own to review", mr.IID)
+		}
+		a.tv.QueueUpdateDraw(func() {
+			a.closeModal(pageTask)
+			a.showReviewStartPicker(mr, commits)
+		})
+		return "", nil
+	})
+}
+
+func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit) {
+	items := make([]pickItem, len(commits))
+	start, fresh := 0, 0
+	for i, c := range commits {
+		// The picker filters on the text as it is drawn, so it stays free of
+		// colour tags.
+		mark := "  "
+		if c.New {
+			mark = "● "
+			if fresh == 0 {
+				start = i
+			}
+			fresh++
+		}
+		sub := tview.Escape(c.Author) + " · " + humanAge(c.When)
+		if c.Merge {
+			// Starting at or before a merge brings in everything it merged,
+			// which is not the merge request's own work.
+			sub += " · ! merge commit, the review would include what it merged"
+		}
+		items[i] = pickItem{
+			Label: mark + c.SHA[:8] + "  " + tview.Escape(c.Subject),
+			Sub:   sub,
+			Data:  c.SHA,
+		}
+	}
+	title := fmt.Sprintf("Review !%d from a commit to the head", mr.IID)
+	if fresh > 0 {
+		title += fmt.Sprintf(" · ● %d new since your last review", fresh)
+	}
+	a.showPickerAt(title, items, start, func(it pickItem) {
+		a.openMRReviewFrom(mr, it.Data.(string))
+	})
+}
+
+// openMRReviewFrom is openMRReview narrowed to the commits from one onwards;
+// an empty from is the whole merge request.
+func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
 	integrate := a.cfg.Integrations.Incomm
-	a.runTaskOpening(fmt.Sprintf("Opening %s !%d for review", path, mr.IID),
+	title := fmt.Sprintf("Opening %s !%d for review", path, mr.IID)
+	if from != "" {
+		title = fmt.Sprintf("Opening %s !%d for review from %.8s", path, mr.IID, from)
+	}
+	a.runTaskOpening(title,
 		a.sessionOf(mr, path, session.ModeReview),
 		func(log func(string)) (string, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
 			mr := a.refreshMR(client, mr, log)
-			var rev workspace.Review
-			if client == nil {
-				log("! no token for this server, falling back to the local merge base")
-			} else {
-				log("Asking GitLab what this merge request is diffed against ...")
-				if det, err := client.MergeRequestDetail(ctx, mr); err != nil {
-					log("! " + err.Error())
-					log("  falling back to the local merge base")
-				} else {
-					rev = workspace.Review{BaseSHA: det.DiffRefs.BaseSHA, HeadSHA: det.DiffRefs.HeadSHA}
-				}
-			}
+			rev := reviewRefs(ctx, client, mr, log)
+			rev.From = from
 
 			dir, err := a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
 			if err != nil || !integrate {

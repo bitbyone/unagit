@@ -4,26 +4,37 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 )
 
 // Review pins the two commits GitLab itself renders a merge request diff from.
 // BaseSHA is the merge base, not the tip of the target branch: the target may
 // have moved on since, and diffing against its tip would show the target's own
 // commits backwards.
+//
+// From narrows the review to the commits from that one up to the head, for a
+// second look after the author answered in new commits. Empty is the whole
+// merge request.
 type Review struct {
 	BaseSHA string
 	HeadSHA string
+	From    string
 }
 
 // Meta is what unagit records in a worktree's own git configuration, so an
 // editor can find out which merge request it is looking at and what to diff
 // against:
 //
-//	git config unagit.mr.base    # the merge base
+//	git config unagit.mr.base    # what the pending change is measured from
 //	git config unagit.mr.head    # the merge request head
 //	git config unagit.mr.mode    # branch or review
+//	git config unagit.mr.from    # the first commit shown, when not all are
+//
+// The base is the merge base unless the review was narrowed to its latest
+// commits; it is always what HEAD is, so a diff against it matches the gutter.
 //
 // Per-worktree configuration keeps this out of the shared repository config,
 // so every merge request directory carries its own answer.
@@ -36,6 +47,7 @@ type Meta struct {
 	Head    string
 	URL     string
 	Mode    string
+	From    string
 }
 
 // Modes a worktree can be in.
@@ -103,11 +115,18 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 	if base == "" {
 		return "", fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
 	}
+	if rev.From != "" {
+		// From here on "base" is what the pending change starts at: the
+		// parent of the first commit to show, rather than the merge base.
+		if base, err = m.startOf(mainDir, base, head, rev.From); err != nil {
+			return "", err
+		}
+	}
 
 	dir := m.ReviewDir(projectPath, mr.IID, mr.SourceBranch)
 	meta := Meta{
 		IID: mr.IID, Project: projectPath, Source: mr.SourceBranch, Target: mr.TargetBranch,
-		Base: base, Head: head, URL: mr.WebURL, Mode: ModeReview,
+		Base: base, Head: head, URL: mr.WebURL, Mode: ModeReview, From: rev.From,
 	}
 
 	if Exists(dir) {
@@ -115,7 +134,14 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 		// Everything the merge request changes is pending here by design, so
 		// the reviewer's own edits are what the worktree adds on top of the
 		// head it was last given - and those must survive.
-		if edits := m.ownEdits(dir, m.ReadMeta(dir)); len(edits) > 0 {
+		edits := m.ownEdits(dir, m.ReadMeta(dir))
+		if len(edits) > 0 && rev.From != "" {
+			// Opening it anyway would show the whole change while the reviewer
+			// asked for part of it, which reads as if the narrowing worked.
+			return "", fmt.Errorf("%d file(s) in the review worktree have your own edits (%s) - "+
+				"discard or stash them before narrowing the review", len(edits), strings.Join(edits, ", "))
+		}
+		if len(edits) > 0 {
 			m.log("! %d file(s) with your own edits, leaving the worktree alone", len(edits))
 			m.writeMeta(dir, meta)
 			return dir, nil
@@ -145,6 +171,65 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 	m.log("  git diff                 the whole change")
 	m.log("  git config unagit.mr.base / .head   the two ends of it")
 	return dir, nil
+}
+
+// startOf is the commit a review narrowed to from..head is measured against:
+// from's parent. from has to be one of the merge request's own commits, or the
+// pending change would include work that is not the merge request's.
+func (m *Manager) startOf(mainDir, base, head, from string) (string, error) {
+	if !m.git.CommitExists(mainDir, from) || from == base ||
+		!m.git.IsAncestor(mainDir, base, from) || !m.git.IsAncestor(mainDir, from, head) {
+		return "", fmt.Errorf("commit %s is not part of the merge request any more - pick it again from the list", short(from))
+	}
+	return m.git.RevParse(mainDir, from+"^")
+}
+
+// MRCommit is one commit of a merge request, and whether the reviewer has not
+// seen it yet.
+type MRCommit struct {
+	gitx.LogEntry
+	New bool
+}
+
+// MRCommits lists the commits of a merge request, oldest first, as they are on
+// the server now. A commit is new when the review worktree was last given a
+// head that has neither it nor a rebased copy of it; without a review worktree
+// nothing is marked, since nothing was seen.
+func (m *Manager) MRCommits(mr forge.MergeRequest, project forge.Project, rev Review) ([]MRCommit, error) {
+	mainDir, head, err := m.prepareMR(mr, project)
+	if err != nil {
+		return nil, err
+	}
+	if m.git.CommitExists(mainDir, rev.HeadSHA) {
+		head = rev.HeadSHA
+	}
+	base := m.resolveBase(mainDir, mr, rev, head)
+	if base == "" {
+		return nil, fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
+	}
+	entries, err := m.git.Commits(mainDir, base, head)
+	if err != nil {
+		return nil, err
+	}
+	var unseen map[string]bool
+	dir := m.ReviewDir(project.PathWithNamespace, mr.IID, mr.SourceBranch)
+	if seen := m.ReadMeta(dir).Head; Exists(dir) && m.git.CommitExists(mainDir, seen) {
+		if unseen, err = m.git.Unseen(mainDir, seen, head, base); err != nil {
+			m.log("! could not tell which commits are new: %v", err)
+		}
+	}
+	commits := make([]MRCommit, len(entries))
+	for i, e := range entries {
+		commits[i] = MRCommit{LogEntry: e, New: unseen[e.SHA]}
+	}
+	return commits, nil
+}
+
+func short(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
 }
 
 // pendChange puts the merge request in the working tree while leaving HEAD and
@@ -206,6 +291,12 @@ func (m *Manager) writeMeta(dir string, meta Meta) {
 			return
 		}
 	}
+	// A review opened whole again must not go on claiming to be narrowed.
+	if meta.From == "" {
+		m.git.UnsetWorktreeConfig(dir, "unagit.mr.from")
+	} else if err := m.git.SetWorktreeConfig(dir, "unagit.mr.from", meta.From); err != nil {
+		m.log("! could not write unagit.mr.from")
+	}
 }
 
 // ReadMeta reads back what unagit recorded for a worktree.
@@ -219,6 +310,7 @@ func (m *Manager) ReadMeta(dir string) Meta {
 		Head:    get("head"),
 		URL:     get("url"),
 		Mode:    get("mode"),
+		From:    get("from"),
 	}
 	fmt.Sscanf(get("iid"), "%d", &meta.IID)
 	return meta
