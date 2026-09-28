@@ -124,6 +124,16 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/approvals", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"approvals_required":0,"approved_by":[]}`)
 	})
+	// A merge request outside the index, as a pasted link names it: by the
+	// project's path, which GitLab takes escaped in place of an id.
+	mux.HandleFunc("/api/v4/projects/{project}/merge_requests/5", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("project") != "acme/other" {
+			http.NotFound(w, r)
+			return
+		}
+		json(w, `{"id":305,"iid":5,"title":"Elsewhere","source_branch":"feat/other","target_branch":"main",
+			"project_id":3,"web_url":"https://gl.example/acme/other/-/merge_requests/5"}`)
+	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7", func(w http.ResponseWriter, r *http.Request) {
 		f.mrDetail.Add(1)
 		json(w, `{"iid":7,"title":"Rate limiting","description":"Adds a token bucket.",

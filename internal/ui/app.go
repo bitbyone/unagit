@@ -117,6 +117,14 @@ type App struct {
 	// for a refresh or for the request to be opened. Without it, a row would jump
 	// away from under the cursor while the detail follows it down the list.
 	sortHold map[mrKey]time.Time
+
+	// goal is what the app was started to open, pursued once the vault is
+	// open; nil for a plain start.
+	goal *Goal
+
+	// screen is the terminal, kept from the last draw so the clipboard can be
+	// set through it when the system has no program for that.
+	screen tcell.Screen
 }
 
 // mrKey identifies a merge request across servers and projects.
@@ -243,6 +251,10 @@ func (a *App) Run() error {
 		AddItem(a.pages, 0, 1, true)
 
 	a.tv.SetInputCapture(a.globalKeys)
+	a.tv.SetBeforeDrawFunc(func(screen tcell.Screen) bool {
+		a.screen = screen
+		return false
+	})
 
 	if a.vault == nil {
 		a.showUnlock()
@@ -274,6 +286,7 @@ func (a *App) start() {
 		a.settings.selectSection(sectionGroups)
 		a.flash("Pick the groups you work with, then refresh the indexes with p and m")
 	}
+	a.pursueGoal()
 }
 
 // selectedGroups counts every group selected across all instances.

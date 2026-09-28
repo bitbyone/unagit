@@ -482,6 +482,17 @@ func (p *pane) selectRow(previous, first int) {
 	p.table.Select(first, 0)
 }
 
+// selectWhere puts the cursor on the first row whose data index matches. A row
+// the filter hides stays unselected.
+func (p *pane) selectWhere(match func(i int) bool) {
+	for row := 1; row < p.table.GetRowCount(); row++ {
+		if i, ok := p.table.GetCell(row, 0).GetReference().(int); ok && match(i) {
+			p.table.Select(row, 0)
+			return
+		}
+	}
+}
+
 // selectedIndex maps the highlighted table row onto the underlying data slice.
 // It returns -1 when the list is empty.
 func (p *pane) selectedIndex() int {

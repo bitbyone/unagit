@@ -420,11 +420,21 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 }
 
 func groupPath(g forge.Group) string { return "/groups/" + strconv.Itoa(g.ID) }
+
+// A project is addressed by its id, or - for one known only from a link - by
+// its escaped path, which the API accepts in the same place.
 func projectPath(p forge.Project) string {
-	return "/projects/" + strconv.Itoa(p.ID)
+	return "/projects/" + projectRef(p.ID, p.PathWithNamespace)
 }
 func mrPath(mr forge.MergeRequest) string {
-	return "/projects/" + strconv.Itoa(mr.ProjectID) + "/merge_requests/" + strconv.Itoa(mr.IID)
+	return "/projects/" + projectRef(mr.ProjectID, mr.ProjectPath) + "/merge_requests/" + strconv.Itoa(mr.IID)
+}
+
+func projectRef(id int, path string) string {
+	if id == 0 && path != "" {
+		return url.PathEscape(path)
+	}
+	return strconv.Itoa(id)
 }
 
 // ProjectDetail returns the full project payload including statistics.

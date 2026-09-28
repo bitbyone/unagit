@@ -125,6 +125,11 @@ func (a *App) newMRsPane() *pane {
 				a.pickReviewStart(mr)
 			}
 			return nil
+		case 'y':
+			if mr, ok := selected(); ok {
+				a.yankMR(mr)
+			}
+			return nil
 		case 'r':
 			a.refreshMRs()
 			return nil

@@ -749,3 +749,33 @@ func OpenBrowser(url string) error {
 		return exec.Command("xdg-open", url).Start()
 	}
 }
+
+// CopyToClipboard puts text on the system clipboard through whichever program
+// this system has for it. It fails when there is none, as over ssh, and the
+// caller then has the terminal do it.
+func CopyToClipboard(text string) error {
+	var candidates [][]string
+	switch runtime.GOOS {
+	case "darwin":
+		candidates = [][]string{{"pbcopy"}}
+	case "windows":
+		candidates = [][]string{{"clip"}}
+	default:
+		if os.Getenv("WAYLAND_DISPLAY") != "" {
+			candidates = append(candidates, []string{"wl-copy"})
+		}
+		if os.Getenv("DISPLAY") != "" {
+			candidates = append(candidates,
+				[]string{"xclip", "-selection", "clipboard"}, []string{"xsel", "--clipboard", "--input"})
+		}
+	}
+	for _, c := range candidates {
+		if _, err := exec.LookPath(c[0]); err != nil {
+			continue
+		}
+		cmd := exec.Command(c[0], c[1:]...)
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	return fmt.Errorf("no clipboard program found")
+}

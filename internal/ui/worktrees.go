@@ -202,6 +202,11 @@ func (a *App) newWorktreesPane() *pane {
 			return ev
 		}
 		switch ev.Rune() {
+		case 'y':
+			if r, ok := selected(); ok {
+				a.yankWorktree(r)
+			}
+			return nil
 		case 'd':
 			if r, ok := selected(); ok {
 				a.confirmDeleteWorktreeEntry(a.worktreeProject(r), workspace.WorktreeEntry{

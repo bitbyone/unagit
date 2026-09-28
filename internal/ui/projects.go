@@ -85,6 +85,11 @@ func (a *App) newProjectsPane() *pane {
 				a.showProjectDirectory(pr)
 			}
 			return nil
+		case 'y':
+			if pr, ok := selected(); ok {
+				a.yankProject(pr)
+			}
+			return nil
 		case 'b':
 			if pr, ok := selected(); ok {
 				a.showBranchPicker(pr)

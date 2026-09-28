@@ -39,8 +39,37 @@ func rootCmd() *cobra.Command {
 			return ui.NewLocked(cfg).Run()
 		},
 	}
-	root.AddCommand(cdCmd(), sessionsCmd(), whereCmd())
+	root.AddCommand(cdCmd(), sessionsCmd(), whereCmd(),
+		goalCmd("review", "Open a merge request for review, from its link", true),
+		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
+}
+
+// goalCmd starts the TUI with a merge request to open straight away: the
+// passphrase is still asked for in its dialog, and when the editor closes the
+// lists are there as usual. The link is read before anything starts, so a
+// mistyped one is an error on the command line rather than inside the TUI.
+func goalCmd(use, short string, review bool) *cobra.Command {
+	return &cobra.Command{
+		Use:   use + " <link>",
+		Short: short,
+		Long: short + ".\n\nThe link is the merge request's page as the browser shows it, e.g.\n" +
+			"  https://gitlab.example.com/group/project/-/merge_requests/12\n" +
+			"  https://github.com/owner/repo/pull/12\n" +
+			"Anything after the number (a tab, a comment anchor) is ignored.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			link, err := ui.ParseMRLink(cfg, args[0])
+			if err != nil {
+				return err
+			}
+			return ui.NewLocked(cfg).WithGoal(ui.Goal{Link: link, Review: review}).Run()
+		},
+	}
 }
 
 func whereCmd() *cobra.Command {

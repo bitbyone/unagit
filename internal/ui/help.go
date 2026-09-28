@@ -154,6 +154,7 @@ func helpRows() []helpLine {
 		key("Ctrl-O", "clone or update, then open the editor"),
 		key("d", "delete from disk, warning about work that would be lost"),
 		key("w", "open in the browser").in(helpLists),
+		key("y", "copy: the link, reference, branch, directory - Enter takes the first"),
 		key("r", "refresh: the index from the server, or the worktrees from disk and origin"),
 		blank(),
 

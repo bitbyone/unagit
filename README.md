@@ -143,6 +143,22 @@ Notes you type into the files survive reopening, and a force push on the other
 side is picked up on the next open. `Ctrl-O` gives you the ordinary branch
 checkout instead, when you mean to commit and push.
 
+When the author answers your comments in new commits, `v` lists the commits
+with the cursor on the first one you have not reviewed yet - a rebase does not
+fool it - and `Enter` reopens the review with only that commit and what follows
+pending.
+
+A link pasted from chat or email goes straight there:
+
+```sh
+unagit review https://gitlab.example.com/group/app/-/merge_requests/12
+unagit open   https://github.com/owner/repo/pull/12     # the branch worktree
+```
+
+It asks for the passphrase as usual, opens the editor, and leaves you in the
+lists when you close it. The merge request does not have to be in a selected
+group.
+
 ## The rest of it
 
 - **One list, several servers.** Any number of GitLab instances plus GitHub,
@@ -193,6 +209,8 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `Ctrl-C` | in Repositories: clone to disk without opening the editor |
 | `Ctrl-O` | clone or update, then open the editor |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
+| `v` | review from a chosen commit to the head |
+| `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group by repo |
