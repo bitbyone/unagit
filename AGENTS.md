@@ -111,7 +111,17 @@ filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
 the `?` screen as data.
 
 Main views expose shortcuts through `?`: help keeps actions for the opening
-context in normal text and dims the rest. Keep inline hints in modals and in
+context in normal text and dims the rest.
+
+**The help is keys, not prose.** This has gone wrong twice: paragraphs of
+explanation were added to `helpRows`, and the help became a wall of text with
+empty key columns in which the keys could not be found. Every row of the help
+is a key (or a column name, a marker, a path kind) on the left and one short
+line on the right - nothing else. A new feature adds its keys there and its
+explanation to the README. If something will not fit in one line, it is not
+help text. `TestHelpIsKeysNotProse` enforces it: no row without a key, a key at
+most 15 wide, a description at most 52 long; there is no `note()` any more, so
+do not bring it back. Open `?` on the tab you changed and look at it. Keep inline hints in modals and in
 simple blocks with up to five actions, such as integrations. Dialog buttons
 use local action letters; forms use Alt plus the letter while editing, and
 plain letters when a button has focus. Inline hints stay below their context

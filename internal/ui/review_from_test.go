@@ -116,6 +116,10 @@ func TestReviewStartPickerFits(t *testing.T) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}
 			}
+			// Newest on top, as git log and the forge list them.
+			if strings.Index(text, "Answer the review") > strings.Index(text, "Add a token bucket") {
+				t.Errorf("the newest commit is not on top:\n%s", text)
+			}
 			assertLegible(t, a, sc, "the commit picker")
 		})
 	}

@@ -607,16 +607,20 @@ func (a *App) pickReviewStart(mr forge.MergeRequest) {
 }
 
 func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit) {
+	// Newest on top, like git log and the forge's own list. The commits come
+	// oldest first, so each lands at the mirrored position; the cursor goes to
+	// the oldest new one, the start of what is left to read.
 	items := make([]pickItem, len(commits))
 	start, fresh := 0, 0
 	for i, c := range commits {
+		at := len(commits) - 1 - i
 		// The picker filters on the text as it is drawn, so it stays free of
 		// colour tags.
 		mark := "  "
 		if c.New {
 			mark = "● "
 			if fresh == 0 {
-				start = i
+				start = at
 			}
 			fresh++
 		}
@@ -626,7 +630,7 @@ func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.M
 			// which is not the merge request's own work.
 			sub += " · ! merge commit, the review would include what it merged"
 		}
-		items[i] = pickItem{
+		items[at] = pickItem{
 			Label: mark + c.SHA[:8] + "  " + tview.Escape(c.Subject),
 			Sub:   sub,
 			Data:  c.SHA,

@@ -105,19 +105,19 @@ func contextHelpRows(context helpContext) []helpLine {
 	return rows
 }
 
-// helpLine is one row of the help: a section heading, a key with what it
-// does, or a paragraph of explanation.
+// helpLine is one row of the help: a section heading, or a key with what it
+// does. There are deliberately no paragraphs: the help is read at a glance,
+// key by key, and prose buried the keys every time it was allowed in. The
+// explanations belong in the README.
 type helpLine struct {
 	scope   helpContext
 	section string
 	keys    string
 	text    string
-	note    string
 }
 
 func section(name string, scope helpContext) helpLine { return helpLine{section: name, scope: scope} }
 func key(keys, text string) helpLine                  { return helpLine{keys: keys, text: text} }
-func note(text string) helpLine                       { return helpLine{note: text} }
 func blank() helpLine                                 { return helpLine{} }
 
 // helpRows is the whole of the help, in the order it is read. Keeping it as
@@ -140,97 +140,64 @@ func helpRows() []helpLine {
 		key("j k g G", "scroll"),
 		key("Ctrl-F Ctrl-B", "page"),
 		key("h  ←  Esc", "back to the list"),
-		note("Repositories show statistics, languages, the latest pipeline, the " +
-			"most recent commits and their open merge requests. Merge requests are " +
-			"always fetched fresh."),
 		blank(),
 
 		section("Dialogs", 0),
-		note("Modals and blocks with up to five actions show inline hints: c cancels, d deletes, a approves. " +
-			"Forms use Alt + the shown letter while editing; on buttons the letter alone works too. Esc goes back."),
+		key("c  Esc", "cancel · go back"),
+		key("letter", "the action whose letter the hint shows"),
+		key("Alt-letter", "the same while typing in a form field"),
 		blank(),
 
 		section("Every list", helpLists|helpWorktreeList),
 		key("Ctrl-O", "clone or update, then open the editor"),
-		key("d", "delete from disk, warning about work that would be lost"),
+		key("d", "delete from disk; warns about unsaved work"),
 		key("w", "open in the browser").in(helpLists),
-		key("y", "copy: the link, reference, branch, directory - Enter takes the first"),
-		key("r", "refresh: the index from the server, or the worktrees from disk and origin"),
+		key("y", "copy the link, reference, branch or directory"),
+		key("yy", "copy the link"),
+		key("r", "refresh from the server, or worktrees from disk"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
 		key("C", "only the repositories you have cloned"),
-		key("x", "hide the repository under the cursor, or bring it back"),
+		key("x", "hide or show the repository and its merge requests"),
 		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
-		key("Ctrl-G", "gather the merge requests under their repository").in(helpMergeRequests),
-		note("Hiding a repository takes its merge requests with it. The header " +
-			"under each list says what is being left out."),
+		key("Ctrl-G", "group the merge requests by repository").in(helpMergeRequests),
 		blank(),
 
 		section("Repositories", helpRepositories),
-		key("Ctrl-C", "clone to disk without opening the editor"),
-		key("e", "set the exact clone directory of an uncloned repository"),
-		key("b", "pick a branch and switch the main clone to it"),
-		key("Ctrl-W", "pick a branch - or 'n' for a new one - and open it in its own worktree"),
-		key("m", "show only the merge requests of this repository"),
-		note("PATH shows the clone destination; dim paths are planned, not yet cloned."),
-		note("d deletes the bare clone directly; with any worktree on top it opens a " +
-			"list instead, so a single merge request or branch worktree can go on its " +
-			"own, or the [main clone] entry for everything at once."),
+		key("Ctrl-C", "clone without opening the editor"),
+		key("e", "set the clone directory of an uncloned repository"),
+		key("b", "switch the main clone to another branch"),
+		key("Ctrl-W", "open a branch in its own worktree; n for a new one"),
+		key("m", "show only this repository's merge requests"),
+		key("PATH", "clone directory; dim when not cloned yet"),
 		blank(),
 
 		section("Worktrees", helpWorktrees),
-		key("P", "push the branch, with -u when it has no upstream; never forced"),
-		key("n", "open a merge request for it; offers to push first"),
-		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · upstream gone").in(helpWorktrees),
-		key("MR", "the open merge request the branch already has").in(helpWorktrees),
-		note("Every worktree made with Ctrl-W in Repositories, whichever repository it " +
-			"belongs to; Enter shows whether one is clean and pushed, and its latest " +
-			"commits. Worktrees that belong to a merge request are on the Merge requests tab."),
+		key("P", "push; -u when it has no upstream; never forced"),
+		key("n", "open a merge request; offers to push first"),
+		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),
+		key("MR", "the open merge request of the branch"),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),
-		key("Ctrl-R", "open for review: the whole change as pending edits"),
-		key("v", "review from a commit to the head: only what came after it is pending; ● marks commits new since your last review"),
-		key("c", "read the conversation, and write a comment"),
-		key("A", "approve - it asks first (capital, like P for publish: both are seen by everyone)"),
-		key("P", "publish the Incomm comments marked for the merge request, and resolve the threads you resolved - it lists them first"),
-		key("f  F", "limit the list to one repository · clear that limit"),
-		note("The COM column is how many comments a merge request has. GitLab " +
-			"reports it on the listing; GitHub only on a single merge request, so " +
-			"there it fills in once you have opened one."),
-		note("With Incomm on, the PUB column counts the comments and replies in the " +
-			"merge request's worktrees that are meant for the forge and have not gone " +
-			"there yet. P posts them one by one, the conversation's first comment " +
-			"before its replies, and writes each one's forge id back at once, so a " +
-			"failure half way never posts anything twice. What the agent wrote is " +
-			"marked as the agent's in the text, because the forge shows your name. " +
-			"Nothing is ever published without P."),
-		note("Incomm re-anchors the comments whenever a worktree is updated (Ctrl-O, " +
-			"Ctrl-R), so each one is on the line its code is on; P posts the lines Incomm " +
-			"has stored. One whose code is gone is marked orphaned and is posted on the " +
-			"conversation with its file, not at a stale line. A thread you resolved in Incomm that is on the forge, and open " +
-			"there, is listed as \"resolve thread\" and resolved after its posts " +
-			"(GitLab only: GitHub's API cannot resolve threads, and unagit says so)."),
-		note("v reads the commits and puts the cursor on the first one the review " +
-			"worktree has not been given yet, recognising a rebased commit as one " +
-			"already seen. Enter opens the review with that commit and everything " +
-			"after it pending, the rest already committed; Ctrl-R opens the whole " +
-			"change again. A worktree with your own edits is not narrowed."),
-		note("Comments come in from the forge on Ctrl-R and v only, at the file and line " +
-			"the forge gives; running it again adds the new ones and leaves the ones " +
-			"already there where they are. Edits and deletions on the forge are not " +
-			"synced. Resolved only moves one way: a thread the forge has resolved is " +
-			"resolved in Incomm, but nothing is ever reopened, on either side."),
+		key("Ctrl-R", "review: the whole change as unstaged edits"),
+		key("v", "review from a chosen commit to the head"),
+		key("●", "in v: a commit new since your last review"),
+		key("c", "read the conversation, write a comment"),
+		key("A", "approve; asks first"),
+		key("P", "publish Incomm comments and resolved threads"),
+		key("f  F", "limit to one repository · clear the limit"),
+		key("COM", "comments; GitHub fills it in once opened"),
+		key("PUB", "Incomm comments not yet published"),
 		blank(),
 
 		section("Comments  (c)", 0),
-		key("i", "write one, Ctrl-S sends it"),
+		key("i", "write one"),
+		key("Ctrl-S", "send it"),
 		key("A", "approve"),
 		key("r", "reload"),
-		note("Oldest first, with the markdown rendered. The detail column keeps " +
-			"the three newest."),
 		blank(),
 
 		section("Settings  (S)", helpSettingsList),
@@ -242,10 +209,9 @@ func helpRows() []helpLine {
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · groups", helpGroups),
-		key("space", "in the group tree: a GitLab group cycles off → this group "+
-			"only → including subgroups; a GitHub organisation is on or off"),
-		key("d", "in the group tree: the clone directory of a group or a server"),
-		key("r  p  m", "reload the groups · refresh projects · refresh merge requests"),
+		key("space", "off → this group → with subgroups (GitHub: on · off)"),
+		key("d", "clone directory of a group or a server"),
+		key("r  p  m", "reload groups · refresh projects · merge requests"),
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · security", helpSecurity),
@@ -253,7 +219,7 @@ func helpRows() []helpLine {
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · general", helpGeneral),
-		key("Alt-s / Alt-r", "save / revert; plain s / r also work on buttons"),
+		key("Alt-s / Alt-r", "save / revert; s / r on a button"),
 		key("Tab / Shift-Tab", "next / previous field"),
 		key("Esc", "back to the sections"),
 		blank(),
@@ -264,39 +230,22 @@ func helpRows() []helpLine {
 		key("Esc", "back to the sections"),
 		blank(),
 
-		section("Reviewing", helpMergeRequests),
-		note("Opening a merge request (Ctrl-O or Ctrl-R) also asks the server about that one " +
-			"request, so its row and its checkout are current; the rest of the list waits for r. " +
-			"The detail column refreshes its row too, except the time the list is ordered by, " +
-			"so the list does not shuffle while you move through it."),
-		note("Ctrl-O gives you the branch: real commits, you can commit and push."),
-		note("Ctrl-R gives you the review worktree: HEAD and the index sit on the " +
-			"commit the merge request branched from while the working tree holds the " +
-			"merge request, so the whole change is pending and unstaged. git diff, " +
-			"gutter signs, ]c and diff views then work on it as one change."),
-		note("Both record what they are: git config unagit.mr.base / .head / .iid " +
-			"/ .target / .url / .mode."),
-		blank(),
-
-		section("From another terminal", 0),
-		note("Opening an editor does not end unagit: it suspends itself and waits, so " +
-			"it knows what you have open. unagit cd in another window starts a shell " +
-			"there and exit comes back; it asks which when more than one is open, and " +
-			"takes a search to narrow it. unagit cd --print writes the path instead, " +
-			"for cd \"$(unagit cd --print)\". unagit sessions lists them."),
+		section("Command line · unagit ...", 0),
+		key("cd", "a shell where unagit has an editor open"),
+		key("cd --print", "just that path, for cd \"$(...)\""),
+		key("sessions", "what is open"),
+		key("review URL", "open a merge request's link for review"),
+		key("open URL", "open that link's branch worktree"),
 		blank(),
 
 		section("On disk", helpLists),
 		key("○ ● ◐ ◉", "nothing · branch worktree · review worktree · both"),
 		key("⊘", "hidden from the lists"),
-		note("<root>/<group>/<repo> is the main clone, where branch switching " +
-			"happens. .unagit/<repo>/<iid>-<branch> is a branch worktree and " +
-			".unagit/<repo>/review-<iid>-<branch> a review one; .unagit/<repo>/wt-<branch> " +
-			"is a worktree for a plain branch, opened with Ctrl-W and counted in the " +
-			"Repositories tab's WT column. They all share the main clone's objects, so " +
-			"uncommitted changes survive switching between them. <root> comes from " +
-			"Settings, unless the server or the group overrides it. The Repositories " +
-			"tab shows it in the PATH column."),
+		key("clone", "<root>/<group>/<repo>"),
+		key("branch", ".unagit/<repo>/<iid>-<branch>"),
+		key("review", ".unagit/<repo>/review-<iid>-<branch>"),
+		key("plain", ".unagit/<repo>/wt-<branch>"),
+		blank(),
 	}
 	var scope helpContext
 	for i := range rows {
@@ -382,10 +331,6 @@ func (a *App) showHelp() {
 						put(line.keys, text, keyColour, textColour, tcell.AttrNone)
 						continue
 					}
-					put("", text, colDim, textColour, tcell.AttrNone)
-				}
-			case line.note != "":
-				for _, text := range wrapText(line.note, textWidth) {
 					put("", text, colDim, textColour, tcell.AttrNone)
 				}
 			default:
