@@ -650,7 +650,9 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 	gitlab := client.Kind() == forge.KindGitLab
 	form := tview.NewForm()
 	styleForm(form)
-	form.SetItemPadding(0)
+	// A blank row between fields, or the input fields' bands run into one
+	// another and read as a single block.
+	form.SetItemPadding(1)
 	selected := 0
 	for i, t := range targets {
 		if t == defaultBranch {
@@ -697,7 +699,7 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 	}
 	form.AddButton("Create", create)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized(fmt.Sprintf("New merge request · %s · %s", pr.PathWithNamespace, r.Branch), form, 92, 17)
+	a.showFormModalSized(fmt.Sprintf("New merge request · %s · %s", pr.PathWithNamespace, r.Branch), form, 92, 20)
 }
 
 // createMergeRequest sends the form to the forge, and on success puts the new
