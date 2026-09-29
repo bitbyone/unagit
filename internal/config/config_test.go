@@ -51,7 +51,8 @@ func TestMissingConfigIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Instances) != 0 || cfg.FavouriteEditor != "nvim" || cfg.Editor != "" {
+	// No favourite on a first run: the first open asks which editor.
+	if len(cfg.Instances) != 0 || cfg.FavouriteEditor != "" || cfg.Editor != "" {
 		t.Fatalf("cfg = %+v", cfg)
 	}
 }
@@ -65,7 +66,8 @@ func TestOlderEditorBecomesTheFavourite(t *testing.T) {
 		"editor: hx\neditor_args: [.]\n":         {"custom", "hx"},
 		"editor: nvim\neditor_args: [-c, Git]\n": {"custom", "nvim"},
 		"favourite_editor: code\neditor: hx\n":   {"code", "hx"},
-		"root_dir: /tmp/x\n":                     {"nvim", ""},
+		"root_dir: /tmp/x\n":                     {"", ""},
+		"favourite_editor: ask\neditor: hx\n":    {"ask", "hx"},
 	} {
 		dir := t.TempDir()
 		t.Setenv("UNAGIT_CONFIG_DIR", dir)

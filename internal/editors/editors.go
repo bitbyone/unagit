@@ -77,6 +77,36 @@ var AppDirs = func() []string {
 		filepath.Join(home, "Applications", "JetBrains Toolbox")}
 }
 
+// ScriptDirs are where launchers are looked for when they are not on PATH:
+// JetBrains Toolbox writes its shell scripts (idea, ...) there, and only
+// puts them on PATH if asked to. A script is better than the application,
+// because it opens the folder in the IDE Toolbox keeps up to date. Tests
+// replace it, like AppDirs.
+var ScriptDirs = func() []string {
+	home, _ := os.UserHomeDir()
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{filepath.Join(home, "Library", "Application Support", "JetBrains", "Toolbox", "scripts")}
+	case "linux":
+		return []string{filepath.Join(home, ".local", "share", "JetBrains", "Toolbox", "scripts")}
+	}
+	return nil
+}
+
+// findLauncher looks for a launcher on PATH, then in ScriptDirs.
+func findLauncher(name string) (string, bool) {
+	if path, err := lookPath(name); err == nil {
+		return path, true
+	}
+	for _, dir := range ScriptDirs() {
+		path := filepath.Join(dir, name)
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() && fi.Mode()&0o111 != 0 {
+			return path, true
+		}
+	}
+	return "", false
+}
+
 // Detect lists every editor unagit knows, found or not, and the custom one
 // when it has a command.
 func Detect(custom CustomSpec) []Editor {
@@ -84,7 +114,7 @@ func Detect(custom CustomSpec) []Editor {
 	for _, k := range known {
 		e := Editor{ID: k.id, Name: k.name, Terminal: k.terminal}
 		for _, bin := range k.bins {
-			if path, err := lookPath(bin); err == nil {
+			if path, ok := findLauncher(bin); ok {
 				e.Found, e.Where, e.argv = true, path, []string{path}
 				break
 			}
@@ -134,16 +164,12 @@ func Pick(all []Editor, id string) (Editor, bool) {
 }
 
 // Favourite is the editor to open with when nobody asked for another: the
-// chosen one when this machine has it, otherwise the first one it has, so an
-// editor that was uninstalled does not leave every open failing.
+// chosen one, when there is one and this machine has it. There is no
+// fallback to some other editor - without a usable favourite the caller asks,
+// the same as when another editor was asked for.
 func Favourite(all []Editor, id string) (Editor, bool) {
 	if e, ok := Pick(all, id); ok && e.Found {
 		return e, true
-	}
-	for _, e := range all {
-		if e.Found {
-			return e, true
-		}
 	}
 	return Editor{}, false
 }

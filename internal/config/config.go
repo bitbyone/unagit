@@ -257,7 +257,8 @@ type Config struct {
 	Integrations Integrations `yaml:"integrations,omitempty"`
 	RootDir      string       `yaml:"root_dir"`
 	// FavouriteEditor is the editor everything opens in unless another is
-	// chosen: nvim, idea, code, zed or custom.
+	// chosen: nvim, idea, code, zed or custom. Empty, or ask, means every
+	// open asks which.
 	FavouriteEditor string `yaml:"favourite_editor,omitempty"`
 	// Editor and EditorArgs are the custom editor, a command of the user's
 	// own; EditorWindow says it opens a window of its own rather than taking
@@ -278,8 +279,7 @@ type Config struct {
 func Default() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
-		RootDir:         filepath.Join(home, "unagit"),
-		FavouriteEditor: "nvim",
+		RootDir: filepath.Join(home, "unagit"),
 	}
 }
 
@@ -312,13 +312,10 @@ func IndexPath(name string) string { return filepath.Join(Dir(), "index-"+name+"
 // everything can be set up from the Settings tab.
 func Load() (*Config, error) {
 	cfg := Default()
-	// Left empty so that a configuration from before the choice existed is
-	// recognised and its editor carried over.
-	cfg.FavouriteEditor = ""
 	b, err := os.ReadFile(Path())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Default(), nil
+			return cfg, nil
 		}
 		return nil, err
 	}
@@ -334,16 +331,15 @@ var knownEditors = map[string]bool{"nvim": true, "idea": true, "code": true, "ze
 
 // migrateEditor turns the single editor of an older configuration into the
 // favourite: one unagit knows by name becomes that one, anything else the
-// custom editor, which runs exactly as before.
+// custom editor, which runs exactly as before. A configuration with neither
+// has no favourite, and every open asks.
 func (c *Config) migrateEditor() {
-	if c.FavouriteEditor != "" {
+	if c.FavouriteEditor != "" || c.Editor == "" {
 		return
 	}
 	name := filepath.Base(c.Editor)
 	plainArgs := len(c.EditorArgs) == 0 || (len(c.EditorArgs) == 1 && c.EditorArgs[0] == ".")
 	switch {
-	case c.Editor == "":
-		c.FavouriteEditor = "nvim"
 	case knownEditors[name] && plainArgs:
 		c.FavouriteEditor = name
 		c.Editor, c.EditorArgs = "", nil

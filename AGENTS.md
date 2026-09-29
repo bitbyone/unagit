@@ -196,7 +196,9 @@ turns that, and a few other git failures, into an instruction.
 
 **Editors.** Every opening action takes the editor as a parameter: nil is
 the favourite, looked up at the moment it starts; Alt with the same key picks
-one first (`withEditor`). Add a new opening action the same way, with its Alt
+one first (`withEditor`). Without an installed favourite every open asks -
+never fall back quietly to another editor, and never look a missing one up
+again by name (a test once started the real Zed that way). Add a new opening action the same way, with its Alt
 variant, rather than calling the favourite directly. A terminal editor
 (nvim, or a custom one) gets the terminal; a window editor (IDEA, VS Code,
 Zed) is only started, because its launcher returns at once.

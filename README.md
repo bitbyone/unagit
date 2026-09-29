@@ -188,9 +188,11 @@ group.
 Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v`, `Ctrl-W`, `b` -
 opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
 `Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
-Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed, on
-`PATH` or, on macOS, in `/Applications` - and `f` picks the favourite. A
-command of your own goes in Settings › General as the custom editor.
+Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed: a
+launcher on `PATH` or in JetBrains Toolbox's scripts folder first, then, on
+macOS, the application in `/Applications` - and `f` picks the favourite, or
+none. Without a favourite that is installed, every open asks, the way Alt
+does. A command of your own goes in Settings › General as the custom editor.
 
 Neovim takes the terminal: unagit steps aside until you quit it. The others
 open a window of their own and unagit carries on; `unagit cd` knows about them

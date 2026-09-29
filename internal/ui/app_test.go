@@ -222,6 +222,8 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 
 	cfg := config.Default()
 	cfg.RootDir = t.TempDir()
+	// An editor every machine has, chosen, so opening does not stop to ask.
+	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
 	inst := cfg.AddInstance(config.Instance{
 		Name:   "acme",
 		URL:    gitlabURL,

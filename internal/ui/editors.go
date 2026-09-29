@@ -20,28 +20,40 @@ func (a *App) detectEditors() []editors.Editor {
 	})
 }
 
-// withEditor runs then with the editor to open in. Without ask that is nil,
-// the favourite, looked up when the editor is actually started. With ask -
-// Alt with an opening key - one is chosen first from the editors this machine
-// has, the favourite on top.
+// withEditor runs then with the editor to open in. Without ask, and with a
+// favourite that is installed, that is nil: the favourite, looked up when the
+// editor is actually started. Otherwise - Alt with an opening key, or no
+// usable favourite - one is chosen first from the editors this machine has,
+// the favourite on top. There is no quiet fallback to some other editor.
 func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
-	if !ask {
+	all := a.detectEditors()
+	fav, hasFav := editors.Favourite(all, a.cfg.FavouriteEditor)
+	if !ask && hasFav {
 		then(nil)
 		return
 	}
-	all := a.detectEditors()
-	fav, ok := editors.Favourite(all, a.cfg.FavouriteEditor)
-	if !ok {
-		a.errorf("no editor found - install one, or set a custom editor in Settings › General")
-		return
+	var items []pickItem
+	if hasFav {
+		items = append(items, pickItem{Label: "★ " + fav.Name, Sub: kindOf(fav), Data: fav})
 	}
-	items := []pickItem{{Label: "★ " + fav.Name, Sub: kindOf(fav), Data: fav}}
 	for _, e := range all {
-		if e.Found && e.ID != fav.ID {
+		if e.Found && (!hasFav || e.ID != fav.ID) {
 			items = append(items, pickItem{Label: "  " + e.Name, Sub: kindOf(e), Data: e})
 		}
 	}
-	a.showPicker("Open with", items, func(it pickItem) {
+	if len(items) == 0 {
+		a.errorf("no editor found - install one, or set a custom editor in Settings › General")
+		return
+	}
+	title := "Open with"
+	switch chosen := a.cfg.FavouriteEditor; {
+	case hasFav, chosen == askEveryTime:
+	case chosen == "":
+		title += " · no favourite yet: f in Settings › Integrations › Editors"
+	default:
+		title += " · the favourite, " + chosen + ", is not installed"
+	}
+	a.showPicker(title, items, func(it pickItem) {
 		ed := it.Data.(editors.Editor)
 		then(&ed)
 	})
@@ -63,9 +75,11 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 	if ed == nil {
 		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
 		if !ok {
+			// The favourite went away while the task ran, or a task that was
+			// not expected to open anything did: ask now, then carry on.
 			a.tv.QueueUpdateDraw(func() {
 				a.closeModal(pageTask)
-				a.errorf("no editor found - install one, or set a custom editor in Settings › General")
+				a.withEditor(true, func(chosen *editors.Editor) { go a.openEditor(dir, what, chosen) })
 			})
 			return
 		}

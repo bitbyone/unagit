@@ -17,7 +17,8 @@ func fakeMachine(t *testing.T, bins map[string]string, apps ...string) {
 			t.Fatal(err)
 		}
 	}
-	savedLook, savedApps := lookPath, AppDirs
+	scripts := t.TempDir()
+	savedLook, savedApps, savedScripts := lookPath, AppDirs, ScriptDirs
 	lookPath = func(name string) (string, error) {
 		if path, ok := bins[name]; ok {
 			return path, nil
@@ -25,7 +26,27 @@ func fakeMachine(t *testing.T, bins map[string]string, apps ...string) {
 		return "", errors.New("not found")
 	}
 	AppDirs = func() []string { return []string{dir} }
-	t.Cleanup(func() { lookPath, AppDirs = savedLook, savedApps })
+	ScriptDirs = func() []string { return []string{scripts} }
+	t.Cleanup(func() { lookPath, AppDirs, ScriptDirs = savedLook, savedApps, savedScripts })
+}
+
+// TestDetectFindsToolboxScripts: JetBrains Toolbox's idea script is found
+// where Toolbox keeps it even when it is not on PATH, and it is preferred to
+// the application.
+func TestDetectFindsToolboxScripts(t *testing.T) {
+	fakeMachine(t, nil, "IntelliJ IDEA.app")
+	script := filepath.Join(ScriptDirs()[0], "idea")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := Pick(Detect(CustomSpec{}), Idea)
+	if !e.Found || e.Where != script {
+		t.Fatalf("idea = %+v, want the Toolbox script", e)
+	}
+	cmd, err := e.Command("/work/app")
+	if err != nil || cmd.Path != script || strings.Join(cmd.Args[1:], " ") != "/work/app" {
+		t.Errorf("command = %v %v", cmd, err)
+	}
 }
 
 func TestDetectFindsLaunchersAndApplications(t *testing.T) {
@@ -82,17 +103,19 @@ func TestCommandOpensTheDirectory(t *testing.T) {
 	}
 }
 
-// TestFavouriteFallsBackToWhatIsThere: an uninstalled favourite must not
-// leave every open failing.
-func TestFavouriteFallsBackToWhatIsThere(t *testing.T) {
+// TestFavouriteIsOnlyTheChosenOne: no favourite, or one that is not
+// installed, is no favourite - the caller then asks rather than quietly
+// opening something else.
+func TestFavouriteIsOnlyTheChosenOne(t *testing.T) {
 	fakeMachine(t, map[string]string{"code": "/bin/code"})
 	all := Detect(CustomSpec{})
-	if e, ok := Favourite(all, Zed); !ok || e.ID != Code {
-		t.Errorf("favourite = %+v, %v; want VS Code, the one installed", e, ok)
+	if e, ok := Favourite(all, Code); !ok || e.ID != Code {
+		t.Errorf("favourite = %+v, %v; want VS Code", e, ok)
 	}
-	fakeMachine(t, nil)
-	if _, ok := Favourite(Detect(CustomSpec{}), Nvim); ok {
-		t.Error("a favourite with nothing installed")
+	for _, id := range []string{"", Zed} {
+		if e, ok := Favourite(all, id); ok {
+			t.Errorf("favourite %q gave %s", id, e.ID)
+		}
 	}
 }
 

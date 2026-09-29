@@ -175,7 +175,7 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 // machine has, and the favourite everything opens in by default.
 func (v *integrationsView) renderEditors(focused bool) string {
 	cfg := v.settings.app.cfg
-	fav, _ := editors.Favourite(v.editors, cfg.FavouriteEditor)
+	_, hasFav := editors.Favourite(v.editors, cfg.FavouriteEditor)
 	width := 0
 	for _, e := range v.editors {
 		width = max(width, len([]rune(e.Name)))
@@ -186,8 +186,10 @@ func (v *integrationsView) renderEditors(focused bool) string {
 	room := v.width - (2 + width + 2 + 8 + 2)
 	text := ""
 	for _, e := range v.editors {
+		// The favourite is marked even when it is gone, so it is plain why
+		// opening asks.
 		mark := "  "
-		if e.Found && e.ID == fav.ID {
+		if e.ID == cfg.FavouriteEditor {
 			mark = tag(colOn) + "★ " + tagEnd
 		}
 		name := fmt.Sprintf("%-*s", width, e.Name)
@@ -205,6 +207,9 @@ func (v *integrationsView) renderEditors(focused bool) string {
 		}
 		text += line + "\n"
 	}
+	if !hasFav {
+		text += tag(colWarn) + "No favourite: every open asks which." + tagEnd + "\n"
+	}
 	if focused {
 		text += "\n" + tag(colDim) + "f favourite · c check" + tagEnd
 	}
@@ -217,7 +222,8 @@ func (v *integrationsView) editorKeys(r rune) bool {
 		v.check()
 		return true
 	case 'f':
-		var items []pickItem
+		// Asking every time is a choice too, and the way back to it.
+		items := []pickItem{{Label: "None", Sub: "ask every time", Data: askEveryTime}}
 		start := 0
 		for _, e := range v.editors {
 			if !e.Found {
@@ -228,7 +234,7 @@ func (v *integrationsView) editorKeys(r rune) bool {
 			}
 			items = append(items, pickItem{Label: e.Name, Sub: kindOf(e), Data: e.ID})
 		}
-		if len(items) == 0 {
+		if len(items) == 1 {
 			v.settings.app.flash("no editor found - install one, or set a custom editor in General")
 			return true
 		}
@@ -241,6 +247,11 @@ func (v *integrationsView) editorKeys(r rune) bool {
 	}
 	return false
 }
+
+// askEveryTime is the favourite of someone who wants to be asked. It is not
+// an editor, so it is never found; an empty favourite would instead be taken
+// for a configuration from before there was a choice.
+const askEveryTime = "ask"
 
 // shortPath is a path in at most n characters: the home directory as ~, and
 // what is still too long cut from the left, keeping the name at the end.

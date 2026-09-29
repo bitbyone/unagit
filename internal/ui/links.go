@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 )
 
@@ -121,11 +122,13 @@ func (a *App) pursueGoal() {
 	}
 	a.switchTab(pageMRs)
 	open := func(mr forge.MergeRequest) {
-		if g.Review {
-			a.openMRReview(mr, nil)
-		} else {
-			a.openMR(mr, nil)
-		}
+		a.withEditor(false, func(ed *editors.Editor) {
+			if g.Review {
+				a.openMRReview(mr, ed)
+			} else {
+				a.openMR(mr, ed)
+			}
+		})
 	}
 	for _, mr := range a.mrs {
 		if mr.Instance == g.Link.Instance && mr.IID == g.Link.IID &&

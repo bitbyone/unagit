@@ -19,6 +19,23 @@ import (
 // what it was asked to open into the file it returns the path of.
 func fakeEditors(t *testing.T) (marker string) {
 	t.Helper()
+	saved := editors.ScriptDirs
+	editors.ScriptDirs = func() []string { return nil }
+	t.Cleanup(func() { editors.ScriptDirs = saved })
+	return fakeEditorsOnPath(t)
+}
+
+// useFavourite makes id the favourite and forgets the fixture's custom
+// editor, as the machine is now what fakeEditors made it.
+func useFavourite(a *App, id string) {
+	onLoop(a, func() bool {
+		a.cfg.FavouriteEditor, a.cfg.Editor = id, ""
+		a.settings.integrations.check()
+		return true
+	})
+}
+
+func fakeEditorsOnPath(t *testing.T) (marker string) {
 	bin := t.TempDir()
 	marker = filepath.Join(t.TempDir(), "zed-opened")
 	must(t, os.WriteFile(filepath.Join(bin, "nvim"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
@@ -37,6 +54,7 @@ func TestEditorsCardChoosesTheFavourite(t *testing.T) {
 	fakeEditors(t)
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
 	openSection(t, a, sc, sectionIntegrations)
 	typeRunes(sc, "j") // from Incomm to Editors
 	waitFor(t, a, sc, "f favourite")
@@ -50,7 +68,7 @@ func TestEditorsCardChoosesTheFavourite(t *testing.T) {
 
 	typeRunes(sc, "f")
 	waitFor(t, a, sc, "Favourite editor")
-	typeRunes(sc, "j")
+	typeRunes(sc, "j") // None, ★ Neovim, Zed
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "★ Zed")
 	saved, err := config.Load()
@@ -70,12 +88,13 @@ func TestEditorsCardFits(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
+			useFavourite(a, "")
 			resize(sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
 			typeRunes(sc, "j")
 			waitFor(t, a, sc, "f favourite")
 			text := a.screenText(sc)
-			for _, want := range []string{"Neovim", "IntelliJ IDEA", "VS Code", "Zed", "c check"} {
+			for _, want := range []string{"Neovim", "IntelliJ IDEA", "VS Code", "Zed", "c check", "No favourite"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}
@@ -112,6 +131,7 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	marker := fakeEditors(t)
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
 	p := newRealProject(t, a, "acme/gateway")
 	dir := p.worktree("feat/window")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/window")
@@ -154,5 +174,32 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	}
 	if !listed {
 		t.Error("the window editor's directory is not on record for unagit cd")
+	}
+}
+
+// TestOpeningWithoutAFavouriteAsks: with no favourite - or one that is not
+// installed - Ctrl-O asks which editor, exactly as Alt-O does, rather than
+// quietly opening some other one.
+func TestOpeningWithoutAFavouriteAsks(t *testing.T) {
+	fakeEditors(t)
+	for favourite, says := range map[string]string{
+		"":           "no favourite yet",
+		askEveryTime: "Open with",
+		editors.Code: "the favourite, code, is not installed",
+	} {
+		t.Run("favourite="+favourite, func(t *testing.T) {
+			a, sc := newTestApp(t)
+			waitFor(t, a, sc, "acme/gateway")
+			useFavourite(a, favourite)
+			sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+			waitFor(t, a, sc, says)
+			text := a.screenText(sc)
+			if strings.Contains(text, "★") || !strings.Contains(text, "Neovim") || !strings.Contains(text, "Zed") {
+				t.Errorf("the installed editors are not offered, unmarked:\n%s", text)
+			}
+			if strings.Contains(text, "Opening acme/gateway") {
+				t.Errorf("it opened without asking:\n%s", text)
+			}
+		})
 	}
 }
