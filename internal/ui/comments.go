@@ -96,7 +96,10 @@ func (a *App) showComments(mr forge.MergeRequest) {
 					}
 					return text
 				})
-				view.ScrollToEnd()
+				// The forge's conversation comes first and the local Incomm
+				// threads after it, so it opens at the top - on what others
+				// said - rather than on the last local note.
+				view.ScrollToBeginning()
 			})
 		}()
 	}

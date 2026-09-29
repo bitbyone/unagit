@@ -279,3 +279,26 @@ func waitSelected(t *testing.T, a *App, p *pane, want int) {
 	}
 	t.Fatalf("the cursor is on %d, want %d", got, want)
 }
+
+// TestCommentsOpenAtTheTop: the forge's conversation comes first and the
+// local threads after it, so the modal opens on the first thing others said,
+// not scrolled down to the last line. The terminal is kept short so the
+// conversation does not fit and where it is scrolled to shows.
+func TestCommentsOpenAtTheTop(t *testing.T) {
+	a, sc := newTestApp(t)
+	resize(sc, 100, 16)
+	openMRDetail(t, a, sc)
+
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitGone(t, a, sc, "Loading the conversation")
+	waitFor(t, a, sc, "oldest comment")
+	if text := a.screenText(sc); strings.Contains(text, "retry loop") {
+		t.Fatalf("the whole conversation fits, so the test shows nothing:\n%s", text)
+	}
+	// And j still scrolls down to the rest.
+	for range 30 {
+		typeRunes(sc, "j")
+	}
+	waitFor(t, a, sc, "retry loop")
+}
