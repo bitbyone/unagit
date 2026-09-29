@@ -93,7 +93,9 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 	}
 	defer a.sessions.Open(what)()
 	a.tv.Suspend(func() {
-		fmt.Printf("\n→ %s\n", dir)
+		// Nothing is printed on the way: it would pile up in the terminal's
+		// scrollback and be all there is to see once unagit quits. Where
+		// things are open is what unagit sessions and unagit cd are for.
 		cmd, err := ed.Command(dir)
 		if err == nil {
 			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
