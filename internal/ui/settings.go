@@ -296,14 +296,17 @@ func (s *settingsView) fillGeneral() {
 	form := s.general
 	form.Clear(true)
 	form.AddInputField("Default root", cfg.RootDir, 46, nil, nil)
-	form.AddInputField("Editor", cfg.Editor, 46, nil, nil)
-	form.AddInputField("Editor arguments", strings.Join(cfg.EditorArgs, " "), 46, nil, nil)
+	form.AddInputField("Custom editor", cfg.Editor, 46, nil, nil)
+	form.AddInputField("Custom editor arguments", strings.Join(cfg.EditorArgs, " "), 46, nil, nil)
+	window := addCheckbox(form, "Custom editor opens a window", cfg.EditorWindow)
 	form.AddTextView("", "Projects go under the default root unless a\n"+
-		"server or a group overrides it.", 46, 2, true, false)
+		"server or a group overrides it. The custom editor\n"+
+		"is one more choice in Integrations › Editors.", 46, 3, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(form.GetFormItem(0).(*tview.InputField).GetText())
 		cfg.Editor = strings.TrimSpace(form.GetFormItem(1).(*tview.InputField).GetText())
 		cfg.EditorArgs = strings.Fields(form.GetFormItem(2).(*tview.InputField).GetText())
+		cfg.EditorWindow = window.IsChecked()
 		s.app.saveConfig()
 		s.reload()
 		s.app.note("Saved. Projects already on disk keep their current location.")

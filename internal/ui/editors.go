@@ -1,0 +1,152 @@
+package ui
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+
+	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/session"
+)
+
+// detectEditors lists the editors unagit knows and which of them are here.
+func (a *App) detectEditors() []editors.Editor {
+	return editors.Detect(editors.CustomSpec{
+		Command:  a.cfg.Editor,
+		Args:     a.cfg.EditorArgs,
+		Terminal: !a.cfg.EditorWindow,
+	})
+}
+
+// withEditor runs then with the editor to open in. Without ask that is nil,
+// the favourite, looked up when the editor is actually started. With ask -
+// Alt with an opening key - one is chosen first from the editors this machine
+// has, the favourite on top.
+func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
+	if !ask {
+		then(nil)
+		return
+	}
+	all := a.detectEditors()
+	fav, ok := editors.Favourite(all, a.cfg.FavouriteEditor)
+	if !ok {
+		a.errorf("no editor found - install one, or set a custom editor in Settings › General")
+		return
+	}
+	items := []pickItem{{Label: "★ " + fav.Name, Sub: kindOf(fav), Data: fav}}
+	for _, e := range all {
+		if e.Found && e.ID != fav.ID {
+			items = append(items, pickItem{Label: "  " + e.Name, Sub: kindOf(e), Data: e})
+		}
+	}
+	a.showPicker("Open with", items, func(it pickItem) {
+		ed := it.Data.(editors.Editor)
+		then(&ed)
+	})
+}
+
+func kindOf(e editors.Editor) string {
+	if e.Terminal {
+		return "in this terminal"
+	}
+	return "in its own window"
+}
+
+// openEditor opens dir in the editor. A terminal editor gets the terminal:
+// the TUI is suspended until it exits, and its directory is on record for
+// exactly that long, so another terminal can find its way there. A window
+// editor is only started - its launcher returns while the editor runs on - so
+// its record stays until unagit exits, the longest anyone can vouch for it.
+func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
+	if ed == nil {
+		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
+		if !ok {
+			a.tv.QueueUpdateDraw(func() {
+				a.closeModal(pageTask)
+				a.errorf("no editor found - install one, or set a custom editor in Settings › General")
+			})
+			return
+		}
+		ed = &fav
+	}
+	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
+	what.Dir = dir
+	if !ed.Terminal {
+		a.openWindowEditor(dir, what, *ed)
+		return
+	}
+	defer a.sessions.Open(what)()
+	a.tv.Suspend(func() {
+		fmt.Printf("\n→ %s\n", dir)
+		cmd, err := ed.Command(dir)
+		if err == nil {
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+			err = cmd.Run()
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s failed: %v\n", ed.Name, err)
+			fmt.Fprintln(os.Stderr, "press enter to return to unagit")
+			var s string
+			fmt.Scanln(&s)
+		}
+	})
+	a.tv.QueueUpdateDraw(func() {
+		a.refreshDisk()
+		a.projectsPane.reload()
+		a.mrsPane.reload()
+		a.note("opened " + dir)
+	})
+}
+
+func (a *App) openWindowEditor(dir string, what session.Record, ed editors.Editor) {
+	cmd, err := ed.Command(dir)
+	var out bytes.Buffer
+	if err == nil {
+		cmd.Stdout, cmd.Stderr = &out, &out
+		err = cmd.Start()
+	}
+	if err != nil {
+		a.tv.QueueUpdateDraw(func() { a.errorf("%s did not start: %v", ed.Name, err) })
+		return
+	}
+	a.keepWindowSession(a.sessions.Open(what))
+	a.tv.QueueUpdateDraw(func() {
+		a.refreshDisk()
+		a.projectsPane.reload()
+		a.mrsPane.reload()
+		a.note(fmt.Sprintf("opened in %s: %s", ed.Name, dir))
+	})
+	// The launcher returns once the window is asked for; a failure there is
+	// the only thing left to report.
+	if err := cmd.Wait(); err != nil {
+		msg := strings.TrimSpace(out.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		a.tv.QueueUpdateDraw(func() { a.errorf("%s: %s", ed.Name, msg) })
+	}
+}
+
+// windowSessions are the records of window editors, taken back when unagit
+// exits.
+var windowSessions struct {
+	sync.Mutex
+	close []func()
+}
+
+func (a *App) keepWindowSession(close func()) {
+	windowSessions.Lock()
+	defer windowSessions.Unlock()
+	windowSessions.close = append(windowSessions.close, close)
+}
+
+func closeWindowSessions() {
+	windowSessions.Lock()
+	defer windowSessions.Unlock()
+	for _, close := range windowSessions.close {
+		close()
+	}
+	windowSessions.close = nil
+}

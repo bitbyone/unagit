@@ -16,6 +16,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/github"
 	"github.com/tobola/unagit/internal/gitlab"
@@ -261,7 +262,10 @@ func (a *App) Run() error {
 	} else {
 		a.start()
 	}
-	return a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+	// Window editors outlive unagit, but nothing vouches for them any more.
+	closeWindowSessions()
+	return err
 }
 
 // start loads the cached indexes and shows the first tab. It runs once the
@@ -514,9 +518,7 @@ func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 // request heads.
 func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
 	opts := workspace.Options{
-		Root:       a.rootFor(instanceID, projectPath),
-		Editor:     a.cfg.Editor,
-		EditorArgs: a.cfg.EditorArgs,
+		Root: a.rootFor(instanceID, projectPath),
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
 		opts.ProjectDirectory = inst.ProjectDirs[projectPath]
@@ -936,13 +938,13 @@ func (a *App) diskOf(instanceID, projectPath string) diskInfo {
 // runTask shows a log modal and runs fn on a background goroutine. When fn
 // returns a directory, the TUI is suspended and the editor is opened there.
 func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
-	a.runTaskOpening(title, session.Record{}, fn)
+	a.runTaskOpening(title, session.Record{}, nil, fn)
 }
 
 // runTaskOpening is runTask for the tasks that end in an editor: what they
 // are opening is written down while it is open, so another terminal can find
-// the directory.
-func (a *App) runTaskOpening(title string, what session.Record, fn func(log func(string)) (string, error)) {
+// the directory. ed is the editor chosen for it; nil is the favourite.
+func (a *App) runTaskOpening(title string, what session.Record, ed *editors.Editor, fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
@@ -989,35 +991,9 @@ func (a *App) runTaskOpening(title string, what session.Record, fn func(log func
 			}
 		})
 		if err == nil && dir != "" {
-			a.openEditor(dir, what)
+			a.openEditor(dir, what, ed)
 		}
 	}()
-}
-
-// openEditor suspends the TUI, runs the editor and restores the interface.
-// unagit stays alive throughout - the editor is its child - so the directory
-// is on record for exactly as long as it is open, and another terminal can
-// find its way there.
-func (a *App) openEditor(dir string, what session.Record) {
-	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
-	what.Dir = dir
-	defer a.sessions.Open(what)()
-	a.tv.Suspend(func() {
-		fmt.Printf("\n→ %s\n", dir)
-		opts := workspace.Options{Editor: a.cfg.Editor, EditorArgs: a.cfg.EditorArgs}
-		if err := workspace.New(opts, nil).OpenEditor(dir); err != nil {
-			fmt.Fprintf(os.Stderr, "editor failed: %v\n", err)
-			fmt.Fprintln(os.Stderr, "press enter to return to unagit")
-			var s string
-			fmt.Scanln(&s)
-		}
-	})
-	a.tv.QueueUpdateDraw(func() {
-		a.refreshDisk()
-		a.projectsPane.reload()
-		a.mrsPane.reload()
-		a.note("opened " + dir)
-	})
 }
 
 // saveConfig writes the configuration and refreshes everything that depends

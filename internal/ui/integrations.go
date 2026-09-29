@@ -1,10 +1,15 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/editors"
 )
 
 type integrationCard struct {
@@ -12,6 +17,10 @@ type integrationCard struct {
 	name, command, description, binary string
 	enabled                            func() bool
 	toggle                             func()
+	// render and onKey replace the enable/disable card with one of its own
+	// making; onKey reports whether it took the letter.
+	render func(focused bool) string
+	onKey  func(r rune) bool
 }
 
 type integrationsView struct {
@@ -20,6 +29,8 @@ type integrationsView struct {
 	cards    []*integrationCard
 	current  int
 	active   bool
+	editors  []editors.Editor // as last detected
+	width    int              // inside a card, as last drawn
 }
 
 func (s *settingsView) newIntegrationsView() *integrationsView {
@@ -30,6 +41,10 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		description: "Show merge request comments in your editor.\nCtrl-R imports comments before opening the review.",
 		enabled:     func() bool { return s.app.cfg.Integrations.Incomm },
 		toggle:      func() { s.app.cfg.Integrations.Incomm = !s.app.cfg.Integrations.Incomm },
+	}, {
+		name:   "Editors",
+		render: v.renderEditors,
+		onKey:  v.editorKeys,
 	}}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
@@ -45,6 +60,12 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 // Keep the shortcuts visible when a narrow terminal wraps the description.
 func (v *integrationsView) Draw(screen tcell.Screen) {
 	_, _, width, _ := v.GetInnerRect()
+	if inner := width - 6; inner != v.width {
+		// The editors card fits its lines to the width; paint it again for
+		// the width it now has.
+		v.width = inner
+		v.paintFocus(v.active)
+	}
 	for _, card := range v.cards {
 		height := max(9, len(tview.WordWrap(card.view.GetText(false), max(1, width-6)))+2)
 		v.ResizeItem(card.view, height, 0)
@@ -57,8 +78,11 @@ func (v *integrationsView) Focus(delegate func(tview.Primitive)) {
 }
 
 func (v *integrationsView) check() {
+	v.editors = v.settings.app.detectEditors()
 	for _, card := range v.cards {
-		card.binary, _ = exec.LookPath(card.command)
+		if card.command != "" {
+			card.binary, _ = exec.LookPath(card.command)
+		}
 	}
 	v.paintFocus(v.active)
 }
@@ -68,6 +92,10 @@ func (v *integrationsView) paintFocus(active bool) {
 	for i, card := range v.cards {
 		focused := active && i == v.current
 		focusBox(card.view.Box, focused)
+		if card.render != nil {
+			card.view.SetText(card.render(focused))
+			continue
+		}
 		state, color := "disabled", colMuted
 		if card.binary == "" {
 			state = "not installed"
@@ -102,6 +130,10 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyBacktab, tcell.KeyUp:
 		move = -1
 	case tcell.KeyRune:
+		if card := v.cards[v.current]; card.onKey != nil && card.onKey(ev.Rune()) {
+			v.paintFocus(true)
+			return nil
+		}
 		switch ev.Rune() {
 		case 'j':
 			move = 1
@@ -109,6 +141,9 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 			move = -1
 		case 'e':
 			card := v.cards[v.current]
+			if card.toggle == nil {
+				return nil
+			}
 			// Recheck before enabling so a removed executable cannot be enabled.
 			card.binary, _ = exec.LookPath(card.command)
 			if card.binary != "" {
@@ -134,4 +169,87 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 		v.paintFocus(true)
 	}
 	return nil
+}
+
+// renderEditors lists the editors unagit can open in, which of them this
+// machine has, and the favourite everything opens in by default.
+func (v *integrationsView) renderEditors(focused bool) string {
+	cfg := v.settings.app.cfg
+	fav, _ := editors.Favourite(v.editors, cfg.FavouriteEditor)
+	width := 0
+	for _, e := range v.editors {
+		width = max(width, len([]rune(e.Name)))
+	}
+	// One line per editor, whatever the width: name, kind, and where it was
+	// found, shortened from the left, where paths say least - or left out
+	// when there is no room for it.
+	room := v.width - (2 + width + 2 + 8 + 2)
+	text := ""
+	for _, e := range v.editors {
+		mark := "  "
+		if e.Found && e.ID == fav.ID {
+			mark = tag(colOn) + "★ " + tagEnd
+		}
+		name := fmt.Sprintf("%-*s", width, e.Name)
+		if !e.Found {
+			text += mark + tag(colMuted) + tview.Escape(name) + "  not found" + tagEnd + "\n"
+			continue
+		}
+		kind := "window  "
+		if e.Terminal {
+			kind = "terminal"
+		}
+		line := mark + tview.Escape(name) + "  " + kind
+		if room >= 12 {
+			line += "  " + tag(colMuted) + tview.Escape(shortPath(e.Where, room)) + tagEnd
+		}
+		text += line + "\n"
+	}
+	if focused {
+		text += "\n" + tag(colDim) + "f favourite · c check" + tagEnd
+	}
+	return text
+}
+
+func (v *integrationsView) editorKeys(r rune) bool {
+	switch r {
+	case 'c':
+		v.check()
+		return true
+	case 'f':
+		var items []pickItem
+		start := 0
+		for _, e := range v.editors {
+			if !e.Found {
+				continue
+			}
+			if e.ID == v.settings.app.cfg.FavouriteEditor {
+				start = len(items)
+			}
+			items = append(items, pickItem{Label: e.Name, Sub: kindOf(e), Data: e.ID})
+		}
+		if len(items) == 0 {
+			v.settings.app.flash("no editor found - install one, or set a custom editor in General")
+			return true
+		}
+		v.settings.app.showPickerAt("Favourite editor", items, start, func(it pickItem) {
+			v.settings.app.cfg.FavouriteEditor = it.Data.(string)
+			v.settings.app.saveConfig()
+			v.paintFocus(true)
+		})
+		return true
+	}
+	return false
+}
+
+// shortPath is a path in at most n characters: the home directory as ~, and
+// what is still too long cut from the left, keeping the name at the end.
+func shortPath(path string, n int) string {
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+"/") {
+		path = "~" + strings.TrimPrefix(path, home)
+	}
+	if r := []rune(path); len(r) > n {
+		return "…" + string(r[len(r)-n+1:])
+	}
+	return path
 }

@@ -93,7 +93,7 @@ func newOrigin(t *testing.T) string {
 func newManager(t *testing.T, origin string) (*Manager, string, forge.Project) {
 	t.Helper()
 	root := t.TempDir()
-	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true"}, func(string) {})
+	m := New(Options{Root: root, GitLabURL: "https://gl.example"}, func(string) {})
 	p := forge.Project{
 		ID:                1,
 		Name:              "app",
@@ -295,7 +295,7 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 	const token = "glpat-super-secret-token-value"
 	origin := newOrigin(t)
 	root := t.TempDir()
-	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true", Token: token}, func(string) {})
+	m := New(Options{Root: root, GitLabURL: "https://gl.example", Token: token}, func(string) {})
 	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
 
 	if _, err := m.EnsureProject(p); err != nil {
@@ -363,7 +363,7 @@ func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
 	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main",
 		HTTPURLToRepo: origin, SSHURLToRepo: "ssh://git@gl.example/group/app.git"}
 
-	m := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true"}, func(string) {})
+	m := New(Options{Root: root, GitLabURL: "https://gl.example"}, func(string) {})
 	dir, err := m.EnsureProject(p)
 	if err != nil {
 		t.Fatal(err)
@@ -372,7 +372,7 @@ func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
 		t.Fatalf("cloned from %q", got)
 	}
 
-	ssh := New(Options{Root: root, GitLabURL: "https://gl.example", Editor: "true",
+	ssh := New(Options{Root: root, GitLabURL: "https://gl.example",
 		CloneProtocol: ProtocolSSH}, func(string) {})
 	changed, err := ssh.SetRemote(p)
 	if err != nil {

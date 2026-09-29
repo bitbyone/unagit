@@ -40,7 +40,8 @@ type pane struct {
 	onQuery  func(string)                          // rebuild rows for a new query
 	onKey    func(*tcell.EventKey) *tcell.EventKey // extra NORMAL mode commands
 	onDetail func(idx int, focus bool)             // fill the detail column for a row
-	onOpen   func()                                // Ctrl-O: clone/update and open the editor
+	onOpen   func(ask bool)                        // Ctrl-O: clone/update and open the editor; Alt-O asks which editor
+	onAlt    func(r rune) bool                     // Alt with another opening key: the same, in an editor chosen first
 	headline func() string                         // header text
 	reload   func()                                // rebuild rows from the current data
 
@@ -326,7 +327,7 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case tcell.KeyCtrlO:
 		if p.onOpen != nil {
-			p.onOpen()
+			p.onOpen(false)
 		}
 		return nil
 	case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
@@ -348,12 +349,31 @@ func (p *pane) forwardToTable(ev *tcell.EventKey) {
 	}
 }
 
+// altKeys handles Alt with a letter: an opening key that first asks which
+// editor to open in. Any other Alt letter is swallowed, so it cannot act as
+// the plain letter - Alt-o must never reorder the list.
+func (p *pane) altKeys(ev *tcell.EventKey) bool {
+	if ev.Key() != tcell.KeyRune || ev.Modifiers()&tcell.ModAlt == 0 {
+		return false
+	}
+	switch {
+	case ev.Rune() == 'o' && p.onOpen != nil:
+		p.onOpen(true)
+	case p.onAlt != nil:
+		p.onAlt(ev.Rune())
+	}
+	return true
+}
+
 // tableKeys implements NORMAL mode.
 func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if p.altKeys(ev) {
+		return nil
+	}
 	switch ev.Key() {
 	case tcell.KeyCtrlO:
 		if p.onOpen != nil {
-			p.onOpen()
+			p.onOpen(false)
 		}
 		return nil
 	case tcell.KeyEsc:
@@ -414,13 +434,16 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 // detailKeys handles the right hand column. Scrolling itself (j/k/g/G/Ctrl-F/
 // Ctrl-B/arrows) is already implemented by tview's TextView.
 func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if p.altKeys(ev) {
+		return nil
+	}
 	switch ev.Key() {
 	case tcell.KeyEsc, tcell.KeyLeft:
 		p.focusTable()
 		return nil
 	case tcell.KeyCtrlO:
 		if p.onOpen != nil {
-			p.onOpen()
+			p.onOpen(false)
 		}
 		return nil
 	case tcell.KeyCtrlR:

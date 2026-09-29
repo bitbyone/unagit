@@ -122,9 +122,9 @@ func (a *App) pursueGoal() {
 	a.switchTab(pageMRs)
 	open := func(mr forge.MergeRequest) {
 		if g.Review {
-			a.openMRReview(mr)
+			a.openMRReview(mr, nil)
 		} else {
-			a.openMR(mr)
+			a.openMR(mr, nil)
 		}
 	}
 	for _, mr := range a.mrs {

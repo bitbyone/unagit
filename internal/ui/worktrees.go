@@ -13,6 +13,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/gitx"
@@ -192,9 +193,9 @@ func (a *App) newWorktreesPane() *pane {
 			a.showWorktreeDetail(a.worktrees[idx], focus)
 		}
 	}
-	p.onOpen = func() {
+	p.onOpen = func(ask bool) {
 		if r, ok := selected(); ok {
-			a.openWorktree(r)
+			a.withEditor(ask, func(ed *editors.Editor) { a.openWorktree(r, ed) })
 		}
 	}
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
@@ -392,7 +393,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 }
 
 // openWorktree brings a worktree up to date and opens the editor in it.
-func (a *App) openWorktree(r worktreeRow) {
+func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
 	pr := a.worktreeProject(r)
 	a.runTaskOpening(fmt.Sprintf("Opening %s (%s)", r.Path, r.Branch),
 		session.Record{
@@ -401,7 +402,7 @@ func (a *App) openWorktree(r worktreeRow) {
 			Project:  r.Path,
 			Title:    r.Branch,
 			Mode:     session.ModeBranch,
-		}, func(log func(string)) (string, error) {
+		}, ed, func(log func(string)) (string, error) {
 			log("Updating " + r.Branch)
 			return a.newManager(pr.Instance, pr.PathWithNamespace, log).UpdateWorktree(r.Dir)
 		})

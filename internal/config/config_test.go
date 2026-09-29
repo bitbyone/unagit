@@ -51,8 +51,34 @@ func TestMissingConfigIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Instances) != 0 || cfg.Editor != "nvim" {
+	if len(cfg.Instances) != 0 || cfg.FavouriteEditor != "nvim" || cfg.Editor != "" {
 		t.Fatalf("cfg = %+v", cfg)
+	}
+}
+
+// TestOlderEditorBecomesTheFavourite: the one editor an older configuration
+// had keeps being the one things open in.
+func TestOlderEditorBecomesTheFavourite(t *testing.T) {
+	for yaml, want := range map[string]struct{ favourite, custom string }{
+		"editor: nvim\neditor_args: [.]\n":       {"nvim", ""},
+		"editor: /opt/homebrew/bin/zed\n":        {"zed", ""},
+		"editor: hx\neditor_args: [.]\n":         {"custom", "hx"},
+		"editor: nvim\neditor_args: [-c, Git]\n": {"custom", "nvim"},
+		"favourite_editor: code\neditor: hx\n":   {"code", "hx"},
+		"root_dir: /tmp/x\n":                     {"nvim", ""},
+	} {
+		dir := t.TempDir()
+		t.Setenv("UNAGIT_CONFIG_DIR", dir)
+		if err := os.WriteFile(Path(), []byte(yaml), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.FavouriteEditor != want.favourite || cfg.Editor != want.custom {
+			t.Errorf("%q: favourite %q custom %q, want %q %q", yaml, cfg.FavouriteEditor, cfg.Editor, want.favourite, want.custom)
+		}
 	}
 }
 

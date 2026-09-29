@@ -11,6 +11,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/incomm"
@@ -58,10 +59,26 @@ func (a *App) newMRsPane() *pane {
 			a.showMRDetail(a.mrs[idx], focus)
 		}
 	}
-	p.onOpen = func() {
+	p.onOpen = func(ask bool) {
 		if mr, ok := selected(); ok {
-			a.openMR(mr)
+			a.withEditor(ask, func(ed *editors.Editor) { a.openMR(mr, ed) })
 		}
+	}
+
+	p.onAlt = func(r rune) bool {
+		mr, ok := selected()
+		if !ok {
+			return false
+		}
+		switch r {
+		case 'r':
+			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
+		case 'v':
+			a.withEditor(true, func(ed *editors.Editor) { a.pickReviewStart(mr, ed) })
+		default:
+			return false
+		}
+		return true
 	}
 
 	shared := a.filterKeysFor(p)
@@ -78,7 +95,7 @@ func (a *App) newMRsPane() *pane {
 		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
 		if ev.Key() == tcell.KeyCtrlR {
 			if mr, ok := selected(); ok {
-				a.openMRReview(mr)
+				a.openMRReview(mr, nil)
 			}
 			return nil
 		}
@@ -122,7 +139,7 @@ func (a *App) newMRsPane() *pane {
 			return nil
 		case 'v':
 			if mr, ok := selected(); ok {
-				a.pickReviewStart(mr)
+				a.pickReviewStart(mr, nil)
 			}
 			return nil
 		case 'y':
@@ -438,12 +455,12 @@ func mrMarkColor(d mrDisk) tcell.Color {
 }
 
 // openMR materialises the merge request worktree and opens the editor there.
-func (a *App) openMR(mr forge.MergeRequest) {
+func (a *App) openMR(mr forge.MergeRequest, ed *editors.Editor) {
 	project := a.mrProject(mr)
 	client := a.client(mr.Instance)
 	integrate := a.cfg.Integrations.Incomm
 	a.runTaskOpening(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
-		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch),
+		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed,
 		func(log func(string)) (string, error) {
 			mr := a.refreshMR(client, mr, log)
 			dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
@@ -558,8 +575,8 @@ func (a *App) applyMRUpdate(fresh forge.MergeRequest, redetail, keepOrder bool) 
 // openMRReview prepares the review worktree, where the merge request shows up
 // as pending changes rather than as a stack of commits. The diff base comes
 // from the API, so it is the very commit GitLab renders its own diff against.
-func (a *App) openMRReview(mr forge.MergeRequest) {
-	a.openMRReviewFrom(mr, "")
+func (a *App) openMRReview(mr forge.MergeRequest, ed *editors.Editor) {
+	a.openMRReviewFrom(mr, "", ed)
 }
 
 // reviewRefs asks the forge which two commits it diffs the merge request
@@ -583,7 +600,7 @@ func reviewRefs(ctx context.Context, client forge.Provider, mr forge.MergeReques
 // from the chosen one up to the head: after the author answered the comments
 // in new commits, those are what is left to read. The cursor starts on the
 // first commit the review worktree has not been given yet.
-func (a *App) pickReviewStart(mr forge.MergeRequest) {
+func (a *App) pickReviewStart(mr forge.MergeRequest, ed *editors.Editor) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
@@ -600,13 +617,13 @@ func (a *App) pickReviewStart(mr forge.MergeRequest) {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			a.showReviewStartPicker(mr, commits)
+			a.showReviewStartPicker(mr, commits, ed)
 		})
 		return "", nil
 	})
 }
 
-func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit) {
+func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit, ed *editors.Editor) {
 	// Newest on top, like git log and the forge's own list. The commits come
 	// oldest first, so each lands at the mirrored position; the cursor goes to
 	// the oldest new one, the start of what is left to read.
@@ -641,13 +658,13 @@ func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.M
 		title += fmt.Sprintf(" · ● %d new since your last review", fresh)
 	}
 	a.showPickerAt(title, items, start, func(it pickItem) {
-		a.openMRReviewFrom(mr, it.Data.(string))
+		a.openMRReviewFrom(mr, it.Data.(string), ed)
 	})
 }
 
 // openMRReviewFrom is openMRReview narrowed to the commits from one onwards;
 // an empty from is the whole merge request.
-func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string) {
+func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string, ed *editors.Editor) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
@@ -657,7 +674,7 @@ func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string) {
 		title = fmt.Sprintf("Opening %s !%d for review from %.8s", path, mr.IID, from)
 	}
 	a.runTaskOpening(title,
-		a.sessionOf(mr, path, session.ModeReview),
+		a.sessionOf(mr, path, session.ModeReview), ed,
 		func(log func(string)) (string, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()

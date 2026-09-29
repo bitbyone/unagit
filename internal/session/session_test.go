@@ -93,3 +93,19 @@ func itoa(n int) string {
 	}
 	return string(b)
 }
+
+// TestSeveralOpenAtOnce: window editors do not keep unagit waiting, so one
+// process can have several directories open, and closing one keeps the rest.
+func TestSeveralOpenAtOnce(t *testing.T) {
+	s := New(t.TempDir())
+	first := s.Open(Record{Dir: t.TempDir(), Project: "acme/api", Mode: ModeBranch})
+	second := s.Open(Record{Dir: t.TempDir(), Project: "acme/web", Mode: ModeBranch})
+	defer second()
+	if got := s.List(); len(got) != 2 {
+		t.Fatalf("open = %+v, want both", got)
+	}
+	first()
+	if got := s.List(); len(got) != 1 || got[0].Project != "acme/web" {
+		t.Fatalf("after closing one: %+v", got)
+	}
+}

@@ -256,10 +256,17 @@ type Integrations struct {
 type Config struct {
 	Integrations Integrations `yaml:"integrations,omitempty"`
 	RootDir      string       `yaml:"root_dir"`
-	Editor       string       `yaml:"editor"`
-	EditorArgs   []string     `yaml:"editor_args"`
-	Filters      Filters      `yaml:"filters,omitempty"`
-	Instances    []Instance   `yaml:"instances"`
+	// FavouriteEditor is the editor everything opens in unless another is
+	// chosen: nvim, idea, code, zed or custom.
+	FavouriteEditor string `yaml:"favourite_editor,omitempty"`
+	// Editor and EditorArgs are the custom editor, a command of the user's
+	// own; EditorWindow says it opens a window of its own rather than taking
+	// over the terminal. Before there was a choice, they were the editor.
+	Editor       string     `yaml:"editor,omitempty"`
+	EditorArgs   []string   `yaml:"editor_args,omitempty"`
+	EditorWindow bool       `yaml:"editor_window,omitempty"`
+	Filters      Filters    `yaml:"filters,omitempty"`
+	Instances    []Instance `yaml:"instances"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.
@@ -271,9 +278,8 @@ type Config struct {
 func Default() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
-		RootDir:    filepath.Join(home, "unagit"),
-		Editor:     "nvim",
-		EditorArgs: []string{"."},
+		RootDir:         filepath.Join(home, "unagit"),
+		FavouriteEditor: "nvim",
 	}
 }
 
@@ -306,10 +312,13 @@ func IndexPath(name string) string { return filepath.Join(Dir(), "index-"+name+"
 // everything can be set up from the Settings tab.
 func Load() (*Config, error) {
 	cfg := Default()
+	// Left empty so that a configuration from before the choice existed is
+	// recognised and its editor carried over.
+	cfg.FavouriteEditor = ""
 	b, err := os.ReadFile(Path())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			return Default(), nil
 		}
 		return nil, err
 	}
@@ -320,14 +329,35 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// knownEditors are the editors a plain command name is recognised as.
+var knownEditors = map[string]bool{"nvim": true, "idea": true, "code": true, "zed": true}
+
+// migrateEditor turns the single editor of an older configuration into the
+// favourite: one unagit knows by name becomes that one, anything else the
+// custom editor, which runs exactly as before.
+func (c *Config) migrateEditor() {
+	if c.FavouriteEditor != "" {
+		return
+	}
+	name := filepath.Base(c.Editor)
+	plainArgs := len(c.EditorArgs) == 0 || (len(c.EditorArgs) == 1 && c.EditorArgs[0] == ".")
+	switch {
+	case c.Editor == "":
+		c.FavouriteEditor = "nvim"
+	case knownEditors[name] && plainArgs:
+		c.FavouriteEditor = name
+		c.Editor, c.EditorArgs = "", nil
+	default:
+		c.FavouriteEditor = "custom"
+	}
+}
+
 // LegacyInstanceID is the id given to the instance migrated from a
 // single-server configuration, so its cached indexes keep working.
 const LegacyInstanceID = "default"
 
 func (c *Config) normalise() {
-	if c.Editor == "" {
-		c.Editor = "nvim"
-	}
+	c.migrateEditor()
 	if c.RootDir == "" {
 		c.RootDir = Default().RootDir
 	}

@@ -183,6 +183,20 @@ group.
   so it never reaches `.git/config` or a remote URL - or you can clone over SSH
   and keep the token for the API alone.
 
+## Editors
+
+Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v`, `Ctrl-W`, `b` -
+opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
+`Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
+Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed, on
+`PATH` or, on macOS, in `/Applications` - and `f` picks the favourite. A
+command of your own goes in Settings › General as the custom editor.
+
+Neovim takes the terminal: unagit steps aside until you quit it. The others
+open a window of their own and unagit carries on; `unagit cd` knows about them
+until unagit exits. On macOS, Alt needs the terminal to send Option as Meta
+(iTerm2: Profiles › Keys › Left Option key › Esc+).
+
 ## Follow it into another terminal
 
 Opening an editor does not end unagit: it suspends itself and waits, so for as
@@ -208,6 +222,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `Ctrl-C` | in Repositories: clone to disk without opening the editor |
 | `Ctrl-O` | clone or update, then open the editor |
+| `Alt-O` `Alt-R` … | the same, in an editor you choose |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |

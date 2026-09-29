@@ -10,6 +10,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
@@ -119,7 +120,7 @@ func (a *App) confirmDeleteWorktreeEntry(pr forge.Project, e workspace.WorktreeE
 // showWorktreePicker lists the project's branches - local and remote - and
 // opens the chosen one in its own worktree; 'n' offers a brand new branch
 // instead.
-func (a *App) showWorktreePicker(pr forge.Project) {
+func (a *App) showWorktreePicker(pr forge.Project, ed *editors.Editor) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
@@ -162,8 +163,8 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false) }
-			onNew := func() { a.promptNewWorktreeBranch(pr) }
+			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false, ed) }
+			onNew := func() { a.promptNewWorktreeBranch(pr, ed) }
 			a.showPickerActions("Worktree branch - "+pr.PathWithNamespace, items, onSelect, onNew, nil)
 		})
 		return "", nil
@@ -172,7 +173,7 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 
 // promptNewWorktreeBranch asks for the name of a brand new branch, created
 // from the main clone's current HEAD, and opens it in its own worktree.
-func (a *App) promptNewWorktreeBranch(pr forge.Project) {
+func (a *App) promptNewWorktreeBranch(pr forge.Project, ed *editors.Editor) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.AddInputField("Branch name", "", 40, nil, nil)
@@ -184,7 +185,7 @@ func (a *App) promptNewWorktreeBranch(pr forge.Project) {
 			return
 		}
 		a.closeModal(pageForm)
-		a.createWorktree(pr, name, true)
+		a.createWorktree(pr, name, true, ed)
 	}
 	form.AddButton("Create", apply)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
@@ -193,7 +194,7 @@ func (a *App) promptNewWorktreeBranch(pr forge.Project) {
 
 // createWorktree materialises a plain branch worktree and opens the editor
 // there, the same way openMR does for a merge request's.
-func (a *App) createWorktree(pr forge.Project, branch string, isNew bool) {
+func (a *App) createWorktree(pr forge.Project, branch string, isNew bool, ed *editors.Editor) {
 	a.runTaskOpening(fmt.Sprintf("Opening %s (%s)", pr.PathWithNamespace, branch),
 		session.Record{
 			Instance: pr.Instance,
@@ -201,14 +202,14 @@ func (a *App) createWorktree(pr forge.Project, branch string, isNew bool) {
 			Project:  pr.PathWithNamespace,
 			Title:    branch,
 			Mode:     session.ModeBranch,
-		}, func(log func(string)) (string, error) {
+		}, ed, func(log func(string)) (string, error) {
 			return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureWorktree(pr, branch, isNew)
 		})
 }
 
 // showBranchPicker lists the project's branches and switches the main clone to
 // the chosen one before opening the editor.
-func (a *App) showBranchPicker(pr forge.Project) {
+func (a *App) showBranchPicker(pr forge.Project, ed *editors.Editor) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
@@ -244,7 +245,7 @@ func (a *App) showBranchPicker(pr forge.Project) {
 						Project:  pr.PathWithNamespace,
 						Title:    branch,
 						Mode:     session.ModeRepository,
-					}, func(log func(string)) (string, error) {
+					}, ed, func(log func(string)) (string, error) {
 						return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
 					})
 			})

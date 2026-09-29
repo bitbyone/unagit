@@ -101,7 +101,8 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/index` | the on-disk JSON caches of the lists |
 | `internal/workspace` | clones, worktrees, the review arrangement |
 | `internal/gitx` | the git command line, credentials, error hints |
-| `internal/session` | what is open in an editor, one file per pid |
+| `internal/session` | what is open in an editor, files named by pid |
+| `internal/editors` | which editors are installed, and the command that opens one |
 | `internal/fuzzy` | the subsequence matcher behind `/` |
 | `internal/md` | markdown → tview markup |
 | `internal/ui` | everything on screen |
@@ -193,8 +194,16 @@ the other option, and git runs with `BatchMode=yes` - a passphrase-protected
 key with no agent therefore fails immediately instead of hanging; `hint()`
 turns that, and a few other git failures, into an instruction.
 
-**Sessions.** Opening an editor suspends the TUI and waits for the child, so
-the process knows the directory the whole time. It writes one JSON file per pid
+**Editors.** Every opening action takes the editor as a parameter: nil is
+the favourite, looked up at the moment it starts; Alt with the same key picks
+one first (`withEditor`). Add a new opening action the same way, with its Alt
+variant, rather than calling the favourite directly. A terminal editor
+(nvim, or a custom one) gets the terminal; a window editor (IDEA, VS Code,
+Zed) is only started, because its launcher returns at once.
+
+**Sessions.** Opening a terminal editor suspends the TUI and waits for the child, so
+the process knows the directory the whole time. A window editor's record
+stays until unagit exits, since nothing tells unagit when the window closes. It writes a JSON file per open directory, named by pid,
 under `<config>/sessions/`, removed when the editor exits and swept up later if
 the process died. `unagit cd` `exec`s a shell there (a process cannot change
 its parent's directory); `--print` writes the path for a command substitution,

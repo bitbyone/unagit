@@ -1,0 +1,170 @@
+// Package editors knows the editors unagit can open a directory in, finds
+// which of them this machine has, and builds the command that opens one.
+//
+// There are two kinds, and the difference matters to the caller. A terminal
+// editor (nvim) takes over the terminal until it exits, so unagit suspends
+// itself and waits. A window editor (IntelliJ IDEA, VS Code, Zed) is started
+// by a launcher that returns at once while the editor runs on its own, so
+// unagit only starts it and carries on.
+package editors
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+)
+
+// The editors by id; the id is what the configuration stores.
+const (
+	Nvim   = "nvim"
+	Idea   = "idea"
+	Code   = "code"
+	Zed    = "zed"
+	Custom = "custom"
+)
+
+// Editor is one editor and whether, and how, it can be started here.
+type Editor struct {
+	ID       string
+	Name     string
+	Terminal bool
+	// Found says it can be started; Where is what was found - a launcher on
+	// PATH or an application - for the settings to show.
+	Found bool
+	Where string
+
+	argv    []string // the command before the directory
+	dirArg  bool     // the directory is passed as an argument, not only as the working directory
+	appPath string   // a macOS application, opened with open -a
+}
+
+// CustomSpec is the editor the user described by hand.
+type CustomSpec struct {
+	Command  string
+	Args     []string
+	Terminal bool
+}
+
+// known are the editors unagit recognises, in the order they are listed.
+var known = []struct {
+	id, name string
+	terminal bool
+	bins     []string // launchers to look for on PATH
+	apps     []string // macOS application bundles, when the launcher is not installed
+}{
+	{Nvim, "Neovim", true, []string{"nvim"}, nil},
+	{Idea, "IntelliJ IDEA", false, []string{"idea"},
+		[]string{"IntelliJ IDEA.app", "IntelliJ IDEA Ultimate.app", "IntelliJ IDEA CE.app"}},
+	{Code, "VS Code", false, []string{"code"}, []string{"Visual Studio Code.app"}},
+	{Zed, "Zed", false, []string{"zed", "zeditor"}, []string{"Zed.app"}},
+}
+
+// lookPath finds a launcher; the tests replace it.
+var lookPath = exec.LookPath
+
+// AppDirs are where macOS applications are looked for. Tests elsewhere
+// replace it, so that what is installed on the machine running them does not
+// decide what they see.
+var AppDirs = func() []string {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	return []string{"/Applications", filepath.Join(home, "Applications"),
+		filepath.Join(home, "Applications", "JetBrains Toolbox")}
+}
+
+// Detect lists every editor unagit knows, found or not, and the custom one
+// when it has a command.
+func Detect(custom CustomSpec) []Editor {
+	var out []Editor
+	for _, k := range known {
+		e := Editor{ID: k.id, Name: k.name, Terminal: k.terminal}
+		for _, bin := range k.bins {
+			if path, err := lookPath(bin); err == nil {
+				e.Found, e.Where, e.argv = true, path, []string{path}
+				break
+			}
+		}
+		if !e.Found {
+			for _, dir := range AppDirs() {
+				for _, app := range k.apps {
+					path := filepath.Join(dir, app)
+					if _, err := os.Stat(path); err == nil && !e.Found {
+						e.Found, e.Where, e.appPath = true, path, path
+					}
+				}
+			}
+		}
+		// nvim reads the directory it is started in; the window editors are
+		// told which folder to open.
+		if e.Found && k.terminal {
+			e.argv = append(e.argv, ".")
+		}
+		e.dirArg = !k.terminal
+		out = append(out, e)
+	}
+	if strings.TrimSpace(custom.Command) != "" {
+		e := Editor{ID: Custom, Name: "Custom: " + custom.Command, Terminal: custom.Terminal}
+		if path, err := lookPath(custom.Command); err == nil {
+			e.Found, e.Where = true, path
+			e.argv = append([]string{path}, custom.Args...)
+			if len(custom.Args) == 0 {
+				// What unagit always did: the editor opens the directory it
+				// is started in.
+				e.argv = append(e.argv, ".")
+			}
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// Pick returns the editor with the id, from a detected list.
+func Pick(all []Editor, id string) (Editor, bool) {
+	for _, e := range all {
+		if e.ID == id {
+			return e, true
+		}
+	}
+	return Editor{}, false
+}
+
+// Favourite is the editor to open with when nobody asked for another: the
+// chosen one when this machine has it, otherwise the first one it has, so an
+// editor that was uninstalled does not leave every open failing.
+func Favourite(all []Editor, id string) (Editor, bool) {
+	if e, ok := Pick(all, id); ok && e.Found {
+		return e, true
+	}
+	for _, e := range all {
+		if e.Found {
+			return e, true
+		}
+	}
+	return Editor{}, false
+}
+
+// Command is what opens dir in the editor. A terminal editor's command has
+// to be run with the terminal attached; a window editor's only started. One
+// that was not found has no command at all - looking its name up again on
+// PATH could start something else.
+func (e Editor) Command(dir string) (*exec.Cmd, error) {
+	if !e.Found {
+		return nil, fmt.Errorf("%s is not installed - pick another editor in Settings › Integrations", e.Name)
+	}
+	var cmd *exec.Cmd
+	switch {
+	case e.appPath != "":
+		cmd = exec.Command("open", "-a", e.appPath, dir)
+	case e.dirArg:
+		cmd = exec.Command(e.argv[0], append(e.argv[1:], dir)...)
+	default:
+		cmd = exec.Command(e.argv[0], e.argv[1:]...)
+	}
+	cmd.Dir = dir
+	return cmd, nil
+}

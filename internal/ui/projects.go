@@ -10,6 +10,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/session"
@@ -57,10 +58,26 @@ func (a *App) newProjectsPane() *pane {
 			a.showProjectDetail(a.projects[idx], focus)
 		}
 	}
-	p.onOpen = func() {
+	p.onOpen = func(ask bool) {
 		if pr, ok := selected(); ok {
-			a.openProject(pr)
+			a.withEditor(ask, func(ed *editors.Editor) { a.openProject(pr, ed) })
 		}
+	}
+
+	p.onAlt = func(r rune) bool {
+		pr, ok := selected()
+		if !ok {
+			return false
+		}
+		switch r {
+		case 'w':
+			a.withEditor(true, func(ed *editors.Editor) { a.showWorktreePicker(pr, ed) })
+		case 'b':
+			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
+		default:
+			return false
+		}
+		return true
 	}
 
 	shared := a.filterKeysFor(p)
@@ -72,7 +89,7 @@ func (a *App) newProjectsPane() *pane {
 		// already taken by "open in the browser".
 		if ev.Key() == tcell.KeyCtrlW {
 			if pr, ok := selected(); ok {
-				a.showWorktreePicker(pr)
+				a.showWorktreePicker(pr, nil)
 			}
 			return nil
 		}
@@ -92,7 +109,7 @@ func (a *App) newProjectsPane() *pane {
 			return nil
 		case 'b':
 			if pr, ok := selected(); ok {
-				a.showBranchPicker(pr)
+				a.showBranchPicker(pr, nil)
 			}
 			return nil
 		case 'm':
@@ -287,13 +304,13 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 }
 
 // openProject clones or updates the main checkout and opens the editor.
-func (a *App) openProject(pr forge.Project) {
+func (a *App) openProject(pr forge.Project, ed *editors.Editor) {
 	a.runTaskOpening("Opening "+pr.PathWithNamespace, session.Record{
 		Instance: pr.Instance,
 		Server:   a.instanceLabel(pr.Instance),
 		Project:  pr.PathWithNamespace,
 		Mode:     session.ModeRepository,
-	}, func(log func(string)) (string, error) {
+	}, ed, func(log func(string)) (string, error) {
 		return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureProject(pr)
 	})
 }

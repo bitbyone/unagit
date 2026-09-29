@@ -72,7 +72,7 @@ func reviewMR() forge.MergeRequest {
 func newReviewManager(t *testing.T, origin string) (*Manager, forge.Project) {
 	t.Helper()
 	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
-	opts := Options{Root: t.TempDir(), GitLabURL: "https://gl.example", Editor: "true"}
+	opts := Options{Root: t.TempDir(), GitLabURL: "https://gl.example"}
 	return New(opts, func(string) {}), p
 }
 
@@ -366,7 +366,7 @@ func TestHeadRefFormatFollowsTheForge(t *testing.T) {
 
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main",
 		SourceProjectID: 1, TargetProjectID: 1}
-	opts := Options{Root: t.TempDir(), GitLabURL: "https://github.com", Editor: "true"}
+	opts := Options{Root: t.TempDir(), GitLabURL: "https://github.com"}
 
 	if _, err := New(opts, func(string) {}).EnsureMR(mr, forge.Project{PathWithNamespace: "acme/app", HTTPURLToRepo: bare}); err == nil {
 		t.Fatal("GitLab's ref layout should not find a GitHub pull request")

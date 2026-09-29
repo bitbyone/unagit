@@ -41,8 +41,6 @@ type Options struct {
 	// ProjectDirectory is the exact clone destination, resolved by the caller.
 	ProjectDirectory string
 	GitLabURL        string
-	Editor           string
-	EditorArgs       []string
 	Token            string
 	// CloneProtocol is ProtocolHTTPS or ProtocolSSH; empty means HTTPS, which
 	// is what unagit did before it could do anything else.
@@ -719,23 +717,6 @@ func (m *Manager) pruneEmptyParents(dir string) {
 		}
 		dir = filepath.Dir(dir)
 	}
-}
-
-// OpenEditor runs the configured editor in dir and blocks until it exits.
-// The caller must have suspended the TUI first.
-func (m *Manager) OpenEditor(dir string) error {
-	args := m.opts.EditorArgs
-	if len(args) == 0 {
-		args = []string{"."}
-	}
-	editor := m.opts.Editor
-	if editor == "" {
-		editor = "nvim"
-	}
-	cmd := exec.Command(editor, args...)
-	cmd.Dir = dir
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
 }
 
 // OpenBrowser opens a URL with the platform's default handler.

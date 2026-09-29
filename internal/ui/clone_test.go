@@ -23,7 +23,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	onLoop(a, func() bool {
-		a.cfg.Editor, a.cfg.EditorArgs = editor, []string{marker}
+		a.cfg.FavouriteEditor, a.cfg.Editor, a.cfg.EditorArgs = "custom", editor, []string{marker}
 		for i := range a.projects {
 			a.projects[i].HTTPURLToRepo = origin
 		}

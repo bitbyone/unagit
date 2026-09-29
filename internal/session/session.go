@@ -3,10 +3,12 @@
 //
 // Opening an editor does not end unagit: it suspends the interface and waits
 // for the editor to exit. While that lasts, the running process knows which
-// directory it handed over, and writes it down here. One file per process
-// means two unagit windows never write to the same place and no locking is
-// needed; a file whose process is gone is simply stale and gets swept up on
-// the next read.
+// directory it handed over, and writes it down here. An editor that opens a
+// window of its own does not keep unagit waiting; its record stays until
+// unagit exits, since that is as long as anyone can vouch for it. Files are
+// named after the process that wrote them, so two unagit windows never write
+// to the same place and no locking is needed; a file whose process is gone is
+// simply stale and gets swept up on the next read.
 package session
 
 import (
@@ -15,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -59,7 +62,7 @@ func New(dir string) *Store { return &Store{dir: filepath.Join(dir, "sessions")}
 func (s *Store) Open(r Record) func() {
 	r.PID = os.Getpid()
 	r.Since = time.Now()
-	path := s.path(r.PID)
+	path := s.path(r.PID, opened.Add(1))
 
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return func() {}
@@ -74,8 +77,12 @@ func (s *Store) Open(r Record) func() {
 	return func() { os.Remove(path) }
 }
 
-func (s *Store) path(pid int) string {
-	return filepath.Join(s.dir, fmt.Sprintf("%d.json", pid))
+// opened numbers the records of this process: several window editors can be
+// open at once.
+var opened atomic.Int64
+
+func (s *Store) path(pid int, n int64) string {
+	return filepath.Join(s.dir, fmt.Sprintf("%d-%d.json", pid, n))
 }
 
 // List returns what is open, newest first, after sweeping up the records of
