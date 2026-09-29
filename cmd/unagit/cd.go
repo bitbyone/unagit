@@ -8,12 +8,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/ui"
 )
 
 func cdCmd() *cobra.Command {
@@ -49,11 +48,11 @@ func cdCmd() *cobra.Command {
 			}
 			chosen := open[0]
 			if len(open) > 1 {
-				picked, err := pick(open)
+				picked, ok, err := ui.PickSession(open)
 				if err != nil {
 					return err
 				}
-				if picked.Dir == "" {
+				if !ok {
 					return fmt.Errorf("nothing chosen")
 				}
 				chosen = picked
@@ -149,45 +148,4 @@ func matching(open []session.Record, query string) []session.Record {
 		}
 	}
 	return out
-}
-
-// pick asks which one, drawing on the terminal itself. tcell talks to
-// /dev/tty rather than to standard output, which is what keeps --print usable
-// in a command substitution.
-func pick(open []session.Record) (session.Record, error) {
-	app := tview.NewApplication()
-	list := tview.NewList().ShowSecondaryText(true)
-	list.SetBorder(true).
-		SetTitle(" Open in an editor ").
-		SetTitleAlign(tview.AlignLeft)
-
-	var chosen session.Record
-	for _, r := range open {
-		r := r
-		what := r.Mode
-		if r.Title != "" {
-			what += " · " + r.Title
-		}
-		list.AddItem(r.Label(), "  "+what+"  ·  "+r.Dir, 0, func() {
-			chosen = r
-			app.Stop()
-		})
-	}
-	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		switch {
-		case ev.Key() == tcell.KeyEsc, ev.Rune() == 'q':
-			app.Stop()
-			return nil
-		case ev.Rune() == 'j':
-			return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
-		case ev.Rune() == 'k':
-			return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone)
-		}
-		return ev
-	})
-
-	if err := app.SetRoot(list, true).Run(); err != nil {
-		return session.Record{}, err
-	}
-	return chosen, nil
 }
