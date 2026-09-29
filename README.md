@@ -181,7 +181,11 @@ group.
   for in a dialog on every start and is never read from a flag, an environment
   variable or a pipe. git gets the token through a one-shot credential helper,
   so it never reaches `.git/config` or a remote URL - or you can clone over SSH
-  and keep the token for the API alone.
+  and keep the token for the API alone. On macOS, Settings › Security › `k`
+  can remember the passphrase in the Keychain instead, where only the unagit
+  binary may read it: unagit then opens without asking, and anything else
+  that wants it gets a macOS dialog. After a rebuild macOS asks once whether
+  the new binary may.
 
 ## Editors
 

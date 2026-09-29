@@ -263,11 +263,15 @@ type Config struct {
 	// Editor and EditorArgs are the custom editor, a command of the user's
 	// own; EditorWindow says it opens a window of its own rather than taking
 	// over the terminal. Before there was a choice, they were the editor.
-	Editor       string     `yaml:"editor,omitempty"`
-	EditorArgs   []string   `yaml:"editor_args,omitempty"`
-	EditorWindow bool       `yaml:"editor_window,omitempty"`
-	Filters      Filters    `yaml:"filters,omitempty"`
-	Instances    []Instance `yaml:"instances"`
+	Editor       string   `yaml:"editor,omitempty"`
+	EditorArgs   []string `yaml:"editor_args,omitempty"`
+	EditorWindow bool     `yaml:"editor_window,omitempty"`
+	// RememberPassphrase keeps the vault passphrase in the macOS keychain,
+	// readable by the unagit binary alone, so it opens without asking. The
+	// user's choice, off unless they make it.
+	RememberPassphrase bool       `yaml:"remember_passphrase,omitempty"`
+	Filters            Filters    `yaml:"filters,omitempty"`
+	Instances          []Instance `yaml:"instances"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.

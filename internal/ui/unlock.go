@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"errors"
 	"os"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/keychain"
 	"github.com/tobola/unagit/internal/secret"
 )
 
@@ -52,28 +54,20 @@ func (a *App) showUnlock() {
 			tag(colMuted) + "Try again, or press Esc to quit." + tagEnd)
 	}
 
-	submit := func() {
-		if busy {
-			return
-		}
-		entered := []byte(pass.GetText())
-		if len(entered) == 0 {
-			return
-		}
-		if creating && pass.GetText() != repeat.GetText() {
-			clearMasked(pass)
-			clearMasked(repeat)
-			a.tv.SetFocus(pass)
-			fail("The two entries do not match.")
-			return
-		}
+	// attempt opens the vault with a passphrase, typed or remembered. A typed
+	// one that works is remembered again when the user chose that - which is
+	// what puts the keychain right after the passphrase changed elsewhere.
+	var attempt func(entered []byte, remembered bool)
+	attempt = func(entered []byte, remembered bool) {
 		busy = true
-		clearMasked(pass)
-		clearMasked(repeat)
 		pass.SetDisabled(true)
 		repeat.SetDisabled(true)
-		msg.SetText(tag(colMuted) + "Deriving the key…" + tagEnd)
-
+		if remembered {
+			msg.SetText(tag(colMuted) + "Opening with the passphrase in the Keychain…" + tagEnd)
+		} else {
+			msg.SetText(tag(colMuted) + "Deriving the key…" + tagEnd)
+		}
+		remember := a.cfg.RememberPassphrase && !remembered && passphraseStore.available()
 		go func() {
 			vault, isNew, err := secret.OpenOrCreate(config.VaultPath(), entered)
 			var imported bool
@@ -81,6 +75,10 @@ func (a *App) showUnlock() {
 				// A token.enc from before unagit had a vault belongs to the
 				// instance the old single-server config became.
 				imported, _ = vault.ImportSingleToken(config.LegacyTokenPath(), a.cfg.Instances[0].ID, entered)
+			}
+			var rememberErr error
+			if err == nil && remember {
+				rememberErr = passphraseStore.set(entered)
 			}
 			for i := range entered {
 				entered[i] = 0
@@ -93,9 +91,14 @@ func (a *App) showUnlock() {
 				clearMasked(repeat)
 				a.tv.SetFocus(pass)
 				if err != nil {
-					if err == secret.ErrWrongPassphrase {
+					switch {
+					case err == secret.ErrWrongPassphrase && remembered:
+						// One line: the dialog has two, and the second says
+						// what to do.
+						fail("The Keychain's passphrase no longer works.")
+					case err == secret.ErrWrongPassphrase:
 						fail("Wrong passphrase.")
-					} else {
+					default:
 						fail(err.Error())
 					}
 					return
@@ -113,8 +116,31 @@ func (a *App) showUnlock() {
 				if imported {
 					a.note("Imported the token from token.enc; you can delete that file.")
 				}
+				if rememberErr != nil {
+					a.errorf("the Keychain was not updated: %v", rememberErr)
+				}
 			})
 		}()
+	}
+
+	submit := func() {
+		if busy {
+			return
+		}
+		entered := []byte(pass.GetText())
+		if len(entered) == 0 {
+			return
+		}
+		if creating && pass.GetText() != repeat.GetText() {
+			clearMasked(pass)
+			clearMasked(repeat)
+			a.tv.SetFocus(pass)
+			fail("The two entries do not match.")
+			return
+		}
+		clearMasked(pass)
+		clearMasked(repeat)
+		attempt(entered, false)
 	}
 
 	pass.SetDoneFunc(func(key tcell.Key) {
@@ -142,7 +168,49 @@ func (a *App) showUnlock() {
 
 	a.pages.AddPage(pageUnlock, modalFixed(form, 64, height), true, true)
 	a.tv.SetFocus(pass)
+
+	// A remembered passphrase is tried first; the dialog is there if it is
+	// missing, refused, or no longer the right one.
+	if !creating && a.cfg.RememberPassphrase && passphraseStore.available() {
+		busy = true
+		pass.SetDisabled(true)
+		msg.SetText(tag(colMuted) + "Asking the Keychain…" + tagEnd)
+		go func() {
+			remembered, err := passphraseStore.get()
+			a.tv.QueueUpdateDraw(func() {
+				busy = false
+				pass.SetDisabled(false)
+				if err != nil {
+					why := "it refused"
+					if errors.Is(err, keychain.ErrNotFound) {
+						why = "none stored"
+					}
+					fail("The Keychain gave no passphrase (" + why + ").")
+					return
+				}
+				attempt(remembered, true)
+			})
+		}()
+	}
 }
+
+// passphraseStore is where a remembered passphrase is kept: the macOS
+// keychain, readable by the unagit binary alone. Tests replace it.
+var passphraseStore = struct {
+	available func() bool
+	get       func() ([]byte, error)
+	set       func([]byte) error
+	forget    func() error
+}{
+	available: keychain.Available,
+	get:       func() ([]byte, error) { return keychain.Get(keychainService, config.VaultPath()) },
+	set:       func(p []byte) error { return keychain.Set(keychainService, config.VaultPath(), p) },
+	forget:    func() error { return keychain.Delete(keychainService, config.VaultPath()) },
+}
+
+// keychainService names the item; the account is the vault's path, so two
+// configurations keep two passphrases.
+const keychainService = "unagit vault passphrase"
 
 // passphraseField is a masked input styled like the rest of the interface.
 func passphraseField(label string) *tview.InputField {

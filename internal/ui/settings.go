@@ -12,6 +12,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/secret"
 )
 
 // The sections of the Settings tab, in the order they are listed.
@@ -84,7 +85,12 @@ func (a *App) newSettingsView() *settingsView {
 	hintPanel(s.tree.Box, func() string {
 		return "Space select · d root directory · r reload groups · p refresh repositories · m refresh merge requests"
 	}, 0, 0, 1, 1)
-	hintPanel(s.security.Box, func() string { return "c change passphrase · Esc back" }, 1, 1, 2, 2)
+	hintPanel(s.security.Box, func() string {
+		if passphraseStore.available() {
+			return "c change passphrase · k keychain · Esc back"
+		}
+		return "c change passphrase · Esc back"
+	}, 1, 1, 2, 2)
 	hintPanel(s.integrations.Box, func() string { return "Tab / j k move · Esc back" }, 1, 0, 1, 1)
 	s.root = tview.NewFlex().AddItem(s.list, 24, 0, true).AddItem(s.content, 0, 1, false)
 
@@ -960,9 +966,74 @@ func (s *settingsView) newSecurityPane() *tview.TextView {
 			s.showPassphraseForm()
 			return nil
 		}
+		if ev.Key() == tcell.KeyRune && ev.Rune() == 'k' && passphraseStore.available() {
+			s.toggleKeychain()
+			return nil
+		}
 		return ev
 	})
 	return v
+}
+
+// toggleKeychain remembers the passphrase in the keychain, or forgets it.
+// Remembering asks for it: once the vault is open, unagit no longer has it.
+func (s *settingsView) toggleKeychain() {
+	a := s.app
+	if a.cfg.RememberPassphrase {
+		if err := passphraseStore.forget(); err != nil {
+			a.errorf("%v", err)
+			return
+		}
+		a.cfg.RememberPassphrase = false
+		a.saveConfig()
+		s.fillSecurity()
+		a.note("Forgotten: the passphrase is asked for at every start again")
+		return
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddPasswordField("Passphrase", "", 0, maskRune, nil)
+	field := form.GetFormItemByLabel("Passphrase").(*tview.InputField)
+	form.AddTextView("", "Kept in the macOS Keychain, where only unagit\n"+
+		"may read it; any other program has to ask you.", 0, 2, true, false)
+	busy := false
+	form.AddButton("Remember", func() {
+		entered := []byte(field.GetText())
+		if busy || len(entered) == 0 {
+			return
+		}
+		busy = true
+		go func() {
+			// The passphrase is checked against the vault first, so what is
+			// remembered is sure to open it.
+			_, err := secret.OpenVault(config.VaultPath(), entered)
+			if err == nil {
+				err = passphraseStore.set(entered)
+			}
+			for i := range entered {
+				entered[i] = 0
+			}
+			a.tv.QueueUpdateDraw(func() {
+				busy = false
+				clearMasked(field)
+				if err == secret.ErrWrongPassphrase {
+					a.errorf("wrong passphrase - type the one unagit asks for at start")
+					return
+				}
+				if err != nil {
+					a.errorf("%v", err)
+					return
+				}
+				a.closeModal(pageForm)
+				a.cfg.RememberPassphrase = true
+				a.saveConfig()
+				s.fillSecurity()
+				a.note("Remembered: unagit now opens without asking")
+			})
+		}()
+	})
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModalSized("Remember the passphrase", form, 64, 10)
 }
 
 func (s *settingsView) fillSecurity() {
@@ -970,18 +1041,25 @@ func (s *settingsView) fillSecurity() {
 	if s.app.vault != nil {
 		stored = len(s.app.vault.IDs())
 	}
+	keychainLine, asked := "", "The passphrase is asked for once per start"
+	if passphraseStore.available() {
+		state := "not used"
+		if s.app.cfg.RememberPassphrase {
+			state = "remembers the passphrase; only unagit may read it"
+			asked = "The passphrase comes from the Keychain at start"
+		}
+		keychainLine = fmt.Sprintf("%sKeychain%s %s\n", tag(colDim), tagEnd, state)
+	}
 	s.security.SetText(fmt.Sprintf(
 		"%sTokens%s   %d stored, encrypted with Argon2id + AES-256-GCM\n"+
 			"%sVault%s    %s\n"+
-			"%sConfig%s   %s\n\n"+
-			"The passphrase is asked for once per start and the tokens only ever\n"+
+			"%sConfig%s   %s\n"+keychainLine+"\n"+
+			asked+" and the tokens only ever\n"+
 			"exist in memory. Git gets them through a one-shot credential helper,\n"+
-			"so they never reach .git/config or a remote URL.\n\n"+
-			"%sc%s  change the passphrase",
+			"so they never reach .git/config or a remote URL.",
 		tag(colDim), tagEnd, stored,
 		tag(colDim), tagEnd, tildePath(config.VaultPath()),
-		tag(colDim), tagEnd, tildePath(config.Path()),
-		tag(colAccent), tagEnd))
+		tag(colDim), tagEnd, tildePath(config.Path())))
 }
 
 func (s *settingsView) showPassphraseForm() {
@@ -1008,6 +1086,11 @@ func (s *settingsView) showPassphraseForm() {
 			return
 		}
 		a.saveVault()
+		if a.cfg.RememberPassphrase && passphraseStore.available() {
+			if err := passphraseStore.set([]byte(next)); err != nil {
+				a.errorf("the Keychain still has the old passphrase: %v", err)
+			}
+		}
 		a.closeModal(pageForm)
 		s.fillSecurity()
 		a.note("Passphrase changed")

@@ -290,7 +290,7 @@ func TestSecuritySectionChangesThePassphrase(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionSecurity)
-	waitFor(t, a, sc, "change the passphrase")
+	waitFor(t, a, sc, "c change passphrase")
 
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Change the passphrase")

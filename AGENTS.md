@@ -23,6 +23,17 @@ a pipe, and never `cat` the vault. If you need to know whether a key exists,
 read its name, not its value (`cut -d= -f1`). Never weaken the passphrase
 prompt "for testing".
 
+The one exception is the user's own choice, and it is exactly this: on macOS,
+Settings › Security › `k` keeps the passphrase in the login keychain
+(`internal/keychain`), created by the unagit binary through the legacy
+keychain API, so its access list trusts that binary alone - verified: any
+other program, `security` included, gets a macOS dialog. It is off unless the
+user turns it on. Do not widen it: no keychain item readable without that
+dialog, no Secret Service on Linux (it lets every program of the user's read
+it), no cache daemon, and never read the item yourself. Tests use a fake
+store; `UNAGIT_KEYCHAIN_TEST=1` runs the one test that touches the real
+keychain, with an item of its own.
+
 ## Working here
 
 ```sh
@@ -98,6 +109,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/github` | github.com client, same |
 | `internal/config` | `config.yaml`, instances, groups, roots, filters |
 | `internal/secret` | the vault, the passphrase prompt |
+| `internal/keychain` | the passphrase in the macOS keychain, when chosen |
 | `internal/index` | the on-disk JSON caches of the lists |
 | `internal/workspace` | clones, worktrees, the review arrangement |
 | `internal/gitx` | the git command line, credentials, error hints |

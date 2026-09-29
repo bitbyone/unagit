@@ -219,6 +219,7 @@ func helpRows() []helpLine {
 		blank(),
 		section("Settings · security", helpSecurity),
 		key("c", "change the passphrase"),
+		key("k", "remember it in the macOS Keychain, or forget it"),
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · general", helpGeneral),
