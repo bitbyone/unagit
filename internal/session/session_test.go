@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestOpenAndClose(t *testing.T) {
@@ -107,5 +108,25 @@ func TestSeveralOpenAtOnce(t *testing.T) {
 	first()
 	if got := s.List(); len(got) != 1 || got[0].Project != "acme/web" {
 		t.Fatalf("after closing one: %+v", got)
+	}
+}
+
+// TestADirectoryIsListedOnce: two unagit windows with the same review open,
+// or one opening it twice, are one place to go, not a choice between two.
+func TestADirectoryIsListedOnce(t *testing.T) {
+	dir := t.TempDir()
+	s := New(t.TempDir())
+	defer s.Open(Record{Dir: dir, Project: "acme/api", IID: 7, Mode: ModeReview})()
+	time.Sleep(10 * time.Millisecond)
+	defer s.Open(Record{Dir: dir + "/", Project: "acme/api", IID: 7, Mode: ModeReview, Title: "newer"})()
+	defer s.Open(Record{Dir: t.TempDir(), Project: "acme/web"})()
+	got := s.List()
+	if len(got) != 2 {
+		t.Fatalf("listed %+v, want the shared directory once and the other one", got)
+	}
+	for _, r := range got {
+		if r.Project == "acme/api" && r.Title != "newer" {
+			t.Errorf("kept %+v, want the newest record of the directory", r)
+		}
 	}
 }

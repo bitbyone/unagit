@@ -86,7 +86,9 @@ func (s *Store) path(pid int, n int64) string {
 }
 
 // List returns what is open, newest first, after sweeping up the records of
-// processes that are no longer running.
+// processes that are no longer running. A directory is listed once, however
+// many records it has - two unagit windows, or one opening it twice - because
+// what the list is for is going there.
 func (s *Store) List() []Record {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -118,7 +120,15 @@ func (s *Store) List() []Record {
 		out = append(out, r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Since.After(out[j].Since) })
-	return out
+	seen := map[string]bool{}
+	unique := out[:0]
+	for _, r := range out {
+		if dir := filepath.Clean(r.Dir); !seen[dir] {
+			seen[dir] = true
+			unique = append(unique, r)
+		}
+	}
+	return unique
 }
 
 // alive reports whether a process is still running. Signal 0 asks the kernel
