@@ -146,6 +146,8 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 		}
 		if len(edits) > 0 {
 			m.log("! %d file(s) with your own edits, leaving the worktree alone", len(edits))
+			// Left alone, but not left showing the comments as a change.
+			m.hideNotes(dir)
 			m.writeMeta(dir, meta)
 			return dir, nil
 		}

@@ -433,6 +433,34 @@ func TestReviewKeepsCommittedCommentsOutOfTheChange(t *testing.T) {
 	}
 	onlyTheCode("opened")
 
+	// A worktree made before the store was hidden, with comments in it, is
+	// put right by the next open, at the same head.
+	git(t, rev, "update-index", "--no-skip-worktree", ".incomm/notes.json")
+	write(t, rev, ".incomm/notes.json", `{"notes":["older"]}`)
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+		t.Fatal(err)
+	}
+	onlyTheCode("reopened")
+	if got := readFile(t, rev, ".incomm/notes.json"); got != `{"notes":["older"]}` {
+		t.Errorf("the comments of the older worktree were lost: %q", got)
+	}
+
+	// With an edit of the reviewer's, the worktree is left alone - and the
+	// store is hidden all the same.
+	write(t, rev, "mine.txt", "")
+	git(t, rev, "add", "-N", "mine.txt")
+	write(t, rev, "code.txt", "the reviewer's\n")
+	git(t, rev, "update-index", "--no-skip-worktree", ".incomm/notes.json")
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, rev, "diff", "--name-only"); strings.Contains(got, ".incomm") {
+		t.Errorf("left alone, the store still shows: %q", got)
+	}
+	write(t, rev, "code.txt", "new\n") // the merge request's again
+	git(t, rev, "rm", "-q", "--cached", "mine.txt")
+	os.Remove(filepath.Join(rev, "mine.txt"))
+
 	// The reviewer comments; Incomm writes the store.
 	write(t, rev, ".incomm/notes.json", `{"notes":["mine"]}`)
 	onlyTheCode("commented")
