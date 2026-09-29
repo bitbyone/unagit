@@ -203,6 +203,35 @@ func TestEnsureMRWhenBranchIsCheckedOutInMainClone(t *testing.T) {
 	}
 }
 
+// TestPushFromAFallbackBranchGoesToTheSourceBranch: a merge request worktree
+// on unagit-mr-<iid>, because the source branch is out elsewhere, must still
+// take a plain git push - git's default refuses one whose upstream has
+// another name - and that push must land on the source branch.
+func TestPushFromAFallbackBranchGoesToTheSourceBranch(t *testing.T) {
+	origin := newOrigin(t)
+	m, _, p := newManager(t, origin)
+	if _, err := m.SwitchBranch(p, "feature/login"); err != nil {
+		t.Fatal(err)
+	}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	wt, err := m.EnsureMR(mr, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "answer.txt"), []byte("done\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, wt, "add", ".")
+	git(t, wt, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "answer")
+	git(t, wt, "push", "-q")
+	if got, want := git(t, origin, "rev-parse", "feature/login"), git(t, wt, "rev-parse", "HEAD"); got != want {
+		t.Errorf("origin feature/login = %s, want the pushed %s", got, want)
+	}
+	if out := git(t, origin, "branch", "--list", "unagit-mr-1"); out != "" {
+		t.Errorf("the fallback branch was pushed under its own name: %q", out)
+	}
+}
+
 func TestSwitchBranch(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.SwitchBranch(p, "feature/login")

@@ -300,6 +300,10 @@ func (m *Manager) EnsureMR(mr forge.MergeRequest, project forge.Project) (string
 		if _, err := m.git.Run(wtDir, "merge", "--ff-only", "FETCH_HEAD"); err != nil {
 			m.log("! cannot fast-forward (local commits or a force push), opening as it is")
 		}
+		// A worktree made before pushing from a fallback branch worked.
+		if branch := m.git.CurrentBranch(wtDir); branch != mr.SourceBranch {
+			m.pushToSourceBranch(mainDir, wtDir, branch, mr)
+		}
 		m.recordBranchMeta(wtDir, projectPath, mr)
 		return wtDir, nil
 	}
@@ -335,8 +339,37 @@ func (m *Manager) EnsureMR(mr forge.MergeRequest, project forge.Project) (string
 	if sameProject && m.git.RemoteBranchExists(mainDir, mr.SourceBranch) {
 		_ = m.git.SetUpstream(wtDir, branch, mr.SourceBranch)
 	}
+	if branch != mr.SourceBranch {
+		m.pushToSourceBranch(mainDir, wtDir, branch, mr)
+	}
 	m.recordBranchMeta(wtDir, projectPath, mr)
 	return wtDir, nil
+}
+
+// pushToSourceBranch makes a plain git push from a worktree on a fallback
+// branch go to the merge request's own branch. Git will not check a branch
+// out in two worktrees, so when the source branch is already out elsewhere -
+// the main clone, or a worktree of its own - the merge request's worktree is
+// on unagit-mr-<iid>, tracking the source branch. git's default push refuses
+// a branch whose upstream has another name; push.default=upstream, set for
+// this worktree alone, pushes to the upstream whatever the local name.
+func (m *Manager) pushToSourceBranch(mainDir, wtDir, branch string, mr forge.MergeRequest) {
+	sameProject := mr.SourceProjectID == 0 || mr.SourceProjectID == mr.TargetProjectID
+	if !sameProject || !m.git.RemoteBranchExists(mainDir, mr.SourceBranch) {
+		// A fork's branch is not on origin; there is nowhere to push it.
+		return
+	}
+	_ = m.git.SetUpstream(wtDir, branch, mr.SourceBranch)
+	if err := m.git.EnableWorktreeConfig(mainDir); err != nil {
+		m.log("! per-worktree config unavailable: push with git push origin HEAD:%s", mr.SourceBranch)
+		return
+	}
+	if err := m.git.SetWorktreeConfig(wtDir, "push.default", "upstream"); err != nil {
+		m.log("! could not set push.default: push with git push origin HEAD:%s", mr.SourceBranch)
+		return
+	}
+	m.log("%s is checked out elsewhere, so this worktree is on %s; git push goes to %s",
+		mr.SourceBranch, branch, mr.SourceBranch)
 }
 
 // recordBranchMeta stores the diff base of a branch worktree, so an editor can
