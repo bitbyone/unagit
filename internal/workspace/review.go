@@ -285,13 +285,22 @@ func isNotes(path string) bool {
 	return path == notesDir || strings.HasPrefix(path, notesDir+"/")
 }
 
-// hideNotes keeps the committed comment stores out of every diff and status
-// of the review worktree.
+// hideNotes keeps the comment stores out of every diff and status of the
+// review worktree. The usual case is a repository that does not commit them:
+// the directory is ignored through info/exclude, the local ignore file, which
+// holds for every worktree of the repository. A repository that does commit
+// it cannot have it ignored - ignoring passes tracked files by - so its
+// tracked files are marked skip-worktree in the review worktree instead.
 func (m *Manager) hideNotes(dir string) {
-	if paths := m.git.TrackedUnder(dir, notesDir); len(paths) > 0 {
-		if err := m.git.SkipWorktree(dir, paths, true); err != nil {
-			m.log("! could not hide %s from the diff", notesDir)
+	paths := m.git.TrackedUnder(dir, notesDir)
+	if len(paths) == 0 {
+		if err := m.git.Exclude(dir, "/"+notesDir+"/"); err != nil {
+			m.log("! could not ignore %s: %v", notesDir, err)
 		}
+		return
+	}
+	if err := m.git.SkipWorktree(dir, paths, true); err != nil {
+		m.log("! could not hide %s from the diff", notesDir)
 	}
 }
 

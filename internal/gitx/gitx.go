@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -334,6 +335,34 @@ func (g *Git) names(dir string, args ...string) []string {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+// Exclude makes the repository ignore a pattern, through info/exclude: a
+// local ignore file that is never committed and holds for every worktree of
+// the repository. A pattern already there is not added again.
+func (g *Git) Exclude(dir, pattern string) error {
+	common, err := g.out(dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(common, "info", "exclude")
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == pattern {
+			return nil
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		data = append(data, '\n')
+	}
+	data = append(data, []byte(pattern+"\n")...)
+	return os.WriteFile(path, data, 0o644)
 }
 
 // TrackedUnder lists the files of the index below sub, a directory of the

@@ -186,8 +186,11 @@ HEAD = merge base     index = merge base     working tree = merge request head
   again by a whole review). "New since the last review" is `git cherry` against
   the head last checked out, so commits a rebase rewrote still count as seen.
   Narrowing refuses rather than skips when the reviewer has edits.
-- `.incomm/` is the reviewer's notebook, not part of the change, even in a
-  repository that commits it: its tracked files are skip-worktree, the merge
+- `.incomm/` is the reviewer's notebook, not part of the change. Usually it
+  is not committed, and then it is ignored through `info/exclude` - git
+  status, lazygit and editors list untracked files, so "git diff does not
+  show it" is not enough. In a repository that commits it, its tracked files
+  are skip-worktree, the merge
   request's additions to it are not `add -N`'d, it is never an "own edit",
   and when the worktree follows the merge request the directory is set aside
   for the reset and put back (`setNotesAside`). A reset with skip-worktree

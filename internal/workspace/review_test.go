@@ -485,3 +485,30 @@ func TestReviewKeepsCommittedCommentsOutOfTheChange(t *testing.T) {
 		t.Error("the comments' temporary place was left behind")
 	}
 }
+
+// TestReviewIgnoresAnUncommittedCommentStore: the usual case - a repository
+// that does not commit its Incomm store - must not list it as untracked in
+// git status, which lazygit and editors show next to the change.
+func TestReviewIgnoresAnUncommittedCommentStore(t *testing.T) {
+	origin, base, head := newDivergedOrigin(t)
+	m, p := newReviewManager(t, origin)
+	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".incomm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, dir, ".incomm/notes.json", `{"notes":["mine"]}`)
+	if got := git(t, dir, "status", "--porcelain", "--untracked-files=all"); strings.Contains(got, ".incomm") {
+		t.Errorf("the comment store shows in git status:\n%s", got)
+	}
+	// Opening it again does not add the pattern twice.
+	if _, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+		t.Fatal(err)
+	}
+	common := git(t, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if data := readFile(t, common, "info/exclude"); strings.Count(data, "/.incomm/") != 1 {
+		t.Errorf("info/exclude = %q, want the pattern once", data)
+	}
+}
