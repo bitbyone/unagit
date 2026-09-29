@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -149,6 +150,33 @@ func TestImportRecognisesWhatIsAlreadyThere(t *testing.T) {
 	}
 	if calls := commands(t, dir); len(calls) != 0 {
 		t.Fatalf("importing again changed something: %q", calls)
+	}
+}
+
+// TestImportKeepsAThreadWholeWhenTheForgeSendsItNewestFirst: GitLab lists a
+// conversation's comments newest first. Replies written here and published
+// are already here with their forge ids, and importing again must not turn
+// the latest of them into a conversation of its own.
+func TestImportKeepsAThreadWholeWhenTheForgeSendsItNewestFirst(t *testing.T) {
+	_, dir := fakeIncomm(t)
+	writeJSON(t, filepath.Join(dir, "agent.json"), map[string]any{"notes": []map[string]any{
+		{"id": "x1", "content": "TODO", "source": map[string]any{"id": 10, "thread": "a"},
+			"replies": []map[string]any{{"id": "r1", "source": map[string]any{"id": 11}}, {"id": "r2", "source": map[string]any{"id": 12}}}},
+	}})
+	at := func(minute int) time.Time { return time.Date(2026, 9, 29, 12, minute, 0, 0, time.UTC) }
+	notes := []forge.Note{
+		{ID: 12, Thread: "a", Body: "ok", Path: "code.go", Line: 1, CreatedAt: at(3)},
+		{ID: 11, Thread: "a", Body: "yes", Path: "code.go", Line: 1, CreatedAt: at(2)},
+		{ID: 10, Thread: "a", Body: "TODO", Path: "code.go", Line: 1, CreatedAt: at(1)},
+	}
+	if err := Import(context.Background(), dir, forge.MergeRequest{}, notes, nil); err != nil {
+		t.Fatal(err)
+	}
+	if calls := commands(t, dir); len(calls) != 0 {
+		t.Fatalf("the thread was split or duplicated: %q", calls)
+	}
+	if threads := importThreads(notes); len(threads) != 1 || threads[0].Root.ID != 10 || len(threads[0].Replies) != 2 {
+		t.Errorf("threads = %+v, want TODO with its two replies", threads)
 	}
 }
 

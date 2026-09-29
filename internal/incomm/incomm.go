@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,7 +29,14 @@ func located(n forge.Note) bool { return n.Path != "" && n.Line > 0 }
 // conversation that has no line to be anchored to (a general comment) is left
 // out; system notes are too. A reply that carries no location of its own takes
 // the one of the comment it answers.
+//
+// The oldest comment of a conversation is its root, so the comments are put
+// in that order first, whatever order the forge sent them in. GitLab's come
+// newest first, and taking the first one seen as the root made the latest
+// reply a conversation of its own - imported beside the one it answers.
 func importThreads(notes []forge.Note) []importThread {
+	notes = append([]forge.Note(nil), notes...)
+	sort.SliceStable(notes, func(i, j int) bool { return notes[i].CreatedAt.Before(notes[j].CreatedAt) })
 	var threads []importThread
 	at := map[string]int{}
 	for _, n := range notes {
@@ -262,6 +270,10 @@ func Import(ctx context.Context, dir string, mr forge.MergeRequest, notes []forg
 		}
 		rec := byID[n.ID]
 		switch {
+		case rec == nil && replied[n.ID]:
+			// Already here as a reply: whatever made it look like the start
+			// of a conversation, adding it again would split the thread.
+			continue
 		case rec != nil:
 			// A comment imported on an earlier head may now belong to a
 			// deleted line. Keep its replies and identity while orphaning it.
