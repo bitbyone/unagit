@@ -295,17 +295,22 @@ func (s *settingsView) fillGeneral() {
 	cfg := s.app.cfg
 	form := s.general
 	form.Clear(true)
+	// Each note sits under the field it explains, in lines short enough not
+	// to wrap: a wrapped line pushes the first one out of the note's height.
 	form.AddInputField("Default root", cfg.RootDir, 46, nil, nil)
+	root := form.GetFormItemByLabel("Default root").(*tview.InputField)
+	form.AddTextView("", "Projects go here unless a server or a group\n"+
+		"overrides it.", 46, 2, true, false)
 	form.AddInputField("Custom editor", cfg.Editor, 46, nil, nil)
+	editor := form.GetFormItemByLabel("Custom editor").(*tview.InputField)
 	form.AddInputField("Custom editor arguments", strings.Join(cfg.EditorArgs, " "), 46, nil, nil)
+	args := form.GetFormItemByLabel("Custom editor arguments").(*tview.InputField)
 	window := addCheckbox(form, "Custom editor opens a window", cfg.EditorWindow)
-	form.AddTextView("", "Projects go under the default root unless a\n"+
-		"server or a group overrides it. The custom editor\n"+
-		"is one more choice in Integrations › Editors.", 46, 3, true, false)
+	form.AddTextView("", "One more choice in Integrations › Editors.", 46, 1, true, false)
 	form.AddButton("Save", func() {
-		cfg.RootDir = strings.TrimSpace(form.GetFormItem(0).(*tview.InputField).GetText())
-		cfg.Editor = strings.TrimSpace(form.GetFormItem(1).(*tview.InputField).GetText())
-		cfg.EditorArgs = strings.Fields(form.GetFormItem(2).(*tview.InputField).GetText())
+		cfg.RootDir = strings.TrimSpace(root.GetText())
+		cfg.Editor = strings.TrimSpace(editor.GetText())
+		cfg.EditorArgs = strings.Fields(args.GetText())
 		cfg.EditorWindow = window.IsChecked()
 		s.app.saveConfig()
 		s.reload()
