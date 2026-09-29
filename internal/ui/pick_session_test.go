@@ -122,10 +122,14 @@ func TestPickSessionLooksLikeUnagit(t *testing.T) {
 				t.Errorf("a double frame:\n%s", text)
 			}
 			for _, want := range []string{"╭", "review", "struct-context !123", "branch", "!120",
-				"repository", "acme/gateway", "…", "Enter go there"} {
+				"repository", "acme/gateway", "Enter go there"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}
+			}
+			// What does not fit is cut with a mark; at full width nothing is.
+			if cut := strings.Contains(text, "…"); cut != (size.w < 120) {
+				t.Errorf("cut = %v at %d columns:\n%s", cut, size.w, text)
 			}
 			// The frame's right edge is intact on every row it spans.
 			lines := strings.Split(text, "\n")
