@@ -386,3 +386,74 @@ func TestHeadRefFormatFollowsTheForge(t *testing.T) {
 		t.Errorf("meta iid = %d", got)
 	}
 }
+
+// TestReviewKeepsCommittedCommentsOutOfTheChange: a repository that commits
+// its Incomm store has it in every checkout. In a review the store is the
+// reviewer's notebook, so neither the merge request's version of it nor the
+// comments written or imported there may show as part of the change - and
+// they must survive the worktree following the merge request.
+func TestReviewKeepsCommittedCommentsOutOfTheChange(t *testing.T) {
+	dir := t.TempDir()
+	work, bare := filepath.Join(dir, "work"), filepath.Join(dir, "origin.git")
+	git(t, dir, "init", "-q", "--bare", "--initial-branch=main", bare)
+	git(t, dir, "init", "-q", "--initial-branch=main", work)
+	write(t, work, "code.txt", "old\n")
+	if err := os.MkdirAll(filepath.Join(work, ".incomm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, work, ".incomm/notes.json", `{"notes":[]}`)
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-qm", "initial")
+	git(t, work, "remote", "add", "origin", bare)
+	git(t, work, "push", "-q", "origin", "main")
+	base := git(t, work, "rev-parse", "HEAD")
+	git(t, work, "checkout", "-qb", "feature/login")
+	write(t, work, "code.txt", "new\n")
+	write(t, work, ".incomm/notes.json", `{"notes":["the author's"]}`)
+	write(t, work, ".incomm/notes_feature.json", `{}`)
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-qm", "change")
+	git(t, work, "push", "-q", "origin", "feature/login", "HEAD:refs/merge-requests/1/head")
+	head := git(t, work, "rev-parse", "HEAD")
+
+	m, p := newReviewManager(t, bare)
+	mr := reviewMR()
+	rev, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head})
+	if err != nil {
+		t.Fatal(err)
+	}
+	onlyTheCode := func(when string) {
+		t.Helper()
+		if got := git(t, rev, "diff", "--name-only"); got != "code.txt" {
+			t.Errorf("%s: the change is %q, want only code.txt", when, got)
+		}
+		if got := git(t, rev, "status", "--porcelain"); strings.Contains(got, ".incomm/notes.json") {
+			t.Errorf("%s: the comment store shows as changed:\n%s", when, got)
+		}
+	}
+	onlyTheCode("opened")
+
+	// The reviewer comments; Incomm writes the store.
+	write(t, rev, ".incomm/notes.json", `{"notes":["mine"]}`)
+	onlyTheCode("commented")
+
+	// The author pushes again: the worktree follows - the comments are no
+	// edit that stops it - and the comments are still there.
+	write(t, work, "code.txt", "newer\n")
+	git(t, work, "commit", "-qam", "answer")
+	git(t, work, "push", "-q", "origin", "feature/login", "+HEAD:refs/merge-requests/1/head")
+	newHead := git(t, work, "rev-parse", "HEAD")
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: newHead}); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, rev, "code.txt"); got != "newer\n" {
+		t.Errorf("the worktree did not follow the merge request: code.txt = %q", got)
+	}
+	if got := readFile(t, rev, ".incomm/notes.json"); got != `{"notes":["mine"]}` {
+		t.Errorf("the reviewer's comments were lost: %q", got)
+	}
+	onlyTheCode("updated")
+	if _, err := os.Stat(filepath.Join(filepath.Dir(rev), "."+filepath.Base(rev)+".notes-aside")); !os.IsNotExist(err) {
+		t.Error("the comments' temporary place was left behind")
+	}
+}

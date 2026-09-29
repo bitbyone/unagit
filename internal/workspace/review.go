@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -135,6 +136,8 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 		// the reviewer's own edits are what the worktree adds on top of the
 		// head it was last given - and those must survive.
 		edits := m.ownEdits(dir, m.ReadMeta(dir))
+		// The reviewer's comments are not edits; they are set aside while
+		// the worktree moves and put back after.
 		if len(edits) > 0 && rev.From != "" {
 			// Opening it anyway would show the whole change while the reviewer
 			// asked for part of it, which reads as if the narrowing worked.
@@ -146,12 +149,20 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 			m.writeMeta(dir, meta)
 			return dir, nil
 		}
-		if err := m.git.ResetHard(dir, base); err != nil {
+		restore, err := m.setNotesAside(dir)
+		if err != nil {
 			return dir, err
+		}
+		if err := m.git.ResetHard(dir, base); err != nil {
+			return dir, errors.Join(err, restore())
 		}
 		if err := m.pendChange(dir, base, head); err != nil {
+			return dir, errors.Join(err, restore())
+		}
+		if err := restore(); err != nil {
 			return dir, err
 		}
+		m.hideNotes(dir)
 		m.writeMeta(dir, meta)
 		return dir, nil
 	}
@@ -166,6 +177,7 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 	if err := m.pendChange(dir, base, head); err != nil {
 		return "", err
 	}
+	m.hideNotes(dir)
 	m.writeMeta(dir, meta)
 	m.log("The merge request is now pending on top of the merge base:")
 	m.log("  git diff                 the whole change")
@@ -249,8 +261,66 @@ func (m *Manager) pendChange(dir, base, head string) error {
 	}
 	// Files the merge request adds would now be untracked, and untracked files
 	// are what git diff passes over. Intent-to-add entries make them read as
-	// new files instead, without putting their content in the index.
-	return m.git.IntentToAdd(dir, m.git.AddedPaths(dir, base, head))
+	// new files instead, without putting their content in the index. Comment
+	// stores are left untracked: they are not part of what is reviewed.
+	var added []string
+	for _, path := range m.git.AddedPaths(dir, base, head) {
+		if !isNotes(path) {
+			added = append(added, path)
+		}
+	}
+	return m.git.IntentToAdd(dir, added)
+}
+
+// notesDir is where Incomm keeps a worktree's comments. A repository may
+// commit it, but in a review it is the reviewer's notebook, not part of the
+// change: a comment written or imported there must not show up as a change,
+// nor count as an edit that stops the worktree from following the merge
+// request.
+const notesDir = ".incomm"
+
+func isNotes(path string) bool {
+	return path == notesDir || strings.HasPrefix(path, notesDir+"/")
+}
+
+// hideNotes keeps the committed comment stores out of every diff and status
+// of the review worktree.
+func (m *Manager) hideNotes(dir string) {
+	if paths := m.git.TrackedUnder(dir, notesDir); len(paths) > 0 {
+		if err := m.git.SkipWorktree(dir, paths, true); err != nil {
+			m.log("! could not hide %s from the diff", notesDir)
+		}
+	}
+}
+
+// setNotesAside moves the comments out of the worktree before it is reset,
+// and returns what puts them back - the reviewer's own, whatever the merge
+// request has in its version of the directory.
+func (m *Manager) setNotesAside(dir string) (func() error, error) {
+	notes := filepath.Join(dir, notesDir)
+	if _, err := os.Stat(notes); os.IsNotExist(err) {
+		return func() error { return nil }, nil
+	}
+	// Hidden files would be left as they are by the reset; show them to it.
+	if paths := m.git.TrackedUnder(dir, notesDir); len(paths) > 0 {
+		_ = m.git.SkipWorktree(dir, paths, false)
+	}
+	aside := filepath.Join(filepath.Dir(dir), "."+filepath.Base(dir)+".notes-aside")
+	if err := os.RemoveAll(aside); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(notes, aside); err != nil {
+		return nil, fmt.Errorf("could not set the comments aside: %w", err)
+	}
+	return func() error {
+		if err := os.RemoveAll(notes); err != nil {
+			return err
+		}
+		if err := os.Rename(aside, notes); err != nil {
+			return fmt.Errorf("your comments are in %s - move them back to %s: %w", aside, notes, err)
+		}
+		return nil
+	}, nil
 }
 
 // ownEdits lists what the reviewer changed on top of the head unagit last put
@@ -260,9 +330,19 @@ func (m *Manager) ownEdits(dir string, previous Meta) []string {
 		// Nothing to compare against, so everything pending has to count as
 		// the reviewer's: better a worktree that will not update than one that
 		// throws away work it could not account for.
-		return m.git.UnstagedFiles(dir)
+		return withoutNotes(m.git.UnstagedFiles(dir))
 	}
-	return m.git.ChangedSince(dir, previous.Head)
+	return withoutNotes(m.git.ChangedSince(dir, previous.Head))
+}
+
+func withoutNotes(paths []string) []string {
+	var out []string
+	for _, p := range paths {
+		if !isNotes(p) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // writeMeta records the merge request in the worktree's own configuration.

@@ -336,6 +336,31 @@ func (g *Git) names(dir string, args ...string) []string {
 	return strings.Split(out, "\n")
 }
 
+// TrackedUnder lists the files of the index below sub, a directory of the
+// worktree.
+func (g *Git) TrackedUnder(dir, sub string) []string {
+	return g.names(dir, "ls-files", "--", sub)
+}
+
+// SkipWorktree sets or clears the skip-worktree bit of paths: while it is
+// set, git takes the file in the working tree to be the one in the index, so
+// what is done to it shows in no diff and no status.
+func (g *Git) SkipWorktree(dir string, paths []string, skip bool) error {
+	flag := "--no-skip-worktree"
+	if skip {
+		flag = "--skip-worktree"
+	}
+	const perCall = 200
+	for len(paths) > 0 {
+		n := min(perCall, len(paths))
+		if _, err := g.Run(dir, append([]string{"update-index", flag, "--"}, paths[:n]...)...); err != nil {
+			return err
+		}
+		paths = paths[n:]
+	}
+	return nil
+}
+
 // ResetIndex points the index back at HEAD and leaves the working tree as it
 // is, so what was staged reads as unstaged work instead.
 func (g *Git) ResetIndex(dir string) error {
