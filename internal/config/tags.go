@@ -41,6 +41,28 @@ func DefaultTags() []Tag {
 	}
 }
 
+// firstDefaultTags is how many default tags there were before anyone kept
+// count: a configuration that does not say has seen those.
+const firstDefaultTags = 4
+
+// offerNewDefaultTags adds the default tags that came after the ones this
+// configuration has seen. A configuration with no tags at all chose that.
+func (c *Config) offerNewDefaultTags() {
+	defaults := DefaultTags()
+	seen := c.DefaultTagsSeen
+	if seen == 0 {
+		seen = firstDefaultTags
+	}
+	if len(c.Tags) > 0 {
+		for _, t := range defaults[min(seen, len(defaults)):] {
+			if _, ok := c.Tag(t.Name); !ok {
+				c.Tags = append(c.Tags, t)
+			}
+		}
+	}
+	c.DefaultTagsSeen = len(defaults)
+}
+
 // TagList is the tags, in the order they were made. A configuration made
 // without Default, and so without any, has the default ones; one whose tags
 // were all removed has none.

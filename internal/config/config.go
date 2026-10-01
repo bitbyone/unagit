@@ -344,9 +344,13 @@ type Config struct {
 	// until a configuration says otherwise, an empty list included. A group
 	// passes its tags down to its subgroups and repositories, RepositoryTags
 	// are what a repository adds to them or takes away.
-	Tags           []Tag    `yaml:"tags"`
-	GroupTags      []TagSet `yaml:"group_tags,omitempty"`
-	RepositoryTags []TagSet `yaml:"repository_tags,omitempty"`
+	Tags []Tag `yaml:"tags"`
+	// DefaultTagsSeen is how many of the default tags this configuration has
+	// been offered, so the ones added to the defaults later reach it once,
+	// and one the user removed stays removed.
+	DefaultTagsSeen int      `yaml:"default_tags_seen,omitempty"`
+	GroupTags       []TagSet `yaml:"group_tags,omitempty"`
+	RepositoryTags  []TagSet `yaml:"repository_tags,omitempty"`
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`
@@ -363,6 +367,8 @@ func Default() *Config {
 	return &Config{
 		RootDir: filepath.Join(home, "unagit"),
 		Tags:    DefaultTags(),
+
+		DefaultTagsSeen: len(DefaultTags()),
 	}
 }
 
@@ -402,6 +408,8 @@ func Load() (*Config, error) {
 		}
 		return nil, err
 	}
+	// What a file does not say it has seen, it has not.
+	cfg.DefaultTagsSeen = 0
 	if err := yaml.Unmarshal(b, cfg); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", Path(), err)
 	}
@@ -437,6 +445,7 @@ const LegacyInstanceID = "default"
 
 func (c *Config) normalise() {
 	c.migrateEditor()
+	c.offerNewDefaultTags()
 	if c.RootDir == "" {
 		c.RootDir = Default().RootDir
 	}

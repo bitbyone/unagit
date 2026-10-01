@@ -1,7 +1,9 @@
 package config
 
 import (
+	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -116,5 +118,38 @@ func TestGroupTagsPassDown(t *testing.T) {
 	c.RemoveTag("work")
 	if len(c.GroupTags) != 1 || c.GroupTags[0].Path != "acme/tools" {
 		t.Errorf("removing work left the group sets %+v", c.GroupTags)
+	}
+}
+
+// TestNewDefaultTagsReachAnOlderConfiguration: a configuration written when
+// there were four default tags gets the ones added since, once; a tag the user
+// removes afterwards stays removed.
+func TestNewDefaultTagsReachAnOlderConfiguration(t *testing.T) {
+	t.Setenv("UNAGIT_CONFIG_DIR", t.TempDir())
+	old := "root_dir: /tmp/x\ninstances: []\ntags:\n  - name: oss\n    color: mint\n  - name: personal\n    color: lavender\n  - name: work\n    color: sky\n  - name: private\n    color: rose\n  - name: mine\n    color: peach\n"
+	if err := os.WriteFile(Path(), []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tag := range c.TagList() {
+		names = append(names, tag.Name)
+	}
+	if got := strings.Join(names, " "); got != "oss personal work private mine fork hobby tooling" {
+		t.Fatalf("tags = %s", got)
+	}
+
+	c.RemoveTag("hobby")
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.Tag("hobby"); ok {
+		t.Error("a removed default tag came back")
 	}
 }
