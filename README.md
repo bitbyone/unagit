@@ -197,6 +197,23 @@ as orphaned and remain visible in Incomm's explorer.
 
 If the import fails, unagit shows the error before opening the editor.
 
+### [Hunk](https://github.com/modem-dev/hunk)
+
+Hunk is a terminal diff viewer made for reviewing a whole changeset. Install
+`hunk` on PATH and enable its integration; `D` then hands it the terminal the
+way an editor gets it, on the change the row holds:
+
+| Where | What Hunk shows |
+| --- | --- |
+| Repositories | what is not committed in the clone |
+| Worktrees | the branch since its base - commits and edits - or the edits alone when the base is not known |
+| A grouped worktree | every repository at once, each file under its repository's folder |
+| Merge requests | the review worktree, which is the whole merge request; without one, the branch worktree against its target |
+
+Hunk reads one repository at a time, so for a grouped worktree unagit puts the
+changes of its repositories together into one patch, new files included, and
+opens that.
+
 ## Reviewing merge requests
 
 Press `Ctrl-R` on a merge request and unagit builds a worktree where
@@ -335,6 +352,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
+| `D` | the changes in Hunk, a grouped worktree as one review |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |

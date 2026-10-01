@@ -337,6 +337,11 @@ func (a *App) newWorktreesPane() *pane {
 				a.updateWorktree(r)
 			}
 			return nil
+		case 'D':
+			if r, ok := selected(); ok {
+				a.diffWorktree(r)
+			}
+			return nil
 		case 'P':
 			r, ok := selected()
 			switch {

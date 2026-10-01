@@ -147,6 +147,11 @@ func (a *App) newMRsPane() *pane {
 				a.updateMR(mr)
 			}
 			return nil
+		case 'D':
+			if mr, ok := selected(); ok {
+				a.diffMR(mr)
+			}
+			return nil
 		case 'c':
 			if mr, ok := selected(); ok {
 				a.showComments(mr)

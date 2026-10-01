@@ -45,6 +45,11 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		name:   "Editors",
 		render: v.renderEditors,
 		onKey:  v.editorKeys,
+	}, {
+		name: "Hunk", command: "hunk",
+		description: "Review changes in the terminal: D opens what a row holds, and a grouped worktree as one review of all its repositories.",
+		enabled:     func() bool { return s.app.cfg.Integrations.Hunk },
+		toggle:      func() { s.app.cfg.Integrations.Hunk = !s.app.cfg.Integrations.Hunk },
 	}}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
@@ -66,8 +71,29 @@ func (v *integrationsView) Draw(screen tcell.Screen) {
 		v.width = inner
 		v.paintFocus(v.active)
 	}
-	for _, card := range v.cards {
-		height := max(9, len(tview.WordWrap(card.view.GetText(false), max(1, width-6)))+2)
+	_, _, _, room := v.GetInnerRect()
+	heights := make([]int, len(v.cards))
+	for i, card := range v.cards {
+		heights[i] = max(9, len(tview.WordWrap(card.view.GetText(false), max(1, width-6)))+2)
+	}
+	// A Flex draws an item of fixed height whole, past its own frame when the
+	// room runs out; the cards that do not fit are left out instead, starting
+	// far enough down for the one with the cursor to be whole.
+	first, used := 0, 0
+	for i := 0; i <= v.current; i++ {
+		used += heights[i]
+	}
+	for used > room && first < v.current {
+		used -= heights[first]
+		first++
+	}
+	used = 0
+	for i, card := range v.cards {
+		height := heights[i]
+		if i < first || used+height > room && i != v.current {
+			height = 0
+		}
+		used += height
 		v.ResizeItem(card.view, height, 0)
 	}
 	v.Flex.Draw(screen)

@@ -186,6 +186,11 @@ func (a *App) newProjectsPane() *pane {
 				a.updateProject(pr)
 			}
 			return nil
+		case 'D':
+			if pr, ok := selected(); ok {
+				a.diffProject(pr)
+			}
+			return nil
 		}
 		return ev
 	}
