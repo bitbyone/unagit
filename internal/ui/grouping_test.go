@@ -175,3 +175,45 @@ func TestGroupRepositories(t *testing.T) {
 	waitFor(t, a, sc, "Repositories listed flat again")
 	waitFor(t, a, sc, "acme/tools/cli")
 }
+
+// TestClearingTheFilterGoesToTheTop: a filter that is changed or cleared puts
+// the cursor on the first row, and the view goes with it, to the very top.
+func TestClearingTheFilterGoesToTheTop(t *testing.T) {
+	for _, grouped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("grouped %v", grouped), func(t *testing.T) {
+			a, sc := newTestApp(t)
+			waitFor(t, a, sc, "acme/gateway")
+			resize(sc, 120, 16)
+			changeOnLoop(a, func() {
+				for i := 0; i < 30; i++ {
+					a.projects = append(a.projects, forge.Project{ID: 100 + i, Instance: a.projects[0].Instance,
+						PathWithNamespace: fmt.Sprintf("team%d/tool%02d", i%5, i), DefaultBranch: "main",
+						LastActivityAt: time.Now().Add(-time.Duration(2+i) * time.Hour)})
+				}
+				a.cfg.Filters.GroupRepositories = grouped
+				a.projectsPane.reload()
+			})
+			// A filter few enough rows match to fit the screen, which is what
+			// sets tview following the end of the list; the cursor goes down
+			// them.
+			typeRunes(sc, "/team4")
+			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+			typeRunes(sc, "G")
+			waitFor(t, a, sc, "tool29")
+
+			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+			waitGone(t, a, sc, "tool29")
+			screen := a.screenText(sc)
+			want := "acme/gateway"
+			if grouped {
+				want = "acme  ("
+			}
+			if line := lineOf(screen, want); line < 0 || line > 5 {
+				t.Fatalf("the top of the list is not on screen:\n%s", screen)
+			}
+			if got := onLoop(a, func() string { return a.projects[a.projectsPane.selectedIndex()].PathWithNamespace }); got != "acme/gateway" {
+				t.Errorf("the cursor is on %s", got)
+			}
+		})
+	}
+}

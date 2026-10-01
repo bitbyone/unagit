@@ -510,7 +510,7 @@ func (p *pane) selectRow(previous, first int) {
 		p.lastQuery = p.query
 		return
 	}
-	target := first
+	target, kept := first, false
 	if previous >= 0 && p.query == p.lastQuery {
 		for row := 1; row < p.table.GetRowCount(); row++ {
 			cell := p.table.GetCell(row, 0)
@@ -518,18 +518,26 @@ func (p *pane) selectRow(previous, first int) {
 				continue
 			}
 			if i, ok := cell.GetReference().(int); ok && i == previous {
-				target = row
+				target, kept = row, true
 				break
 			}
 		}
 	}
 	p.lastQuery = p.query
+	_, column := p.table.GetOffset()
+	if !kept {
+		// A new filter, or a cleared one, starts at the top: the cursor on
+		// the first row and the view with it.
+		p.table.SetOffset(0, column)
+		p.table.Select(target, 0)
+		return
+	}
 	// The selected row keeps its line on screen, wherever the refilled table
 	// puts it. Left alone, tview keeps following the end of a list that once
 	// fitted, and a list that grew - under headings, say - scrolled away from
 	// the cursor.
 	row, _ := p.table.GetSelection()
-	offset, column := p.table.GetOffset()
+	offset, _ := p.table.GetOffset()
 	line := max(row-offset, 1)
 	if _, _, _, height := p.table.GetInnerRect(); height > 1 {
 		line = min(line, height-1)
