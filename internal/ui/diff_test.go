@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 // fakeHunk puts a hunk on PATH that writes down where it ran, with what, and
@@ -105,4 +107,36 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 			assertLegible(t, a, sc, "the Hunk card")
 		})
 	}
+}
+
+// TestAltDOffersSinceTheBaseAndEachCommit: D is what is not committed; Alt-D
+// lists that, the whole branch since its base, and its commits one by one.
+func TestAltDOffersSinceTheBaseAndEachCommit(t *testing.T) {
+	log := fakeHunk(t)
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	dir := p.worktree("feat/x")
+	gitIn(t, p.clone, "config", "branch.feat/x.unagitBase", "main")
+	commitIn(t, dir, "x.txt", "Add the thing")
+	sha := gitIn(t, dir, "rev-parse", "HEAD")
+	must(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("edited\n"), 0o644))
+	p.rescan()
+	typeRunes(sc, "W")
+	waitFor(t, a, sc, "feat/x")
+
+	typeRunes(sc, "D")
+	got := waitForLog(t, log, " diff")
+	if strings.Contains(got, sha) {
+		t.Errorf("D went further than what is not committed: %s", got)
+	}
+
+	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)
+	waitFor(t, a, sc, "Show in Hunk")
+	for _, want := range []string{"Not committed", "Since origin/main", "Add the thing"} {
+		waitFor(t, a, sc, want)
+	}
+	typeRunes(sc, "jj") // Not committed, Since, the commit
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForLog(t, log, "show "+sha)
 }

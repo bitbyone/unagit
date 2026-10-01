@@ -105,7 +105,9 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 						pane, label = a.mrsPane, func(i int) string { return a.mrs[i].Title }
 					}
 					typeRunes(sc, start)
-					time.Sleep(50 * time.Millisecond)
+					// The keys are handled on the event loop, after typeRunes
+					// returns: wait for the cursor to stop before reading it.
+					settle(a, pane)
 
 					for _, toggle := range []string{"· grouped", "flat again"} {
 						want := onLoop(a, func() string { return label(pane.selectedIndex()) })
@@ -248,5 +250,19 @@ func TestDetailStacksBelowItsListsWidth(t *testing.T) {
 				waitFocus(t, a, func() bool { return c.pane(a).bodyDirection == want })
 			}
 		})
+	}
+}
+
+// settle waits until the pane's cursor has stayed on one row for a while.
+func settle(a *App, p *pane) {
+	last, still := -2, 0
+	for still < 5 {
+		time.Sleep(20 * time.Millisecond)
+		now := onLoop(a, func() int { return p.selectedIndex() })
+		if now == last {
+			still++
+		} else {
+			last, still = now, 0
+		}
 	}
 }

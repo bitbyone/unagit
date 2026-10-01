@@ -83,6 +83,10 @@ func (a *App) newProjectsPane() *pane {
 			return false
 		}
 		switch r {
+		case 'd':
+			if dir, targets, ok := a.projectDiff(pr); ok {
+				a.diffMenu("Show in Hunk - "+pr.PathWithNamespace, dir, targets)
+			}
 		case 'b':
 			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
 		default:
@@ -188,7 +192,9 @@ func (a *App) newProjectsPane() *pane {
 			return nil
 		case 'D':
 			if pr, ok := selected(); ok {
-				a.diffProject(pr)
+				if dir, targets, ok := a.projectDiff(pr); ok {
+					a.diffKey(dir, targets)
+				}
 			}
 			return nil
 		case 'C':

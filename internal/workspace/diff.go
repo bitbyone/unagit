@@ -47,3 +47,40 @@ func (m *Manager) ChangePatch(dir, prefix, from string) (string, error) {
 	}
 	return out.String(), nil
 }
+
+// CommitLine is one commit as a list shows it.
+type CommitLine struct {
+	SHA     string
+	Subject string
+	When    string // relative, as git says it
+}
+
+// Commits lists the commits of a working tree's branch since from, newest
+// first; without from, the latest ones. At most limit.
+func (m *Manager) Commits(dir, from string, limit int) []CommitLine {
+	args := []string{"log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%s%x1f%cr"}
+	if from != "" && from != "HEAD" {
+		args = append(args, from+"..HEAD")
+	}
+	return m.commitLines(dir, args)
+}
+
+// CommitsIn lists the commits of a range, newest first, at most limit.
+func (m *Manager) CommitsIn(dir, revRange string, limit int) []CommitLine {
+	return m.commitLines(dir, []string{"log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%s%x1f%cr", revRange})
+}
+
+func (m *Manager) commitLines(dir string, args []string) []CommitLine {
+	out, err := m.trimmed(dir, args...)
+	if err != nil || out == "" {
+		return nil
+	}
+	var lines []CommitLine
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.SplitN(line, "\x1f", 3)
+		if len(f) == 3 {
+			lines = append(lines, CommitLine{SHA: f[0], Subject: f[1], When: f[2]})
+		}
+	}
+	return lines
+}

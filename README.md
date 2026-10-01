@@ -202,15 +202,18 @@ If the import fails, unagit shows the error before opening the editor.
 
 Hunk is a terminal diff viewer made for reviewing a whole changeset. Install
 `hunk` on PATH - the integration is on as soon as it is found, and `e` in its
-card turns it off; `D` then hands it the terminal the
-way an editor gets it, on the change the row holds:
+card turns it off. `D` hands it the terminal the way an editor gets it, always
+on what the row's working tree has not committed - staged, unstaged and new
+files. In a review worktree that is the whole merge request; in a grouped
+worktree, every repository in one review.
 
-| Where | What Hunk shows |
+`Alt-D` asks first, in a list:
+
+| Choice | What Hunk shows |
 | --- | --- |
-| Repositories | what is not committed in the clone |
-| Worktrees | the branch since its base - commits and edits - or the edits alone when the base is not known |
-| A grouped worktree | every repository at once, each file under its repository's folder |
-| Merge requests | the review worktree, which is the whole merge request; without one, the branch worktree against its target |
+| Not committed | the same as `D` |
+| Since `origin/<base>` | the branch's commits since its base, and what is not committed: a worktree's base, a clone's upstream, a merge request's target |
+| a commit | that commit alone - the ones since the base, or the latest without one; a review lists the merge request's |
 
 Hunk reads one repository at a time, so for a grouped worktree unagit puts the
 changes of its repositories together into one patch, new files included, and
@@ -357,7 +360,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
-| `D` | the changes in Hunk, a grouped worktree as one review |
+| `D` `Alt-D` | in Hunk: what is not committed · or since the base, or a commit |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |

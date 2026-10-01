@@ -77,6 +77,8 @@ func (a *App) newMRsPane() *pane {
 			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
 		case 'v':
 			a.withEditor(true, func(ed *editors.Editor) { a.pickReviewStart(mr, ed) })
+		case 'd':
+			a.diffMR(mr, true)
 		default:
 			return false
 		}
@@ -149,7 +151,7 @@ func (a *App) newMRsPane() *pane {
 			return nil
 		case 'D':
 			if mr, ok := selected(); ok {
-				a.diffMR(mr)
+				a.diffMR(mr, false)
 			}
 			return nil
 		case 'C':

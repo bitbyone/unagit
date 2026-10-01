@@ -156,7 +156,7 @@ func helpRows() []helpLine {
 		key("Alt-O", "the same, in an editor you choose"),
 		key("d", "delete from disk; warns about unsaved work"),
 		key("w", "open in the browser").in(helpLists),
-		key("D", "the changes in Hunk; a group as one review"),
+		key("D  Alt-D", "Hunk: not committed · since base or a commit"),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
 		key("r", "refresh from the server; in Worktrees, fetch"),

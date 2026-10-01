@@ -292,8 +292,15 @@ func (a *App) newWorktreesPane() *pane {
 	}
 	// Alt-P takes every worktree, as it takes every clone in Repositories.
 	p.onAlt = func(r rune) bool {
-		if r == 'p' {
+		switch r {
+		case 'p':
 			a.updateAllWorktrees()
+			return true
+		case 'd':
+			if row, ok := selected(); ok {
+				dir, targets := a.worktreeDiff(row)
+				a.diffMenu("Show in Hunk - "+row.Path, dir, targets)
+			}
 			return true
 		}
 		return false
@@ -339,7 +346,7 @@ func (a *App) newWorktreesPane() *pane {
 			return nil
 		case 'D':
 			if r, ok := selected(); ok {
-				a.diffWorktree(r)
+				a.diffKey(a.worktreeDiff(r))
 			}
 			return nil
 		case 'P':
