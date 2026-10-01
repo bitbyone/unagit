@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,8 +12,9 @@ import (
 )
 
 // mrOnOrigin pushes commits of feat/rate to the branch and to the ref GitLab
-// publishes merge request !7 at, the one the fake server lists first.
-func mrOnOrigin(t *testing.T, p *realProject, subjects ...string) string {
+// publishes merge request !7 at, the one the fake server lists first, and has
+// the fake server list them as the merge request's commits.
+func mrOnOrigin(t *testing.T, srv *fakeServer, p *realProject, subjects ...string) string {
 	t.Helper()
 	work := p.elsewhere("main")
 	gitIn(t, work, "fetch", "-q", "origin")
@@ -26,6 +28,16 @@ func mrOnOrigin(t *testing.T, p *realProject, subjects ...string) string {
 	}
 	gitIn(t, work, "push", "-q", "origin", "feat/rate")
 	gitIn(t, work, "push", "-q", "-f", "origin", "HEAD:refs/merge-requests/7/head")
+	log := gitIn(t, work, "log", "--format=%H%x1f%P%x1f%an%x1f%cI%x1f%s", "origin/main..HEAD")
+	var listed []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
+		f := strings.Split(line, "\x1f")
+		listed = append(listed, map[string]any{"id": f[0], "parent_ids": strings.Fields(f[1]),
+			"author_name": f[2], "committed_date": f[3], "title": f[4]})
+	}
+	body, err := json.Marshal(listed)
+	must(t, err)
+	srv.mrCommits.Store(string(body))
 	return gitIn(t, work, "rev-parse", "HEAD")
 }
 
@@ -35,10 +47,10 @@ func mrOnOrigin(t *testing.T, p *realProject, subjects ...string) string {
 // for without a race under test; what it leaves on disk is the workspace
 // package's to check.)
 func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
-	a, sc, _ := newTestAppSrv(t)
+	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
-	head := mrOnOrigin(t, p, "Add a token bucket", "Count per client")
+	head := mrOnOrigin(t, srv, p, "Add a token bucket", "Count per client")
 
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "Rate limiting")
@@ -70,7 +82,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 		EnsureMRReview(mr, project, workspace.Review{HeadSHA: head}); err != nil {
 		t.Fatal(err)
 	}
-	answer := mrOnOrigin(t, p, "Answer the review")
+	answer := mrOnOrigin(t, srv, p, "Answer the review")
 
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "1 new since your last review")
@@ -101,10 +113,10 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 func TestReviewStartPickerFits(t *testing.T) {
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
-			a, sc, _ := newTestAppSrv(t)
+			a, sc, srv := newTestAppSrv(t)
 			waitFor(t, a, sc, "acme/gateway")
 			p := newRealProject(t, a, "acme/gateway")
-			mrOnOrigin(t, p, "Add a token bucket", "Count per client", "Answer the review")
+			mrOnOrigin(t, srv, p, "Add a token bucket", "Count per client", "Answer the review")
 			resize(sc, size.w, size.h)
 			typeRunes(sc, "M")
 			waitFor(t, a, sc, "Rate limiting")

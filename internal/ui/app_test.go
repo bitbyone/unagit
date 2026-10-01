@@ -29,6 +29,9 @@ type fakeServer struct {
 	postedComment atomic.Value
 	// postedMR holds the JSON body of the last merge request created.
 	postedMR atomic.Value
+	// mrCommits, when set, is the JSON !7 lists as its commits, for a test
+	// whose merge request is real git history.
+	mrCommits atomic.Value
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -182,9 +185,14 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"approvals_left":0}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/commits", func(w http.ResponseWriter, r *http.Request) {
+		if listed, ok := f.mrCommits.Load().(string); ok {
+			json(w, listed)
+			return
+		}
 		w.Header().Set("x-total", "12")
-		json(w, `[{"short_id":"beef123","title":"Token bucket","author_name":"jane",
-			"committed_date":"2026-09-20T10:00:00Z"}]`)
+		json(w, `[{"id":"beef123000000000000000000000000000000000","short_id":"beef123",
+			"title":"Token bucket","author_name":"jane","committed_date":"2026-09-20T10:00:00Z",
+			"parent_ids":["cafe456000000000000000000000000000000000"]}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approvals", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"approvals_required":2,"approvals_left":1,"approved_by":[{"user":{"username":"john"}}]}`)

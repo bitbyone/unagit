@@ -712,6 +712,9 @@ type commit struct {
 		} `json:"committer"`
 	} `json:"commit"`
 	HTMLURL string `json:"html_url"`
+	Parents []struct {
+		SHA string `json:"sha"`
+	} `json:"parents"`
 }
 
 func commits(raw []commit) []forge.Commit {
@@ -725,7 +728,12 @@ func commits(raw []commit) []forge.Commit {
 		if date.IsZero() {
 			date = c.Commit.Author.Date
 		}
+		var parents []string
+		for _, p := range c.Parents {
+			parents = append(parents, p.SHA)
+		}
 		out = append(out, forge.Commit{
+			ParentIDs:     parents,
 			ID:            c.SHA,
 			ShortID:       short,
 			Title:         strings.SplitN(c.Commit.Message, "\n", 2)[0],

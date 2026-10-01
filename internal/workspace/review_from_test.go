@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/gitx"
 )
 
 // pushToMR clones origin, lets change do something on the merge request branch,
@@ -145,6 +147,51 @@ func TestMRCommitsMarksWhatCameAfterTheLastReview(t *testing.T) {
 	}
 	if got := describe(commits); got != "the change, more, answer the review (new)" {
 		t.Errorf("after a rebase: %s", got)
+	}
+}
+
+// TestMarkUnseenClonesNothing: the commits listed by the forge are marked
+// without a clone when there is no review yet, and with a review worktree the
+// clone is fetched for the commits it has not got.
+func TestMarkUnseenClonesNothing(t *testing.T) {
+	origin, base, head := newDivergedOrigin(t)
+	m, p := newReviewManager(t, origin)
+	mr := reviewMR()
+	listed := func(work string) []MRCommit {
+		entries, err := gitx.New("", nil).Commits(work, base, git(t, work, "rev-parse", "HEAD"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		commits := make([]MRCommit, len(entries))
+		for i, e := range entries {
+			commits[i] = MRCommit{LogEntry: e}
+		}
+		return commits
+	}
+
+	work := pushToMR(t, origin, func(string) {})
+	commits := listed(work)
+	if err := m.MarkUnseen(mr, p, Review{BaseSHA: base, HeadSHA: head}, commits); err != nil {
+		t.Fatal(err)
+	}
+	if got := describe(commits); got != "the change, more" {
+		t.Errorf("before a review: %s", got)
+	}
+	if Exists(m.ProjectDir(p.PathWithNamespace)) {
+		t.Fatal("listing the commits cloned the repository")
+	}
+
+	if _, err := m.EnsureMRReview(mr, p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+		t.Fatal(err)
+	}
+	work = pushToMR(t, origin, func(work string) { answerComments(t, work) })
+	commits = listed(work)
+	rev := Review{BaseSHA: base, HeadSHA: git(t, work, "rev-parse", "HEAD")}
+	if err := m.MarkUnseen(mr, p, rev, commits); err != nil {
+		t.Fatal(err)
+	}
+	if got := describe(commits); got != "the change, more, answer the review (new)" {
+		t.Errorf("after a new commit: %s", got)
 	}
 }
 

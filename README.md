@@ -146,7 +146,8 @@ checkout instead, when you mean to commit and push.
 When the author answers your comments in new commits, `v` lists the commits
 with the cursor on the first one you have not reviewed yet - a rebase does not
 fool it - and `Enter` reopens the review with only that commit and what follows
-pending.
+pending. The list comes from the server, so a repository not cloned yet is
+cloned only after you pick a commit.
 
 A link pasted from chat or email goes straight there:
 

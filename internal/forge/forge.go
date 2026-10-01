@@ -151,6 +151,8 @@ type Commit struct {
 	AuthorName    string    `json:"author_name"`
 	CommittedDate time.Time `json:"committed_date"`
 	WebURL        string    `json:"web_url"`
+	// ParentIDs tells a merge commit, which has more than one.
+	ParentIDs []string `json:"parent_ids"`
 }
 
 // Pipeline is a CI run: a GitLab pipeline or a GitHub combined status.

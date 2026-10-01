@@ -206,9 +206,8 @@ type MRCommit struct {
 }
 
 // MRCommits lists the commits of a merge request, oldest first, as they are on
-// the server now. A commit is new when the review worktree was last given a
-// head that has neither it nor a rebased copy of it; without a review worktree
-// nothing is marked, since nothing was seen.
+// the server now, read from a clone. It is the way round when the forge cannot
+// list them; with a forge, MarkUnseen alone needs no clone.
 func (m *Manager) MRCommits(mr forge.MergeRequest, project forge.Project, rev Review) ([]MRCommit, error) {
 	mainDir, head, err := m.prepareMR(mr, project)
 	if err != nil {
@@ -225,18 +224,53 @@ func (m *Manager) MRCommits(mr forge.MergeRequest, project forge.Project, rev Re
 	if err != nil {
 		return nil, err
 	}
-	var unseen map[string]bool
-	dir := m.ReviewDir(project.PathWithNamespace, mr.IID, mr.SourceBranch)
-	if seen := m.ReadMeta(dir).Head; Exists(dir) && m.git.CommitExists(mainDir, seen) {
-		if unseen, err = m.git.Unseen(mainDir, seen, head, base); err != nil {
-			m.log("! could not tell which commits are new: %v", err)
-		}
-	}
 	commits := make([]MRCommit, len(entries))
 	for i, e := range entries {
-		commits[i] = MRCommit{LogEntry: e, New: unseen[e.SHA]}
+		commits[i] = MRCommit{LogEntry: e}
+	}
+	if err := m.MarkUnseen(mr, project, Review{BaseSHA: base, HeadSHA: head}, commits); err != nil {
+		m.log("! could not tell which commits are new: %v", err)
 	}
 	return commits, nil
+}
+
+// MarkUnseen marks the commits the review worktree has not been given yet: a
+// commit is new when the head last checked out has neither it nor a rebased
+// copy of it. Without a review worktree nothing was seen and nothing is
+// marked - and nothing is cloned either, which is what lets the list of
+// commits come from the forge alone. The clone is fetched only when the
+// commits to compare are not in it yet.
+func (m *Manager) MarkUnseen(mr forge.MergeRequest, project forge.Project, rev Review, commits []MRCommit) error {
+	dir := m.ReviewDir(project.PathWithNamespace, mr.IID, mr.SourceBranch)
+	mainDir := m.ProjectDir(project.PathWithNamespace)
+	if !Exists(dir) || !Exists(mainDir) {
+		return nil
+	}
+	seen := m.ReadMeta(dir).Head
+	if seen == "" || !m.git.CommitExists(mainDir, seen) || seen == rev.HeadSHA {
+		return nil
+	}
+	head, base := rev.HeadSHA, rev.BaseSHA
+	if head == "" || base == "" || !m.git.CommitExists(mainDir, head) || !m.git.CommitExists(mainDir, base) {
+		var err error
+		if mainDir, head, err = m.prepareMR(mr, project); err != nil {
+			return err
+		}
+		if m.git.CommitExists(mainDir, rev.HeadSHA) {
+			head = rev.HeadSHA
+		}
+		if base = m.resolveBase(mainDir, mr, rev, head); base == "" {
+			return fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
+		}
+	}
+	unseen, err := m.git.Unseen(mainDir, seen, head, base)
+	if err != nil {
+		return err
+	}
+	for i := range commits {
+		commits[i].New = unseen[commits[i].SHA]
+	}
+	return nil
 }
 
 func short(sha string) string {

@@ -14,6 +14,7 @@ import (
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
+	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
@@ -600,6 +601,9 @@ func reviewRefs(ctx context.Context, client forge.Provider, mr forge.MergeReques
 // from the chosen one up to the head: after the author answered the comments
 // in new commits, those are what is left to read. The cursor starts on the
 // first commit the review worktree has not been given yet.
+//
+// The list comes from the forge, so a repository that was never cloned is
+// cloned only once a commit has been chosen, not to draw the list.
 func (a *App) pickReviewStart(mr forge.MergeRequest, ed *editors.Editor) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
@@ -608,22 +612,59 @@ func (a *App) pickReviewStart(mr forge.MergeRequest, ed *editors.Editor) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		mr := a.refreshMR(client, mr, log)
-		commits, err := a.newManager(mr.Instance, path, log).MRCommits(mr, project, reviewRefs(ctx, client, mr, log))
+		rev := reviewRefs(ctx, client, mr, log)
+		m := a.newManager(mr.Instance, path, log)
+		commits, total, err := forgeCommits(ctx, client, mr)
 		if err != nil {
-			return "", err
+			log("! " + err.Error())
+			log("  reading them from a clone instead")
+			if commits, err = m.MRCommits(mr, project, rev); err != nil {
+				return "", err
+			}
+			total = len(commits)
+		} else if err := m.MarkUnseen(mr, project, rev, commits); err != nil {
+			log("! could not tell which commits are new: " + err.Error())
 		}
 		if len(commits) == 0 {
 			return "", fmt.Errorf("!%d has no commits of its own to review", mr.IID)
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			a.showReviewStartPicker(mr, commits, ed)
+			a.showReviewStartPicker(mr, commits, total, ed)
 		})
 		return "", nil
 	})
 }
 
-func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit, ed *editors.Editor) {
+// reviewStartLimit is as many commits as the forge hands out in one page; a
+// review is rarely started further back than that.
+const reviewStartLimit = 100
+
+// forgeCommits asks the forge for the commits of a merge request, oldest
+// first, and how many there are in all.
+func forgeCommits(ctx context.Context, client forge.Provider, mr forge.MergeRequest) ([]workspace.MRCommit, int, error) {
+	if client == nil {
+		return nil, 0, fmt.Errorf("no token for this server")
+	}
+	listed, total, err := client.MergeRequestCommits(ctx, mr, reviewStartLimit)
+	if err != nil {
+		return nil, 0, err
+	}
+	// The forge answers newest first.
+	commits := make([]workspace.MRCommit, len(listed))
+	for i, c := range listed {
+		commits[len(listed)-1-i] = workspace.MRCommit{LogEntry: gitx.LogEntry{
+			SHA:     c.ID,
+			Subject: c.Title,
+			Author:  c.AuthorName,
+			When:    c.CommittedDate,
+			Merge:   len(c.ParentIDs) > 1,
+		}}
+	}
+	return commits, max(total, len(commits)), nil
+}
+
+func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit, total int, ed *editors.Editor) {
 	// Newest on top, like git log and the forge's own list. The commits come
 	// oldest first, so each lands at the mirrored position; the cursor goes to
 	// the oldest new one, the start of what is left to read.
@@ -647,13 +688,20 @@ func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.M
 			// which is not the merge request's own work.
 			sub += " · ! merge commit, the review would include what it merged"
 		}
+		sha := c.SHA
+		if len(sha) > 8 {
+			sha = sha[:8]
+		}
 		items[at] = pickItem{
-			Label: mark + c.SHA[:8] + "  " + tview.Escape(c.Subject),
+			Label: mark + sha + "  " + tview.Escape(c.Subject),
 			Sub:   sub,
 			Data:  c.SHA,
 		}
 	}
 	title := fmt.Sprintf("Review !%d from a commit to the head", mr.IID)
+	if total > len(commits) {
+		title += fmt.Sprintf(" · newest %d of %d", len(commits), total)
+	}
 	if fresh > 0 {
 		title += fmt.Sprintf(" · ● %d new since your last review", fresh)
 	}
