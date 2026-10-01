@@ -124,6 +124,33 @@ func TestMergeRequestCommitsWithoutATotal(t *testing.T) {
 	}
 }
 
+// TestAllMergeRequestCommitsArePaged: a limit of zero reads every page, and
+// keeps GitLab's newest-first order.
+func TestAllMergeRequestCommitsArePaged(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("page") == "2" {
+			fmt.Fprint(w, `[{"id":"c1"}]`)
+			return
+		}
+		w.Header().Set("x-next-page", "2")
+		fmt.Fprint(w, `[{"id":"c3"},{"id":"c2"}]`)
+	}))
+	defer srv.Close()
+
+	commits, total, err := New(srv.URL, "t").MergeRequestCommits(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 42}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, c := range commits {
+		ids = append(ids, c.ID)
+	}
+	if got := strings.Join(ids, " "); got != "c3 c2 c1" || total != 3 {
+		t.Fatalf("got %s, total %d", got, total)
+	}
+}
+
 func TestMergeRequestDetailCarriesTheDiffRefs(t *testing.T) {
 	var diverged string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

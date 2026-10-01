@@ -368,27 +368,69 @@ func TestCommitsAreNewestFirst(t *testing.T) {
 	}
 }
 
-// TestCommitTotalComesFromPagination: with more commits than asked for,
-// GitHub's last page number is the count.
-func TestCommitTotalComesFromPagination(t *testing.T) {
-	s := newStub(t)
-	s.mux.HandleFunc("/repos/acme/api/pulls/7/commits", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("per_page") == "1" {
-			w.Header().Set("Link", `<https://api.github.com/x?page=23>; rel="last"`)
-			fmt.Fprint(w, `[{"sha":"aaa"}]`)
-			return
-		}
-		w.Header().Set("Link", `<https://api.github.com/x?page=3>; rel="next", <https://api.github.com/x?page=3>; rel="last"`)
-		fmt.Fprint(w, `[{"sha":"aaa"},{"sha":"bbb"}]`)
-	})
+// shaPage is commits numbered from..to, oldest first, as GitHub lists them.
+func shaPage(from, to int) string {
+	var parts []string
+	for i := from; i <= to; i++ {
+		parts = append(parts, fmt.Sprintf(`{"sha":"%040d"}`, i))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
 
-	_, count, err := s.client().MergeRequestCommits(context.Background(),
+// pagedCommits serves commits 1..n a hundred to a page, with GitHub's Link.
+func pagedCommits(n int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		fmt.Sscan(r.URL.Query().Get("page"), &page)
+		if last := (n + 99) / 100; page < last {
+			w.Header().Set("Link", fmt.Sprintf(`<https://api.github.com/x?page=%d>; rel="next"`, page+1))
+		}
+		fmt.Fprint(w, shaPage((page-1)*100+1, min(page*100, n)))
+	}
+}
+
+// TestCommitsAreReadWholeAndCutToTheNewest: GitHub lists the oldest first, so
+// the newest are on the last page, and the count is all of them.
+func TestCommitsAreReadWholeAndCutToTheNewest(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/repos/acme/api/pulls/7/commits", pagedCommits(230))
+
+	commits, count, err := s.client().MergeRequestCommits(context.Background(),
 		forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 23 {
-		t.Errorf("count = %d, want 23", count)
+	if count != 230 {
+		t.Errorf("count = %d, want 230", count)
+	}
+	if len(commits) != 2 || commits[0].ID != fmt.Sprintf("%040d", 230) || commits[1].ID != fmt.Sprintf("%040d", 229) {
+		t.Fatalf("commits = %+v", commits)
+	}
+}
+
+// TestCommitsPastTheCapComeFromTheComparison: GitHub stops listing a pull
+// request's commits at 250 without saying so; the comparison of its two ends
+// pages through the rest.
+func TestCommitsPastTheCapComeFromTheComparison(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/repos/acme/api/pulls/7/commits", pagedCommits(250))
+	s.handle("/repos/acme/api/pulls/7", `{"number":7,"base":{"sha":"basesha"},"head":{"sha":"headsha"}}`)
+	s.mux.HandleFunc("/repos/acme/api/compare/basesha...headsha", func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		fmt.Sscan(r.URL.Query().Get("page"), &page)
+		fmt.Fprintf(w, `{"total_commits":260,"commits":%s}`, shaPage((page-1)*100+1, min(page*100, 260)))
+	})
+
+	commits, count, err := s.client().MergeRequestCommits(context.Background(),
+		forge.MergeRequest{ProjectPath: "acme/api", IID: 7}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 260 || len(commits) != 260 {
+		t.Fatalf("count = %d, %d listed, want 260", count, len(commits))
+	}
+	if commits[0].ID != fmt.Sprintf("%040d", 260) || commits[259].ID != fmt.Sprintf("%040d", 1) {
+		t.Errorf("not newest first: %s ... %s", commits[0].ID, commits[259].ID)
 	}
 }
 

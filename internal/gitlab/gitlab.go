@@ -688,9 +688,15 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 	return out, nil
 }
 
-// MergeRequestCommits returns the newest commits of a merge request together
-// with how many there are in total.
+// MergeRequestCommits returns the newest commits of a merge request, newest
+// first, together with how many there are in total; a limit of zero returns
+// all of them.
 func (c *Client) MergeRequestCommits(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Commit, int, error) {
+	// GitLab lists them newest first, so the newest are one page.
+	if limit <= 0 {
+		all, err := getAll[forge.Commit](ctx, c, mrPath(mr)+"/commits", nil)
+		return all, len(all), err
+	}
 	q := url.Values{}
 	q.Set("per_page", strconv.Itoa(limit))
 	var commits []forge.Commit

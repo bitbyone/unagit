@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -940,60 +941,62 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 	return notes, nil
 }
 
-// MergeRequestCommits returns the newest commits of a pull request and how
-// many there are.
+// MergeRequestCommits returns the newest commits of a pull request, newest
+// first, and how many there are; a limit of zero returns all of them.
+//
+// GitHub lists them oldest first, so the newest are on the last page, and
+// there is no telling which page that is without reading them all - the list
+// is read whole and cut here.
 func (c *Client) MergeRequestCommits(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Commit, int, error) {
-	q := url.Values{}
-	q.Set("per_page", strconv.Itoa(limit))
-	var raw []commit
-	header, err := c.get(ctx, c.pullPath(mr)+"/commits", q, &raw)
+	raw, err := getAll[commit](ctx, c, c.pullPath(mr)+"/commits", nil)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := commits(raw)
-	// GitHub returns them oldest first; the interface shows the newest.
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
+	if len(raw) >= pullCommitsCap {
+		// The list stops at the cap without saying so; the comparison of the
+		// two ends has every commit.
+		if raw, err = c.comparedCommits(ctx, mr); err != nil {
+			return nil, 0, err
+		}
 	}
+	out := commits(raw)
+	slices.Reverse(out)
 	count := len(out)
-	if lastPage(header) > 0 {
-		// There are more than we asked for. One page of one is the cheapest
-		// way GitHub will tell us how many there are.
-		count = c.countPages(ctx, c.pullPath(mr)+"/commits")
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, count, nil
-
-	// countPages asks for a single item and reads the last page number, which for
-	// a per_page of one is the number of items.
 }
 
-func (c *Client) countPages(ctx context.Context, path string) int {
+// pullCommitsCap is as many commits as GitHub lists for a pull request.
+const pullCommitsCap = 250
+
+// comparedCommits lists a pull request's commits, oldest first, from a
+// comparison of its base with its head, which pages through all of them. A
+// three-dot comparison starts at the merge base, as the pull request does.
+func (c *Client) comparedCommits(ctx context.Context, mr forge.MergeRequest) ([]commit, error) {
+	var p pull
+	if _, err := c.get(ctx, c.pullPath(mr), nil, &p); err != nil {
+		return nil, err
+	}
+	path := "/repos/" + mr.ProjectPath + "/compare/" + p.Base.SHA + "..." + p.Head.SHA
 	q := url.Values{}
-	q.Set("per_page", "1")
-	header, err := c.get(ctx, path, q, &[]json.RawMessage{})
-	if err != nil {
-		return -1
+	q.Set("per_page", "100")
+	var all []commit
+	for page := 1; ; page++ {
+		q.Set("page", strconv.Itoa(page))
+		var batch struct {
+			TotalCommits int      `json:"total_commits"`
+			Commits      []commit `json:"commits"`
+		}
+		if _, err := c.get(ctx, path, q, &batch); err != nil {
+			return nil, err
+		}
+		all = append(all, batch.Commits...)
+		if len(batch.Commits) == 0 || len(all) >= batch.TotalCommits {
+			return all, nil
+		}
 	}
-	if n := lastPage(header); n > 0 {
-		return n
-	}
-	return -1
-}
-
-// lastPage returns the last page number from a Link header, or 0.
-var lastRe = regexp.MustCompile(`<([^>]+)>;\s*rel="last"`)
-
-func lastPage(h http.Header) int {
-	m := lastRe.FindStringSubmatch(h.Get("Link"))
-	if len(m) != 2 {
-		return 0
-	}
-	u, err := url.Parse(m[1])
-	if err != nil {
-		return 0
-	}
-	n, _ := strconv.Atoi(u.Query().Get("page"))
-	return n
 }
 
 // review is one submitted review of a pull request.

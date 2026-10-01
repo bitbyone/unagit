@@ -614,14 +614,13 @@ func (a *App) pickReviewStart(mr forge.MergeRequest, ed *editors.Editor) {
 		mr := a.refreshMR(client, mr, log)
 		rev := reviewRefs(ctx, client, mr, log)
 		m := a.newManager(mr.Instance, path, log)
-		commits, total, err := forgeCommits(ctx, client, mr)
+		commits, err := forgeCommits(ctx, client, mr)
 		if err != nil {
 			log("! " + err.Error())
 			log("  reading them from a clone instead")
 			if commits, err = m.MRCommits(mr, project, rev); err != nil {
 				return "", err
 			}
-			total = len(commits)
 		} else if err := m.MarkUnseen(mr, project, rev, commits); err != nil {
 			log("! could not tell which commits are new: " + err.Error())
 		}
@@ -630,25 +629,21 @@ func (a *App) pickReviewStart(mr forge.MergeRequest, ed *editors.Editor) {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			a.showReviewStartPicker(mr, commits, total, ed)
+			a.showReviewStartPicker(mr, commits, ed)
 		})
 		return "", nil
 	})
 }
 
-// reviewStartLimit is as many commits as the forge hands out in one page; a
-// review is rarely started further back than that.
-const reviewStartLimit = 100
-
-// forgeCommits asks the forge for the commits of a merge request, oldest
-// first, and how many there are in all.
-func forgeCommits(ctx context.Context, client forge.Provider, mr forge.MergeRequest) ([]workspace.MRCommit, int, error) {
+// forgeCommits asks the forge for all the commits of a merge request, oldest
+// first.
+func forgeCommits(ctx context.Context, client forge.Provider, mr forge.MergeRequest) ([]workspace.MRCommit, error) {
 	if client == nil {
-		return nil, 0, fmt.Errorf("no token for this server")
+		return nil, fmt.Errorf("no token for this server")
 	}
-	listed, total, err := client.MergeRequestCommits(ctx, mr, reviewStartLimit)
+	listed, _, err := client.MergeRequestCommits(ctx, mr, 0)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	// The forge answers newest first.
 	commits := make([]workspace.MRCommit, len(listed))
@@ -661,10 +656,10 @@ func forgeCommits(ctx context.Context, client forge.Provider, mr forge.MergeRequ
 			Merge:   len(c.ParentIDs) > 1,
 		}}
 	}
-	return commits, max(total, len(commits)), nil
+	return commits, nil
 }
 
-func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit, total int, ed *editors.Editor) {
+func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.MRCommit, ed *editors.Editor) {
 	// Newest on top, like git log and the forge's own list. The commits come
 	// oldest first, so each lands at the mirrored position; the cursor goes to
 	// the oldest new one, the start of what is left to read.
@@ -699,9 +694,6 @@ func (a *App) showReviewStartPicker(mr forge.MergeRequest, commits []workspace.M
 		}
 	}
 	title := fmt.Sprintf("Review !%d from a commit to the head", mr.IID)
-	if total > len(commits) {
-		title += fmt.Sprintf(" · newest %d of %d", len(commits), total)
-	}
 	if fresh > 0 {
 		title += fmt.Sprintf(" · ● %d new since your last review", fresh)
 	}

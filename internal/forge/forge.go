@@ -231,7 +231,8 @@ type Provider interface {
 	MergeRequestDetail(ctx context.Context, mr MergeRequest) (*MergeRequestDetail, error)
 	// MergeRequestNotes returns all comments when limit is zero.
 	MergeRequestNotes(ctx context.Context, mr MergeRequest, limit int) ([]Note, error)
-	// MergeRequestCommits returns the newest commits and how many there are.
+	// MergeRequestCommits returns the newest commits, newest first, and how
+	// many there are; a limit of zero returns all of them.
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)
 	MergeRequestApprovals(ctx context.Context, mr MergeRequest) (*Approvals, error)
 
