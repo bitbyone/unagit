@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -410,5 +411,57 @@ func TestExactProjectDirectory(t *testing.T) {
 	}
 	if got := cfg.ProjectDir(&Instance{}, "group/sub/app"); got != "/base/group/sub/app" {
 		t.Fatalf("another server = %q", got)
+	}
+}
+
+// TestPathsAreKeptFromHome: a directory under the home directory is written
+// as ~/… whatever form it was given in, so config.yaml can live in dotfiles
+// and mean the same on another machine; anything else stays as it is.
+func TestPathsAreKeptFromHome(t *testing.T) {
+	t.Setenv("UNAGIT_CONFIG_DIR", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	c := Default()
+	if c.RootDir != "~/unagit" {
+		t.Errorf("default root = %q", c.RootDir)
+	}
+	c.RootDir = filepath.Join(home, "workspace")
+	c.AddInstance(Instance{Name: "acme", URL: "https://gl.example",
+		RootDir:     filepath.Join(home, "work", "acme"),
+		ProjectDirs: map[string]string{"acme/api": filepath.Join(home, "code", "api"), "acme/web": "/srv/web"},
+		Groups:      []Group{{ID: 1, FullPath: "acme/tools", RootDir: "tools"}, {ID: 2, FullPath: "acme/x", RootDir: home + "/x/"}}})
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, home) {
+		t.Errorf("the home directory is written out:\n%s", text)
+	}
+	for _, want := range []string{"root_dir: ~/workspace", "root_dir: ~/work/acme", "acme/api: ~/code/api",
+		"acme/web: /srv/web", "root_dir: tools", "root_dir: ~/x"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("config.yaml lacks %q:\n%s", want, text)
+		}
+	}
+
+	// An absolute path written by an older unagit reads as ~ too.
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.WriteFile(Path(), []byte("root_dir: "+filepath.Join(home, "old")+"\n"), 0o600))
+	loaded, err := Load()
+	must(err)
+	if loaded.RootDir != "~/old" {
+		t.Errorf("loaded root = %q", loaded.RootDir)
+	}
+	if loaded.Root() != filepath.Join(home, "old") {
+		t.Errorf("the root does not expand back: %q", loaded.Root())
 	}
 }

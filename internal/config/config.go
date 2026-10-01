@@ -367,9 +367,8 @@ type Config struct {
 
 // Default returns a configuration with sane defaults filled in.
 func Default() *Config {
-	home, _ := os.UserHomeDir()
 	return &Config{
-		RootDir: filepath.Join(home, "unagit"),
+		RootDir: "~/unagit",
 		Tags:    DefaultTags(),
 
 		DefaultTagsSeen: len(DefaultTags()),
@@ -448,6 +447,7 @@ func (c *Config) migrateEditor() {
 const LegacyInstanceID = "default"
 
 func (c *Config) normalise() {
+	c.tildePaths()
 	c.migrateEditor()
 	c.offerNewDefaultTags()
 	if c.RootDir == "" {
@@ -493,6 +493,7 @@ func (c *Config) Save() error {
 	if err := os.MkdirAll(Dir(), 0o700); err != nil {
 		return err
 	}
+	c.tildePaths()
 	b, err := yaml.Marshal(c)
 	if err != nil {
 		return err
@@ -609,6 +610,40 @@ func resolveRoot(base, override string) string {
 }
 
 // Expand replaces a leading ~ with the user's home directory.
+// tildePaths keeps every directory under the home directory as ~/…, however
+// it was typed or whatever wrote it, so that config.yaml means the same on a
+// machine whose home has another name - and can be kept in dotfiles.
+func (c *Config) tildePaths() {
+	c.RootDir = Tilde(c.RootDir)
+	for i := range c.Instances {
+		inst := &c.Instances[i]
+		inst.RootDir = Tilde(inst.RootDir)
+		for path, dir := range inst.ProjectDirs {
+			inst.ProjectDirs[path] = Tilde(dir)
+		}
+		for j := range inst.Groups {
+			inst.Groups[j].RootDir = Tilde(inst.Groups[j].RootDir)
+		}
+	}
+}
+
+// Tilde is Expand the other way round: a path inside the home directory
+// written from ~. Anything else - relative, or elsewhere - is left as it is.
+func Tilde(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || !filepath.IsAbs(p) {
+		return p
+	}
+	home = filepath.Clean(home)
+	switch clean := filepath.Clean(p); {
+	case clean == home:
+		return "~"
+	case strings.HasPrefix(clean, home+string(filepath.Separator)):
+		return "~" + strings.TrimPrefix(clean, home)
+	}
+	return p
+}
+
 func Expand(p string) string {
 	if p == "~" || strings.HasPrefix(p, "~/") {
 		home, err := os.UserHomeDir()
