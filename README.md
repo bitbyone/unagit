@@ -173,8 +173,9 @@ group.
   how far behind the target it is.
 - **Comments as markdown**, threaded the way they were written. `c` opens the
   conversation, `i` replies, `a` approves (it asks first - everyone sees it).
-- **Filters that stick**: cloned-only, hidden repositories, sort order, group
-  by repository, plus a fuzzy filter on everything.
+- **Filters that stick**: cloned-only, hidden repositories, sort order,
+  repositories grouped by their group or subgroup and merge requests by their
+  repository, plus a fuzzy filter on everything.
 - **Instant startup.** The lists are cached on disk and only refreshed when you
   ask; nothing hits the API behind your back.
 - **Your tokens are encrypted** with Argon2id + AES-256-GCM and exist in
@@ -235,7 +236,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
-| `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group by repo |
+| `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `d` `w` `r` | delete from disk · open in the browser · refresh |
 | `?` `q` | help · quit |
 

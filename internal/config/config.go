@@ -205,6 +205,9 @@ type Filters struct {
 	// GroupByProject gathers the merge requests under the project they
 	// belong to. It means nothing to the project list.
 	GroupByProject bool `yaml:"group_by_project,omitempty" json:"group_by_project,omitempty"`
+	// GroupRepositories gathers the repositories under the group or subgroup
+	// (on GitHub the owner) they live in.
+	GroupRepositories bool `yaml:"group_repositories,omitempty" json:"group_repositories,omitempty"`
 }
 
 // Order is the sort to apply, normalised.

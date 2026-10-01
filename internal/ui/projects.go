@@ -33,7 +33,7 @@ func (a *App) newProjectsPane() *pane {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
 		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
-			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(), tagEnd)
+			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories), tagEnd)
 	}
 
 	render := func(query string) {
@@ -83,6 +83,12 @@ func (a *App) newProjectsPane() *pane {
 	shared := a.filterKeysFor(p)
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
 		if shared(ev) {
+			return nil
+		}
+		// Ctrl-G gathers the list under the groups, as it gathers merge
+		// requests under their repositories.
+		if ev.Key() == tcell.KeyCtrlG {
+			a.toggleRepositoryGrouping()
 			return nil
 		}
 		// Ctrl-W opens a worktree for a branch of its own; w (below) is
@@ -176,7 +182,16 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 func (a *App) drawProjects(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
-	withServer := a.multiInstance()
+	grouped := a.cfg.Filters.GroupRepositories
+	// Grouped, the server and the group move into the headings and each row
+	// names only the repository.
+	withServer := a.multiInstance() && !grouped
+	name := func(pr forge.Project) string {
+		if grouped {
+			return repositoryName(pr.PathWithNamespace)
+		}
+		return pr.PathWithNamespace
+	}
 
 	branchW, actW, serverW, pathW := 6, 8, 0, 0
 	for _, idx := range filtered {
@@ -202,8 +217,12 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		pathW = atLeast(min(pathW, 44), "PATH")
 	}
 
+	// Grouped, every row is indented one step under its heading.
+	markW := 2
+	if grouped {
+		markW = 3
+	}
 	const (
-		markW   = 2
 		mrW     = 2
 		wtW     = 2
 		gaps    = 6
@@ -249,15 +268,21 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
-	row := 0
-	for _, idx := range filtered {
+	row, first := 0, 0
+	drawRow := func(idx int) {
 		row++
+		if first == 0 {
+			first = row
+		}
 		pr := a.projects[idx]
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 
 		mark, markColour := " ○", colDim
 		if info.Cloned {
 			mark, markColour = " ●", colOn
+		}
+		if grouped {
+			mark = " " + mark
 		}
 		branch, branchColour := info.Branch, colBranch
 		if !info.Cloned {
@@ -282,7 +307,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
 		}
 		fields = append(fields,
-			field{text: pr.PathWithNamespace, width: nameW, colour: colText},
+			field{text: name(pr), width: nameW, colour: colText},
 			field{text: branch, width: branchW, colour: branchColour})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
@@ -296,11 +321,37 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			SetReference(idx).SetExpansion(1))
 	}
 
-	first := 0
-	if len(filtered) > 0 {
-		first = 1
+	if !grouped {
+		for _, idx := range filtered {
+			drawRow(idx)
+		}
+	} else {
+		byGroup := func(idx int) (string, string) {
+			pr := a.projects[idx]
+			return headingKey(a, pr.Instance, namespaceOf(pr.PathWithNamespace))
+		}
+		for _, group := range gather(filtered, byGroup) {
+			row++
+			setGroupHeading(p.table, row, group)
+			for _, idx := range group.rows {
+				drawRow(idx)
+			}
+		}
 	}
 	p.selectRow(previous, first)
+}
+
+// namespaceOf is the group or subgroup a repository lives in - on GitHub its
+// owner - and repositoryName what is left of its path.
+func namespaceOf(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[:i]
+	}
+	return path
+}
+
+func repositoryName(path string) string {
+	return path[strings.LastIndex(path, "/")+1:]
 }
 
 // openProject clones or updates the main checkout and opens the editor.

@@ -131,8 +131,30 @@ func (a *App) newPane(title string) *pane {
 	p.table.SetInputCapture(p.tableKeys)
 	p.detail.SetInputCapture(p.detailKeys)
 	p.table.SetSelectedFunc(func(int, int) { p.enter() })
-	p.table.SetSelectionChangedFunc(func(int, int) { p.followSelection() })
+	p.table.SetSelectionChangedFunc(func(int, int) {
+		p.revealHeadings()
+		p.followSelection()
+	})
 	return p
+}
+
+// revealHeadings keeps the headings right above the cursor on screen. tview
+// scrolls only as far as the selected row itself, so the cursor on the first
+// row of a group left the group's heading hidden under the column header.
+func (p *pane) revealHeadings() {
+	row, _ := p.table.GetSelection()
+	top := row
+	for top > 1 {
+		cell := p.table.GetCell(top-1, 0)
+		if cell == nil || !cell.NotSelectable {
+			break
+		}
+		top--
+	}
+	// Row 0 is the fixed column header; the first row below it is 1+offset.
+	if offset, column := p.table.GetOffset(); top-1 < offset {
+		p.table.SetOffset(top-1, column)
+	}
 }
 
 // enter loads the detail column for the selected row and moves into it.

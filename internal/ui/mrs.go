@@ -35,7 +35,7 @@ func (a *App) newMRsPane() *pane {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
-			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(), tagEnd+scope)
+			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -291,32 +291,6 @@ func rowText(fields []field) string {
 	return b.String()
 }
 
-// mrGroup is the merge requests of one project, in the order the filter put
-// them.
-type mrGroup struct {
-	key  projectKey
-	rows []int
-}
-
-// groupByProject gathers the rows under their project, keeping the order the
-// filter produced: the first merge request of a project decides where the
-// project sits, and the rest follow inside it.
-func (a *App) groupByProject(filtered []int) []mrGroup {
-	var groups []mrGroup
-	at := map[projectKey]int{}
-	for _, idx := range filtered {
-		mr := a.mrs[idx]
-		key := projectKey{Instance: mr.Instance, Path: a.projectPathOfMR(mr)}
-		if i, ok := at[key]; ok {
-			groups[i].rows = append(groups[i].rows, idx)
-			continue
-		}
-		at[key] = len(groups)
-		groups = append(groups, mrGroup{key: key, rows: []int{idx}})
-	}
-	return groups
-}
-
 func (a *App) drawMRs(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
@@ -417,15 +391,13 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			drawRow(idx)
 		}
 	} else {
-		for _, group := range a.groupByProject(filtered) {
+		byProject := func(idx int) (string, string) {
+			mr := a.mrs[idx]
+			return headingKey(a, mr.Instance, a.projectPathOfMR(mr))
+		}
+		for _, group := range gather(filtered, byProject) {
 			row++
-			heading := group.key.Path
-			if a.multiInstance() {
-				heading = a.instanceLabel(group.key.Instance) + " · " + heading
-			}
-			p.table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("%s[::b]%s[::-]%s  %s(%d)%s",
-				tag(colAccent), tview.Escape(heading), tagEnd, tag(colDim), len(group.rows), tagEnd)).
-				SetSelectable(false).SetExpansion(1))
+			setGroupHeading(p.table, row, group)
 			for _, idx := range group.rows {
 				drawRow(idx)
 			}

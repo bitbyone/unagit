@@ -195,7 +195,7 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 		waitGone(t, a, sc, "unagit · keys")
 	}
-	check("Repositories", []string{"Ctrl-C", "Ctrl-O"}, []string{"Ctrl-R", "Ctrl-G", "Ctrl-F Ctrl-B"})
+	check("Repositories", []string{"Ctrl-C", "Ctrl-O", "Ctrl-G"}, []string{"Ctrl-R", "Ctrl-F Ctrl-B"})
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "Rate limiting")
 	check("Merge requests", []string{"Ctrl-R", "Ctrl-G"}, []string{"Ctrl-C", "Ctrl-F Ctrl-B"})

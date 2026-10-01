@@ -163,7 +163,7 @@ func helpRows() []helpLine {
 		key("x", "hide or show the repository and its merge requests"),
 		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
-		key("Ctrl-G", "group the merge requests by repository").in(helpMergeRequests),
+		key("Ctrl-G", "group: repositories by group, MRs by repository"),
 		blank(),
 
 		section("Repositories", helpRepositories),

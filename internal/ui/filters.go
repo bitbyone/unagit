@@ -30,8 +30,9 @@ func (a *App) passesFilters(instance, path string) bool {
 }
 
 // filterSummary is the part of a list's header that says what is being left
-// out, so a narrowed list never looks like an empty one.
-func (a *App) filterSummary() string {
+// out, so a narrowed list never looks like an empty one. grouped is whether
+// that list is drawn under headings, which each list decides for itself.
+func (a *App) filterSummary(grouped bool) string {
 	f := &a.cfg.Filters
 	parts := []string{sortLabel(f.Order())}
 	if f.ClonedOnly {
@@ -40,7 +41,7 @@ func (a *App) filterSummary() string {
 	if n := len(f.Hidden); n > 0 {
 		parts = append(parts, fmt.Sprintf("%s%s %d%s", tag(colWarn), hiddenMark, n, tagEnd)+tag(colMuted))
 	}
-	if f.GroupByProject {
+	if grouped {
 		parts = append(parts, tag(colOn)+"grouped"+tagEnd+tag(colMuted))
 	}
 	return " · " + strings.Join(parts, " · ")
@@ -99,6 +100,18 @@ func (a *App) toggleGrouping() {
 		return
 	}
 	a.note("Merge requests listed flat again")
+}
+
+// toggleRepositoryGrouping gathers the repositories under the group they
+// live in, or lets them run flat again.
+func (a *App) toggleRepositoryGrouping() {
+	a.cfg.Filters.GroupRepositories = !a.cfg.Filters.GroupRepositories
+	a.applyFilters()
+	if a.cfg.Filters.GroupRepositories {
+		a.note("Repositories grouped by group, sorted " + sortLabel(a.cfg.Filters.Order()) + " inside each")
+		return
+	}
+	a.note("Repositories listed flat again")
 }
 
 // showSortPicker chooses the order both lists are drawn in.
