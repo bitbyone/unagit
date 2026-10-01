@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -99,4 +100,40 @@ func TestOpenTakesTheCloneAsItIs(t *testing.T) {
 	if gitIn(t, gw.clone, "rev-parse", "origin/main") != before {
 		t.Error("Ctrl-O fetched")
 	}
+}
+
+// TestEditsShowOnFocusAndOnSwitchingTabs: what changed in another window shows
+// when the terminal comes back to the front, and when a list is switched to.
+func TestEditsShowOnFocusAndOnSwitchingTabs(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/billing")
+	gw := newRealProject(t, a, "acme/gateway")
+	gw.rescan()
+	waitFor(t, a, sc, "✓")
+	stale := func() { onLoop(a, func() bool { a.localRefreshed = time.Time{}; return true }) }
+
+	must(t, os.WriteFile(filepath.Join(gw.clone, "one.txt"), []byte("1\n"), 0o644))
+	stale()
+	must(t, sc.PostEvent(tcell.NewEventFocus(true)))
+	waitForRow(t, a, sc, "acme/gateway", "1")
+
+	must(t, os.WriteFile(filepath.Join(gw.clone, "two.txt"), []byte("2\n"), 0o644))
+	stale()
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Merge requests")
+	typeRunes(sc, "R")
+	waitForRow(t, a, sc, "acme/gateway", "2")
+}
+
+// waitForRow waits until the screen line holding text has want as a word.
+func waitForRow(t *testing.T, a *App, sc tcell.SimulationScreen, text, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if containsField(rowWith(a, sc, text), want) {
+			return
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	t.Fatalf("the row of %s never showed %q:\n%s", text, want, a.screenText(sc))
 }

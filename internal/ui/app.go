@@ -131,6 +131,8 @@ type App struct {
 
 	// screenGiven is set when a screen was handed in, as tests do.
 	screenGiven bool
+	// localRefreshed is when the disk was last looked at.
+	localRefreshed time.Time
 
 	// screen is the terminal, kept from the last draw so the clipboard can be
 	// set through it when the system has no program for that.
@@ -960,6 +962,7 @@ func (a *App) refreshDisk() {
 	}
 	a.disk = disk
 	a.worktrees = worktrees
+	a.localRefreshed = time.Now()
 	a.loadWorktreeRemotes()
 	a.loadRepoSync(false)
 	if a.worktreesPane != nil && a.worktreesPane.reload != nil {

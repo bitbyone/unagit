@@ -79,7 +79,9 @@ different groups live in different places.
   `Ctrl-O` opens it when you want.
 - `REMOTE` says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
-  from the refs on disk, so it costs nothing; `r` fetches every clone in the
+  from the refs on disk, so it costs nothing, and read again whenever you
+  switch to a list or come back to the terminal from another window - an edit
+  made in your editor shows up without asking. `r` fetches every clone in the
   background first, and the header counts the fetches still running. A
   rebase or merge git stopped in the middle of shows there instead, in red.
 - `EDITS` counts the files not committed in the clone, and `Enter` lists them

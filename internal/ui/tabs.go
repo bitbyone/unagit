@@ -52,11 +52,13 @@ func (a *App) switchTab(page string) {
 	switch page {
 	case pageProjects:
 		a.tv.SetFocus(a.projectsPane.focusTarget())
+		a.refreshLocal()
 	case pageMRs:
 		a.tv.SetFocus(a.mrsPane.focusTarget())
+		a.refreshLocal()
 	case pageWorktrees:
 		a.tv.SetFocus(a.worktreesPane.focusTarget())
-		a.loadWorktreeRemotes()
+		a.refreshLocal()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}
