@@ -29,8 +29,15 @@ var ErrNothingDone = errors.New("nothing was changed")
 // rebases them onto the upstream, edits carried over by --autostash. Anything
 // that would end in a conflict is refused before or rolled back after, so the
 // tree is either updated or untouched - never left half way.
-func (m *Manager) UpdateClone(dir string) (string, error) {
-	if busy := m.operationInProgress(dir); busy != "" {
+func (m *Manager) UpdateClone(dir string) (string, error) { return m.UpdateBranch(dir, "") }
+
+// UpdateBranch is UpdateClone for a worktree branch: one with an upstream
+// follows it, one that was never pushed is rebased onto origin's copy of the
+// branch it was made from. A pushed branch is never rebased onto its base -
+// that would rewrite what origin has and need a force push, which unagit does
+// not do.
+func (m *Manager) UpdateBranch(dir, base string) (string, error) {
+	if busy := m.OperationInProgress(dir); busy != "" {
 		return "", fmt.Errorf("a %s is in progress here - finish or abort it first: %w", busy, ErrNothingDone)
 	}
 	branch := m.git.CurrentBranch(dir)
@@ -42,7 +49,12 @@ func (m *Manager) UpdateClone(dir string) (string, error) {
 	}
 	upstream, err := m.trimmed(dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
 	if err != nil || upstream == "" {
-		return "", fmt.Errorf("%s has no upstream to update from: %w", branch, ErrNotTracking)
+		if base == "" {
+			return "", fmt.Errorf("%s has no upstream to update from: %w", branch, ErrNotTracking)
+		}
+		if upstream = m.startOfGroupBranch(dir, base); upstream == "" {
+			return "", fmt.Errorf("%s was made from %s, which is gone: %w", branch, base, ErrNothingDone)
+		}
 	}
 	behind := m.count(dir, "HEAD.."+upstream)
 	if behind == 0 {
@@ -94,9 +106,9 @@ func (m *Manager) UpdateClone(dir string) (string, error) {
 	return UpdateRebased, nil
 }
 
-// operationInProgress names a merge, rebase, cherry-pick or revert that git is
+// OperationInProgress names a merge, rebase, cherry-pick or revert that git is
 // in the middle of, or "" when there is none.
-func (m *Manager) operationInProgress(dir string) string {
+func (m *Manager) OperationInProgress(dir string) string {
 	for _, op := range []struct{ path, name string }{
 		{"rebase-merge", "rebase"}, {"rebase-apply", "rebase"}, {"MERGE_HEAD", "merge"},
 		{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"},

@@ -181,13 +181,7 @@ func (m *Manager) CheckGroupMember(p forge.Project, branch, base string, isNew b
 // startOfGroupBranch is where a new branch based on base starts: origin's copy
 // when there is one, since the local branch may lag behind it.
 func (m *Manager) startOfGroupBranch(dir, base string) string {
-	switch {
-	case m.git.RemoteBranchExists(dir, base):
-		return "origin/" + base
-	case m.git.LocalBranchExists(dir, base):
-		return base
-	}
-	return ""
+	return m.git.BaseRef(dir, base)
 }
 
 // AddGroupMember checks the repository out into wtDir, on a new branch from
@@ -203,6 +197,7 @@ func (m *Manager) AddGroupMember(p forge.Project, wtDir, branch, base string, is
 		if _, err := m.git.Run(dir, "branch", "--no-track", branch, m.startOfGroupBranch(dir, base)); err != nil {
 			return err
 		}
+		_ = m.git.SetBranchBase(dir, branch, base)
 		return m.git.WorktreeAdd(dir, wtDir, branch)
 	case m.git.LocalBranchExists(dir, branch):
 		return m.git.WorktreeAdd(dir, wtDir, branch)

@@ -146,3 +146,36 @@ func TestUpdatePassesOverABranchWithoutUpstream(t *testing.T) {
 		t.Errorf("got %v, want ErrNotTracking", err)
 	}
 }
+
+// TestUpdateRebasesANewBranchOntoItsBase: a branch not pushed yet follows the
+// branch it was made from; once pushed, it follows its own upstream.
+func TestUpdateRebasesANewBranchOntoItsBase(t *testing.T) {
+	f := newUpdateFixture(t)
+	git(t, f.clone, "branch", "--no-track", "feat/x", "origin/main")
+	if err := f.m.git.SetBranchBase(f.clone, "feat/x", "main"); err != nil {
+		t.Fatal(err)
+	}
+	wt := filepath.Join(t.TempDir(), "wt")
+	git(t, f.clone, "worktree", "add", wt, "feat/x")
+	write(t, wt, "b.txt", "mine\n")
+	git(t, wt, "commit", "-am", "mine")
+	f.moveOrigin(t, "a.txt", "two\n")
+
+	if bases := f.m.git.BranchBases(f.clone); bases["feat/x"] != "main" {
+		t.Fatalf("the base was not recorded: %v", bases)
+	}
+	got, err := f.m.UpdateBranch(wt, "main")
+	if err != nil || got != UpdateRebased {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if readFile(t, wt, "a.txt") != "two\n" || git(t, wt, "log", "-1", "--format=%s") != "mine" {
+		t.Error("the branch was not rebased onto origin's main")
+	}
+
+	// Pushed, it has an upstream of its own, and the base no longer counts.
+	git(t, wt, "push", "-u", "origin", "feat/x")
+	f.moveOrigin(t, "a.txt", "three\n")
+	if got, err := f.m.UpdateBranch(wt, "main"); err != nil || got != UpdateCurrent {
+		t.Errorf("a pushed branch went after its base: %q, %v", got, err)
+	}
+}

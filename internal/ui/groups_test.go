@@ -16,11 +16,14 @@ import (
 
 // markBoth makes both fixture repositories real clones and marks them in
 // Repositories, then opens the grouped worktree form.
-func markBoth(t *testing.T, a *App, sc tcell.SimulationScreen) (*realProject, *realProject, *tview.Form) {
+func markBoth(t *testing.T, a *App, sc tcell.SimulationScreen, prepare ...func(gw, bl *realProject)) (*realProject, *realProject, *tview.Form) {
 	t.Helper()
 	waitFor(t, a, sc, "acme/billing")
 	gw := newRealProject(t, a, "acme/gateway")
 	bl := newRealProject(t, a, "acme/billing")
+	for _, f := range prepare {
+		f(gw, bl)
+	}
 	gw.rescan()
 	typeRunes(sc, "  ")
 	waitFor(t, a, sc, "SELECT 2")
@@ -90,7 +93,23 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	for _, want := range []string{"acme/gateway", "acme/billing", "feat/multi"} {
 		waitFor(t, a, sc, want)
 	}
-	waitFor(t, a, sc, "branch has no upstream") // the state, read from git
+	waitFor(t, a, sc, "up to date with origin/main") // read from git
+	waitFor(t, a, sc, "clean")
+
+	// origin's main moves on: r fetches, the row says how far the group is
+	// behind its base, the detail lists what is new, and p rebases onto it.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	moved := gw.elsewhere("main")
+	commitIn(t, moved, "later.txt", "main moved on again")
+	gitIn(t, moved, "push", "-q", "origin", "main")
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "↓1 behind main")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "main moved on again")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "1 updated · 1 up to date")
+	gitIn(t, filepath.Join(dir, "gateway"), "merge-base", "--is-ancestor", "origin/main", "HEAD")
 
 	// d takes the worktrees and the folder; the branches and clones stay.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -108,8 +127,8 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	}
 }
 
-// TestGroupedWorktreeIsWholeOrNothing: a branch git cannot check out a second
-// time stops the group before anything is made.
+// TestGroupedWorktreeIsWholeOrNothing: without a new branch, a branch checked
+// out in the main clone cannot be picked; the dialog says so and stays.
 func TestGroupedWorktreeIsWholeOrNothing(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
@@ -117,7 +136,11 @@ func TestGroupedWorktreeIsWholeOrNothing(t *testing.T) {
 	typeRunes(sc, "same")
 	waitFor(t, a, sc, "same")
 	pressButton(t, a, sc, form, "Create")
-	waitFor(t, a, sc, "already checked out")
+	waitFor(t, a, sc, "main of gateway is checked out in the main clone")
+	waitFor(t, a, sc, "checked out in the main clone") // marked in the select
+	if onLoop(a, func() bool { return a.pages.HasPage(pageForm) }) == false {
+		t.Error("the dialog closed on a branch it cannot use")
+	}
 	if _, err := os.Stat(filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "same")); err == nil {
 		t.Error("a refused group left its folder behind")
 	}
@@ -127,11 +150,12 @@ func TestGroupedWorktreeIsWholeOrNothing(t *testing.T) {
 // repository is on the branch picked for it, tracking origin.
 func TestGroupedWorktreeChecksOutExistingBranches(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
-	gw, bl, form := markBoth(t, a, sc)
-	gitIn(t, gw.clone, "push", "-q", "origin", "main:feat/rate")
 	// gateway takes feat/rate; billing keeps main, which its clone has checked
 	// out, so it is moved off it first.
-	gitIn(t, bl.clone, "checkout", "-q", "-b", "elsewhere")
+	_, _, form := markBoth(t, a, sc, func(gw, bl *realProject) {
+		gitIn(t, gw.clone, "push", "-q", "origin", "main:feat/rate")
+		gitIn(t, bl.clone, "checkout", "-q", "-b", "elsewhere")
+	})
 	onLoop(a, func() bool {
 		form.GetFormItemByLabel("gateway").(*tview.DropDown).SetCurrentOption(1)
 		return true

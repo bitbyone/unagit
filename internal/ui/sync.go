@@ -171,6 +171,17 @@ func (a *App) syncSentence(key projectKey) string {
 	return tag(colour) + esc(text) + tagEnd
 }
 
+// updateItem is one working tree to bring up to origin: a main clone, a
+// worktree, or a member of a grouped one. base is the branch a branch not yet
+// pushed is rebased onto; empty for a clone.
+type updateItem struct {
+	label    string
+	instance string
+	path     string
+	dir      string
+	base     string
+}
+
 // updateProject brings the main clone's branch up to origin: a fast-forward
 // when there is nothing of yours in the way, a rebase of your commits and
 // edits when there is, and nothing at all when that would conflict.
@@ -180,32 +191,94 @@ func (a *App) updateProject(pr forge.Project) {
 		a.flash(pr.PathWithNamespace + " is not cloned - Ctrl-C clones it")
 		return
 	}
-	a.runTaskNoting("Updating "+pr.PathWithNamespace, func(log func(string)) (string, error) {
-		mgr := a.newManager(pr.Instance, pr.PathWithNamespace, log)
-		outcome, err := mgr.UpdateClone(mgr.ProjectDir(pr.PathWithNamespace))
-		if err != nil {
-			return "", err
-		}
-		return pr.PathWithNamespace + ": " + outcome, nil
-	})
+	a.updateMany("Updating "+pr.PathWithNamespace, []updateItem{{label: pr.PathWithNamespace,
+		instance: pr.Instance, path: pr.PathWithNamespace, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)}})
 }
 
 // updateAllClones updates every cloned repository whose branch origin has
-// moved past, several at once. Each one asks origin first, so what counts as
-// behind is what origin says now, not what the column said. One that cannot
-// be updated without a conflict is left as it was and named at the end.
+// moved past. Each one asks origin first, so what counts as behind is what
+// origin says now, not what the column said.
 func (a *App) updateAllClones() {
-	var projects []forge.Project
+	var items []updateItem
 	for _, pr := range a.projects {
 		if a.disk[projectKey{pr.Instance, pr.PathWithNamespace}].Cloned {
-			projects = append(projects, pr)
+			items = append(items, updateItem{label: pr.PathWithNamespace, instance: pr.Instance,
+				path: pr.PathWithNamespace, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
 		}
 	}
-	if len(projects) == 0 {
+	if len(items) == 0 {
 		a.flash("no repository is cloned yet")
 		return
 	}
-	a.runTaskNoting(fmt.Sprintf("Updating %d cloned repositories", len(projects)), func(log func(string)) (string, error) {
+	a.updateMany(fmt.Sprintf("Updating %d cloned repositories", len(items)), items)
+}
+
+// worktreeItems turns rows of the Worktrees list into what updateMany takes: a
+// grouped worktree is all of its members.
+func (a *App) worktreeItems(rows []worktreeRow) []updateItem {
+	var items []updateItem
+	for _, r := range rows {
+		members := []worktreeRow{r}
+		if r.grouped() {
+			members = r.Members
+		}
+		for _, m := range members {
+			base := a.wtRemote[m.Dir].Base
+			if base == "" {
+				base = m.Base
+			}
+			label := m.Path + " (" + m.Branch + ")"
+			items = append(items, updateItem{label: label, instance: m.Instance, path: m.Path, dir: m.Dir, base: base})
+		}
+	}
+	return items
+}
+
+// updateWorktree updates one row of Worktrees: a worktree, or every member of
+// a grouped one.
+func (a *App) updateWorktree(r worktreeRow) {
+	items := a.worktreeItems([]worktreeRow{r})
+	if len(items) == 0 {
+		a.flash(r.Path + " holds no repository")
+		return
+	}
+	a.updateMany("Updating "+r.Path, items)
+}
+
+// updateAllWorktrees updates every worktree on disk, grouped ones included.
+func (a *App) updateAllWorktrees() {
+	items := a.worktreeItems(a.worktrees)
+	if len(items) == 0 {
+		a.flash("there is no worktree yet")
+		return
+	}
+	a.updateMany(fmt.Sprintf("Updating %d worktrees", len(items)), items)
+}
+
+// updateMany updates working trees, several repositories at once but the
+// worktrees of one repository one after another, since they share its refs.
+// One alone gets the whole git log; several only say how each ended, as their
+// lines would interleave into nonsense. One that cannot be updated without a
+// conflict is left as it was and named at the end.
+func (a *App) updateMany(title string, items []updateItem) {
+	a.runTaskNoting(title, func(log func(string)) (string, error) {
+		if len(items) == 1 {
+			it := items[0]
+			outcome, err := a.newManager(it.instance, it.path, log).UpdateBranch(it.dir, it.base)
+			if err != nil {
+				return "", err
+			}
+			return it.label + ": " + outcome, nil
+		}
+		byRepo := map[projectKey][]updateItem{}
+		var order []projectKey
+		for _, it := range items {
+			k := projectKey{it.instance, it.path}
+			if byRepo[k] == nil {
+				order = append(order, k)
+			}
+			byRepo[k] = append(byRepo[k], it)
+		}
 		var (
 			mu                        sync.Mutex
 			updated, current, skipped int
@@ -213,42 +286,84 @@ func (a *App) updateAllClones() {
 		)
 		sem := make(chan struct{}, syncFanOut)
 		var wg sync.WaitGroup
-		for _, pr := range projects {
+		for _, k := range order {
 			wg.Add(1)
 			sem <- struct{}{}
 			go func() {
 				defer func() { <-sem; wg.Done() }()
-				// The git lines of several clones at once would interleave into
-				// nonsense, so each says only how it ended.
-				mgr := a.newManager(pr.Instance, pr.PathWithNamespace, nil)
-				outcome, err := mgr.UpdateClone(mgr.ProjectDir(pr.PathWithNamespace))
-				mu.Lock()
-				defer mu.Unlock()
-				switch {
-				case errors.Is(err, workspace.ErrNotTracking):
-					skipped++
-				case err != nil:
-					refused = append(refused, pr.PathWithNamespace+": "+firstLine(err.Error()))
-					log("! " + pr.PathWithNamespace + ": left as it was")
-				case outcome == workspace.UpdateCurrent:
-					current++
-				default:
-					updated++
-					log(pr.PathWithNamespace + ": " + outcome)
+				mgr := a.newManager(k.Instance, k.Path, nil)
+				for _, it := range byRepo[k] {
+					outcome, err := mgr.UpdateBranch(it.dir, it.base)
+					mu.Lock()
+					switch {
+					case errors.Is(err, workspace.ErrNotTracking):
+						skipped++
+					case err != nil:
+						refused = append(refused, it.label+": "+firstLine(err.Error()))
+						log("! " + it.label + ": left as it was")
+					case outcome == workspace.UpdateCurrent:
+						current++
+					default:
+						updated++
+						log(it.label + ": " + outcome)
+					}
+					mu.Unlock()
 				}
 			}()
 		}
 		wg.Wait()
 		summary := fmt.Sprintf("%d updated · %d up to date", updated, current)
 		if skipped > 0 {
-			summary += fmt.Sprintf(" · %d without an upstream", skipped)
+			summary += fmt.Sprintf(" · %d with nothing to update from", skipped)
 		}
 		log(summary)
 		if len(refused) > 0 {
-			return "", fmt.Errorf("%d repositor%s left as %s - update by hand:\n%s",
-				len(refused), plural(len(refused), "y was", "ies were"), plural(len(refused), "it was", "they were"),
+			return "", fmt.Errorf("%d %s left as %s - update by hand:\n%s",
+				len(refused), plural(len(refused), "was", "were"), plural(len(refused), "it was", "they were"),
 				strings.Join(refused, "\n"))
 		}
 		return summary, nil
 	})
+}
+
+// fetchWorktrees asks origin about every repository a worktree hangs off,
+// once each and in the background, then reads where the branches stand.
+func (a *App) fetchWorktrees() {
+	dirs := map[projectKey]string{}
+	for _, it := range a.worktreeItems(a.worktrees) {
+		k := projectKey{it.instance, it.path}
+		if _, ok := dirs[k]; !ok {
+			dirs[k] = it.dir
+		}
+	}
+	if len(dirs) == 0 {
+		return
+	}
+	a.fetching += len(dirs)
+	a.reloadWorktreesHeader()
+	go func() {
+		sem := make(chan struct{}, syncFanOut)
+		var wg sync.WaitGroup
+		for k, dir := range dirs {
+			wg.Add(1)
+			sem <- struct{}{}
+			git := a.newManager(k.Instance, k.Path, nil).Git()
+			go func() {
+				defer func() { <-sem; wg.Done() }()
+				_ = git.Fetch(dir)
+				a.tv.QueueUpdateDraw(func() {
+					a.fetching--
+					a.reloadWorktreesHeader()
+				})
+			}()
+		}
+		wg.Wait()
+		a.tv.QueueUpdateDraw(a.loadWorktreeRemotes)
+	}()
+}
+
+func (a *App) reloadWorktreesHeader() {
+	if a.worktreesPane != nil && a.worktreesPane.headline != nil {
+		a.worktreesPane.updateHeader()
+	}
 }

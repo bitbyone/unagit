@@ -180,6 +180,9 @@ or not at all: every repository is cloned and fetched, then checked
 (`CheckGroupMember` - git checks a branch out only once, so a branch the main
 clone has is refused with a reason), and only then are worktrees added; a
 failure takes back what was made. Deleting a group keeps its branches.
+A branch unagit makes records its base in `branch.<name>.unagitBase`;
+`UpdateBranch` rebases a branch onto that base only while it has no upstream -
+once pushed, rebasing would need a force push.
 
 **The review arrangement** is the feature the whole tool exists for, and it is
 easy to get subtly wrong:

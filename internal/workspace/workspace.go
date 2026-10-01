@@ -432,6 +432,11 @@ func (m *Manager) EnsureWorktree(p forge.Project, branch string, isNew bool) (st
 		if err := m.addWorktreeFrom(mainDir, wtDir, branch, "HEAD"); err != nil {
 			return "", err
 		}
+		// What the main clone had out is what the branch grows from, and
+		// what it is later rebased onto until it is pushed.
+		if base := m.git.CurrentBranch(mainDir); base != "" && base != branch {
+			_ = m.git.SetBranchBase(mainDir, branch, base)
+		}
 	case m.git.LocalBranchExists(mainDir, branch):
 		if err := m.git.WorktreeAdd(mainDir, wtDir, branch); err != nil {
 			return "", err

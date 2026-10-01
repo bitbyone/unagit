@@ -229,24 +229,82 @@ func (g *Git) WorktreeAdd(mainDir, path, branch string) error {
 	return err
 }
 
-// CheckedOutIn is the working tree that has branch checked out, or "" when none
-// has. Git refuses a second checkout of the same branch, and saying where the
-// first one is lets the user do something about it.
-func (g *Git) CheckedOutIn(mainDir, branch string) string {
+// CheckedOut maps every branch checked out in a working tree of the repository
+// to that tree's directory. Git refuses a second checkout of the same branch,
+// and saying where the first one is lets the user do something about it.
+func (g *Git) CheckedOut(mainDir string) map[string]string {
 	out, err := g.out(mainDir, "worktree", "list", "--porcelain")
 	if err != nil {
-		return ""
+		return nil
 	}
+	found := map[string]string{}
 	dir := ""
 	for _, line := range strings.Split(out, "\n") {
 		if rest, ok := strings.CutPrefix(line, "worktree "); ok {
 			dir = rest
 		}
-		if line == "branch refs/heads/"+branch {
-			return dir
+		if branch, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
+			found[branch] = dir
 		}
 	}
+	return found
+}
+
+// CheckedOutIn is the working tree that has branch checked out, or "".
+func (g *Git) CheckedOutIn(mainDir, branch string) string {
+	return g.CheckedOut(mainDir)[branch]
+}
+
+// BaseRef is what a branch made from base is compared with and rebased onto:
+// origin's copy when there is one, since the local branch may lag behind it,
+// or "" when base is nowhere to be found.
+func (g *Git) BaseRef(dir, base string) string {
+	switch {
+	case g.RemoteBranchExists(dir, base):
+		return "origin/" + base
+	case g.LocalBranchExists(dir, base):
+		return base
+	}
 	return ""
+}
+
+// Count is how many commits a range holds, 0 when git cannot say.
+func (g *Git) Count(dir, revRange string) int {
+	out, err := g.out(dir, "rev-list", "--count", revRange)
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(out)
+	return n
+}
+
+// baseKey is where unagit notes the branch a new branch was made from, so it
+// can later say how far that base has moved on and rebase onto it.
+const baseKey = "unagitbase"
+
+// SetBranchBase records the branch that branch was made from.
+func (g *Git) SetBranchBase(dir, branch, base string) error {
+	_, err := g.Run(dir, "config", "branch."+branch+"."+baseKey, base)
+	return err
+}
+
+// BranchBases maps every branch with a recorded base to that base, from one
+// git config for the whole repository.
+func (g *Git) BranchBases(dir string) map[string]string {
+	out, err := g.out(dir, "config", "--get-regexp", `^branch\..*\.`+baseKey+`$`)
+	if err != nil || out == "" {
+		return nil
+	}
+	bases := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		key, value, ok := strings.Cut(line, " ")
+		if !ok {
+			continue
+		}
+		branch := strings.TrimSuffix(strings.TrimPrefix(key, "branch."), "."+baseKey)
+		bases[branch] = value
+	}
+	return bases
 }
 
 // WorktreeRemove detaches a worktree directory from the repository.

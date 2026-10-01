@@ -112,8 +112,9 @@ say, or a task for an AI agent that has to see all of them - wants them in one
 folder. In Repositories, `space` selects a repository and moves on (the header
 says `SELECT 3`, `Esc` clears it); `Ctrl-W` on a selection then asks for:
 
-- **New branch** - made in every repository. Left empty, nothing is created
-  and each repository checks out a branch of its own.
+- **New branch** - made in every repository, from the branch picked for it
+  below. Left empty, nothing is created and each repository checks out the
+  branch picked for it.
 - **Folder** - the name of the folder; it follows the branch until you change it.
 - **A branch for each repository** - where the new branch starts, or, without
   one, the branch that repository checks out.
@@ -123,16 +124,36 @@ says `SELECT 3`, `Esc` clears it); `Ctrl-W` on a selection then asks for:
 <root>/.unagit/groups/<folder>/.unagit-group.json
 ```
 
-Every repository is cloned and fetched first and checked before anything is
-made, so a group is made whole or not at all. Git checks a branch out only once,
-so picking the branch the main clone already has - usually the default one -
-needs a new branch for the group, or the main clone switched elsewhere.
+Git checks a branch out only once, so a branch already checked out - usually
+the default one, in the main clone - is marked so in the list and cannot be
+picked without a new branch: give the group one, or switch that checkout away.
+Every repository is cloned, fetched and checked before anything is made, so a
+group is made whole or not at all.
 
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` lists each repository with its branch, its remote and its state.
-`Ctrl-O` opens the folder, `P` pushes every repository that needs it, `n` asks
+`Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
+pushes every repository that needs it, `n` asks
 which one to open a merge request for, and `d` deletes the worktrees - the
 branches and the main clones stay.
+
+### Keeping worktrees current
+
+A branch unagit makes - in a grouped worktree, or with `n` in the `Ctrl-W`
+picker - remembers the branch it was made from (`git config
+branch.<name>.unagitBase`). Until it is pushed, Worktrees measures it against
+origin's copy of that base: `REMOTE` says `↓2 behind main`, and `p` rebases it
+onto it. Once pushed it has an upstream of its own and follows that instead,
+as a clone does in Repositories - a pushed branch is never rebased onto its
+base, since that would rewrite what origin has and need a force push, which
+unagit does not do. The same rules apply: a fast-forward when nothing local is
+in the way, a rebase otherwise, and nothing at all when that would conflict.
+`r` fetches first, `Alt-P` updates every worktree.
+
+`Enter` shows what there is to know before deciding anything: what the branch
+was made from and how far that has moved, its own commits, what is new on the
+base, the files it changes against it, what is not committed, what is not on
+origin yet, and the merge request.
 
 ## Integrations
 

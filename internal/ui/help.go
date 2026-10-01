@@ -158,7 +158,7 @@ func helpRows() []helpLine {
 		key("w", "open in the browser").in(helpLists),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
-		key("r", "refresh from the server, or worktrees from disk"),
+		key("r", "refresh from the server; in Worktrees, fetch"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
@@ -188,6 +188,8 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Worktrees", helpWorktrees),
+		key("p", "pull; unpushed: rebase onto the branch it came from"),
+		key("Alt-P", "the same for every worktree"),
 		key("P", "push; -u when it has no upstream; never forced"),
 		key("n", "open a merge request; offers to push first"),
 		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),

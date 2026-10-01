@@ -30,6 +30,9 @@ type worktreeRow struct {
 	Branch   string // what the worktree has checked out now
 	Dir      string
 	Moved    time.Time // when its HEAD last moved
+	// Base is the branch a group member was made from, as the group noted it;
+	// the repository's own note wins when there is one.
+	Base string
 	// Members is set for a grouped worktree: a row for each repository in it.
 	// Path is then the group's name, Branch the branch they all share or "",
 	// and Dir the directory holding them.
@@ -45,6 +48,13 @@ type remoteState struct {
 	Unreadable bool // git could not be asked: the clone is gone or broken
 	Detached   bool
 	Upstream   gitx.Upstream
+	// Base is the branch this one was made from, when unagit made it; Onto is
+	// what it is compared with and rebased onto (origin's copy when there is
+	// one), and BaseBehind how many commits that has which this branch lacks.
+	// Only a branch not pushed yet is measured against its base.
+	Base       string
+	Onto       string
+	BaseBehind int
 }
 
 // project is the repository the worktree hangs off. The index has its clone
@@ -115,6 +125,7 @@ func (a *App) loadWorktreeRemotes() {
 		for _, k := range order {
 			j := jobs[k]
 			upstreams := j.git.BranchUpstreams(j.dir)
+			bases := j.git.BranchBases(j.dir)
 			for _, r := range j.rows {
 				switch {
 				case upstreams == nil:
@@ -122,7 +133,17 @@ func (a *App) loadWorktreeRemotes() {
 				case r.Branch == "(detached)":
 					result[r.Dir] = remoteState{Detached: true}
 				default:
-					result[r.Dir] = remoteState{Upstream: upstreams[r.Branch]}
+					st := remoteState{Upstream: upstreams[r.Branch], Base: bases[r.Branch]}
+					if st.Base == "" {
+						st.Base = r.Base
+					}
+					if st.Base != "" && st.Upstream.Name == "" {
+						st.Onto = j.git.BaseRef(r.Dir, st.Base)
+						if st.Onto != "" {
+							st.BaseBehind = j.git.Count(r.Dir, "HEAD.."+st.Onto)
+						}
+					}
+					result[r.Dir] = st
 				}
 			}
 		}
@@ -151,6 +172,8 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 		return "detached", "", colDim
 	case u.Gone:
 		return "upstream gone", "", colBad
+	case u.Name == "" && st.BaseBehind > 0:
+		return fmt.Sprintf("↓%d behind %s", st.BaseBehind, st.Base), "", colWarn
 	case u.Name == "":
 		return "no upstream", "", colWarn
 	case u.Ahead > 0 && u.Behind > 0:
@@ -183,8 +206,12 @@ func (a *App) newWorktreesPane() *pane {
 	var filtered []int
 
 	p.headline = func() string {
-		return fmt.Sprintf("%s%d/%d worktrees · %s%s", tag(colMuted), len(filtered), len(a.worktrees),
-			sortLabel(a.cfg.Filters.Order()), tagEnd)
+		fetching := ""
+		if a.fetching > 0 {
+			fetching = fmt.Sprintf(" · fetching %d", a.fetching)
+		}
+		return fmt.Sprintf("%s%d/%d worktrees · %s%s%s", tag(colMuted), len(filtered), len(a.worktrees),
+			sortLabel(a.cfg.Filters.Order()), fetching, tagEnd)
 	}
 
 	render := func(query string) {
@@ -226,6 +253,14 @@ func (a *App) newWorktreesPane() *pane {
 			}
 		})
 	}
+	// Alt-P takes every worktree, as it takes every clone in Repositories.
+	p.onAlt = func(r rune) bool {
+		if r == 'p' {
+			a.updateAllWorktrees()
+			return true
+		}
+		return false
+	}
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() != tcell.KeyRune {
 			return ev
@@ -249,7 +284,13 @@ func (a *App) newWorktreesPane() *pane {
 			return nil
 		case 'r':
 			a.refreshDisk()
-			a.note("looked at the disk and at origin again")
+			a.fetchWorktrees()
+			a.note("looking at the disk, and asking origin")
+			return nil
+		case 'p':
+			if r, ok := selected(); ok {
+				a.updateWorktree(r)
+			}
 			return nil
 		case 'P':
 			r, ok := selected()
@@ -550,6 +591,8 @@ func remoteRank(st remoteState) int {
 		return 1
 	case u.Gone:
 		return 6
+	case u.Name == "" && st.BaseBehind > 0:
+		return 4
 	case u.Name == "":
 		return 2
 	case u.Ahead > 0 && u.Behind > 0:
@@ -578,73 +621,6 @@ func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
 		})
 }
 
-// showWorktreeDetail fills the detail column with the state of one worktree.
-// What git says takes a moment, so it comes in after the outline.
-func (a *App) showWorktreeDetail(r worktreeRow, focus bool) {
-	p := a.worktreesPane
-	p.detailSeq++
-	seq := p.detailSeq
-	title := r.Path + " · " + r.Branch
-
-	st, known := a.wtRemote[r.Dir]
-	plain, name, colour := remoteWords(st, known)
-	remote := tag(colour) + esc(a.remoteSentence(st, known, plain)) + tagEnd
-	if name != "" {
-		remote += tag(colDim) + " with " + esc(name) + tagEnd
-	}
-	mrLine := tag(colDim) + "no open merge request · n creates one" + tagEnd
-	if mr, ok := a.openMRFor(r); ok {
-		mrLine = tag(colAccent) + fmt.Sprintf("!%d", mr.IID) + tagEnd + " " + esc(mr.Title)
-	}
-
-	outline := func(state, commits string) string {
-		d := &detailBuf{}
-		d.title(r.Branch)
-		d.sub(r.Path)
-		d.section("Worktree")
-		if a.multiInstance() {
-			d.kv("Server", esc(a.instanceLabel(r.Instance)))
-		}
-		d.kv("Repository", esc(r.Path))
-		d.kv("Branch", tag(colBranch)+esc(r.Branch)+tagEnd)
-		d.kv("Remote", remote)
-		d.kv("Merge request", mrLine)
-		d.kv("Directory", esc(tildePath(r.Dir)))
-		if !r.Moved.IsZero() {
-			d.kv("Last moved", humanAge(r.Moved))
-		}
-		d.kv("State", state)
-		if commits != "" {
-			d.section("Latest commits")
-			for _, line := range strings.Split(strings.TrimRight(commits, "\n"), "\n") {
-				d.raw("  " + esc(line) + "\n")
-			}
-		}
-		return d.String()
-	}
-	p.openDetail(title, outline(tag(colMuted)+"looking …"+tagEnd, ""), focus)
-
-	mgr := a.newManager(r.Instance, r.Path, nil)
-	go func() {
-		git := mgr.Git()
-		state := tag(colOn) + "clean" + tagEnd
-		if s := git.Status(r.Dir).Describe(); s != "" {
-			state = tag(colWarn) + esc(s) + tagEnd
-		}
-		// A directory git cannot read has nothing to list, and its error is not a commit.
-		commits, err := git.Run(r.Dir, "log", "-8", "--format=%h  %s  (%cr)")
-		if err != nil {
-			commits = ""
-		}
-		a.tv.QueueUpdateDraw(func() {
-			if p.detailSeq != seq {
-				return
-			}
-			p.setDetail(title, outline(state, commits))
-		})
-	}()
-}
-
 // remoteSentence is remoteWords for the detail column, where there is room to
 // say it in full.
 func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
@@ -658,6 +634,8 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 		return "detached HEAD, no branch to push"
 	case u.Gone:
 		return "upstream gone: the branch was deleted on origin"
+	case u.Name == "" && st.BaseBehind > 0:
+		return fmt.Sprintf("not on origin yet, %d behind %s · p rebases onto it · P pushes it", st.BaseBehind, st.Onto)
 	case u.Name == "":
 		return "no upstream: not on origin yet · P pushes it"
 	case u.Ahead > 0 && u.Behind > 0:

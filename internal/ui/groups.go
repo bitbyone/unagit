@@ -38,7 +38,7 @@ func (a *App) groupRow(g workspace.GroupDir) worktreeRow {
 		}
 		branch, moved := workspace.WorktreeHead(dir)
 		row.Members = append(row.Members, worktreeRow{
-			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved})
+			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved, Base: m.Base})
 		if moved.After(row.Moved) {
 			row.Moved = moved
 		}
@@ -64,6 +64,20 @@ type groupChoice struct {
 	dir      string
 	branches []string
 	selected int
+	// busy says where a branch is already checked out; git will not check it
+	// out a second time, so without a new branch it cannot be picked.
+	busy map[string]string
+}
+
+// option is how a branch reads in the select: with where it is checked out,
+// when it is.
+func (c groupChoice) option(branch string) string {
+	if where, ok := c.busy[branch]; ok {
+		// A select is as wide as its longest option, and one wider than the
+		// dialog is drawn over its frame.
+		return trunc(branch, 30) + "  · checked out in " + trunc(where, 20)
+	}
+	return trunc(branch, 56)
 }
 
 // startGroupWorktree loads the branches of every marked repository, then asks
@@ -128,9 +142,18 @@ func (a *App) groupChoiceFor(ctx context.Context, pr forge.Project, dir string) 
 	}
 	if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
 		mgr := a.pathManager(pr.Instance, pr.PathWithNamespace)
-		for _, name := range mgr.Git().LocalBranches(mgr.ProjectDir(pr.PathWithNamespace)) {
+		mainDir := mgr.ProjectDir(pr.PathWithNamespace)
+		for _, name := range mgr.Git().LocalBranches(mainDir) {
 			if !known[name] {
 				c.branches = append(c.branches, name)
+			}
+		}
+		c.busy = map[string]string{}
+		for branch, dir := range mgr.Git().CheckedOut(mainDir) {
+			if sameDir(dir, mainDir) {
+				c.busy[branch] = "the main clone"
+			} else {
+				c.busy[branch] = filepath.Base(dir)
 			}
 		}
 	}
@@ -139,6 +162,24 @@ func (a *App) groupChoiceFor(ctx context.Context, pr forge.Project, dir string) 
 	}
 	return c, nil
 }
+
+// sameDir compares two directories as the file system sees them: git reports
+// the real path, and the configured one may go through a symlink.
+func sameDir(a, b string) bool {
+	if ra, err := filepath.EvalSymlinks(a); err == nil {
+		a = ra
+	}
+	if rb, err := filepath.EvalSymlinks(b); err == nil {
+		b = rb
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
+}
+
+// Hints under the branch, for the two ways a grouped worktree is made.
+const (
+	hintGroupNew      = "Made in every repository from the branch below;\np rebases it onto that branch until it is pushed."
+	hintGroupExisting = "Each repository checks out the branch below;\none checked out elsewhere cannot be picked."
+)
 
 // Labels of the fields above the repositories.
 const (
@@ -155,19 +196,29 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice, ed *editors.Editor) {
 	form.SetItemPadding(1)
 	branch := form.AddInputField(labelGroupBranch, "", 0, nil, nil).GetFormItemByLabel(labelGroupBranch).(*tview.InputField)
 	folder := form.AddInputField(labelGroupFolder, "", 0, nil, nil).GetFormItemByLabel(labelGroupFolder).(*tview.InputField)
-	// The folder follows the branch until it is given a name of its own.
+	form.AddTextView("", hintGroupExisting, 0, 2, true, false)
+	hint := form.GetFormItem(form.GetFormItemCount() - 1).(*tview.TextView)
+	// The folder follows the branch until it is given a name of its own, and
+	// the hint says what the branches below mean now.
 	named := ""
 	branch.SetChangedFunc(func(text string) {
 		if folder.GetText() == named {
 			named = workspace.Sanitize(strings.TrimSpace(text))
 			folder.SetText(named)
 		}
+		if strings.TrimSpace(text) == "" {
+			hint.SetText(hintGroupExisting)
+		} else {
+			hint.SetText(hintGroupNew)
+		}
 	})
-	form.AddTextView("", "New branch: made in each repository, from its branch below.\n"+
-		"Left empty: each repository checks out its branch below.", 0, 2, true, false)
 	selects := make([]*tview.DropDown, len(choices))
 	for i, c := range choices {
-		selects[i] = addSelect(form, c.dir, c.branches, c.selected)
+		options := make([]string, len(c.branches))
+		for j, b := range c.branches {
+			options[j] = c.option(b)
+		}
+		selects[i] = addSelect(form, c.dir, options, c.selected)
 	}
 
 	create := func() {
@@ -187,7 +238,16 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice, ed *editors.Editor) {
 		}
 		plan := workspace.Group{Name: name, Branch: newBranch, Created: time.Now()}
 		for i, c := range choices {
-			_, picked := selects[i].GetCurrentOption()
+			idx, _ := selects[i].GetCurrentOption()
+			if idx < 0 {
+				idx = 0
+			}
+			picked := c.branches[idx]
+			if where, busy := c.busy[picked]; busy && newBranch == "" {
+				a.flash(fmt.Sprintf("%s of %s is checked out in %s - give the group a new branch, or pick another",
+					picked, c.dir, where))
+				return
+			}
 			m := workspace.GroupMember{Instance: c.project.Instance, Project: c.project.PathWithNamespace,
 				Dir: c.dir, Branch: picked}
 			if newBranch != "" {
@@ -395,80 +455,6 @@ func (a *App) groupMergeRequest(r worktreeRow) {
 	a.showPicker("Merge request for - "+r.Path, items, func(it pickItem) {
 		a.newMergeRequest(it.Data.(worktreeRow))
 	})
-}
-
-// showGroupDetail fills the detail column with a grouped worktree: the folder,
-// then every repository in it with its branch, where that stands against
-// origin, and its state on disk, which comes in after the outline.
-func (a *App) showGroupDetail(r worktreeRow, focus bool) {
-	p := a.worktreesPane
-	p.detailSeq++
-	seq := p.detailSeq
-	title := r.Path + " · " + fmt.Sprintf("%d repositories", len(r.Members))
-
-	outline := func(states map[string]string) string {
-		d := &detailBuf{}
-		d.title(r.Path)
-		d.sub(fmt.Sprintf("grouped worktree · %d repositories", len(r.Members)))
-		d.section("Grouped worktree")
-		d.kv("Directory", esc(tildePath(r.Dir)))
-		if r.Branch != "" {
-			d.kv("Branch", tag(colBranch)+esc(r.Branch)+tagEnd)
-		} else {
-			d.kv("Branch", tag(colMuted)+esc(a.worktreeBranch(r))+tagEnd)
-		}
-		plain, colour := a.worktreeRemoteWords(r)
-		d.kv("Remote", tag(colour)+esc(plain)+tagEnd)
-		if !r.Moved.IsZero() {
-			d.kv("Last moved", humanAge(r.Moved))
-		}
-		for _, m := range r.Members {
-			d.section(filepath.Base(m.Dir))
-			d.kv("Repository", esc(m.Path))
-			if a.multiInstance() {
-				d.kv("Server", esc(a.instanceLabel(m.Instance)))
-			}
-			d.kv("Branch", tag(colBranch)+esc(m.Branch)+tagEnd)
-			st, known := a.wtRemote[m.Dir]
-			plain, name, colour := remoteWords(st, known)
-			remote := tag(colour) + esc(a.remoteSentence(st, known, plain)) + tagEnd
-			if name != "" {
-				remote += tag(colDim) + " with " + esc(name) + tagEnd
-			}
-			d.kv("Remote", remote)
-			mrLine := tag(colDim) + "no open merge request" + tagEnd
-			if mr, ok := a.openMRFor(m); ok {
-				mrLine = tag(colAccent) + fmt.Sprintf("!%d", mr.IID) + tagEnd + " " + esc(mr.Title)
-			}
-			d.kv("Merge request", mrLine)
-			d.kv("Directory", esc(filepath.Base(m.Dir)))
-			state, ok := states[m.Dir]
-			if !ok {
-				state = tag(colMuted) + "looking …" + tagEnd
-			}
-			d.kv("State", state)
-		}
-		return d.String()
-	}
-	p.openDetail(title, outline(nil), focus)
-
-	members := r.Members
-	go func() {
-		states := map[string]string{}
-		for _, m := range members {
-			state := tag(colOn) + "clean" + tagEnd
-			if s := a.pathManager(m.Instance, m.Path).Git().Status(m.Dir).Describe(); s != "" {
-				state = tag(colWarn) + esc(s) + tagEnd
-			}
-			states[m.Dir] = state
-		}
-		a.tv.QueueUpdateDraw(func() {
-			if p.detailSeq != seq {
-				return
-			}
-			p.setDetail(title, outline(states))
-		})
-	}()
 }
 
 // groupMembersOf lists the grouped worktrees that hold a worktree of the
