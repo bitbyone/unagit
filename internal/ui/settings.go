@@ -21,11 +21,12 @@ const (
 	sectionGitLab
 	sectionGitHub
 	sectionGroups
+	sectionTags
 	sectionSecurity
 	sectionIntegrations
 )
 
-var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Security", "Integrations"}
+var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Security", "Integrations"}
 
 // settingsView is the whole configuration: a list of sections on the left and
 // the section's editor on the right. Nothing here needs the file to be edited
@@ -41,6 +42,7 @@ type settingsView struct {
 	gitlab       *tview.Table
 	github       *tview.Table
 	tree         *tview.TreeView
+	tags         *tview.Table
 	security     *tview.TextView
 
 	current int
@@ -69,6 +71,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.gitlab = s.newServerTable(config.KindGitLab, "GitLab servers")
 	s.github = s.newServerTable(config.KindGitHub, "GitHub accounts")
 	s.tree = s.newGroupTree()
+	s.tags = s.newTagTable()
 	s.security = s.newSecurityPane()
 
 	s.content = tview.NewPages()
@@ -77,6 +80,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("gitlab", s.gitlab, true, false)
 	s.content.AddPage("github", s.github, true, false)
 	s.content.AddPage("groups", s.tree, true, false)
+	s.content.AddPage("tags", s.tags, true, false)
 	s.content.AddPage("security", s.security, true, false)
 
 	for _, panel := range []*tview.Box{s.gitlab.Box, s.github.Box} {
@@ -84,6 +88,9 @@ func (a *App) newSettingsView() *settingsView {
 	}
 	hintPanel(s.tree.Box, func() string {
 		return "Space select · d root directory · r reload groups · p refresh repositories · m refresh merge requests"
+	}, 0, 0, 1, 1)
+	hintPanel(s.tags.Box, func() string {
+		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
 	}, 0, 0, 1, 1)
 	hintPanel(s.security.Box, func() string {
 		if passphraseStore.available() {
@@ -105,6 +112,7 @@ func (s *settingsView) reload() {
 	s.fillIntegrations()
 	s.fillServerTables()
 	s.fillTree()
+	s.fillTags()
 	s.fillSecurity()
 }
 
@@ -128,6 +136,9 @@ func (s *settingsView) show(section int) {
 		s.content.SwitchToPage("github")
 	case sectionGroups:
 		s.content.SwitchToPage("groups")
+	case sectionTags:
+		s.fillTags()
+		s.content.SwitchToPage("tags")
 	case sectionSecurity:
 		s.content.SwitchToPage("security")
 	}
@@ -147,6 +158,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.github
 	case sectionGroups:
 		return s.tree
+	case sectionTags:
+		return s.tags
 	case sectionIntegrations:
 		return s.integrations
 	case sectionSecurity:
@@ -164,6 +177,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.github.Box
 	case sectionGroups:
 		return s.tree.Box
+	case sectionTags:
+		return s.tags.Box
 	case sectionIntegrations:
 		return s.integrations.cards[s.integrations.current].view.Box
 	case sectionSecurity:
@@ -179,7 +194,7 @@ func (s *settingsView) paintFocus() {
 	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.security.Box,
+		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.security.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -201,6 +216,8 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.github)
 	case sectionGroups:
 		s.app.tv.SetFocus(s.tree)
+	case sectionTags:
+		s.app.tv.SetFocus(s.tags)
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
 	}

@@ -12,7 +12,7 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "S")
 	waitFor(t, a, sc, "Default root")
-	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionSecurity, sectionIntegrations} {
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionSecurity, sectionIntegrations} {
 		a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })
 		onLoop(a, func() bool {
 			if !strings.Contains(a.helpHint.GetText(true), "? help") {
@@ -35,6 +35,8 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 				content = a.settings.github.Box
 			case sectionGroups:
 				content = a.settings.tree.Box
+			case sectionTags:
+				content = a.settings.tags.Box
 			case sectionSecurity:
 				content = a.settings.security.Box
 			case sectionIntegrations:
@@ -70,6 +72,8 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 				want = "d remove"
 			case sectionGroups:
 				want = "m refresh merge requests"
+			case sectionTags:
+				want = "s ends:"
 			}
 			if !strings.Contains(line.String(), want) {
 				t.Errorf("section %d panel %d: bottom interior row %q lacks %q", section, i, line.String(), want)

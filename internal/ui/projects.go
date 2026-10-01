@@ -33,7 +33,7 @@ func (a *App) newProjectsPane() *pane {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
 		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
-			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories), tagEnd)
+			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories)+a.tagSummary(), tagEnd)
 	}
 
 	render := func(query string) {
@@ -91,6 +91,12 @@ func (a *App) newProjectsPane() *pane {
 			a.toggleRepositoryGrouping()
 			return nil
 		}
+		if ev.Key() == tcell.KeyCtrlT {
+			if pr, ok := selected(); ok {
+				a.showRepositoryTags(pr.Instance, pr.PathWithNamespace)
+			}
+			return nil
+		}
 		// Ctrl-F stars the repository; it pages the list nowhere else.
 		if ev.Key() == tcell.KeyCtrlF {
 			if pr, ok := selected(); ok {
@@ -113,6 +119,16 @@ func (a *App) newProjectsPane() *pane {
 		case 'e':
 			if pr, ok := selected(); ok {
 				a.showProjectDirectory(pr)
+			}
+			return nil
+		case 'f':
+			a.showTagFilter()
+			return nil
+		case 'F':
+			if len(a.cfg.Filters.Tags) > 0 {
+				a.cfg.Filters.Tags = nil
+				a.applyFilters()
+				a.note("Showing every tag again")
 			}
 			return nil
 		case 'y':
@@ -160,7 +176,11 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 		if !a.passesFilters(p.Instance, p.PathWithNamespace) {
 			continue
 		}
-		hay := p.PathWithNamespace + " " + p.Name + " " + p.Description + " " + a.instanceLabel(p.Instance)
+		tags := a.cfg.TagsOf(p.Instance, p.PathWithNamespace)
+		if !a.cfg.Filters.PassesTags(tags) {
+			continue
+		}
+		hay := strings.Join(tags, " ") + " " + p.PathWithNamespace + " " + p.Name + " " + p.Description + " " + a.instanceLabel(p.Instance)
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
 			continue
@@ -314,7 +334,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
 		}
 		fields = append(fields,
-			field{text: name(pr), width: nameW, colour: colText},
+			field{raw: a.nameWithTags(name(pr), a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), nameW, colText)},
 			field{text: branch, width: branchW, colour: branchColour})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})

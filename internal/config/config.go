@@ -210,6 +210,8 @@ type Filters struct {
 	GroupRepositories bool `yaml:"group_repositories,omitempty" json:"group_repositories,omitempty"`
 	// Favourites are the starred repositories and merge requests.
 	Favourites []Favourite `yaml:"favourites,omitempty" json:"favourites,omitempty"`
+	// Tags narrow the repositories to those wearing any of them.
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	// FavouritesInPlace leaves the favourites among the other rows. By
 	// default they come first, set apart from the rest.
 	FavouritesInPlace bool `yaml:"favourites_in_place,omitempty" json:"favourites_in_place,omitempty"`
@@ -335,6 +337,14 @@ type Config struct {
 	RememberPassphrase bool       `yaml:"remember_passphrase,omitempty"`
 	Filters            Filters    `yaml:"filters,omitempty"`
 	Instances          []Instance `yaml:"instances"`
+	// Tags are the user's own labels for repositories - the default ones
+	// until a configuration says otherwise, an empty list included - and
+	// RepositoryTags which repository wears which.
+	Tags           []Tag            `yaml:"tags"`
+	RepositoryTags []RepositoryTags `yaml:"repository_tags,omitempty"`
+	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
+	// TagEndsSquare.
+	TagEnds string `yaml:"tag_ends,omitempty"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.
@@ -347,6 +357,7 @@ func Default() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
 		RootDir: filepath.Join(home, "unagit"),
+		Tags:    DefaultTags(),
 	}
 }
 

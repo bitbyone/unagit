@@ -6,11 +6,9 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
-	"github.com/tobola/unagit/internal/fuzzy"
 )
 
 // hiddenMark is what a project kept out of the lists is drawn with.
@@ -182,171 +180,48 @@ func (a *App) toggleFavourite(instance, path string, iid int, what string) {
 	a.note(what + " is no longer a favourite")
 }
 
-// showHiddenPicker manages which repositories stay out of the lists. It is a
-// multiple choice, so space toggles and the modal stays open.
+// showHiddenPicker manages which repositories stay out of the lists. Every
+// project of every server is listed, hidden ones included: this is the one
+// place they can be found again.
 func (a *App) showHiddenPicker() {
-	list := tview.NewList().ShowSecondaryText(false)
-	list.SetHighlightFullLine(true).
-		SetMainTextColor(colText).
-		SetSelectedStyle(styleSelected)
-
-	input := filterField(tview.NewInputField())
-
-	footer := tview.NewTextView().SetDynamicColors(true)
-	filtering := false
-	updateFooter := func() {
-		keys := "j/k move · space/Enter hide/show · a show all · / search · Esc close"
-		if filtering {
-			keys = "type to search · ↑/↓ move · Enter hide/show · Esc list"
-		}
-		footer.SetText(fmt.Sprintf(" %s%s%s · %d hidden", tag(colDim), keys, tagEnd, len(a.cfg.Filters.Hidden)))
-	}
-
-	// Every project of every server, hidden ones included: this is the one
-	// place they can be found again.
 	type row struct{ instance, path string }
-	var shown []row
-
-	rebuild := func(query string) {
-		current := list.GetCurrentItem()
-		list.Clear()
-		shown = shown[:0]
-		type hit struct {
-			row   row
-			score int
-		}
-		var hits []hit
-		for _, p := range a.projects {
-			hay := p.PathWithNamespace + " " + a.instanceLabel(p.Instance)
-			score, ok := fuzzy.Match(query, hay)
-			if !ok {
-				continue
-			}
-			hits = append(hits, hit{row{p.Instance, p.PathWithNamespace}, score})
-		}
-		if strings.TrimSpace(query) != "" {
-			sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-		} else {
-			sort.SliceStable(hits, func(i, j int) bool { return hits[i].row.path < hits[j].row.path })
-		}
-		for _, h := range hits {
-			marker := tag(colDim) + "·" + tagEnd
-			text := h.row.path
-			if a.cfg.Filters.IsHidden(h.row.instance, h.row.path) {
-				marker = tag(colWarn) + hiddenMark + tagEnd
-				text = tag(colMuted) + text + tagEnd
-			}
-			label := marker + " " + text
-			if a.multiInstance() {
-				label += "   " + tag(colDim) + a.instanceLabel(h.row.instance) + tagEnd
-			}
-			shown = append(shown, h.row)
-			list.AddItem(label, "", 0, nil)
-		}
-		if current > 0 && current < list.GetItemCount() {
-			list.SetCurrentItem(current)
-		}
-		updateFooter()
-	}
-	rebuild("")
-	input.SetChangedFunc(rebuild)
-
-	toggle := func() {
-		i := list.GetCurrentItem()
-		if i < 0 || i >= len(shown) {
-			return
-		}
-		a.cfg.Filters.ToggleHidden(shown[i].instance, shown[i].path)
-		a.applyFilters()
-		rebuild(input.GetText())
-	}
-	dismiss := func() { a.closeModal(pageHidden) }
-
-	move := func(delta int) {
-		if n := list.GetItemCount(); n > 0 {
-			list.SetCurrentItem(max(0, min(list.GetCurrentItem()+delta, n-1)))
-		}
-	}
-	setMode := func(active bool) {
-		filtering = active
-		updateFooter()
-		if filtering {
-			a.tv.SetFocus(input)
-			return
-		}
-		a.tv.SetFocus(list)
-	}
-
-	input.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		switch ev.Key() {
-		case tcell.KeyEsc:
-			setMode(false)
-			return nil
-		case tcell.KeyEnter:
-			toggle()
-			return nil
-		case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn:
-			if h := list.InputHandler(); h != nil {
-				h(ev, func(tview.Primitive) {})
-			}
-			return nil
-		}
-		return ev
-	})
-
-	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		switch ev.Key() {
-		case tcell.KeyEsc:
-			dismiss()
-			return nil
-		case tcell.KeyEnter:
-			toggle()
-			return nil
-		case tcell.KeyRune:
-			switch ev.Rune() {
-			case ' ':
-				toggle()
-				return nil
-			case 'a':
-				if n := a.cfg.Filters.ShowAll(); n > 0 {
-					a.applyFilters()
-					rebuild(input.GetText())
-					a.note(fmt.Sprintf("%d repositor%s back", n, plural(n, "y is", "ies are")))
+	a.showToggles(toggles{
+		title: "Hidden repositories",
+		verb:  "hide/show",
+		items: func() []toggleItem {
+			var items []toggleItem
+			for _, p := range a.projects {
+				marker, text := tag(colDim)+"·"+tagEnd, p.PathWithNamespace
+				if a.cfg.Filters.IsHidden(p.Instance, p.PathWithNamespace) {
+					marker = tag(colWarn) + hiddenMark + tagEnd
+					text = tag(colMuted) + text + tagEnd
 				}
-				return nil
-			case '/':
-				setMode(true)
-				return nil
-			case 'j':
-				move(1)
-				return nil
-			case 'k':
-				move(-1)
-				return nil
-			case 'g':
-				list.SetCurrentItem(0)
-				return nil
-			case 'G':
-				list.SetCurrentItem(list.GetItemCount() - 1)
-				return nil
-			case 'q':
-				dismiss()
-				return nil
+				label := marker + " " + text
+				if a.multiInstance() {
+					label += "   " + tag(colDim) + a.instanceLabel(p.Instance) + tagEnd
+				}
+				items = append(items, toggleItem{Label: label,
+					Search: p.PathWithNamespace + " " + a.instanceLabel(p.Instance),
+					Data:   row{p.Instance, p.PathWithNamespace}})
 			}
-			return nil
-		}
-		return ev
+			sort.SliceStable(items, func(i, j int) bool {
+				return items[i].Data.(row).path < items[j].Data.(row).path
+			})
+			return items
+		},
+		toggle: func(it toggleItem) {
+			r := it.Data.(row)
+			a.cfg.Filters.ToggleHidden(r.instance, r.path)
+			a.applyFilters()
+		},
+		status: func() string { return fmt.Sprintf("%d hidden", len(a.cfg.Filters.Hidden)) },
+		keys: []toggleKey{{key: 'a', hint: "show all", run: func() {
+			if n := a.cfg.Filters.ShowAll(); n > 0 {
+				a.applyFilters()
+				a.note(fmt.Sprintf("%d repositor%s back", n, plural(n, "y is", "ies are")))
+			}
+		}}},
 	})
-
-	flex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(input, 1, 0, false).
-		AddItem(list, 0, 1, true).
-		AddItem(footer, 1, 0, false)
-	box(flex.Box, "Hidden repositories")
-
-	fitFooter(flex, footer, 1)
-	a.pages.AddPage(pageHidden, modalPct(flex, 70, 75), true, true)
-	a.tv.SetFocus(list)
 }
 
 // selectedProjectOf reports which project the cursor is on, whichever list it

@@ -176,6 +176,12 @@ group.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
+- **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`
+  and `private` to start with - each in one of sixteen pastel colours. `Ctrl-T`
+  in Repositories puts them on a repository, where they are drawn as pills
+  after its name; `f` shows only the repositories wearing any of the tags you
+  pick, `F` all of them again. The pills end rounded, which needs a Nerd Font;
+  `s` in Settings › Tags switches to half circles or square ends.
 - **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
   shows the favourites first, in the usual order, above a line; a grouped one
   only marks them with `★`. Favourites first can be turned off in the order
@@ -243,6 +249,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |
+| `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
 | `d` `w` `r` | delete from disk · open in the browser · refresh |
 | `?` `q` | help · quit |
 

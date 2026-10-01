@@ -88,7 +88,7 @@ func TestEveryDialogIsLegible(t *testing.T) {
 	typeRunes(sc, "n")
 
 	typeRunes(sc, "?")
-	waitFor(t, a, sc, "GETTING AROUND")
+	waitFor(t, a, sc, "unagit · keys")
 	assertLegible(t, a, sc, "the help")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 
@@ -124,7 +124,7 @@ func TestSettingsIsLegible(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionSecurity, sectionIntegrations} {
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionSecurity, sectionIntegrations} {
 		openSection(t, a, sc, section)
 		waitFor(t, a, sc, sectionNames[section])
 		assertLegible(t, a, sc, "settings: "+sectionNames[section])

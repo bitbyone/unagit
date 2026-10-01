@@ -26,12 +26,13 @@ const (
 	helpGeneral
 	helpIntegrations
 	helpSecurity
+	helpTags
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity
+	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -64,6 +65,8 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpServers, "Servers"
 		case sectionGroups:
 			return helpGroups, "Groups"
+		case sectionTags:
+			return helpTags, "Tags"
 		case sectionIntegrations:
 			return helpIntegrations, "Integrations"
 		case sectionSecurity:
@@ -174,6 +177,8 @@ func helpRows() []helpLine {
 		key("Ctrl-W", "open a branch in its own worktree; n for a new one"),
 		key("Alt-W  Alt-B", "the same, in an editor you choose"),
 		key("m", "show only this repository's merge requests"),
+		key("Ctrl-T", "tag the repository"),
+		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
 		blank(),
 
@@ -216,6 +221,11 @@ func helpRows() []helpLine {
 		key("space", "off → this group → with subgroups (GitHub: on · off)"),
 		key("d", "clone directory of a group or a server"),
 		key("r  p  m", "reload groups · refresh projects · merge requests"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · tags", helpTags),
+		key("a e d", "add · edit · remove a tag"),
+		key("s", "pill ends: rounded (Nerd Font) · circles · square"),
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · security", helpSecurity),

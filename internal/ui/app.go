@@ -40,7 +40,7 @@ const (
 	pageUnlock    = "unlock"
 	pageForm      = "form"
 	pageComments  = "comments"
-	pageHidden    = "hidden"
+	pageToggles   = "toggles"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -333,7 +333,7 @@ func (a *App) closeModal(page string) {
 // isModalPage reports whether a page name is one of the overlays.
 func isModalPage(name string) bool {
 	switch name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageHidden:
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles:
 		return true
 	}
 	return false
