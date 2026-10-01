@@ -178,7 +178,7 @@ func helpRows() []helpLine {
 		key("Alt-W  Alt-B", "the same, in an editor you choose"),
 		key("m", "show only this repository's merge requests"),
 		key("Ctrl-T", "tag the repository"),
-		key("Alt-V", "view: tags · grouping · favourites first"),
+		key("v", "view: tags · grouping · favourites first"),
 		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
 		blank(),

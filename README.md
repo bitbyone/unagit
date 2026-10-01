@@ -183,7 +183,7 @@ group.
   or on a group, and everything below wears them too unless it takes one off.
   They
   have a column of their own after the names; `f` shows only the repositories
-  wearing any of the tags you pick, `F` all of them again, and `Alt-V` hides
+  wearing any of the tags you pick, `F` all of them again, and `v` hides
   the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›
   Tags switches to half circles or square ends.
 - **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
@@ -254,7 +254,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
-| `Alt-V` | in Repositories: what the list shows - tags, grouping, favourites first |
+| `v` | in Repositories: what the list shows - tags, grouping, favourites first |
 | `d` `w` `r` | delete from disk · open in the browser · refresh |
 | `?` `q` | help · quit |
 

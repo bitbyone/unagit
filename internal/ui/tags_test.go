@@ -254,7 +254,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 	}
 }
 
-// TestViewOptionsHideTheTags: Alt-V switches the tags out of the list and back;
+// TestViewOptionsHideTheTags: v switches the tags out of the list and back;
 // they go on filtering.
 func TestViewOptionsHideTheTags(t *testing.T) {
 	a, sc := newTestApp(t)
@@ -266,7 +266,7 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 	})
 	waitFor(t, a, sc, "\ue0b6oss\ue0b4")
 
-	sc.InjectKey(tcell.KeyRune, 'v', tcell.ModAlt)
+	typeRunes(sc, "v")
 	waitFor(t, a, sc, "View · Repositories")
 	typeRunes(sc, " ")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -280,7 +280,7 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 	})
 	waitGone(t, a, sc, "acme/billing")
 
-	sc.InjectKey(tcell.KeyRune, 'v', tcell.ModAlt)
+	typeRunes(sc, "v")
 	waitFor(t, a, sc, "View · Repositories")
 	typeRunes(sc, " ")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

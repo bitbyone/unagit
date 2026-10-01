@@ -74,8 +74,6 @@ func (a *App) newProjectsPane() *pane {
 			a.withEditor(true, func(ed *editors.Editor) { a.showWorktreePicker(pr, ed) })
 		case 'b':
 			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
-		case 'v':
-			a.showViewOptions()
 		default:
 			return false
 		}
@@ -125,6 +123,9 @@ func (a *App) newProjectsPane() *pane {
 			return nil
 		case 'f':
 			a.showTagFilter()
+			return nil
+		case 'v':
+			a.showViewOptions()
 			return nil
 		case 'F':
 			if len(a.cfg.Filters.Tags) > 0 {
