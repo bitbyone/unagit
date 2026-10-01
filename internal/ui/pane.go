@@ -510,6 +510,7 @@ func (p *pane) selectRow(previous, first int) {
 		p.lastQuery = p.query
 		return
 	}
+	target := first
 	if previous >= 0 && p.query == p.lastQuery {
 		for row := 1; row < p.table.GetRowCount(); row++ {
 			cell := p.table.GetCell(row, 0)
@@ -517,14 +518,24 @@ func (p *pane) selectRow(previous, first int) {
 				continue
 			}
 			if i, ok := cell.GetReference().(int); ok && i == previous {
-				p.lastQuery = p.query
-				p.table.Select(row, 0)
-				return
+				target = row
+				break
 			}
 		}
 	}
 	p.lastQuery = p.query
-	p.table.Select(first, 0)
+	// The selected row keeps its line on screen, wherever the refilled table
+	// puts it. Left alone, tview keeps following the end of a list that once
+	// fitted, and a list that grew - under headings, say - scrolled away from
+	// the cursor.
+	row, _ := p.table.GetSelection()
+	offset, column := p.table.GetOffset()
+	line := max(row-offset, 1)
+	if _, _, _, height := p.table.GetInnerRect(); height > 1 {
+		line = min(line, height-1)
+	}
+	p.table.SetOffset(max(target-line, 0), column)
+	p.table.Select(target, 0)
 }
 
 // selectWhere puts the cursor on the first row whose data index matches. A row

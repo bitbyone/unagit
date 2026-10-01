@@ -71,6 +71,66 @@ func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
 	}
 }
 
+// TestGroupingKeepsTheCursorInView: switching the grouping on or off moves the
+// selected row, and the list must scroll to it wherever it lands - tview
+// otherwise keeps following the end of a list that once fitted, and the
+// cursor was left somewhere off screen.
+func TestGroupingKeepsTheCursorInView(t *testing.T) {
+	// A long list, and one that fits the screen until the headings come.
+	for _, size := range []struct{ rows, height int }{{30, 16}, {10, 22}} {
+		for _, list := range []string{"merge requests", "repositories"} {
+			for _, start := range []string{"g", "G", "Gkkkkkkkkkkkkkkk"} {
+				t.Run(fmt.Sprintf("%s from %s, %d rows", list, start, size.rows), func(t *testing.T) {
+					a, sc := newTestApp(t)
+					waitFor(t, a, sc, "acme/gateway")
+					resize(sc, 120, size.height)
+					changeOnLoop(a, func() {
+						// Rows spread over many groups, so grouping moves them a lot.
+						for i := 0; i < size.rows; i++ {
+							a.projects = append(a.projects, forge.Project{ID: 100 + i, Instance: a.projects[0].Instance,
+								PathWithNamespace: fmt.Sprintf("team%d/tool%02d", i%5, i), DefaultBranch: "main",
+								LastActivityAt: time.Now().Add(-time.Duration(2+i) * time.Hour)})
+							a.mrs = append(a.mrs, forge.MergeRequest{ID: 1000 + i, IID: 100 + i, ProjectID: 100 + i,
+								ProjectPath: fmt.Sprintf("team%d/tool%02d", i%5, i%7), Instance: a.mrs[0].Instance,
+								Title: fmt.Sprintf("Change %02d", i), UpdatedAt: time.Now().Add(-time.Duration(3+i) * time.Hour)})
+						}
+						a.projectsPane.reload()
+						a.mrsPane.reload()
+					})
+					pane, label := a.projectsPane, func(i int) string { return a.projects[i].PathWithNamespace }
+					if list == "merge requests" {
+						typeRunes(sc, "M")
+						waitFor(t, a, sc, "Rate limiting")
+						pane, label = a.mrsPane, func(i int) string { return a.mrs[i].Title }
+					}
+					typeRunes(sc, start)
+					time.Sleep(50 * time.Millisecond)
+
+					for _, toggle := range []string{"· grouped", "flat again"} {
+						want := onLoop(a, func() string { return label(pane.selectedIndex()) })
+						sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+						if toggle == "· grouped" {
+							waitFor(t, a, sc, toggle)
+						} else {
+							waitGone(t, a, sc, "· grouped")
+						}
+						if got := onLoop(a, func() string { return label(pane.selectedIndex()) }); got != want {
+							t.Fatalf("the cursor moved from %q to %q", want, got)
+						}
+						short := want[strings.LastIndex(want, "/")+1:]
+						if lineOf(a.screenText(sc), short) < 0 {
+							t.Fatalf("after %q the selected %q is off screen:\n%s", toggle, want, a.screenText(sc))
+						}
+						if start == "g" && toggle == "· grouped" && lineOf(a.screenText(sc), "  (") < 0 {
+							t.Fatalf("the first heading is off screen:\n%s", a.screenText(sc))
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
 // TestGroupRepositories: Ctrl-G in Repositories gathers them under the group
 // or subgroup they live in, each named by what is left of its path, and the
 // merge request list keeps a grouping of its own.
