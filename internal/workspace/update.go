@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // Update outcomes, for the log and the status line.
@@ -55,6 +57,35 @@ func (m *Manager) UpdateBranch(dir, base string) (string, error) {
 		}
 	}
 	return m.moveOnto(dir, branch, upstream)
+}
+
+// UpdateMR brings the branch worktree of a merge request up to the merge
+// request's head as the forge publishes it, which works for a fork's too:
+// the same fast-forward or rebase, and nothing that would conflict.
+func (m *Manager) UpdateMR(mr forge.MergeRequest, project forge.Project) (string, error) {
+	dir := m.MRDir(project.PathWithNamespace, mr.IID, mr.SourceBranch)
+	if !Exists(dir) {
+		return "", fmt.Errorf("!%d has no worktree on disk yet - Ctrl-O makes it: %w", mr.IID, ErrNotTracking)
+	}
+	if busy := m.OperationInProgress(dir); busy != "" {
+		return "", fmt.Errorf("a %s is in progress here - finish or abort it first: %w", busy, ErrNothingDone)
+	}
+	branch := m.git.CurrentBranch(dir)
+	if branch == "" {
+		return "", fmt.Errorf("HEAD is detached, there is no branch to update: %w", ErrNotTracking)
+	}
+	if mr.TargetBranch != "" {
+		_ = m.git.FetchRefspec(dir, mr.TargetBranch)
+	}
+	if err := m.git.FetchRefspec(dir, m.headRef(mr.IID)); err != nil {
+		return "", err
+	}
+	// FETCH_HEAD moves with the next fetch; the commit it names now does not.
+	head, err := m.trimmed(dir, "rev-parse", "FETCH_HEAD")
+	if err != nil {
+		return "", err
+	}
+	return m.moveOnto(dir, branch, head)
 }
 
 // RebaseOntoBase puts the branch's commits and edits on top of origin's copy

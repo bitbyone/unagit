@@ -142,6 +142,11 @@ func (a *App) newMRsPane() *pane {
 				a.publishMR(mr)
 			}
 			return nil
+		case 'p':
+			if mr, ok := selected(); ok {
+				a.updateMR(mr)
+			}
+			return nil
 		case 'c':
 			if mr, ok := selected(); ok {
 				a.showComments(mr)
@@ -426,9 +431,14 @@ func mrMarkColor(d mrDisk) tcell.Color {
 	return colDim
 }
 
-// openMR materialises the merge request worktree and opens the editor there.
+// openMR opens the editor in the merge request's branch worktree as it is on
+// disk, and makes the worktree first only when there is none yet.
 func (a *App) openMR(mr forge.MergeRequest, ed *editors.Editor) {
 	project := a.mrProject(mr)
+	if dir := a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch); workspace.Exists(dir) {
+		a.openNow(dir, a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed)
+		return
+	}
 	client := a.client(mr.Instance)
 	integrate := a.cfg.Integrations.Incomm
 	a.runTaskOpening(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),

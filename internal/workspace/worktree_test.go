@@ -11,7 +11,7 @@ import (
 
 func TestEnsureWorktreeNewBranchFromMainHEAD(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	main, err := m.EnsureProject(p)
+	main, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestEnsureWorktreeExistingRemoteBranch(t *testing.T) {
 
 func TestEnsureWorktreeExistingLocalOnlyBranch(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	main, err := m.EnsureProject(p)
+	main, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestEnsureWorktreeExistingLocalOnlyBranch(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeUpdatesInPlace(t *testing.T) {
+func TestEnsureWorktreeOpensAnExistingOneAsItIs(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	wt, err := m.EnsureWorktree(p, "feature/login", false)
 	if err != nil {

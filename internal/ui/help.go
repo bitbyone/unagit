@@ -152,7 +152,7 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Every list", helpLists|helpWorktreeList),
-		key("Ctrl-O", "clone or update, then open the editor"),
+		key("Ctrl-O", "open as it is on disk; clones only what is missing"),
 		key("Alt-O", "the same, in an editor you choose"),
 		key("d", "delete from disk; warns about unsaved work"),
 		key("w", "open in the browser").in(helpLists),
@@ -205,6 +205,7 @@ func helpRows() []helpLine {
 		key("v", "review from a chosen commit to the head"),
 		key("Alt-R  Alt-V", "the same, in an editor you choose"),
 		key("●", "in v: a commit new since your last review"),
+		key("p", "pull the branch worktree; rebases your work"),
 		key("c", "read the conversation, write a comment"),
 		key("A", "approve; asks first"),
 		key("P", "publish Incomm comments and resolved threads"),

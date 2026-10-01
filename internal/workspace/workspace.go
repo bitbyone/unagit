@@ -205,21 +205,6 @@ func hostOf(raw string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(raw, "https://"), "http://"), "/")
 }
 
-// EnsureProject clones the project if needed, then fetches and fast-forwards
-// the current branch. It returns the directory to open.
-func (m *Manager) EnsureProject(p forge.Project) (string, error) {
-	dir := m.ProjectDir(p.PathWithNamespace)
-	if !Exists(dir) {
-		return m.CloneProject(p)
-	}
-
-	m.log("Updating %s", p.PathWithNamespace)
-	if err := m.git.Fetch(dir); err != nil {
-		return dir, err
-	}
-	return dir, m.pullIfClean(dir)
-}
-
 // ensureMain makes sure the main clone exists; it is the object store every
 // merge request worktree hangs off.
 func (m *Manager) ensureMain(p forge.Project) (string, error) {
@@ -280,26 +265,8 @@ func (m *Manager) EnsureMR(mr forge.MergeRequest, project forge.Project) (string
 	wtDir := m.MRDir(projectPath, mr.IID, mr.SourceBranch)
 	headRef := m.headRef(mr.IID)
 
+	// An existing worktree opens as it is; p brings it up to date.
 	if Exists(wtDir) {
-		m.log("Updating merge request worktree !%d", mr.IID)
-		// The target branch first: fetching it last would leave FETCH_HEAD
-		// pointing at the wrong commit for the fast-forward below.
-		if mr.TargetBranch != "" {
-			_ = m.git.FetchRefspec(wtDir, mr.TargetBranch)
-		}
-		if err := m.git.FetchRefspec(wtDir, headRef); err != nil {
-			m.log("! fetch failed, opening the worktree as it is")
-			return wtDir, nil
-		}
-		st := m.git.Status(wtDir)
-		if st.Dirty {
-			m.log("! worktree has local changes, skipping update")
-			m.recordBranchMeta(wtDir, projectPath, mr)
-			return wtDir, nil
-		}
-		if _, err := m.git.Run(wtDir, "merge", "--ff-only", "FETCH_HEAD"); err != nil {
-			m.log("! cannot fast-forward (local commits or a force push), opening as it is")
-		}
 		// A worktree made before pushing from a fallback branch worked.
 		if branch := m.git.CurrentBranch(wtDir); branch != mr.SourceBranch {
 			m.pushToSourceBranch(mainDir, wtDir, branch, mr)
@@ -416,9 +383,9 @@ func (m *Manager) EnsureWorktree(p forge.Project, branch string, isNew bool) (st
 	}
 	wtDir := m.WorktreeDir(projectPath, branch)
 
+	// An existing worktree opens as it is; p brings it up to date.
 	if Exists(wtDir) {
-		m.log("Updating worktree for %s", branch)
-		return m.UpdateWorktree(wtDir)
+		return wtDir, nil
 	}
 
 	m.log("Creating worktree for %s", branch)
@@ -558,17 +525,6 @@ func (m *Manager) RemoveProject(projectPath string) error {
 	}
 	m.pruneEmptyParents(filepath.Dir(dir))
 	return nil
-}
-
-// UpdateWorktree brings an existing worktree up to date the way opening it does:
-// fetch, then fast-forward when it is clean. A failed fetch only means it is
-// opened as it is.
-func (m *Manager) UpdateWorktree(dir string) (string, error) {
-	if err := m.git.Fetch(dir); err != nil {
-		m.log("! fetch failed, opening the worktree as it is")
-		return dir, nil
-	}
-	return dir, m.pullIfClean(dir)
 }
 
 // WorktreeHead says which branch a worktree has checked out and when it last

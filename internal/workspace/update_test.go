@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // updateFixture is a clone tracking origin's main, and a second clone that
@@ -224,5 +226,40 @@ func TestRebaseOntoBaseOfAPushedBranch(t *testing.T) {
 	}
 	if git(t, f.pusher, "ls-remote", "origin", "feat/x")[:40] != git(t, f.clone, "rev-parse", "HEAD") {
 		t.Error("origin does not have the rebased branch")
+	}
+}
+
+// TestOpeningAMergeRequestLeavesItAndPUpdatesIt: opening an existing branch
+// worktree does not fetch; UpdateMR brings it to the published head.
+func TestOpeningAMergeRequestLeavesItAndPUpdatesIt(t *testing.T) {
+	origin := newOrigin(t)
+	m, _, p := newManager(t, origin)
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}
+	wt, err := m.EnsureMR(mr, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := git(t, wt, "rev-parse", "HEAD")
+
+	// The author pushes another commit.
+	work := filepath.Join(t.TempDir(), "author")
+	git(t, filepath.Dir(work), "clone", "-q", "-b", "feature/login", origin, work)
+	write(t, work, "more.go", "package main\n")
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-qm", "more")
+	git(t, work, "push", "-q", "origin", "feature/login", "HEAD:refs/merge-requests/1/head")
+
+	if again, err := m.EnsureMR(mr, p); err != nil || again != wt {
+		t.Fatalf("reopen: %q, %v", again, err)
+	}
+	if git(t, wt, "rev-parse", "HEAD") != before {
+		t.Fatal("opening moved the worktree")
+	}
+	got, err := m.UpdateMR(mr, p)
+	if err != nil || got != UpdateFastForward {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if git(t, wt, "rev-parse", "HEAD") != git(t, work, "rev-parse", "HEAD") {
+		t.Error("the worktree is not at the merge request's head")
 	}
 }

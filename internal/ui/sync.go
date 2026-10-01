@@ -396,3 +396,26 @@ func (a *App) reloadWorktreesHeader() {
 		a.worktreesPane.updateHeader()
 	}
 }
+
+// updateMR brings the merge request's branch worktree up to its head on the
+// forge, by the same rules as every other update. Ctrl-O no longer does it.
+func (a *App) updateMR(mr forge.MergeRequest) {
+	project := a.mrProject(mr)
+	if !workspace.Exists(a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch)) {
+		a.flash(fmt.Sprintf("!%d has no branch worktree yet - Ctrl-O makes it", mr.IID))
+		return
+	}
+	integrate := a.cfg.Integrations.Incomm
+	a.runTaskNoting(fmt.Sprintf("Updating !%d", mr.IID), func(log func(string)) (string, error) {
+		mgr := a.newManager(mr.Instance, project.PathWithNamespace, log)
+		outcome, err := mgr.UpdateMR(mr, project)
+		if err != nil {
+			return "", err
+		}
+		// The code moved under the comments.
+		if integrate && outcome != workspace.UpdateCurrent {
+			reanchorAfterUpdate(mgr.MRDir(project.PathWithNamespace, mr.IID, mr.SourceBranch), log)
+		}
+		return fmt.Sprintf("!%d: %s", mr.IID, outcome), nil
+	})
+}

@@ -76,3 +76,27 @@ func TestRepositoriesShowTheCloneItself(t *testing.T) {
 	gw.rescan()
 	waitFor(t, a, sc, "rebasing")
 }
+
+// TestOpenTakesTheCloneAsItIs: Ctrl-O opens a clone without fetching or
+// pulling, however far origin has moved; p is what updates it.
+func TestOpenTakesTheCloneAsItIs(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/billing")
+	gw := newRealProject(t, a, "acme/gateway")
+	other := gw.elsewhere("main")
+	commitIn(t, other, "theirs.txt", "theirs")
+	gitIn(t, other, "push", "-q", "origin", "main")
+	before := gitIn(t, gw.clone, "rev-parse", "HEAD")
+	gw.rescan()
+	waitFor(t, a, sc, "✓")
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "opened "+tildePath(gw.clone)[:20])
+	if gitIn(t, gw.clone, "rev-parse", "HEAD") != before {
+		t.Error("Ctrl-O moved the clone")
+	}
+	if gitIn(t, gw.clone, "rev-parse", "origin/main") != before {
+		t.Error("Ctrl-O fetched")
+	}
+}

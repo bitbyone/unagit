@@ -67,8 +67,10 @@ say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
 - `Ctrl-C` clones it to disk without opening the editor.
-- `Ctrl-O` clones it if it is not there, fetches and fast-forwards it if it is,
-  then opens your editor in it.
+- `Ctrl-O` opens your editor in it at once, as it is on disk - no fetch, no
+  pull. Only a repository not cloned yet is cloned first. The lists say where
+  everything stands, and `p` updates it first when you want that. The same
+  goes for `Ctrl-O` in Merge requests and Worktrees.
 - `b` lists every branch in a searchable modal and switches it **in that same
   clone**, so there is one working copy per repository, not a directory per
   branch.
@@ -215,8 +217,9 @@ tip of the target branch - otherwise a target that moved on would show its own
 commits backwards in your diff.
 
 Notes you type into the files survive reopening, and a force push on the other
-side is picked up on the next open. `Ctrl-O` gives you the ordinary branch
-checkout instead, when you mean to commit and push.
+side is picked up on the next review. `Ctrl-O` gives you the ordinary branch
+checkout instead, when you mean to commit and push; it opens as it is, and
+`p` brings it to the merge request's head.
 
 When the author answers your comments in new commits, `v` lists the commits
 with the cursor on the first one you have not reviewed yet - a rebase does not
@@ -319,7 +322,8 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `Ctrl-C` | in Repositories: clone to disk without opening the editor |
-| `Ctrl-O` | clone or update, then open the editor |
+| `Ctrl-O` | open the editor as it is on disk; clones only what is missing |
+| `p` | update: a fast-forward, or a rebase of your work; never a conflict |
 | `Alt-O` `Alt-R` … | the same, in an editor you choose |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
 | `v` | review from a chosen commit to the head |

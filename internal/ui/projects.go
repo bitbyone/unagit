@@ -459,15 +459,21 @@ func repositoryName(path string) string {
 	return path[strings.LastIndex(path, "/")+1:]
 }
 
-// openProject clones or updates the main checkout and opens the editor.
+// openProject opens the editor in the main clone as it is on disk, cloning it
+// first only when there is nothing to open yet.
 func (a *App) openProject(pr forge.Project, ed *editors.Editor) {
-	a.runTaskOpening("Opening "+pr.PathWithNamespace, session.Record{
+	what := session.Record{
 		Instance: pr.Instance,
 		Server:   a.instanceLabel(pr.Instance),
 		Project:  pr.PathWithNamespace,
 		Mode:     session.ModeRepository,
-	}, ed, func(log func(string)) (string, error) {
-		return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureProject(pr)
+	}
+	if dir := a.projectDir(pr.Instance, pr.PathWithNamespace); workspace.Exists(dir) {
+		a.openNow(dir, what, ed)
+		return
+	}
+	a.runTaskOpening("Cloning "+pr.PathWithNamespace, what, ed, func(log func(string)) (string, error) {
+		return a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
 	})
 }
 

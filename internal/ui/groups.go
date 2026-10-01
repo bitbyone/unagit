@@ -335,24 +335,15 @@ func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []f
 	})
 }
 
-// openGroup brings every member up to date the way opening one worktree does,
-// then opens the editor on the folder holding them.
+// openGroup opens the editor on the folder holding every member, as it is.
 func (a *App) openGroup(r worktreeRow, ed *editors.Editor) {
-	a.runTaskOpening("Opening "+r.Path, session.Record{
+	a.openNow(r.Dir, session.Record{
 		Instance: r.Instance,
 		Server:   a.instanceLabel(r.Instance),
 		Project:  r.Path,
 		Title:    r.Branch,
 		Mode:     session.ModeGroup,
-	}, ed, func(log func(string)) (string, error) {
-		for _, m := range r.Members {
-			log(fmt.Sprintf("Updating %s (%s)", m.Path, m.Branch))
-			if _, err := a.newManager(m.Instance, m.Path, log).UpdateWorktree(m.Dir); err != nil {
-				return "", fmt.Errorf("%s: %w", m.Path, err)
-			}
-		}
-		return r.Dir, nil
-	})
+	}, ed)
 }
 
 // confirmDeleteGroup asks before removing a grouped worktree: every member,

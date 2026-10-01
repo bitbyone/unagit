@@ -104,10 +104,10 @@ func newManager(t *testing.T, origin string) (*Manager, string, forge.Project) {
 	return m, root, p
 }
 
-func TestEnsureProjectClonesThenUpdates(t *testing.T) {
+func TestCloneProjectLeavesAnExistingCloneAlone(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 
-	dir, err := m.EnsureProject(p)
+	dir, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,8 +118,8 @@ func TestEnsureProjectClonesThenUpdates(t *testing.T) {
 		t.Errorf("branch = %q, want main", got)
 	}
 
-	// A second call must be a no-op update, not a re-clone.
-	again, err := m.EnsureProject(p)
+	// A second call must leave the clone as it is, not clone it again.
+	again, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestSwitchBranch(t *testing.T) {
 
 func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	dir, err := m.EnsureProject(p)
+	dir, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
 
 func TestInspectReportsLocalWork(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
-	dir, err := m.EnsureProject(p)
+	dir, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 	m := New(Options{Root: root, GitLabURL: "https://gl.example", Token: token}, func(string) {})
 	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main", HTTPURLToRepo: origin}
 
-	if _, err := m.EnsureProject(p); err != nil {
+	if _, err := m.CloneProject(p); err != nil {
 		t.Fatal(err)
 	}
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
@@ -393,7 +393,7 @@ func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
 		HTTPURLToRepo: origin, SSHURLToRepo: "ssh://git@gl.example/group/app.git"}
 
 	m := New(Options{Root: root, GitLabURL: "https://gl.example"}, func(string) {})
-	dir, err := m.EnsureProject(p)
+	dir, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ func TestExactDestinationAndLegacyWorktrees(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	parent := t.TempDir()
 	m.opts.ProjectDirectory = filepath.Join(parent, "renamed")
-	dir, err := m.EnsureProject(p)
+	dir, err := m.CloneProject(p)
 	if err != nil {
 		t.Fatal(err)
 	}

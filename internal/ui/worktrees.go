@@ -681,20 +681,15 @@ func remoteRank(st remoteState) int {
 	return 0
 }
 
-// openWorktree brings a worktree up to date and opens the editor in it.
+// openWorktree opens the editor in a worktree as it is on disk.
 func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
-	pr := a.worktreeProject(r)
-	a.runTaskOpening(fmt.Sprintf("Opening %s (%s)", r.Path, r.Branch),
-		session.Record{
-			Instance: r.Instance,
-			Server:   a.instanceLabel(r.Instance),
-			Project:  r.Path,
-			Title:    r.Branch,
-			Mode:     session.ModeBranch,
-		}, ed, func(log func(string)) (string, error) {
-			log("Updating " + r.Branch)
-			return a.newManager(pr.Instance, pr.PathWithNamespace, log).UpdateWorktree(r.Dir)
-		})
+	a.openNow(r.Dir, session.Record{
+		Instance: r.Instance,
+		Server:   a.instanceLabel(r.Instance),
+		Project:  r.Path,
+		Title:    r.Branch,
+		Mode:     session.ModeBranch,
+	}, ed)
 }
 
 // remoteSentence is remoteWords for the detail column, where there is room to

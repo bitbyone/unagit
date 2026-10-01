@@ -66,6 +66,13 @@ func kindOf(e editors.Editor) string {
 	return "in its own window"
 }
 
+// openNow opens a directory already on disk as it is: no fetch, no pull, no
+// task log in between. Where it stands is in the lists, and p updates it
+// first when that is wanted.
+func (a *App) openNow(dir string, what session.Record, ed *editors.Editor) {
+	go a.openEditor(dir, what, ed)
+}
+
 // openEditor opens dir in the editor. A terminal editor gets the terminal:
 // the TUI is suspended until it exits, and its directory is on record for
 // exactly that long, so another terminal can find its way there. A window

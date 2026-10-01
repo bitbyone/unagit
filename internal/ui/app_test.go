@@ -505,7 +505,7 @@ func TestHelpOpensAndCloses(t *testing.T) {
 	typeRunes(sc, "?")
 	waitFor(t, a, sc, "unagit · keys")
 	waitFor(t, a, sc, "REPOSITORIES")
-	waitFor(t, a, sc, "clone or update, then open the editor")
+	waitFor(t, a, sc, "open as it is on disk; clones only what is missing")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "unagit · keys")
