@@ -286,7 +286,7 @@ func waitSelected(t *testing.T, a *App, p *pane, want int) {
 // conversation does not fit and where it is scrolled to shows.
 func TestCommentsOpenAtTheTop(t *testing.T) {
 	a, sc := newTestApp(t)
-	resize(sc, 100, 16)
+	resize(sc, 140, 16)
 	openMRDetail(t, a, sc)
 
 	typeRunes(sc, "c")

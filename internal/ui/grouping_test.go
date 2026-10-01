@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -213,6 +214,38 @@ func TestClearingTheFilterGoesToTheTop(t *testing.T) {
 			}
 			if got := onLoop(a, func() string { return a.projects[a.projectsPane.selectedIndex()].PathWithNamespace }); got != "acme/gateway" {
 				t.Errorf("the cursor is on %s", got)
+			}
+		})
+	}
+}
+
+// TestDetailStacksBelowItsListsWidth: the repository list, whose rows carry
+// tags and paths, puts its detail under itself below 180 columns; the merge
+// requests below 130.
+func TestDetailStacksBelowItsListsWidth(t *testing.T) {
+	for _, c := range []struct {
+		tab   string
+		pane  func(a *App) *pane
+		limit int
+	}{
+		{"R", func(a *App) *pane { return a.projectsPane }, 180},
+		{"M", func(a *App) *pane { return a.mrsPane }, 130},
+	} {
+		t.Run(c.tab, func(t *testing.T) {
+			a, sc := newTestApp(t)
+			waitFor(t, a, sc, "acme/gateway")
+			typeRunes(sc, c.tab)
+			for _, width := range []int{c.limit - 1, c.limit} {
+				resize(sc, width, 40)
+				waitFocus(t, a, func() bool {
+					_, _, w, _ := c.pane(a).body.GetRect()
+					return w == width
+				})
+				want := tview.FlexColumn
+				if width < c.limit {
+					want = tview.FlexRow
+				}
+				waitFocus(t, a, func() bool { return c.pane(a).bodyDirection == want })
 			}
 		})
 	}

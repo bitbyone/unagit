@@ -23,6 +23,7 @@ import (
 
 func (a *App) newMRsPane() *pane {
 	p := a.newPane("Merge requests")
+	p.stackBelow = 130
 	var filtered []int
 
 	p.headline = func() string {

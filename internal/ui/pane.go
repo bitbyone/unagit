@@ -19,12 +19,15 @@ type pane struct {
 	body  *tview.Flex
 	table *tview.Table
 	// kept draws the stretches of the selected row that keep their colours.
-	kept      *keptTable
-	filter    *tview.InputField
-	header    *tview.TextView
-	headerRow *tview.Flex
-	helpHint  *tview.TextView
-	detail    *tview.TextView
+	kept *keptTable
+	// stackBelow is the body width below which the detail column goes under
+	// the list rather than beside it.
+	stackBelow int
+	filter     *tview.InputField
+	header     *tview.TextView
+	headerRow  *tview.Flex
+	helpHint   *tview.TextView
+	detail     *tview.TextView
 	// fitDetail lays the detail out to the width it is drawn at, for content
 	// that is drawn as boxes; nil goes back to plain text.
 	fitDetail func(render func(width int) string)
@@ -61,11 +64,12 @@ const detailDebounce = 300 * time.Millisecond
 
 // narrowBodyWidth is the body width below which the detail column stacks
 // under the list instead of sitting beside it: side by side needs enough
-// room for both the table's columns and readable detail prose.
+// room for both the table's columns and readable detail prose. A list with
+// wider rows sets its own (pane.stackBelow).
 const narrowBodyWidth = 100
 
 func (a *App) newPane(title string) *pane {
-	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn}
+	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
@@ -115,7 +119,7 @@ func (a *App) newPane(title string) *pane {
 	// narrow for both to be readable side by side.
 	p.body.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		direction := tview.FlexColumn
-		if w < narrowBodyWidth {
+		if w < p.stackBelow {
 			direction = tview.FlexRow
 		}
 		if direction != p.bodyDirection {

@@ -25,6 +25,9 @@ type scored struct {
 
 func (a *App) newProjectsPane() *pane {
 	p := a.newPane("Repositories")
+	// Its rows carry tags and a path; beside a detail column they would be
+	// cut to nothing well before the default width.
+	p.stackBelow = 180
 	var filtered []int
 
 	p.headline = func() string {

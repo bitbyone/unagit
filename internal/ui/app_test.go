@@ -437,6 +437,8 @@ func TestFuzzyFilterNarrowsTheList(t *testing.T) {
 func TestProjectDetailPane(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	// Wide enough for the detail to sit beside the list.
+	resize(sc, 200, 44)
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Edge router")
