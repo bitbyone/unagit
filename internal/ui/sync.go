@@ -201,7 +201,7 @@ type updateItem struct {
 func (a *App) updateProject(pr forge.Project) {
 	key := projectKey{pr.Instance, pr.PathWithNamespace}
 	if !a.disk[key].Cloned {
-		a.flash(pr.PathWithNamespace + " is not cloned - Ctrl-C clones it")
+		a.flash(pr.PathWithNamespace + " is not cloned - C clones it")
 		return
 	}
 	a.updateMany("Updating "+pr.PathWithNamespace, []updateItem{{label: pr.PathWithNamespace,

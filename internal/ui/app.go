@@ -325,14 +325,8 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 	if ev, handled := a.openSelectKeys(ev); handled {
 		return ev
 	}
+	// Ctrl-C ends unagit, as it ends any program in a terminal; C clones.
 	if ev.Key() == tcell.KeyCtrlC {
-		if a.currentTab() == pageProjects && !a.modalOpen() {
-			idx := a.projectsPane.selectedIndex()
-			if idx >= 0 && idx < len(a.projects) {
-				a.cloneProject(a.projects[idx])
-			}
-			return nil
-		}
 		a.tv.Stop()
 		return nil
 	}

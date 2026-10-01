@@ -191,6 +191,11 @@ func (a *App) newProjectsPane() *pane {
 				a.diffProject(pr)
 			}
 			return nil
+		case 'C':
+			if pr, ok := selected(); ok {
+				a.cloneProject(pr)
+			}
+			return nil
 		}
 		return ev
 	}

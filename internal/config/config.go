@@ -317,8 +317,9 @@ func (f *Filters) Active() bool { return f.ClonedOnly || len(f.Hidden) > 0 }
 
 type Integrations struct {
 	Incomm bool `yaml:"incomm,omitempty"`
-	// Hunk shows the changes of a clone, a worktree or a review with D.
-	Hunk bool `yaml:"hunk,omitempty"`
+	// Hunk shows the changes of a clone, a worktree or a review with D. Unset,
+	// it is on whenever hunk is installed; set, it is what the user chose.
+	Hunk *bool `yaml:"hunk,omitempty"`
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).

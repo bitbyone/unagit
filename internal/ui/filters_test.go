@@ -41,7 +41,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 	cloneOnDisk(t, a, a.cfg.Instances[0].ID, "acme/gateway")
 	waitFor(t, a, sc, "acme/billing")
 
-	typeRunes(sc, "C")
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Showing only the repositories you have cloned")
 	waitGone(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "acme/gateway")
@@ -54,7 +54,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 		t.Error("the merge request of an uncloned project is still listed")
 	}
 
-	typeRunes(sc, "C")
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Invoice rounding")
 }
 
@@ -200,7 +200,7 @@ func TestFiltersSurviveARestart(t *testing.T) {
 	// so no row to hide.
 	typeRunes(sc, "x")
 	waitFor(t, a, sc, "⊘ 1")
-	typeRunes(sc, "C")
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "cloned only")
 	time.Sleep(80 * time.Millisecond)
 

@@ -56,9 +56,13 @@ func TestDShowsTheChangesInHunk(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(dir, "gateway", "a.txt"), []byte("changed\n"), 0o644))
 	must(t, os.WriteFile(filepath.Join(dir, "billing", "new.txt"), []byte("new\n"), 0o644))
 
+	// On by default, since hunk is installed; turned off, D says where to
+	// turn it on again.
+	off := false
+	onLoop(a, func() bool { a.cfg.Integrations.Hunk = &off; return true })
 	typeRunes(sc, "D")
 	waitFor(t, a, sc, "enable it in Settings")
-	onLoop(a, func() bool { a.cfg.Integrations.Hunk = true; return true })
+	onLoop(a, func() bool { a.cfg.Integrations.Hunk = nil; return true })
 
 	typeRunes(sc, "D")
 	got := waitForLog(t, log, "patch", "+++ b/gateway/a.txt", "+++ b/billing/new.txt")

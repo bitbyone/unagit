@@ -239,6 +239,7 @@ func (a *App) showViewOptions() {
 		{"tags after the names", func() bool { return !f.HideTags }, func() { f.HideTags = !f.HideTags }},
 		{"grouped by group (Ctrl-G)", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
 		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
+		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
 	}
 	a.showToggles(toggles{
 		title: "View · Repositories",

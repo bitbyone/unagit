@@ -152,6 +152,11 @@ func (a *App) newMRsPane() *pane {
 				a.diffMR(mr)
 			}
 			return nil
+		case 'C':
+			if mr, ok := selected(); ok {
+				a.cloneMRReview(mr)
+			}
+			return nil
 		case 'c':
 			if mr, ok := selected(); ok {
 				a.showComments(mr)
@@ -702,31 +707,56 @@ func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string, ed *editors.E
 	a.runTaskOpening(title,
 		a.sessionOf(mr, path, session.ModeReview), ed,
 		func(log func(string)) (string, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
+			return a.prepareReview(mr, project, client, from, integrate, log)
+		})
+}
 
-			mr := a.refreshMR(client, mr, log)
-			rev := reviewRefs(ctx, client, mr, log)
-			rev.From = from
-
-			dir, err := a.newManager(mr.Instance, path, log).EnsureMRReview(mr, project, rev)
-			if err != nil || !integrate {
-				return dir, err
-			}
-			reanchorAfterUpdate(dir, log)
-			if client == nil {
-				return "", fmt.Errorf("incomm needs comments from the server; configure its token in Settings")
-			}
-			log("Importing merge request comments into Incomm ...")
-			notes, err := client.MergeRequestNotes(ctx, mr, 0)
+// cloneMRReview makes the review worktree the way Ctrl-R does - cloning the
+// repository first when it has to - and stops there: C, for a review to read
+// later or in another tool.
+func (a *App) cloneMRReview(mr forge.MergeRequest) {
+	project := a.mrProject(mr)
+	client := a.client(mr.Instance)
+	integrate := a.cfg.Integrations.Incomm
+	a.runTaskNoting(fmt.Sprintf("Preparing %s !%d for review", project.PathWithNamespace, mr.IID),
+		func(log func(string)) (string, error) {
+			dir, err := a.prepareReview(mr, project, client, "", integrate, log)
 			if err != nil {
-				return "", fmt.Errorf("load comments for incomm: %w", err)
-			}
-			if err := incomm.Import(ctx, dir, mr, notes, log); err != nil {
 				return "", err
 			}
-			return dir, nil
+			return fmt.Sprintf("!%d is ready for review in %s · Ctrl-R opens it", mr.IID, tildePath(dir)), nil
 		})
+}
+
+// prepareReview builds or refreshes the review worktree of a merge request,
+// from a commit onwards when from is set, and brings Incomm's comments in when
+// that integration is on. It runs off the event loop.
+func (a *App) prepareReview(mr forge.MergeRequest, project forge.Project, client forge.Provider,
+	from string, integrate bool, log func(string)) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	mr = a.refreshMR(client, mr, log)
+	rev := reviewRefs(ctx, client, mr, log)
+	rev.From = from
+
+	dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMRReview(mr, project, rev)
+	if err != nil || !integrate {
+		return dir, err
+	}
+	reanchorAfterUpdate(dir, log)
+	if client == nil {
+		return "", fmt.Errorf("incomm needs comments from the server; configure its token in Settings")
+	}
+	log("Importing merge request comments into Incomm ...")
+	notes, err := client.MergeRequestNotes(ctx, mr, 0)
+	if err != nil {
+		return "", fmt.Errorf("load comments for incomm: %w", err)
+	}
+	if err := incomm.Import(ctx, dir, mr, notes, log); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 // sessionOf describes what an editor is about to be handed, for the record

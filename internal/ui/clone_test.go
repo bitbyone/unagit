@@ -34,7 +34,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 			typeRunes(sc, "j")
 			waitSelected(t, a, a.projectsPane, idx)
 		}
-		sc.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
+		typeRunes(sc, "C")
 		deadline := time.Now().Add(5 * time.Second)
 		for !onLoop(a, func() bool {
 			pr := a.projects[idx]
@@ -62,7 +62,7 @@ func TestCloneFailureKeepsLogOpen(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	onLoop(a, func() bool { a.projects[0].HTTPURLToRepo = missing; return true })
-	sc.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
+	typeRunes(sc, "C")
 	waitFor(t, a, sc, "Press Esc to close.")
 	if !onLoop(a, func() bool {
 		pr := a.projects[0]

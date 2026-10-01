@@ -48,8 +48,11 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}, {
 		name: "Hunk", command: "hunk",
 		description: "Review changes in the terminal: D opens what a row holds, and a grouped worktree as one review of all its repositories.",
-		enabled:     func() bool { return s.app.cfg.Integrations.Hunk },
-		toggle:      func() { s.app.cfg.Integrations.Hunk = !s.app.cfg.Integrations.Hunk },
+		enabled:     s.app.hunkOn,
+		toggle: func() {
+			on := !s.app.hunkOn()
+			s.app.cfg.Integrations.Hunk = &on
+		},
 	}}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)

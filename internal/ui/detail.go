@@ -367,7 +367,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 		d.kv("Branch", esc(info.Branch))
 	} else {
 		d.kv("Planned path", tag(colDim)+esc(a.projectDir(pr.Instance, pr.PathWithNamespace))+tagEnd)
-		d.kv("Clone", tag(colDim)+"○ not cloned (Ctrl-C clones, Ctrl-O clones and opens)"+tagEnd)
+		d.kv("Clone", tag(colDim)+"○ not cloned (C clones, Ctrl-O clones and opens)"+tagEnd)
 	}
 	if n := len(info.MRs); n > 0 {
 		d.kv("Worktrees", fmt.Sprintf("%d merge request worktree(s)", n))

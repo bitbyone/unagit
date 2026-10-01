@@ -66,7 +66,8 @@ Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
-- `Ctrl-C` clones it to disk without opening the editor.
+- `C` clones it to disk without opening the editor. `Ctrl-C` is left to end
+  unagit, as it ends any program in a terminal.
 - `Ctrl-O` opens your editor in it at once, as it is on disk - no fetch, no
   pull. Only a repository not cloned yet is cloned first. The lists say where
   everything stands, and `p` updates it first when you want that. The same
@@ -94,7 +95,7 @@ different groups live in different places.
   passing over those without an upstream and naming the ones it left alone.
 - `m` jumps to that repository's merge requests, `w` opens it in the browser,
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
-- `/` fuzzy-finds, `C` hides everything you have not cloned, `x` hides a
+- `/` fuzzy-finds, `L` hides everything you have not cloned (also in `v`), `x` hides a
   repository you never want to see.
 
 **Where things land is yours to decide.** A repository is cloned under the
@@ -200,7 +201,8 @@ If the import fails, unagit shows the error before opening the editor.
 ### [Hunk](https://github.com/modem-dev/hunk)
 
 Hunk is a terminal diff viewer made for reviewing a whole changeset. Install
-`hunk` on PATH and enable its integration; `D` then hands it the terminal the
+`hunk` on PATH - the integration is on as soon as it is found, and `e` in its
+card turns it off; `D` then hands it the terminal the
 way an editor gets it, on the change the row holds:
 
 | Where | What Hunk shows |
@@ -228,6 +230,9 @@ so the whole merge request reads as **one pending, unstaged change**:
 git diff        # the entire merge request, as a single diff
 git status      # every file it touches, additions and deletions included
 ```
+
+`C` builds the same worktree without opening anything, for a review to read
+later, or in Hunk with `D`.
 
 Unstaged is the point. Editors draw their gutter by comparing the file against
 the index, so the index has to be the merge base - then gitsigns, gitgutter,
@@ -344,7 +349,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
-| `Ctrl-C` | in Repositories: clone to disk without opening the editor |
+| `C` | clone without opening the editor; a merge request's review worktree |
 | `Ctrl-O` | open the editor as it is on disk; clones only what is missing |
 | `p` | update: a fast-forward, or a rebase of your work; never a conflict |
 | `Alt-O` `Alt-R` … | the same, in an editor you choose |
@@ -356,7 +361,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
-| `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
+| `L` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
 | `v` | in Repositories: what the list shows - tags, grouping, favourites first |

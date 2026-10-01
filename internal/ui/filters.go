@@ -249,7 +249,7 @@ func (a *App) filterKeysFor(p *pane) func(*tcell.EventKey) bool {
 			return false
 		}
 		switch ev.Rune() {
-		case 'C':
+		case 'L':
 			a.toggleClonedOnly()
 			return true
 		case 'x':

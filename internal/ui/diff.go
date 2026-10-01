@@ -20,23 +20,33 @@ import (
 // hunkBinary is where Hunk is, once the integration is on; otherwise it says
 // why D does nothing.
 func (a *App) hunkBinary() (string, bool) {
-	if !a.cfg.Integrations.Hunk {
+	bin, err := exec.LookPath("hunk")
+	switch {
+	case err != nil:
+		a.flash("hunk is not on PATH - install it, see Settings › Integrations")
+		return "", false
+	case !a.hunkOn():
 		a.flash("D needs Hunk - enable it in Settings › Integrations")
 		return "", false
 	}
-	bin, err := exec.LookPath("hunk")
-	if err != nil {
-		a.flash("hunk is not on PATH - install it, see Settings › Integrations")
-		return "", false
-	}
 	return bin, true
+}
+
+// hunkOn says whether the Hunk integration is on: as chosen in Settings, or,
+// until something was chosen, whenever hunk is installed.
+func (a *App) hunkOn() bool {
+	if on := a.cfg.Integrations.Hunk; on != nil {
+		return *on
+	}
+	_, err := exec.LookPath("hunk")
+	return err == nil
 }
 
 // diffProject shows what is not committed in a repository's main clone.
 func (a *App) diffProject(pr forge.Project) {
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
 	if !workspace.Exists(dir) {
-		a.flash(pr.PathWithNamespace + " is not cloned - Ctrl-C clones it")
+		a.flash(pr.PathWithNamespace + " is not cloned - C clones it")
 		return
 	}
 	if bin, ok := a.hunkBinary(); ok {
@@ -137,7 +147,7 @@ func (a *App) diffMR(mr forge.MergeRequest) {
 			a.runHunk(bin, branch, args...)
 		}()
 	default:
-		a.flash(fmt.Sprintf("!%d is not on disk - Ctrl-R makes its review", mr.IID))
+		a.flash(fmt.Sprintf("!%d is not on disk - C makes its review", mr.IID))
 	}
 }
 

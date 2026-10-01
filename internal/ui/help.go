@@ -163,7 +163,7 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
-		key("C", "only the repositories you have cloned"),
+		key("L", "only the repositories you have cloned"),
 		key("x", "hide or show the repository and its merge requests"),
 		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
@@ -172,7 +172,7 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Repositories", helpRepositories),
-		key("Ctrl-C", "clone without opening the editor"),
+		key("C", "clone without opening the editor"),
 		key("e", "set the clone directory of an uncloned repository"),
 		key("b", "switch the main clone to another branch"),
 		key("p", "pull; rebases your work; refuses on a conflict"),
@@ -206,6 +206,7 @@ func helpRows() []helpLine {
 		key("v", "review from a chosen commit to the head"),
 		key("Alt-R  Alt-V", "the same, in an editor you choose"),
 		key("●", "in v: a commit new since your last review"),
+		key("C", "make the review worktree without opening it"),
 		key("p", "pull the branch worktree; rebases your work"),
 		key("c", "read the conversation, write a comment"),
 		key("A", "approve; asks first"),

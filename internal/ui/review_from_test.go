@@ -136,3 +136,35 @@ func TestReviewStartPickerFits(t *testing.T) {
 		})
 	}
 }
+
+// TestCMakesTheReviewWithoutOpeningIt: C on a merge request builds the review
+// worktree as Ctrl-R does and stops there; Ctrl-C is left to end unagit.
+func TestCMakesTheReviewWithoutOpeningIt(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	mrOnOrigin(t, srv, p, "Add a token bucket")
+
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "C")
+	waitFor(t, a, sc, "!7 is ready for review")
+	dir := onLoop(a, func() string {
+		for _, mr := range a.mrs {
+			if mr.IID == 7 {
+				return a.reviewDir(mr.Instance, "acme/gateway", mr.IID, mr.SourceBranch)
+			}
+		}
+		return ""
+	})
+	if !workspace.Exists(dir) {
+		t.Fatalf("no review worktree at %s", dir)
+	}
+	// The whole merge request is pending, as Ctrl-R leaves it.
+	if status := gitIn(t, dir, "status", "--porcelain"); !strings.Contains(status, "rate0.txt") {
+		t.Errorf("the change is not pending:\n%s", status)
+	}
+	if strings.Contains(a.screenText(sc), "opened ") {
+		t.Error("the editor was started")
+	}
+}
