@@ -324,6 +324,46 @@ func (g *Git) branchConfig(dir, key string) map[string]string {
 	return found
 }
 
+// OperationInProgress names a merge, rebase, cherry-pick or revert that git is
+// in the middle of in dir, or "" when there is none.
+func (g *Git) OperationInProgress(dir string) string {
+	ops := []struct{ path, name string }{
+		{"rebase-merge", "rebase"}, {"rebase-apply", "rebase"}, {"MERGE_HEAD", "merge"},
+		{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"},
+	}
+	// One git for all of them: this runs for every clone in the list.
+	args := []string{"rev-parse"}
+	for _, op := range ops {
+		args = append(args, "--git-path", op.path)
+	}
+	out, err := g.out(dir, args...)
+	if err != nil {
+		return ""
+	}
+	for i, path := range strings.Split(out, "\n") {
+		if i >= len(ops) {
+			break
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(dir, path)
+		}
+		if _, err := os.Stat(path); err == nil {
+			return ops[i].name
+		}
+	}
+	return ""
+}
+
+// Edits counts the files with uncommitted changes, untracked ones too; -1 when
+// git cannot say.
+func (g *Git) Edits(dir string) int {
+	out, err := g.Run(dir, "status", "--porcelain")
+	if err != nil {
+		return -1
+	}
+	return strings.Count(out, "\n")
+}
+
 // baseKey is where unagit notes the branch a new branch was made from, so it
 // can later say how far that base has moved on and rebase onto it.
 const baseKey = "unagitbase"

@@ -75,7 +75,10 @@ different groups live in different places.
 - `REMOTE` says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
   from the refs on disk, so it costs nothing; `r` fetches every clone in the
-  background first, and the header counts the fetches still running.
+  background first, and the header counts the fetches still running. A
+  rebase or merge git stopped in the middle of shows there instead, in red.
+- `EDITS` counts the files not committed in the clone, and `Enter` lists them
+  with the clone's branch, HEAD and the commits origin does not have yet.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
   rebase of your commits and uncommitted edits onto origin when there is. If
   that would conflict - your edits touch a file origin changed, or your commits

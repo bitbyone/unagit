@@ -146,11 +146,16 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		p.setDetail(pr.PathWithNamespace,
-			a.renderProject(pr, nil, nil, nil, nil, []string{
+			a.renderProject(pr, nil, nil, nil, nil, wtFacts{}, []string{
 				a.instanceLabel(pr.Instance) + " has no token yet - set one in Settings [S]"}))
 		return
 	}
 
+	// The clone is read here, on the event loop, and asked about out of it.
+	info := a.disk[projectKey{pr.Instance, pr.PathWithNamespace}]
+	clone := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: info.Branch,
+		Dir: a.projectDir(pr.Instance, pr.PathWithNamespace)}
+	st := a.repoSync[projectKey{pr.Instance, pr.PathWithNamespace}]
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -168,6 +173,15 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 			mu.Lock()
 			problems = append(problems, what+": "+err.Error())
 			mu.Unlock()
+		}
+		// The clone on disk, asked alongside the server.
+		var facts wtFacts
+		if info.Cloned {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				facts = a.gatherFacts(clone, st)
+			}()
 		}
 		wg.Add(4)
 		go func() {
@@ -212,7 +226,7 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 			if p.detailSeq != seq {
 				return // the user moved on
 			}
-			p.setDetail(pr.PathWithNamespace, a.renderProject(pr, detail, commits, langs, pipeline, problems))
+			p.setDetail(pr.PathWithNamespace, a.renderProject(pr, detail, commits, langs, pipeline, facts, problems))
 		})
 	}()
 }
@@ -227,7 +241,7 @@ func (a *App) projectSkeleton(pr forge.Project) string {
 }
 
 func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits []forge.Commit,
-	langs map[string]float64, pipeline *forge.Pipeline, problems []string) string {
+	langs map[string]float64, pipeline *forge.Pipeline, facts wtFacts, problems []string) string {
 
 	d := &detailBuf{}
 	d.title(pr.PathWithNamespace)
@@ -235,6 +249,23 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 		d.sub(det.Description)
 	} else {
 		d.sub(pr.Description)
+	}
+
+	// What is on disk comes first: it is what changes while you look.
+	if key := (projectKey{pr.Instance, pr.PathWithNamespace}); a.disk[key].Cloned {
+		d.section("On disk")
+		d.kv("Directory", esc(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))))
+		d.kv("Branch", tag(colBranch)+esc(a.disk[key].Branch)+tagEnd)
+		d.kv("Remote", a.syncSentence(key))
+		if facts.loaded {
+			d.kv("State", stateLine(facts))
+			d.kv("HEAD", esc(facts.head))
+		}
+		// The latest commits come from the server further down.
+		if facts.onto == "" {
+			facts.own = nil
+		}
+		writeFacts(d, a.repoSync[key], facts)
 	}
 
 	d.section("Project")
@@ -272,13 +303,6 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 		d.kv("Default", esc(pr.DefaultBranch))
 		d.kv("Activity", when(pr.LastActivityAt))
 		d.kv("URL", tag(colDim)+esc(pr.WebURL)+tagEnd)
-	}
-
-	if key := (projectKey{pr.Instance, pr.PathWithNamespace}); a.disk[key].Cloned {
-		d.section("On disk")
-		d.kv("Directory", esc(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))))
-		d.kv("Branch", tag(colBranch)+esc(a.disk[key].Branch)+tagEnd)
-		d.kv("Remote", a.syncSentence(key))
 	}
 
 	if len(langs) > 0 {

@@ -288,12 +288,13 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		markW++
 	}
 	const (
+		editsW  = len("EDITS")
 		mrW     = 2
 		wtW     = 2
 		gaps    = 6
 		minName = 20
 	)
-	fixed := markW + branchW + syncW + pathW + mrW + wtW + actW + gaps + 1
+	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + actW + gaps + 2
 	if withServer {
 		fixed += serverW + 1
 	}
@@ -348,7 +349,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 	header = append(header,
 		field{text: "BRANCH", width: branchW, colour: colDim},
-		field{text: "REMOTE", width: syncW, colour: colDim})
+		field{text: "REMOTE", width: syncW, colour: colDim},
+		field{text: "EDITS", width: editsW, colour: colDim, right: true})
 	if pathW > 0 {
 		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
 	}
@@ -408,7 +410,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		words, wordsColour := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		fields = append(fields,
 			field{text: branch, width: branchW, colour: branchColour},
-			field{text: words, width: syncW, colour: wordsColour})
+			field{text: words, width: syncW, colour: wordsColour},
+			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: colWarn, right: true})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
 		}

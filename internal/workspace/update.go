@@ -3,8 +3,6 @@ package workspace
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -149,24 +147,7 @@ func (m *Manager) moveOnto(dir, branch, upstream string) (string, error) {
 
 // OperationInProgress names a merge, rebase, cherry-pick or revert that git is
 // in the middle of, or "" when there is none.
-func (m *Manager) OperationInProgress(dir string) string {
-	for _, op := range []struct{ path, name string }{
-		{"rebase-merge", "rebase"}, {"rebase-apply", "rebase"}, {"MERGE_HEAD", "merge"},
-		{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"},
-	} {
-		path, err := m.trimmed(dir, "rev-parse", "--git-path", op.path)
-		if err != nil {
-			continue
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(dir, path)
-		}
-		if _, err := os.Stat(path); err == nil {
-			return op.name
-		}
-	}
-	return ""
-}
+func (m *Manager) OperationInProgress(dir string) string { return m.git.OperationInProgress(dir) }
 
 // dirtyPaths lists every file with uncommitted changes, untracked ones too:
 // an untracked file the upstream adds would be just as much in the way.

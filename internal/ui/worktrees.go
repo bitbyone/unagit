@@ -62,6 +62,23 @@ type remoteState struct {
 	ForceFrom string
 	// Edits counts the files with uncommitted changes, untracked ones too.
 	Edits int
+	// Busy is a rebase, merge, cherry-pick or revert git is in the middle of.
+	Busy string
+}
+
+// busyWords is an operation in progress as a column says it.
+func busyWords(op string) string {
+	switch op {
+	case "rebase":
+		return "rebasing"
+	case "merge":
+		return "merging"
+	case "cherry-pick":
+		return "cherry-picking"
+	case "revert":
+		return "reverting"
+	}
+	return op
 }
 
 // project is the repository the worktree hangs off. The index has its clone
@@ -157,9 +174,8 @@ func (a *App) loadWorktreeRemotes() {
 							st.ForceFrom = mark
 						}
 					}
-					if out, err := j.git.Run(r.Dir, "status", "--porcelain"); err == nil {
-						st.Edits = strings.Count(out, "\n")
-					}
+					st.Edits = max(j.git.Edits(r.Dir), 0)
+					st.Busy = j.git.OperationInProgress(r.Dir)
 					result[r.Dir] = st
 				}
 			}
@@ -185,6 +201,8 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 		return "…", "", colDim
 	case st.Unreadable:
 		return "?", "", colDim
+	case st.Busy != "":
+		return busyWords(st.Busy), "", colBad
 	case st.Detached:
 		return "detached", "", colDim
 	case u.Gone:
@@ -641,6 +659,8 @@ func (a *App) worktreeRemoteWords(r worktreeRow) (string, tcell.Color) {
 func remoteRank(st remoteState) int {
 	u := st.Upstream
 	switch {
+	case st.Busy != "":
+		return 7
 	case st.Unreadable, st.Detached:
 		return 1
 	case u.Gone:
@@ -686,6 +706,8 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 		return "still looking"
 	case st.Unreadable:
 		return "cannot be read: the clone is missing or broken"
+	case st.Busy != "":
+		return "a " + st.Busy + " is in progress: finish it, or abort it, in the directory"
 	case st.Detached:
 		return "detached HEAD, no branch to push"
 	case u.Gone:

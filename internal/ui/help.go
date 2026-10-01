@@ -197,7 +197,7 @@ func helpRows() []helpLine {
 		key("MR", "the open merge request of the branch"),
 		key("◆", "grouped: several repositories in one folder"),
 		key("REPOS", "how many repositories the worktree holds"),
-		key("EDITS", "files with uncommitted changes"),
+		key("EDITS", "files not committed; Repositories too"),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),

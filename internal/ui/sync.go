@@ -60,7 +60,7 @@ func (a *App) loadRepoSync(fetch bool) {
 						failed = firstLine(err.Error())
 					}
 				}
-				st := remoteState{}
+				st := remoteState{Edits: max(j.git.Edits(j.dir), 0), Busy: j.git.OperationInProgress(j.dir)}
 				upstreams := j.git.BranchUpstreams(j.dir)
 				if u, ok := upstreams[j.branch]; ok {
 					st.Upstream = u
@@ -124,6 +124,8 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 		return "…", colDim
 	case st.Unreadable:
 		return "?", colDim
+	case st.Busy != "":
+		return busyWords(st.Busy), colBad
 	case st.Detached:
 		return "detached", colDim
 	case u.Gone:
@@ -140,6 +142,15 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 	return "✓", colOn
 }
 
+// projectEdits is the EDITS column of a repository: its clone's files with
+// uncommitted changes, nothing when there are none or it is not cloned.
+func (a *App) projectEdits(key projectKey) string {
+	if n := a.repoSync[key].Edits; n > 0 && a.disk[key].Cloned {
+		return fmt.Sprintf("%d", n)
+	}
+	return ""
+}
+
 // syncSentence says the same in full, for the detail column.
 func (a *App) syncSentence(key projectKey) string {
 	if why, failed := a.fetchFailed[key]; failed {
@@ -153,6 +164,8 @@ func (a *App) syncSentence(key projectKey) string {
 		text, colour = "still looking", colDim
 	case st.Unreadable:
 		text, colour = "cannot be read: the clone is broken", colDim
+	case st.Busy != "":
+		text, colour = "a "+st.Busy+" is in progress: finish it, or abort it, in the clone", colBad
 	case st.Detached:
 		text, colour = "detached HEAD, no branch to update", colDim
 	case u.Gone:

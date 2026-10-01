@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -45,4 +47,32 @@ func TestRemoteColumnAndUpdates(t *testing.T) {
 		t.Error("Alt-P did not bring the other repository up to origin")
 	}
 	waitFor(t, a, sc, "✓")
+}
+
+// TestRepositoriesShowTheCloneItself: EDITS counts what is not committed in
+// the main clone, REMOTE names a rebase left half way, and the detail lists
+// the files.
+func TestRepositoriesShowTheCloneItself(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/billing")
+	gw := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(filepath.Join(gw.clone, "a.txt"), []byte("edited\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(gw.clone, "new.txt"), []byte("new\n"), 0o644))
+	gw.rescan()
+	waitFor(t, a, sc, "EDITS")
+	waitFor(t, a, sc, "✓")
+	if row := rowWith(a, sc, "acme/gateway"); !containsField(row, "2") {
+		t.Errorf("EDITS does not count the two files: %q", row)
+	}
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "UNCOMMITTED · 2")
+	waitFor(t, a, sc, "new.txt")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+
+	// A rebase git stopped in the middle of, as a conflict leaves it.
+	must(t, os.MkdirAll(filepath.Join(gw.clone, ".git", "rebase-merge"), 0o755))
+	gw.rescan()
+	waitFor(t, a, sc, "rebasing")
 }
