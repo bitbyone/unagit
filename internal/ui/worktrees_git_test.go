@@ -185,11 +185,13 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 			t.Fatalf("header %q, want %v and not %v", header(), present, absent)
 		}
 	}
-	waitForHeader([]string{"REMOTE", "MR", "PATH"}, nil) // 160 wide: everything
+	waitForHeader([]string{"REMOTE", "EDITS", "MR", "PATH"}, nil) // 160 wide: everything
+	resize(sc, 80, 30)
+	waitForHeader([]string{"REMOTE", "EDITS", "MR"}, []string{"PATH"}) // the directory goes first
 	resize(sc, 70, 30)
-	waitForHeader([]string{"REMOTE", "MR"}, []string{"PATH"}) // the directory goes first
+	waitForHeader([]string{"REMOTE", "EDITS"}, []string{"PATH", " MR "}) // then the merge request
 	resize(sc, 50, 30)
-	waitForHeader([]string{"REMOTE"}, []string{"PATH", " MR "}) // then the merge request; REMOTE stays
+	waitForHeader([]string{"REMOTE"}, []string{"PATH", " MR ", "EDITS"}) // then the edits; REMOTE stays
 }
 
 func TestMergeRequestColumnNamesTheOpenRequestOfABranch(t *testing.T) {
@@ -266,7 +268,7 @@ func TestPushIsRefusedWhenOriginIsAhead(t *testing.T) {
 	waitFor(t, a, sc, "diverged")
 
 	typeRunes(sc, "P")
-	waitFor(t, a, sc, "unagit never forces")
+	waitFor(t, a, sc, "pull or rebase first")
 	time.Sleep(200 * time.Millisecond)
 	if got := gitIn(t, p.origin, "rev-parse", "feat/behind"); got != before {
 		t.Error("a refused push must not touch origin")
@@ -443,7 +445,7 @@ func TestNewMergeRequestIsRefusedWhenBehind(t *testing.T) {
 	waitFor(t, a, sc, "↓1 behind")
 
 	typeRunes(sc, "n")
-	waitFor(t, a, sc, "unagit never forces")
+	waitFor(t, a, sc, "pull or rebase first")
 	if srv.postedMR.Load() != nil {
 		t.Error("a merge request was created for a branch that is behind")
 	}

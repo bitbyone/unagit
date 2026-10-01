@@ -179,3 +179,50 @@ func TestUpdateRebasesANewBranchOntoItsBase(t *testing.T) {
 		t.Errorf("a pushed branch went after its base: %q, %v", got, err)
 	}
 }
+
+// TestRebaseOntoBaseOfAPushedBranch: Ctrl-R moves a pushed branch onto its
+// base and notes where origin's copy stood; the force push replaces exactly
+// that, and refuses once someone has pushed over it.
+func TestRebaseOntoBaseOfAPushedBranch(t *testing.T) {
+	f := newUpdateFixture(t)
+	git(t, f.clone, "checkout", "-q", "-b", "feat/x")
+	if err := f.m.git.SetBranchBase(f.clone, "feat/x", "main"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, f.clone, "b.txt", "mine\n")
+	git(t, f.clone, "commit", "-am", "mine")
+	git(t, f.clone, "push", "-u", "origin", "feat/x")
+	pushed := git(t, f.clone, "rev-parse", "HEAD")
+	f.moveOrigin(t, "a.txt", "two\n")
+
+	got, err := f.m.RebaseOntoBase(f.clone, "main")
+	if err != nil || got != UpdateRebased {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if readFile(t, f.clone, "a.txt") != "two\n" {
+		t.Error("the branch is not on top of main")
+	}
+	if mark := f.m.git.RebasedFrom(f.clone)["feat/x"]; mark != pushed {
+		t.Fatalf("noted %q, origin had %s", mark, pushed)
+	}
+
+	// Someone pushes over origin's copy: the lease no longer holds.
+	git(t, f.pusher, "fetch", "-q")
+	git(t, f.pusher, "checkout", "-q", "feat/x")
+	write(t, f.pusher, "c.txt", "theirs\n")
+	git(t, f.pusher, "add", ".")
+	git(t, f.pusher, "commit", "-m", "theirs")
+	git(t, f.pusher, "push", "origin", "feat/x")
+	if err := f.m.git.ForcePush(f.clone, "feat/x", pushed); err == nil {
+		t.Fatal("the force push replaced a commit pushed after the rebase")
+	}
+
+	// With the lease on what origin has now, it goes through.
+	theirs := git(t, f.pusher, "rev-parse", "HEAD")
+	if err := f.m.git.ForcePush(f.clone, "feat/x", theirs); err != nil {
+		t.Fatal(err)
+	}
+	if git(t, f.pusher, "ls-remote", "origin", "feat/x")[:40] != git(t, f.clone, "rev-parse", "HEAD") {
+		t.Error("origin does not have the rebased branch")
+	}
+}

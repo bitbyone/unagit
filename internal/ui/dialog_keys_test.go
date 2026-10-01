@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -170,8 +171,12 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 				keys   []string
 				colour tcell.Color
 			}{{active, colText}, {inactive, colDim}} {
+				// A key may do something in more than one list - Ctrl-R reviews a
+				// merge request and rebases a worktree - so an active key needs
+				// one row in its own colour, an inactive one needs all of them dim.
 				for _, key := range group.keys {
-					found := false
+					found, matched := false, false
+					var seen []string
 					for row := 0; row < table.GetRowCount(); row++ {
 						cell := table.GetCell(row, 0)
 						if cell.Text != key {
@@ -180,12 +185,18 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 						found = true
 						foreground, _, _ := cell.Style.Decompose()
 						description, _, _ := table.GetCell(row, 1).Style.Decompose()
-						if foreground != group.colour || description != group.colour {
+						if foreground == group.colour && description == group.colour {
+							matched = true
+						} else if group.colour == colDim {
 							t.Errorf("%s: %q has colours %v/%v, want %v", title, key, foreground, description, group.colour)
 						}
+						seen = append(seen, fmt.Sprintf("%v/%v", foreground, description))
 					}
-					if !found {
+					switch {
+					case !found:
 						t.Errorf("help is missing %q", key)
+					case !matched && group.colour != colDim:
+						t.Errorf("%s: %q has colours %v, want %v", title, key, seen, group.colour)
 					}
 				}
 			}

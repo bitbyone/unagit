@@ -278,6 +278,52 @@ func (g *Git) Count(dir, revRange string) int {
 	return n
 }
 
+// rebasedKey notes where the upstream of a branch stood when unagit rebased
+// the branch away from it: the one state of origin a force push may replace.
+const rebasedKey = "unagitrebasedfrom"
+
+// SetRebasedFrom records the upstream commit a rebase moved the branch off.
+func (g *Git) SetRebasedFrom(dir, branch, commit string) error {
+	_, err := g.Run(dir, "config", "branch."+branch+"."+rebasedKey, commit)
+	return err
+}
+
+// ClearRebasedFrom forgets it, once origin has the branch as it is.
+func (g *Git) ClearRebasedFrom(dir, branch string) {
+	_, _ = g.Run(dir, "config", "--unset", "branch."+branch+"."+rebasedKey)
+}
+
+// RebasedFrom maps every branch rebased away from its upstream to where that
+// upstream stood, from one git config for the whole repository.
+func (g *Git) RebasedFrom(dir string) map[string]string {
+	return g.branchConfig(dir, rebasedKey)
+}
+
+// ForcePush replaces origin's branch with the local one, but only when origin
+// still has lease there: anything pushed since makes git refuse rather than
+// lose it.
+func (g *Git) ForcePush(dir, branch, lease string) error {
+	_, err := g.Run(dir, "push", "--force-with-lease=refs/heads/"+branch+":"+lease, "origin", branch)
+	return err
+}
+
+// branchConfig reads one unagit key of every branch.
+func (g *Git) branchConfig(dir, key string) map[string]string {
+	out, err := g.out(dir, "config", "--get-regexp", `^branch\..*\.`+key+`$`)
+	if err != nil || out == "" {
+		return nil
+	}
+	found := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		k, value, ok := strings.Cut(line, " ")
+		if !ok {
+			continue
+		}
+		found[strings.TrimSuffix(strings.TrimPrefix(k, "branch."), "."+key)] = value
+	}
+	return found
+}
+
 // baseKey is where unagit notes the branch a new branch was made from, so it
 // can later say how far that base has moved on and rebase onto it.
 const baseKey = "unagitbase"
@@ -291,20 +337,7 @@ func (g *Git) SetBranchBase(dir, branch, base string) error {
 // BranchBases maps every branch with a recorded base to that base, from one
 // git config for the whole repository.
 func (g *Git) BranchBases(dir string) map[string]string {
-	out, err := g.out(dir, "config", "--get-regexp", `^branch\..*\.`+baseKey+`$`)
-	if err != nil || out == "" {
-		return nil
-	}
-	bases := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
-		key, value, ok := strings.Cut(line, " ")
-		if !ok {
-			continue
-		}
-		branch := strings.TrimSuffix(strings.TrimPrefix(key, "branch."), "."+baseKey)
-		bases[branch] = value
-	}
-	return bases
+	return g.branchConfig(dir, baseKey)
 }
 
 // WorktreeRemove detaches a worktree directory from the repository.

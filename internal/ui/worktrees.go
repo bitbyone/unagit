@@ -55,6 +55,13 @@ type remoteState struct {
 	Base       string
 	Onto       string
 	BaseBehind int
+	// ForceFrom is where origin's copy stood when unagit rebased the branch
+	// away from it, while origin still has exactly that: a force push may
+	// replace it. Anything pushed since leaves it empty, and the branch reads
+	// as diverged.
+	ForceFrom string
+	// Edits counts the files with uncommitted changes, untracked ones too.
+	Edits int
 }
 
 // project is the repository the worktree hangs off. The index has its clone
@@ -126,6 +133,7 @@ func (a *App) loadWorktreeRemotes() {
 			j := jobs[k]
 			upstreams := j.git.BranchUpstreams(j.dir)
 			bases := j.git.BranchBases(j.dir)
+			rebased := j.git.RebasedFrom(j.dir)
 			for _, r := range j.rows {
 				switch {
 				case upstreams == nil:
@@ -142,6 +150,15 @@ func (a *App) loadWorktreeRemotes() {
 						if st.Onto != "" {
 							st.BaseBehind = j.git.Count(r.Dir, "HEAD.."+st.Onto)
 						}
+					}
+					if mark := rebased[r.Branch]; mark != "" && st.Upstream.Name != "" && !st.Upstream.Gone {
+						at, _ := j.git.Run(r.Dir, "rev-parse", "refs/remotes/"+st.Upstream.Name)
+						if strings.TrimSpace(at) == mark && !j.git.IsAncestor(r.Dir, mark, "HEAD") {
+							st.ForceFrom = mark
+						}
+					}
+					if out, err := j.git.Run(r.Dir, "status", "--porcelain"); err == nil {
+						st.Edits = strings.Count(out, "\n")
 					}
 					result[r.Dir] = st
 				}
@@ -172,6 +189,8 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 		return "detached", "", colDim
 	case u.Gone:
 		return "upstream gone", "", colBad
+	case st.ForceFrom != "":
+		return "force push required", "", colForce
 	case u.Name == "" && st.BaseBehind > 0:
 		return fmt.Sprintf("↓%d behind %s", st.BaseBehind, st.Base), "", colWarn
 	case u.Name == "":
@@ -262,6 +281,14 @@ func (a *App) newWorktreesPane() *pane {
 		return false
 	}
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
+		// Ctrl-R puts the branch on top of its base as it is now, even once
+		// pushed; it reviews a merge request in the other list.
+		if ev.Key() == tcell.KeyCtrlR {
+			if r, ok := selected(); ok {
+				a.rebaseWorktree(r)
+			}
+			return nil
+		}
 		if ev.Key() != tcell.KeyRune {
 			return ev
 		}
@@ -364,7 +391,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	withServer := a.multiInstance()
 
 	repoW, branchW, serverW, pathW, actW, remoteW, mrW := 10, 6, 0, 0, 8, len("REMOTE"), len("MR")
-	reposW := len("REPOS")
+	reposW, editsW := len("REPOS"), len("EDITS")
 	mrs := map[int]string{}
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
@@ -405,25 +432,29 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		fields++
 	}
 	// What gives way when the row is tight, in this order: the directory, whole
-	// (half a path says nothing), then the merge request. REMOTE stays.
-	showPath, showMR := true, true
+	// (half a path says nothing), the merge request, then the edits. REMOTE stays.
+	showPath, showMR, showEdits := true, true, true
 	cost := func() int {
 		total, gaps := fixed, fields
-		if showPath {
-			total += pathW
-			gaps++
-		}
-		if showMR {
-			total += mrW
-			gaps++
+		for _, c := range []struct {
+			on bool
+			w  int
+		}{{showPath, pathW}, {showMR, mrW}, {showEdits, editsW}} {
+			if c.on {
+				total += c.w
+				gaps++
+			}
 		}
 		return total + gaps
 	}
-	for room-cost() < minRepo && (showPath || showMR) {
-		if showPath {
+	for room-cost() < minRepo && (showPath || showMR || showEdits) {
+		switch {
+		case showPath:
 			showPath = false
-		} else {
+		case showMR:
 			showMR = false
+		default:
+			showEdits = false
 		}
 	}
 	repoW = atLeast(max(min(repoW, room-cost()), 10), "REPOSITORY")
@@ -437,6 +468,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		field{text: "REPOS", width: reposW, colour: colDim, right: true},
 		field{text: "BRANCH", width: branchW, colour: colDim},
 		field{text: "REMOTE", width: remoteW, colour: colDim})
+	if showEdits {
+		header = append(header, field{text: "EDITS", width: editsW, colour: colDim, right: true})
+	}
 	if showMR {
 		header = append(header, field{text: "MR", width: mrW, colour: colDim})
 	}
@@ -470,6 +504,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			field{text: count, width: reposW, colour: countColour, right: true},
 			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour},
 			remote)
+		if showEdits {
+			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: colWarn, right: true})
+		}
 		if showMR {
 			cells = append(cells, field{text: mrs[idx], width: mrW, colour: colAccent})
 		}
@@ -485,6 +522,23 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		first = 1
 	}
 	p.selectRow(previous, first)
+}
+
+// worktreeEdits is the EDITS column: how many files have uncommitted changes,
+// across every member of a grouped worktree; nothing when there are none.
+func (a *App) worktreeEdits(r worktreeRow) string {
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	total := 0
+	for _, m := range members {
+		total += a.wtRemote[m.Dir].Edits
+	}
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d", total)
 }
 
 // worktreeBranch is what the BRANCH column says: the branch, or for a grouped
@@ -591,6 +645,8 @@ func remoteRank(st remoteState) int {
 		return 1
 	case u.Gone:
 		return 6
+	case st.ForceFrom != "":
+		return 5
 	case u.Name == "" && st.BaseBehind > 0:
 		return 4
 	case u.Name == "":
@@ -634,6 +690,8 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 		return "detached HEAD, no branch to push"
 	case u.Gone:
 		return "upstream gone: the branch was deleted on origin"
+	case st.ForceFrom != "":
+		return fmt.Sprintf("rebased onto %s; origin still has the old commits · P force-pushes, asking first", st.Base)
 	case u.Name == "" && st.BaseBehind > 0:
 		return fmt.Sprintf("not on origin yet, %d behind %s · p rebases onto it · P pushes it", st.BaseBehind, st.Onto)
 	case u.Name == "":
@@ -649,8 +707,9 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 }
 
 // pushBlocked says why a worktree's branch cannot be pushed as it stands, or ""
-// when it can. Nothing here ever forces: a branch origin has moved past has to be
-// brought up to date first.
+// when it can. The one push that forces is of a branch Ctrl-R rebased, over
+// exactly what origin had then; any other branch origin has moved past has to
+// be brought up to date first.
 func pushBlocked(st remoteState, known bool) string {
 	u := st.Upstream
 	switch {
@@ -662,8 +721,10 @@ func pushBlocked(st remoteState, known bool) string {
 		return "this worktree has a detached HEAD, there is no branch to push"
 	case u.Gone:
 		return "the upstream is gone: the branch was deleted on origin. Push it again by hand if you want it back"
+	case st.ForceFrom != "":
+		return ""
 	case u.Behind > 0:
-		return fmt.Sprintf("origin has %d commit(s) this branch lacks: pull or rebase first, unagit never forces", u.Behind)
+		return fmt.Sprintf("origin has %d commit(s) this branch lacks: pull or rebase first, unagit forces only what Ctrl-R rebased", u.Behind)
 	}
 	return ""
 }
@@ -676,6 +737,17 @@ func (a *App) pushWorktree(r worktreeRow) {
 		a.flash(why)
 		return
 	}
+	if st.ForceFrom != "" {
+		body := fmt.Sprintf("[::b]%s[::-] was rebased onto %s, so origin's copy has to be replaced.\n\n"+
+			"Force-push it? Only origin's copy as it was before the rebase is replaced: "+
+			"if anyone pushed since, git refuses.", esc(r.Branch), esc(st.Base))
+		a.confirmWith("Force push", body, "Force push", nil, func() {
+			a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
+				return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)
+			})
+		})
+		return
+	}
 	if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
 		a.flash(r.Branch + " is already on origin")
 		return
@@ -684,6 +756,16 @@ func (a *App) pushWorktree(r worktreeRow) {
 	a.runTask(fmt.Sprintf("Pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
 		return "", a.newManager(r.Instance, r.Path, log).Git().Push(r.Dir, r.Branch, setUpstream)
 	})
+}
+
+// forcePush replaces origin's copy of a rebased branch, and once origin has
+// it, forgets where the copy stood before.
+func forcePush(git *gitx.Git, dir, branch, lease string) error {
+	if err := git.ForcePush(dir, branch, lease); err != nil {
+		return err
+	}
+	git.ClearRebasedFrom(dir, branch)
+	return nil
 }
 
 // humanBranch turns a branch name into something that reads as a title: its last

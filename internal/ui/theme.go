@@ -21,8 +21,11 @@ var (
 	colWarn        = tcell.Color179
 	colStar        = tcell.Color220
 	colBad         = tcell.Color167
-	colBranch      = tcell.Color109
-	colTabActive   = tcell.Color109
+	// colForce is a step short of colBad: something to do on purpose, not
+	// something wrong.
+	colForce     = tcell.Color210
+	colBranch    = tcell.Color109
+	colTabActive = tcell.Color109
 	// colSurface is a raised panel: the background of a field or a button at
 	// rest, and the ink on one that is active.
 	colSurface = tcell.Color236

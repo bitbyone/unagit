@@ -56,6 +56,47 @@ func (m *Manager) UpdateBranch(dir, base string) (string, error) {
 			return "", fmt.Errorf("%s was made from %s, which is gone: %w", branch, base, ErrNothingDone)
 		}
 	}
+	return m.moveOnto(dir, branch, upstream)
+}
+
+// RebaseOntoBase puts the branch's commits and edits on top of origin's copy
+// of the branch it was made from, pushed or not, so that it reads as made from
+// the base as it is now. The same rules hold as for an update: nothing that
+// would conflict is done. A pushed branch then differs from its upstream, and
+// where the upstream stood is noted, so that only a push forcing it away from
+// exactly that - nothing origin gained since - goes through.
+func (m *Manager) RebaseOntoBase(dir, base string) (string, error) {
+	if busy := m.OperationInProgress(dir); busy != "" {
+		return "", fmt.Errorf("a %s is in progress here - finish or abort it first: %w", busy, ErrNothingDone)
+	}
+	branch := m.git.CurrentBranch(dir)
+	if branch == "" {
+		return "", fmt.Errorf("HEAD is detached, there is no branch to rebase: %w", ErrNotTracking)
+	}
+	if base == "" {
+		return "", fmt.Errorf("unagit does not know what %s was made from: %w", branch, ErrNotTracking)
+	}
+	if err := m.git.Fetch(dir); err != nil {
+		return "", err
+	}
+	onto := m.git.BaseRef(dir, base)
+	if onto == "" {
+		return "", fmt.Errorf("%s was made from %s, which is gone: %w", branch, base, ErrNothingDone)
+	}
+	upstreamAt, _ := m.trimmed(dir, "rev-parse", "--verify", "--quiet", "@{upstream}")
+	outcome, err := m.moveOnto(dir, branch, onto)
+	if err != nil || outcome == UpdateCurrent || upstreamAt == "" {
+		return outcome, err
+	}
+	if !m.git.IsAncestor(dir, upstreamAt, "HEAD") {
+		_ = m.git.SetRebasedFrom(dir, branch, upstreamAt)
+	}
+	return outcome, nil
+}
+
+// moveOnto brings branch up to target: a fast-forward without local work, a
+// rebase of it otherwise, and nothing that would conflict.
+func (m *Manager) moveOnto(dir, branch, upstream string) (string, error) {
 	behind := m.count(dir, "HEAD.."+upstream)
 	if behind == 0 {
 		return UpdateCurrent, nil

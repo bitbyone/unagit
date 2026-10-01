@@ -150,6 +150,18 @@ unagit does not do. The same rules apply: a fast-forward when nothing local is
 in the way, a rebase otherwise, and nothing at all when that would conflict.
 `r` fetches first, `Alt-P` updates every worktree.
 
+`Ctrl-R` goes further: it puts the branch - its commits and its uncommitted
+edits - on top of its base as it is now, pushed or not, so that it reads as
+made from today's base. It is done only when it goes through without a
+conflict; otherwise nothing changes. A pushed branch then differs from origin's
+copy and its row says **force push required**: `P` asks, then pushes with
+`--force-with-lease` set to exactly what origin had before the rebase, so a
+commit someone pushed in the meantime makes git refuse instead of being lost.
+That is the only force push unagit ever does.
+
+`EDITS` counts the files with uncommitted changes, so work in progress shows
+before it is committed; a grouped worktree adds up its repositories.
+
 `Enter` shows what there is to know before deciding anything: what the branch
 was made from and how far that has moved, its own commits, what is new on the
 base, the files it changes against it, what is not committed, what is not on

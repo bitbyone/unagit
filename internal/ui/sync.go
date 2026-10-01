@@ -261,10 +261,26 @@ func (a *App) updateAllWorktrees() {
 // lines would interleave into nonsense. One that cannot be updated without a
 // conflict is left as it was and named at the end.
 func (a *App) updateMany(title string, items []updateItem) {
+	a.moveMany(title, items, (*workspace.Manager).UpdateBranch)
+}
+
+// rebaseWorktree puts a worktree's branch, or every member's of a grouped one,
+// on top of what its base is now, pushed or not: Ctrl-R.
+func (a *App) rebaseWorktree(r worktreeRow) {
+	items := a.worktreeItems([]worktreeRow{r})
+	if len(items) == 0 {
+		a.flash(r.Path + " holds no repository")
+		return
+	}
+	a.moveMany("Rebasing "+r.Path+" onto its base", items, (*workspace.Manager).RebaseOntoBase)
+}
+
+// moveMany runs move - an update or a rebase - over working trees.
+func (a *App) moveMany(title string, items []updateItem, move func(*workspace.Manager, string, string) (string, error)) {
 	a.runTaskNoting(title, func(log func(string)) (string, error) {
 		if len(items) == 1 {
 			it := items[0]
-			outcome, err := a.newManager(it.instance, it.path, log).UpdateBranch(it.dir, it.base)
+			outcome, err := move(a.newManager(it.instance, it.path, log), it.dir, it.base)
 			if err != nil {
 				return "", err
 			}
@@ -293,7 +309,7 @@ func (a *App) updateMany(title string, items []updateItem) {
 				defer func() { <-sem; wg.Done() }()
 				mgr := a.newManager(k.Instance, k.Path, nil)
 				for _, it := range byRepo[k] {
-					outcome, err := mgr.UpdateBranch(it.dir, it.base)
+					outcome, err := move(mgr, it.dir, it.base)
 					mu.Lock()
 					switch {
 					case errors.Is(err, workspace.ErrNotTracking):

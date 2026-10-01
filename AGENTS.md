@@ -182,7 +182,10 @@ clone has is refused with a reason), and only then are worktrees added; a
 failure takes back what was made. Deleting a group keeps its branches.
 A branch unagit makes records its base in `branch.<name>.unagitBase`;
 `UpdateBranch` rebases a branch onto that base only while it has no upstream -
-once pushed, rebasing would need a force push.
+once pushed, rebasing would need a force push. `Ctrl-R` (`RebaseOntoBase`)
+does it anyway on request and notes the upstream it moved away from in
+`branch.<name>.unagitRebasedFrom`; `P` force-pushes only with that as the
+lease, so nothing pushed since can be overwritten. No other path forces.
 
 **The review arrangement** is the feature the whole tool exists for, and it is
 easy to get subtly wrong:

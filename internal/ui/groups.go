@@ -395,24 +395,31 @@ func (a *App) confirmDeleteGroup(r worktreeRow) {
 }
 
 // pushGroup pushes every member whose branch origin lacks, and says which it
-// had to leave alone and why. Nothing is forced, as with one worktree.
+// had to leave alone and why. A member Ctrl-R rebased is force-pushed, after
+// one question for all of them.
 func (a *App) pushGroup(r worktreeRow) {
 	type push struct {
 		member      worktreeRow
 		setUpstream bool
+		lease       string
 	}
 	var pushes []push
-	var skipped []string
+	var skipped, forced []string
 	for _, m := range r.Members {
 		st, known := a.wtRemote[m.Dir]
 		if why := pushBlocked(st, known); why != "" {
 			skipped = append(skipped, m.Path+": "+why)
 			continue
 		}
+		if st.ForceFrom != "" {
+			pushes = append(pushes, push{member: m, lease: st.ForceFrom})
+			forced = append(forced, m.Path+"  ("+m.Branch+")")
+			continue
+		}
 		if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
 			continue
 		}
-		pushes = append(pushes, push{m, st.Upstream.Name == ""})
+		pushes = append(pushes, push{member: m, setUpstream: st.Upstream.Name == ""})
 	}
 	if len(pushes) == 0 {
 		if len(skipped) > 0 {
@@ -422,19 +429,37 @@ func (a *App) pushGroup(r worktreeRow) {
 		}
 		return
 	}
-	a.runTask("Pushing "+r.Path, func(log func(string)) (string, error) {
-		for _, s := range skipped {
-			log("! " + s)
-		}
-		for _, p := range pushes {
-			m := p.member
-			log(fmt.Sprintf("Pushing %s (%s)", m.Path, m.Branch))
-			if err := a.newManager(m.Instance, m.Path, log).Git().Push(m.Dir, m.Branch, p.setUpstream); err != nil {
-				return "", fmt.Errorf("%s: %w", m.Path, err)
+	run := func() {
+		a.runTask("Pushing "+r.Path, func(log func(string)) (string, error) {
+			for _, s := range skipped {
+				log("! " + s)
 			}
-		}
-		return "", nil
-	})
+			for _, p := range pushes {
+				m := p.member
+				git := a.newManager(m.Instance, m.Path, log).Git()
+				var err error
+				if p.lease != "" {
+					log(fmt.Sprintf("Force-pushing %s (%s)", m.Path, m.Branch))
+					err = forcePush(git, m.Dir, m.Branch, p.lease)
+				} else {
+					log(fmt.Sprintf("Pushing %s (%s)", m.Path, m.Branch))
+					err = git.Push(m.Dir, m.Branch, p.setUpstream)
+				}
+				if err != nil {
+					return "", fmt.Errorf("%s: %w", m.Path, err)
+				}
+			}
+			return "", nil
+		})
+	}
+	if len(forced) == 0 {
+		run()
+		return
+	}
+	body := fmt.Sprintf("These were rebased, so origin's copy has to be replaced:\n\n%s\n\n"+
+		"Force-push them? Only origin's copy as it was before the rebase is replaced: "+
+		"if anyone pushed since, git refuses.", esc(strings.Join(forced, "\n")))
+	a.confirmWith("Force push", body, "Force push", nil, run)
 }
 
 // groupMergeRequest asks which member to open a merge request for; each
