@@ -292,16 +292,14 @@ func (f *Filters) ToggleTagFilter(name string) bool {
 	return true
 }
 
-// PassesTags reports whether a repository wearing these tags is shown: any
-// tag of the filter will do, and no filter shows everything.
+// PassesTags reports whether a repository wearing these tags is shown: it has
+// to wear every tag of the filter, so each one picked narrows the list
+// further, and no filter shows everything.
 func (f *Filters) PassesTags(worn []string) bool {
-	if len(f.Tags) == 0 {
-		return true
-	}
-	for _, n := range worn {
-		if slices.Contains(f.Tags, n) {
-			return true
+	for _, n := range f.Tags {
+		if !slices.Contains(worn, n) {
+			return false
 		}
 	}
-	return false
+	return true
 }

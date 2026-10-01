@@ -180,3 +180,23 @@ func TestServerTagsPassDownToEverything(t *testing.T) {
 		t.Errorf("server tags = %v", c.ServerTagsOf("i"))
 	}
 }
+
+// TestTagFilterWantsEveryTag: each tag picked narrows the list further - a
+// repository is shown only when it wears all of them.
+func TestTagFilterWantsEveryTag(t *testing.T) {
+	f := Filters{Tags: []string{"work", "oss"}}
+	for _, c := range []struct {
+		worn []string
+		want bool
+	}{
+		{[]string{"work", "oss"}, true},
+		{[]string{"oss", "work", "tooling"}, true},
+		{[]string{"work"}, false},
+		{[]string{"oss", "hobby"}, false},
+		{nil, false},
+	} {
+		if got := f.PassesTags(c.worn); got != c.want {
+			t.Errorf("wearing %v: shown = %v, want %v", c.worn, got, c.want)
+		}
+	}
+}

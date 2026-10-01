@@ -290,10 +290,9 @@ group.
   a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on
   a repository; `t` in Settings › Groups & roots puts them on a whole server
   or on a group, and everything below wears them too unless it takes one off.
-  They
-  have a column of their own after the names; `f` shows only the repositories
-  wearing any of the tags you pick, `F` all of them again, and `v` hides
-  the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›
+  They have a column of their own after the names. `f` shows only the
+  repositories wearing all of the tags you pick, so each tag more narrows the
+  list further; `F` shows every repository again, and `v` hides the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›
   Tags switches to half circles or square ends.
 - **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
   shows the favourites first, in the usual order, above a line; a grouped one

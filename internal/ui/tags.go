@@ -258,7 +258,7 @@ func (a *App) showViewOptions() {
 	})
 }
 
-// showTagFilter narrows the repositories to those wearing any of the chosen
+// showTagFilter narrows the repositories to those wearing all of the chosen
 // tags.
 func (a *App) showTagFilter() {
 	f := &a.cfg.Filters
@@ -285,7 +285,7 @@ func (a *App) showTagFilter() {
 			if len(f.Tags) == 0 {
 				return tag(colDim) + "showing every repository" + tagEnd
 			}
-			return fmt.Sprintf("%sany of %d%s", tag(colDim), len(f.Tags), tagEnd)
+			return fmt.Sprintf("%sall of %d%s", tag(colDim), len(f.Tags), tagEnd)
 		},
 		keys: []toggleKey{{key: 'a', hint: "all", run: func() {
 			f.Tags = nil

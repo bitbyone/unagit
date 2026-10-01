@@ -71,7 +71,7 @@ func TestTagsOnRepositories(t *testing.T) {
 	typeRunes(sc, "f")
 	waitFor(t, a, sc, "Show the repositories tagged")
 	typeRunes(sc, "jj ")
-	waitFor(t, a, sc, "any of 1")
+	waitFor(t, a, sc, "all of 1")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "acme/billing")
 	if !strings.Contains(a.screenText(sc), "1/2 repositories") {
