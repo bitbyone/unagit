@@ -95,6 +95,35 @@ Repository directory overrides bypass all root and group rules. Worktrees live i
 `.unagit/<directory-name>` beside that exact destination. Existing `.mrs` and
 `.reviews` worktrees remain available in their original locations.
 
+## Grouped worktrees
+
+Work that spans several repositories - a change to an API and its two clients,
+say, or a task for an AI agent that has to see all of them - wants them in one
+folder. In Repositories, `space` selects a repository and moves on (the header
+says `SELECT 3`, `Esc` clears it); `Ctrl-W` on a selection then asks for:
+
+- **New branch** - made in every repository. Left empty, nothing is created
+  and each repository checks out a branch of its own.
+- **Folder** - the name of the folder; it follows the branch until you change it.
+- **A branch for each repository** - where the new branch starts, or, without
+  one, the branch that repository checks out.
+
+```
+<root>/.unagit/groups/<folder>/<repo>     a worktree of each repository
+<root>/.unagit/groups/<folder>/.unagit-group.json
+```
+
+Every repository is cloned and fetched first and checked before anything is
+made, so a group is made whole or not at all. Git checks a branch out only once,
+so picking the branch the main clone already has - usually the default one -
+needs a new branch for the group, or the main clone switched elsewhere.
+
+In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
+and `Enter` lists each repository with its branch, its remote and its state.
+`Ctrl-O` opens the folder, `P` pushes every repository that needs it, `n` asks
+which one to open a merge request for, and `d` deletes the worktrees - the
+branches and the main clones stay.
+
 ## Integrations
 
 Configure integrations in **Settings → Integrations**. Each integration has
@@ -250,6 +279,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
+| `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |

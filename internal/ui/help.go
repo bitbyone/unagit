@@ -133,7 +133,7 @@ func helpRows() []helpLine {
 		key("j  k", "move up and down"),
 		key("g  G", "first · last").in(helpLists | helpWorktreeList),
 		key("/", "filter: fuzzy, spaces separate terms").in(helpLists | helpWorktreeList),
-		key("Esc", "clear the filter or close the detail").in(helpRepoList | helpMRList | helpWorktreeList),
+		key("Esc", "clear the filter or selection, close the detail").in(helpRepoList | helpMRList | helpWorktreeList),
 		key("Enter", "load it and jump in; it then follows the cursor").in(helpRepoList | helpMRList | helpWorktreeList),
 		key("?", "this help").in(helpNavigation | helpGeneral),
 		key("q", "quit"),
@@ -175,6 +175,7 @@ func helpRows() []helpLine {
 		key("e", "set the clone directory of an uncloned repository"),
 		key("b", "switch the main clone to another branch"),
 		key("Ctrl-W", "open a branch in its own worktree; n for a new one"),
+		key("space", "select; Ctrl-W then puts all in one folder"),
 		key("Alt-W  Alt-B", "the same, in an editor you choose"),
 		key("m", "show only this repository's merge requests"),
 		key("Ctrl-T", "tag the repository"),
@@ -188,6 +189,8 @@ func helpRows() []helpLine {
 		key("n", "open a merge request; offers to push first"),
 		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),
 		key("MR", "the open merge request of the branch"),
+		key("◆", "grouped: several repositories in one folder"),
+		key("REPOS", "how many repositories the worktree holds"),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),
@@ -263,6 +266,7 @@ func helpRows() []helpLine {
 		key("branch", ".unagit/<repo>/<iid>-<branch>"),
 		key("review", ".unagit/<repo>/review-<iid>-<branch>"),
 		key("plain", ".unagit/<repo>/wt-<branch>"),
+		key("grouped", "<root>/.unagit/groups/<folder>/<repo>"),
 		blank(),
 	}
 	var scope helpContext

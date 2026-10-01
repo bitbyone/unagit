@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -32,7 +34,12 @@ type pane struct {
 	// that is drawn as boxes; nil goes back to plain text.
 	fitDetail func(render func(width int) string)
 
-	filtering     bool
+	filtering bool
+	// marks are the rows picked with space for a command that takes several,
+	// by data index. A list that offers it sets markable; its rows draw the
+	// marks themselves.
+	markable      bool
+	marks         map[int]bool
 	width         int    // inner width of the table, for column layout
 	bodyDirection int    // current tview.Flex direction of body, so we only set it on change
 	lastQuery     string // the query the rows were last drawn for
@@ -333,6 +340,8 @@ func (p *pane) updateHeader() {
 		mode = tag(colWarn) + "FILTER" + tagEnd
 	case p.detailFocused:
 		mode = tag(colAccent) + "DETAIL" + tagEnd
+	case len(p.marks) > 0:
+		mode = tag(colAccent) + fmt.Sprintf("SELECT %d", len(p.marks)) + tagEnd
 	}
 	if p.statusMessage != "" {
 		text += "   " + p.statusMessage
@@ -412,6 +421,8 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 			if p.onQuery != nil {
 				p.onQuery("")
 			}
+		case len(p.marks) > 0:
+			p.clearMarks()
 		case p.detailShown:
 			p.hideDetail()
 		}
@@ -432,6 +443,11 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 		case '?':
 			p.app.showHelp()
 			return nil
+		case ' ':
+			if p.markable {
+				p.toggleMark()
+				return nil
+			}
 		case 'j':
 			p.forwardToTable(tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))
 			return nil
@@ -551,6 +567,51 @@ func (p *pane) selectRow(previous, first int) {
 	}
 	p.table.SetOffset(max(target-line, 0), column)
 	p.table.Select(target, 0)
+}
+
+// toggleMark marks the row under the cursor, or unmarks it, and moves on to the
+// next one, so that a run of rows is picked by holding space.
+func (p *pane) toggleMark() {
+	i := p.selectedIndex()
+	if i < 0 {
+		return
+	}
+	if p.marks[i] {
+		delete(p.marks, i)
+	} else {
+		if p.marks == nil {
+			p.marks = map[int]bool{}
+		}
+		p.marks[i] = true
+	}
+	p.forwardToTable(tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))
+	if p.reload != nil {
+		p.reload()
+	}
+	p.updateHeader()
+}
+
+// clearMarks forgets every marked row; the data they point into changed, or
+// the command that took them is done.
+func (p *pane) clearMarks() {
+	if len(p.marks) == 0 {
+		return
+	}
+	p.marks = nil
+	if p.reload != nil {
+		p.reload()
+	}
+	p.updateHeader()
+}
+
+// marked is the data indexes of the marked rows, in order.
+func (p *pane) marked() []int {
+	out := make([]int, 0, len(p.marks))
+	for i := range p.marks {
+		out = append(out, i)
+	}
+	sort.Ints(out)
+	return out
 }
 
 // selectWhere puts the cursor on the first row whose data index matches. A row

@@ -171,6 +171,16 @@ second review costs a checkout. Per-worktree git config
 .source/.target/.url/.mode`, which is how an editor - or a later unagit - knows
 what a directory is.
 
+**Grouped worktrees** put several repositories in one folder,
+`<root>/.unagit/groups/<folder>/<repo>`, each a worktree of its own main clone,
+with `.unagit-group.json` saying which repository each directory is (a name
+cannot tell two servers apart). Space marks rows in a pane (`pane.marks`, for a
+list that sets `markable`); Ctrl-W on marks makes the group. It is made whole
+or not at all: every repository is cloned and fetched, then checked
+(`CheckGroupMember` - git checks a branch out only once, so a branch the main
+clone has is refused with a reason), and only then are worktrees added; a
+failure takes back what was made. Deleting a group keeps its branches.
+
 **The review arrangement** is the feature the whole tool exists for, and it is
 easy to get subtly wrong:
 

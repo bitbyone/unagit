@@ -30,7 +30,14 @@ type worktreeRow struct {
 	Branch   string // what the worktree has checked out now
 	Dir      string
 	Moved    time.Time // when its HEAD last moved
+	// Members is set for a grouped worktree: a row for each repository in it.
+	// Path is then the group's name, Branch the branch they all share or "",
+	// and Dir the directory holding them.
+	Members []worktreeRow
 }
+
+// grouped tells a grouped worktree from the worktree of one repository.
+func (r worktreeRow) grouped() bool { return r.Members != nil }
 
 // remoteState is where a worktree's branch stands against origin. A worktree with
 // no entry yet is still being looked at.
@@ -77,7 +84,15 @@ func (a *App) loadWorktreeRemotes() {
 	}
 	jobs := map[projectKey]*job{}
 	var order []projectKey
+	var rows []worktreeRow
 	for _, r := range a.worktrees {
+		if r.grouped() {
+			rows = append(rows, r.Members...)
+		} else {
+			rows = append(rows, r)
+		}
+	}
+	for _, r := range rows {
 		k := projectKey{r.Instance, r.Path}
 		j := jobs[k]
 		if j == nil {
@@ -189,14 +204,27 @@ func (a *App) newWorktreesPane() *pane {
 	}
 
 	p.onDetail = func(idx int, focus bool) {
-		if idx >= 0 && idx < len(a.worktrees) {
-			a.showWorktreeDetail(a.worktrees[idx], focus)
+		if idx < 0 || idx >= len(a.worktrees) {
+			return
+		}
+		if r := a.worktrees[idx]; r.grouped() {
+			a.showGroupDetail(r, focus)
+		} else {
+			a.showWorktreeDetail(r, focus)
 		}
 	}
 	p.onOpen = func(ask bool) {
-		if r, ok := selected(); ok {
-			a.withEditor(ask, func(ed *editors.Editor) { a.openWorktree(r, ed) })
+		r, ok := selected()
+		if !ok {
+			return
 		}
+		a.withEditor(ask, func(ed *editors.Editor) {
+			if r.grouped() {
+				a.openGroup(r, ed)
+			} else {
+				a.openWorktree(r, ed)
+			}
+		})
 	}
 	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() != tcell.KeyRune {
@@ -209,7 +237,12 @@ func (a *App) newWorktreesPane() *pane {
 			}
 			return nil
 		case 'd':
-			if r, ok := selected(); ok {
+			r, ok := selected()
+			switch {
+			case !ok:
+			case r.grouped():
+				a.confirmDeleteGroup(r)
+			default:
 				a.confirmDeleteWorktreeEntry(a.worktreeProject(r), workspace.WorktreeEntry{
 					Label: r.Branch, Kind: "branch", Dirs: []string{r.Dir}})
 			}
@@ -219,12 +252,22 @@ func (a *App) newWorktreesPane() *pane {
 			a.note("looked at the disk and at origin again")
 			return nil
 		case 'P':
-			if r, ok := selected(); ok {
+			r, ok := selected()
+			switch {
+			case !ok:
+			case r.grouped():
+				a.pushGroup(r)
+			default:
 				a.pushWorktree(r)
 			}
 			return nil
 		case 'n':
-			if r, ok := selected(); ok {
+			r, ok := selected()
+			switch {
+			case !ok:
+			case r.grouped():
+				a.groupMergeRequest(r)
+			default:
 				a.newMergeRequest(r)
 			}
 			return nil
@@ -237,10 +280,14 @@ func (a *App) newWorktreesPane() *pane {
 func (a *App) filterWorktrees(query string) []int {
 	var hits []scored
 	for i, r := range a.worktrees {
-		if a.cfg.Filters.IsHidden(r.Instance, r.Path) {
+		hay := r.Path + " " + r.Branch + " " + a.instanceLabel(r.Instance)
+		if r.grouped() {
+			for _, m := range r.Members {
+				hay += " " + m.Path + " " + m.Branch
+			}
+		} else if a.cfg.Filters.IsHidden(r.Instance, r.Path) {
 			continue
 		}
-		hay := r.Path + " " + r.Branch + " " + a.instanceLabel(r.Instance)
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
 			continue
@@ -276,25 +323,22 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	withServer := a.multiInstance()
 
 	repoW, branchW, serverW, pathW, actW, remoteW, mrW := 10, 6, 0, 0, 8, len("REMOTE"), len("MR")
-	mrs := map[int]forge.MergeRequest{}
+	reposW := len("REPOS")
+	mrs := map[int]string{}
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
 		repoW = max(repoW, len([]rune(r.Path)))
-		branchW = max(branchW, len([]rune(r.Branch)))
+		branchW = max(branchW, len([]rune(a.worktreeBranch(r))))
 		actW = max(actW, len(humanAge(r.Moved)))
 		if withServer {
-			serverW = max(serverW, len([]rune(a.instanceLabel(r.Instance))))
+			serverW = max(serverW, len([]rune(a.worktreeServer(r))))
 		}
 		pathW = max(pathW, len([]rune(tildePath(r.Dir))))
-		st, known := a.wtRemote[r.Dir]
-		plain, name, _ := remoteWords(st, known)
-		if name != "" {
-			plain += " " + name
-		}
+		plain, _ := a.worktreeRemoteWords(r)
 		remoteW = max(remoteW, len([]rune(plain)))
-		if mr, ok := a.openMRFor(r); ok {
+		if mr := a.worktreeMR(r); mr != "" {
 			mrs[idx] = mr
-			mrW = max(mrW, len(fmt.Sprintf("!%d", mr.IID)))
+			mrW = max(mrW, len([]rune(mr)))
 		}
 	}
 	repoW = atLeast(min(repoW, 48), "REPOSITORY")
@@ -313,8 +357,8 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	room := p.contentWidth()
 	// Everything but the repository and the optional columns; each column after
 	// the first costs a space in front of it.
-	fields := 4 // mark, repository, branch, remote, activity: the count of gaps
-	fixed := markW + branchW + remoteW + actW
+	fields := 5 // mark, repository, repos, branch, remote, activity: the count of gaps
+	fixed := markW + reposW + branchW + remoteW + actW
 	if withServer {
 		fixed += serverW
 		fields++
@@ -349,6 +393,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	header = append(header,
 		field{text: "REPOSITORY", width: repoW, colour: colDim},
+		field{text: "REPOS", width: reposW, colour: colDim, right: true},
 		field{text: "BRANCH", width: branchW, colour: colDim},
 		field{text: "REMOTE", width: remoteW, colour: colDim})
 	if showMR {
@@ -362,21 +407,30 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 
 	for row, idx := range filtered {
 		r := a.worktrees[idx]
-		st, known := a.wtRemote[r.Dir]
-		cells := []field{{raw: tag(colOn) + " ●" + tagEnd}}
+		mark, count, countColour, branchColour := tag(colOn)+" ●"+tagEnd, "1", colDim, colBranch
+		if r.grouped() {
+			mark, count, countColour = tag(colAccent)+" ◆"+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
+			if r.Branch == "" {
+				branchColour = colMuted
+			}
+		}
+		cells := []field{{raw: mark}}
 		if withServer {
-			cells = append(cells, field{text: a.instanceLabel(r.Instance), width: serverW, colour: colAccent})
+			cells = append(cells, field{text: a.worktreeServer(r), width: serverW, colour: colAccent})
+		}
+		plain, colour := a.worktreeRemoteWords(r)
+		remote := field{text: plain, width: remoteW, colour: colour}
+		if !r.grouped() {
+			st, known := a.wtRemote[r.Dir]
+			remote = field{raw: remoteCell(st, known, remoteW)}
 		}
 		cells = append(cells,
 			field{text: r.Path, width: repoW, colour: colText},
-			field{text: r.Branch, width: branchW, colour: colBranch},
-			field{raw: remoteCell(st, known, remoteW)})
+			field{text: count, width: reposW, colour: countColour, right: true},
+			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour},
+			remote)
 		if showMR {
-			mr := ""
-			if m, ok := mrs[idx]; ok {
-				mr = fmt.Sprintf("!%d", m.IID)
-			}
-			cells = append(cells, field{text: mr, width: mrW, colour: colAccent})
+			cells = append(cells, field{text: mrs[idx], width: mrW, colour: colAccent})
 		}
 		if showPath {
 			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: colMuted})
@@ -390,6 +444,122 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		first = 1
 	}
 	p.selectRow(previous, first)
+}
+
+// worktreeBranch is what the BRANCH column says: the branch, or for a grouped
+// worktree whose members are on different ones, how many.
+func (a *App) worktreeBranch(r worktreeRow) string {
+	if !r.grouped() || r.Branch != "" {
+		return r.Branch
+	}
+	seen := map[string]bool{}
+	for _, m := range r.Members {
+		seen[m.Branch] = true
+	}
+	return fmt.Sprintf("%d branches", len(seen))
+}
+
+// worktreeServer is the SERVER column: a grouped worktree names one only when
+// every member lives on it.
+func (a *App) worktreeServer(r worktreeRow) string {
+	if !r.grouped() {
+		return a.instanceLabel(r.Instance)
+	}
+	server := ""
+	for i, m := range r.Members {
+		if i > 0 && m.Instance != r.Members[0].Instance {
+			return "several"
+		}
+		server = a.instanceLabel(m.Instance)
+	}
+	return server
+}
+
+// worktreeMR is the MR column: the open merge request of the branch, or for a
+// grouped worktree, the first of its members' and how many more there are.
+func (a *App) worktreeMR(r worktreeRow) string {
+	if !r.grouped() {
+		if mr, ok := a.openMRFor(r); ok {
+			return fmt.Sprintf("!%d", mr.IID)
+		}
+		return ""
+	}
+	var found []int
+	for _, m := range r.Members {
+		if mr, ok := a.openMRFor(m); ok {
+			found = append(found, mr.IID)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("!%d", found[0])
+	}
+	return fmt.Sprintf("!%d +%d", found[0], len(found)-1)
+}
+
+// worktreeRemoteWords is the REMOTE column as plain text and a colour. A
+// grouped worktree says what its members share, or the worst of them and how
+// many are not in sync.
+func (a *App) worktreeRemoteWords(r worktreeRow) (string, tcell.Color) {
+	if !r.grouped() {
+		st, known := a.wtRemote[r.Dir]
+		plain, name, colour := remoteWords(st, known)
+		if name != "" {
+			plain += " " + name
+		}
+		return plain, colour
+	}
+	if len(r.Members) == 0 {
+		return "?", colDim
+	}
+	worst, worstRank, behind, same := "", -1, 0, true
+	var worstColour tcell.Color
+	first := ""
+	for i, m := range r.Members {
+		st, known := a.wtRemote[m.Dir]
+		plain, _, colour := remoteWords(st, known)
+		if !known {
+			return "…", colDim
+		}
+		if i == 0 {
+			first = plain
+		} else if plain != first {
+			same = false
+		}
+		rank := remoteRank(st)
+		if rank > 0 {
+			behind++
+		}
+		if rank > worstRank {
+			worst, worstRank, worstColour = plain, rank, colour
+		}
+	}
+	if same {
+		return worst, worstColour
+	}
+	return fmt.Sprintf("%s · %d/%d", worst, behind, len(r.Members)), worstColour
+}
+
+// remoteRank orders the states by how much they want attention; in sync is 0.
+func remoteRank(st remoteState) int {
+	u := st.Upstream
+	switch {
+	case st.Unreadable, st.Detached:
+		return 1
+	case u.Gone:
+		return 6
+	case u.Name == "":
+		return 2
+	case u.Ahead > 0 && u.Behind > 0:
+		return 5
+	case u.Behind > 0:
+		return 4
+	case u.Ahead > 0:
+		return 3
+	}
+	return 0
 }
 
 // openWorktree brings a worktree up to date and opens the editor in it.

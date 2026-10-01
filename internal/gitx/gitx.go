@@ -229,6 +229,26 @@ func (g *Git) WorktreeAdd(mainDir, path, branch string) error {
 	return err
 }
 
+// CheckedOutIn is the working tree that has branch checked out, or "" when none
+// has. Git refuses a second checkout of the same branch, and saying where the
+// first one is lets the user do something about it.
+func (g *Git) CheckedOutIn(mainDir, branch string) string {
+	out, err := g.out(mainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return ""
+	}
+	dir := ""
+	for _, line := range strings.Split(out, "\n") {
+		if rest, ok := strings.CutPrefix(line, "worktree "); ok {
+			dir = rest
+		}
+		if line == "branch refs/heads/"+branch {
+			return dir
+		}
+	}
+	return ""
+}
+
 // WorktreeRemove detaches a worktree directory from the repository.
 func (g *Git) WorktreeRemove(mainDir, path string, force bool) error {
 	args := []string{"worktree", "remove"}

@@ -102,6 +102,10 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"id":2,"name":"billing","path_with_namespace":"acme/billing",
 			"description":"Invoicing service","visibility":"private","default_branch":"main"}`)
 	})
+	mux.HandleFunc("/api/v4/projects/2/repository/branches", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"name":"main","default":true,"commit":{"short_id":"c0ffee1","title":"Round half even",
+			"committed_date":"2026-09-21T07:00:00Z"}}]`)
+	})
 	mux.HandleFunc("/api/v4/projects/2/repository/commits", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[]`)
 	})

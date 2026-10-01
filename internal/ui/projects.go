@@ -28,6 +28,8 @@ func (a *App) newProjectsPane() *pane {
 	// Its rows carry tags and a path; beside a detail column they would be
 	// cut to nothing well before the default width.
 	p.stackBelow = 180
+	// Space picks several repositories for one grouped worktree.
+	p.markable = true
 	var filtered []int
 
 	p.headline = func() string {
@@ -74,6 +76,10 @@ func (a *App) newProjectsPane() *pane {
 		}
 		switch r {
 		case 'w':
+			if picked := a.markedProjects(); len(picked) > 0 {
+				a.withEditor(true, func(ed *editors.Editor) { a.startGroupWorktree(picked, ed) })
+				break
+			}
 			a.withEditor(true, func(ed *editors.Editor) { a.showWorktreePicker(pr, ed) })
 		case 'b':
 			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
@@ -107,9 +113,14 @@ func (a *App) newProjectsPane() *pane {
 			}
 			return nil
 		}
-		// Ctrl-W opens a worktree for a branch of its own; w (below) is
-		// already taken by "open in the browser".
+		// Ctrl-W opens a worktree for a branch of its own, or one for every
+		// marked repository together; w (below) is already taken by "open in
+		// the browser".
 		if ev.Key() == tcell.KeyCtrlW {
+			if picked := a.markedProjects(); len(picked) > 0 {
+				a.startGroupWorktree(picked, nil)
+				return nil
+			}
 			if pr, ok := selected(); ok {
 				a.showWorktreePicker(pr, nil)
 			}
@@ -340,6 +351,10 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if info.Cloned {
 			mark, markColour = " ●", colOn
 		}
+		nameColour := colText
+		if p.marks[idx] {
+			mark, markColour, nameColour = " ✓", colAccent, colAccent
+		}
 		if grouped {
 			mark = " " + mark
 		}
@@ -367,7 +382,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
 			nameX += serverW + 1
 		}
-		fields = append(fields, field{text: name(pr), width: nameW, colour: colText})
+		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
 		if tagsW > 0 {
 			tags, pills := a.tagsField(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), tagsW)
 			pills.x += nameX + nameW + 1
@@ -396,6 +411,18 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 	}
 	p.selectRow(previous, a.layRows(p.table, filtered, layout))
+}
+
+// markedProjects is the repositories picked with space, in the list's data
+// order.
+func (a *App) markedProjects() []forge.Project {
+	var out []forge.Project
+	for _, i := range a.projectsPane.marked() {
+		if i < len(a.projects) {
+			out = append(out, a.projects[i])
+		}
+	}
+	return out
 }
 
 // namespaceOf is the group or subgroup a repository lives in - on GitHub its

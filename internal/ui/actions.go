@@ -31,7 +31,11 @@ func (a *App) confirmDeleteProject(pr forge.Project) {
 	if n := len(r.MRDirs); n > 0 {
 		body += fmt.Sprintf("\n\n…and %d merge request worktree(s) under\n%s", n, ws.MRRoot(path))
 	}
-	a.confirm("Delete repository", body, r.Warnings, func() {
+	warnings := r.Warnings
+	for _, g := range a.groupMembersOf(pr.Instance, path) {
+		warnings = append(warnings, "grouped worktree "+g+" holds a worktree of it, which would break")
+	}
+	a.confirm("Delete repository", body, warnings, func() {
 		a.runTask("Deleting "+path, func(log func(string)) (string, error) {
 			return "", a.newManager(pr.Instance, path, log).RemoveProject(path)
 		})

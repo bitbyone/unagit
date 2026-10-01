@@ -673,6 +673,8 @@ func (a *App) refreshProjects() {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.projects, a.projUpdated, a.staleProjects = all, idx.UpdatedAt, false
+			// The marks point into the old list.
+			a.projectsPane.marks = nil
 			a.reindexProjects()
 			a.refreshDisk()
 			a.projectsPane.reload()
@@ -923,6 +925,21 @@ func (a *App) refreshDisk() {
 	}
 	for _, m := range a.mrs {
 		inspect(projectKey{m.Instance, a.projectPathOfMR(m)})
+	}
+	// A grouped worktree is one row, and each of its members also counts as a
+	// worktree of its own repository.
+	for _, g := range workspace.ListGroups(a.cfg.Root()) {
+		row := a.groupRow(g)
+		for _, m := range row.Members {
+			key := projectKey{m.Instance, m.Path}
+			info, ok := disk[key]
+			if !ok {
+				info = diskInfo{MRs: map[int]mrDisk{}}
+			}
+			info.Worktrees++
+			disk[key] = info
+		}
+		worktrees = append(worktrees, row)
 	}
 	a.disk = disk
 	a.worktrees = worktrees

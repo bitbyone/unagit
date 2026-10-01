@@ -27,6 +27,8 @@ const (
 	ModeRepository = "repository"
 	ModeBranch     = "branch"
 	ModeReview     = "review"
+	// ModeGroup is a grouped worktree: several repositories in one directory.
+	ModeGroup = "group"
 )
 
 // Record is one directory currently open in an editor.

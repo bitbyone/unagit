@@ -101,6 +101,14 @@ func (a *App) yankProject(pr forge.Project) {
 }
 
 func (a *App) yankWorktree(r worktreeRow) {
+	if r.grouped() {
+		items := []yankItem{{"Directory", r.Dir}}
+		if r.Branch != "" {
+			items = append(items, yankItem{"Branch", r.Branch})
+		}
+		a.showYank("Copy "+r.Path, items)
+		return
+	}
 	items := []yankItem{
 		{"Directory", r.Dir},
 		{"Branch", r.Branch},
