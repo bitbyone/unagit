@@ -43,6 +43,7 @@ type settingsView struct {
 	github       *tview.Table
 	tree         *tview.TreeView
 	tags         *tview.Table
+	tagsKept     *keptTable
 	security     *tview.TextView
 
 	current int
@@ -72,6 +73,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.github = s.newServerTable(config.KindGitHub, "GitHub accounts")
 	s.tree = s.newGroupTree()
 	s.tags = s.newTagTable()
+	s.tagsKept = newKeptTable(s.tags, 1)
 	s.security = s.newSecurityPane()
 
 	s.content = tview.NewPages()
@@ -80,14 +82,14 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("gitlab", s.gitlab, true, false)
 	s.content.AddPage("github", s.github, true, false)
 	s.content.AddPage("groups", s.tree, true, false)
-	s.content.AddPage("tags", s.tags, true, false)
+	s.content.AddPage("tags", s.tagsKept, true, false)
 	s.content.AddPage("security", s.security, true, false)
 
 	for _, panel := range []*tview.Box{s.gitlab.Box, s.github.Box} {
 		hintPanel(panel, func() string { return "a add · e edit · t token · v verify · d remove" }, 0, 0, 1, 1)
 	}
 	hintPanel(s.tree.Box, func() string {
-		return "Space select · d root directory · r reload groups · p refresh repositories · m refresh merge requests"
+		return "Space select · d root directory · t tags · r reload groups · p refresh repositories · m refresh merge requests"
 	}, 0, 0, 1, 1)
 	hintPanel(s.tags.Box, func() string {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
@@ -699,6 +701,13 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 			case 'd':
 				s.showRootForm()
 				return nil
+			case 't':
+				if ref, ok := s.currentRef(); ok && ref.group != nil {
+					s.app.showGroupTags(ref.instance, ref.group.FullPath)
+				} else {
+					s.app.flash("select a group, not a server")
+				}
+				return nil
 			case 'r':
 				s.app.refreshGroups()
 				return nil
@@ -837,8 +846,12 @@ func (s *settingsView) labelGroup(node *tview.TreeNode, instanceID string, g for
 		return
 	}
 	suffix := ""
+	if tags := s.app.cfg.GroupTagsOf(instanceID, g.FullPath); len(tags) > 0 {
+		markup, _ := s.app.pills(tags, 80, behindList)
+		suffix = "  " + markup
+	}
 	if sel := inst.Group(g.ID); sel != nil && sel.RootDir != "" {
-		suffix = fmt.Sprintf("  %s→ %s%s", tag(colWarn),
+		suffix += fmt.Sprintf("  %s→ %s%s", tag(colWarn),
 			tildePath(s.app.cfg.GroupRoot(inst, *sel)), tagEnd)
 	}
 	// GitHub has no subgroups, so an organisation is simply on or off.

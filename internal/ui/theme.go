@@ -223,7 +223,40 @@ func styleDropDown(d *tview.DropDown) *tview.DropDown {
 		}
 		return ev
 	})
+	// The open list is tview's own and takes its keys before the select
+	// does, so the application's keys move in it (openSelectKeys).
 	return d
+}
+
+// openSelectKeys moves in the list of an open select with j and k, as in
+// every other list, and keeps other letters out of tview's search, which
+// would jump to whatever option they spell. Every select sits in a form in a
+// modal, so the one open is in the form at the front.
+func (a *App) openSelectKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
+	if ev.Key() != tcell.KeyRune {
+		return ev, false
+	}
+	_, front := a.pages.GetFrontPage()
+	box, ok := front.(*modalBox)
+	if !ok {
+		return ev, false
+	}
+	form, ok := box.content.(*tview.Form)
+	if !ok {
+		return ev, false
+	}
+	for i := 0; i < form.GetFormItemCount(); i++ {
+		if d, ok := form.GetFormItem(i).(*tview.DropDown); ok && d.IsOpen() {
+			switch ev.Rune() {
+			case 'j':
+				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone), true
+			case 'k':
+				return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone), true
+			}
+			return nil, true
+		}
+	}
+	return ev, false
 }
 
 // filterField is the "/" line above a list: part of the panel rather than a

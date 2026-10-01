@@ -74,6 +74,8 @@ func (a *App) newProjectsPane() *pane {
 			a.withEditor(true, func(ed *editors.Editor) { a.showWorktreePicker(pr, ed) })
 		case 'b':
 			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
+		case 'v':
+			a.showViewOptions()
 		default:
 			return false
 		}
@@ -209,6 +211,7 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 func (a *App) drawProjects(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
+	p.kept.reset()
 	grouped := a.cfg.Filters.GroupRepositories
 	// Grouped, the server and the group move into the headings and each row
 	// names only the repository.
@@ -283,12 +286,37 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 	nameW = atLeast(max(nameW, 10), "REPOSITORY")
 
+	// The tags have a column of their own, right after the longest name; the
+	// other columns keep their places at the end.
+	tagsW := 0
+	if !a.cfg.Filters.HideTags {
+		longest, tagged := 0, false
+		for _, idx := range filtered {
+			pr := a.projects[idx]
+			longest = max(longest, len([]rune(name(pr))))
+			tagged = tagged || len(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)) > 0
+		}
+		longest = atLeast(longest, "REPOSITORY")
+		if tagged {
+			// When it is tight the names keep two thirds of the room.
+			names := min(longest, max(nameW*2/3, 10))
+			if nameW-names-1 >= 4 {
+				tagsW = nameW - names - 1
+				nameW = names
+			}
+		}
+	}
+
 	header := []field{{text: "", width: markW, colour: colDim}}
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
 	}
 	header = append(header,
-		field{text: "REPOSITORY", width: nameW, colour: colDim},
+		field{text: "REPOSITORY", width: nameW, colour: colDim})
+	if tagsW > 0 {
+		header = append(header, field{text: "TAGS", width: tagsW, colour: colDim})
+	}
+	header = append(header,
 		field{text: "BRANCH", width: branchW, colour: colDim})
 	if pathW > 0 {
 		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
@@ -330,11 +358,19 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 
 		fields := []field{{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)}}
+		nameX := markW + 1
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
+			nameX += serverW + 1
+		}
+		fields = append(fields, field{text: name(pr), width: nameW, colour: colText})
+		if tagsW > 0 {
+			tags, pills := a.tagsField(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), tagsW)
+			pills.x += nameX + nameW + 1
+			p.kept.keep(row, pills)
+			fields = append(fields, field{raw: tags})
 		}
 		fields = append(fields,
-			field{raw: a.nameWithTags(name(pr), a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), nameW, colText)},
 			field{text: branch, width: branchW, colour: branchColour})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})

@@ -210,6 +210,9 @@ type Filters struct {
 	GroupRepositories bool `yaml:"group_repositories,omitempty" json:"group_repositories,omitempty"`
 	// Favourites are the starred repositories and merge requests.
 	Favourites []Favourite `yaml:"favourites,omitempty" json:"favourites,omitempty"`
+	// HideTags leaves the tags out of the repository list; they still
+	// filter and are still found by /.
+	HideTags bool `yaml:"hide_tags,omitempty" json:"hide_tags,omitempty"`
 	// Tags narrow the repositories to those wearing any of them.
 	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	// FavouritesInPlace leaves the favourites among the other rows. By
@@ -338,10 +341,12 @@ type Config struct {
 	Filters            Filters    `yaml:"filters,omitempty"`
 	Instances          []Instance `yaml:"instances"`
 	// Tags are the user's own labels for repositories - the default ones
-	// until a configuration says otherwise, an empty list included - and
-	// RepositoryTags which repository wears which.
-	Tags           []Tag            `yaml:"tags"`
-	RepositoryTags []RepositoryTags `yaml:"repository_tags,omitempty"`
+	// until a configuration says otherwise, an empty list included. A group
+	// passes its tags down to its subgroups and repositories, RepositoryTags
+	// are what a repository adds to them or takes away.
+	Tags           []Tag    `yaml:"tags"`
+	GroupTags      []TagSet `yaml:"group_tags,omitempty"`
+	RepositoryTags []TagSet `yaml:"repository_tags,omitempty"`
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`

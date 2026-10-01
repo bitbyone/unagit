@@ -304,6 +304,9 @@ func (a *App) selectedGroups() []config.Group {
 
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if ev, handled := a.openSelectKeys(ev); handled {
+		return ev
+	}
 	if ev.Key() == tcell.KeyCtrlC {
 		if a.currentTab() == pageProjects && !a.modalOpen() {
 			idx := a.projectsPane.selectedIndex()

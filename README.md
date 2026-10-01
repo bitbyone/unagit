@@ -176,12 +176,15 @@ group.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
-- **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`
-  and `private` to start with - each in one of sixteen pastel colours. `Ctrl-T`
-  in Repositories puts them on a repository, where they are drawn as pills
-  after its name; `f` shows only the repositories wearing any of the tags you
-  pick, `F` all of them again. The pills end rounded, which needs a Nerd Font;
-  `s` in Settings › Tags switches to half circles or square ends.
+- **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`,
+  `private`, `fork`, `hobby` and `tooling` to start with - each a light ink on
+  a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on
+  a repository; `t` in Settings › Groups & roots puts them on a group, and its
+  subgroups and repositories wear them too unless they take one off. They
+  have a column of their own after the names; `f` shows only the repositories
+  wearing any of the tags you pick, `F` all of them again, and `Alt-V` hides
+  the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›
+  Tags switches to half circles or square ends.
 - **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
   shows the favourites first, in the usual order, above a line; a grouped one
   only marks them with `★`. Favourites first can be turned off in the order
@@ -250,6 +253,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
+| `Alt-V` | in Repositories: what the list shows - tags, grouping, favourites first |
 | `d` `w` `r` | delete from disk · open in the browser · refresh |
 | `?` `q` | help · quit |
 

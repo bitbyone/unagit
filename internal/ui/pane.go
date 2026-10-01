@@ -14,10 +14,12 @@ import (
 // FILTER mode (entered with "/") typing narrows the list while the arrow keys
 // and Enter still drive the table.
 type pane struct {
-	app       *App
-	root      *tview.Flex
-	body      *tview.Flex
-	table     *tview.Table
+	app   *App
+	root  *tview.Flex
+	body  *tview.Flex
+	table *tview.Table
+	// kept draws the stretches of the selected row that keep their colours.
+	kept      *keptTable
 	filter    *tview.InputField
 	header    *tview.TextView
 	headerRow *tview.Flex
@@ -107,7 +109,8 @@ func (a *App) newPane(title string) *pane {
 	box(p.detail.Box, "Details").SetBorderPadding(0, 0, 1, 1)
 	p.fitDetail = a.widthAware(p.detail)
 
-	p.body = tview.NewFlex().AddItem(p.table, 0, 1, true)
+	p.kept = newKeptTable(p.table, 1)
+	p.body = tview.NewFlex().AddItem(p.kept, 0, 1, true)
 	// Stack the list and the detail column vertically once the body is too
 	// narrow for both to be readable side by side.
 	p.body.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
