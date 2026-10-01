@@ -83,8 +83,8 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 		t.Error("the marks outlived the grouped worktree made of them")
 	}
 
-	waitFor(t, a, sc, "opened ")
-	typeRunes(sc, "W")
+	// Nothing opens: Worktrees shows what was made.
+	waitFor(t, a, sc, "created ")
 	waitFor(t, a, sc, "REPOS")
 	waitFor(t, a, sc, "feat-multi")
 	waitFor(t, a, sc, "no upstream")
@@ -173,8 +173,8 @@ func TestGroupedWorktreeChecksOutExistingBranches(t *testing.T) {
 	if got := gitIn(t, filepath.Join(dir, "billing"), "rev-parse", "--abbrev-ref", "HEAD"); got != "main" {
 		t.Errorf("billing is on %q", got)
 	}
-	waitFor(t, a, sc, "opened ")
-	typeRunes(sc, "W")
+	// Nothing opens: Worktrees shows what was made.
+	waitFor(t, a, sc, "created ")
 	waitFor(t, a, sc, "2 branches")
 }
 
@@ -213,5 +213,38 @@ func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
 			waitFor(t, a, sc, "feat/rate")
 			assertLegible(t, a, sc, "an open branch select")
 		})
+	}
+}
+
+// TestCtrlWShowsTheNewWorktree: a worktree made with Ctrl-W is not opened;
+// Worktrees comes up with the cursor on it.
+func TestCtrlWShowsTheNewWorktree(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	newRealProject(t, a, "acme/gateway")
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlW, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Worktree branch")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New worktree branch")
+	typeRunes(sc, "feat/fresh")
+	waitFor(t, a, sc, "feat/fresh")
+	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt) // Alt-r create
+	waitFor(t, a, sc, "created ")
+	got := onLoop(a, func() string {
+		if a.currentTab() != pageWorktrees {
+			return "not in Worktrees"
+		}
+		i := a.worktreesPane.selectedIndex()
+		if i < 0 {
+			return "nothing selected"
+		}
+		return a.worktrees[i].Branch
+	})
+	if got != "feat/fresh" {
+		t.Errorf("the cursor is on %q", got)
+	}
+	if strings.Contains(a.screenText(sc), "opened ") {
+		t.Error("the editor was started")
 	}
 }

@@ -124,7 +124,7 @@ func (a *App) confirmDeleteWorktreeEntry(pr forge.Project, e workspace.WorktreeE
 // showWorktreePicker lists the project's branches - local and remote - and
 // opens the chosen one in its own worktree; 'n' offers a brand new branch
 // instead.
-func (a *App) showWorktreePicker(pr forge.Project, ed *editors.Editor) {
+func (a *App) showWorktreePicker(pr forge.Project) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
@@ -167,8 +167,8 @@ func (a *App) showWorktreePicker(pr forge.Project, ed *editors.Editor) {
 
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false, ed) }
-			onNew := func() { a.promptNewWorktreeBranch(pr, ed) }
+			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false) }
+			onNew := func() { a.promptNewWorktreeBranch(pr) }
 			a.showPickerActions("Worktree branch - "+pr.PathWithNamespace, items, onSelect, onNew, nil)
 		})
 		return "", nil
@@ -177,7 +177,7 @@ func (a *App) showWorktreePicker(pr forge.Project, ed *editors.Editor) {
 
 // promptNewWorktreeBranch asks for the name of a brand new branch, created
 // from the main clone's current HEAD, and opens it in its own worktree.
-func (a *App) promptNewWorktreeBranch(pr forge.Project, ed *editors.Editor) {
+func (a *App) promptNewWorktreeBranch(pr forge.Project) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.AddInputField("Branch name", "", 40, nil, nil)
@@ -189,26 +189,20 @@ func (a *App) promptNewWorktreeBranch(pr forge.Project, ed *editors.Editor) {
 			return
 		}
 		a.closeModal(pageForm)
-		a.createWorktree(pr, name, true, ed)
+		a.createWorktree(pr, name, true)
 	}
 	form.AddButton("Create", apply)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	a.showFormModal("New worktree branch - "+pr.PathWithNamespace, form, 10)
 }
 
-// createWorktree materialises a plain branch worktree and opens the editor
-// there, the same way openMR does for a merge request's.
-func (a *App) createWorktree(pr forge.Project, branch string, isNew bool, ed *editors.Editor) {
-	a.runTaskOpening(fmt.Sprintf("Opening %s (%s)", pr.PathWithNamespace, branch),
-		session.Record{
-			Instance: pr.Instance,
-			Server:   a.instanceLabel(pr.Instance),
-			Project:  pr.PathWithNamespace,
-			Title:    branch,
-			Mode:     session.ModeBranch,
-		}, ed, func(log func(string)) (string, error) {
+// createWorktree makes a plain branch worktree, or finds the one there is,
+// and shows it in Worktrees; opening it is the next step, and the user's.
+func (a *App) createWorktree(pr forge.Project, branch string, isNew bool) {
+	a.runTaskThen(fmt.Sprintf("Creating a worktree of %s (%s)", pr.PathWithNamespace, branch),
+		func(log func(string)) (string, error) {
 			return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureWorktree(pr, branch, isNew)
-		})
+		}, a.showWorktreeAt)
 }
 
 // showBranchPicker lists the project's branches and switches the main clone to

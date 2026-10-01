@@ -74,6 +74,9 @@ different groups live in different places.
 - `b` lists every branch in a searchable modal and switches it **in that same
   clone**, so there is one working copy per repository, not a directory per
   branch.
+- `Ctrl-W` gives a branch a worktree of its own instead (`n` for a new
+  branch). Nothing opens: unagit moves to Worktrees with the cursor on it, and
+  `Ctrl-O` opens it when you want.
 - `REMOTE` says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
   from the refs on disk, so it costs nothing; `r` fetches every clone in the
@@ -133,7 +136,8 @@ Git checks a branch out only once, so a branch already checked out - usually
 the default one, in the main clone - is marked so in the list and cannot be
 picked without a new branch: give the group one, or switch that checkout away.
 Every repository is cloned, fetched and checked before anything is made, so a
-group is made whole or not at all.
+group is made whole or not at all. Once made, Worktrees shows it with the
+cursor on it.
 
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` lists each repository with its branch, its remote and its state.
@@ -284,7 +288,7 @@ group.
 
 ## Editors
 
-Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v`, `Ctrl-W`, `b` -
+Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v`, `b` -
 opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
 `Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
 Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed: a

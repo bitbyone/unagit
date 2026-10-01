@@ -129,6 +129,9 @@ type App struct {
 	// open; nil for a plain start.
 	goal *Goal
 
+	// screenGiven is set when a screen was handed in, as tests do.
+	screenGiven bool
+
 	// screen is the terminal, kept from the last draw so the clipboard can be
 	// set through it when the system has no program for that.
 	screen tcell.Screen
@@ -263,6 +266,13 @@ func (a *App) Run() error {
 		return false
 	})
 
+	if !a.screenGiven {
+		screen, err := tcell.NewScreen()
+		if err != nil {
+			return err
+		}
+		a.SetScreen(screen)
+	}
 	if a.vault == nil {
 		a.showUnlock()
 	} else {
@@ -974,16 +984,25 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 // are opening is written down while it is open, so another terminal can find
 // the directory. ed is the editor chosen for it; nil is the favourite.
 func (a *App) runTaskOpening(title string, what session.Record, ed *editors.Editor, fn func(log func(string)) (string, error)) {
-	a.runTaskEnding(title, what, ed, false, fn)
+	a.runTaskEnding(title, what, ed, nil, fn)
 }
 
 // runTaskNoting is runTask for a task whose outcome is a sentence rather than a
 // directory: on success the log closes and the status line says it.
 func (a *App) runTaskNoting(title string, fn func(log func(string)) (string, error)) {
-	a.runTaskEnding(title, session.Record{}, nil, true, fn)
+	a.runTaskEnding(title, session.Record{}, nil, a.note, fn)
 }
 
-func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Editor, noting bool, fn func(log func(string)) (string, error)) {
+// runTaskThen is runTask for a task whose outcome something on screen should
+// follow: on success the log closes and then runs, on the event loop, with
+// what fn returned.
+func (a *App) runTaskThen(title string, fn func(log func(string)) (string, error), then func(string)) {
+	a.runTaskEnding(title, session.Record{}, nil, then, fn)
+}
+
+// runTaskEnding runs fn under a log. What it returns is a directory to open
+// in the editor, unless then is given; then it is handed to then instead.
+func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Editor, then func(string), fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
@@ -1021,18 +1040,18 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)
 				return
 			}
-			if dir == "" || noting {
+			if dir == "" || then != nil {
 				a.closeModal(pageTask)
 				a.refreshDisk()
 				a.projectsPane.reload()
 				a.mrsPane.reload()
 				a.setStatus("")
-				if noting {
-					a.note(dir)
+				if then != nil {
+					then(dir)
 				}
 			}
 		})
-		if err == nil && dir != "" && !noting {
+		if err == nil && dir != "" && then == nil {
 			a.openEditor(dir, what, ed)
 		}
 	}()

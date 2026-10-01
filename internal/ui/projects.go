@@ -83,12 +83,6 @@ func (a *App) newProjectsPane() *pane {
 			return false
 		}
 		switch r {
-		case 'w':
-			if picked := a.markedProjects(); len(picked) > 0 {
-				a.withEditor(true, func(ed *editors.Editor) { a.startGroupWorktree(picked, ed) })
-				break
-			}
-			a.withEditor(true, func(ed *editors.Editor) { a.showWorktreePicker(pr, ed) })
 		case 'b':
 			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
 		default:
@@ -126,11 +120,11 @@ func (a *App) newProjectsPane() *pane {
 		// the browser".
 		if ev.Key() == tcell.KeyCtrlW {
 			if picked := a.markedProjects(); len(picked) > 0 {
-				a.startGroupWorktree(picked, nil)
+				a.startGroupWorktree(picked)
 				return nil
 			}
 			if pr, ok := selected(); ok {
-				a.showWorktreePicker(pr, nil)
+				a.showWorktreePicker(pr)
 			}
 			return nil
 		}

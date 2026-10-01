@@ -292,7 +292,7 @@ func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 	// Attach the simulation screen from this goroutine: SetScreen initialises
 	// it, and the test reads its contents from here too.
 	sc := tcell.NewSimulationScreen("UTF-8")
-	a.tv.SetScreen(sc)
+	a.SetScreen(sc)
 	sc.SetSize(160, 44)
 
 	go func() { _ = a.Run() }()

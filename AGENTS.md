@@ -298,6 +298,13 @@ server. Rules learned the hard way:
   after its label is drawn over the modal's frame (its rectangle is right, the
   drawing is not). Give a field in a modal width `0` so it fills what is left,
   and choose the modal width with `showFormModalSized`.
+- **Nothing may be drawn while an editor has the terminal.** tcell empties
+  its cells on Suspend but keeps its size, and a Show then loops for ever
+  holding the screen lock, so the Resume after the editor never returns and
+  unagit hangs on the shell prompt. Background loads redraw at any time, so
+  the screen is wrapped (`quietScreen`, `screen.go`) to drop Show and Sync
+  between Suspend and Resume. Hand a screen in with `App.SetScreen`, never
+  `tv.SetScreen`, or the wrapper is lost.
 - The `u` (underline) style flag is broken in this version: setting attributes
   afterwards loses the bit but keeps tcell's underline, so everything after a
   link came out underlined. Links use colour only.

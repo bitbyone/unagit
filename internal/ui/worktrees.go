@@ -681,6 +681,19 @@ func remoteRank(st remoteState) int {
 	return 0
 }
 
+// showWorktreeAt switches to Worktrees with the cursor on the worktree in dir,
+// one just made: opening it is the user's next step, not an automatic one.
+func (a *App) showWorktreeAt(dir string) {
+	p := a.worktreesPane
+	if p.query != "" {
+		p.clearFilter()
+	}
+	a.switchTab(pageWorktrees)
+	p.reload()
+	p.selectWhere(func(i int) bool { return i < len(a.worktrees) && sameDir(a.worktrees[i].Dir, dir) })
+	a.note("created " + tildePath(dir) + " · Ctrl-O opens it")
+}
+
 // openWorktree opens the editor in a worktree as it is on disk.
 func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
 	a.openNow(r.Dir, session.Record{

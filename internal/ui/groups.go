@@ -82,7 +82,7 @@ func (c groupChoice) option(branch string) string {
 
 // startGroupWorktree loads the branches of every marked repository, then asks
 // how the grouped worktree should be made.
-func (a *App) startGroupWorktree(projects []forge.Project, ed *editors.Editor) {
+func (a *App) startGroupWorktree(projects []forge.Project) {
 	for _, pr := range projects {
 		if a.client(pr.Instance) == nil {
 			a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
@@ -117,7 +117,7 @@ func (a *App) startGroupWorktree(projects []forge.Project, ed *editors.Editor) {
 		}
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			a.showGroupWorktreeForm(choices, ed)
+			a.showGroupWorktreeForm(choices)
 		})
 		return "", nil
 	})
@@ -190,7 +190,7 @@ const (
 // showGroupWorktreeForm asks for what the grouped worktree should be: a branch
 // made in every repository or none, the folder they go in, and a branch of
 // each repository - where the new one starts, or the one checked out.
-func (a *App) showGroupWorktreeForm(choices []groupChoice, ed *editors.Editor) {
+func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.SetItemPadding(1)
@@ -260,7 +260,7 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice, ed *editors.Editor) {
 		for i, c := range choices {
 			projects[i] = c.project
 		}
-		a.createGroupWorktree(dir, plan, projects, ed)
+		a.createGroupWorktree(dir, plan, projects)
 	}
 	form.AddButton("Create", create)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
@@ -270,15 +270,9 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice, ed *editors.Editor) {
 // createGroupWorktree makes every member, or none: every repository is cloned
 // and fetched first, then checked for what would make git refuse, and only
 // then are the worktrees added. One that fails after all takes the others
-// back with it. The editor opens on the folder holding them all.
-func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []forge.Project, ed *editors.Editor) {
-	a.runTaskOpening("Creating grouped worktree "+plan.Name, session.Record{
-		Instance: plan.Members[0].Instance,
-		Server:   a.instanceLabel(plan.Members[0].Instance),
-		Project:  plan.Name,
-		Title:    plan.Branch,
-		Mode:     session.ModeGroup,
-	}, ed, func(log func(string)) (string, error) {
+// back with it. Worktrees then shows it, for the user to open.
+func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []forge.Project) {
+	a.runTaskThen("Creating grouped worktree "+plan.Name, func(log func(string)) (string, error) {
 		isNew := plan.Branch != ""
 		mgrs := make([]*workspace.Manager, len(projects))
 		for i, pr := range projects {
@@ -327,11 +321,10 @@ func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []f
 			return "", err
 		}
 		log(fmt.Sprintf("Done: %d repositories in %s", len(projects), tildePath(dir)))
-		a.tv.QueueUpdateDraw(func() {
-			a.projectsPane.clearMarks()
-			a.refreshDisk()
-		})
 		return dir, nil
+	}, func(dir string) {
+		a.projectsPane.clearMarks()
+		a.showWorktreeAt(dir)
 	})
 }
 
