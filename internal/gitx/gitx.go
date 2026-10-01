@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -117,14 +118,37 @@ func (g *Git) Clone(url, dir string) error {
 
 // Fetch updates all remote refs and prunes deleted ones.
 func (g *Git) Fetch(dir string) error {
+	defer lockRepository(dir)()
 	_, err := g.Run(dir, "fetch", "--all", "--prune", "--tags", "--force")
 	return err
 }
 
 // FetchRefspec fetches a single refspec from origin.
 func (g *Git) FetchRefspec(dir, refspec string) error {
+	defer lockRepository(dir)()
 	_, err := g.Run(dir, "fetch", "origin", refspec)
 	return err
+}
+
+// repositoryLocks holds a lock per repository, by its common git directory -
+// the one its worktrees share.
+var repositoryLocks sync.Map
+
+// lockRepository makes fetches into one repository take turns and returns
+// the unlock. Two at once fail: each moves origin's refs, and the second
+// finds them not where it expected ("cannot lock ref"). That happens as soon as
+// p is pressed while r is still fetching in the background, or when Alt-P
+// updates two worktrees of one repository.
+func lockRepository(dir string) func() {
+	key := dir
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
+	if err == nil {
+		key = strings.TrimSpace(string(out))
+	}
+	lock, _ := repositoryLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := lock.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 // CurrentBranch returns the checked out branch, or an empty string when HEAD
