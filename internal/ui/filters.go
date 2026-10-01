@@ -9,6 +9,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 )
 
@@ -114,17 +115,71 @@ func (a *App) toggleRepositoryGrouping() {
 	a.note("Repositories listed flat again")
 }
 
+// favouritesFirst is the order picker's switch for the favourites, which
+// holds whichever sort is chosen.
+const favouritesFirst = "favourites"
+
 // showSortPicker chooses the order both lists are drawn in.
 func (a *App) showSortPicker() {
+	f := &a.cfg.Filters
+	favourites := pickItem{Label: favouriteMark + " favourites first: on", Sub: "Enter: in order with the rest", Data: favouritesFirst}
+	if !f.FavouritesFirst() {
+		favourites.Label, favourites.Sub = favouriteMark+" favourites first: off", "Enter: ahead of the rest"
+	}
 	items := []pickItem{
 		{Label: sortLabel(config.SortActivity), Sub: "what moved most recently, first", Data: config.SortActivity},
 		{Label: sortLabel(config.SortName), Sub: "by path, merge requests by number", Data: config.SortName},
+		favourites,
 	}
 	a.showPicker("Sort both lists", items, func(it pickItem) {
-		a.cfg.Filters.Sort = it.Data.(string)
+		if it.Data == favouritesFirst {
+			f.FavouritesInPlace = !f.FavouritesInPlace
+			a.applyFilters()
+			if f.FavouritesFirst() {
+				a.note("Favourites first, set apart from the rest")
+			} else {
+				a.note("Favourites in order with the rest")
+			}
+			return
+		}
+		f.Sort = it.Data.(string)
 		a.applyFilters()
-		a.note("Sorted " + sortLabel(a.cfg.Filters.Order()))
+		a.note("Sorted " + sortLabel(f.Order()))
 	})
+}
+
+// forgetClosedFavourites unstars the merge requests a refresh of these
+// servers no longer lists: merged or closed, they will not come back.
+func (a *App) forgetClosedFavourites(asked []config.Instance, open []forge.MergeRequest) {
+	servers := map[string]bool{}
+	for _, inst := range asked {
+		servers[inst.ID] = true
+	}
+	listed := map[config.Favourite]bool{}
+	for _, mr := range open {
+		listed[config.Favourite{Instance: mr.Instance, Path: a.projectPathOfMR(mr), IID: mr.IID}] = true
+	}
+	if a.cfg.Filters.ForgetClosedFavourites(servers, listed) == 0 {
+		return
+	}
+	if err := a.cfg.Save(); err != nil {
+		a.errorf("cannot save the favourites: %v", err)
+	}
+}
+
+// toggleFavourite stars a repository (iid 0) or a merge request, or takes the
+// star away again.
+func (a *App) toggleFavourite(instance, path string, iid int, what string) {
+	if path == "" {
+		return
+	}
+	starred := a.cfg.Filters.ToggleFavourite(instance, path, iid)
+	a.applyFilters()
+	if starred {
+		a.note(favouriteMark + " " + what + " is a favourite")
+		return
+	}
+	a.note(what + " is no longer a favourite")
 }
 
 // showHiddenPicker manages which repositories stay out of the lists. It is a

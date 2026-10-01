@@ -727,6 +727,7 @@ func (a *App) refreshMRs() {
 		a.tv.QueueUpdateDraw(func() {
 			a.mrs, a.mrsUpdated, a.staleMRs = all, idx.UpdatedAt, false
 			a.sortHold = nil
+			a.forgetClosedFavourites(instances, all)
 			a.refreshDisk()
 			a.mrsPane.reload()
 			a.worktreesPane.reload()

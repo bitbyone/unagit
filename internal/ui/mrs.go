@@ -93,6 +93,14 @@ func (a *App) newMRsPane() *pane {
 			a.toggleGrouping()
 			return nil
 		}
+		// Ctrl-F stars the merge request, as it stars a repository.
+		if ev.Key() == tcell.KeyCtrlF {
+			if mr, ok := selected(); ok {
+				path := a.projectPathOfMR(mr)
+				a.toggleFavourite(mr.Instance, path, mr.IID, fmt.Sprintf("%s !%d", path, mr.IID))
+			}
+			return nil
+		}
 		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
 		if ev.Key() == tcell.KeyCtrlR {
 			if mr, ok := selected(); ok {
@@ -296,6 +304,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.Clear()
 	grouped := a.cfg.Filters.GroupByProject
 	withServer := a.multiInstance() && !grouped
+	favourite := func(idx int) bool {
+		mr := a.mrs[idx]
+		return a.cfg.Filters.IsFavourite(mr.Instance, a.projectPathOfMR(mr), mr.IID)
+	}
+	star := starColumn(filtered, favourite)
 
 	serverW := 0
 	if withServer {
@@ -304,7 +317,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
-	c := a.mrColumns(p.contentWidth()-serverW, filtered)
+	c := a.mrColumns(p.contentWidth()-serverW-star, filtered)
 	if grouped {
 		// The project moves into the heading, so its width goes to the title.
 		// The gap it leaves behind pays for the indent on every row.
@@ -313,7 +326,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	}
 
 	// The header is laid out the same way the rows are.
-	header := []field{{text: "", width: 2, colour: colDim}}
+	header := []field{{text: "", width: 2 + star, colour: colDim}}
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
 	}
@@ -333,10 +346,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
-	row := 0
-	first := -1
-	drawRow := func(idx int) {
-		row++
+	drawRow := func(row, idx int) {
 		mr := a.mrs[idx]
 		path := a.projectPathOfMR(mr)
 		disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
@@ -345,6 +355,8 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if grouped {
 			mark = "  " + mrMark(disk)
 		}
+		mark = tag(mrMarkColor(disk)) + mark + tagEnd
+		mark = starred(star, favourite(idx), mark)
 		title := trunc(mr.Title, c.title)
 		titleField := field{text: title, width: c.title, colour: colText}
 		if mr.Draft {
@@ -361,7 +373,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			pending = fmt.Sprintf("%d", disk.Pending)
 		}
 
-		fields := []field{{raw: tag(mrMarkColor(disk)) + mark + tagEnd}}
+		fields := []field{{raw: mark}}
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: colAccent})
 		}
@@ -381,30 +393,16 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
 			SetReference(idx).SetExpansion(1))
-		if first < 0 {
-			first = row
-		}
 	}
 
-	if !grouped {
-		for _, idx := range filtered {
-			drawRow(idx)
-		}
-	} else {
-		byProject := func(idx int) (string, string) {
+	layout := listLayout{favourite: favourite, draw: drawRow, width: p.contentWidth()}
+	if grouped {
+		layout.group = func(idx int) (string, string) {
 			mr := a.mrs[idx]
 			return headingKey(a, mr.Instance, a.projectPathOfMR(mr))
 		}
-		for _, group := range gather(filtered, byProject) {
-			row++
-			setGroupHeading(p.table, row, group)
-			for _, idx := range group.rows {
-				drawRow(idx)
-			}
-		}
 	}
-
-	p.selectRow(previous, first)
+	p.selectRow(previous, a.layRows(p.table, filtered, layout))
 }
 
 // mrMark shows at a glance which worktrees a merge request has on disk.

@@ -208,6 +208,66 @@ type Filters struct {
 	// GroupRepositories gathers the repositories under the group or subgroup
 	// (on GitHub the owner) they live in.
 	GroupRepositories bool `yaml:"group_repositories,omitempty" json:"group_repositories,omitempty"`
+	// Favourites are the starred repositories and merge requests.
+	Favourites []Favourite `yaml:"favourites,omitempty" json:"favourites,omitempty"`
+	// FavouritesInPlace leaves the favourites among the other rows. By
+	// default they come first, set apart from the rest.
+	FavouritesInPlace bool `yaml:"favourites_in_place,omitempty" json:"favourites_in_place,omitempty"`
+}
+
+// Favourite is a starred repository, or with an IID one of its merge
+// requests.
+type Favourite struct {
+	Instance string `yaml:"instance" json:"instance"`
+	Path     string `yaml:"path" json:"path"`
+	IID      int    `yaml:"iid,omitempty" json:"iid,omitempty"`
+}
+
+// FavouritesFirst reports whether the favourites lead the lists.
+func (f *Filters) FavouritesFirst() bool { return !f.FavouritesInPlace }
+
+// IsFavourite reports whether a repository (iid 0) or a merge request is
+// starred.
+func (f *Filters) IsFavourite(instance, path string, iid int) bool {
+	for _, fav := range f.Favourites {
+		if fav == (Favourite{Instance: instance, Path: path, IID: iid}) {
+			return true
+		}
+	}
+	return false
+}
+
+// ForgetClosedFavourites drops the starred merge requests of the asked
+// servers that are no longer open, so the list of favourites does not grow
+// with every merge request ever starred. Repositories and the servers that
+// were not asked keep theirs. It reports how many went.
+func (f *Filters) ForgetClosedFavourites(asked map[string]bool, open map[Favourite]bool) int {
+	kept := f.Favourites[:0]
+	for _, fav := range f.Favourites {
+		if fav.IID == 0 || !asked[fav.Instance] || open[fav] {
+			kept = append(kept, fav)
+		}
+	}
+	gone := len(f.Favourites) - len(kept)
+	if len(kept) == 0 {
+		kept = nil
+	}
+	f.Favourites = kept
+	return gone
+}
+
+// ToggleFavourite stars or unstars a repository (iid 0) or a merge request
+// and reports the new state.
+func (f *Filters) ToggleFavourite(instance, path string, iid int) bool {
+	this := Favourite{Instance: instance, Path: path, IID: iid}
+	for i, fav := range f.Favourites {
+		if fav == this {
+			f.Favourites = append(f.Favourites[:i], f.Favourites[i+1:]...)
+			return false
+		}
+	}
+	f.Favourites = append(f.Favourites, this)
+	return true
 }
 
 // Order is the sort to apply, normalised.

@@ -91,6 +91,13 @@ func (a *App) newProjectsPane() *pane {
 			a.toggleRepositoryGrouping()
 			return nil
 		}
+		// Ctrl-F stars the repository; it pages the list nowhere else.
+		if ev.Key() == tcell.KeyCtrlF {
+			if pr, ok := selected(); ok {
+				a.toggleFavourite(pr.Instance, pr.PathWithNamespace, 0, pr.PathWithNamespace)
+			}
+			return nil
+		}
 		// Ctrl-W opens a worktree for a branch of its own; w (below) is
 		// already taken by "open in the browser".
 		if ev.Key() == tcell.KeyCtrlW {
@@ -186,6 +193,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// Grouped, the server and the group move into the headings and each row
 	// names only the repository.
 	withServer := a.multiInstance() && !grouped
+	favourite := func(idx int) bool {
+		pr := a.projects[idx]
+		return a.cfg.Filters.IsFavourite(pr.Instance, pr.PathWithNamespace, 0)
+	}
+	star := starColumn(filtered, favourite)
 	name := func(pr forge.Project) string {
 		if grouped {
 			return repositoryName(pr.PathWithNamespace)
@@ -218,9 +230,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 
 	// Grouped, every row is indented one step under its heading.
-	markW := 2
+	markW := 2 + star
 	if grouped {
-		markW = 3
+		markW++
 	}
 	const (
 		mrW     = 2
@@ -268,12 +280,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
-	row, first := 0, 0
-	drawRow := func(idx int) {
-		row++
-		if first == 0 {
-			first = row
-		}
+	drawRow := func(row, idx int) {
 		pr := a.projects[idx]
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 
@@ -302,7 +309,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			wtCount = fmt.Sprintf("%d", info.Worktrees)
 		}
 
-		fields := []field{{raw: tag(markColour) + mark + tagEnd}}
+		fields := []field{{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)}}
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
 		}
@@ -321,24 +328,14 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			SetReference(idx).SetExpansion(1))
 	}
 
-	if !grouped {
-		for _, idx := range filtered {
-			drawRow(idx)
-		}
-	} else {
-		byGroup := func(idx int) (string, string) {
+	layout := listLayout{favourite: favourite, draw: drawRow, width: p.contentWidth()}
+	if grouped {
+		layout.group = func(idx int) (string, string) {
 			pr := a.projects[idx]
 			return headingKey(a, pr.Instance, namespaceOf(pr.PathWithNamespace))
 		}
-		for _, group := range gather(filtered, byGroup) {
-			row++
-			setGroupHeading(p.table, row, group)
-			for _, idx := range group.rows {
-				drawRow(idx)
-			}
-		}
 	}
-	p.selectRow(previous, first)
+	p.selectRow(previous, a.layRows(p.table, filtered, layout))
 }
 
 // namespaceOf is the group or subgroup a repository lives in - on GitHub its

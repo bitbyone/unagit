@@ -2,9 +2,101 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rivo/tview"
 )
+
+// favouriteMark leads the row of a favourite.
+const favouriteMark = "★"
+
+// listLayout is what a list tells layRows about its rows.
+type listLayout struct {
+	// favourite reports whether a row is starred.
+	favourite func(idx int) bool
+	// group, when the list is grouped, is the heading a row goes under.
+	group func(idx int) (key, heading string)
+	// draw fills in one row of the table.
+	draw func(row, idx int)
+	// width is how wide the separator is drawn.
+	width int
+}
+
+// layRows draws the rows of a list from the table's second row on, the first
+// being the column header. A grouped list goes under its headings, where the
+// favourites are only marked: the headings are the order there. A flat one,
+// when favourites come first and one is shown, leads with them, set apart
+// from the rest by a line, each part in the list's order. It returns the
+// first row the cursor may sit on, 0 for none.
+func (a *App) layRows(t *tview.Table, filtered []int, l listLayout) int {
+	parts := [][]int{filtered}
+	if l.group == nil && a.cfg.Filters.FavouritesFirst() {
+		var favourites, rest []int
+		for _, idx := range filtered {
+			if l.favourite(idx) {
+				favourites = append(favourites, idx)
+			} else {
+				rest = append(rest, idx)
+			}
+		}
+		if len(favourites) > 0 {
+			parts = [][]int{favourites, rest}
+		}
+	}
+	row, first := 0, 0
+	put := func(idx int) {
+		row++
+		if first == 0 {
+			first = row
+		}
+		l.draw(row, idx)
+	}
+	for i, part := range parts {
+		if i > 0 && len(part) > 0 {
+			row++
+			t.SetCell(row, 0, tview.NewTableCell(tag(colDim)+strings.Repeat("─", max(l.width, 1))+tagEnd).
+				SetSelectable(false).SetExpansion(1))
+		}
+		if l.group == nil {
+			for _, idx := range part {
+				put(idx)
+			}
+			continue
+		}
+		for _, g := range gather(part, l.group) {
+			row++
+			setGroupHeading(t, row, g)
+			for _, idx := range g.rows {
+				put(idx)
+			}
+		}
+	}
+	return first
+}
+
+// starColumn is how wide the star column of a list is: one more than nothing
+// when any shown row is a favourite, nothing otherwise, so a list without
+// favourites keeps every column it had.
+func starColumn(filtered []int, favourite func(idx int) bool) int {
+	for _, idx := range filtered {
+		if favourite(idx) {
+			return 1
+		}
+	}
+	return 0
+}
+
+// starred puts the star in front of a row's mark, which starts with a space;
+// with no star column it leaves the mark alone.
+func starred(column int, favourite bool, mark string) string {
+	switch {
+	case column == 0:
+		return mark
+	case favourite:
+		return tag(colStar) + favouriteMark + tagEnd + mark
+	}
+	return " " + mark
+}
 
 // rowGroup is the rows under one heading of a grouped list, in the order the
 // filter put them.

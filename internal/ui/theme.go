@@ -19,6 +19,7 @@ var (
 	colAccent      = tcell.Color109
 	colOn          = tcell.Color108
 	colWarn        = tcell.Color179
+	colStar        = tcell.Color220
 	colBad         = tcell.Color167
 	colBranch      = tcell.Color109
 	colTabActive   = tcell.Color109

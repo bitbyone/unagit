@@ -164,6 +164,7 @@ func helpRows() []helpLine {
 		key("X", "manage the hidden repositories"),
 		key("o", "order: by activity, or by name"),
 		key("Ctrl-G", "group: repositories by group, MRs by repository"),
+		key("Ctrl-F", "★ star; starred lead a flat list unless o says not"),
 		blank(),
 
 		section("Repositories", helpRepositories),

@@ -176,6 +176,11 @@ group.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
+- **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
+  shows the favourites first, in the usual order, above a line; a grouped one
+  only marks them with `★`. Favourites first can be turned off in the order
+  picker (`o`). A starred merge request is forgotten once a refresh no longer
+  lists it, merged or closed.
 - **Instant startup.** The lists are cached on disk and only refreshed when you
   ask; nothing hits the API behind your back.
 - **Your tokens are encrypted** with Argon2id + AES-256-GCM and exist in
@@ -237,6 +242,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `c` `a` | read and write comments · approve |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
+| `Ctrl-F` | star or unstar a favourite |
 | `d` `w` `r` | delete from disk · open in the browser · refresh |
 | `?` `q` | help · quit |
 
