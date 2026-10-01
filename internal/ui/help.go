@@ -174,6 +174,8 @@ func helpRows() []helpLine {
 		key("Ctrl-C", "clone without opening the editor"),
 		key("e", "set the clone directory of an uncloned repository"),
 		key("b", "switch the main clone to another branch"),
+		key("p", "pull; rebases your work; refuses on a conflict"),
+		key("Alt-P", "the same for every clone origin has moved past"),
 		key("Ctrl-W", "open a branch in its own worktree; n for a new one"),
 		key("space", "select; Ctrl-W then puts all in one folder"),
 		key("Alt-W  Alt-B", "the same, in an editor you choose"),
@@ -182,6 +184,7 @@ func helpRows() []helpLine {
 		key("v", "view: tags · grouping · favourites first"),
 		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
+		key("REMOTE", "✓ up to date · ↓ behind · ↑ unpushed; r fetches"),
 		blank(),
 
 		section("Worktrees", helpWorktrees),

@@ -72,6 +72,16 @@ different groups live in different places.
 - `b` lists every branch in a searchable modal and switches it **in that same
   clone**, so there is one working copy per repository, not a directory per
   branch.
+- `REMOTE` says where the clone's branch stands against origin: `✓` up to
+  date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
+  from the refs on disk, so it costs nothing; `r` fetches every clone in the
+  background first, and the header counts the fetches still running.
+- `p` updates the clone: a fast-forward when nothing of yours is in the way, a
+  rebase of your commits and uncommitted edits onto origin when there is. If
+  that would conflict - your edits touch a file origin changed, or your commits
+  clash with origin's - it refuses and leaves the clone exactly as it was, for
+  you to sort out by hand. `Alt-P` does the same for every clone at once,
+  passing over those without an upstream and naming the ones it left alone.
 - `m` jumps to that repository's merge requests, `w` opens it in the browser,
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
 - `/` fuzzy-finds, `C` hides everything you have not cloned, `x` hides a
@@ -279,6 +289,7 @@ the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
 | `c` `a` | read and write comments · approve |
+| `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
 | `C` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |

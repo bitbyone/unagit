@@ -274,6 +274,13 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 		d.kv("URL", tag(colDim)+esc(pr.WebURL)+tagEnd)
 	}
 
+	if key := (projectKey{pr.Instance, pr.PathWithNamespace}); a.disk[key].Cloned {
+		d.section("On disk")
+		d.kv("Directory", esc(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))))
+		d.kv("Branch", tag(colBranch)+esc(a.disk[key].Branch)+tagEnd)
+		d.kv("Remote", a.syncSentence(key))
+	}
+
 	if len(langs) > 0 {
 		d.section("Languages")
 		type lang struct {

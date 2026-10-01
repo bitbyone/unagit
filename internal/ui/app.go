@@ -110,6 +110,12 @@ type App struct {
 	// newer answer.
 	wtRemote map[string]remoteState
 	wtGen    int
+	// repoSync is where each main clone's branch stands against origin, read
+	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
+	// not get through, and fetching counts the fetches still running.
+	repoSync    map[projectKey]remoteState
+	fetchFailed map[projectKey]string
+	fetching    int
 
 	mrProjectScope projectKey // the project the merge request list is limited to
 
@@ -677,6 +683,7 @@ func (a *App) refreshProjects() {
 			a.projectsPane.marks = nil
 			a.reindexProjects()
 			a.refreshDisk()
+			a.loadRepoSync(true)
 			a.projectsPane.reload()
 			a.mrsPane.reload()
 			a.settings.reload()
@@ -944,6 +951,7 @@ func (a *App) refreshDisk() {
 	a.disk = disk
 	a.worktrees = worktrees
 	a.loadWorktreeRemotes()
+	a.loadRepoSync(false)
 	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
 		a.worktreesPane.reload()
 	}
@@ -966,6 +974,16 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 // are opening is written down while it is open, so another terminal can find
 // the directory. ed is the editor chosen for it; nil is the favourite.
 func (a *App) runTaskOpening(title string, what session.Record, ed *editors.Editor, fn func(log func(string)) (string, error)) {
+	a.runTaskEnding(title, what, ed, false, fn)
+}
+
+// runTaskNoting is runTask for a task whose outcome is a sentence rather than a
+// directory: on success the log closes and the status line says it.
+func (a *App) runTaskNoting(title string, fn func(log func(string)) (string, error)) {
+	a.runTaskEnding(title, session.Record{}, nil, true, fn)
+}
+
+func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Editor, noting bool, fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
@@ -1003,15 +1021,18 @@ func (a *App) runTaskOpening(title string, what session.Record, ed *editors.Edit
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)
 				return
 			}
-			if dir == "" {
+			if dir == "" || noting {
 				a.closeModal(pageTask)
 				a.refreshDisk()
 				a.projectsPane.reload()
 				a.mrsPane.reload()
 				a.setStatus("")
+				if noting {
+					a.note(dir)
+				}
 			}
 		})
-		if err == nil && dir != "" {
+		if err == nil && dir != "" && !noting {
 			a.openEditor(dir, what, ed)
 		}
 	}()

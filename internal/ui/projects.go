@@ -37,6 +37,9 @@ func (a *App) newProjectsPane() *pane {
 		if !a.projUpdated.IsZero() {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
+		if a.fetching > 0 {
+			age += fmt.Sprintf(" · fetching %d", a.fetching)
+		}
 		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
 			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories)+a.tagSummary(), tagEnd)
 	}
@@ -70,6 +73,11 @@ func (a *App) newProjectsPane() *pane {
 	}
 
 	p.onAlt = func(r rune) bool {
+		// Alt-P takes every clone, not the one under the cursor.
+		if r == 'p' {
+			a.updateAllClones()
+			return true
+		}
 		pr, ok := selected()
 		if !ok {
 			return false
@@ -179,6 +187,11 @@ func (a *App) newProjectsPane() *pane {
 		case 'r':
 			a.refreshProjects()
 			return nil
+		case 'p':
+			if pr, ok := selected(); ok {
+				a.updateProject(pr)
+			}
+			return nil
 		}
 		return ev
 	}
@@ -243,9 +256,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		return pr.PathWithNamespace
 	}
 
-	branchW, actW, serverW, pathW := 6, 8, 0, 0
+	branchW, actW, serverW, pathW, syncW := 6, 8, 0, 0, len("REMOTE")
 	for _, idx := range filtered {
 		pr := a.projects[idx]
+		words, _ := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
+		syncW = max(syncW, len([]rune(words)))
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 		branch := info.Branch
 		if branch == "" {
@@ -278,7 +293,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		gaps    = 6
 		minName = 20
 	)
-	fixed := markW + branchW + pathW + mrW + wtW + actW + gaps
+	fixed := markW + branchW + syncW + pathW + mrW + wtW + actW + gaps + 1
 	if withServer {
 		fixed += serverW + 1
 	}
@@ -332,7 +347,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		header = append(header, field{text: "TAGS", width: tagsW, colour: colDim})
 	}
 	header = append(header,
-		field{text: "BRANCH", width: branchW, colour: colDim})
+		field{text: "BRANCH", width: branchW, colour: colDim},
+		field{text: "REMOTE", width: syncW, colour: colDim})
 	if pathW > 0 {
 		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
 	}
@@ -389,8 +405,10 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			p.kept.keep(row, pills)
 			fields = append(fields, field{raw: tags})
 		}
+		words, wordsColour := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		fields = append(fields,
-			field{text: branch, width: branchW, colour: branchColour})
+			field{text: branch, width: branchW, colour: branchColour},
+			field{text: words, width: syncW, colour: wordsColour})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
 		}
