@@ -702,10 +702,11 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 				s.showRootForm()
 				return nil
 			case 't':
-				if ref, ok := s.currentRef(); ok && ref.group != nil {
+				switch ref, ok := s.currentRef(); {
+				case ok && ref.group != nil:
 					s.app.showGroupTags(ref.instance, ref.group.FullPath)
-				} else {
-					s.app.flash("select a group, not a server")
+				case ok:
+					s.app.showServerTags(ref.instance)
 				}
 				return nil
 			case 'r':
@@ -826,8 +827,13 @@ func (s *settingsView) fillTree() {
 func (s *settingsView) instanceNodeText(inst config.Instance) string {
 	root := tildePath(s.app.cfg.RootFor(&inst, "x/y"))
 	root = strings.TrimSuffix(root, "/x")
-	return fmt.Sprintf("%s[::b]%s[::-]%s  %s→ %s%s",
+	text := fmt.Sprintf("%s[::b]%s[::-]%s  %s→ %s%s",
 		tag(colAccent), inst.Label(), tagEnd, tag(colDim), root, tagEnd)
+	if tags := s.app.cfg.ServerTagsOf(inst.ID); len(tags) > 0 {
+		markup, _ := s.app.pills(tags, 80, behindList)
+		text += "  " + markup
+	}
+	return text
 }
 
 func (s *settingsView) groupsOf(instanceID string) []forge.Group {

@@ -240,7 +240,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 	}
 
 	sc.InjectKey(tcell.KeyCtrlT, 0, tcell.ModCtrl)
-	waitFor(t, a, sc, "from a group")
+	waitFor(t, a, sc, "inherited")
 	typeRunes(sc, "jj ")
 	waitFor(t, a, sc, "taken off here")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -285,4 +285,38 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 	typeRunes(sc, " ")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "\ue0b6oss\ue0b4")
+}
+
+// TestServerTagsReachEveryRepository: t on the server row of Settings ›
+// Groups & roots tags the whole server, and every repository on it wears the
+// tag.
+func TestServerTagsReachEveryRepository(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, "Default root")
+	changeOnLoop(a, func() {
+		a.settings.selectSection(sectionGroups)
+		a.settings.focusContent()
+	})
+	waitFor(t, a, sc, "incl. subgroups")
+	typeRunes(sc, "t") // the cursor starts on the server
+	waitFor(t, a, sc, "everything on it inherits them")
+	typeRunes(sc, "jjjj ") // fork
+	waitFor(t, a, sc, "1 on")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "everything on it inherits them")
+	screen := a.screenText(sc)
+	if line := strings.Split(screen, "\n")[lineOf(screen, "→")]; !strings.Contains(line, "fork") {
+		t.Errorf("the server does not show its tag: %q", line)
+	}
+
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "acme/billing")
+	screen = a.screenText(sc)
+	for _, repo := range []string{"acme/gateway", "acme/billing"} {
+		if line := strings.Split(screen, "\n")[lineOf(screen, repo)]; !strings.Contains(line, "fork") {
+			t.Errorf("%s does not wear the server's tag: %q", repo, line)
+		}
+	}
 }

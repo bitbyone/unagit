@@ -341,9 +341,10 @@ type Config struct {
 	Filters            Filters    `yaml:"filters,omitempty"`
 	Instances          []Instance `yaml:"instances"`
 	// Tags are the user's own labels for repositories - the default ones
-	// until a configuration says otherwise, an empty list included. A group
-	// passes its tags down to its subgroups and repositories, RepositoryTags
-	// are what a repository adds to them or takes away.
+	// until a configuration says otherwise, an empty list included. A server
+	// passes its tags down to everything on it and a group to its subgroups
+	// and repositories - GroupTags holds both, a server's under the empty
+	// path - and RepositoryTags are what a repository adds or takes away.
 	Tags []Tag `yaml:"tags"`
 	// DefaultTagsSeen is how many of the default tags this configuration has
 	// been offered, so the ones added to the defaults later reach it once,

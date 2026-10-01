@@ -149,9 +149,9 @@ func tagMark(on bool) string {
 	return tag(colDim) + "·" + tagEnd
 }
 
-// showTagChoice puts tags on a group or a repository and takes them off:
-// space or Enter for each, Esc when done. A tag passed down from a group above
-// says so, and taking it off here leaves the group as it is.
+// showTagChoice puts tags on a server, a group or a repository and takes them
+// off: space or Enter for each, Esc when done. A tag passed down from above
+// says so, and taking it off here leaves the server or group as it is.
 func (a *App) showTagChoice(title string, worn, inherited func() []string, toggle func(name string)) {
 	has := func(names []string, name string) bool {
 		for _, n := range names {
@@ -172,9 +172,9 @@ func (a *App) showTagChoice(title string, worn, inherited func() []string, toggl
 				label := tagMark(has(on, t.Name)) + " " + markup
 				switch {
 				case has(from, t.Name) && has(on, t.Name):
-					label += "  " + tag(colDim) + "from a group" + tagEnd
+					label += "  " + tag(colDim) + "inherited" + tagEnd
 				case has(from, t.Name):
-					label += "  " + tag(colDim) + "from a group, taken off here" + tagEnd
+					label += "  " + tag(colDim) + "inherited, taken off here" + tagEnd
 				}
 				items = append(items, toggleItem{Label: label, Search: t.Name, Data: t.Name})
 			}
@@ -209,6 +209,19 @@ func (a *App) showGroupTags(instance, path string) {
 		func() []string { return a.cfg.InheritedTags(instance, path) },
 		func(name string) {
 			a.cfg.ToggleGroupTag(instance, path, name)
+			a.applyFilters()
+			a.settings.fillTree()
+		})
+}
+
+// showServerTags chooses the tags of a whole server, which everything on it
+// wears too.
+func (a *App) showServerTags(instance string) {
+	a.showTagChoice("Tags of "+a.instanceLabel(instance)+" · everything on it inherits them",
+		func() []string { return a.cfg.ServerTagsOf(instance) },
+		func() []string { return nil },
+		func(name string) {
+			a.cfg.ToggleServerTag(instance, name)
 			a.applyFilters()
 			a.settings.fillTree()
 		})

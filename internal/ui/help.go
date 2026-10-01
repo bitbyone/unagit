@@ -221,7 +221,7 @@ func helpRows() []helpLine {
 		section("Settings · groups", helpGroups),
 		key("space", "off → this group → with subgroups (GitHub: on · off)"),
 		key("d", "clone directory of a group or a server"),
-		key("t", "tags of a group; subgroups and repos inherit"),
+		key("t", "tags of a server or group; all below inherit"),
 		key("r  p  m", "reload groups · refresh projects · merge requests"),
 		key("Esc", "back to the sections"),
 		blank(),

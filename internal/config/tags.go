@@ -183,10 +183,15 @@ func apply(worn map[string]bool, s *TagSet) {
 	}
 }
 
-// inherited is what the groups above path pass down to it: each group from
-// the top lays its own set over its parent's.
+// inherited is what the server and the groups above path pass down to it:
+// the server's set first, then each group from the top laying its own over
+// its parent's. The server itself, path "", inherits nothing.
 func (c *Config) inherited(instance, path string) map[string]bool {
 	worn := map[string]bool{}
+	if path == "" {
+		return worn
+	}
+	apply(worn, findSet(c.GroupTags, instance, ""))
 	parts := strings.Split(path, "/")
 	for i := 1; i < len(parts); i++ {
 		apply(worn, findSet(c.GroupTags, instance, strings.Join(parts[:i], "/")))
@@ -219,6 +224,17 @@ func (c *Config) GroupTagsOf(instance, path string) []string {
 	worn := c.inherited(instance, path)
 	apply(worn, findSet(c.GroupTags, instance, path))
 	return c.inOrder(worn)
+}
+
+// ServerTagsOf lists the tags a server wears and passes down to everything
+// on it. They are kept with the groups', under the empty path.
+func (c *Config) ServerTagsOf(instance string) []string {
+	return c.GroupTagsOf(instance, "")
+}
+
+// ToggleServerTag is ToggleTag for a whole server.
+func (c *Config) ToggleServerTag(instance, name string) bool {
+	return c.ToggleGroupTag(instance, "", name)
 }
 
 // InheritedTags lists the tags the groups above path pass down to it, before

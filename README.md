@@ -179,8 +179,9 @@ group.
 - **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`,
   `private`, `fork`, `hobby` and `tooling` to start with - each a light ink on
   a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on
-  a repository; `t` in Settings › Groups & roots puts them on a group, and its
-  subgroups and repositories wear them too unless they take one off. They
+  a repository; `t` in Settings › Groups & roots puts them on a whole server
+  or on a group, and everything below wears them too unless it takes one off.
+  They
   have a column of their own after the names; `f` shows only the repositories
   wearing any of the tags you pick, `F` all of them again, and `Alt-V` hides
   the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›

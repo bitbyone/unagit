@@ -153,3 +153,30 @@ func TestNewDefaultTagsReachAnOlderConfiguration(t *testing.T) {
 		t.Error("a removed default tag came back")
 	}
 }
+
+// TestServerTagsPassDownToEverything: a server's tags reach its groups and
+// every repository on it, and nothing on another server; a group can take one
+// off for what is below it.
+func TestServerTagsPassDownToEverything(t *testing.T) {
+	c := Default()
+	c.ToggleServerTag("i", "work")
+	if got := c.TagsOf("i", "acme/tools/cli"); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("a repository wears %v", got)
+	}
+	if got := c.GroupTagsOf("i", "acme"); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("a group wears %v", got)
+	}
+	if got := c.TagsOf("j", "acme/api"); len(got) != 0 {
+		t.Errorf("a repository on another server wears %v", got)
+	}
+	c.ToggleGroupTag("i", "acme/tools", "work")
+	if got := c.TagsOf("i", "acme/tools/cli"); len(got) != 0 {
+		t.Errorf("after the subgroup took it off: %v", got)
+	}
+	if got := c.TagsOf("i", "acme/api"); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("a sibling lost the server's tag: %v", got)
+	}
+	if !slices.Equal(c.ServerTagsOf("i"), []string{"work"}) {
+		t.Errorf("server tags = %v", c.ServerTagsOf("i"))
+	}
+}
