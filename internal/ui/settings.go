@@ -300,6 +300,11 @@ func (s *settingsView) newGeneralForm() *tview.Form {
 func (s *settingsView) fillGeneral() {
 	cfg := s.app.cfg
 	form := s.general
+	// Save and Revert rebuild the form they are pressed in. The keyboard
+	// would stay with the button that went away, and with it every key after,
+	// Esc included; it goes back to the same place in the new form instead.
+	focused := form.HasFocus()
+	item, button := form.GetFocusedItemIndex()
 	form.Clear(true)
 	// Each note sits under the field it explains, in lines short enough not
 	// to wrap: a wrapped line pushes the first one out of the note's height.
@@ -327,6 +332,13 @@ func (s *settingsView) fillGeneral() {
 		s.app.note("Reverted")
 	})
 	hintForm(form)
+	if focused {
+		if button >= 0 {
+			item = form.GetFormItemCount() + button
+		}
+		form.SetFocus(item)
+		s.app.tv.SetFocus(form)
+	}
 }
 
 // ------------------------------------------------------------------ servers
