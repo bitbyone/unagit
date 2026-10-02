@@ -16,6 +16,17 @@ func addSelect(form *tview.Form, label string, options []string, selected int) *
 	return styleDropDown(form.GetFormItemByLabel(label).(*tview.DropDown))
 }
 
+// addTextArea adds a text area that fills what the form has left and opens on
+// the first line of its text. tview puts the cursor after the last one, which
+// scrolls a proposed description of several lines down to its end, the rest
+// out of sight.
+func addTextArea(form *tview.Form, label, text string, height int) *tview.TextArea {
+	form.AddTextArea(label, text, 0, height, 0, nil)
+	area := form.GetFormItemByLabel(label).(*tview.TextArea)
+	area.SetText(text, false)
+	return area
+}
+
 // addCheckbox adds a checkbox that can be seen when it is not ticked.
 func addCheckbox(form *tview.Form, label string, checked bool) *tview.Checkbox {
 	form.AddCheckbox(label, checked, nil)

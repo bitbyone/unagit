@@ -57,6 +57,10 @@ func (f *fakeForge) CreateMergeRequest(context.Context, forge.Project, forge.New
 	return nil, forge.ErrNotSupported
 }
 
+func (f *fakeForge) UpdateMergeRequestDescription(context.Context, forge.MergeRequest, string) error {
+	return forge.ErrNotSupported
+}
+
 func (f *fakeForge) CommentNote(_ context.Context, _ forge.MergeRequest, body string) (*forge.Note, error) {
 	f.calls = append(f.calls, fmt.Sprintf("comment %q", body))
 	return f.note("comment", "")

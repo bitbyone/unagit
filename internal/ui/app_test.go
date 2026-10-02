@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,6 +30,10 @@ type fakeServer struct {
 	postedComment atomic.Value
 	// postedMR holds the JSON body of the last merge request created.
 	postedMR atomic.Value
+	// postedMR2 is postedMR for acme/billing, and described the descriptions
+	// put on merge requests, by path.
+	postedMR2 atomic.Value
+	described sync.Map
 	// mrCommits, when set, is the JSON !7 lists as its commits, for a test
 	// whose merge request is real git history.
 	mrCommits atomic.Value
@@ -102,6 +107,27 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"id":2,"name":"billing","path_with_namespace":"acme/billing",
 			"description":"Invoicing service","visibility":"private","default_branch":"main"}`)
 	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			json(w, `[]`)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		f.postedMR2.Store(string(b))
+		w.WriteHeader(http.StatusCreated)
+		json(w, `{"id":243,"iid":43,"project_id":2,"title":"created","state":"opened",
+			"source_branch":"feat/both","target_branch":"main","author":{"username":"jane"},
+			"web_url":"https://gl.test/acme/billing/-/merge_requests/43","updated_at":"2026-09-25T10:00:00Z"}`)
+	})
+	for _, p := range []string{"/api/v4/projects/1/merge_requests/42", "/api/v4/projects/2/merge_requests/43"} {
+		mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPut {
+				b, _ := io.ReadAll(r.Body)
+				f.described.Store(r.URL.Path, string(b))
+			}
+			json(w, `{}`)
+		})
+	}
 	mux.HandleFunc("/api/v4/projects/2/repository/branches", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"name":"main","default":true,"commit":{"short_id":"c0ffee1","title":"Round half even",
 			"committed_date":"2026-09-21T07:00:00Z"}}]`)

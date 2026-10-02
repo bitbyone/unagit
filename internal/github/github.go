@@ -123,11 +123,16 @@ func (c *Client) post(ctx context.Context, path string, payload any) error {
 
 // postDecode is post for the callers that need what was created - its id.
 func (c *Client) postDecode(ctx context.Context, path string, payload any, out any) error {
+	return c.send(ctx, http.MethodPost, path, payload, out)
+}
+
+// send makes a request with a JSON body, decoding the answer when out is set.
+func (c *Client) send(ctx context.Context, method, path string, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -205,6 +210,11 @@ func (c *Client) CreateMergeRequest(ctx context.Context, p forge.Project, req fo
 		mr.ProjectID = p.ID
 	}
 	return &mr, nil
+}
+
+// UpdateMergeRequestDescription replaces a pull request's body.
+func (c *Client) UpdateMergeRequestDescription(ctx context.Context, mr forge.MergeRequest, description string) error {
+	return c.send(ctx, http.MethodPatch, c.pullPath(mr), map[string]string{"body": description}, nil)
 }
 
 // existsError is ErrMergeRequestExists, with the pull request that is open for

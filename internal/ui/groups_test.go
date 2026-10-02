@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -246,5 +247,61 @@ func TestCtrlWShowsTheNewWorktree(t *testing.T) {
 	}
 	if strings.Contains(a.screenText(sc), "opened ") {
 		t.Error("the editor was started")
+	}
+}
+
+// TestGroupMergeRequestsLinkEachOther: n on a grouped worktree opens a merge
+// request in every repository, into the branch each was made from, under one
+// title, then gives every description the links to the others.
+func TestGroupMergeRequestsLinkEachOther(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/both")
+	waitFor(t, a, sc, "feat-both")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-both")
+	commitIn(t, filepath.Join(dir, "gateway"), "g.txt", "Count requests per client")
+	commitIn(t, filepath.Join(dir, "billing"), "b.txt", "Bill per counted request")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	waitFor(t, a, sc, "no upstream")
+
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New merge requests · feat-both")
+	for _, want := range []string{"gateway into", "billing into", "Both"} {
+		waitFor(t, a, sc, want)
+	}
+	mrForm := onLoop(a, func() *tview.Form {
+		_, primitive := a.pages.GetFrontPage()
+		return primitive.(*modalBox).content.(*tview.Form)
+	})
+	pressButton(t, a, sc, mrForm, "Create")
+	waitFor(t, a, sc, "2 merge request(s) created")
+
+	for _, posted := range []*atomic.Value{&srv.postedMR, &srv.postedMR2} {
+		body, _ := posted.Load().(string)
+		for _, want := range []string{`"source_branch":"feat/both"`, `"target_branch":"main"`, `"title":"Both"`,
+			"Count requests per client", "Bill per counted request"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("a merge request was created without %s: %s", want, body)
+			}
+		}
+	}
+	for path, other := range map[string]string{
+		"/api/v4/projects/1/merge_requests/42": "acme/billing/-/merge_requests/43",
+		"/api/v4/projects/2/merge_requests/43": "acme/gateway/-/merge_requests/42",
+	} {
+		got, ok := srv.described.Load(path)
+		if !ok {
+			t.Errorf("%s was not given the links", path)
+			continue
+		}
+		if !strings.Contains(got.(string), "Related merge requests:") || !strings.Contains(got.(string), other) {
+			t.Errorf("%s does not link %s: %s", path, other, got)
+		}
+	}
+	// Both branches are on origin now.
+	for _, name := range []string{"gateway", "billing"} {
+		gitIn(t, filepath.Join(dir, name), "rev-parse", "--verify", "origin/feat/both")
 	}
 }

@@ -90,3 +90,17 @@ func TestCreateMergeRequestDoesNotHideOtherValidationErrors(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestUpdateMergeRequestDescriptionPatchesTheBody(t *testing.T) {
+	s := newStub(t)
+	var sent []map[string]any
+	s.mux.HandleFunc("/repos/acme/api/pulls/7", capture(&sent, func(w http.ResponseWriter) {
+		fmt.Fprint(w, `{"number":7}`)
+	}))
+	if err := s.client().UpdateMergeRequestDescription(context.Background(), reviewMR, "now with links"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 1 || sent[0]["_method"] != http.MethodPatch || sent[0]["body"] != "now with links" {
+		t.Fatalf("sent = %+v", sent)
+	}
+}

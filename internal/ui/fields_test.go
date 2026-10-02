@@ -105,3 +105,27 @@ func TestSelectBoxIsReadableAndIgnoresTyping(t *testing.T) {
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 }
+
+// TestTextAreaOpensOnItsFirstLine: a proposed description of several lines is
+// read from the top; tview's own text area opened scrolled to its last line.
+func TestTextAreaOpensOnItsFirstLine(t *testing.T) {
+	form := tview.NewForm()
+	area := addTextArea(form, "Description", "- first\n- second\n- third\n- fourth\n- fifth\n- sixth\n- seventh", 3)
+	screen := tcell.NewSimulationScreen("UTF-8")
+	must(t, screen.Init())
+	screen.SetSize(60, 10)
+	form.SetRect(0, 0, 60, 10)
+	form.Draw(screen)
+	screen.Show()
+	cells, w, _ := screen.GetContents()
+	var top strings.Builder
+	_, y, _, _ := area.GetRect()
+	for x := 0; x < w; x++ {
+		if r := cells[y*w+x].Runes; len(r) > 0 {
+			top.WriteRune(r[0])
+		}
+	}
+	if !strings.Contains(top.String(), "- first") {
+		t.Errorf("the first line of the text area shows %q", strings.TrimSpace(top.String()))
+	}
+}

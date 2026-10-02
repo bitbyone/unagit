@@ -446,26 +446,6 @@ func (a *App) pushGroup(r worktreeRow) {
 	a.confirmWith("Force push", body, "Force push", nil, run)
 }
 
-// groupMergeRequest asks which member to open a merge request for; each
-// repository has merge requests of its own.
-func (a *App) groupMergeRequest(r worktreeRow) {
-	var items []pickItem
-	for _, m := range r.Members {
-		sub := m.Branch
-		if mr, ok := a.openMRFor(m); ok {
-			sub += fmt.Sprintf("  !%d already open", mr.IID)
-		}
-		items = append(items, pickItem{Label: m.Path, Sub: sub, Data: m})
-	}
-	if len(items) == 0 {
-		a.flash(r.Path + " holds no repository")
-		return
-	}
-	a.showPicker("Merge request for - "+r.Path, items, func(it pickItem) {
-		a.newMergeRequest(it.Data.(worktreeRow))
-	})
-}
-
 // groupMembersOf lists the grouped worktrees that hold a worktree of the
 // repository, so that deleting its main clone can say they would break.
 func (a *App) groupMembersOf(instance, path string) []string {

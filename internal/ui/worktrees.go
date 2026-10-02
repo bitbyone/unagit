@@ -364,7 +364,7 @@ func (a *App) newWorktreesPane() *pane {
 			switch {
 			case !ok:
 			case r.grouped():
-				a.groupMergeRequest(r)
+				a.groupMergeRequests(r)
 			default:
 				a.newMergeRequest(r)
 			}
@@ -941,7 +941,7 @@ func (a *App) showMergeRequestForm(r worktreeRow, pr forge.Project, client forge
 	// so they follow the terminal instead of being drawn over the frame.
 	form.AddInputField("Title", title, 0, nil, nil)
 	addSelect(form, "Target branch", targets, selected)
-	form.AddTextArea("Description", description, 0, 5, 0, nil)
+	addTextArea(form, "Description", description, 5)
 	addCheckbox(form, "Draft", false)
 	if gitlab {
 		addCheckbox(form, labelDeleteBranch, false)

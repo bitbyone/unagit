@@ -106,3 +106,18 @@ func TestCreateMergeRequestDoesNotHideOtherErrors(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestUpdateMergeRequestDescriptionPutsIt(t *testing.T) {
+	var sent []recorded
+	srv := discussionServer(t, &sent, func(w http.ResponseWriter, _ int) { fmt.Fprint(w, createdJSON) })
+	mr := forge.MergeRequest{ProjectID: 42, IID: 12}
+	if err := New(srv.URL, "t").UpdateMergeRequestDescription(context.Background(), mr, "now with links"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 1 || sent[0].method != http.MethodPut || sent[0].path != "/api/v4/projects/42/merge_requests/12" {
+		t.Fatalf("sent = %+v", sent)
+	}
+	if got := sent[0].body["description"]; got != "now with links" {
+		t.Errorf("description = %v", got)
+	}
+}

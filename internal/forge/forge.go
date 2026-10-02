@@ -266,6 +266,10 @@ type Provider interface {
 	// which, when the forge did. RemoveSourceBranch and Squash are GitLab
 	// options and GitHub ignores them.
 	CreateMergeRequest(ctx context.Context, p Project, req NewMergeRequest) (*MergeRequest, error)
+	// UpdateMergeRequestDescription replaces the description of a merge
+	// request - to point merge requests made together at one another, once
+	// each one's address is known.
+	UpdateMergeRequestDescription(ctx context.Context, mr MergeRequest, description string) error
 
 	// ResolveDiscussion marks a thread resolved, or reopens it. It returns
 	// ErrNotSupported where the forge's API cannot do that.

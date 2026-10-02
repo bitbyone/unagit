@@ -193,7 +193,7 @@ func helpRows() []helpLine {
 		key("Alt-P", "the same for every worktree"),
 		key("Ctrl-R", "rebase onto its base; pushed: force push after"),
 		key("P", "push; -u when new; forced only after Ctrl-R"),
-		key("n", "open a merge request; offers to push first"),
+		key("n", "open a merge request; a group, one in each, linked"),
 		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),
 		key("MR", "the open merge request of the branch"),
 		key("◆", "grouped: several repositories in one folder"),

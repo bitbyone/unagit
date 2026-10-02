@@ -145,9 +145,18 @@ cursor on it.
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` lists each repository with its branch, its remote and its state.
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
-pushes every repository that needs it, `n` asks
-which one to open a merge request for, and `d` deletes the worktrees - the
+pushes every repository that needs it, and `d` deletes the worktrees - the
 branches and the main clones stay.
+
+`n` opens a merge request in every repository of the group at once, from the
+branch they share. One form takes the title and the description - proposed
+from the commits of all of them - and, for each repository, the branch to
+merge into: the one its worktree was made from, unless you pick another.
+unagit pushes what origin lacks, opens them one by one, and once every address
+is known appends to each description a **Related merge requests** list linking
+the others, those already open included. A repository that would need a force
+push, or has nothing to merge into its target, is named and left out; the
+rest go ahead.
 
 ### Keeping worktrees current
 

@@ -206,6 +206,11 @@ func (c *Client) ResolveDiscussion(ctx context.Context, mr forge.MergeRequest, t
 		map[string]bool{"resolved": resolved}, nil)
 }
 
+// UpdateMergeRequestDescription replaces a merge request's description.
+func (c *Client) UpdateMergeRequestDescription(ctx context.Context, mr forge.MergeRequest, description string) error {
+	return c.send(ctx, http.MethodPut, mrPath(mr), map[string]string{"description": description}, nil)
+}
+
 // CreateMergeRequest opens a merge request. GitLab marks a draft by its title,
 // so a title that does not say so already gets the "Draft: " prefix. A 409 means
 // a request is already open for the source branch, and GitLab says which.
