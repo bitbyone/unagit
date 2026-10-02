@@ -193,6 +193,7 @@ func helpRows() []helpLine {
 		key("Alt-P", "the same for every worktree"),
 		key("Ctrl-R", "rebase onto its base; pushed: force push after"),
 		key("c", "commit everything; one message, or one per repo"),
+		key("a  x", "a group: add a repository · take one out"),
 		key("P", "push; -u when new; forced only after Ctrl-R"),
 		key("n", "open a merge request; a group, one in each, linked"),
 		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),

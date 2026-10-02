@@ -376,6 +376,16 @@ func (a *App) newWorktreesPane() *pane {
 				a.commitWorktree(r)
 			}
 			return nil
+		case 'a':
+			if r, ok := selected(); ok {
+				a.addToGroup(r)
+			}
+			return nil
+		case 'x':
+			if r, ok := selected(); ok {
+				a.removeFromGroup(r)
+			}
+			return nil
 		case 'P':
 			r, ok := selected()
 			switch {

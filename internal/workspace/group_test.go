@@ -31,3 +31,20 @@ func TestGroupRoundTrips(t *testing.T) {
 		t.Errorf("an empty group holds %v", extras)
 	}
 }
+
+func TestNewMemberDirNameKeepsClearOfTheOthers(t *testing.T) {
+	for _, c := range []struct {
+		taken []string
+		path  string
+		want  string
+	}{
+		{[]string{"api", "web"}, "acme/cli", "cli"},
+		{[]string{"api", "web"}, "tools/api", "tools-api"},
+		{[]string{"api", "tools-api"}, "tools/api", "tools-api-2"},
+		{[]string{"API"}, "x/api", "x-api"},
+	} {
+		if got := NewMemberDirName(c.taken, c.path); got != c.want {
+			t.Errorf("%v + %s = %q, want %q", c.taken, c.path, got, c.want)
+		}
+	}
+}

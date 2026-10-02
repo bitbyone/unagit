@@ -148,6 +148,13 @@ and `Enter` lists each repository with its branch, its remote and its state.
 pushes every repository that needs it, and `d` deletes the worktrees - the
 branches and the main clones stay.
 
+A group grows and shrinks a repository at a time. `a` lists the repositories
+not in it yet, filtered as you type; the one picked gets the group's branch,
+made from the branch you choose, or checked out when it has it already - a
+group without a branch of its own asks which branch to check out. `x` takes
+one out: its worktree goes, its branch stays in the repository, and the last
+one stays, since `d` deletes the group.
+
 `n` opens a merge request in every repository of the group at once, from the
 branch they share. One form takes the title and the description - proposed
 from the commits of all of them - and, for each repository, the branch to

@@ -121,6 +121,27 @@ func MemberDirNames(projects []string) []string {
 	return out
 }
 
+// NewMemberDirName names the folder of a repository joining a group, apart
+// from the folders already there: its own name, its whole path flattened when
+// that is taken, and a number after it when even that is.
+func NewMemberDirName(taken []string, projectPath string) string {
+	used := map[string]bool{GroupFile: true, ".incomm": true}
+	for _, t := range taken {
+		used[strings.ToLower(t)] = true
+	}
+	for _, name := range []string{Sanitize(filepath.Base(projectPath)), Sanitize(strings.ReplaceAll(projectPath, "/", "-"))} {
+		if !used[strings.ToLower(name)] {
+			return name
+		}
+	}
+	base := Sanitize(strings.ReplaceAll(projectPath, "/", "-"))
+	for n := 2; ; n++ {
+		if name := fmt.Sprintf("%s-%d", base, n); !used[strings.ToLower(name)] {
+			return name
+		}
+	}
+}
+
 // GroupExtras lists what a grouped worktree holds besides its members and its
 // description - notes an agent or a person left there - so that deleting it
 // can say so first.
