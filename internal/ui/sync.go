@@ -10,9 +10,11 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
+	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -410,19 +412,89 @@ func (a *App) fetchWorktrees() {
 		}
 		wg.Wait()
 		a.tv.QueueUpdateDraw(func() {
-			if !a.cfg.Integrations.Incomm {
-				a.loadWorktreeRemotes()
-				return
-			}
-			// r is also when the merge requests' comments come in: by hand,
-			// never on opening.
-			a.syncingComments = true
-			a.reloadWorktreesHeader()
-			a.syncWorktreeComments(a.worktrees, func() {
-				a.syncingComments = false
-				a.loadWorktreeRemotes()
+			// Merge requests closed since are let go first, so that neither
+			// their comments are synced nor a new one is kept from opening.
+			a.forgetClosedWorktreeMRs(func() {
+				if !a.cfg.Integrations.Incomm {
+					a.loadWorktreeRemotes()
+					return
+				}
+				// r is also when the merge requests' comments come in: by
+				// hand, never on opening.
+				a.syncingComments = true
 				a.reloadWorktreesHeader()
+				a.syncWorktreeComments(a.worktrees, func() {
+					a.syncingComments = false
+					a.loadWorktreeRemotes()
+					a.reloadWorktreesHeader()
+				})
 			})
+		})
+	}()
+}
+
+// forgetClosedWorktreeMRs asks the forge about every merge request open, as far
+// as the index knows, from a worktree, and lets go of the ones closed or merged
+// since: the worktree stays as it is, it just has no merge request any more,
+// and n can open a new one. The rest of the list waits for r in Merge
+// requests. then runs on the event loop once the answers are in.
+func (a *App) forgetClosedWorktreeMRs(then func()) {
+	type ask struct {
+		mr     forge.MergeRequest
+		client forge.Provider
+	}
+	var asks []ask
+	seen := map[mrKey]bool{}
+	for _, r := range a.worktrees {
+		members := []worktreeRow{r}
+		if r.grouped() {
+			members = r.Members
+		}
+		for _, m := range members {
+			mr, ok := a.openMRFor(m)
+			client := a.client(m.Instance)
+			if !ok || client == nil || seen[keyOfMR(mr)] {
+				continue
+			}
+			seen[keyOfMR(mr)] = true
+			asks = append(asks, ask{mr, client})
+		}
+	}
+	if len(asks) == 0 {
+		then()
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		closed := map[mrKey]string{}
+		for _, q := range asks {
+			// An answer that does not come leaves the merge request as it was.
+			if det, err := q.client.MergeRequestDetail(ctx, q.mr); err == nil {
+				if det.State == "closed" || det.State == "merged" {
+					closed[keyOfMR(q.mr)] = det.State
+				}
+			}
+		}
+		a.tv.QueueUpdateDraw(func() {
+			if len(closed) > 0 {
+				kept := a.mrs[:0]
+				var gone []string
+				for _, mr := range a.mrs {
+					if state, ok := closed[keyOfMR(mr)]; ok {
+						gone = append(gone, fmt.Sprintf("!%d %s", mr.IID, state))
+						continue
+					}
+					kept = append(kept, mr)
+				}
+				a.mrs = kept
+				_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
+					Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
+				a.mrsPane.reload()
+				a.worktreesPane.reload()
+				a.note("no longer open: " + strings.Join(gone, ", "))
+			}
+			then()
 		})
 	}()
 }

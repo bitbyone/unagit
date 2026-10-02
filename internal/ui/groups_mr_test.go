@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rivo/tview"
 
@@ -129,5 +130,90 @@ func TestAGroupsCommentsReachTheRightMergeRequest(t *testing.T) {
 		return a.diskOf(mr.Instance, "acme/gateway").MRs[mr.IID].Pending
 	}); pending != 1 {
 		t.Errorf("the gateway's merge request has %d waiting, want the one external comment", pending)
+	}
+}
+
+// TestARepositoryCanBeLeftOut: "(no merge request)" keeps a repository out of
+// the round, and its merge request is not opened.
+func TestARepositoryCanBeLeftOut(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/both")
+	waitFor(t, a, sc, "feat-both")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-both")
+	commitIn(t, filepath.Join(dir, "gateway"), "g.txt", "Count requests per client")
+	commitIn(t, filepath.Join(dir, "billing"), "b.txt", "Bill per counted request")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	waitFor(t, a, sc, "no upstream")
+
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "billing into")
+	mrForm := onLoop(a, func() *tview.Form {
+		_, primitive := a.pages.GetFrontPage()
+		return primitive.(*modalBox).content.(*tview.Form)
+	})
+	onLoop(a, func() bool {
+		mrForm.GetFormItemByLabel("billing into").(*tview.DropDown).SetCurrentOption(0)
+		return true
+	})
+	pressButton(t, a, sc, mrForm, "Create")
+	waitFor(t, a, sc, "1 merge request(s) created")
+	if body, _ := srv.postedMR2.Load().(string); body != "" {
+		t.Errorf("billing was left out, yet its merge request was opened: %s", body)
+	}
+	if body, _ := srv.postedMR.Load().(string); !strings.Contains(body, `"source_branch":"feat/both"`) {
+		t.Errorf("gateway's merge request was not opened: %s", body)
+	}
+}
+
+// TestAClosedMergeRequestIsLetGoOnRefresh: r in Worktrees finds a merge request
+// closed on the forge, drops it, and the worktree is free to open a new one.
+func TestAClosedMergeRequestIsLetGoOnRefresh(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/both")
+	waitFor(t, a, sc, "feat-both")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-both")
+	commitIn(t, filepath.Join(dir, "gateway"), "g.txt", "Count requests per client")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	waitFor(t, a, sc, "no upstream")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "billing into")
+	mrForm := onLoop(a, func() *tview.Form {
+		_, primitive := a.pages.GetFrontPage()
+		return primitive.(*modalBox).content.(*tview.Form)
+	})
+	pressButton(t, a, sc, mrForm, "Create")
+	waitFor(t, a, sc, "1 merge request(s) created")
+	typeRunes(sc, "c")
+	waitGone(t, a, sc, "Merge requests created")
+	waitFor(t, a, sc, "!42")
+
+	srv.closed42.Store(true)
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "no longer open: !42 closed")
+	deadline := time.Now().Add(5 * time.Second)
+	for strings.Contains(rowWith(a, sc, "feat-both"), "!42") {
+		if time.Now().After(deadline) {
+			t.Fatalf("the row still names the closed merge request: %q", rowWith(a, sc, "feat-both"))
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	if onLoop(a, func() bool {
+		for _, mr := range a.mrs {
+			if mr.IID == 42 {
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Error("the closed merge request is still in the index")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gateway")); err != nil {
+		t.Errorf("the worktree went with the merge request: %v", err)
 	}
 }

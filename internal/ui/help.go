@@ -159,7 +159,7 @@ func helpRows() []helpLine {
 		key("D  Alt-D", "Hunk: not committed · since base or a commit"),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
-		key("r", "refresh; in Worktrees fetch, sync MR comments"),
+		key("r", "refresh; Worktrees: fetch, MR states, comments"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),

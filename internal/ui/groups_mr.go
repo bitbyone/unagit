@@ -21,6 +21,9 @@ import (
 // every address is known each description gains the links to the others - a
 // reviewer of one sees the rest of the change.
 
+// noMergeRequest is the target that leaves a repository out.
+const noMergeRequest = "(no merge request)"
+
 // groupMR is one repository of a grouped worktree, about to get a merge
 // request, or having one already.
 type groupMR struct {
@@ -146,7 +149,9 @@ func (a *App) showGroupMRForm(r worktreeRow, members []groupMR, title, descripti
 			already = append(already, fmt.Sprintf("%s !%d", m.name, m.open.IID))
 			continue
 		}
-		selects[i] = addSelect(form, m.name+" into", m.targets, m.target)
+		// The first choice leaves the repository out of this round.
+		options := append([]string{noMergeRequest}, m.targets...)
+		selects[i] = addSelect(form, m.name+" into", options, m.target+1)
 	}
 	if len(already) > 0 {
 		form.AddTextView("", "Already open, linked from the new ones: "+strings.Join(already, ", "), 0, 2, true, false)
@@ -178,12 +183,18 @@ func (a *App) showGroupMRForm(r worktreeRow, members []groupMR, title, descripti
 		for i, sel := range selects {
 			req := base
 			req.SourceBranch = members[i].member.Branch
-			_, req.TargetBranch = sel.GetCurrentOption()
+			if _, req.TargetBranch = sel.GetCurrentOption(); req.TargetBranch == noMergeRequest {
+				continue
+			}
 			if members[i].client.Kind() == forge.KindGitLab {
 				req.RemoveSourceBranch = checked(labelDeleteBranch)
 				req.Squash = checked(labelSquash)
 			}
 			reqs[i] = req
+		}
+		if len(reqs) == 0 {
+			a.flash("every repository is left out - pick a target for one")
+			return
 		}
 		a.closeModal(pageForm)
 		a.createGroupMRs(r, members, reqs)

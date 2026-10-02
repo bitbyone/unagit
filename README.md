@@ -151,11 +151,16 @@ branches and the main clones stay.
 `n` opens a merge request in every repository of the group at once, from the
 branch they share. One form takes the title and the description - proposed
 from the commits of all of them - and, for each repository, the branch to
-merge into: the one its worktree was made from, unless you pick another.
+merge into: the one its worktree was made from, unless you pick another, or
+`(no merge request)` to leave that repository out of this round.
 unagit pushes what origin lacks, opens them one by one, and once every address
 is known ends each description with a **Related merge requests** list linking
 the others. A repository that would need a force push, or has nothing to
 merge into its target, is named and left out; the rest go ahead.
+
+A merge request closed or merged on the forge is let go on `r` in Worktrees:
+the worktree stays as it is, it just has no merge request any more, and `n`
+can open a new one.
 
 Run it again when another repository has caught up: the merge requests
 already open stay as they are - their new commits are pushed - only the

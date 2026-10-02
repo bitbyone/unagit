@@ -35,6 +35,8 @@ type fakeServer struct {
 	// put on merge requests, by path.
 	postedMR2 atomic.Value
 	described sync.Map
+	// closed42 makes the forge answer that !42 of acme/gateway is closed.
+	closed42 atomic.Bool
 	// mrCommits, when set, is the JSON !7 lists as its commits, for a test
 	// whose merge request is real git history.
 	mrCommits atomic.Value
@@ -127,7 +129,11 @@ func fakeGitLab(t *testing.T) *fakeServer {
 				b, _ := io.ReadAll(r.Body)
 				f.described.Store(r.URL.Path, string(b))
 			}
-			json(w, `{}`)
+			state := "opened"
+			if strings.HasSuffix(r.URL.Path, "/42") && f.closed42.Load() {
+				state = "closed"
+			}
+			json(w, `{"state":"`+state+`"}`)
 		})
 	}
 	mux.HandleFunc("/api/v4/projects/2/repository/branches", func(w http.ResponseWriter, r *http.Request) {
