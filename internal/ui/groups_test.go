@@ -89,31 +89,29 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	waitFor(t, a, sc, "REPOS")
 	waitFor(t, a, sc, "feat-multi")
 	waitFor(t, a, sc, "no upstream")
+	// Enter opens the worktree's own view: the group, then each repository.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "grouped worktree · 2 repositories")
-	for _, want := range []string{"acme/gateway", "acme/billing", "feat/multi"} {
+	waitFor(t, a, sc, "feat-multi · 2 repositories")
+	for _, want := range []string{"every repository", "acme/gateway", "acme/billing", "feat/multi"} {
 		waitFor(t, a, sc, want)
 	}
 	waitFor(t, a, sc, "up to date with origin/main") // read from git
 	waitFor(t, a, sc, "clean")
 
-	// origin's main moves on: r fetches, the row says how far the group is
-	// behind its base, the detail lists what is new, and p rebases onto it.
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	// origin's main moves on: r fetches, the view says how far each repository
+	// is behind its base, and p on the group's block rebases every one.
 	moved := gw.elsewhere("main")
 	commitIn(t, moved, "later.txt", "main moved on again")
 	gitIn(t, moved, "push", "-q", "origin", "main")
 	typeRunes(sc, "r")
-	waitFor(t, a, sc, "↓1 behind main")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "main moved on again")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "1 new on origin/main")
 	typeRunes(sc, "p")
 	waitFor(t, a, sc, "1 updated · 1 up to date")
 	gitIn(t, filepath.Join(dir, "gateway"), "merge-base", "--is-ancestor", "origin/main", "HEAD")
 
 	// d takes the worktrees and the folder; the branches and clones stay.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "every repository")
 	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Delete grouped worktree")
 	typeRunes(sc, "d")

@@ -143,7 +143,7 @@ group is made whole or not at all. Once made, Worktrees shows it with the
 cursor on it.
 
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
-and `Enter` lists each repository with its branch, its remote and its state.
+and `Enter` opens it as a view of its own (see below).
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
 pushes every repository that has commits origin lacks - a branch with nothing
 of its own yet stays local, rather than leaving an empty branch on origin -
@@ -219,10 +219,16 @@ That is the only force push unagit ever does.
 `EDITS` counts the files with uncommitted changes, so work in progress shows
 before it is committed; a grouped worktree adds up its repositories.
 
-`Enter` shows what there is to know before deciding anything: what the branch
-was made from and how far that has moved, its own commits, what is new on the
-base, the files it changes against it, what is not committed, what is not on
-origin yet, and the merge request.
+`Enter` opens a worktree as a view of its own, in blocks: a block for every
+repository - one for a worktree of its own - and, for a grouped one, a block
+for the whole group above them. `j`/`k` light a block, and the keys act on the
+one lit: on the group, `p` updates every repository, `C` commits everything,
+`n` opens the merge requests of all of them, `a` adds a repository; on a
+repository, the same keys do it for that one alone, and `w` opens its merge
+request in the browser, `c` its conversation, `l` the commits of its branch
+(Enter shows one in Hunk), `x` takes it out of the group. Each block says what
+the branch was made from and how far that has moved, where it stands against
+origin, what is not committed, its merge request and its comments.
 
 ## Integrations
 

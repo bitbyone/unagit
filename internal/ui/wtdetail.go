@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/tobola/unagit/internal/gitx"
@@ -57,7 +56,7 @@ func (a *App) gatherFacts(r worktreeRow, st remoteState) wtFacts {
 		f.head = head[0]
 	}
 	f.busy = mgr.OperationInProgress(r.Dir)
-	f.dirty = gitLines(git, r.Dir, "status", "--porcelain", "--untracked-files=all")
+	f.dirty = gitLines(git, r.Dir, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all")
 	logFormat := "--format=%h  %s  (%an, %cr)"
 
 	f.onto = st.Onto
@@ -156,19 +155,6 @@ func (a *App) commentsLine(st remoteState) string {
 	return line
 }
 
-func (a *App) mrLine(r worktreeRow) string {
-	mr, ok := a.openMRFor(r)
-	if !ok {
-		return tag(colDim) + "no open merge request · n creates one" + tagEnd
-	}
-	line := tag(colAccent) + fmt.Sprintf("!%d", mr.IID) + tagEnd + " " + esc(mr.Title)
-	if mr.WebURL != "" {
-		// Under the title, in the value column.
-		line += "\n" + strings.Repeat(" ", 14) + tag(colDim) + esc(mr.WebURL) + tagEnd
-	}
-	return line
-}
-
 // writeFacts writes the lists git answered with, under headings.
 func writeFacts(d *detailBuf, st remoteState, f wtFacts) {
 	if !f.loaded {
@@ -205,134 +191,4 @@ func writeFacts(d *detailBuf, st remoteState, f wtFacts) {
 		d.section("Latest commits")
 		d.lines(f.own, len(f.own), tag(colText))
 	}
-}
-
-// showWorktreeDetail fills the detail column with everything worth knowing
-// about one worktree.
-func (a *App) showWorktreeDetail(r worktreeRow, focus bool) {
-	p := a.worktreesPane
-	p.detailSeq++
-	seq := p.detailSeq
-	title := r.Path + " · " + r.Branch
-	st, known := a.wtRemote[r.Dir]
-
-	render := func(f wtFacts) string {
-		d := &detailBuf{}
-		d.title(r.Branch)
-		d.sub(r.Path)
-		d.section("Worktree")
-		if a.multiInstance() {
-			d.kv("Server", esc(a.instanceLabel(r.Instance)))
-		}
-		d.kv("Repository", esc(r.Path))
-		d.kv("Branch", tag(colBranch)+esc(r.Branch)+tagEnd)
-		d.kv("Made from", baseLine(st, f))
-		d.kv("Remote", a.remoteLine(st, known))
-		d.kv("Merge request", a.mrLine(r))
-		d.kv("Comments", a.commentsLine(st))
-		d.kv("State", stateLine(f))
-		if f.head != "" {
-			d.kv("HEAD", esc(f.head))
-		}
-		d.kv("Directory", esc(tildePath(r.Dir)))
-		if !r.Moved.IsZero() {
-			d.kv("Last moved", humanAge(r.Moved))
-		}
-		writeFacts(d, st, f)
-		return d.String()
-	}
-	p.openDetail(title, render(wtFacts{}), focus)
-
-	go func() {
-		f := a.gatherFacts(r, st)
-		a.tv.QueueUpdateDraw(func() {
-			if p.detailSeq == seq {
-				p.setDetail(title, render(f))
-			}
-		})
-	}()
-}
-
-// showGroupDetail fills the detail column with a grouped worktree: the folder,
-// then every repository in it, each with the same facts a worktree of its own
-// shows, the lists kept short so that all of them fit one screen or two.
-func (a *App) showGroupDetail(r worktreeRow, focus bool) {
-	p := a.worktreesPane
-	p.detailSeq++
-	seq := p.detailSeq
-	title := r.Path + " · " + fmt.Sprintf("%d repositories", len(r.Members))
-
-	render := func(facts []wtFacts) string {
-		d := &detailBuf{}
-		d.title(r.Path)
-		d.sub(fmt.Sprintf("grouped worktree · %d repositories", len(r.Members)))
-		d.section("Grouped worktree")
-		d.kv("Directory", esc(tildePath(r.Dir)))
-		if r.Branch != "" {
-			d.kv("Branch", tag(colBranch)+esc(r.Branch)+tagEnd)
-		} else {
-			d.kv("Branch", tag(colMuted)+esc(a.worktreeBranch(r))+tagEnd)
-		}
-		plain, colour := a.worktreeRemoteWords(r)
-		d.kv("Remote", tag(colour)+esc(plain)+tagEnd)
-		if !r.Moved.IsZero() {
-			d.kv("Last moved", humanAge(r.Moved))
-		}
-		for i, m := range r.Members {
-			st, known := a.wtRemote[m.Dir]
-			f := wtFacts{}
-			if i < len(facts) {
-				f = facts[i]
-			}
-			d.section(filepath.Base(m.Dir))
-			d.kv("Repository", esc(m.Path))
-			if a.multiInstance() {
-				d.kv("Server", esc(a.instanceLabel(m.Instance)))
-			}
-			d.kv("Branch", tag(colBranch)+esc(m.Branch)+tagEnd)
-			d.kv("Made from", baseLine(st, f))
-			d.kv("Remote", a.remoteLine(st, known))
-			d.kv("Merge request", a.mrLine(m))
-			d.kv("Comments", a.commentsLine(st))
-			d.kv("State", stateLine(f))
-			if f.head != "" {
-				d.kv("HEAD", esc(f.head))
-			}
-			if f.loaded && len(f.stat) > 0 {
-				// The last line of --stat is the summary: files, insertions, deletions.
-				d.kv("Changes", esc(strings.TrimSpace(f.stat[len(f.stat)-1])))
-			}
-			short := func(heading string, items []string, total int, colour string) {
-				if len(items) == 0 {
-					return
-				}
-				d.raw(tag(colDim) + heading + tagEnd + "\n")
-				d.lines(items[:min(len(items), 5)], total, colour)
-			}
-			if f.onto != "" {
-				short("Its own commits", f.own, f.ownCount, tag(colText))
-				short("New on "+f.onto, f.incoming, len(f.incoming), tag(colText))
-			}
-			short("Uncommitted", f.dirty, len(f.dirty), tag(colWarn))
-		}
-		return d.String()
-	}
-	p.openDetail(title, render(nil), focus)
-
-	members := r.Members
-	states := make([]remoteState, len(members))
-	for i, m := range members {
-		states[i] = a.wtRemote[m.Dir]
-	}
-	go func() {
-		facts := make([]wtFacts, len(members))
-		for i, m := range members {
-			facts[i] = a.gatherFacts(m, states[i])
-		}
-		a.tv.QueueUpdateDraw(func() {
-			if p.detailSeq == seq {
-				p.setDetail(title, render(facts))
-			}
-		})
-	}()
 }

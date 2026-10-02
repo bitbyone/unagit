@@ -50,6 +50,9 @@ func (a *App) helpContext() (helpContext, string) {
 		}
 		return helpMRList, "Merge requests"
 	case pageWorktrees:
+		if a.wtView != nil {
+			return helpWorktreeDetail, "Worktree view"
+		}
 		if a.worktreesPane.detailFocused {
 			return helpWorktreeDetail, "Worktree detail"
 		}
@@ -205,6 +208,14 @@ func helpRows() []helpLine {
 		key("REPOS", "how many repositories the worktree holds"),
 		key("EDITS", "files not committed; Repositories too"),
 		key("COM", "Incomm comments; amber while some wait for P"),
+		blank(),
+
+		section("A worktree's view (Enter)", helpWorktreeDetail),
+		key("j  k", "from block to block: the group, each repository"),
+		key("p  P  C", "pull · push · commit what is lit"),
+		key("w  c  l", "a repository's web page · comments · commits"),
+		key("n  D", "merge request(s) · the changes in Hunk"),
+		key("a  x", "add a repository · take the lit one out"),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),

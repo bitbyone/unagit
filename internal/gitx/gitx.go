@@ -201,7 +201,7 @@ func (s Status) Describe() string {
 // Status inspects a working tree.
 func (g *Git) Status(dir string) Status {
 	st := Status{Branch: g.CurrentBranch(dir)}
-	if out, err := g.out(dir, "status", "--porcelain"); err == nil && out != "" {
+	if out, err := g.out(dir, "--no-optional-locks", "status", "--porcelain"); err == nil && out != "" {
 		st.DirtyFiles = len(strings.Split(out, "\n"))
 		st.Dirty = true
 	}
@@ -404,7 +404,9 @@ func (g *Git) OperationInProgress(dir string) string {
 // Edits counts the files with uncommitted changes, untracked ones too; -1 when
 // git cannot say.
 func (g *Git) Edits(dir string) int {
-	out, err := g.Run(dir, "status", "--porcelain")
+	// Without the index lock: it is read in the background, and a lock taken
+	// to refresh the index fails a commit or a checkout running beside it.
+	out, err := g.Run(dir, "--no-optional-locks", "status", "--porcelain")
 	if err != nil {
 		return -1
 	}

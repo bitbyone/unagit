@@ -132,6 +132,9 @@ type App struct {
 	// open; nil for a plain start.
 	goal *Goal
 
+	// wtView is the worktree view while it is open.
+	wtView *wtView
+
 	// formModes is the NORMAL or INSERT mode of each form on screen.
 	formModes map[*tview.Form]*formMode
 
@@ -364,7 +367,7 @@ func (a *App) closeModal(page string) {
 // isModalPage reports whether a page name is one of the overlays.
 func isModalPage(name string) bool {
 	switch name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles:
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree:
 		return true
 	}
 	return false
@@ -981,6 +984,7 @@ func (a *App) refreshDisk() {
 	a.localRefreshed = time.Now()
 	a.loadWorktreeRemotes()
 	a.loadRepoSync(false)
+	a.reloadWorktreeView()
 	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
 		a.worktreesPane.reload()
 	}

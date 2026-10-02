@@ -190,28 +190,36 @@ func (a *App) removeFromGroup(r worktreeRow) {
 		items = append(items, pickItem{Label: filepath.Base(m.Dir), Sub: m.Path + " · " + m.Branch, Data: m})
 	}
 	a.showPicker("Take a repository out of - "+r.Path, items, func(it pickItem) {
-		m := it.Data.(worktreeRow)
-		warnings := a.newManager(m.Instance, m.Path, nil).InspectDir(m.Dir).Warnings
-		body := fmt.Sprintf("Take [::b]%s[::-] out of %s?\n\n%s\n\nIts branch %s stays in the repository.",
-			esc(m.Path), esc(r.Path), esc(tildePath(m.Dir)), esc(m.Branch))
-		a.confirmWith("Take out of the group", body, "Take out", warnings, func() {
-			a.runTask(fmt.Sprintf("Taking %s out of %s", m.Path, r.Path), func(log func(string)) (string, error) {
-				if err := a.newManager(m.Instance, m.Path, log).RemoveGroupMember(m.Path, m.Dir); err != nil {
-					return "", err
-				}
-				g, err := workspace.ReadGroup(r.Dir)
-				if err != nil {
-					return "", err
-				}
-				name := filepath.Base(m.Dir)
-				g.Members = slices.DeleteFunc(g.Members, func(gm workspace.GroupMember) bool { return gm.Dir == name })
-				if err := workspace.WriteGroup(r.Dir, g); err != nil {
-					return "", err
-				}
-				// An empty folder left behind would only confuse the next one.
-				_ = os.Remove(m.Dir)
-				return "", nil
-			})
+		a.confirmTakeOut(r, it.Data.(worktreeRow))
+	})
+}
+
+// confirmTakeOut asks before letting one repository of a group go.
+func (a *App) confirmTakeOut(r worktreeRow, m worktreeRow) {
+	if len(r.Members) < 2 {
+		a.flash(r.Path + " holds one repository - d deletes the group")
+		return
+	}
+	warnings := a.newManager(m.Instance, m.Path, nil).InspectDir(m.Dir).Warnings
+	body := fmt.Sprintf("Take [::b]%s[::-] out of %s?\n\n%s\n\nIts branch %s stays in the repository.",
+		esc(m.Path), esc(r.Path), esc(tildePath(m.Dir)), esc(m.Branch))
+	a.confirmWith("Take out of the group", body, "Take out", warnings, func() {
+		a.runTask(fmt.Sprintf("Taking %s out of %s", m.Path, r.Path), func(log func(string)) (string, error) {
+			if err := a.newManager(m.Instance, m.Path, log).RemoveGroupMember(m.Path, m.Dir); err != nil {
+				return "", err
+			}
+			g, err := workspace.ReadGroup(r.Dir)
+			if err != nil {
+				return "", err
+			}
+			name := filepath.Base(m.Dir)
+			g.Members = slices.DeleteFunc(g.Members, func(gm workspace.GroupMember) bool { return gm.Dir == name })
+			if err := workspace.WriteGroup(r.Dir, g); err != nil {
+				return "", err
+			}
+			// An empty folder left behind would only confuse the next one.
+			_ = os.Remove(m.Dir)
+			return "", nil
 		})
 	})
 }

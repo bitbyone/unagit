@@ -213,6 +213,10 @@ func (a *App) loadWorktreeRemotes() {
 			if a.worktreesPane != nil {
 				a.worktreesPane.reload()
 			}
+			// What git says of a repository depends on its base, known only now.
+			if a.wtView != nil {
+				a.readWorktreeFacts()
+			}
 		})
 	}()
 }
@@ -299,11 +303,8 @@ func (a *App) newWorktreesPane() *pane {
 		if idx < 0 || idx >= len(a.worktrees) {
 			return
 		}
-		if r := a.worktrees[idx]; r.grouped() {
-			a.showGroupDetail(r, focus)
-		} else {
-			a.showWorktreeDetail(r, focus)
-		}
+		// A worktree is a view of its own, not a column beside the list.
+		a.showWorktreeView(a.worktrees[idx])
 	}
 	p.onOpen = func(ask bool) {
 		r, ok := selected()
