@@ -1,6 +1,7 @@
 package ui
 
 import (
+	encjson "encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -93,8 +94,9 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		b, _ := io.ReadAll(r.Body)
 		f.postedMR.Store(string(b))
 		w.WriteHeader(http.StatusCreated)
+		// The branch the request was for, as GitLab answers.
 		json(w, `{"id":142,"iid":42,"project_id":1,"title":"created","state":"opened",
-			"source_branch":"feat/new-thing","target_branch":"main","author":{"username":"jane"},
+			"source_branch":"`+sourceOf(b, "feat/new-thing")+`","target_branch":"main","author":{"username":"jane"},
 			"web_url":"https://gl.test/acme/gateway/-/merge_requests/42","updated_at":"2026-09-25T10:00:00Z"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/repository/branches", func(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +118,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		f.postedMR2.Store(string(b))
 		w.WriteHeader(http.StatusCreated)
 		json(w, `{"id":243,"iid":43,"project_id":2,"title":"created","state":"opened",
-			"source_branch":"feat/both","target_branch":"main","author":{"username":"jane"},
+			"source_branch":"`+sourceOf(b, "feat/both")+`","target_branch":"main","author":{"username":"jane"},
 			"web_url":"https://gl.test/acme/billing/-/merge_requests/43","updated_at":"2026-09-25T10:00:00Z"}`)
 	})
 	for _, p := range []string{"/api/v4/projects/1/merge_requests/42", "/api/v4/projects/2/merge_requests/43"} {
@@ -651,4 +653,15 @@ func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
 	// The task then tries to clone from the stub, which fails. Wait for it so
 	// git is finished before the temporary directories are cleaned up.
 	waitFor(t, a, sc, "Press Esc to close")
+}
+
+// sourceOf is the source branch a posted merge request names, or fallback.
+func sourceOf(body []byte, fallback string) string {
+	var req struct {
+		Source string `json:"source_branch"`
+	}
+	if err := encjson.Unmarshal(body, &req); err != nil || req.Source == "" {
+		return fallback
+	}
+	return req.Source
 }

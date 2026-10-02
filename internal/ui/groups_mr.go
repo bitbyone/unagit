@@ -201,14 +201,17 @@ func (a *App) showGroupMRForm(r worktreeRow, members []groupMR, title, descripti
 }
 
 // createGroupMRs pushes what origin lacks, opens the merge requests, and then
-// links every new one to all the others. A repository that cannot take part -
-// a push it would have to force, nothing to merge - is named and left out; the
-// rest go ahead.
+// links all of the group's merge requests to one another - the new ones and
+// those open from an earlier round alike, so that adding a repository later
+// reaches every description. A repository that cannot take part - a push it
+// would have to force, nothing to merge - is named and left out; the rest go
+// ahead.
 func (a *App) createGroupMRs(r worktreeRow, members []groupMR, reqs map[int]forge.NewMergeRequest) {
-	type made struct {
+	type linkedMR struct {
 		mr     forge.MergeRequest
 		client forge.Provider
-		desc   string
+		desc   string // as created; "" for one open already, read when linking
+		isNew  bool
 	}
 	states := map[string]remoteState{}
 	knowns := map[string]bool{}
@@ -218,37 +221,48 @@ func (a *App) createGroupMRs(r worktreeRow, members []groupMR, reqs map[int]forg
 	a.runTask("Creating merge requests for "+r.Path, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
-		var created []made
-		var linked []forge.MergeRequest
+		var linked []linkedMR
 		var skipped []string
+		// push sends what origin lacks, never by force, and says why when it
+		// cannot.
+		push := func(m groupMR, git *gitx.Git) string {
+			st, known := states[m.member.Dir], knowns[m.member.Dir]
+			if why := pushBlocked(st, known); why != "" {
+				return why
+			}
+			if st.ForceFrom != "" {
+				return "it was rebased and needs a force push first - P"
+			}
+			if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
+				return ""
+			}
+			log(fmt.Sprintf("Pushing %s (%s)", m.project.PathWithNamespace, m.member.Branch))
+			if err := git.Push(m.member.Dir, m.member.Branch, st.Upstream.Name == ""); err != nil {
+				return firstLine(err.Error())
+			}
+			return ""
+		}
 		for i, m := range members {
+			git := a.newManager(m.member.Instance, m.member.Path, log).Git()
 			if m.open != nil {
-				linked = append(linked, *m.open)
+				// Open from an earlier round: new commits go to it.
+				if why := push(m, git); why != "" {
+					skipped = append(skipped, fmt.Sprintf("%s !%d not pushed: %s", m.name, m.open.IID, why))
+				}
+				linked = append(linked, linkedMR{mr: *m.open, client: m.client})
 				continue
 			}
 			req, ok := reqs[i]
 			if !ok {
 				continue
 			}
-			st, known := states[m.member.Dir], knowns[m.member.Dir]
-			if why := pushBlocked(st, known); why != "" || st.ForceFrom != "" {
-				if why == "" {
-					why = "it was rebased and needs a force push first - P"
-				}
-				skipped = append(skipped, m.name+": "+why)
-				continue
-			}
-			git := a.newManager(m.member.Instance, m.member.Path, log).Git()
 			if ahead, err := git.CommitsAhead(m.member.Dir, "origin/"+req.TargetBranch); err == nil && len(ahead) == 0 {
 				skipped = append(skipped, fmt.Sprintf("%s: nothing to merge into %s", m.name, req.TargetBranch))
 				continue
 			}
-			if st.Upstream.Name == "" || st.Upstream.Ahead > 0 {
-				log(fmt.Sprintf("Pushing %s (%s)", m.project.PathWithNamespace, req.SourceBranch))
-				if err := git.Push(m.member.Dir, req.SourceBranch, st.Upstream.Name == ""); err != nil {
-					skipped = append(skipped, m.name+": "+firstLine(err.Error()))
-					continue
-				}
+			if why := push(m, git); why != "" {
+				skipped = append(skipped, m.name+": "+why)
+				continue
 			}
 			log(fmt.Sprintf("Creating the merge request of %s into %s", m.project.PathWithNamespace, req.TargetBranch))
 			mr, err := m.client.CreateMergeRequest(ctx, m.project, req)
@@ -261,33 +275,55 @@ func (a *App) createGroupMRs(r worktreeRow, members []groupMR, reqs map[int]forg
 				mr.ProjectPath = m.project.PathWithNamespace
 			}
 			log(fmt.Sprintf("Created %s !%d", mr.ProjectPath, mr.IID))
-			created = append(created, made{mr: *mr, client: m.client, desc: req.Description})
-			linked = append(linked, *mr)
+			linked = append(linked, linkedMR{mr: *mr, client: m.client, desc: req.Description, isNew: true})
 		}
 
-		// Every address is known only now: each new description gets the others.
+		// Every address is known only now. Each description's list of the others
+		// is written afresh, so a later round neither repeats nor misses one.
 		if len(linked) > 1 {
-			for _, c := range created {
-				desc := relatedDescription(c.desc, c.mr, linked)
-				if err := c.client.UpdateMergeRequestDescription(ctx, c.mr, desc); err != nil {
+			all := make([]forge.MergeRequest, len(linked))
+			for i, l := range linked {
+				all[i] = l.mr
+			}
+			for _, l := range linked {
+				desc := l.desc
+				if !l.isNew {
+					det, err := l.client.MergeRequestDetail(ctx, l.mr)
+					if err != nil {
+						skipped = append(skipped, fmt.Sprintf("%s !%d: cannot read its description to link it: %s",
+							l.mr.ProjectPath, l.mr.IID, firstLine(err.Error())))
+						continue
+					}
+					desc = det.Description
+				}
+				updated := relatedDescription(desc, l.mr, all)
+				if !l.isNew && updated == desc {
+					continue
+				}
+				if err := l.client.UpdateMergeRequestDescription(ctx, l.mr, updated); err != nil {
 					skipped = append(skipped, fmt.Sprintf("%s !%d: the links to the others: %s",
-						c.mr.ProjectPath, c.mr.IID, firstLine(err.Error())))
+						l.mr.ProjectPath, l.mr.IID, firstLine(err.Error())))
 				}
 			}
 			log("Linked them to one another")
 		}
 
 		a.tv.QueueUpdateDraw(func() {
-			var lines []string
-			var urls []string
-			for _, c := range created {
-				a.adoptMergeRequest(c.mr)
-				lines = append(lines, fmt.Sprintf("[::b]%s !%d[::-]  %s", esc(c.mr.ProjectPath), c.mr.IID, esc(c.mr.WebURL)))
-				if c.mr.WebURL != "" {
-					urls = append(urls, c.mr.WebURL)
+			var lines, urls []string
+			made := 0
+			for _, l := range linked {
+				state := "linked"
+				if l.isNew {
+					a.adoptMergeRequest(l.mr)
+					state, made = "created", made+1
+					if l.mr.WebURL != "" {
+						urls = append(urls, l.mr.WebURL)
+					}
 				}
+				lines = append(lines, fmt.Sprintf("[::b]%s !%d[::-]  %s  %s", esc(l.mr.ProjectPath), l.mr.IID,
+					tag(colDim)+state+tagEnd, esc(l.mr.WebURL)))
 			}
-			body := fmt.Sprintf("%d merge request(s) created.\n\n%s", len(created), strings.Join(lines, "\n"))
+			body := fmt.Sprintf("%d merge request(s) created.\n\n%s", made, strings.Join(lines, "\n"))
 			if len(skipped) > 0 {
 				body += "\n\n" + tag(colWarn) + "Left out:" + tagEnd + "\n" + esc(strings.Join(skipped, "\n"))
 			}
@@ -307,9 +343,12 @@ func (a *App) createGroupMRs(r worktreeRow, members []groupMR, reqs map[int]forg
 // before it is the author's.
 const relatedHeading = "Related merge requests:"
 
-// relatedDescription is a description with the links to every other merge
-// request of the group appended, as markdown both forges render.
+// relatedDescription is a description with the list of every other merge
+// request of the group at its end, as markdown both forges render. A list
+// written by an earlier round is replaced, not added to; what the author wrote
+// above it stays as it is.
 func relatedDescription(desc string, self forge.MergeRequest, all []forge.MergeRequest) string {
+	desc = withoutRelated(desc)
 	var links []string
 	for _, mr := range all {
 		if mr.ProjectPath == self.ProjectPath && mr.IID == self.IID {
@@ -320,9 +359,18 @@ func relatedDescription(desc string, self forge.MergeRequest, all []forge.MergeR
 	if len(links) == 0 {
 		return desc
 	}
-	desc = strings.TrimRight(desc, "\n")
 	if desc != "" {
 		desc += "\n\n"
 	}
 	return desc + "---\n" + relatedHeading + "\n" + strings.Join(links, "\n") + "\n"
+}
+
+// withoutRelated is a description without the list unagit wrote at its end.
+func withoutRelated(desc string) string {
+	desc = strings.ReplaceAll(desc, "\r\n", "\n")
+	marker := "---\n" + relatedHeading
+	if i := strings.LastIndex(desc, marker); i >= 0 && (i == 0 || desc[i-1] == '\n') {
+		desc = desc[:i]
+	}
+	return strings.TrimRight(desc, "\n ")
 }
