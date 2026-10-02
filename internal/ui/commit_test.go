@@ -99,3 +99,37 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 		})
 	}
 }
+
+// TestCommitOfOneRepositoryInAGroupNamesIt: with changes in one repository of
+// a group, the message field is that repository's, and so is the commit.
+func TestCommitOfOneRepositoryInAGroupNamesIt(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/one")
+	waitFor(t, a, sc, "feat-one")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-one")
+	must(t, os.WriteFile(filepath.Join(dir, "billing", "a.txt"), []byte("changed\n"), 0o644))
+
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Commit · feat-one · billing · 1 file(s)")
+	waitFor(t, a, sc, "billing message")
+	text := a.screenText(sc)
+	if strings.Contains(text, "Message for all") || strings.Contains(text, "gateway message") {
+		t.Errorf("the form offers more than the one repository:\n%s", text)
+	}
+	commitForm := onLoop(a, func() *tview.Form {
+		_, primitive := a.pages.GetFrontPage()
+		return primitive.(*modalBox).content.(*tview.Form)
+	})
+	onLoop(a, func() bool {
+		commitForm.GetFormItemByLabel("billing message").(*tview.TextArea).SetText("Round half even", false)
+		return true
+	})
+	pressButton(t, a, sc, commitForm, "Commit")
+	waitFor(t, a, sc, "committed billing")
+	if got := gitIn(t, filepath.Join(dir, "billing"), "log", "-1", "--format=%s"); got != "Round half even" {
+		t.Errorf("billing's message: %q", got)
+	}
+}

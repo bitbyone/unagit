@@ -59,9 +59,14 @@ func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
 	// With several repositories the shared message says it is shared, and each
 	// repository has a field of its own under it, named as one: a bare name
 	// with a count beside it read as a number, not as somewhere to type.
+	// A group with one repository changed names it: the message is that
+	// repository's, not one for all.
 	label := "Message"
-	if len(targets) > 1 {
+	switch {
+	case len(targets) > 1:
 		label = "Message for all"
+	case r.grouped():
+		label = targets[0].name + " message"
 	}
 	message := addTextArea(form, label, "", 4)
 	own := make([]*tview.InputField, len(targets))
