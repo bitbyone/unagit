@@ -30,6 +30,12 @@ var (
 	// rest, and the ink on one that is active.
 	colSurface = tcell.Color236
 	colRaised  = tcell.Color238
+	// colFieldFocus is the field a form's focus is on, colFieldTyping the same
+	// while it is typed into.
+	colFieldFocus  = tcell.Color23
+	colFieldTyping = tcell.Color24
+	// colKey marks the letter that presses a button.
+	colKey = tcell.Color215
 )
 
 // applyTheme switches tview to single line rounded borders and a muted,

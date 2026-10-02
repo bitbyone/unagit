@@ -312,7 +312,7 @@ func (s *settingsView) newGeneralForm() *tview.Form {
 
 		return ev
 	})
-	bindFormButtons(form)
+	s.app.bindFormButtons(form)
 	return form
 }
 
@@ -350,7 +350,7 @@ func (s *settingsView) fillGeneral() {
 		s.fillGeneral()
 		s.app.note("Reverted")
 	})
-	hintForm(form)
+	s.app.hintForm(form)
 	if focused {
 		if button >= 0 {
 			item = form.GetFormItemCount() + button
@@ -1166,8 +1166,8 @@ func (a *App) showFormModal(title string, form *tview.Form, height int) {
 // The modal never grows past the terminal, so fields that should follow it have
 // to be given no width of their own.
 func (a *App) showFormModalSized(title string, form *tview.Form, width, height int) {
-	hintForm(form)
-	bindFormButtons(form)
+	a.hintForm(form)
+	a.bindFormButtons(form)
 	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)
 	form.SetCancelFunc(func() { a.closeModal(pageForm) })
 	a.pages.AddPage(pageForm, modalFixed(form, width, height+2), true, true)

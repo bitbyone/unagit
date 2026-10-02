@@ -160,7 +160,7 @@ func TestSettingsIsLegible(t *testing.T) {
 	}
 	for _, label := range []string{"Save", "Cancel"} {
 		onLoop(a, func() bool {
-			form.SetFocus(items + form.GetButtonIndex(label))
+			form.SetFocus(items + buttonIndex(form, label))
 			a.tv.SetFocus(form)
 			return true
 		})

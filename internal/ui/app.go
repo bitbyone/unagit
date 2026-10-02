@@ -132,6 +132,9 @@ type App struct {
 	// open; nil for a plain start.
 	goal *Goal
 
+	// formModes is the NORMAL or INSERT mode of each form on screen.
+	formModes map[*tview.Form]*formMode
+
 	// screenGiven is set when a screen was handed in, as tests do.
 	screenGiven bool
 	// localRefreshed is when the disk was last looked at.
@@ -270,6 +273,8 @@ func (a *App) Run() error {
 		a.screen = screen
 		return false
 	})
+	// A form in NORMAL types nothing, so no cursor blinks in its field.
+	a.tv.SetAfterDrawFunc(a.markFocusedField)
 
 	if !a.screenGiven {
 		screen, err := tcell.NewScreen()
@@ -339,6 +344,14 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 // closeModal removes a modal page and gives the keyboard back to whatever was
 // underneath it. Without this, closing a dialog would leave nothing focused.
 func (a *App) closeModal(page string) {
+	// The form of the page being closed - not whatever is in front - is gone.
+	if name, prim := a.pages.GetFrontPage(); name == page && prim != nil {
+		if box, ok := prim.(*modalBox); ok {
+			if form, ok := box.content.(*tview.Form); ok {
+				a.forgetForm(form)
+			}
+		}
+	}
 	a.pages.RemovePage(page)
 	// Modals stack: closing one can leave another underneath.
 	if name, prim := a.pages.GetFrontPage(); isModalPage(name) {

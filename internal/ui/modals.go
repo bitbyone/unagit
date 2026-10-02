@@ -34,7 +34,7 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 	keys := buttonKeys([]string{"Cancel", accept})
 	modal := tview.NewModal().
 		SetText(text).
-		AddButtons([]string{"Cancel", accept}).
+		AddButtons([]string{markKey("Cancel", keys[0]), markKey(accept, keys[1])}).
 		SetDoneFunc(func(i int, label string) {
 			a.closeModal(pageConfirm)
 			if i == 1 {
@@ -338,6 +338,10 @@ func buttonKeys(labels []string) []rune {
 			used['c'] = true
 		}
 	}
+	// The keys a form moves and starts typing with are no button's.
+	for _, key := range navigationKeys {
+		used[key] = true
+	}
 	for i, label := range labels {
 		if keys[i] != 0 {
 			continue
@@ -353,29 +357,41 @@ func buttonKeys(labels []string) []rune {
 	return keys
 }
 
+// formButtonLabels are the buttons' names, without the marked letters.
 func formButtonLabels(form *tview.Form) []string {
 	labels := make([]string, form.GetButtonCount())
 	for i := range labels {
-		labels[i] = form.GetButton(i).GetLabel()
+		labels[i] = buttonName(form.GetButton(i).GetLabel())
 	}
 	return labels
 }
 
-func formButtonHint(form *tview.Form) string {
+// formButtonHint says which mode the form is in and what the keys do there:
+// in NORMAL a button is its letter, in INSERT Alt with it.
+func (a *App) formButtonHint(form *tview.Form) string {
 	labels := formButtonLabels(form)
 	keys := buttonKeys(labels)
-	hints := make([]string, 0, len(labels)+1)
+	insert := false
+	if mode := a.formModes[form]; mode != nil {
+		insert = mode.insert
+	}
+	hints := make([]string, 0, len(labels)+2)
 	for i, label := range labels {
-		shortcut := fmt.Sprintf("Alt-%c", keys[i])
-		if _, focused := form.GetFocusedItemIndex(); focused >= 0 {
-			shortcut = string(keys[i])
+		shortcut := string(keys[i])
+		if insert {
+			shortcut = fmt.Sprintf("Alt-%c", keys[i])
 		}
 		if label == "Send" {
 			shortcut += "/Ctrl-S"
 		}
 		hints = append(hints, shortcut+" "+strings.ToLower(label))
 	}
-	return strings.Join(append(hints, "Esc back"), " · ")
+	if insert {
+		hints = append(hints, "Esc stop typing")
+	} else {
+		hints = append(hints, "i type", "Esc back")
+	}
+	return strings.Join(hints, " · ")
 }
 
 // A modal leaves one empty line beneath its buttons. Draw there after its
@@ -392,8 +408,8 @@ func (m *confirmationHint) Draw(screen tcell.Screen) {
 }
 
 // Forms keep their hints outside the scrollable fields and button row.
-func hintForm(form *tview.Form) {
-	hintPanel(form.Box, func() string { return formButtonHint(form) }, 1, 1, 2, 2)
+func (a *App) hintForm(form *tview.Form) {
+	hintPanel(form.Box, func() string { return a.formButtonHint(form) }, 1, 1, 2, 2)
 }
 
 // Reserve space inside the border so scrolling content cannot overwrite hints.
@@ -405,29 +421,6 @@ func hintPanel(panel *tview.Box, hint func() string, top, bottom, left, right in
 			tview.Print(screen, line, x+1+left, y+h-1-len(lines)+i, width, tview.AlignLeft, colDim)
 		}
 		return x + 1 + left, y + 1 + top, width, max(0, h-2-top-bottom-len(lines))
-	})
-}
-
-// Plain letters belong to the focused field. Alt shortcuts also work while
-// editing, and button activation goes through tview so disabled buttons stay inert.
-func bindFormButtons(form *tview.Form) {
-	previous := form.GetInputCapture()
-	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		if ev.Key() == tcell.KeyRune && ev.Modifiers()&tcell.ModCtrl == 0 {
-			_, focusedButton := form.GetFocusedItemIndex()
-			if ev.Modifiers()&tcell.ModAlt != 0 || focusedButton >= 0 {
-				for i, key := range buttonKeys(formButtonLabels(form)) {
-					if unicode.ToLower(ev.Rune()) == key {
-						form.GetButton(i).InputHandler()(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone), func(tview.Primitive) {})
-						return nil
-					}
-				}
-			}
-		}
-		if previous != nil {
-			return previous(ev)
-		}
-		return ev
 	})
 }
 

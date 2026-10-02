@@ -67,15 +67,16 @@ func TestSelectBoxIsReadableAndIgnoresTyping(t *testing.T) {
 	}
 	before, _ := current()
 
-	// Letters are not a way in and do not change the choice.
-	typeRunes(sc, "jj")
+	// Letters are not a way in and do not change the choice (j and k move
+	// between the fields, as everywhere in a form).
+	typeRunes(sc, "xm")
 	if now, open := current(); now != before || open {
 		t.Fatalf("typing changed the select: %q -> %q, open=%v\n%s", before, now, open, a.screenText(sc))
 	}
 
-	// The arrows open it, and its rows can be read: the current one is the
+	// Enter opens it, and its rows can be read: the current one is the
 	// selection band, the others sit on the field colour.
-	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "feat/rate")
 	assertLegible(t, a, sc, "the open select")
 	cells, w, h := onLoopCells(a, sc)

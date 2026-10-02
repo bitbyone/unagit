@@ -57,7 +57,7 @@ func pressButton(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Fo
 	t.Helper()
 	done := make(chan struct{})
 	a.tv.QueueUpdateDraw(func() {
-		idx := form.GetButtonIndex(label)
+		idx := buttonIndex(form, label)
 		if idx < 0 {
 			t.Errorf("no button %q", label)
 			close(done)
@@ -609,7 +609,8 @@ func TestSelectBoxRefusesTyping(t *testing.T) {
 	<-done
 	waitFor(t, a, sc, "https ▾")
 
-	typeRunes(sc, "ssh")
+	// Letters that press no button (s would: Save) type nothing.
+	typeRunes(sc, "xzq")
 	time.Sleep(100 * time.Millisecond)
 
 	// Nothing was typed anywhere, and the value did not change behind our back.
@@ -623,7 +624,8 @@ func TestSelectBoxRefusesTyping(t *testing.T) {
 		t.Fatalf("typing changed the selection to %q", got)
 	}
 
-	// The arrows still work.
+	// Enter opens it, the arrows move in it, Enter picks.
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	time.Sleep(100 * time.Millisecond)
@@ -681,4 +683,15 @@ func TestIncommIntegrationSetting(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// buttonIndex finds a button by its name, as the code calls it - its label
+// carries the letter that presses it.
+func buttonIndex(form *tview.Form, name string) int {
+	for i, label := range formButtonLabels(form) {
+		if label == name {
+			return i
+		}
+	}
+	return -1
 }

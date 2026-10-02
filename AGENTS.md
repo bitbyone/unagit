@@ -139,8 +139,15 @@ help text. `TestHelpIsKeysNotProse` enforces it: no row without a key, a key at
 most 15 wide, a description at most 52 long; there is no `note()` any more, so
 do not bring it back. Open `?` on the tab you changed and look at it. Keep inline hints in modals and in
 simple blocks with up to five actions, such as integrations. Dialog buttons
-use local action letters; forms use Alt plus the letter while editing, and
-plain letters when a button has focus. Inline hints stay below their context
+use local action letters, lit in their labels (`markKey`; coloured, not
+bracketed - brackets widen the row past small dialogs). Every form has a
+NORMAL and an INSERT mode (`formmode.go`, wired by `bindFormButtons` through
+`showFormModalSized`): NORMAL moves with j/k/Tab and presses a button by its
+letter, i/Enter types, Esc stops typing; in INSERT a button is Alt with its
+letter. A form whose first item is a text field opens in INSERT. h j k l i are
+no button's. The focused field is painted after the draw (`markFocusedField`),
+since tview re-colours every field on each draw. Find a button by
+`buttonName`, never by its label. Inline hints stay below their context
 and wrap when the terminal narrows. Keep `? help` in the global status line
 below all panels, including Settings; do not repeat it in panel footers.
 

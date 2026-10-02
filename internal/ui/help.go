@@ -147,8 +147,10 @@ func helpRows() []helpLine {
 
 		section("Dialogs", 0),
 		key("c  Esc", "cancel · go back"),
-		key("letter", "the action whose letter the hint shows"),
-		key("Alt-letter", "the same while typing in a form field"),
+		key("letter", "the button whose letter is lit"),
+		key("j k  Tab", "a form: from field to field, over the buttons"),
+		key("i  Enter", "type into the field; Esc stops typing"),
+		key("Alt-letter", "a button while typing"),
 		blank(),
 
 		section("Every list", helpLists|helpWorktreeList),

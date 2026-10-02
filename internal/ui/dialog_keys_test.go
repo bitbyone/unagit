@@ -72,7 +72,7 @@ func TestFormButtonShortcuts(t *testing.T) {
 		return true
 	})
 	sc.InjectKey(tcell.KeyRune, 's', tcell.ModAlt)
-	sc.InjectKey(tcell.KeyRune, 'i', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyRune, 'n', tcell.ModAlt) // i is the form's own: start typing
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModNone)
 	// Closing the modal marks that every preceding event has been handled.
 	sc.InjectKey(tcell.KeyRune, 'c', tcell.ModAlt)
@@ -87,7 +87,7 @@ func TestFormButtonShortcuts(t *testing.T) {
 		a.tv.SetFocus(form)
 		return true
 	})
-	typeRunes(sc, "ic")
+	typeRunes(sc, "nc")
 	waitGone(t, a, sc, "Shortcut form")
 	if got := onLoop(a, func() int { return inherited }); got != 2 {
 		t.Fatalf("plain button shortcut did not activate: %d", got)
@@ -96,15 +96,17 @@ func TestFormButtonShortcuts(t *testing.T) {
 
 func TestButtonShortcutCollisionsAndDisabled(t *testing.T) {
 	keys := buttonKeys([]string{"Change", "Cancel", "Clone"})
-	if string(keys) != "hcl" {
+	// h, j, k, l and i move and start typing in a form; no button takes them.
+	if string(keys) != "aco" {
 		t.Fatalf("conflicting shortcuts: %q", string(keys))
 	}
 	form := tview.NewForm()
 	called := false
 	form.AddButton("Save", func() { called = true })
 	form.GetButton(0).SetDisabled(true)
-	hintForm(form)
-	bindFormButtons(form)
+	app := &App{tv: tview.NewApplication()}
+	app.hintForm(form)
+	app.bindFormButtons(form)
 	form.InputHandler()(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt), func(tview.Primitive) {})
 	if called {
 		t.Fatal("shortcut activated disabled button")
