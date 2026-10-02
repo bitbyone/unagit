@@ -14,6 +14,7 @@ import (
 
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
@@ -38,7 +39,7 @@ func (a *App) groupRow(g workspace.GroupDir) worktreeRow {
 		}
 		branch, moved := workspace.WorktreeHead(dir)
 		row.Members = append(row.Members, worktreeRow{
-			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved, Base: m.Base})
+			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved, Base: m.Base, Group: g.Dir})
 		if moved.After(row.Moved) {
 			row.Moved = moved
 		}
@@ -272,6 +273,7 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 // then are the worktrees added. One that fails after all takes the others
 // back with it. Worktrees then shows it, for the user to open.
 func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []forge.Project) {
+	integrate := a.cfg.Integrations.Incomm
 	a.runTaskThen("Creating grouped worktree "+plan.Name, func(log func(string)) (string, error) {
 		isNew := plan.Branch != ""
 		mgrs := make([]*workspace.Manager, len(projects))
@@ -319,6 +321,13 @@ func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []f
 		if err := workspace.WriteGroup(dir, plan); err != nil {
 			undo(len(projects))
 			return "", err
+		}
+		// An editor or an agent opened on the folder keeps its Incomm comments
+		// here, not in some folder above it that happens to have a store.
+		if integrate {
+			if err := incomm.Prepare(dir); err != nil {
+				log("! could not prepare the folder for Incomm: " + err.Error())
+			}
 		}
 		log(fmt.Sprintf("Done: %d repositories in %s", len(projects), tildePath(dir)))
 		return dir, nil

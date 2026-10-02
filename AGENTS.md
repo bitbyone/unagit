@@ -180,6 +180,12 @@ or not at all: every repository is cloned and fetched, then checked
 (`CheckGroupMember` - git checks a branch out only once, so a branch the main
 clone has is refused with a reason), and only then are worktrees added; a
 failure takes back what was made. Deleting a group keeps its branches.
+Incomm in a group: the editor's store is the group folder's, one file for every
+repository, its paths under the members' folders. `incomm.Place` (a dir and a
+prefix) is how a merge request's comments are read from it - `mrPlaces` adds the
+group's place to the worktrees' - and `ImportAt` writes them back under the
+prefix. Thread.Dir stays the group's, so a published comment's source is
+recorded where it was read.
 A branch unagit makes records its base in `branch.<name>.unagitBase`;
 `UpdateBranch` rebases a branch onto that base only while it has no upstream -
 once pushed, rebasing would need a force push. `Ctrl-R` (`RebaseOntoBase`)

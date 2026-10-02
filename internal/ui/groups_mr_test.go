@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -79,5 +80,54 @@ func TestALaterRoundLinksTheEarlierMergeRequests(t *testing.T) {
 		if !ok || !strings.Contains(got.(string), other) {
 			t.Errorf("%s does not link %s: %v", path, other, got)
 		}
+	}
+}
+
+// TestAGroupsCommentsReachTheRightMergeRequest: comments kept in the group's
+// one Incomm store are counted in Worktrees and belong, path and all, to the
+// merge request of the repository they are on.
+func TestAGroupsCommentsReachTheRightMergeRequest(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	onLoop(a, func() bool { a.cfg.Integrations.Incomm = true; return true })
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/talk")
+	waitFor(t, a, sc, "feat-talk")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-talk")
+	if _, err := os.Stat(filepath.Join(dir, ".incomm")); err != nil {
+		t.Fatalf("the group has no Incomm store of its own: %v", err)
+	}
+	must(t, os.WriteFile(filepath.Join(dir, ".incomm", "notes.json"), []byte(`{"version":2,"notes":[
+ {"id":"g1","file":"gateway/a.txt","startLine":1,"author":"user","content":"on the gateway","audience":"external",
+  "replies":[{"id":"g2","author":"agent","content":"agreed","audience":"agent"}]},
+ {"id":"b1","file":"billing/a.txt","startLine":1,"author":"user","content":"on billing","audience":"agent"}
+]}`), 0o644))
+
+	// The gateway's merge request, as the index would have it.
+	mr := onLoop(a, func() forge.MergeRequest {
+		mr := forge.MergeRequest{ID: 900, IID: 77, ProjectID: 1, ProjectPath: "acme/gateway", SourceBranch: "feat/talk",
+			TargetBranch: "main", Title: "Talk", State: "opened", Instance: a.cfg.Instances[0].ID}
+		a.mrs = append(a.mrs, mr)
+		a.refreshDisk()
+		return mr
+	})
+	waitFor(t, a, sc, "COM")
+	waitForRow(t, a, sc, "feat-talk", "3") // two on the gateway, one on billing
+
+	threads := onLoop(a, func() []string {
+		var out []string
+		for _, th := range a.localThreads(mr) {
+			out = append(out, th.File+" "+th.Root.Content)
+		}
+		return out
+	})
+	if len(threads) != 1 || threads[0] != "a.txt on the gateway" {
+		t.Errorf("the gateway's merge request reads %q", threads)
+	}
+	if pending := onLoop(a, func() int {
+		return a.diskOf(mr.Instance, "acme/gateway").MRs[mr.IID].Pending
+	}); pending != 1 {
+		t.Errorf("the gateway's merge request has %d waiting, want the one external comment", pending)
 	}
 }

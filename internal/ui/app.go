@@ -116,6 +116,9 @@ type App struct {
 	repoSync    map[projectKey]remoteState
 	fetchFailed map[projectKey]string
 	fetching    int
+	// syncingComments is set while r brings merge request comments into the
+	// worktrees' Incomm stores.
+	syncingComments bool
 
 	mrProjectScope projectKey // the project the merge request list is limited to
 
@@ -950,6 +953,12 @@ func (a *App) refreshDisk() {
 				info = diskInfo{MRs: map[int]mrDisk{}}
 			}
 			info.Worktrees++
+			// The group's comments on this repository wait for its merge request.
+			if mr, open := a.openMRFor(m); open && countPending {
+				d := info.MRs[mr.IID]
+				d.Pending += incomm.PendingAt(incomm.Place{Dir: row.Dir, Prefix: filepath.Base(m.Dir) + "/"})
+				info.MRs[mr.IID] = d
+			}
 			disk[key] = info
 		}
 		worktrees = append(worktrees, row)

@@ -346,17 +346,3 @@ func (p Publisher) Publish(ctx context.Context, steps []Step) (int, error) {
 	}
 	return done, nil
 }
-
-// ThreadsOf reads the comments of every given worktree that exists.
-func ThreadsOf(dirs ...string) []Thread {
-	var threads []Thread
-	seen := map[string]bool{}
-	for _, dir := range dirs {
-		if dir == "" || seen[dir] {
-			continue
-		}
-		seen[dir] = true
-		threads = append(threads, ReadThreads(dir)...)
-	}
-	return threads
-}

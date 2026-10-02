@@ -132,9 +132,18 @@ func GroupExtras(dir string, g Group) []string {
 	entries, _ := os.ReadDir(dir)
 	var out []string
 	for _, e := range entries {
-		if !members[e.Name()] {
-			out = append(out, e.Name())
+		if members[e.Name()] {
+			continue
 		}
+		// An Incomm store with no comments in it yet is the group's own.
+		if e.Name() == ".incomm" {
+			if notes, _ := filepath.Glob(filepath.Join(dir, ".incomm", "notes*.json")); len(notes) == 0 {
+				continue
+			}
+			out = append(out, ".incomm (Incomm comments)")
+			continue
+		}
+		out = append(out, e.Name())
 	}
 	return out
 }

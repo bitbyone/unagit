@@ -159,7 +159,7 @@ func helpRows() []helpLine {
 		key("D  Alt-D", "Hunk: not committed · since base or a commit"),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
-		key("r", "refresh from the server; in Worktrees, fetch"),
+		key("r", "refresh; in Worktrees fetch, sync MR comments"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
@@ -200,6 +200,7 @@ func helpRows() []helpLine {
 		key("◆", "grouped: several repositories in one folder"),
 		key("REPOS", "how many repositories the worktree holds"),
 		key("EDITS", "files not committed; Repositories too"),
+		key("COM", "Incomm comments; amber while some wait for P"),
 		blank(),
 
 		section("Merge requests", helpMergeRequests),

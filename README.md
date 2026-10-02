@@ -162,6 +162,18 @@ already open stay as they are - their new commits are pushed - only the
 missing ones are opened, and every description's list is written afresh,
 the earlier merge requests' too. The text above the list is left alone.
 
+**Incomm in a grouped worktree.** An editor or an agent opened on the group's
+folder keeps one Incomm store there, for all its repositories: a comment on
+`gateway/src/x.go` is a comment on `src/x.go` in the gateway repository.
+unagit gives the folder that store when it makes the group, so Incomm does not
+settle in some folder above it, and reads it repository by repository: `P` on
+a merge request in Merge requests publishes the comments on its repository's
+folder, with their paths as the repository names them, and the list counts
+them as waiting. In Worktrees, `r` also brings the comments of the merge
+requests open from every worktree - a group's into its one store - and `COM`
+counts what Incomm holds, amber while some of it waits to be published.
+Opening never waits for comments: on your own work they come second.
+
 `c` commits everything a worktree has not committed - staged or not, new
 files and deletions - and in a grouped worktree every repository at once.
 One message serves all of them; any repository can be given its own instead.

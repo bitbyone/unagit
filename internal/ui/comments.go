@@ -75,15 +75,15 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		view.SetText(tag(colMuted) + "Loading the conversation…" + tagEnd)
 		// The worktrees are looked up here, where the configuration belongs to
 		// the event loop; reading their files can wait for the goroutine.
-		dirs := []string(nil)
+		var places []incomm.Place
 		if a.cfg.Integrations.Incomm {
-			dirs = a.mrWorktrees(mr)
+			places = a.mrPlaces(mr)
 		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			notes, err := client.MergeRequestNotes(ctx, mr, 200)
-			localThreads := incomm.ThreadsOf(dirs...)
+			localThreads := incomm.ThreadsAt(places...)
 			a.tv.QueueUpdateDraw(func() {
 				if err != nil {
 					view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)

@@ -148,7 +148,7 @@ func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
 }
 
 func TestLocalCommentsShowWhatIsNotPublished(t *testing.T) {
-	threads := incomm.ThreadsOf(worktreeOf(t, `{"version":2,"notes":[
+	threads := incomm.ThreadsAt(incomm.Place{Dir: worktreeOf(t, `{"version":2,"notes":[
  {"id":"a","file":"a.go","startLine":3,"author":"user","authorTitle":"Jan","content":"waiting **bold**","audience":"agent+external",
   "replies":[{"id":"a1","author":"agent","authorTitle":"Opus 5","content":"my answer","audience":"external"}]},
  {"id":"b","file":"b.go","startLine":4,"author":"agent","content":"only a note to self","audience":"agent"},
@@ -156,7 +156,7 @@ func TestLocalCommentsShowWhatIsNotPublished(t *testing.T) {
  {"id":"d","file":"d.go","startLine":6,"author":"user","content":"hidden","audience":"private"},
  {"id":"e","file":"e.go","startLine":7,"author":"user","content":"answered later","audience":"agent+external","source":{"id":5},
   "replies":[{"id":"e1","author":"user","content":"new reply","audience":"agent+external"}]}
-]}`))
+]}`)})
 	got := renderLocalThreads(threads, 80)
 	for _, want := range []string{"Local comments", "a.go:3", "not published", "Agent (Opus 5)", "my answer",
 		"b.go:4", "local", "e.go:7", "new reply"} {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
@@ -33,6 +35,9 @@ type worktreeRow struct {
 	// Base is the branch a group member was made from, as the group noted it;
 	// the repository's own note wins when there is one.
 	Base string
+	// Group is the folder of the grouped worktree a member belongs to, which
+	// holds its Incomm comments; "" for a worktree of its own.
+	Group string
 	// Members is set for a grouped worktree: a row for each repository in it.
 	// Path is then the group's name, Branch the branch they all share or "",
 	// and Dir the directory holding them.
@@ -64,6 +69,9 @@ type remoteState struct {
 	Edits int
 	// Busy is a rebase, merge, cherry-pick or revert git is in the middle of.
 	Busy string
+	// Comments counts what Incomm holds on this worktree's files, comments
+	// and replies, and Pending what of it waits to be published.
+	Comments, Pending int
 }
 
 // busyWords is an operation in progress as a column says it.
@@ -126,6 +134,7 @@ func (a *App) loadWorktreeRemotes() {
 			rows = append(rows, r)
 		}
 	}
+	integrate := a.cfg.Integrations.Incomm
 	for _, r := range rows {
 		k := projectKey{r.Instance, r.Path}
 		j := jobs[k]
@@ -176,6 +185,16 @@ func (a *App) loadWorktreeRemotes() {
 					}
 					st.Edits = max(j.git.Edits(r.Dir), 0)
 					st.Busy = j.git.OperationInProgress(r.Dir)
+					if integrate {
+						place := incomm.Place{Dir: r.Dir}
+						if r.Group != "" {
+							place = incomm.Place{Dir: r.Group, Prefix: filepath.Base(r.Dir) + "/"}
+						}
+						for _, t := range incomm.ThreadsAt(place) {
+							st.Comments += 1 + len(t.Replies)
+							st.Pending += t.PendingCount()
+						}
+					}
 					result[r.Dir] = st
 				}
 			}
@@ -246,6 +265,9 @@ func (a *App) newWorktreesPane() *pane {
 		fetching := ""
 		if a.fetching > 0 {
 			fetching = fmt.Sprintf(" · fetching %d", a.fetching)
+		}
+		if a.syncingComments {
+			fetching += " · syncing comments"
 		}
 		return fmt.Sprintf("%s%d/%d worktrees · %s%s%s", tag(colMuted), len(filtered), len(a.worktrees),
 			sortLabel(a.cfg.Filters.Order()), fetching, tagEnd)
@@ -426,7 +448,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	withServer := a.multiInstance()
 
 	repoW, branchW, serverW, pathW, actW, remoteW, mrW := 10, 6, 0, 0, 8, len("REMOTE"), len("MR")
-	reposW, editsW := len("REPOS"), len("EDITS")
+	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
 	mrs := map[int]string{}
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
@@ -467,14 +489,16 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		fields++
 	}
 	// What gives way when the row is tight, in this order: the directory, whole
-	// (half a path says nothing), the merge request, then the edits. REMOTE stays.
+	// (half a path says nothing), the merge request, the comments, then the
+	// edits. REMOTE stays. The comments are counted only with Incomm on.
 	showPath, showMR, showEdits := true, true, true
+	showComments := a.cfg.Integrations.Incomm
 	cost := func() int {
 		total, gaps := fixed, fields
 		for _, c := range []struct {
 			on bool
 			w  int
-		}{{showPath, pathW}, {showMR, mrW}, {showEdits, editsW}} {
+		}{{showPath, pathW}, {showMR, mrW}, {showComments, comW}, {showEdits, editsW}} {
 			if c.on {
 				total += c.w
 				gaps++
@@ -482,12 +506,14 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		return total + gaps
 	}
-	for room-cost() < minRepo && (showPath || showMR || showEdits) {
+	for room-cost() < minRepo && (showPath || showMR || showComments || showEdits) {
 		switch {
 		case showPath:
 			showPath = false
 		case showMR:
 			showMR = false
+		case showComments:
+			showComments = false
 		default:
 			showEdits = false
 		}
@@ -508,6 +534,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	if showMR {
 		header = append(header, field{text: "MR", width: mrW, colour: colDim})
+	}
+	if showComments {
+		header = append(header, field{text: "COM", width: comW, colour: colDim, right: true})
 	}
 	if showPath {
 		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
@@ -545,6 +574,10 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		if showMR {
 			cells = append(cells, field{text: mrs[idx], width: mrW, colour: colAccent})
 		}
+		if showComments {
+			com, colour := a.worktreeComments(r)
+			cells = append(cells, field{text: com, width: comW, colour: colour, right: true})
+		}
 		if showPath {
 			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: colMuted})
 		}
@@ -557,6 +590,28 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		first = 1
 	}
 	p.selectRow(previous, first)
+}
+
+// worktreeComments is the COM column: how many comments Incomm holds on the
+// worktree, across every repository of a grouped one - drawn as a warning
+// while some of them wait to be published. Nothing when there are none.
+func (a *App) worktreeComments(r worktreeRow) (string, tcell.Color) {
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	total, pending := 0, 0
+	for _, m := range members {
+		total += a.wtRemote[m.Dir].Comments
+		pending += a.wtRemote[m.Dir].Pending
+	}
+	if total == 0 {
+		return "", colDim
+	}
+	if pending > 0 {
+		return fmt.Sprintf("%d", total), colWarn
+	}
+	return fmt.Sprintf("%d", total), colMuted
 }
 
 // worktreeEdits is the EDITS column: how many files have uncommitted changes,

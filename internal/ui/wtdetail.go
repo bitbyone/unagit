@@ -141,6 +141,21 @@ func (a *App) remoteLine(st remoteState, known bool) string {
 	return text
 }
 
+// commentsLine says what Incomm holds on a worktree; nothing with Incomm off.
+func (a *App) commentsLine(st remoteState) string {
+	if !a.cfg.Integrations.Incomm {
+		return ""
+	}
+	if st.Comments == 0 {
+		return tag(colDim) + "none in Incomm · r brings the merge request's" + tagEnd
+	}
+	line := fmt.Sprintf("%d in Incomm", st.Comments)
+	if st.Pending > 0 {
+		return line + tag(colWarn) + fmt.Sprintf(" · %d not published · P in Merge requests", st.Pending) + tagEnd
+	}
+	return line
+}
+
 func (a *App) mrLine(r worktreeRow) string {
 	mr, ok := a.openMRFor(r)
 	if !ok {
@@ -214,6 +229,7 @@ func (a *App) showWorktreeDetail(r worktreeRow, focus bool) {
 		d.kv("Made from", baseLine(st, f))
 		d.kv("Remote", a.remoteLine(st, known))
 		d.kv("Merge request", a.mrLine(r))
+		d.kv("Comments", a.commentsLine(st))
 		d.kv("State", stateLine(f))
 		if f.head != "" {
 			d.kv("HEAD", esc(f.head))
@@ -277,6 +293,7 @@ func (a *App) showGroupDetail(r worktreeRow, focus bool) {
 			d.kv("Made from", baseLine(st, f))
 			d.kv("Remote", a.remoteLine(st, known))
 			d.kv("Merge request", a.mrLine(m))
+			d.kv("Comments", a.commentsLine(st))
 			d.kv("State", stateLine(f))
 			if f.head != "" {
 				d.kv("HEAD", esc(f.head))

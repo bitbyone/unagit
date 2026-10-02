@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,23 +13,32 @@ import (
 	"github.com/tobola/unagit/internal/incomm"
 )
 
-// mrWorktrees are the two directories a merge request's Incomm comments can
-// live in: the branch worktree and the review one.
-func (a *App) mrWorktrees(mr forge.MergeRequest) []string {
+// mrPlaces are where a merge request's Incomm comments can live: its branch
+// worktree, its review worktree, and every grouped worktree holding its
+// branch, where they are the comments on that repository's folder.
+func (a *App) mrPlaces(mr forge.MergeRequest) []incomm.Place {
 	path := a.projectPathOfMR(mr)
-	return []string{
-		a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch),
-		a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch),
+	places := []incomm.Place{
+		{Dir: a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)},
+		{Dir: a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)},
 	}
+	for _, r := range a.worktrees {
+		for _, m := range r.Members {
+			if m.Instance == mr.Instance && m.Path == path && m.Branch == mr.SourceBranch {
+				places = append(places, incomm.Place{Dir: r.Dir, Prefix: filepath.Base(m.Dir) + "/"})
+			}
+		}
+	}
+	return places
 }
 
-// localThreads reads the Incomm comments of a merge request's worktrees, or
-// nothing when the integration is off.
+// localThreads reads the Incomm comments of a merge request, or nothing when
+// the integration is off.
 func (a *App) localThreads(mr forge.MergeRequest) []incomm.Thread {
 	if !a.cfg.Integrations.Incomm {
 		return nil
 	}
-	return incomm.ThreadsOf(a.mrWorktrees(mr)...)
+	return incomm.ThreadsAt(a.mrPlaces(mr)...)
 }
 
 // maxListed keeps the confirmation on one screen; the rest is counted.
@@ -95,11 +105,11 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 		return
 	}
 	path := a.projectPathOfMR(mr)
-	dirs := a.mrWorktrees(mr)
+	places := a.mrPlaces(mr)
 	a.runTask(fmt.Sprintf("Preparing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		threads := incomm.ThreadsOf(dirs...)
+		threads := incomm.ThreadsAt(places...)
 		state := map[string]bool{}
 		if incomm.NeedsForgeState(threads) {
 			log("Asking the forge which threads are resolved ...")
@@ -120,7 +130,7 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 		// put up on top of it and outlives it.
 		a.tv.QueueUpdateDraw(func() {
 			a.confirmWith("Publish comments", publishSummary(path, mr, steps), "Publish", nil, func() {
-				a.runPublish(mr, path, client, dirs, steps, state)
+				a.runPublish(mr, path, client, places, steps, state)
 			})
 		})
 		return "", nil
@@ -132,7 +142,7 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 // agreed to goes out. The lines are the ones Incomm has stored: re-anchoring
 // happens when a worktree is updated (Ctrl-O, Ctrl-R), and the editors keep them
 // current while a file is open.
-func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provider, dirs []string, confirmed []incomm.Step, state map[string]bool) {
+func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provider, places []incomm.Place, confirmed []incomm.Step, state map[string]bool) {
 	a.runTask(fmt.Sprintf("Publishing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		// What went out stays recorded even when a later post fails, so the
 		// lists are refreshed either way.
@@ -142,7 +152,7 @@ func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provid
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		steps := incomm.Confirmed(incomm.PlanResolving(incomm.ThreadsOf(dirs...), state), confirmed)
+		steps := incomm.Confirmed(incomm.PlanResolving(incomm.ThreadsAt(places...), state), confirmed)
 		if gone := len(confirmed) - len(steps); gone > 0 {
 			log(fmt.Sprintf("%d of the confirmed items are no longer pending and are left out.", gone))
 		}
@@ -196,4 +206,68 @@ func localBubble(c incomm.Comment, indent int) bubble {
 		meta = tag(colDim) + "local" + tagEnd
 	}
 	return bubble{Name: name, Colour: colour, Meta: meta, Body: c.Content, Indent: indent}
+}
+
+// syncWorktreeComments brings the comments of the merge requests open from the
+// worktrees into their Incomm stores - from every repository of a grouped one
+// into the group's store, each on its repository's folder - so that whoever
+// works there reads them beside the code. It runs in the background on r;
+// opening a worktree never waits for it, since these comments are on one's own
+// work and come second to it. Running it again adds only what is new.
+func (a *App) syncWorktreeComments(rows []worktreeRow, then func()) {
+	type source struct {
+		mr     forge.MergeRequest
+		client forge.Provider
+		place  incomm.Place
+	}
+	var sources []source
+	var prepare []string
+	for _, r := range rows {
+		members := []worktreeRow{r}
+		if r.grouped() {
+			members = r.Members
+		}
+		for _, m := range members {
+			mr, ok := a.openMRFor(m)
+			client := a.client(m.Instance)
+			if !ok || client == nil {
+				continue
+			}
+			place := incomm.Place{Dir: r.Dir}
+			if r.grouped() {
+				place.Prefix = filepath.Base(m.Dir) + "/"
+			}
+			sources = append(sources, source{mr: mr, client: client, place: place})
+			prepare = append(prepare, r.Dir)
+		}
+	}
+	if len(sources) == 0 {
+		then()
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		var failed []string
+		for _, dir := range prepare {
+			_ = incomm.Prepare(dir)
+		}
+		for _, s := range sources {
+			notes, err := s.client.MergeRequestNotes(ctx, s.mr, 0)
+			if err == nil {
+				err = incomm.ImportAt(ctx, s.place, s.mr, notes, nil)
+			}
+			if err != nil {
+				failed = append(failed, fmt.Sprintf("!%d: %s", s.mr.IID, firstLine(err.Error())))
+			}
+		}
+		a.tv.QueueUpdateDraw(func() {
+			if len(failed) > 0 {
+				a.flash("comments not synced from " + strings.Join(failed, "; "))
+			} else {
+				a.note(fmt.Sprintf("synced the comments of %d merge request(s)", len(sources)))
+			}
+			then()
+		})
+	}()
 }

@@ -1,15 +1,18 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -193,6 +196,9 @@ type updateItem struct {
 	path     string
 	dir      string
 	base     string
+	// notes is where its Incomm comments live, re-anchored once it moved: the
+	// worktree itself, or the folder of the group it belongs to.
+	notes string
 }
 
 // updateProject brings the main clone's branch up to origin: a fast-forward
@@ -241,7 +247,7 @@ func (a *App) worktreeItems(rows []worktreeRow) []updateItem {
 				base = m.Base
 			}
 			label := m.Path + " (" + m.Branch + ")"
-			items = append(items, updateItem{label: label, instance: m.Instance, path: m.Path, dir: m.Dir, base: base})
+			items = append(items, updateItem{label: label, instance: m.Instance, path: m.Path, dir: m.Dir, base: base, notes: r.Dir})
 		}
 	}
 	return items
@@ -290,7 +296,23 @@ func (a *App) rebaseWorktree(r worktreeRow) {
 
 // moveMany runs move - an update or a rebase - over working trees.
 func (a *App) moveMany(title string, items []updateItem, move func(*workspace.Manager, string, string) (string, error)) {
+	integrate := a.cfg.Integrations.Incomm
 	a.runTaskNoting(title, func(log func(string)) (string, error) {
+		// The code moved under the comments: put them back on it, whatever
+		// came of the moves.
+		if integrate {
+			defer func() {
+				var dirs []string
+				for _, it := range items {
+					dirs = append(dirs, it.notes)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				if err := incomm.Reanchor(ctx, dirs...); err != nil {
+					log("! Incomm could not re-anchor the comments: " + err.Error())
+				}
+			}()
+		}
 		if len(items) == 1 {
 			it := items[0]
 			outcome, err := move(a.newManager(it.instance, it.path, log), it.dir, it.base)
@@ -387,7 +409,21 @@ func (a *App) fetchWorktrees() {
 			}()
 		}
 		wg.Wait()
-		a.tv.QueueUpdateDraw(a.loadWorktreeRemotes)
+		a.tv.QueueUpdateDraw(func() {
+			if !a.cfg.Integrations.Incomm {
+				a.loadWorktreeRemotes()
+				return
+			}
+			// r is also when the merge requests' comments come in: by hand,
+			// never on opening.
+			a.syncingComments = true
+			a.reloadWorktreesHeader()
+			a.syncWorktreeComments(a.worktrees, func() {
+				a.syncingComments = false
+				a.loadWorktreeRemotes()
+				a.reloadWorktreesHeader()
+			})
+		})
 	}()
 }
 
