@@ -28,15 +28,15 @@ func TestCommitEverythingInAGroup(t *testing.T) {
 
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Commit · feat-c · 3 file(s)")
-	waitFor(t, a, sc, "gateway · 2")
-	waitFor(t, a, sc, "billing · 1")
+	waitFor(t, a, sc, "gateway 2 files")
+	waitFor(t, a, sc, "billing message")
 	commitForm := onLoop(a, func() *tview.Form {
 		_, primitive := a.pages.GetFrontPage()
 		return primitive.(*modalBox).content.(*tview.Form)
 	})
 	onLoop(a, func() bool {
-		commitForm.GetFormItemByLabel("Message").(*tview.TextArea).SetText("Count and bill\n\nBoth sides.", false)
-		commitForm.GetFormItemByLabel("billing · 1").(*tview.InputField).SetText("Bill what was counted")
+		commitForm.GetFormItemByLabel("Message for all").(*tview.TextArea).SetText("Count and bill\n\nBoth sides.", false)
+		commitForm.GetFormItemByLabel("billing message").(*tview.InputField).SetText("Bill what was counted")
 		return true
 	})
 	pressButton(t, a, sc, commitForm, "Commit")
@@ -75,7 +75,7 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 			}
 			resize(sc, size.w, size.h)
 			typeRunes(sc, "c")
-			waitFor(t, a, sc, "billing · 1")
+			waitFor(t, a, sc, "billing message")
 			commitForm := onLoop(a, func() *tview.Form {
 				_, primitive := a.pages.GetFrontPage()
 				return primitive.(*modalBox).content.(*tview.Form)
@@ -90,7 +90,7 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 					break
 				}
 			}
-			for _, want := range []string{"Message", "gateway · 1", "billing · 1"} {
+			for _, want := range []string{"Message for all", "gateway message", "billing message", "billing 1 file"} {
 				if !strings.Contains(a.screenText(sc), want) {
 					t.Errorf("%q is not on screen:\n%s", want, a.screenText(sc))
 				}

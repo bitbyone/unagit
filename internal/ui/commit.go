@@ -56,14 +56,25 @@ func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.SetItemPadding(1)
-	message := addTextArea(form, "Message", "", 4)
+	// With several repositories the shared message says it is shared, and each
+	// repository has a field of its own under it, named as one: a bare name
+	// with a count beside it read as a number, not as somewhere to type.
+	label := "Message"
+	if len(targets) > 1 {
+		label = "Message for all"
+	}
+	message := addTextArea(form, label, "", 4)
 	own := make([]*tview.InputField, len(targets))
 	if len(targets) > 1 {
-		form.AddTextView("", "Own message per repository; empty uses the one above.", 0, 1, true, false)
+		counts := make([]string, len(targets))
 		for i, t := range targets {
-			label := fmt.Sprintf("%s · %d", t.name, t.edits)
-			form.AddInputField(label, "", 0, nil, nil)
-			own[i] = form.GetFormItemByLabel(label).(*tview.InputField)
+			counts[i] = fmt.Sprintf("%s %d file%s", t.name, t.edits, plural(t.edits, "", "s"))
+		}
+		form.AddTextView("", strings.Join(counts, " · ")+"\nOr a message of its own for a repository:", 0, 2, true, false)
+		for i, t := range targets {
+			field := t.name + " message"
+			form.AddInputField(field, "", 0, nil, nil)
+			own[i] = form.GetFormItemByLabel(field).(*tview.InputField)
 		}
 	}
 	commit := func() {
@@ -108,7 +119,12 @@ func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
 	}
 	height := 10
 	if len(targets) > 1 {
-		height += 2 + 2*len(targets)
+		height += 3 + 2*len(targets)
 	}
-	a.showFormModalSized(fmt.Sprintf("Commit · %s · %d file(s)", r.Path, files), form, 84, height)
+	// A group with one repository changed says which one is committed.
+	title := r.Path
+	if r.grouped() && len(targets) == 1 {
+		title += " · " + targets[0].name
+	}
+	a.showFormModalSized(fmt.Sprintf("Commit · %s · %d file(s)", title, files), form, 84, height)
 }
