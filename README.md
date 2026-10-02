@@ -153,10 +153,18 @@ branch they share. One form takes the title and the description - proposed
 from the commits of all of them - and, for each repository, the branch to
 merge into: the one its worktree was made from, unless you pick another.
 unagit pushes what origin lacks, opens them one by one, and once every address
-is known appends to each description a **Related merge requests** list linking
-the others, those already open included. A repository that would need a force
-push, or has nothing to merge into its target, is named and left out; the
-rest go ahead.
+is known ends each description with a **Related merge requests** list linking
+the others. A repository that would need a force push, or has nothing to
+merge into its target, is named and left out; the rest go ahead.
+
+Run it again when another repository has caught up: the merge requests
+already open stay as they are - their new commits are pushed - only the
+missing ones are opened, and every description's list is written afresh,
+the earlier merge requests' too. The text above the list is left alone.
+
+`c` commits everything a worktree has not committed - staged or not, new
+files and deletions - and in a grouped worktree every repository at once.
+One message serves all of them; any repository can be given its own instead.
 
 ### Keeping worktrees current
 

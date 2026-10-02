@@ -349,6 +349,11 @@ func (a *App) newWorktreesPane() *pane {
 				a.diffKey(a.worktreeDiff(r))
 			}
 			return nil
+		case 'c':
+			if r, ok := selected(); ok {
+				a.commitWorktree(r)
+			}
+			return nil
 		case 'P':
 			r, ok := selected()
 			switch {
