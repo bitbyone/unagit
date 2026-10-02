@@ -147,8 +147,9 @@ and `Enter` lists each repository with its branch, its remote and its state.
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
 pushes every repository that has commits origin lacks - a branch with nothing
 of its own yet stays local, rather than leaving an empty branch on origin -
-`U` deletes the branches on origin again (never one a merge request is open
-on; the local branches stay), and `d` deletes the worktrees - the
+`U` deletes branches on origin again - in a group, the repositories you pick
+with space, none to begin with; never one a merge request is open on; the
+local branches stay - and `d` deletes the worktrees - the
 branches and the main clones stay.
 
 A group grows and shrinks a repository at a time. `a` lists the repositories

@@ -125,10 +125,21 @@ func TestPushLeavesEmptyBranchesAndUTakesThemBack(t *testing.T) {
 
 	onLoop(a, func() bool { a.refreshDisk(); return true })
 	waitFor(t, a, sc, "1/2") // the gateway in sync, billing not pushed
+	// In a group the repositories are picked first, none to begin with.
 	typeRunes(sc, "U")
+	waitFor(t, a, sc, "Delete on origin - feat-push")
+	waitFor(t, a, sc, "0 picked")
+	if strings.Contains(a.screenText(sc), "billing") {
+		t.Errorf("billing, not on origin, is offered:\n%s", a.screenText(sc))
+	}
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "pick a repository with space first")
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "1 picked")
+	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Delete these branches on origin?")
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "deleted on origin: feat/push")
+	waitFor(t, a, sc, "deleted on origin: gateway feat/push")
 	if onOrigin(gw) {
 		t.Error("the branch is still on origin")
 	}
