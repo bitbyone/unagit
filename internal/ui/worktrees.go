@@ -72,6 +72,9 @@ type remoteState struct {
 	// Comments counts what Incomm holds on this worktree's files, comments
 	// and replies, and Pending what of it waits to be published.
 	Comments, Pending int
+	// Own counts, for a branch origin does not have, the commits that are on
+	// no branch of origin: none means pushing would add an empty branch.
+	Own int
 }
 
 // busyWords is an operation in progress as a column says it.
@@ -170,6 +173,9 @@ func (a *App) loadWorktreeRemotes() {
 					st := remoteState{Upstream: upstreams[r.Branch], Base: bases[r.Branch]}
 					if st.Base == "" {
 						st.Base = r.Base
+					}
+					if st.Upstream.Name == "" {
+						st.Own = j.git.OwnCommits(r.Dir)
 					}
 					if st.Base != "" && st.Upstream.Name == "" {
 						st.Onto = j.git.BaseRef(r.Dir, st.Base)
@@ -379,6 +385,11 @@ func (a *App) newWorktreesPane() *pane {
 		case 'a':
 			if r, ok := selected(); ok {
 				a.addToGroup(r)
+			}
+			return nil
+		case 'U':
+			if r, ok := selected(); ok {
+				a.unpublishBranches(r)
 			}
 			return nil
 		case 'x':
@@ -862,6 +873,10 @@ func (a *App) pushWorktree(r worktreeRow) {
 	}
 	if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
 		a.flash(r.Branch + " is already on origin")
+		return
+	}
+	if st.Upstream.Name == "" && st.Own == 0 {
+		a.flash(r.Branch + " has nothing of its own to push yet - commit first")
 		return
 	}
 	setUpstream := st.Upstream.Name == ""

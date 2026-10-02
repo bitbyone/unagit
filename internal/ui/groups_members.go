@@ -215,3 +215,66 @@ func (a *App) removeFromGroup(r worktreeRow) {
 		})
 	})
 }
+
+// unpublishBranches takes the branches of a worktree - every repository's, in a
+// grouped one - off origin: a push made too early, or work that is over. The
+// local branches and the worktrees stay; they only stop tracking origin. A
+// branch with an open merge request is left alone, since taking it away would
+// close or break the merge request.
+func (a *App) unpublishBranches(r worktreeRow) {
+	type gone struct {
+		member worktreeRow
+		remote string
+	}
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	var drop []gone
+	var lines, kept, warnings []string
+	for _, m := range members {
+		st := a.wtRemote[m.Dir]
+		u := st.Upstream
+		if u.Name == "" || u.Gone {
+			continue
+		}
+		name := filepath.Base(m.Dir)
+		if !r.grouped() {
+			name = m.Path
+		}
+		if mr, ok := a.openMRFor(m); ok {
+			kept = append(kept, fmt.Sprintf("%s: !%d is open on it", name, mr.IID))
+			continue
+		}
+		drop = append(drop, gone{member: m, remote: strings.TrimPrefix(u.Name, "origin/")})
+		lines = append(lines, fmt.Sprintf("%s  %s", name, u.Name))
+		if u.Behind > 0 {
+			warnings = append(warnings, fmt.Sprintf("%s: origin has %d commit(s) this worktree lacks; they go with it", name, u.Behind))
+		}
+	}
+	if len(drop) == 0 {
+		if len(kept) > 0 {
+			a.flash("nothing to take off origin - " + strings.Join(kept, "; "))
+		} else {
+			a.flash(r.Path + " has no branch on origin")
+		}
+		return
+	}
+	body := fmt.Sprintf("Delete these branches on origin?\n\n%s\n\nThe local branches and the worktree stay.", esc(strings.Join(lines, "\n")))
+	if len(kept) > 0 {
+		body += "\n\n" + tag(colDim) + "Left alone: " + esc(strings.Join(kept, "; ")) + tagEnd
+	}
+	a.confirmWith("Delete on origin", body, "Delete on origin", warnings, func() {
+		a.runTaskNoting("Taking branches of "+r.Path+" off origin", func(log func(string)) (string, error) {
+			var done []string
+			for _, d := range drop {
+				git := a.newManager(d.member.Instance, d.member.Path, log).Git()
+				if err := git.DeleteRemoteBranch(d.member.Dir, d.member.Branch, d.remote); err != nil {
+					return "", fmt.Errorf("%s: %w", d.member.Path, err)
+				}
+				done = append(done, d.remote)
+			}
+			return "deleted on origin: " + strings.Join(done, ", "), nil
+		})
+	})
+}

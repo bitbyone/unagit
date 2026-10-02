@@ -2,9 +2,11 @@ package ui
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -76,5 +78,64 @@ func TestAGroupGrowsAndShrinks(t *testing.T) {
 	waitFor(t, a, sc, "d deletes the group")
 	if _, err := os.Stat(filepath.Join(dir, "gateway")); err != nil {
 		t.Errorf("the last repository went: %v", err)
+	}
+}
+
+// TestPushLeavesEmptyBranchesAndUTakesThemBack: P pushes only the branches
+// that have commits of their own; U deletes a branch on origin again, leaving
+// the local one.
+func TestPushLeavesEmptyBranchesAndUTakesThemBack(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	gw, bl, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/push")
+	waitFor(t, a, sc, "feat-push")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-push")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	waitFor(t, a, sc, "no upstream")
+
+	onOrigin := func(p *realProject) bool {
+		return strings.Contains(gitIn(t, p.origin, "branch", "--list", "feat/push"), "feat/push")
+	}
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "nothing to push from feat-push")
+	if onOrigin(gw) || onOrigin(bl) {
+		t.Fatal("an empty branch was pushed")
+	}
+
+	commitIn(t, filepath.Join(dir, "gateway"), "g.txt", "Count requests")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	// The gateway's commit is counted before P is pressed.
+	deadline := time.Now().Add(5 * time.Second)
+	for onLoop(a, func() int { return a.wtRemote[filepath.Join(dir, "gateway")].Own }) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the gateway's own commit was never counted")
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	typeRunes(sc, "P")
+	deadline = time.Now().Add(5 * time.Second)
+	for !onOrigin(gw) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !onOrigin(gw) || onOrigin(bl) {
+		t.Fatalf("pushed: gateway %v, billing %v; want the gateway alone", onOrigin(gw), onOrigin(bl))
+	}
+
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	waitFor(t, a, sc, "1/2") // the gateway in sync, billing not pushed
+	typeRunes(sc, "U")
+	waitFor(t, a, sc, "Delete these branches on origin?")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "deleted on origin: feat/push")
+	if onOrigin(gw) {
+		t.Error("the branch is still on origin")
+	}
+	if up, err := exec.Command("git", "-C", filepath.Join(dir, "gateway"), "rev-parse", "--abbrev-ref", "@{upstream}").Output(); err == nil {
+		t.Errorf("the local branch still tracks %s", up)
+	}
+	if !strings.Contains(gitIn(t, gw.clone, "branch", "--list", "feat/push"), "feat/push") {
+		t.Error("the local branch went too")
 	}
 }

@@ -292,6 +292,29 @@ func (g *Git) BaseRef(dir, base string) string {
 	return ""
 }
 
+// OwnCommits counts the commits of HEAD that are on no branch of origin: what
+// a push of a branch new to origin would actually bring there. A branch just
+// made from origin's main has none, and pushing it would only add an empty
+// branch.
+func (g *Git) OwnCommits(dir string) int {
+	out, err := g.out(dir, "rev-list", "--count", "HEAD", "--not", "--remotes=origin")
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(out)
+	return n
+}
+
+// DeleteRemoteBranch takes a branch off origin and stops the local one
+// tracking it, so it reads as not pushed rather than as gone.
+func (g *Git) DeleteRemoteBranch(dir, branch, remoteBranch string) error {
+	if _, err := g.Run(dir, "push", "origin", "--delete", remoteBranch); err != nil {
+		return err
+	}
+	_, _ = g.Run(dir, "branch", "--unset-upstream", branch)
+	return nil
+}
+
 // Count is how many commits a range holds, 0 when git cannot say.
 func (g *Git) Count(dir, revRange string) int {
 	out, err := g.out(dir, "rev-list", "--count", revRange)

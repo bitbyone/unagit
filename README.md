@@ -145,7 +145,10 @@ cursor on it.
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` lists each repository with its branch, its remote and its state.
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
-pushes every repository that needs it, and `d` deletes the worktrees - the
+pushes every repository that has commits origin lacks - a branch with nothing
+of its own yet stays local, rather than leaving an empty branch on origin -
+`U` deletes the branches on origin again (never one a merge request is open
+on; the local branches stay), and `d` deletes the worktrees - the
 branches and the main clones stay.
 
 A group grows and shrinks a repository at a time. `a` lists the repositories

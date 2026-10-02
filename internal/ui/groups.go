@@ -412,13 +412,18 @@ func (a *App) pushGroup(r worktreeRow) {
 		if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
 			continue
 		}
+		// A branch new to origin with no commits of its own would only put an
+		// empty branch there.
+		if st.Upstream.Name == "" && st.Own == 0 {
+			continue
+		}
 		pushes = append(pushes, push{member: m, setUpstream: st.Upstream.Name == ""})
 	}
 	if len(pushes) == 0 {
 		if len(skipped) > 0 {
 			a.flash(skipped[0])
 		} else {
-			a.flash("every repository of " + r.Path + " is already on origin")
+			a.flash("nothing to push from " + r.Path + ": what is committed is on origin already")
 		}
 		return
 	}
