@@ -177,7 +177,7 @@ func (a *App) addGroupMember(r worktreeRow, pr forge.Project, member workspace.G
 		return r.Dir, nil
 	}, func(dir string) {
 		a.showWorktreeAt(dir)
-		a.note(fmt.Sprintf("added %s to %s", pr.PathWithNamespace, r.Path))
+		a.done(fmt.Sprintf("added %s to %s", pr.PathWithNamespace, r.Path))
 	})
 }
 

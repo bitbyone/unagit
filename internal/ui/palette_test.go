@@ -50,22 +50,11 @@ func TestAnActionMatchesItsOwnKeyAndNoOther(t *testing.T) {
 func TestNoTwoActionsShareAKey(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	lists := onLoop(a, func() map[string][]uiAction {
-		pr := a.projects[0]
-		mr := a.mrs[0]
-		single := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: "b", Dir: "/x"}
-		group := worktreeRow{Path: "g", Dir: "/g", Members: []worktreeRow{single}}
-		v := &wtView{row: group, at: 1}
-		return map[string][]uiAction{
-			"repository":        append(a.repositoryActions(a.projectsPane, pr), a.repositoriesActions(a.projectsPane)...),
-			"merge request":     append(a.mergeRequestActions(a.mrsPane, mr), a.mergeRequestsActions(a.mrsPane)...),
-			"worktree":          append(a.worktreeListActions(a.worktreesPane, single), a.worktreesActions(a.worktreesPane)...),
-			"grouped worktree":  append(a.worktreeListActions(a.worktreesPane, group), a.worktreesActions(a.worktreesPane)...),
-			"a view's member":   append(a.worktreeViewActions(v), a.worktreeViewScreenActions()...),
-			"marked repository": a.markedRepositoryActions(a.projectsPane, a.projects),
-		}
-	})
+	lists := actionLists(a)
 	for list, acts := range lists {
+		if strings.HasPrefix(list, "settings") {
+			continue
+		}
 		always := map[string]string{}
 		for _, act := range acts {
 			if act.keys == "" {
@@ -85,6 +74,98 @@ func TestNoTwoActionsShareAKey(t *testing.T) {
 	}
 }
 
+// actionLists is every list of actions there is, each screen's with the
+// selection's, and every section of Settings.
+func actionLists(a *App) map[string][]uiAction {
+	return onLoop(a, func() map[string][]uiAction {
+		pr := a.projects[0]
+		mr := a.mrs[0]
+		single := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: "b", Dir: "/x"}
+		group := worktreeRow{Path: "g", Dir: "/g", Members: []worktreeRow{single}}
+		v := &wtView{row: group, at: 1}
+		lists := map[string][]uiAction{
+			"repository":        append(a.repositoryActions(a.projectsPane, pr), a.repositoriesActions(a.projectsPane)...),
+			"merge request":     append(a.mergeRequestActions(a.mrsPane, mr), a.mergeRequestsActions(a.mrsPane)...),
+			"worktree":          append(a.worktreeListActions(a.worktreesPane, single), a.worktreesActions(a.worktreesPane)...),
+			"grouped worktree":  append(a.worktreeListActions(a.worktreesPane, group), a.worktreesActions(a.worktreesPane)...),
+			"a view's member":   append(a.worktreeViewActions(v), a.worktreeViewScreenActions()...),
+			"marked repository": a.markedRepositoryActions(a.projectsPane, a.projects),
+		}
+		s := a.settings
+		was := s.current
+		for i, name := range sectionNames {
+			s.current = i
+			_, acts := s.settingsSelection()
+			_, screen := s.settingsScreen()
+			lists["settings · "+name] = append(acts, screen...)
+		}
+		s.current = was
+		return lists
+	})
+}
+
+// TestEveryActionIsNamedAndExplained: the pickers list actions by a short
+// name and explain the one under the cursor below, so every action has both,
+// the name a few words and the explanation a sentence that fits the pane.
+func TestEveryActionIsNamedAndExplained(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	for list, acts := range actionLists(a) {
+		for _, act := range acts {
+			if n := len([]rune(act.name)); n == 0 || n > 24 || strings.ContainsAny(act.name, ":,;") {
+				t.Errorf("%s: %q is not a short name", list, act.name)
+			}
+			if act.about == "" {
+				t.Errorf("%s: %q does not say what it does", list, act.name)
+			} else if lines := len(tview.WordWrap(act.about, 76)); lines > explainLines {
+				t.Errorf("%s: %q takes %d lines to explain", list, act.name, lines)
+			}
+		}
+	}
+}
+
+// TestTheActionPickerFitsWhatItHolds: it is as wide as its rows rather than
+// most of the screen, centred, its frame whole; on a short terminal the list
+// scrolls and the explanation of the action under the cursor stays at the
+// bottom.
+func TestTheActionPickerFitsWhatItHolds(t *testing.T) {
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 20}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			a, sc := newTestApp(t)
+			waitFor(t, a, sc, "acme/gateway")
+			resize(sc, size.w, size.h)
+			typeRunes(sc, ":")
+			waitFor(t, a, sc, "Ask the servers for the repositories")
+			frame := onLoop(a, func() rect {
+				_, prim := a.pages.GetFrontPage()
+				x, y, w, h := prim.(*modalBox).content.GetRect()
+				return rect{x, y, w, h}
+			})
+			if frame.w > 80 || frame.w >= size.w-4 {
+				t.Errorf("the picker is %d wide on a %d wide screen, not packed", frame.w, size.w)
+			}
+			if left, right := frame.x, size.w-frame.x-frame.w; left-right > 1 || right-left > 1 {
+				t.Errorf("the picker is not centred: %d left, %d right", left, right)
+			}
+			for y := frame.y + 1; y < frame.y+frame.h-1; y++ {
+				if r, _ := cellAt(a, sc, frame.x+frame.w-1, y); r != '│' {
+					t.Errorf("row %d: the frame's right border is drawn over:\n%s", y, a.screenText(sc))
+					break
+				}
+			}
+			assertLegible(t, a, sc, "the screen's actions")
+
+			typeRunes(sc, "G")
+			waitFor(t, a, sc, "Leave unagit")
+			text := a.screenText(sc)
+			about := lineOf(text, "Leave unagit")
+			if r, _ := cellAt(a, sc, frame.x+frame.w/2, about-1); r != '─' || about >= frame.y+frame.h-1 {
+				t.Errorf("the explanation is not in its pane under the list:\n%s", text)
+			}
+		})
+	}
+}
+
 // TestAltEnterListsWhatCanBeDoneWithTheRow: the actions of the row, the
 // usual first and each with its key; Enter does the one under the cursor.
 func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
@@ -94,7 +175,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Actions · acme/gateway")
 	text := a.screenText(sc)
-	open, worktree, hide := lineOf(text, "Open in the editor"), lineOf(text, "Create a worktree for a branch"), lineOf(text, "Hide the repository")
+	open, worktree, hide := lineOf(text, "Open in…"), lineOf(text, "New worktree"), lineOf(text, "Hide ")
 	if open < 0 || worktree < 0 || hide < 0 || !(open < worktree && worktree < hide) {
 		t.Errorf("the actions are not in the order they are wanted:\n%s", text)
 	}
@@ -102,7 +183,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 		t.Errorf("the worktree action does not say its key: %q", l)
 	}
 	// Not cloned: nothing to pull, nothing to delete.
-	for _, absent := range []string{"Pull: bring the clone", "Delete from disk"} {
+	for _, absent := range []string{"Pull ", "Delete "} {
 		if strings.Contains(text, absent) {
 			t.Errorf("%q is offered for a repository that is not cloned:\n%s", absent, text)
 		}
@@ -124,7 +205,7 @@ func TestCtrlAIsAltEnter(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Actions · acme/gateway !7")
-	waitFor(t, a, sc, "Review: the whole change")
+	waitFor(t, a, sc, "Review in…")
 }
 
 // TestColonListsWhatTheScreenCanDo: the screen's own actions, a new
@@ -133,9 +214,9 @@ func TestColonListsWhatTheScreenCanDo(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, ":")
-	waitFor(t, a, sc, "Create a new repository")
+	waitFor(t, a, sc, "New repository")
 	text := a.screenText(sc)
-	if lineOf(text, "Refresh the list") > lineOf(text, "Quit unagit") {
+	if lineOf(text, "Refresh ") > lineOf(text, "Quit ") {
 		t.Errorf("quitting is listed before refreshing:\n%s", text)
 	}
 	if strings.Contains(text, "Go to Repositories") {
@@ -195,11 +276,11 @@ func TestANewRepositoryIsCreatedClonedAndListed(t *testing.T) {
 func openNewRepository(t *testing.T, a *App, sc tcell.SimulationScreen) *tview.Form {
 	t.Helper()
 	typeRunes(sc, ":")
-	waitFor(t, a, sc, "Create a new repository")
+	waitFor(t, a, sc, "New repository")
 	typeRunes(sc, "/new repository")
 	waitFor(t, a, sc, "FILTER")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "New repository")
+	waitFor(t, a, sc, labelRepoVisibility)
 	return currentForm(a)
 }
 
@@ -241,7 +322,7 @@ func TestSettingsHasActionsToo(t *testing.T) {
 	openSection(t, a, sc, sectionTags)
 	waitFor(t, a, sc, "a add")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Add a tag")
+	waitFor(t, a, sc, "Make a new tag")
 	waitFor(t, a, sc, "Pill ends")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // the first: add a tag
 	waitFor(t, a, sc, "Colour")

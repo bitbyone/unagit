@@ -75,6 +75,9 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 type pickItem struct {
 	Label string
 	Sub   string
+	// About is what the item is, in a sentence, for a picker that explains
+	// its items; it is searched as well.
+	About string
 	Data  any
 }
 
@@ -117,7 +120,18 @@ type pickerOptions struct {
 	// footer replaces the hint of what Enter does, for a picker whose Enter
 	// is not a choice (onSelect nil).
 	enterHint string
+	// pack sizes the picker to what it holds - as wide as its longest row,
+	// as tall as its rows - rather than to most of the screen, so short rows
+	// are not left at the edge of a wide empty box.
+	pack bool
+	// explain keeps a pane at the bottom with the About of the item under
+	// the cursor, so the items themselves can be named in a word.
+	explain bool
 }
+
+// explainLines is the most an explanation may take; it is a sentence, not a
+// paragraph.
+const explainLines = 3
 
 // pickKey is a key of a picker that acts on the item under the cursor.
 type pickKey struct {
@@ -141,20 +155,33 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	rebuild := func(query string) {
 		list.Clear()
 		shown = shown[:0]
+		// What an item is called comes before what its explanation says:
+		// searching for a worktree finds the action named so before one that
+		// mentions a worktree in passing.
 		type hit struct {
 			it    pickItem
+			named bool
 			score int
 		}
 		var hits []hit
 		for _, it := range items {
 			score, ok := fuzzy.Match(query, it.Label+" "+it.Sub)
+			named := ok
+			if !ok && it.About != "" {
+				score, ok = fuzzy.Match(query, it.About)
+			}
 			if !ok {
 				continue
 			}
-			hits = append(hits, hit{it, score})
+			hits = append(hits, hit{it, named, score})
 		}
 		if strings.TrimSpace(query) != "" {
-			sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+			sort.SliceStable(hits, func(i, j int) bool {
+				if hits[i].named != hits[j].named {
+					return hits[i].named
+				}
+				return hits[i].score > hits[j].score
+			})
 		}
 		for _, h := range hits {
 			label := h.it.Label
@@ -183,14 +210,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 
 	filtering := false
-	setMode := func(filter bool) {
-		filtering = filter
-		if filtering {
-			footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
-				"   type to narrow · Esc to the list · Enter select" + tagEnd)
-			a.tv.SetFocus(input)
-			return
-		}
+	normalHint := func() string {
 		hint := "   j/k move · / filter · Enter select"
 		switch {
 		case onSelect == nil:
@@ -209,7 +229,17 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		if onDelete != nil {
 			hint += " · d delete"
 		}
-		footer.SetText(" " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + " · Esc close" + tagEnd)
+		return " " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + " · Esc close" + tagEnd
+	}
+	setMode := func(filter bool) {
+		filtering = filter
+		if filtering {
+			footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
+				"   type to narrow · Esc to the list · Enter select" + tagEnd)
+			a.tv.SetFocus(input)
+			return
+		}
+		footer.SetText(normalHint())
 		a.tv.SetFocus(list)
 	}
 
@@ -309,19 +339,85 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(input, 1, 0, false).
-		AddItem(list, 0, 1, true).
-		AddItem(footer, 1, 0, false)
+		AddItem(list, 0, 1, true)
+
+	// The width a packed picker needs: its longest row, its title, and room
+	// for every explanation to fit in explainLines.
+	inner := 0
+	for _, it := range items {
+		row := it.Label
+		if it.Sub != "" {
+			row += "   " + it.Sub
+		}
+		inner = max(inner, tview.TaggedStringWidth(row)+1)
+	}
+	inner = max(inner, tview.TaggedStringWidth(title)+4, 40)
+	if opts.explain {
+		for _, it := range items {
+			for inner < 76 && len(tview.WordWrap(it.About, inner)) > explainLines {
+				inner += 2
+			}
+		}
+	}
+	inner = min(inner, 76)
+
+	extra := 0
+	if opts.explain {
+		about := tview.NewTextView().SetWrap(true).SetWordWrap(true).SetTextColor(colMuted)
+		explain := func(i int) {
+			if i >= 0 && i < len(shown) {
+				about.SetText(shown[i].About)
+				return
+			}
+			about.SetText("")
+		}
+		list.SetChangedFunc(func(i int, _, _ string, _ rune) { explain(i) })
+		input.SetChangedFunc(func(query string) {
+			rebuild(query)
+			explain(list.GetCurrentItem())
+		})
+		explain(list.GetCurrentItem())
+		lines := 1
+		for _, it := range items {
+			lines = max(lines, len(tview.WordWrap(it.About, inner)))
+		}
+		lines = min(lines, explainLines)
+		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false)
+		extra = 1 + lines
+	}
+	flex.AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
 
-	fitFooter(flex, footer, 1)
+	pad := 0
+	if opts.pack {
+		pad = 1
+	}
+	fitFooterPadded(flex, footer, 1, pad)
 	frame := &pickerFrame{Flex: flex, target: func() tview.Primitive {
 		if filtering {
 			return input
 		}
 		return list
 	}}
-	a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
+	if opts.pack {
+		footerLines := len(tview.WordWrap(normalHint(), inner))
+		a.pages.AddPage(pagePicker, modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines), true, true)
+	} else {
+		a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
+	}
 	setMode(false)
+}
+
+// rule is a line across a dialog, setting a pane apart from what is above.
+func rule() tview.Primitive {
+	line := tview.NewBox()
+	line.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		for col := x; col < x+w; col++ {
+			screen.SetContent(col, y, '─', nil, tcell.StyleDefault.Foreground(colDim))
+		}
+		return x, y, w, h
+	})
+	return line
 }
 
 // pickerFrame hands focus to whichever half of the picker its mode is in. A
@@ -454,10 +550,24 @@ func hintPanel(panel *tview.Box, hint func() string, top, bottom, left, right in
 
 // Hints wrap with their block instead of disappearing off the terminal edge.
 func fitFooter(block *tview.Flex, footer *tview.TextView, inset int) {
-	block.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
-		width := max(1, w-2*inset)
+	fitFooterPadded(block, footer, inset, 0)
+}
+
+// fitFooterPadded is fitFooter with pad more columns on either side.
+func fitFooterPadded(block *tview.Flex, footer *tview.TextView, inset, pad int) {
+	block.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		side := inset + pad
+		// The padding is the block's own; what is under the modal must not
+		// show through it.
+		for row := y + inset; row < y+h-inset; row++ {
+			for i := range pad {
+				screen.SetContent(x+inset+i, row, ' ', nil, tcell.StyleDefault)
+				screen.SetContent(x+w-1-inset-i, row, ' ', nil, tcell.StyleDefault)
+			}
+		}
+		width := max(1, w-2*side)
 		lines := len(tview.WordWrap(footer.GetText(false), width))
 		block.ResizeItem(footer, max(1, lines), 0)
-		return x + inset, y + inset, max(0, w-2*inset), max(0, h-2*inset)
+		return x + side, y + inset, max(0, w-2*side), max(0, h-2*inset)
 	})
 }

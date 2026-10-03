@@ -18,7 +18,10 @@ import (
 
 // uiAction is one thing that can be done.
 type uiAction struct {
-	name string
+	// name is what the action is called, in a word or two; about is the
+	// sentence under the picker that says what it does.
+	name  string
+	about string
 	// keys is the key that does it, as the picker shows it and as it is
 	// matched: a letter, Ctrl-X, Alt-x, or a word for a key the list itself
 	// handles (Enter, space, /). "" leaves the action to the picker alone.
@@ -123,9 +126,9 @@ func (a *App) showActions(title string, actions []uiAction) {
 		if keys == "" {
 			keys = "·"
 		}
-		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, act.name), Sub: keys, Data: act}
+		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, act.name), Sub: keys, About: act.about, Data: act}
 	}
-	a.showPicker(title, items, func(it pickItem) { it.Data.(uiAction).run() })
+	a.showPickerWith(title, items, pickerOptions{pack: true, explain: true}, func(it pickItem) { it.Data.(uiAction).run() })
 }
 
 // actionKeys answers the keys of a screen: the two pickers, then the action

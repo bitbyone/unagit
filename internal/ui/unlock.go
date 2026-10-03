@@ -114,7 +114,7 @@ func (a *App) showUnlock() {
 				a.pages.RemovePage(pageUnlock)
 				a.start()
 				if imported {
-					a.note("Imported the token from token.enc; you can delete that file.")
+					a.done("Imported the token from token.enc; you can delete that file.")
 				}
 				if rememberErr != nil {
 					a.errorf("the Keychain was not updated: %v", rememberErr)

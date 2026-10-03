@@ -94,6 +94,9 @@ select (`styleDropDown`), it just was not reused. The rules:
 - A list to choose from is `showPicker` (or `showPickerWith` for its options),
   and it opens on the list: j/k move, Enter picks, `/` starts the filter. Do
   not open one on the filter; typed letters then vanish into a search.
+  `pack` sizes it to its rows instead of most of the screen; `explain` adds
+  the pane at the bottom with the `About` of the item under the cursor. The
+  action pickers use both.
 - A new kind of field that will be used twice goes into `fields.go` first, with
   a test, and the old call sites move to it in the same change.
 - **Look at what you built.** This is a terminal UI and it can be drawn: render
@@ -134,8 +137,12 @@ the `?` screen as data.
 
 **What a screen can do is data.** Every list, the worktree view and Settings
 describe their actions as `uiAction`s (`palette.go`, the lists in
-`actions_lists.go`, Settings in `settings_actions.go`): a name, the key, a
-rank by how often it is wanted, when it can be done, and what it does. The
+`actions_lists.go`, Settings in `settings_actions.go`): a name, a sentence
+about it, the key, a rank by how often it is wanted, when it can be done,
+and what it does. The name is what the action is called - "Branches", not
+"Branches: switch, see where they are, delete" - and the explanation goes
+into `about`, which the picker shows under the list
+(`TestEveryActionIsNamedAndExplained`). The
 same list answers the keys and fills the two action pickers - `Alt-Enter`
 (`Ctrl-A`) for the selection, `:` for the screen - so a key cannot do one
 thing while the picker says another. A new action goes into that list, not
@@ -149,11 +156,14 @@ guards the lists.
 **A message goes where the eye is.** The status line belongs to the main
 screens. While a dialog, a picker or the worktree view is in front it sits
 under the dimmed screen where nobody looks - validation errors once appeared
-there - so `flash`, `note` and `errorf` (`say`) put the message in a small box
-over whatever is in front (`message.go`). A warning or error holds the keys
-until Esc; a note goes with the next key, which then does its work in the
-dialog. Say things through those three, never with `setStatus` directly, and
-say them after the dialog they belong to is drawn, or it covers them.
+there - so `flash` (warning), `note` (info), `done` (success) and `errorf`
+(`say`) put the message in a small box over whatever is in front
+(`message.go`), filled like a confirmation and headed by its severity in its
+colour. A warning or error holds the keys until Esc; a note or a success goes
+with the next key, which then does its work in the dialog. Something asked
+for and finished is `done`, not `note`. Say things through those four, never
+with `setStatus` directly, and say them after the dialog they belong to is
+drawn, or it covers them.
 
 Main views expose shortcuts through `?`: help keeps actions for the opening
 context in normal text and dims the rest.

@@ -119,7 +119,7 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
-		a.note("opened " + dir)
+		a.done("opened " + dir)
 	})
 }
 
@@ -139,7 +139,7 @@ func (a *App) openWindowEditor(dir string, what session.Record, ed editors.Edito
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
-		a.note(fmt.Sprintf("opened in %s: %s", ed.Name, dir))
+		a.done(fmt.Sprintf("opened in %s: %s", ed.Name, dir))
 	})
 	// The launcher returns once the window is asked for; a failure there is
 	// the only thing left to report.

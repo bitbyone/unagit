@@ -229,7 +229,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
 	if scope.done != "" {
-		a.note(scope.done)
+		a.done(scope.done)
 	}
 }
 

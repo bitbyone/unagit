@@ -598,7 +598,7 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 		a.saveConfig()
 		a.closeModal(pageForm)
 		s.reload()
-		a.note("Saved " + target.Label())
+		a.done("Saved " + target.Label())
 		switch {
 		case a.vault != nil && !a.vault.Has(target.ID):
 			a.flash(target.Label() + " has no token yet - press t to add one")
@@ -633,14 +633,14 @@ func (s *settingsView) showTokenForm(inst *config.Instance) {
 		a.saveVault()
 		a.closeModal(pageForm)
 		s.fillServerTables()
-		a.note("Token stored for " + inst.Label())
+		a.done("Token stored for " + inst.Label())
 	})
 	form.AddButton("Remove token", func() {
 		a.vault.Remove(inst.ID)
 		a.saveVault()
 		a.closeModal(pageForm)
 		s.fillServerTables()
-		a.note("Token removed for " + inst.Label())
+		a.done("Token removed for " + inst.Label())
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	a.showFormModal("Token · "+inst.Label(), form, 11)
@@ -666,7 +666,7 @@ func (s *settingsView) verifyInstance(inst config.Instance) {
 		a.tv.QueueUpdateDraw(func() {
 			a.rememberLogin(inst.ID, user.Username)
 			s.fillServerTables()
-			a.note(inst.Label() + ": signed in as " + user.Username)
+			a.done(inst.Label() + ": signed in as " + user.Username)
 		})
 		return "", nil
 	})
@@ -688,7 +688,7 @@ func (s *settingsView) confirmRemoveInstance(inst config.Instance) {
 		}
 		a.saveConfig()
 		s.reload()
-		a.note("Removed " + inst.Label())
+		a.done("Removed " + inst.Label())
 	})
 }
 
@@ -1005,7 +1005,7 @@ func (s *settingsView) showRootForm() {
 		a.saveConfig()
 		a.closeModal(pageForm)
 		s.reload()
-		a.note("Clone directory for " + subject + ": " + tildePath(a.cfg.RootFor(inst, subject+"/x")))
+		a.done("Clone directory for " + subject + ": " + tildePath(a.cfg.RootFor(inst, subject+"/x")))
 	}
 	form.AddButton("Save", func() {
 		apply(strings.TrimSpace(form.GetFormItem(0).(*tview.InputField).GetText()))
@@ -1051,7 +1051,7 @@ func (s *settingsView) toggleKeychain() {
 		a.cfg.RememberPassphrase = false
 		a.saveConfig()
 		s.fillSecurity()
-		a.note("Forgotten: the passphrase is asked for at every start again")
+		a.done("Forgotten: the passphrase is asked for at every start again")
 		return
 	}
 	form := tview.NewForm()
@@ -1092,7 +1092,7 @@ func (s *settingsView) toggleKeychain() {
 				a.cfg.RememberPassphrase = true
 				a.saveConfig()
 				s.fillSecurity()
-				a.note("Remembered: unagit now opens without asking")
+				a.done("Remembered: unagit now opens without asking")
 			})
 		}()
 	})
@@ -1157,7 +1157,7 @@ func (s *settingsView) showPassphraseForm() {
 		}
 		a.closeModal(pageForm)
 		s.fillSecurity()
-		a.note("Passphrase changed")
+		a.done("Passphrase changed")
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	a.showFormModal("Change the passphrase", form, 12)

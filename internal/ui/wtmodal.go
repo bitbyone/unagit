@@ -283,22 +283,22 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 	}
 	acts := a.worktreeActions(r, open, "C")
 	acts = append(acts,
-		uiAction{name: "Read the merge request's conversation", keys: "c", rank: 37, when: single, run: func() {
+		uiAction{name: "Conversation", about: "Read the threads of the merge request open from this branch and write a comment.", keys: "c", rank: 37, when: single, run: func() {
 			if mr, ok := a.openMRFor(r); ok {
 				a.showComments(mr)
 				return
 			}
 			a.flash("no merge request is open from " + r.Branch + " - n opens one")
 		}},
-		uiAction{name: "Open its merge request or page in the browser", keys: "w", rank: 38, when: single,
+		uiAction{name: "Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
 			run: func() { a.openWorktreeWeb(r) }},
-		uiAction{name: "List the commits of the branch", keys: "l", rank: 39, when: single,
+		uiAction{name: "Commits", about: "List the branch's commits since its base.", keys: "l", rank: 39, when: single,
 			run: func() { a.showWorktreeLog(r) }},
-		uiAction{name: "Take this repository out of the group", keys: "x", rank: 65,
+		uiAction{name: "Take out", about: "Remove this repository's worktree from the group; its branch stays.", keys: "x", rank: 65,
 			when: func() bool { return r.Group != "" }, run: func() { a.confirmTakeOut(v.row, r) }},
 	)
 	if v.row.grouped() && !r.grouped() {
-		acts = append(acts, uiAction{name: "Add a repository to the group", keys: "a", rank: 60,
+		acts = append(acts, uiAction{name: "Add repository", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60,
 			run: func() { a.addToGroup(v.row) }})
 	}
 	return acts
@@ -307,13 +307,13 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 // worktreeViewScreenActions are what the view itself can do.
 func (a *App) worktreeViewScreenActions() []uiAction {
 	return []uiAction{
-		{name: "Refresh: the disk, origin, comments", keys: "r", rank: 10, run: func() {
+		{name: "Refresh", about: "Look at the disk again, fetch origin and bring in new comments.", keys: "r", rank: 10, run: func() {
 			a.refreshDisk()
 			a.fetchWorktrees()
 			a.note("looking at the disk, and asking origin")
 		}},
-		{name: "Back to the list", keys: "Esc", rank: 900, run: a.closeWorktreeView},
-		{name: "Help: every key", keys: "?", rank: 950, run: a.showHelp},
+		{name: "Back", about: "Close the view and return to the list.", keys: "Esc", rank: 900, run: a.closeWorktreeView},
+		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 	}
 }
 
@@ -377,7 +377,7 @@ func (a *App) openWorktreeWeb(r worktreeRow) {
 		return
 	}
 	_ = openBrowser(url)
-	a.note("opened " + url)
+	a.done("opened " + url)
 }
 
 // showWorktreeLog lists the commits of a repository's branch since its base,

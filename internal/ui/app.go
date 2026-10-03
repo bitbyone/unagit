@@ -446,21 +446,26 @@ func tildePath(p string) string {
 	return p
 }
 
-// flash, note and errorf tell the user something: a warning, a word on what
-// was done, a failure. The status line is the main screens' own; while a
+// flash, note, done and errorf tell the user something: a warning, a word on
+// what is under way or how the view changed, what was done, a failure. The status line is the main screens' own; while a
 // dialog or the worktree view is in front it is out of the eye's way, under
 // the dimmed screen, so there the message comes up over the dialog instead
 // (showMessage).
-func (a *App) flash(msg string) { a.say(msg, colWarn) }
-func (a *App) note(msg string)  { a.say(msg, colMuted) }
+func (a *App) flash(msg string) { a.say(msg, sevWarning) }
+func (a *App) note(msg string)  { a.say(msg, sevInfo) }
+func (a *App) done(msg string)  { a.say(msg, sevSuccess) }
 func (a *App) errorf(f string, v ...any) {
-	a.say(fmt.Sprintf(f, v...), colBad)
+	a.say(fmt.Sprintf(f, v...), sevError)
 }
 
-func (a *App) say(msg string, colour tcell.Color) {
+func (a *App) say(msg string, sev severity) {
 	if a.modalOpen() {
-		a.showMessage(msg, colour)
+		a.showMessage(msg, sev)
 		return
+	}
+	colour := sev.colour()
+	if sev == sevInfo {
+		colour = colMuted
 	}
 	a.setStatus(tag(colour) + tview.Escape(msg) + tagEnd)
 }

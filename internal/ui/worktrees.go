@@ -696,7 +696,7 @@ func (a *App) showWorktreeAt(dir string) {
 	a.switchTab(pageWorktrees)
 	p.reload()
 	p.selectWhere(func(i int) bool { return i < len(a.worktrees) && sameDir(a.worktrees[i].Dir, dir) })
-	a.note("created " + tildePath(dir) + " · Ctrl-O opens it")
+	a.done("created " + tildePath(dir) + " · Ctrl-O opens it")
 }
 
 // openWorktree opens the editor in a worktree as it is on disk.

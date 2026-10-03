@@ -265,7 +265,7 @@ func (a *App) syncWorktreeComments(rows []worktreeRow, then func()) {
 			if len(failed) > 0 {
 				a.flash("comments not synced from " + strings.Join(failed, "; "))
 			} else {
-				a.note(fmt.Sprintf("synced the comments of %d merge request(s)", len(sources)))
+				a.done(fmt.Sprintf("synced the comments of %d merge request(s)", len(sources)))
 			}
 			then()
 		})

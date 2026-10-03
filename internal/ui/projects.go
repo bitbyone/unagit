@@ -435,7 +435,7 @@ func (a *App) showProjectDirectory(pr forge.Project) {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
-		a.note("Clone directory: " + tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
+		a.done("Clone directory: " + tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
 	}
 	form.AddButton("Save", func() { apply(form.GetFormItem(0).(*tview.InputField).GetText()) })
 	form.AddButton("Inherit", func() { apply("") })

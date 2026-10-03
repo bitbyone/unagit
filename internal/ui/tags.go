@@ -489,7 +489,7 @@ func (s *settingsView) showTagForm(name string) {
 		a.closeModal(pageForm)
 		a.applyFilters()
 		s.fillTags()
-		a.note("Saved tag " + next.Name)
+		a.done("Saved tag " + next.Name)
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	a.showFormModalSized(title, form, 56, 8)
@@ -506,7 +506,7 @@ func (s *settingsView) confirmRemoveTag(name string) {
 		a.cfg.RemoveTag(name)
 		a.applyFilters()
 		s.fillTags()
-		a.note("Removed tag " + name)
+		a.done("Removed tag " + name)
 	})
 }
 

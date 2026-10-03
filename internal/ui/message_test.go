@@ -69,3 +69,46 @@ func TestAMessageOverADialogDimsNothingMore(t *testing.T) {
 		t.Errorf("the dialog under the message went from %v to %v", form, got)
 	}
 }
+
+// TestAMessageSaysWhatKindItIs: the box is filled like a confirmation, and
+// its first line names the severity in the severity's colour; a success or
+// a note goes with the next key, a warning or an error waits for Esc.
+func TestAMessageSaysWhatKindItIs(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	markBoth(t, a, sc)
+	for _, c := range []struct {
+		say      func()
+		heading  string
+		colour   tcell.Color
+		closing  string
+		severity string
+	}{
+		{func() { a.done("deleted it") }, "✓ Success", colOn, "any key closes", "success"},
+		{func() { a.note("looking") }, "i Info", colAccent, "any key closes", "info"},
+		{func() { a.flash("not that way") }, "! Warning", colWarn, "Esc close", "warning"},
+		{func() { a.errorf("it broke") }, "✗ Error", colBad, "Esc close", "error"},
+	} {
+		changeOnLoop(a, c.say)
+		waitFor(t, a, sc, c.heading)
+		text := a.screenText(sc)
+		row := lineOf(text, c.heading)
+		col := len([]rune(strings.Split(text, "\n")[row][:strings.Index(strings.Split(text, "\n")[row], c.heading)]))
+		if _, style := cellAt(a, sc, col+2, row); func() bool {
+			fg, bg, _ := style.Decompose()
+			return fg.Hex() != c.colour.Hex() || bg.Hex() != colSurface.Hex()
+		}() {
+			fg, bg, _ := style.Decompose()
+			t.Errorf("%s: heading drawn %v on %v", c.severity, fg, bg)
+		}
+		if _, style := cellAt(a, sc, col-1, row); func() bool { _, bg, _ := style.Decompose(); return bg.Hex() != colSurface.Hex() }() {
+			t.Errorf("%s: the box is not filled", c.severity)
+		}
+		if lineOf(text, c.closing) != row+2 {
+			t.Errorf("%s: the message is not between its heading and %q:\n%s", c.severity, c.closing, text)
+		}
+		assertLegible(t, a, sc, "a "+c.severity+" message")
+		// The next message replaces this one.
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "✗ Error")
+}

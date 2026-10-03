@@ -288,7 +288,7 @@ func (a *App) confirmSwitchRemotes(inst config.Instance, was string) {
 		}
 	}
 	if len(cloned) == 0 {
-		a.note(fmt.Sprintf("%s will be cloned over %s from now on", inst.Label(), inst.Protocol()))
+		a.done(fmt.Sprintf("%s will be cloned over %s from now on", inst.Label(), inst.Protocol()))
 		return
 	}
 	body := fmt.Sprintf("%s now clones over [::b]%s[::-] instead of %s.\n\n"+

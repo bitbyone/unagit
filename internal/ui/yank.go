@@ -47,7 +47,7 @@ func (a *App) showYank(title string, items []yankItem) {
 // says which happened, since the second cannot be confirmed.
 func (a *App) yank(what, text string) {
 	if err := copyToClipboard(text); err == nil {
-		a.note(fmt.Sprintf("copied %s: %s", strings.ToLower(what), text))
+		a.done(fmt.Sprintf("copied %s: %s", strings.ToLower(what), text))
 		return
 	}
 	if a.screen == nil {
@@ -55,7 +55,7 @@ func (a *App) yank(what, text string) {
 		return
 	}
 	a.screen.SetClipboard([]byte(text))
-	a.note(fmt.Sprintf("sent %s to the terminal's clipboard: %s", strings.ToLower(what), text))
+	a.done(fmt.Sprintf("sent %s to the terminal's clipboard: %s", strings.ToLower(what), text))
 }
 
 // mrReference is how the forge itself writes a merge request in text.

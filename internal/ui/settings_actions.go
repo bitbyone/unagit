@@ -21,8 +21,8 @@ func (a *App) pressIn(p tview.Primitive, spec string) {
 }
 
 // keyIn is an action that presses its key in a primitive.
-func (a *App) keyIn(p tview.Primitive, name, keys string, rank int, when func() bool) uiAction {
-	return uiAction{name: name, keys: keys, rank: rank, when: when, run: func() { a.pressIn(p, keys) }}
+func (a *App) keyIn(p tview.Primitive, name, about, keys string, rank int, when func() bool) uiAction {
+	return uiAction{name: name, about: about, keys: keys, rank: rank, when: when, run: func() { a.pressIn(p, keys) }}
 }
 
 // settingsSelection is what can be done in the section shown, with the row
@@ -37,42 +37,42 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 		}
 		some := func() bool { return s.selectedInstance(t) != nil }
 		return sectionNames[s.current], []uiAction{
-			a.keyIn(t, "Add one", "a", 10, nil),
-			a.keyIn(t, "Edit it", "e", 20, some),
-			a.keyIn(t, "Set its token", "t", 30, some),
-			a.keyIn(t, "Verify the token", "v", 40, some),
-			a.keyIn(t, "Remove it", "d", 800, some),
+			a.keyIn(t, "Add", "Add a server or an account, then give it a token.", "a", 10, nil),
+			a.keyIn(t, "Edit", "Change its name, its address or how it is cloned.", "e", 20, some),
+			a.keyIn(t, "Token", "Store a new token for it in the encrypted vault.", "t", 30, some),
+			a.keyIn(t, "Verify", "Ask the server whom the token belongs to.", "v", 40, some),
+			a.keyIn(t, "Remove", "Forget it, its groups and its token; nothing on disk is touched.", "d", 800, some),
 		}
 	case sectionGroups:
 		return sectionNames[s.current], []uiAction{
-			a.keyIn(s.tree, "Select: off, this group, with subgroups", "space", 10, nil),
-			a.keyIn(s.tree, "Set the clone directory", "d", 20, nil),
-			a.keyIn(s.tree, "Tag it; everything below inherits", "t", 30, nil),
-			a.keyIn(s.tree, "Reload the groups", "r", 40, nil),
-			a.keyIn(s.tree, "Refresh the repositories", "p", 50, nil),
-			a.keyIn(s.tree, "Refresh the merge requests", "m", 60, nil),
+			a.keyIn(s.tree, "Select", "Cycle the group: not used, this group alone, or with its subgroups.", "space", 10, nil),
+			a.keyIn(s.tree, "Clone directory", "Choose where the group's repositories are cloned.", "d", 20, nil),
+			a.keyIn(s.tree, "Tags", "Put tags on the group; its subgroups and repositories wear them too.", "t", 30, nil),
+			a.keyIn(s.tree, "Reload groups", "Ask the servers for the groups again.", "r", 40, nil),
+			a.keyIn(s.tree, "Refresh repositories", "Ask the servers for the repositories of the selected groups.", "p", 50, nil),
+			a.keyIn(s.tree, "Refresh merge requests", "Ask the servers for the open merge requests of the selected groups.", "m", 60, nil),
 		}
 	case sectionTags:
 		some := func() bool { return s.selectedTag() != "" }
 		return sectionNames[s.current], []uiAction{
-			a.keyIn(s.tags, "Add a tag", "a", 10, nil),
-			a.keyIn(s.tags, "Edit it", "e", 20, some),
-			a.keyIn(s.tags, "Pill ends: rounded, circles, square", "s", 30, nil),
-			a.keyIn(s.tags, "Remove it", "d", 800, some),
+			a.keyIn(s.tags, "Add", "Make a new tag with a name and a colour.", "a", 10, nil),
+			a.keyIn(s.tags, "Edit", "Rename the tag or change its colour; it stays on its repositories.", "e", 20, some),
+			a.keyIn(s.tags, "Pill ends", "How the pills end: rounded (needs a Nerd Font), circles or square.", "s", 30, nil),
+			a.keyIn(s.tags, "Remove", "Delete the tag and take it off every repository.", "d", 800, some),
 		}
 	case sectionSecurity:
 		return sectionNames[s.current], []uiAction{
-			a.keyIn(s.security, "Change the passphrase", "c", 10, nil),
-			a.keyIn(s.security, "Remember it in the macOS Keychain, or forget it", "k", 20,
+			a.keyIn(s.security, "Change passphrase", "Encrypt the tokens again under a new passphrase.", "c", 10, nil),
+			a.keyIn(s.security, "Keychain", "Keep the passphrase in the macOS login keychain so unagit opens without asking, or forget it again.", "k", 20,
 				func() bool { return passphraseStore.available() }),
 		}
 	case sectionIntegrations:
 		v := s.integrations
 		card := v.cards[v.current]
 		return card.name, []uiAction{
-			a.keyIn(v, "Turn it on or off", "e", 10, func() bool { return card.toggle != nil }),
-			a.keyIn(v, "Choose the favourite editor", "f", 10, func() bool { return card.onKey != nil }),
-			a.keyIn(v, "Check the installation", "c", 20, nil),
+			a.keyIn(v, "Toggle", "Turn this integration on or off.", "e", 10, func() bool { return card.toggle != nil }),
+			a.keyIn(v, "Favourite editor", "Choose the editor everything opens in unless you ask for another.", "f", 10, func() bool { return card.onKey != nil }),
+			a.keyIn(v, "Check", "Look for the program on PATH again.", "c", 20, nil),
 		}
 	}
 	return s.settingsScreen()
@@ -84,20 +84,20 @@ func (s *settingsView) settingsScreen() (string, []uiAction) {
 	var acts []uiAction
 	for i, name := range sectionNames {
 		i := i
-		acts = append(acts, uiAction{name: "Go to " + name, rank: 10 + i, when: func() bool { return s.current != i },
+		acts = append(acts, uiAction{name: "Go to " + name, about: "Open the " + name + " section.", rank: 10 + i, when: func() bool { return s.current != i },
 			run: func() {
 				s.selectSection(i)
 				s.focusContent()
 			}})
 	}
 	acts = append(acts,
-		uiAction{name: "Back to the sections", keys: "Esc", rank: 100, when: func() bool { return s.contentFocused },
+		uiAction{name: "Back", about: "Return to the list of sections.", keys: "Esc", rank: 100, when: func() bool { return s.contentFocused },
 			run: s.focusList},
-		uiAction{name: "Go to Repositories", keys: "R", rank: 900, run: func() { a.switchTab(pageProjects) }},
-		uiAction{name: "Go to Merge requests", keys: "M", rank: 900, run: func() { a.switchTab(pageMRs) }},
-		uiAction{name: "Go to Worktrees", keys: "W", rank: 900, run: func() { a.switchTab(pageWorktrees) }},
-		uiAction{name: "Help: every key", keys: "?", rank: 950, run: a.showHelp},
-		uiAction{name: "Quit unagit", keys: "q", rank: 999, run: a.tv.Stop},
+		uiAction{name: "Go to Repositories", about: "Every repository of the servers and groups you picked.", keys: "R", rank: 900, run: func() { a.switchTab(pageProjects) }},
+		uiAction{name: "Go to Merge requests", about: "The open merge requests of those repositories.", keys: "M", rank: 900, run: func() { a.switchTab(pageMRs) }},
+		uiAction{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "W", rank: 900, run: func() { a.switchTab(pageWorktrees) }},
+		uiAction{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
+		uiAction{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	)
 	return "Settings", acts
 }

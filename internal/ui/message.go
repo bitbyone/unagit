@@ -5,38 +5,84 @@ import (
 	"github.com/rivo/tview"
 )
 
+// severity is what kind of thing a message says, and so how it is headed
+// and coloured.
+type severity int
+
+const (
+	sevInfo severity = iota
+	sevSuccess
+	sevWarning
+	sevError
+)
+
+func (s severity) colour() tcell.Color {
+	switch s {
+	case sevSuccess:
+		return colOn
+	case sevWarning:
+		return colWarn
+	case sevError:
+		return colBad
+	}
+	return colAccent
+}
+
+// heading is the first line of a message box: a mark and a word, in the
+// severity's colour, so what kind of message it is reads before the message.
+func (s severity) heading() string {
+	switch s {
+	case sevSuccess:
+		return "✓ Success"
+	case sevWarning:
+		return "! Warning"
+	case sevError:
+		return "✗ Error"
+	}
+	return "i Info"
+}
+
 // showMessage puts a message over the dialog in front, in a small box of its
-// own. A warning or an error stays until Esc (or Enter) closes it, back to the
+// own, filled like a confirmation so it stands off what is under it. A
+// warning or an error stays until Esc (or Enter) closes it, back to the
 // dialog as it was, and holds every other key, so that nothing typed in the
-// meantime lands in the dialog unseen. A note - what was done, what is under
-// way - asks for nothing: the next key closes it and still does what it does
-// in the dialog. A second message replaces the first.
-func (a *App) showMessage(msg string, colour tcell.Color) {
+// meantime lands in the dialog unseen. A note or a success - what was done,
+// what is under way - asks for nothing: the next key closes it and still
+// does what it does in the dialog. A second message replaces the first.
+func (a *App) showMessage(msg string, sev severity) {
 	if a.pages.HasPage(pageMessage) {
 		a.pages.RemovePage(pageMessage)
 	}
+	heading := tview.NewTextView().SetDynamicColors(true).
+		SetText(tag(sev.colour()) + "[::b]" + sev.heading() + "[::-]" + tagEnd)
 	text := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetWordWrap(true)
-	text.SetText(tag(colour) + tview.Escape(msg) + tagEnd)
-	note := colour == colMuted
+	text.SetText(tag(colText) + tview.Escape(msg) + tagEnd)
+	note := sev == sevInfo || sev == sevSuccess
 	closing := "Esc close"
 	if note {
 		closing = "any key closes"
 	}
-	footer := tview.NewTextView().SetTextColor(colDim).SetText(closing)
+	footer := tview.NewTextView().SetTextColor(colMuted).SetText(closing)
+	for _, v := range []*tview.TextView{heading, text, footer} {
+		v.SetBackgroundColor(colSurface)
+	}
 	block := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(heading, 1, 0, false).
 		AddItem(text, 0, 1, true).
 		AddItem(footer, 1, 0, false)
-	box(block.Box, "").SetBorderPadding(1, 0, 2, 2)
+	box(block.Box, "").SetBorderPadding(0, 0, 2, 2)
 	block.SetBorderColor(colBorderFocus)
+	block.SetBackgroundColor(colSurface)
 	// A Flex draws nothing of its own; the dialog under it would show
 	// through the padding.
+	fill := tcell.StyleDefault.Background(colSurface)
 	block.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		for row := y + 1; row < y+h-1; row++ {
 			for col := x + 1; col < x+w-1; col++ {
-				screen.SetContent(col, row, ' ', nil, tcell.StyleDefault)
+				screen.SetContent(col, row, ' ', nil, fill)
 			}
 		}
-		return x + 3, y + 2, max(0, w-6), max(0, h-3)
+		return x + 3, y + 1, max(0, w-6), max(0, h-2)
 	})
 	text.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch {

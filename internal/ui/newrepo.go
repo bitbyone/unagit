@@ -211,7 +211,7 @@ func (a *App) createRepository(home repoHome, req forge.NewProject) {
 		a.switchTab(pageProjects)
 		a.projectsPane.reload()
 		a.selectProject(made)
-		a.note("created and cloned " + made.Path)
+		a.done("created and cloned " + made.Path)
 	})
 }
 

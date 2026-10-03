@@ -263,7 +263,7 @@ func (a *App) showComposer(mr forge.MergeRequest, onSent func()) {
 					return
 				}
 				a.closeModal(pageForm)
-				a.note(fmt.Sprintf("Comment posted on %s !%d", path, mr.IID))
+				a.done(fmt.Sprintf("Comment posted on %s !%d", path, mr.IID))
 				if onSent != nil {
 					onSent()
 				}
@@ -309,7 +309,7 @@ func (a *App) approveMR(mr forge.MergeRequest, onDone func()) {
 					a.errorf("%v", err)
 					return
 				}
-				a.note(fmt.Sprintf("Approved %s !%d", path, mr.IID))
+				a.done(fmt.Sprintf("Approved %s !%d", path, mr.IID))
 				if onDone != nil {
 					onDone()
 				}
