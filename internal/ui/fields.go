@@ -16,22 +16,26 @@ import "github.com/rivo/tview"
 func addSelect(form *tview.Form, label string, options []string, selected int) *tview.DropDown {
 	form.AddDropDown(label, options, selected, nil)
 	drop := styleDropDown(form.GetFormItemByLabel(label).(*tview.DropDown))
-	// Unsized, tview gives the longest option's width; the others carry the
-	// width given them last time, padding included.
-	widest := drop.GetFieldWidth() + selectPadding
+	fitSelects(form)
+	return drop
+}
+
+// fitSelects makes every select of a form as wide as the widest, again after
+// a select's options changed. Unsized, tview gives a select its longest
+// option's width.
+func fitSelects(form *tview.Form) {
+	widest := 0
 	var selects []*tview.DropDown
 	for i := 0; i < form.GetFormItemCount(); i++ {
 		if d, ok := form.GetFormItem(i).(*tview.DropDown); ok {
 			selects = append(selects, d)
-			if d != drop {
-				widest = max(widest, d.GetFieldWidth())
-			}
+			d.SetFieldWidth(0)
+			widest = max(widest, d.GetFieldWidth()+selectPadding)
 		}
 	}
 	for _, d := range selects {
 		d.SetFieldWidth(widest)
 	}
-	return drop
 }
 
 // addTextArea adds a text area that fills what the form has left and opens on

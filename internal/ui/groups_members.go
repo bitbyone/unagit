@@ -96,21 +96,25 @@ func (a *App) showGroupMemberForm(r worktreeRow, g workspace.Group, c groupChoic
 	styleForm(form)
 	form.SetItemPadding(1)
 	var pick *tview.DropDown
+	var offered []string
 	switch {
 	case has:
 		form.AddTextView("", fmt.Sprintf("%s has the group's branch %s already: it is checked out.", c.dir, shared), 0, 2, true, false)
 	default:
-		options := make([]string, len(c.branches))
-		for i, b := range c.branches {
-			options[i] = c.option(b)
-		}
+		// Checked out, a branch must be free; started from, any will do.
+		offered = c.offered(shared == "")
+		options := branchOptions(offered)
 		label := "Branch"
 		hint := "The branch checked out in " + c.dir + "."
 		if shared != "" {
 			label = "From"
 			hint = fmt.Sprintf("The group's branch %s is made in %s from this one.", shared, c.dir)
 		}
-		pick = addSelect(form, label, options, c.selected)
+		at := 0
+		if c.selected >= 0 && c.selected < len(c.branches) {
+			at = branchIndex(offered, c.branches[c.selected])
+		}
+		pick = addSelect(form, label, options, at)
 		form.AddTextView("", hint, 0, 2, true, false)
 	}
 	add := func() {
@@ -120,13 +124,13 @@ func (a *App) showGroupMemberForm(r worktreeRow, g workspace.Group, c groupChoic
 		case has:
 			member.Branch = shared
 		default:
+			if len(offered) == 0 {
+				a.flash("every branch of " + c.dir + " is checked out elsewhere")
+				return
+			}
 			idx, _ := pick.GetCurrentOption()
-			picked := c.branches[max(idx, 0)]
+			picked := offered[max(idx, 0)]
 			if shared == "" {
-				if where, busy := c.busy[picked]; busy {
-					a.flash(fmt.Sprintf("%s is checked out in %s - pick another", picked, where))
-					return
-				}
 				member.Branch = picked
 			} else {
 				member.Branch, member.Base, isNew = shared, picked, true
@@ -220,129 +224,6 @@ func (a *App) confirmTakeOut(r worktreeRow, m worktreeRow) {
 			// An empty folder left behind would only confuse the next one.
 			_ = os.Remove(m.Dir)
 			return "", nil
-		})
-	})
-}
-
-// unpublishBranches takes the branches of a worktree off origin: a push made
-// too early, or work that is over. The local branches and the worktrees stay;
-// they only stop tracking origin. A branch with an open merge request is left
-// alone, since taking it away would close or break the merge request. In a
-// grouped worktree the repositories are picked first - none to begin with -
-// since what is over for one is seldom over for all.
-func (a *App) unpublishBranches(r worktreeRow) {
-	members := []worktreeRow{r}
-	if r.grouped() {
-		members = r.Members
-	}
-	var onOrigin []unpublishable
-	for _, m := range members {
-		u := a.wtRemote[m.Dir].Upstream
-		if u.Name == "" || u.Gone {
-			continue
-		}
-		name := filepath.Base(m.Dir)
-		if !r.grouped() {
-			name = m.Path
-		}
-		c := unpublishable{member: m, name: name, remote: strings.TrimPrefix(u.Name, "origin/"), behind: u.Behind}
-		if mr, ok := a.openMRFor(m); ok {
-			c.mr = mr.IID
-		}
-		onOrigin = append(onOrigin, c)
-	}
-	if len(onOrigin) == 0 {
-		a.flash(r.Path + " has no branch on origin")
-		return
-	}
-	if !r.grouped() {
-		if c := onOrigin[0]; c.mr != 0 {
-			a.flash(fmt.Sprintf("!%d is open on %s - close it first", c.mr, c.remote))
-			return
-		}
-		a.confirmUnpublish(r, onOrigin)
-		return
-	}
-	picked := map[string]bool{}
-	a.showToggles(toggles{
-		title: "Delete on origin - " + r.Path,
-		verb:  "pick",
-		items: func() []toggleItem {
-			items := make([]toggleItem, len(onOrigin))
-			for i, c := range onOrigin {
-				label := fmt.Sprintf("%s %s  %s", tagMark(picked[c.name]), esc(c.name), tag(colBranch)+esc(c.remote)+tagEnd)
-				if c.mr != 0 {
-					label = fmt.Sprintf("   %s  %s", esc(c.name), tag(colDim)+fmt.Sprintf("!%d is open on it, it stays", c.mr)+tagEnd)
-				}
-				items[i] = toggleItem{Label: label, Search: c.name, Data: c}
-			}
-			return items
-		},
-		toggle: func(it toggleItem) {
-			c := it.Data.(unpublishable)
-			if c.mr != 0 {
-				a.flash(fmt.Sprintf("!%d is open on %s - close it first", c.mr, c.remote))
-				return
-			}
-			picked[c.name] = !picked[c.name]
-		},
-		status: func() string {
-			n := 0
-			for _, on := range picked {
-				if on {
-					n++
-				}
-			}
-			return fmt.Sprintf("%s%d picked%s", tag(colDim), n, tagEnd)
-		},
-		keys: []toggleKey{{key: 'd', hint: "delete the picked", run: func() {
-			var chosen []unpublishable
-			for _, c := range onOrigin {
-				if picked[c.name] {
-					chosen = append(chosen, c)
-				}
-			}
-			if len(chosen) == 0 {
-				a.flash("pick a repository with space first")
-				return
-			}
-			a.closeModal(pageToggles)
-			a.confirmUnpublish(r, chosen)
-		}}},
-	})
-}
-
-// unpublishable is a worktree whose branch is on origin.
-type unpublishable struct {
-	member worktreeRow
-	name   string
-	remote string // the branch's name on origin
-	behind int    // commits origin has that the worktree lacks
-	mr     int    // the merge request open on it, 0 when none
-}
-
-// confirmUnpublish says what is about to be deleted, and what origin would
-// lose with it, before it is.
-func (a *App) confirmUnpublish(r worktreeRow, chosen []unpublishable) {
-	var lines, warnings []string
-	for _, c := range chosen {
-		lines = append(lines, fmt.Sprintf("%s  origin/%s", c.name, c.remote))
-		if c.behind > 0 {
-			warnings = append(warnings, fmt.Sprintf("%s: origin has %d commit(s) this worktree lacks; they go with it", c.name, c.behind))
-		}
-	}
-	body := fmt.Sprintf("Delete these branches on origin?\n\n%s\n\nThe local branches and the worktree stay.", esc(strings.Join(lines, "\n")))
-	a.confirmWith("Delete on origin", body, "Delete on origin", warnings, func() {
-		a.runTaskNoting("Taking branches of "+r.Path+" off origin", func(log func(string)) (string, error) {
-			var done []string
-			for _, c := range chosen {
-				git := a.newManager(c.member.Instance, c.member.Path, log).Git()
-				if err := git.DeleteRemoteBranch(c.member.Dir, c.member.Branch, c.remote); err != nil {
-					return "", fmt.Errorf("%s: %w", c.member.Path, err)
-				}
-				done = append(done, c.name+" "+c.remote)
-			}
-			return "deleted on origin: " + strings.Join(done, ", "), nil
 		})
 	})
 }
