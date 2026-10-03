@@ -150,7 +150,17 @@ func modalFull(content tview.Primitive) *modalBox {
 
 func (m *modalBox) Draw(screen tcell.Screen) {
 	x, y, w, h := m.GetRect()
-	dimArea(screen, x, y, w, h)
+	// Only the lowest modal dims, once a frame. A second one - a message over
+	// a dialog - dimmed it all again: what we coloured went darker twice, the
+	// terminal's own ink stayed at the one grey it falls back to, and the
+	// screen came out looking inverted. The one on top stands out by its
+	// border; the dialog under it stays as it was.
+	if q, ok := screen.(*quietScreen); !ok || !q.dimmed {
+		dimArea(screen, x, y, w, h)
+		if ok {
+			q.dimmed = true
+		}
+	}
 
 	cw, ch := w, h
 	switch {

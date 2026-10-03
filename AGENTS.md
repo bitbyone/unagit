@@ -333,6 +333,11 @@ server. Rules learned the hard way:
 - `Box.DrawForSubclass` fills its rectangle with spaces, so a centring Flex
   erases the background you were about to dim. `modalBox` draws nothing of its
   own and `dimArea` darkens what is beneath.
+- **Modals stack, and dimming must not.** Every modal dims what is under it,
+  and a second one (a message over a dialog, a picker over the worktree view)
+  dimmed it all again: our colours went darker twice while the terminal's own
+  ink stayed at its fallback grey, and the screen looked inverted. Only the
+  lowest modal dims, once a frame (`quietScreen.dimmed`, reset on Show).
 - A draw function is handed the **outer** rectangle and must return the
   **inner** one; returning it unchanged makes tables overflow their border.
 - A `DropDown` feeds every typed letter into a hidden search field, and a fresh

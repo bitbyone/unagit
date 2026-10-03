@@ -46,3 +46,26 @@ func TestADialogsMessagesComeUpOverIt(t *testing.T) {
 		t.Error("a message on the main screen opened a box")
 	}
 }
+
+// TestAMessageOverADialogDimsNothingMore: the screen behind is dimmed once,
+// by the dialog; the message over it leaves both as they were - dimming twice
+// made the screen look inverted.
+func TestAMessageOverADialogDimsNothingMore(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	markBoth(t, a, sc)
+	text := a.screenText(sc)
+	listRow := lineOf(text, "acme/billing")
+	listCol := len([]rune(strings.Split(text, "\n")[listRow][:strings.Index(strings.Split(text, "\n")[listRow], "acme/billing")])) + 1
+	formRow := lineOf(text, "Folder name")
+	formCol := len([]rune(strings.Split(text, "\n")[formRow][:strings.Index(strings.Split(text, "\n")[formRow], "Folder name")])) + 1
+	list, form := cellStyleAt(a, sc, listCol, listRow), cellStyleAt(a, sc, formCol, formRow)
+
+	changeOnLoop(a, func() { a.flash("over the dialog") })
+	waitFor(t, a, sc, "over the dialog")
+	if got := cellStyleAt(a, sc, listCol, listRow); got != list {
+		t.Errorf("the list behind went from %v to %v", list, got)
+	}
+	if got := cellStyleAt(a, sc, formCol, formRow); got != form {
+		t.Errorf("the dialog under the message went from %v to %v", form, got)
+	}
+}
