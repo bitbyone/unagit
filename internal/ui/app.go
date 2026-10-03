@@ -10,11 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/chezmoi"
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
@@ -97,6 +99,13 @@ type App struct {
 	staleMRs      bool
 
 	disk map[projectKey]diskInfo
+
+	// chezmoi is the checkout chezmoi keeps and the repository it is, when
+	// that integration is on; chezmoiProblem says why none was found.
+	// findChezmoi asks chezmoi, and is replaced in tests.
+	chezmoi        atomic.Pointer[chezmoiState]
+	chezmoiProblem string
+	findChezmoi    func() (chezmoi.Checkout, error)
 
 	projectsPane  *pane
 	mrsPane       *pane
@@ -302,6 +311,7 @@ func (a *App) Run() error {
 // vault is open.
 func (a *App) start() {
 	a.loadIndexes()
+	a.detectChezmoi()
 	a.refreshDisk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()
@@ -501,6 +511,7 @@ func (a *App) reindexProjects() {
 	for _, p := range a.projects {
 		a.projByKey[projectKey{p.Instance, p.PathWithNamespace}] = p
 	}
+	a.pairChezmoi()
 }
 
 // instanceOf returns the configured instance an item came from.
@@ -545,7 +556,18 @@ func (a *App) rootFor(instanceID, projectPath string) string {
 	return a.cfg.RootFor(a.cfg.Instance(instanceID), projectPath)
 }
 
+// projectDir is where a repository's main clone is: chezmoi's checkout when
+// chezmoi keeps it, else where unagit clones it.
 func (a *App) projectDir(instanceID, projectPath string) string {
+	if dir := a.managedDir(instanceID, projectPath); dir != "" {
+		return dir
+	}
+	return a.cloneDir(instanceID, projectPath)
+}
+
+// cloneDir is where unagit clones a repository, and where its worktrees hang
+// even when chezmoi keeps the clone.
+func (a *App) cloneDir(instanceID, projectPath string) string {
 	return a.cfg.ProjectDir(a.cfg.Instance(instanceID), projectPath)
 }
 
@@ -559,7 +581,8 @@ func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) 
 
 // Path lookups do not need credentials or an API client.
 func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
-	return workspace.New(workspace.Options{Root: a.rootFor(instanceID, projectPath), ProjectDirectory: a.projectDir(instanceID, projectPath)}, nil)
+	return workspace.New(workspace.Options{Root: a.rootFor(instanceID, projectPath),
+		ProjectDirectory: a.cloneDir(instanceID, projectPath), ManagedDirectory: a.managedDir(instanceID, projectPath)}, nil)
 }
 
 // newManager builds a workspace manager for one project, with that project's
@@ -567,7 +590,8 @@ func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 // request heads.
 func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
 	opts := workspace.Options{
-		Root: a.rootFor(instanceID, projectPath),
+		Root:             a.rootFor(instanceID, projectPath),
+		ManagedDirectory: a.managedDir(instanceID, projectPath),
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
 		opts.ProjectDirectory = inst.ProjectDirs[projectPath]
@@ -924,14 +948,16 @@ func (a *App) refreshDisk() {
 		} else if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && !fi.IsDir() {
 			info.Cloned = true
 		}
-		for _, root := range a.pathManager(key.Instance, key.Path).WorktreeRoots(key.Path) {
+		mgr := a.pathManager(key.Instance, key.Path)
+		home, legacyReviews := mgr.MRRoot(key.Path), a.cloneDir(key.Instance, key.Path)+".reviews"
+		for _, root := range mgr.WorktreeRoots(key.Path) {
 			entries, _ := os.ReadDir(root)
 			for _, e := range entries {
 				if !e.IsDir() || !workspace.Exists(filepath.Join(root, e.Name())) {
 					continue
 				}
 				name := e.Name()
-				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "wt-") {
+				if root == home && strings.HasPrefix(name, "wt-") {
 					info.Worktrees++
 					wtDir := filepath.Join(root, name)
 					branch, moved := workspace.WorktreeHead(wtDir)
@@ -939,8 +965,8 @@ func (a *App) refreshDisk() {
 						Instance: key.Instance, Path: key.Path, Branch: branch, Dir: wtDir, Moved: moved})
 					continue
 				}
-				review := root == dir+".reviews"
-				if root == workspace.WorktreeRoot(dir) && strings.HasPrefix(name, "review-") {
+				review := root == legacyReviews
+				if root == home && strings.HasPrefix(name, "review-") {
 					review = true
 					name = strings.TrimPrefix(name, "review-")
 				}

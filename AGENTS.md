@@ -120,6 +120,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/gitx` | the git command line, credentials, error hints |
 | `internal/session` | what is open in an editor, files named by pid |
 | `internal/editors` | which editors are installed, and the command that opens one |
+| `internal/chezmoi` | where chezmoi keeps the dotfiles repository, and its origin |
 | `internal/fuzzy` | the subsequence matcher behind `/` |
 | `internal/md` | markdown → tview markup |
 | `internal/ui` | everything on screen |
@@ -274,6 +275,16 @@ so `.git/config` and remote URLs stay clean (there is a test for that). SSH is
 the other option, and git runs with `BatchMode=yes` - a passphrase-protected
 key with no agent therefore fails immediately instead of hanging; `hint()`
 turns that, and a few other git failures, into an instruction.
+
+**chezmoi's checkout is the main clone, not unagit's.** When chezmoi's
+origin is a repository of the list, `workspace.Options.ManagedDirectory`
+makes that checkout the main clone, while the worktrees still hang off where
+unagit would have cloned it (`cloneDir`). It is found at every start and
+held in memory only - never in the config or the index, which are portable
+and would carry one machine's path. `RemoveProject` keeps the checkout and
+`SetRemote` leaves it alone. Its badge is not a tag, and must not become
+one. The origin can carry a token in an https URL; show `chezmoi.Key`, never
+the address.
 
 **Editors.** Every opening action takes the editor as a parameter: nil is
 the favourite, looked up at the moment it starts; Alt with the same key picks

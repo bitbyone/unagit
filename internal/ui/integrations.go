@@ -17,6 +17,9 @@ type integrationCard struct {
 	name, command, description, binary string
 	enabled                            func() bool
 	toggle                             func()
+	// found, when set, is a line under the description saying what the
+	// integration found on this machine.
+	found func() string
 	// render and onKey replace the enable/disable card with one of its own
 	// making; onKey reports whether it took the letter.
 	render func(focused bool) string
@@ -53,6 +56,16 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			on := !s.app.hunkOn()
 			s.app.cfg.Integrations.Hunk = &on
 		},
+	}, {
+		name: "Chezmoi", command: "chezmoi",
+		description: "Open the dotfiles repository where chezmoi keeps it instead of cloning it again. Its worktrees and merge requests work as usual.",
+		enabled:     s.app.chezmoiOn,
+		toggle: func() {
+			on := !s.app.chezmoiOn()
+			s.app.cfg.Integrations.Chezmoi = &on
+			s.app.detectChezmoi()
+		},
+		found: s.app.chezmoiFound,
 	}}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
@@ -132,6 +145,11 @@ func (v *integrationsView) paintFocus(active bool) {
 			state, color = "enabled", colOn
 		}
 		text := tag(color) + "● " + state + tagEnd + "\n\n" + card.description + "\n"
+		if card.found != nil && card.binary != "" {
+			if found := card.found(); found != "" {
+				text += found + "\n"
+			}
+		}
 		if card.binary == "" {
 			text += tag(colMuted) + "Install " + card.command + " and add it to PATH." + tagEnd
 		} else {

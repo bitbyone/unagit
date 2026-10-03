@@ -235,6 +235,7 @@ func (a *App) projectSkeleton(pr forge.Project) string {
 	d := &detailBuf{}
 	d.title(pr.PathWithNamespace)
 	d.sub(pr.Description)
+	a.chezmoiLine(d, pr)
 	d.blank()
 	d.raw(tag(colMuted) + "Loading from GitLab…" + tagEnd + "\n")
 	return d.String()
@@ -250,6 +251,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 	} else {
 		d.sub(pr.Description)
 	}
+	a.chezmoiLine(d, pr)
 
 	// What is on disk comes first: it is what changes while you look.
 	if key := (projectKey{pr.Instance, pr.PathWithNamespace}); a.disk[key].Cloned {

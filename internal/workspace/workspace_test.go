@@ -487,3 +487,51 @@ func TestExactDestinationAndLegacyWorktrees(t *testing.T) {
 		t.Fatalf("legacy worktree left behind: %v", err)
 	}
 }
+
+// TestManagedCheckoutIsUsedAndKept: chezmoi's checkout is the main clone, so
+// nothing is cloned; its worktrees go under the root, where the clone would
+// have been; deleting the repository takes them and leaves the checkout and
+// its remote as they were.
+func TestManagedCheckoutIsUsedAndKept(t *testing.T) {
+	origin := newOrigin(t)
+	managed := filepath.Join(t.TempDir(), "chezmoi")
+	git(t, filepath.Dir(managed), "clone", "-q", origin, managed)
+	root := t.TempDir()
+	m := New(Options{Root: root, GitLabURL: "https://gl.example", ManagedDirectory: managed}, func(string) {})
+	p := forge.Project{ID: 1, PathWithNamespace: "me/dotfiles", DefaultBranch: "main", HTTPURLToRepo: "https://gl.example/me/dotfiles.git"}
+
+	if dir, err := m.CloneProject(p); err != nil || dir != managed {
+		t.Fatalf("CloneProject = %q, %v; want the managed checkout", dir, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "me", "dotfiles")); !os.IsNotExist(err) {
+		t.Error("a second clone was made under the root")
+	}
+	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
+	wt, err := m.EnsureMR(mr, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root, "me", ".unagit", "dotfiles"); filepath.Dir(wt) != want {
+		t.Errorf("worktree at %s, want it under %s", wt, want)
+	}
+
+	if url, err := m.SetRemote(p); err != nil || url != "" {
+		t.Errorf("SetRemote = %q, %v; it must leave the checkout's remote alone", url, err)
+	}
+	if got := git(t, managed, "remote", "get-url", "origin"); got != origin {
+		t.Errorf("origin = %q, want %q", got, origin)
+	}
+
+	if err := m.RemoveProject("me/dotfiles"); err != nil {
+		t.Fatal(err)
+	}
+	if !Exists(managed) {
+		t.Fatal("the managed checkout was deleted")
+	}
+	if _, err := os.Stat(wt); !os.IsNotExist(err) {
+		t.Errorf("worktree still on disk: %v", err)
+	}
+	if out := git(t, managed, "worktree", "list"); strings.Count(out, "\n") != 0 {
+		t.Errorf("git still lists a removed worktree:\n%s", out)
+	}
+}

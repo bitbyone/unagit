@@ -29,6 +29,15 @@ func (a *App) confirmDeleteProject(pr forge.Project) {
 	if n := len(r.MRDirs); n > 0 {
 		body += fmt.Sprintf("\n\n…and %d merge request worktree(s) under\n%s", n, ws.MRRoot(path))
 	}
+	// chezmoi's checkout is chezmoi's: only the worktrees are unagit's.
+	if ws.Managed() {
+		if len(r.MRDirs) == 0 {
+			a.flash("chezmoi keeps " + path + " - it has no worktrees to delete")
+			return
+		}
+		body = fmt.Sprintf("Delete the %d worktree(s) of [::b]%s[::-] under\n%s?\n\nchezmoi's checkout stays:\n%s",
+			len(r.MRDirs), path, ws.MRRoot(path), r.Dir)
+	}
 	warnings := r.Warnings
 	for _, g := range a.groupMembersOf(pr.Instance, path) {
 		warnings = append(warnings, "grouped worktree "+g+" holds a worktree of it, which would break")

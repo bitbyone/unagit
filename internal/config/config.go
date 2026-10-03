@@ -320,6 +320,10 @@ type Integrations struct {
 	// Hunk shows the changes of a clone, a worktree or a review with D. Unset,
 	// it is on whenever hunk is installed; set, it is what the user chose.
 	Hunk *bool `yaml:"hunk,omitempty"`
+	// Chezmoi opens the repository chezmoi keeps the dotfiles in where
+	// chezmoi has it, instead of cloning it again. Unset, it is on whenever
+	// chezmoi is installed.
+	Chezmoi *bool `yaml:"chezmoi,omitempty"`
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).

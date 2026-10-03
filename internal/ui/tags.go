@@ -129,22 +129,43 @@ func (a *App) pills(names []string, room int, behind string) (string, int) {
 	return strings.Join(parts, ""), width
 }
 
-// tagsField is the tags of a row as pills, in exactly width cells. The pills
-// come back as well, to be drawn again over the selection band, at where they
+// tagsField is the tags of a row as pills, in exactly width cells, after the
+// chezmoi badge when the row is the repository chezmoi keeps. The pills come
+// back as well, to be drawn again over the selection band, at where they
 // start in the field. A marked row has a band of its own under both.
-func (a *App) tagsField(tags []string, width int, marked bool) (string, keptMarkup) {
+func (a *App) tagsField(tags []string, width int, marked, managed bool) (string, keptMarkup) {
 	behind, band := behindList, behindBand
 	if marked {
 		_, bg, _ := styleMarkedSelected.Decompose()
 		behind, band = colMarked.String(), bg.String()
 	}
-	markup, w := a.pills(tags, width, behind)
+	badge, bw := "", 0
+	if managed {
+		badge, bw = chezmoiBadge(width)
+	}
+	room := width
+	if bw > 0 {
+		room -= bw + 1
+	}
+	markup, w := a.pills(tags, room, behind)
 	var kept keptMarkup
 	if w > 0 {
-		kept.markup, kept.width = a.pills(tags, width, band)
+		kept.markup, kept.width = a.pills(tags, room, band)
 		if marked {
 			kept.banded = markup
 		}
+	}
+	if bw > 0 {
+		gap := ""
+		if w > 0 {
+			gap, w = " ", w+1
+		}
+		markup = badge + gap + markup
+		kept.markup, kept.width = badge+gap+kept.markup, bw+w
+		if marked {
+			kept.banded = markup
+		}
+		w += bw
 	}
 	return markup + strings.Repeat(" ", max(0, width-w)), kept
 }

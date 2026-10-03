@@ -296,6 +296,26 @@ Hunk reads one repository at a time, so for a grouped worktree unagit puts the
 changes of its repositories together into one patch, new files included, and
 opens that.
 
+### [chezmoi](https://www.chezmoi.io)
+
+chezmoi clones your dotfiles repository into a directory of its own and
+applies it from there, so a second clone of it under the root would only
+drift apart from the first. With `chezmoi` on PATH the integration is on, and
+at every start unagit asks chezmoi for its working tree and origin and pairs
+that with a repository of the list.
+
+That repository wears a **↗ Managed by Chezmoi** badge, first in the tags
+column. It is not a tag: you cannot put it on or take it off, it is never
+written to the configuration, and hiding the tags keeps it. Opening the
+repository opens chezmoi's checkout, which counts as cloned. Its branch and
+review worktrees and its merge requests work as usual, under the root where
+unagit would otherwise have cloned it, not beside chezmoi's directory.
+
+chezmoi's checkout stays chezmoi's: deleting the repository deletes only its
+worktrees, switching a server's clone protocol leaves its remote alone, and
+`e` cannot move it. Turn the integration off with `e` in its card to clone
+the repository like any other.
+
 ## Reviewing merge requests
 
 Press `Ctrl-R` on a merge request and unagit builds a worktree where

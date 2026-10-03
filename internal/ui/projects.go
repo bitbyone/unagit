@@ -205,23 +205,30 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	nameW = atLeast(max(nameW, 10), "REPOSITORY")
 
 	// The tags have a column of their own, right after the longest name; the
-	// other columns keep their places at the end.
-	tagsW := 0
-	if !a.cfg.Filters.HideTags {
-		longest, tagged := 0, false
-		for _, idx := range filtered {
-			pr := a.projects[idx]
-			longest = max(longest, len([]rune(name(pr))))
-			tagged = tagged || len(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)) > 0
+	// other columns keep their places at the end. Hiding the tags keeps the
+	// chezmoi badge, which is not one.
+	showTags := !a.cfg.Filters.HideTags
+	tagsOf := func(pr forge.Project) []string {
+		if !showTags {
+			return nil
 		}
-		longest = atLeast(longest, "REPOSITORY")
-		if tagged {
-			// When it is tight the names keep two thirds of the room.
-			names := min(longest, max(nameW*2/3, 10))
-			if nameW-names-1 >= 4 {
-				tagsW = nameW - names - 1
-				nameW = names
-			}
+		return a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)
+	}
+	managed := func(pr forge.Project) bool { return a.managedDir(pr.Instance, pr.PathWithNamespace) != "" }
+	tagsW := 0
+	longest, tagged := 0, false
+	for _, idx := range filtered {
+		pr := a.projects[idx]
+		longest = max(longest, len([]rune(name(pr))))
+		tagged = tagged || len(tagsOf(pr)) > 0 || managed(pr)
+	}
+	longest = atLeast(longest, "REPOSITORY")
+	if tagged {
+		// When it is tight the names keep two thirds of the room.
+		names := min(longest, max(nameW*2/3, 10))
+		if nameW-names-1 >= 4 {
+			tagsW = nameW - names - 1
+			nameW = names
 		}
 	}
 
@@ -289,7 +296,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
 		if tagsW > 0 {
-			tags, pills := a.tagsField(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), tagsW, p.marks[idx])
+			tags, pills := a.tagsField(tagsOf(pr), tagsW, p.marks[idx], managed(pr))
 			pills.x += nameX + nameW + 1
 			p.kept.keep(row, pills)
 			fields = append(fields, field{raw: tags})
@@ -379,6 +386,10 @@ func (a *App) cloneProject(pr forge.Project) {
 func (a *App) showProjectDirectory(pr forge.Project) {
 	inst := a.cfg.Instance(pr.Instance)
 	if inst == nil {
+		return
+	}
+	if dir := a.managedDir(pr.Instance, pr.PathWithNamespace); dir != "" {
+		a.flash("chezmoi keeps this repository at " + tildePath(dir) + "; turn the integration off in Settings › Integrations to clone it elsewhere")
 		return
 	}
 	if workspace.Exists(a.projectDir(pr.Instance, pr.PathWithNamespace)) {

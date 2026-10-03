@@ -2,6 +2,7 @@ package ui
 
 import (
 	encjson "encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/tobola/unagit/internal/chezmoi"
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
@@ -376,6 +378,10 @@ func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 	sc := tcell.NewSimulationScreen("UTF-8")
 	a.SetScreen(sc)
 	sc.SetSize(160, 44)
+	// The machine's own chezmoi is not the fixture's.
+	if a.findChezmoi == nil {
+		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }
+	}
 
 	go func() { _ = a.Run() }()
 	t.Cleanup(func() { a.tv.Stop() })

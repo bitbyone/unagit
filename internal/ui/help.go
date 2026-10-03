@@ -292,6 +292,7 @@ func helpRows() []helpLine {
 		section("On disk", helpLists),
 		key("○ ● ◐ ◉", "nothing · branch worktree · review worktree · both"),
 		key("⊘", "hidden from the lists"),
+		key("↗ Chezmoi", "chezmoi's checkout; worktrees still under the root"),
 		key("clone", "<root>/<group>/<repo>"),
 		key("branch", ".unagit/<repo>/<iid>-<branch>"),
 		key("review", ".unagit/<repo>/review-<iid>-<branch>"),

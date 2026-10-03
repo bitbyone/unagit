@@ -40,6 +40,11 @@ type Options struct {
 	Root string
 	// ProjectDirectory is the exact clone destination, resolved by the caller.
 	ProjectDirectory string
+	// ManagedDirectory is a checkout another tool keeps - chezmoi's - which is
+	// used as the main clone instead of making one. Its worktrees still go
+	// where the clone would have been, and the checkout itself is never
+	// removed nor pointed at another remote: it belongs to that tool.
+	ManagedDirectory string
 	GitLabURL        string
 	Token            string
 	// CloneProtocol is ProtocolHTTPS or ProtocolSSH; empty means HTTPS, which
@@ -108,6 +113,19 @@ func ReviewDirIn(root, projectPath string, iid int, sourceBranch string) string 
 
 // ProjectDir is the main clone directory of a project.
 func (m *Manager) ProjectDir(projectPath string) string {
+	if m.opts.ManagedDirectory != "" {
+		return config.Expand(m.opts.ManagedDirectory)
+	}
+	return m.cloneDir(projectPath)
+}
+
+// Managed says whether the main clone belongs to another tool.
+func (m *Manager) Managed() bool { return m.opts.ManagedDirectory != "" }
+
+// cloneDir is where unagit itself would clone a project. The worktrees hang
+// off it even when the clone is a managed one, so they stay under the root
+// rather than beside a directory unagit does not own.
+func (m *Manager) cloneDir(projectPath string) string {
 	if m.opts.ProjectDirectory != "" {
 		return config.Expand(m.opts.ProjectDirectory)
 	}
@@ -116,12 +134,12 @@ func (m *Manager) ProjectDir(projectPath string) string {
 
 // MRRoot is the directory holding every merge request worktree of a project.
 func (m *Manager) MRRoot(projectPath string) string {
-	return WorktreeRoot(m.ProjectDir(projectPath))
+	return WorktreeRoot(m.cloneDir(projectPath))
 }
 
 // MRDir is the branch worktree directory of a single merge request.
 func (m *Manager) MRDir(projectPath string, iid int, sourceBranch string) string {
-	legacy := filepath.Join(m.ProjectDir(projectPath)+".mrs", mrDirName(iid, sourceBranch))
+	legacy := filepath.Join(m.cloneDir(projectPath)+".mrs", mrDirName(iid, sourceBranch))
 	if Exists(legacy) {
 		return legacy
 	}
@@ -135,7 +153,7 @@ func (m *Manager) ReviewRoot(projectPath string) string {
 
 // ReviewDir is the review worktree directory of a single merge request.
 func (m *Manager) ReviewDir(projectPath string, iid int, sourceBranch string) string {
-	legacy := filepath.Join(m.ProjectDir(projectPath)+".reviews", mrDirName(iid, sourceBranch))
+	legacy := filepath.Join(m.cloneDir(projectPath)+".reviews", mrDirName(iid, sourceBranch))
 	if Exists(legacy) {
 		return legacy
 	}
@@ -160,7 +178,7 @@ func WorktreeRoot(projectDir string) string {
 // WorktreeRoots includes old layouts so existing checkouts remain visible and
 // deletion still accounts for all local work. New worktrees use the hidden root.
 func (m *Manager) WorktreeRoots(projectPath string) []string {
-	dir := m.ProjectDir(projectPath)
+	dir := m.cloneDir(projectPath)
 	return []string{m.MRRoot(projectPath), dir + ".mrs", dir + ".reviews"}
 }
 
@@ -228,7 +246,7 @@ func (m *Manager) CloneProject(p forge.Project) (string, error) {
 // project between HTTPS and SSH.
 func (m *Manager) SetRemote(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
-	if !Exists(dir) {
+	if m.Managed() || !Exists(dir) {
 		return "", nil
 	}
 	want := m.RemoteURL(p)
@@ -457,7 +475,7 @@ type Removal struct {
 // request worktree underneath it.
 func (m *Manager) InspectProject(projectPath string) Removal {
 	r := Removal{Dir: m.ProjectDir(projectPath)}
-	if Exists(r.Dir) {
+	if Exists(r.Dir) && !m.Managed() {
 		if s := m.git.Status(r.Dir).Describe(); s != "" {
 			r.Warnings = append(r.Warnings, "main clone: "+s)
 		}
@@ -506,7 +524,8 @@ func (m *Manager) describeWorktree(dir string) string {
 }
 
 // RemoveProject deletes the main clone together with all of its merge request
-// worktrees.
+// worktrees. A managed clone keeps its checkout: only the worktrees go, and
+// git is told they are gone.
 func (m *Manager) RemoveProject(projectPath string) error {
 	dir := m.ProjectDir(projectPath)
 	for _, root := range m.WorktreeRoots(projectPath) {
@@ -518,6 +537,12 @@ func (m *Manager) RemoveProject(projectPath string) error {
 			return err
 		}
 		m.pruneEmptyParents(filepath.Dir(root))
+	}
+	if m.Managed() {
+		if Exists(dir) {
+			m.git.WorktreePrune(dir)
+		}
+		return nil
 	}
 	m.log("Removing %s", dir)
 	if err := os.RemoveAll(dir); err != nil {
@@ -695,7 +720,7 @@ func leadingIID(name string) int {
 func (m *Manager) pruneEmptyParents(dir string) {
 	root := filepath.Clean(m.Root())
 	if m.opts.ProjectDirectory != "" {
-		root = filepath.Dir(m.ProjectDir(""))
+		root = filepath.Dir(m.cloneDir(""))
 	}
 	for {
 		dir = filepath.Clean(dir)
