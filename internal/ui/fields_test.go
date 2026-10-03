@@ -130,3 +130,85 @@ func TestTextAreaOpensOnItsFirstLine(t *testing.T) {
 		t.Errorf("the first line of the text area shows %q", strings.TrimSpace(top.String()))
 	}
 }
+
+// TestTheSelectsOfAFormAreOneWidth: tview sizes a select to its longest
+// option, and a column of them ended ragged; they are as wide as the widest,
+// on screen as well as in their rectangles.
+func TestTheSelectsOfAFormAreOneWidth(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	form := openNewRepository(t, a, sc)
+	widths := onLoop(a, func() map[string]int {
+		out := map[string]int{}
+		for i := 0; i < form.GetFormItemCount(); i++ {
+			if d, ok := form.GetFormItem(i).(*tview.DropDown); ok {
+				out[d.GetLabel()] = d.GetFieldWidth()
+			}
+		}
+		return out
+	})
+	if len(widths) < 4 {
+		t.Fatalf("selects: %v", widths)
+	}
+	// The visibility select has the longest option; the others follow it.
+	want := widths[labelRepoVisibility]
+	for label, w := range widths {
+		if w != want {
+			t.Errorf("%s is %d wide, %s %d", label, w, labelRepoVisibility, want)
+		}
+	}
+	// Drawn: each select's band ends in the same column.
+	text := strings.Split(a.screenText(sc), "\n")
+	end := func(label string) int {
+		row := lineOf(a.screenText(sc), label)
+		x := len([]rune(text[row][:strings.Index(text[row], label)])) + len(label)
+		last := -1
+		for col := x; col < x+80; col++ {
+			if _, bg, _ := cellStyleAt(a, sc, col, row).Decompose(); bg == colSurface || bg == colFieldFocus {
+				last = col
+			}
+		}
+		return last
+	}
+	if l, g := end(labelRepoLicense), end(labelRepoGitignore); l != g || l < 0 {
+		t.Errorf("the license select ends at %d, the .gitignore one at %d", l, g)
+	}
+}
+
+// TestEscClosesAnOpenSelectAndNotTheDialog: Esc on an open select's list
+// closes the list, keeps what was chosen, and leaves the dialog and the
+// keyboard where they were; a second Esc leaves the dialog.
+func TestEscClosesAnOpenSelectAndNotTheDialog(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	form := openNewRepository(t, a, sc)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing the name
+	waitFor(t, a, sc, "i type")
+	visibility := onLoop(a, func() *tview.DropDown {
+		return form.GetFormItemByLabel(labelRepoVisibility).(*tview.DropDown)
+	})
+	onLoop(a, func() bool {
+		form.SetFocus(form.GetFormItemIndex(labelRepoVisibility))
+		a.tv.SetFocus(form)
+		return true
+	})
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "public")
+	typeRunes(sc, "jj") // moves in the list, chooses nothing yet
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "public")
+	state := onLoop(a, func() string {
+		_, text := visibility.GetCurrentOption()
+		name, _ := a.pages.GetFrontPage()
+		focused := "nothing"
+		if item, _ := form.GetFocusedItemIndex(); item >= 0 {
+			focused = form.GetFormItem(item).GetLabel()
+		}
+		return name + " · " + text + " · " + focused
+	})
+	if want := pageForm + " · private · " + labelRepoVisibility; state != want {
+		t.Fatalf("after Esc on the open list: %q, want %q", state, want)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "New repository")
+}

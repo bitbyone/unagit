@@ -209,6 +209,14 @@ func darken(c tcell.Color, fallback tcell.Color) tcell.Color {
 	return tcell.NewRGBColor(scale(16), scale(8), scale(0))
 }
 
+// selectMarker ends a closed select, so it looks like something that opens;
+// selectPadding is the room around an option the widest of the two takes
+// (the open list's two spaces either side).
+const (
+	selectMarker  = " \u25be"
+	selectPadding = 4
+)
+
 // styleDropDown makes a select box readable and recognisable.
 //
 // tview builds a focused drop-down out of Styles.PrimaryTextColor on
@@ -222,7 +230,7 @@ func styleDropDown(d *tview.DropDown) *tview.DropDown {
 	// inverted default.
 	d.SetFocusedStyle(styleSelected)
 	d.SetListStyles(tcell.StyleDefault.Background(colSurface).Foreground(colText), styleSelected)
-	d.SetTextOptions("  ", "  ", "", " \u25be", "")
+	d.SetTextOptions("  ", "  ", "", selectMarker, "")
 	// tview feeds every other key into a hidden search field and opens the
 	// list on it. With two fixed options that is only a way of ending up
 	// somewhere nobody asked for, so the arrows and Enter are the way in.

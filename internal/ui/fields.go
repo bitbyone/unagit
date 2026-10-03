@@ -10,10 +10,28 @@ import "github.com/rivo/tview"
 // constructors anywhere else in this package.
 
 // addSelect adds a select box to a form: chosen with the arrows and Enter, drawn
-// like the selection band of the lists, and deaf to typed letters.
+// like the selection band of the lists, and deaf to typed letters. Every select
+// of a form is as wide as the widest: tview sizes each to its own longest
+// option, and a column of selects then ends ragged.
 func addSelect(form *tview.Form, label string, options []string, selected int) *tview.DropDown {
 	form.AddDropDown(label, options, selected, nil)
-	return styleDropDown(form.GetFormItemByLabel(label).(*tview.DropDown))
+	drop := styleDropDown(form.GetFormItemByLabel(label).(*tview.DropDown))
+	// Unsized, tview gives the longest option's width; the others carry the
+	// width given them last time, padding included.
+	widest := drop.GetFieldWidth() + selectPadding
+	var selects []*tview.DropDown
+	for i := 0; i < form.GetFormItemCount(); i++ {
+		if d, ok := form.GetFormItem(i).(*tview.DropDown); ok {
+			selects = append(selects, d)
+			if d != drop {
+				widest = max(widest, d.GetFieldWidth())
+			}
+		}
+	}
+	for _, d := range selects {
+		d.SetFieldWidth(widest)
+	}
+	return drop
 }
 
 // addTextArea adds a text area that fills what the form has left and opens on

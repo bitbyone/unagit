@@ -84,7 +84,12 @@ select (`styleDropDown`), it just was not reused. The rules:
   call `AddDropDown`, `NewDropDown`, `AddCheckbox` or `NewCheckbox` outside
   `fields.go`; `TestSharedFieldsAreTheOnlyWayToMakeThem` fails if you do.
 - A select ignores typed letters (arrows and Enter open it) and draws its list
-  with the same selection band as every list. Do not "improve" one of them on
+  with the same selection band as every list. Every select of a form is as
+  wide as the widest (`addSelect` sizes them all; tview would size each to its
+  own longest option and the column ends ragged). Esc on an open select closes
+  its list and nothing else: tview hands that Esc to the select, which tells
+  the form it is finished, and the form cancels - so `bindFormButtons` gives
+  it to the open list instead (`TestEscClosesAnOpenSelectAndNotTheDialog`). Do not "improve" one of them on
   its own; change `styleDropDown` and every select follows.
 - A list to choose from is `showPicker` (or `showPickerWith` for its options),
   and it opens on the list: j/k move, Enter picks, `/` starts the filter. Do

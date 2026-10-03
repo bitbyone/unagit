@@ -108,8 +108,16 @@ func (a *App) bindFormButtons(form *tview.Form) {
 		if item == nil || !editable(item) {
 			mode.insert = false
 		}
-		// An open select's list has the keys; j and k move in it.
+		// An open select's list has the keys; j and k move in it. Esc only
+		// closes the list: tview hands it to the select rather than to its
+		// list, and the select reports it to the form as finished, which the
+		// form takes for cancel - the whole dialog went. The list, which has
+		// the keyboard while open, aborts the choice and nothing more.
 		if drop, ok := item.(*tview.DropDown); ok && drop.IsOpen() {
+			if list, ok := a.tv.GetFocus().(*tview.List); ok && ev.Key() == tcell.KeyEsc {
+				list.InputHandler()(ev, func(p tview.Primitive) { a.tv.SetFocus(p) })
+				return nil
+			}
 			return ev
 		}
 		if mode.insert {
