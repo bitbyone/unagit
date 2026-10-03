@@ -97,7 +97,9 @@ all and live only there.
   or both and how far apart (`↑2 ↓1`), whether it is checked out and where,
   and whether it is the default or protected. `Enter` switches **that same
   clone** to it, so there is one working copy per repository, not a directory
-  per branch. `d` deletes it in the clone (origin keeps it), `D` in the clone
+  per branch. `n` makes a new branch in the clone, starting from the one under
+  the cursor (or another you choose); it appears in the list with the cursor
+  on it, and `Enter` switches to it when you want. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer
   tracking). The default branch and protected ones are never deleted, one
   checked out somewhere cannot be deleted in the clone, and one with an open
@@ -470,6 +472,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
+| `n` | in branches: a new branch from the one under the cursor |
 | `d` `D` `Alt-D` | in branches: delete in the clone · everywhere · on origin |
 | `L` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |

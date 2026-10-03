@@ -436,6 +436,34 @@ func (m *Manager) EnsureWorktree(p forge.Project, branch string, isNew bool) (st
 	return wtDir, nil
 }
 
+// NewBranch makes a branch in the main clone at the tip of another, without
+// checking it out: switching to it is a choice of its own. A from that is
+// only on origin is fetched first. The branch records from as its base, as a
+// new worktree's branch does, so it is rebased onto it until it is pushed.
+func (m *Manager) NewBranch(p forge.Project, name, from string) error {
+	mainDir := m.ProjectDir(p.PathWithNamespace)
+	if !Exists(mainDir) {
+		return fmt.Errorf("%s is not cloned - clone it first with C", p.PathWithNamespace)
+	}
+	if _, err := m.git.Run(mainDir, "check-ref-format", "--branch", name); err != nil {
+		return fmt.Errorf("%q is not a name git takes for a branch", name)
+	}
+	if m.git.LocalBranchExists(mainDir, name) {
+		return fmt.Errorf("%s already exists in the clone", name)
+	}
+	start := from
+	if !m.git.LocalBranchExists(mainDir, from) {
+		_ = m.git.FetchRefspec(mainDir, from)
+		start = "origin/" + from
+	}
+	if err := m.git.CreateBranch(mainDir, name, start); err != nil {
+		return err
+	}
+	_ = m.git.SetBranchBase(mainDir, name, from)
+	m.log("Created %s from %s", name, from)
+	return nil
+}
+
 // SwitchBranch checks a branch out in the main clone of a project, cloning it
 // first when needed.
 func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {

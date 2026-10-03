@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rivo/tview"
+
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
@@ -18,7 +20,9 @@ import (
 // the clone, on origin, or both, and how far apart - whether it is checked
 // out and where, and keys to delete it here, there, or everywhere. Opened from
 // Repositories, Enter also switches the main clone to one. Opened from a
-// worktree there is nothing to switch, so Enter does nothing there.
+// worktree there is nothing to switch, so Enter does nothing there. n makes
+// a new branch from the one under the cursor; it comes back into the list,
+// and switching to it is the next step, and the user's.
 //
 // The default branch and a protected one are never deleted, a branch checked
 // out somewhere cannot be deleted here (git refuses), and one with an open
@@ -218,6 +222,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		a.showBranchManager(next)
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
+		{keys: "n", hint: "new", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
 		{keys: "d", hint: "delete here", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
 		{keys: "D", hint: "everywhere", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
 		{keys: "Alt-D", hint: "on origin", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
@@ -232,6 +237,61 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		a.done(scope.done)
 	}
 }
+
+// newBranch asks for the name of a new branch and what it grows from - the
+// branch the cursor was on, to begin with - makes it in the clone, and brings
+// the list back with the cursor on it.
+func (a *App) newBranch(pr forge.Project, branches []branchInfo, from string, again func(focus, done string)) {
+	if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		a.flash(pr.PathWithNamespace + " is not cloned - C clones it, then n makes a branch")
+		return
+	}
+	names := make([]string, len(branches))
+	selected := 0
+	for i, b := range branches {
+		names[i] = b.name
+		if b.name == from {
+			selected = i
+		}
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField(labelBranchName, "", 0, nil, nil)
+	addSelect(form, labelBranchFrom, names, selected)
+	apply := func() {
+		name := strings.TrimSpace(form.GetFormItemByLabel(labelBranchName).(*tview.InputField).GetText())
+		_, base := form.GetFormItemByLabel(labelBranchFrom).(*tview.DropDown).GetCurrentOption()
+		if name == "" {
+			a.flash("enter a name for the branch")
+			return
+		}
+		for _, b := range branches {
+			if b.name == name {
+				a.flash(name + " already exists - pick it in the list")
+				return
+			}
+		}
+		a.closeModal(pageForm)
+		a.runTaskThen("Creating "+name, func(log func(string)) (string, error) {
+			return "", a.newManager(pr.Instance, pr.PathWithNamespace, log).NewBranch(pr, name, base)
+		}, func(string) {
+			again(name, fmt.Sprintf("created %s from %s", name, base))
+		})
+	}
+	form.AddButton("Create", apply)
+	// Cancel goes back to the list the form was opened from.
+	form.AddButton("Cancel", func() {
+		a.closeModal(pageForm)
+		again(from, "")
+	})
+	a.showFormModalSized("New branch - "+pr.PathWithNamespace, form, 64, 9)
+}
+
+// Labels of the new branch form.
+const (
+	labelBranchName = "Name"
+	labelBranchFrom = "From"
+)
 
 // switchMainClone checks a branch out in the main clone and opens the editor
 // there.

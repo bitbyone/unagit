@@ -182,6 +182,7 @@ func helpRows() []helpLine {
 		key("C", "clone without opening the editor"),
 		key("e", "set the clone directory of an uncloned repository"),
 		key("b", "branches: where each is; Enter switches the clone"),
+		key("n", "in b: a new branch from the one under the cursor"),
 		key("d  D  Alt-D", "in b: delete in the clone · everywhere · on origin"),
 		key("p", "pull; rebases your work; refuses on a conflict"),
 		key("Alt-P", "the same for every clone origin has moved past"),
