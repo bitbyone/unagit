@@ -184,6 +184,17 @@ func TestGroupedWorktreeStartsANewBranchFromBases(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "same")); err == nil {
 		t.Error("a refused group left its folder behind")
 	}
+
+	// Nor with a branch a repository has already: said at once, by name.
+	onLoop(a, func() bool {
+		form.GetFormItemByLabel(labelGroupBranch).(*tview.InputField).SetText("feat/busy")
+		return true
+	})
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "gateway already has feat/busy - give the group another name")
+	if !onLoop(a, func() bool { return a.pages.HasPage(pageForm) }) {
+		t.Error("the dialog closed on a branch that exists")
+	}
 }
 
 // onLoopPair is onLoop for two values.

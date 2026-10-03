@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -268,6 +269,18 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 		newBranch := strings.TrimSpace(branch.GetText())
 		if newBranch == "" {
 			a.flash("enter the new branch - every repository gets it")
+			return
+		}
+		// Said at once, from the branches the form was given; the check after
+		// the fetch, before anything is made, catches one pushed meanwhile.
+		var taken []string
+		for _, c := range choices {
+			if slices.Contains(c.branches, newBranch) {
+				taken = append(taken, c.dir)
+			}
+		}
+		if len(taken) > 0 {
+			a.flash(fmt.Sprintf("%s already has %s - give the group another name", strings.Join(taken, ", "), newBranch))
 			return
 		}
 		name := workspace.Sanitize(strings.TrimSpace(folder.GetText()))

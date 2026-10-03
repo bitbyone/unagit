@@ -190,9 +190,9 @@ func (m *Manager) CheckGroupMember(p forge.Project, branch, base string, isNew b
 	if isNew {
 		switch {
 		case m.git.LocalBranchExists(dir, branch):
-			return fmt.Errorf("%s already has a branch %s - leave the new branch empty and pick it instead", p.PathWithNamespace, branch)
+			return fmt.Errorf("%s already has a branch %s - give the group another name", p.PathWithNamespace, branch)
 		case m.git.RemoteBranchExists(dir, branch):
-			return fmt.Errorf("%s already has %s on origin - leave the new branch empty and pick it instead", p.PathWithNamespace, branch)
+			return fmt.Errorf("%s already has %s on origin - give the group another name", p.PathWithNamespace, branch)
 		case m.startOfGroupBranch(dir, base) == "":
 			return fmt.Errorf("%s has no branch %s to start from", p.PathWithNamespace, base)
 		}
