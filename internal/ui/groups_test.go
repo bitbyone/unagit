@@ -128,89 +128,93 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	}
 }
 
-// TestGroupedWorktreeOffersOnlyBranchesItCanCheckOut: without a new branch a
-// select offers only the branches checked out nowhere - gateway's main is out
-// in its clone, billing has no other - and says nothing of where the others
-// are; Create refuses while one repository has none. With a new branch every
-// branch is offered again, to start from.
-func TestGroupedWorktreeOffersOnlyBranchesItCanCheckOut(t *testing.T) {
+// TestGroupedWorktreeStartsANewBranchFromBases: the new branch is required;
+// each select is the base it starts from, the main clone's branch first, any
+// branch offered but one a worktree has out, and nothing said of where they
+// are.
+func TestGroupedWorktreeStartsANewBranchFromBases(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
-	_, _, form := markBoth(t, a, sc)
-	options := func(label string) []string {
-		return onLoop(a, func() []string {
+	// gateway's clone is on feat/rate, and a worktree has main's sibling out.
+	_, _, form := markBoth(t, a, sc, func(gw, bl *realProject) {
+		gitIn(t, gw.clone, "push", "-q", "origin", "main:feat/rate")
+		gitIn(t, gw.clone, "checkout", "-q", "-b", "feat/rate", "--track", "origin/feat/rate")
+		gw.worktree("feat/busy")
+		gitIn(t, gw.clone, "push", "-q", "origin", "feat/busy")
+	})
+	options := func(label string) (current string, all []string) {
+		return onLoopPair(a, func() (string, []string) {
 			d := form.GetFormItemByLabel(label).(*tview.DropDown)
-			var out []string
-			at, _ := d.GetCurrentOption()
+			at, cur := d.GetCurrentOption()
 			for i := 0; i < d.GetOptionCount(); i++ {
 				d.SetCurrentOption(i)
 				_, text := d.GetCurrentOption()
-				out = append(out, text)
+				all = append(all, text)
 			}
 			d.SetCurrentOption(at)
-			return out
+			return cur, all
 		})
 	}
-	if got := options("gateway"); strings.Join(got, ",") != "feat/rate" {
-		t.Errorf("gateway offers %v, want feat/rate alone", got)
+	text := a.screenText(sc)
+	if !strings.Contains(text, "Base branch of each repository") {
+		t.Errorf("the selects are not said to be bases:\n%s", text)
 	}
-	if got := options("billing"); len(got) != 1 || got[0] != noFreeBranch {
-		t.Errorf("billing offers %v", got)
+	if strings.Contains(text, "checked out in") {
+		t.Errorf("the selects say where branches are out:\n%s", text)
 	}
-	if strings.Contains(a.screenText(sc), "checked out in") {
-		t.Errorf("the selects still say where branches are out:\n%s", a.screenText(sc))
+	cur, all := options("gateway")
+	if cur != "feat/rate" {
+		t.Errorf("gateway starts from %q, want the clone's feat/rate", cur)
 	}
+	if strings.Contains(strings.Join(all, ","), "feat/busy") || !strings.Contains(strings.Join(all, ","), "main") {
+		t.Errorf("gateway offers %v: main yes, the worktree's feat/busy no", all)
+	}
+	if cur, _ := options("billing"); cur != "main" {
+		t.Errorf("billing starts from %q", cur)
+	}
+
+	// Without a new branch nothing is made.
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
 	typeRunes(sc, "same")
 	waitFor(t, a, sc, "same")
 	pressButton(t, a, sc, form, "Create")
-	waitFor(t, a, sc, "every branch of billing is checked out elsewhere")
+	waitFor(t, a, sc, "enter the new branch")
 	if !onLoop(a, func() bool { return a.pages.HasPage(pageForm) }) {
-		t.Error("the dialog closed on a repository it cannot use")
+		t.Error("the dialog closed without a branch")
 	}
 	if _, err := os.Stat(filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "same")); err == nil {
 		t.Error("a refused group left its folder behind")
 	}
-
-	// A new branch starts from any branch.
-	onLoop(a, func() bool {
-		form.GetFormItemByLabel(labelGroupBranch).(*tview.InputField).SetText("feat/new")
-		return true
-	})
-	if got := options("gateway"); strings.Join(got, ",") != "main,feat/rate" {
-		t.Errorf("to start from, gateway offers %v", got)
-	}
-	if got := options("billing"); strings.Join(got, ",") != "main" {
-		t.Errorf("to start from, billing offers %v", got)
-	}
 }
 
-// TestGroupedWorktreeChecksOutExistingBranches: without a new branch, each
-// repository is on the branch picked for it, tracking origin.
-func TestGroupedWorktreeChecksOutExistingBranches(t *testing.T) {
+// onLoopPair is onLoop for two values.
+func onLoopPair[A, B any](a *App, read func() (A, B)) (A, B) {
+	type pair struct {
+		a A
+		b B
+	}
+	p := onLoop(a, func() pair { x, y := read(); return pair{x, y} })
+	return p.a, p.b
+}
+
+// TestGroupedWorktreeBranchesFromTheClonesBranch: with the clone on another
+// branch, the group's branch starts there.
+func TestGroupedWorktreeBranchesFromTheClonesBranch(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
-	// gateway takes feat/rate; billing keeps main, which its clone has checked
-	// out, so it is moved off it first.
 	_, _, form := markBoth(t, a, sc, func(gw, bl *realProject) {
-		gitIn(t, gw.clone, "push", "-q", "origin", "main:feat/rate")
-		gitIn(t, bl.clone, "checkout", "-q", "-b", "elsewhere")
+		gitIn(t, gw.clone, "checkout", "-q", "-b", "elsewhere")
+		commitIn(t, gw.clone, "e.txt", "on elsewhere")
 	})
-	// main is out in gateway's clone, so feat/rate is all it offers.
-	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-	typeRunes(sc, "mixed")
-	waitFor(t, a, sc, "mixed")
+	typeRunes(sc, "feat/mixed")
+	waitFor(t, a, sc, "feat-mixed")
 	pressButton(t, a, sc, form, "Create")
 
-	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "mixed")
+	dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-mixed")
 	waitForPath(t, a, sc, filepath.Join(dir, workspace.GroupFile), true)
-	if got := gitIn(t, filepath.Join(dir, "gateway"), "rev-parse", "--abbrev-ref", "@{upstream}"); got != "origin/feat/rate" {
-		t.Errorf("gateway tracks %q", got)
-	}
-	if got := gitIn(t, filepath.Join(dir, "billing"), "rev-parse", "--abbrev-ref", "HEAD"); got != "main" {
+	gitIn(t, filepath.Join(dir, "gateway"), "merge-base", "--is-ancestor", "elsewhere", "HEAD")
+	if got := gitIn(t, filepath.Join(dir, "billing"), "rev-parse", "--abbrev-ref", "HEAD"); got != "feat/mixed" {
 		t.Errorf("billing is on %q", got)
 	}
-	// Nothing opens: Worktrees shows what was made.
 	waitFor(t, a, sc, "created ")
-	waitFor(t, a, sc, "2 branches")
 }
 
 // TestGroupedWorktreeFormFitsItsFrame draws the form at several sizes, as the

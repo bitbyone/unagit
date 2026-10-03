@@ -152,25 +152,19 @@ folder. In Repositories, `space` selects a repository and moves on (the header
 says `SELECT 3`, and the selected rows have a band of their own; `Esc` clears
 it); `Ctrl-W` on a selection then asks for:
 
-- **New branch** - made in every repository, from the branch picked for it
-  below. Left empty, nothing is created and each repository checks out the
-  branch picked for it.
+- **New branch** - required: the group always works on a branch of its own,
+  made in every repository.
 - **Folder** - the name of the folder; it follows the branch until you change it.
-- **A branch for each repository** - where the new branch starts, or, without
-  one, the branch that repository checks out.
+- **A base branch for each repository** - where its new branch starts, and
+  what `p` rebases it onto until it is pushed. It starts on the branch the
+  main clone has checked out, or the default branch for a repository not
+  cloned yet (it is cloned on the way). Any branch is offered except one a
+  worktree has out - a worktree is not built on another worktree's branch.
 
 ```
 <root>/.unagit/groups/<folder>/<repo>     a worktree of each repository
 <root>/.unagit/groups/<folder>/.unagit-group.json
 ```
-
-Git checks a branch out only once, so without a new branch a repository
-offers only its branches checked out nowhere - usually not the default one,
-which the main clone has. With a new branch every branch is offered, to start
-from.
-Every repository is cloned, fetched and checked before anything is made, so a
-group is made whole or not at all. Once made, Worktrees shows it with the
-cursor on it.
 
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` opens it as a view of its own (see below).

@@ -59,36 +59,48 @@ func (a *App) groupRow(g workspace.GroupDir) worktreeRow {
 }
 
 // groupChoice is one repository of a grouped worktree about to be made: the
-// branches it can start from or check out, and its directory in the group.
+// branches its new branch can start from, and its directory in the group.
 type groupChoice struct {
 	project  forge.Project
 	dir      string
 	branches []string
+	// selected is the base offered first: what the main clone has checked
+	// out, or the default branch for a repository not cloned yet - the one a
+	// first clone would check out.
 	selected int
-	// busy says where a branch is already checked out; git will not check it
-	// out a second time, so without a new branch it cannot be picked.
-	busy map[string]string
+	// current is the branch the main clone has out; worktrees are the
+	// branches some worktree has out. A worktree is not made from another
+	// worktree's branch, which may be rewritten under it.
+	current   string
+	worktrees map[string]bool
 }
 
-// offered is what the select of a repository offers: to check out, only the
-// branches checked out nowhere, since git checks a branch out once and the
-// others could only be refused; to start a new branch from, every branch.
-func (c groupChoice) offered(checkout bool) []string {
-	if !checkout {
-		return c.branches
-	}
-	var free []string
+// bases are the branches a new branch can start from: every one but those
+// a worktree has out.
+func (c groupChoice) bases() []string {
+	var out []string
 	for _, b := range c.branches {
-		if _, busy := c.busy[b]; !busy {
-			free = append(free, b)
+		if !c.worktrees[b] {
+			out = append(out, b)
 		}
 	}
-	return free
+	return out
 }
 
-// noFreeBranch is what a select says when every branch of its repository is
-// checked out somewhere already.
-const noFreeBranch = "every branch is checked out elsewhere - type a new branch"
+// free are the branches checked out nowhere, for a member of an older group
+// that has no branch of its own and checks one out.
+func (c groupChoice) free() []string {
+	var out []string
+	for _, b := range c.bases() {
+		if b != c.current {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// noFreeBranch is what a select says when it has no branch to offer.
+const noFreeBranch = "no branch to start from - every one is out in a worktree"
 
 // branchOptions are a select's options for a list of branches: cut to fit the
 // dialog, since a select wider than it is drawn over its frame.
@@ -181,17 +193,20 @@ func (a *App) groupChoiceFor(ctx context.Context, pr forge.Project, dir string) 
 				c.branches = append(c.branches, name)
 			}
 		}
-		c.busy = map[string]string{}
+		c.worktrees = map[string]bool{}
 		for branch, dir := range mgr.Git().CheckedOut(mainDir) {
 			if sameDir(dir, mainDir) {
-				c.busy[branch] = "the main clone"
+				c.current = branch
 			} else {
-				c.busy[branch] = filepath.Base(dir)
+				c.worktrees[branch] = true
 			}
 		}
 	}
 	if len(c.branches) == 0 {
 		return groupChoice{}, fmt.Errorf("%s has no branch yet", pr.PathWithNamespace)
+	}
+	if c.current != "" {
+		c.selected = branchIndex(c.branches, c.current)
 	}
 	return c, nil
 }
@@ -208,11 +223,11 @@ func sameDir(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-// Hints under the branch, for the two ways a grouped worktree is made.
-const (
-	hintGroupNew      = "Made in every repository from the branch below;\np rebases it onto that branch until it is pushed."
-	hintGroupExisting = "Each repository checks out the branch below;\nonly branches checked out nowhere are offered."
-)
+// hintGroupBases heads the selects, so that none of them is taken for the
+// branch the repository checks out: the group always makes a branch of its
+// own, and each select is only where it starts.
+const hintGroupBases = "Base branch of each repository - the new branch starts there,\n" +
+	"and p rebases it onto that branch until it is pushed:"
 
 // Labels of the fields above the repositories.
 const (
@@ -220,78 +235,44 @@ const (
 	labelGroupFolder = "Folder"
 )
 
-// showGroupWorktreeForm asks for what the grouped worktree should be: a branch
-// made in every repository or none, the folder they go in, and a branch of
-// each repository - where the new one starts, or the one checked out.
+// showGroupWorktreeForm asks for what the grouped worktree should be: the
+// branch made in every repository, the folder they go in, and the base of
+// each repository's branch.
 func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.SetItemPadding(1)
 	branch := form.AddInputField(labelGroupBranch, "", 0, nil, nil).GetFormItemByLabel(labelGroupBranch).(*tview.InputField)
 	folder := form.AddInputField(labelGroupFolder, "", 0, nil, nil).GetFormItemByLabel(labelGroupFolder).(*tview.InputField)
-	form.AddTextView("", hintGroupExisting, 0, 2, true, false)
-	hint := form.GetFormItem(form.GetFormItemCount() - 1).(*tview.TextView)
-	selects := make([]*tview.DropDown, len(choices))
-	// What each select offers now, and the branch picked in each of its two
-	// meanings - to check out, to start from - so that each is kept while the
-	// other is shown.
-	shown := make([][]string, len(choices))
-	picked := map[bool][]string{true: make([]string, len(choices)), false: make([]string, len(choices))}
-	checkingOut := false
-	offer := func(checkout bool) {
-		for i, c := range choices {
-			if selects[i] != nil {
-				if idx, _ := selects[i].GetCurrentOption(); idx >= 0 && idx < len(shown[i]) {
-					picked[checkingOut][i] = shown[i][idx]
-				}
-			}
-			shown[i] = c.offered(checkout)
-			at := branchIndex(shown[i], picked[checkout][i])
-			if selects[i] == nil {
-				selects[i] = addSelect(form, c.dir, branchOptions(shown[i]), at)
-				continue
-			}
-			selects[i].SetOptions(branchOptions(shown[i]), nil)
-			selects[i].SetCurrentOption(at)
-		}
-		checkingOut = checkout
-		fitSelects(form)
-	}
-	// The folder follows the branch until it is given a name of its own; the
-	// hint says what the branches below mean now, and they offer what can be
-	// picked for it.
+	form.AddTextView("", hintGroupBases, 0, 2, true, false)
+	// The folder follows the branch until it is given a name of its own.
 	named := ""
 	branch.SetChangedFunc(func(text string) {
 		if folder.GetText() == named {
 			named = workspace.Sanitize(strings.TrimSpace(text))
 			folder.SetText(named)
 		}
-		checkout := strings.TrimSpace(text) == ""
-		if checkout {
-			hint.SetText(hintGroupExisting)
-		} else {
-			hint.SetText(hintGroupNew)
-		}
-		if checkout != checkingOut {
-			offer(checkout)
-		}
 	})
+	selects := make([]*tview.DropDown, len(choices))
+	bases := make([][]string, len(choices))
 	for i, c := range choices {
+		bases[i] = c.bases()
+		at := 0
 		if c.selected >= 0 && c.selected < len(c.branches) {
-			picked[true][i], picked[false][i] = c.branches[c.selected], c.branches[c.selected]
+			at = branchIndex(bases[i], c.branches[c.selected])
 		}
+		selects[i] = addSelect(form, c.dir, branchOptions(bases[i]), at)
 	}
-	offer(true)
 
 	create := func() {
 		newBranch := strings.TrimSpace(branch.GetText())
+		if newBranch == "" {
+			a.flash("enter the new branch - every repository gets it")
+			return
+		}
 		name := workspace.Sanitize(strings.TrimSpace(folder.GetText()))
 		if name == "" {
 			name = workspace.Sanitize(newBranch)
-		}
-		if name == "" {
-			a.flash("enter a folder, or a new branch to name it after")
-			return
 		}
 		dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), name)
 		if _, err := os.Stat(dir); err == nil {
@@ -300,18 +281,13 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 		}
 		plan := workspace.Group{Name: name, Branch: newBranch, Created: time.Now()}
 		for i, c := range choices {
-			idx, _ := selects[i].GetCurrentOption()
-			if len(shown[i]) == 0 {
-				a.flash(fmt.Sprintf("every branch of %s is checked out elsewhere - give the group a new branch", c.dir))
+			if len(bases[i]) == 0 {
+				a.flash(fmt.Sprintf("%s has no branch to start from - every one is out in a worktree", c.dir))
 				return
 			}
-			picked := shown[i][max(idx, 0)]
-			m := workspace.GroupMember{Instance: c.project.Instance, Project: c.project.PathWithNamespace,
-				Dir: c.dir, Branch: picked}
-			if newBranch != "" {
-				m.Branch, m.Base = newBranch, picked
-			}
-			plan.Members = append(plan.Members, m)
+			idx, _ := selects[i].GetCurrentOption()
+			plan.Members = append(plan.Members, workspace.GroupMember{Instance: c.project.Instance,
+				Project: c.project.PathWithNamespace, Dir: c.dir, Branch: newBranch, Base: bases[i][max(idx, 0)]})
 		}
 		a.closeModal(pageForm)
 		projects := make([]forge.Project, len(choices))

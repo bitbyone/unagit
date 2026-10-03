@@ -204,9 +204,11 @@ with `.unagit-group.json` saying which repository each directory is (a name
 cannot tell two servers apart). Space marks rows in a pane (`pane.marks`, for a
 list that sets `markable`); Ctrl-W on marks makes the group. It is made whole
 or not at all: every repository is cloned and fetched, then checked
-(`CheckGroupMember` - git checks a branch out only once, so a branch the main
-clone has is refused with a reason), and only then are worktrees added; a
-failure takes back what was made. Deleting a group keeps its branches.
+(`CheckGroupMember`), and only then are worktrees added; a failure takes back
+what was made. A new group always makes a branch of its own; the selects in
+its form are bases, not checkouts (this was once misread and "fixed" into a
+checkout filter - do not). They offer every branch but one a worktree has
+out, starting on the main clone's branch. Deleting a group keeps its branches.
 Incomm in a group: the editor's store is the group folder's, one file for every
 repository, its paths under the members' folders. `incomm.Place` (a dir and a
 prefix) is how a merge request's comments are read from it - `mrPlaces` adds the

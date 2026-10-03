@@ -101,8 +101,12 @@ func (a *App) showGroupMemberForm(r worktreeRow, g workspace.Group, c groupChoic
 	case has:
 		form.AddTextView("", fmt.Sprintf("%s has the group's branch %s already: it is checked out.", c.dir, shared), 0, 2, true, false)
 	default:
-		// Checked out, a branch must be free; started from, any will do.
-		offered = c.offered(shared == "")
+		// A branch checked out must be out nowhere; one started from may be
+		// anything but a worktree's.
+		offered = c.bases()
+		if shared == "" {
+			offered = c.free()
+		}
 		options := branchOptions(offered)
 		label := "Branch"
 		hint := "The branch checked out in " + c.dir + "."
