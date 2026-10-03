@@ -64,7 +64,7 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 		for {
 			_, style := cellAt(a, sc, x, lineOf(a.screenText(sc), "acme/gateway"))
 			fg, bg, _ := style.Decompose()
-			if bg == tcell.GetColor(chezmoiFill) && fg == tcell.GetColor(chezmoiInk) {
+			if bg == tcell.GetColor(chezmoiColour.fill) && fg == tcell.GetColor(chezmoiColour.ink) {
 				return
 			}
 			if time.Now().After(deadline) {
@@ -146,10 +146,14 @@ func TestChezmoiInTheDetail(t *testing.T) {
 // count or half a word.
 func TestChezmoiBadgeNarrows(t *testing.T) {
 	for room, want := range map[int]string{40: " ↗ Managed by Chezmoi ", 15: " ↗ Chezmoi ", 4: " ↗ ", 2: ""} {
-		markup, w := chezmoiBadge(room)
+		markup, w := chezmoiBadge(room, config.TagEndsSquare, behindList)
 		if got := stripTags(markup); got != want || w != len([]rune(want)) {
 			t.Errorf("chezmoiBadge(%d) = %q (%d), want %q", room, got, w, want)
 		}
+	}
+	// Rounded, the ends take the room the padding took.
+	if markup, w := chezmoiBadge(22, config.TagEndsRounded, behindList); stripTags(markup) != "\ue0b6↗ Managed by Chezmoi\ue0b4" || w != 22 {
+		t.Errorf("rounded badge = %q (%d)", stripTags(markup), w)
 	}
 }
 

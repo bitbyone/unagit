@@ -70,9 +70,12 @@ var behindBand = func() string { _, bg, _ := styleSelected.Decompose(); return b
 // at both ends when the style has ends, padded with a space when it has
 // none. It returns the markup and how many cells it takes.
 func pill(t config.Tag, style, behind string) (string, int) {
-	c := tagColourOf(t.Color)
+	return pillOf(t.Name, tagColourOf(t.Color), style, behind)
+}
+
+// pillOf draws any text as a pill in the given colours.
+func pillOf(text string, c tagColour, style, behind string) (string, int) {
 	left, right := pillEnds(style)
-	text := t.Name
 	if left == "" {
 		text = " " + text + " "
 	}
@@ -141,7 +144,7 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool) (string,
 	}
 	badge, bw := "", 0
 	if managed {
-		badge, bw = chezmoiBadge(width)
+		badge, bw = chezmoiBadge(width, a.cfg.Ends(), behind)
 	}
 	room := width
 	if bw > 0 {
@@ -160,8 +163,9 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool) (string,
 		if w > 0 {
 			gap, w = " ", w+1
 		}
+		banded, _ := chezmoiBadge(width, a.cfg.Ends(), band)
 		markup = badge + gap + markup
-		kept.markup, kept.width = badge+gap+kept.markup, bw+w
+		kept.markup, kept.width = banded+gap+kept.markup, bw+w
 		if marked {
 			kept.banded = markup
 		}

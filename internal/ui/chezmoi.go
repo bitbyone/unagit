@@ -120,15 +120,16 @@ func (a *App) managedDir(instanceID, projectPath string) string {
 }
 
 // chezmoiBadge is not a tag - nobody puts it on or takes it off, and it is
-// never saved - so it does not look like one: square where tags are round,
-// dark ink on a bright fill where every tag is light on dark, and always
-// first. It shortens rather than be counted away when the column is narrow.
-const chezmoiInk, chezmoiFill = "#1c1b19", "#f2b55c"
+// never saved - so it is told apart without shouting: a pill like the tags,
+// but dark ink on a middle grey where every tag is light on a deep colour,
+// and always first. It shortens rather than be counted away when the column
+// is narrow.
+var chezmoiColour = tagColour{name: "chezmoi", ink: "#1c1b19", fill: "#8f8f8f"}
 
-func chezmoiBadge(room int) (string, int) {
-	for _, text := range []string{" ↗ Managed by Chezmoi ", " ↗ Chezmoi ", " ↗ "} {
-		if w := len([]rune(text)); w <= room {
-			return "[" + chezmoiInk + ":" + chezmoiFill + ":b]" + text + "[-:-:-]", w
+func chezmoiBadge(room int, style, behind string) (string, int) {
+	for _, text := range []string{"↗ Managed by Chezmoi", "↗ Chezmoi", "↗"} {
+		if markup, w := pillOf(text, chezmoiColour, style, behind); w <= room {
+			return markup, w
 		}
 	}
 	return "", 0
@@ -162,9 +163,10 @@ func (a *App) chezmoiLine(d *detailBuf, pr forge.Project) {
 	if dir == "" {
 		return
 	}
-	badge, _ := chezmoiBadge(len(" ↗ Managed by Chezmoi "))
+	// The detail has room to be plain about it: a square heading in amber,
+	// not the quiet pill of the list.
 	d.blank()
-	d.raw(badge + "\n")
+	d.raw("[#1c1b19:#f2b55c:b] ↗ Managed by Chezmoi [-:-:-]\n")
 	d.kv("Checkout", esc(tildePath(dir)))
 	d.kv("Worktrees", esc(tildePath(a.pathManager(pr.Instance, pr.PathWithNamespace).MRRoot(pr.PathWithNamespace))))
 }
