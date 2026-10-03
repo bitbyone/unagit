@@ -226,9 +226,12 @@ one lit: on the group, `p` updates every repository, `C` commits everything,
 `n` opens the merge requests of all of them, `a` adds a repository; on a
 repository, the same keys do it for that one alone, and `w` opens its merge
 request in the browser, `c` its conversation, `l` the commits of its branch
-(Enter shows one in Hunk), `x` takes it out of the group. Each block says what
-the branch was made from and how far that has moved, where it stands against
-origin, what is not committed, its merge request and its comments.
+(Enter shows one in Hunk), `x` takes it out of the group. Each block is framed,
+the lit one in the bright border, and lists under a label each what the branch
+was made from and how far that has moved, where it stands against origin,
+what is not committed, its merge request and its comments. Git is asked about
+every repository at once and the view is drawn when all of them have
+answered; until then it says it is reading.
 
 ## Integrations
 

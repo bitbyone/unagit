@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -24,11 +24,16 @@ const pageWorktree = "worktree"
 type wtView struct {
 	row    worktreeRow // as it was when last read from the disk
 	at     int         // the lit block: 0 is the group's in a grouped worktree
-	body   *tview.TextView
+	body   *blockList
 	footer *tview.TextView
 	frame  *tview.Flex
 	facts  map[string]wtFacts // what git said, by directory
-	starts []int              // the line each block starts on
+	// loaded is set once git has answered for every repository: the view
+	// shows nothing of them until then, so that it is drawn whole, once,
+	// rather than growing row by row. A reload keeps what is shown until the
+	// new answer is complete.
+	loaded  bool
+	reading int // loads under way; the newest one wins
 }
 
 // blocks are what the view lights in turn: the group, then its repositories;
@@ -49,12 +54,13 @@ func (v *wtView) lit() worktreeRow {
 // showWorktreeView opens the view of a worktree.
 func (a *App) showWorktreeView(r worktreeRow) {
 	v := &wtView{row: r, facts: map[string]wtFacts{}}
-	v.body = tview.NewTextView().SetDynamicColors(true).SetScrollable(true).SetWrap(false)
-	v.body.SetTextColor(colText)
+	v.body = newBlockList()
+	v.body.waiting = "reading the worktree from git …"
 	v.footer = tview.NewTextView().SetDynamicColors(true).SetTextColor(colDim)
+	v.footer.SetWrap(true).SetWordWrap(true)
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.body, 0, 1, true).
-		AddItem(v.footer, 2, 0, false)
+		AddItem(v.footer, 1, 0, false)
 	title := r.Path
 	if r.grouped() {
 		title += fmt.Sprintf(" · %d repositories", len(r.Members))
@@ -62,16 +68,18 @@ func (a *App) showWorktreeView(r worktreeRow) {
 	v.frame = frame
 	box(frame.Box, title)
 	// A Flex leaves what is under it; the list would show between the border
-	// and the blocks. The inside is cleared, a column kept free on each side.
+	// and the blocks. The inside is cleared, a column kept free on each side,
+	// and the footer made as tall as its keys need at the width it got.
 	frame.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		for row := y + 1; row < y+h-1; row++ {
 			for col := x + 1; col < x+w-1; col++ {
 				screen.SetContent(col, row, ' ', nil, tcell.StyleDefault)
 			}
 		}
-		return x + 2, y + 1, max(0, w-4), max(0, h-2)
+		width := max(1, w-4)
+		frame.ResizeItem(v.footer, max(1, len(tview.WordWrap(v.footer.GetText(false), width))), 0)
+		return x + 2, y + 1, width, max(0, h-2)
 	})
-	v.footer.SetWrap(true).SetWordWrap(true)
 	v.body.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey { return a.worktreeViewKeys(v, ev) })
 	a.wtView = v
 	a.pages.AddPage(pageWorktree, modalPct(frame, 92, 92), true, true)
@@ -106,138 +114,142 @@ func (a *App) reloadWorktreeView() {
 	a.closeWorktreeView()
 }
 
-// readWorktreeFacts asks git about every repository of the view, off the
-// event loop, and draws again when it has answered.
+// readWorktreeFacts asks git about every repository of the view, each in a
+// goroutine of its own, and draws once all of them have answered: where each
+// branch stands against origin and what its work is. Asking for the first
+// half here and leaving the rest to the list's own load is what made the view
+// appear by halves.
 func (a *App) readWorktreeFacts() {
 	v := a.wtView
 	members := []worktreeRow{v.row}
 	if v.row.grouped() {
 		members = v.row.Members
 	}
-	states := make([]remoteState, len(members))
-	for i, m := range members {
-		states[i] = a.wtRemote[m.Dir]
-	}
+	v.reading++
+	ticket := v.reading
+	integrate := a.cfg.Integrations.Incomm
 	go func() {
-		facts := map[string]wtFacts{}
+		states := make([]remoteState, len(members))
+		facts := make([]wtFacts, len(members))
+		var wg sync.WaitGroup
 		for i, m := range members {
-			facts[m.Dir] = a.gatherFacts(m, states[i])
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				git := a.newManager(m.Instance, m.Path, nil).Git()
+				states[i] = remoteStateOf(git, m, git.BranchUpstreams(m.Dir), git.BranchBases(m.Dir),
+					git.RebasedFrom(m.Dir), integrate)
+				facts[i] = a.gatherFacts(m, states[i])
+			}()
 		}
+		wg.Wait()
 		a.tv.QueueUpdateDraw(func() {
-			if a.wtView == v {
-				v.facts = facts
-				a.renderWorktreeView()
+			if a.wtView != v || ticket != v.reading {
+				return
 			}
+			if a.wtRemote == nil {
+				a.wtRemote = map[string]remoteState{}
+			}
+			v.facts = map[string]wtFacts{}
+			for i, m := range members {
+				a.wtRemote[m.Dir] = states[i]
+				v.facts[m.Dir] = facts[i]
+			}
+			v.loaded = true
+			a.renderWorktreeView()
 		})
 	}()
 }
 
-// renderWorktreeView draws every block, the lit one marked, and keeps it in
-// sight.
+// renderWorktreeView draws every block, the lit one in the focused border.
 func (a *App) renderWorktreeView() {
 	v := a.wtView
-	var b strings.Builder
-	v.starts = v.starts[:0]
-	line := 0
-	write := func(s string) {
-		b.WriteString(s + "\n")
-		line++
+	v.body.lit = v.at
+	v.footer.SetText(worktreeViewHint(v.lit()))
+	if !v.loaded {
+		v.body.blocks = nil
+		return
 	}
-	for i, r := range v.blocks() {
-		v.starts = append(v.starts, line)
-		bar := "  "
-		if i == v.at {
-			bar = tag(colAccent) + "▌ " + tagEnd
-		}
-		lines := a.memberBlock(r, v.facts[r.Dir])
+	blocks := make([]textBlock, 0, len(v.blocks()))
+	for _, r := range v.blocks() {
 		if r.grouped() {
-			lines = a.groupBlock(r)
-		}
-		for _, l := range lines {
-			write(bar + l)
-		}
-		write("")
-	}
-	v.body.SetText(b.String())
-	_, _, _, height := v.body.GetInnerRect()
-	if start := v.starts[v.at]; height > 0 {
-		row, _ := v.body.GetScrollOffset()
-		if start < row || start > row+height-4 {
-			v.body.ScrollTo(max(0, start-1), 0)
+			blocks = append(blocks, a.groupBlock(r))
+		} else {
+			blocks = append(blocks, a.memberBlock(r, v.facts[r.Dir]))
 		}
 	}
-	// The footer is as tall as its keys need at this width.
-	hint := worktreeViewHint(v.lit())
-	v.footer.SetText(hint)
-	if _, _, width, _ := v.body.GetInnerRect(); width > 0 {
-		v.frame.ResizeItem(v.footer, len(tview.WordWrap(hint, width)), 0)
-	}
+	v.body.blocks = blocks
 }
 
 // groupBlock is the group's own block: where it is and how it stands as a
 // whole.
-func (a *App) groupBlock(r worktreeRow) []string {
+func (a *App) groupBlock(r worktreeRow) textBlock {
 	plain, colour := a.worktreeRemoteWords(r)
-	branch := tag(colBranch) + esc(a.worktreeBranch(r)) + tagEnd
-	lines := []string{
-		tag(colAccent) + "[::b]" + esc(r.Path) + "[::-]" + tagEnd + tag(colDim) + "  every repository" + tagEnd,
-		tag(colDim) + esc(tildePath(r.Dir)) + tagEnd,
-		branch + "  " + tag(colour) + esc(plain) + tagEnd,
+	rows := []string{
+		kvRow("Folder", tag(colMuted)+esc(tildePath(r.Dir))+tagEnd),
+		kvRow("Branch", tag(colBranch)+esc(a.worktreeBranch(r))+tagEnd),
+		kvRow("Origin", tag(colour)+esc(plain)+tagEnd),
 	}
-	var extra []string
 	if edits := a.worktreeEdits(r); edits != "" {
-		extra = append(extra, tag(colWarn)+edits+" uncommitted"+tagEnd)
+		rows = append(rows, kvRow("Work tree", tag(colWarn)+edits+" uncommitted"+tagEnd))
+	} else {
+		rows = append(rows, kvRow("Work tree", tag(colOn)+"clean"+tagEnd))
 	}
 	if mr := a.worktreeMR(r); mr != "" {
-		extra = append(extra, tag(colAccent)+"MR "+esc(mr)+tagEnd)
+		rows = append(rows, kvRow("MR", tag(colAccent)+esc(mr)+tagEnd))
 	}
 	if com, colour := a.worktreeComments(r); com != "" {
-		extra = append(extra, tag(colour)+com+" comments"+tagEnd)
+		rows = append(rows, kvRow("Comments", tag(colour)+com+tagEnd))
 	}
-	if len(extra) > 0 {
-		lines = append(lines, strings.Join(extra, tag(colDim)+" · "+tagEnd))
-	}
-	return lines
+	return textBlock{title: esc(r.Path) + tag(colDim) + " · every repository" + tagEnd, rows: rows}
 }
 
 // memberBlock is one repository: its branch and where it stands, its merge
 // request, its comments, and what git says of its work.
-func (a *App) memberBlock(m worktreeRow, f wtFacts) []string {
+func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 	st, known := a.wtRemote[m.Dir]
-	name := m.Path
+	title := esc(m.Path)
 	if m.Group != "" {
-		name = filepath.Base(m.Dir) + tag(colDim) + "  " + esc(m.Path) + tagEnd
-	} else {
-		name = esc(name)
+		title = esc(filepath.Base(m.Dir)) + tag(colDim) + "  " + esc(m.Path) + tagEnd
 	}
-	lines := []string{
-		tag(colText) + "[::b]" + name + "[::-]" + tagEnd,
-		tag(colBranch) + esc(m.Branch) + tagEnd + tag(colDim) + "  made from " + tagEnd + baseLine(st, f),
-		a.remoteLine(st, known),
-		"State  " + stateLine(f),
+	rows := []string{
+		kvRow("Branch", tag(colBranch)+esc(m.Branch)+tagEnd),
+		kvRow("Base", baseLine(st, f)),
+		kvRow("Origin", a.remoteLine(st, known)),
+		kvRow("Work tree", stateLine(f)),
 	}
 	if mr, ok := a.openMRFor(m); ok {
-		lines = append(lines, tag(colAccent)+fmt.Sprintf("!%d", mr.IID)+tagEnd+" "+esc(mr.Title)+
-			tag(colDim)+"  "+esc(mr.WebURL)+tagEnd)
+		rows = append(rows, kvRow("MR", tag(colAccent)+fmt.Sprintf("!%d", mr.IID)+tagEnd+" "+esc(mr.Title)))
+		rows = append(rows, moreRow(tag(colDim)+esc(mr.WebURL)+tagEnd))
 	} else {
-		lines = append(lines, tag(colDim)+"no merge request · n opens one"+tagEnd)
+		rows = append(rows, kvRow("MR", tag(colDim)+"none · n opens one"+tagEnd))
 	}
 	if c := a.commentsLine(st); c != "" {
-		lines = append(lines, "Comments  "+c)
+		rows = append(rows, kvRow("Comments", c))
 	}
-	for _, c := range f.own[:min(len(f.own), 3)] {
-		lines = append(lines, tag(colMuted)+"  "+esc(c)+tagEnd)
+	if len(f.own) > 0 {
+		rows = append(rows, "")
+		label := "Commits"
+		for _, c := range f.own[:min(len(f.own), 3)] {
+			rows = append(rows, kvRow(label, tag(colMuted)+esc(c)+tagEnd))
+			label = ""
+		}
+		if f.ownCount > 3 {
+			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · l lists them", f.ownCount-3)+tagEnd))
+		}
 	}
-	if f.ownCount > 3 {
-		lines = append(lines, tag(colDim)+fmt.Sprintf("  … and %d more · l lists them", f.ownCount-3)+tagEnd)
+	if len(f.dirty) > 0 {
+		rows = append(rows, "")
+		label := "Uncommitted"
+		for _, d := range f.dirty[:min(len(f.dirty), 3)] {
+			rows = append(rows, kvRow(label, tag(colWarn)+esc(d)+tagEnd))
+			label = ""
+		}
+		if len(f.dirty) > 3 {
+			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more", len(f.dirty)-3)+tagEnd))
+		}
 	}
-	for _, d := range f.dirty[:min(len(f.dirty), 3)] {
-		lines = append(lines, tag(colWarn)+"  "+esc(d)+tagEnd)
-	}
-	if len(f.dirty) > 3 {
-		lines = append(lines, tag(colDim)+fmt.Sprintf("  … and %d more uncommitted", len(f.dirty)-3)+tagEnd)
-	}
-	return lines
+	return textBlock{title: title, rows: rows}
 }
 
 // worktreeViewHint is the footer: the keys of the block that is lit.

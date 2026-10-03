@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -53,6 +54,36 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "every repository")
 	waitFor(t, a, sc, "REPOS")
+}
+
+// TestTheWorktreeViewIsDrawnWhole: from Enter until git has answered, the
+// view says it is reading and shows no block; the first blocks it shows are
+// every block, each with all of its rows.
+func TestTheWorktreeViewIsDrawnWhole(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/whole")
+	waitFor(t, a, sc, "feat-whole")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		text := a.screenText(sc)
+		if strings.Contains(text, "every repository") {
+			if n := strings.Count(text, "Base "); n != 2 {
+				t.Fatalf("the view was drawn with %d of 2 repositories complete:\n%s", n, text)
+			}
+			if strings.Contains(text, "looking") {
+				t.Fatalf("the view shows rows still being read:\n%s", text)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the view never came:\n%s", text)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // TestAWorktreeOfItsOwnIsAViewToo: a single worktree is one block, with the

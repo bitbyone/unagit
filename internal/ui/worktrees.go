@@ -164,45 +164,7 @@ func (a *App) loadWorktreeRemotes() {
 			bases := j.git.BranchBases(j.dir)
 			rebased := j.git.RebasedFrom(j.dir)
 			for _, r := range j.rows {
-				switch {
-				case upstreams == nil:
-					result[r.Dir] = remoteState{Unreadable: true}
-				case r.Branch == "(detached)":
-					result[r.Dir] = remoteState{Detached: true}
-				default:
-					st := remoteState{Upstream: upstreams[r.Branch], Base: bases[r.Branch]}
-					if st.Base == "" {
-						st.Base = r.Base
-					}
-					if st.Upstream.Name == "" {
-						st.Own = j.git.OwnCommits(r.Dir)
-					}
-					if st.Base != "" && st.Upstream.Name == "" {
-						st.Onto = j.git.BaseRef(r.Dir, st.Base)
-						if st.Onto != "" {
-							st.BaseBehind = j.git.Count(r.Dir, "HEAD.."+st.Onto)
-						}
-					}
-					if mark := rebased[r.Branch]; mark != "" && st.Upstream.Name != "" && !st.Upstream.Gone {
-						at, _ := j.git.Run(r.Dir, "rev-parse", "refs/remotes/"+st.Upstream.Name)
-						if strings.TrimSpace(at) == mark && !j.git.IsAncestor(r.Dir, mark, "HEAD") {
-							st.ForceFrom = mark
-						}
-					}
-					st.Edits = max(j.git.Edits(r.Dir), 0)
-					st.Busy = j.git.OperationInProgress(r.Dir)
-					if integrate {
-						place := incomm.Place{Dir: r.Dir}
-						if r.Group != "" {
-							place = incomm.Place{Dir: r.Group, Prefix: filepath.Base(r.Dir) + "/"}
-						}
-						for _, t := range incomm.ThreadsAt(place) {
-							st.Comments += 1 + len(t.Replies)
-							st.Pending += t.PendingCount()
-						}
-					}
-					result[r.Dir] = st
-				}
+				result[r.Dir] = remoteStateOf(j.git, r, upstreams, bases, rebased, integrate)
 			}
 		}
 		a.tv.QueueUpdateDraw(func() {
@@ -219,6 +181,50 @@ func (a *App) loadWorktreeRemotes() {
 			}
 		})
 	}()
+}
+
+// remoteStateOf is where one worktree stands, out of what git said of its
+// repository's branches. It runs off the event loop.
+func remoteStateOf(git *gitx.Git, r worktreeRow, upstreams map[string]gitx.Upstream,
+	bases, rebased map[string]string, integrate bool) remoteState {
+	switch {
+	case upstreams == nil:
+		return remoteState{Unreadable: true}
+	case r.Branch == "(detached)":
+		return remoteState{Detached: true}
+	}
+	st := remoteState{Upstream: upstreams[r.Branch], Base: bases[r.Branch]}
+	if st.Base == "" {
+		st.Base = r.Base
+	}
+	if st.Upstream.Name == "" {
+		st.Own = git.OwnCommits(r.Dir)
+	}
+	if st.Base != "" && st.Upstream.Name == "" {
+		st.Onto = git.BaseRef(r.Dir, st.Base)
+		if st.Onto != "" {
+			st.BaseBehind = git.Count(r.Dir, "HEAD.."+st.Onto)
+		}
+	}
+	if mark := rebased[r.Branch]; mark != "" && st.Upstream.Name != "" && !st.Upstream.Gone {
+		at, _ := git.Run(r.Dir, "rev-parse", "refs/remotes/"+st.Upstream.Name)
+		if strings.TrimSpace(at) == mark && !git.IsAncestor(r.Dir, mark, "HEAD") {
+			st.ForceFrom = mark
+		}
+	}
+	st.Edits = max(git.Edits(r.Dir), 0)
+	st.Busy = git.OperationInProgress(r.Dir)
+	if integrate {
+		place := incomm.Place{Dir: r.Dir}
+		if r.Group != "" {
+			place = incomm.Place{Dir: r.Group, Prefix: filepath.Base(r.Dir) + "/"}
+		}
+		for _, t := range incomm.ThreadsAt(place) {
+			st.Comments += 1 + len(t.Replies)
+			st.Pending += t.PendingCount()
+		}
+	}
+	return st
 }
 
 // remoteWords says what a state means, plainly, and how to colour it. plain is
