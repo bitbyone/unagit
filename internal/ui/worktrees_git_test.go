@@ -327,7 +327,8 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 		form.GetFormItemByLabel("Title").(*tview.InputField).SetText("Add the new thing, properly")
 	})
 	time.Sleep(100 * time.Millisecond)
-	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Merge request !42 created")
 	body, _ := srv.postedMR.Load().(string)
 	for _, want := range []string{`"source_branch":"feat/new-thing"`, `"target_branch":"main"`,
@@ -383,7 +384,8 @@ func TestNewMergeRequestNeedsATitle(t *testing.T) {
 	form := openForm(t, a, sc) // no commits ahead of main: nothing is proposed
 	a.tv.QueueUpdateDraw(func() { form.GetFormItemByLabel("Title").(*tview.InputField).SetText("  ") })
 	time.Sleep(100 * time.Millisecond)
-	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "enter a title")
 	if srv.postedMR.Load() != nil {
 		t.Error("a merge request without a title was sent")

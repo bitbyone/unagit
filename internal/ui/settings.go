@@ -864,10 +864,10 @@ func (s *settingsView) labelGroup(node *tview.TreeNode, instanceID string, g for
 	if inst.IsGitHub() {
 		if inst.HasGroup(g.ID) {
 			node.SetText(tag(colOn) + "\u2713" + tagEnd + " " + g.FullPath + suffix)
-			node.SetColor(colText)
+			nodeColour(node, colText)
 		} else {
 			node.SetText(tag(colDim) + "\u00b7" + tagEnd + " " + g.FullPath + suffix)
-			node.SetColor(colMuted)
+			nodeColour(node, colMuted)
 		}
 		return
 	}
@@ -875,15 +875,22 @@ func (s *settingsView) labelGroup(node *tview.TreeNode, instanceID string, g for
 	case config.ScopeGroup:
 		node.SetText(tag(colOn) + "✓" + tagEnd + " " + g.FullPath +
 			"  " + tag(colMuted) + "(this group only)" + tagEnd + suffix)
-		node.SetColor(colText)
+		nodeColour(node, colText)
 	case config.ScopeSubgroups:
 		node.SetText(tag(colOn) + "✓" + tagEnd + " " + g.FullPath +
 			"  " + tag(colAccent) + "(incl. subgroups)" + tagEnd + suffix)
-		node.SetColor(colText)
+		nodeColour(node, colText)
 	default:
 		node.SetText(tag(colDim) + "·" + tagEnd + " " + g.FullPath + suffix)
-		node.SetColor(colMuted)
+		nodeColour(node, colMuted)
 	}
+}
+
+// nodeColour sets a tree node's ink. TreeNode.SetColor would do it too, and
+// paint the selection band in the same colour - light text on a light band,
+// which is how the cursor in the group tree became unreadable.
+func nodeColour(node *tview.TreeNode, c tcell.Color) {
+	node.SetTextStyle(node.GetTextStyle().Foreground(c))
 }
 
 func (s *settingsView) currentRef() (treeRef, bool) {

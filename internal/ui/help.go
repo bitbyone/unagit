@@ -153,7 +153,6 @@ func helpRows() []helpLine {
 		key("letter", "the button whose letter is lit"),
 		key("j k  Tab", "a form: from field to field, over the buttons"),
 		key("i  Enter", "type into the field; Esc stops typing"),
-		key("Alt-letter", "a button while typing"),
 		blank(),
 
 		section("Every list", helpLists|helpWorktreeList),
@@ -266,7 +265,7 @@ func helpRows() []helpLine {
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · general", helpGeneral),
-		key("Alt-s / Alt-r", "save / revert; s / r on a button"),
+		key("s  r", "save · revert; Esc first while typing"),
 		key("Tab / Shift-Tab", "next / previous field"),
 		key("Esc", "back to the sections"),
 		blank(),

@@ -36,8 +36,8 @@ func TestSavingGeneralKeepsTheKeyboard(t *testing.T) {
 		})
 	}
 
-	// Alt-s saves from inside a field, and the field is rebuilt as well.
-	t.Run("Alt-s", func(t *testing.T) {
+	// Esc and s save from inside a field, and the field is rebuilt as well.
+	t.Run("Esc s", func(t *testing.T) {
 		a, sc := newTestApp(t)
 		waitFor(t, a, sc, "acme/gateway")
 		openSection(t, a, sc, sectionGeneral)
@@ -46,8 +46,14 @@ func TestSavingGeneralKeepsTheKeyboard(t *testing.T) {
 		form := a.settings.general
 		dir := t.TempDir()
 		setField(t, a, form, 0, dir)
-		onLoop(a, func() bool { form.SetFocus(0); a.tv.SetFocus(form); return true })
-		sc.InjectKey(tcell.KeyRune, 's', tcell.ModAlt)
+		onLoop(a, func() bool {
+			form.SetFocus(0)
+			a.tv.SetFocus(form)
+			a.formModes[form].insert = true
+			return true
+		})
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+		typeRunes(sc, "s")
 		waitFocus(t, a, func() bool { return a.cfg.RootDir == dir })
 		waitFocus(t, a, func() bool {
 			field, _ := form.GetFocusedItemIndex()

@@ -400,7 +400,7 @@ Every form works like the lists: in NORMAL, `j`/`k` (or Tab) move from field
 to field and over the buttons, the field with the focus lit in an accent, and
 a button is pressed by its letter, lit in its label; `i` or Enter types into a
 field and `Esc` stops typing. A form that starts with a text field opens
-typing into it; while typing, a button is Alt with its letter.
+typing into it; while typing, `Esc` and then the letter press a button.
 
 | Key | |
 | --- | --- |

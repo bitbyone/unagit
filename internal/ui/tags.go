@@ -131,12 +131,17 @@ func (a *App) pills(names []string, room int, behind string) (string, int) {
 
 // tagsField is the tags of a row as pills, in exactly width cells. The pills
 // come back as well, to be drawn again over the selection band, at where they
-// start in the field.
-func (a *App) tagsField(tags []string, width int) (string, keptMarkup) {
-	markup, w := a.pills(tags, width, behindList)
+// start in the field. A marked row has a band of its own under both.
+func (a *App) tagsField(tags []string, width int, marked bool) (string, keptMarkup) {
+	behind, band := behindList, behindBand
+	if marked {
+		_, bg, _ := styleMarkedSelected.Decompose()
+		behind, band = colMarked.String(), bg.String()
+	}
+	markup, w := a.pills(tags, width, behind)
 	var kept keptMarkup
 	if w > 0 {
-		kept.markup, kept.width = a.pills(tags, width, behindBand)
+		kept.markup, kept.width = a.pills(tags, width, band)
 	}
 	return markup + strings.Repeat(" ", max(0, width-w)), kept
 }

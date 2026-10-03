@@ -695,3 +695,28 @@ func buttonIndex(form *tview.Form, name string) int {
 	}
 	return -1
 }
+
+// TestTheGroupTreeCursorIsTheListBand: the cursor on a group is the same
+// band as in every list, whatever colour the group's text is.
+func TestTheGroupTreeCursorIsTheListBand(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGroups)
+	waitFor(t, a, sc, "incl. subgroups")
+	typeRunes(sc, "j") // from the server node onto the group
+	row := rowOf(t, a, sc, "incl. subgroups")
+	col := strings.Index(strings.Split(a.screenText(sc), "\n")[row], "acme")
+	col = len([]rune(strings.Split(a.screenText(sc), "\n")[row][:col]))
+	_, want, _ := styleSelected.Decompose()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		fg, bg, _ := cellStyleAt(a, sc, col, row).Decompose()
+		if bg == want && fg != bg {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the group under the cursor is %v on %v, want the band %v", fg, bg, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

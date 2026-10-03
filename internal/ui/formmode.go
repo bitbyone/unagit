@@ -11,9 +11,10 @@ import (
 // Every form has two modes, as the lists have NORMAL and FILTER. In NORMAL the
 // keys move: j/k (or Tab) from field to field and over the buttons, i or Enter
 // starts typing into a text field, a button's letter presses it, and Esc
-// leaves the form. In INSERT the keys type, Esc goes back to NORMAL, and a
-// button is Alt with its letter. A form that starts with a text field opens in
-// INSERT, since that field is what one came to fill in.
+// leaves the form. In INSERT the keys type and Esc goes back to NORMAL; a
+// button has its lit letter and no other key, so pressing one while typing is
+// Esc and the letter. A form that starts with a text field opens in INSERT,
+// since that field is what one came to fill in.
 //
 // The mode is kept per form, on the event loop, by the app the form is in.
 
@@ -110,10 +111,6 @@ func (a *App) bindFormButtons(form *tview.Form) {
 		// An open select's list has the keys; j and k move in it.
 		if drop, ok := item.(*tview.DropDown); ok && drop.IsOpen() {
 			return ev
-		}
-		alt := ev.Modifiers()&tcell.ModAlt != 0
-		if ev.Key() == tcell.KeyRune && alt && ev.Modifiers()&tcell.ModCtrl == 0 && press(ev.Rune()) {
-			return nil
 		}
 		if mode.insert {
 			_, line := item.(*tview.InputField)

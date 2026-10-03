@@ -412,7 +412,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
 		if tagsW > 0 {
-			tags, pills := a.tagsField(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), tagsW)
+			tags, pills := a.tagsField(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), tagsW, p.marks[idx])
 			pills.x += nameX + nameW + 1
 			p.kept.keep(row, pills)
 			fields = append(fields, field{raw: tags})
@@ -430,8 +430,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			field{text: wtCount, width: wtW, colour: colWarn, right: true},
 			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
 
-		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
-			SetReference(idx).SetExpansion(1))
+		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
+		if p.marks[idx] {
+			cell.SetBackgroundColor(colMarked).SetSelectedStyle(styleMarkedSelected)
+		}
+		p.table.SetCell(row, 0, cell)
 	}
 
 	layout := listLayout{favourite: favourite, draw: drawRow, width: p.contentWidth()}

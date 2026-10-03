@@ -84,7 +84,7 @@ func TestMergeRequestFormFitsItsFrame(t *testing.T) {
 			}
 			text := a.screenText(sc)
 			for _, want := range []string{"Title", "Target branch", "Description", "Draft",
-				"Delete source branch", "Squash commits", "Create", "Cancel", "Alt-r create"} {
+				"Delete source branch", "Squash commits", "Create", "Cancel", "r create"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}

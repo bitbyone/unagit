@@ -191,7 +191,7 @@ func TestTagFormFitsItsFrame(t *testing.T) {
 				}
 			}
 			text := a.screenText(sc)
-			for _, want := range []string{"Name", "Colour", "mint", "Save", "Cancel", "Alt-s save"} {
+			for _, want := range []string{"Name", "Colour", "mint", "Save", "Cancel", "s save"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}

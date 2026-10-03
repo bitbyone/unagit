@@ -143,8 +143,9 @@ use local action letters, lit in their labels (`markKey`; coloured, not
 bracketed - brackets widen the row past small dialogs). Every form has a
 NORMAL and an INSERT mode (`formmode.go`, wired by `bindFormButtons` through
 `showFormModalSized`): NORMAL moves with j/k/Tab and presses a button by its
-letter, i/Enter types, Esc stops typing; in INSERT a button is Alt with its
-letter. A form whose first item is a text field opens in INSERT. h j k l i are
+letter, i/Enter types, Esc stops typing. A button has its lit letter and no
+other key - no Alt variant - and the hint names exactly those letters (the
+user asked for that). A form whose first item is a text field opens in INSERT. h j k l i are
 no button's. The focused field is painted after the draw (`markFocusedField`),
 since tview re-colours every field on each draw. Find a button by
 `buttonName`, never by its label. Inline hints stay below their context

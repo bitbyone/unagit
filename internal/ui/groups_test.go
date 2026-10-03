@@ -228,7 +228,8 @@ func TestCtrlWShowsTheNewWorktree(t *testing.T) {
 	waitFor(t, a, sc, "New worktree branch")
 	typeRunes(sc, "feat/fresh")
 	waitFor(t, a, sc, "feat/fresh")
-	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt) // Alt-r create
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "created ")
 	got := onLoop(a, func() string {
 		if a.currentTab() != pageWorktrees {
@@ -302,4 +303,55 @@ func TestGroupMergeRequestsLinkEachOther(t *testing.T) {
 	for _, name := range []string{"gateway", "billing"} {
 		gitIn(t, filepath.Join(dir, name), "rev-parse", "--verify", "origin/feat/both")
 	}
+}
+
+// TestCtrlWOffersOnlyBranchesThatCanHaveAWorktree: main is out in the main
+// clone, so git would refuse it a worktree, and it is not offered; feat/rate
+// is.
+func TestCtrlWOffersOnlyBranchesThatCanHaveAWorktree(t *testing.T) {
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	newRealProject(t, a, "acme/gateway")
+	onLoop(a, func() bool { a.refreshDisk(); return true })
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlW, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Worktree branch")
+	waitFor(t, a, sc, "feat/rate")
+	for _, l := range strings.Split(a.screenText(sc), "\n") {
+		if strings.Contains(l, "Add rate limiting") {
+			t.Errorf("main, checked out in the main clone, is offered:\n%s", a.screenText(sc))
+		}
+	}
+}
+
+// TestAMarkedRowIsABandOfItsOwn: a marked row has a background of its own
+// from one end to the other, not the cursor's grey, and the cursor on it is a
+// brighter step of the same hue.
+func TestAMarkedRowIsABandOfItsOwn(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	typeRunes(sc, " ") // marks the first row and moves to the next
+	waitFor(t, a, sc, "SELECT 1")
+	marked := onLoop(a, func() string { return a.projects[a.projectsPane.marked()[0]].PathWithNamespace })
+	row := rowOf(t, a, sc, marked)
+	line := []rune(strings.Split(a.screenText(sc), "\n")[row])
+	for _, x := range []int{3, len(line) / 2, len(line) - 3} {
+		if _, bg, _ := cellStyleAt(a, sc, x, row).Decompose(); bg != colMarked {
+			t.Errorf("column %d of the marked row is on %v, want %v:\n%s", x, bg, colMarked, a.screenText(sc))
+		}
+	}
+	typeRunes(sc, "k")
+	_, want, _ := styleMarkedSelected.Decompose()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		_, bg, _ := cellStyleAt(a, sc, len(line)/2, row).Decompose()
+		if bg == want {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the cursor on a marked row is on %v, want %v", bg, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	assertLegible(t, a, sc, "a marked row")
 }

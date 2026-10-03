@@ -119,13 +119,16 @@ func TestSecurityRemembersAndForgets(t *testing.T) {
 	typeRunes(sc, "k")
 	waitFor(t, a, sc, "Remember the passphrase")
 	typeRunes(sc, "wrong")
-	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "wrong passphrase")
 	if k.value() != "" {
 		t.Fatal("a wrong passphrase was remembered")
 	}
+	typeRunes(sc, "i")
 	typeRunes(sc, "test-passphrase")
-	sc.InjectKey(tcell.KeyRune, 'r', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "remembers the passphrase")
 	if got := k.value(); got != "test-passphrase" {
 		t.Errorf("the Keychain holds %q", got)

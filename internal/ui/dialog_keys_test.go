@@ -62,7 +62,7 @@ func TestFormButtonShortcuts(t *testing.T) {
 		return f
 	})
 	a.tv.QueueUpdateDraw(func() {})
-	waitFor(t, a, sc, "Alt-s save")
+	waitFor(t, a, sc, "Esc stop typing, then s save")
 	typeRunes(sc, "scid")
 	waitFor(t, a, sc, "scid")
 	onLoop(a, func() bool {
@@ -71,11 +71,14 @@ func TestFormButtonShortcuts(t *testing.T) {
 		}
 		return true
 	})
+	// A button is its lit letter and nothing else: Esc stops typing first.
 	sc.InjectKey(tcell.KeyRune, 's', tcell.ModAlt)
-	sc.InjectKey(tcell.KeyRune, 'n', tcell.ModAlt) // i is the form's own: start typing
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "i type")
+	typeRunes(sc, "sn")
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModNone)
 	// Closing the modal marks that every preceding event has been handled.
-	sc.InjectKey(tcell.KeyRune, 'c', tcell.ModAlt)
+	typeRunes(sc, "c")
 	waitGone(t, a, sc, "Shortcut form")
 	onLoop(a, func() bool {
 		if saved != 1 || inherited != 1 || cancelled != 1 || existing != 1 {
@@ -107,7 +110,7 @@ func TestButtonShortcutCollisionsAndDisabled(t *testing.T) {
 	app := &App{tv: tview.NewApplication()}
 	app.hintForm(form)
 	app.bindFormButtons(form)
-	form.InputHandler()(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModAlt), func(tview.Primitive) {})
+	form.InputHandler()(tcell.NewEventKey(tcell.KeyRune, 's', tcell.ModNone), func(tview.Primitive) {})
 	if called {
 		t.Fatal("shortcut activated disabled button")
 	}
@@ -152,10 +155,11 @@ func TestSimpleDialogsKeepInlineHints(t *testing.T) {
 	waitGone(t, a, sc, "e directory")
 	resize(sc, 90, 44)
 	typeRunes(sc, "e")
-	assertMutedHint(t, a, sc, "Alt-s save")
-	assertMutedHint(t, a, sc, "Alt-c cancel")
+	assertMutedHint(t, a, sc, "s save")
+	assertMutedHint(t, a, sc, "c cancel")
 	assertLegible(t, a, sc, "form hints in a narrow terminal")
-	sc.InjectKey(tcell.KeyRune, 'c', tcell.ModAlt)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, "c")
 	waitGone(t, a, sc, "Clone directory ·")
 }
 
@@ -227,6 +231,6 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 		form.SetFocus(form.GetFormItemCount())
 		a.tv.SetFocus(form)
 	})
-	check("General settings", []string{"Alt-s / Alt-r", "?"}, []string{"Ctrl-O", "a e t v d"})
+	check("General settings", []string{"s  r", "?"}, []string{"Ctrl-O", "a e t v d"})
 
 }

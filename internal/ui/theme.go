@@ -288,3 +288,12 @@ var styleSelected = tcell.StyleDefault.
 	Background(tcell.Color238).
 	Foreground(tcell.Color231).
 	Bold(true)
+
+// colMarked is the band of a row marked with space, a hue of its own so that
+// it cannot be taken for the cursor's grey; styleMarkedSelected is the cursor
+// on a marked row, a brighter step of the same hue, so that the row says
+// both at once.
+var (
+	colMarked           = tcell.Color23
+	styleMarkedSelected = styleSelected.Background(tcell.Color30)
+)

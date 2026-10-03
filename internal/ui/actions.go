@@ -139,10 +139,36 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 		}
 		log(fmt.Sprintf("%d branch(es)", len(branches)))
 
+		// Git checks a branch out only once, so a branch out in the main
+		// clone or in someone else's worktree cannot have one of its own and
+		// is not offered. One whose worktree unagit already made is, since
+		// picking it shows that worktree.
+		var checkedOut map[string]string
+		var mgr *workspace.Manager
+		cloned := a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned
+		if cloned {
+			mgr = a.pathManager(pr.Instance, pr.PathWithNamespace)
+			checkedOut = mgr.Git().CheckedOut(mgr.ProjectDir(pr.PathWithNamespace))
+		}
+		usable := func(name string) (sub string, ok bool) {
+			dir, out := checkedOut[name]
+			switch {
+			case !out:
+				return "", true
+			case sameDir(dir, mgr.WorktreeDir(pr.PathWithNamespace, name)):
+				return "has a worktree · Enter shows it", true
+			}
+			return "", false
+		}
+
 		known := make(map[string]bool, len(branches))
 		items := make([]pickItem, 0, len(branches))
 		for _, b := range branches {
 			known[b.Name] = true
+			mark, ok := usable(b.Name)
+			if !ok {
+				continue
+			}
 			sub := strings.TrimSpace(humanAge(b.CommittedDate) + "  " + b.CommitTitle)
 			if b.CommittedDate.IsZero() {
 				sub = b.CommitShortID
@@ -150,18 +176,24 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 			if b.Default {
 				sub = "default  " + sub
 			}
+			if mark != "" {
+				sub = mark + "  " + sub
+			}
 			items = append(items, pickItem{Label: b.Name, Sub: sub, Data: b.Name})
 		}
 		// A branch that only exists locally - never pushed - would otherwise
 		// be invisible here, even though it can still be given its own
 		// worktree.
-		if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
-			mgr := a.pathManager(pr.Instance, pr.PathWithNamespace)
+		if cloned {
 			for _, name := range mgr.Git().LocalBranches(mgr.ProjectDir(pr.PathWithNamespace)) {
 				if known[name] {
 					continue
 				}
-				items = append(items, pickItem{Label: name, Sub: "local only", Data: name})
+				mark, ok := usable(name)
+				if !ok {
+					continue
+				}
+				items = append(items, pickItem{Label: name, Sub: strings.TrimSpace(mark + "  local only"), Data: name})
 			}
 		}
 

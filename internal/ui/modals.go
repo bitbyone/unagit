@@ -366,8 +366,9 @@ func formButtonLabels(form *tview.Form) []string {
 	return labels
 }
 
-// formButtonHint says which mode the form is in and what the keys do there:
-// in NORMAL a button is its letter, in INSERT Alt with it.
+// formButtonHint says which mode the form is in and what the keys do there.
+// A button is pressed by the letter lit in its label and by nothing else, so
+// the hint names exactly those letters; while typing, Esc comes first.
 func (a *App) formButtonHint(form *tview.Form) string {
 	labels := formButtonLabels(form)
 	keys := buttonKeys(labels)
@@ -375,23 +376,19 @@ func (a *App) formButtonHint(form *tview.Form) string {
 	if mode := a.formModes[form]; mode != nil {
 		insert = mode.insert
 	}
-	hints := make([]string, 0, len(labels)+2)
+	buttons := make([]string, 0, len(labels))
+	var direct []string
 	for i, label := range labels {
-		shortcut := string(keys[i])
-		if insert {
-			shortcut = fmt.Sprintf("Alt-%c", keys[i])
-		}
+		buttons = append(buttons, fmt.Sprintf("%c %s", keys[i], strings.ToLower(label)))
 		if label == "Send" {
-			shortcut += "/Ctrl-S"
+			direct = append(direct, "Ctrl-S send")
 		}
-		hints = append(hints, shortcut+" "+strings.ToLower(label))
 	}
 	if insert {
-		hints = append(hints, "Esc stop typing")
-	} else {
-		hints = append(hints, "i type", "Esc back")
+		hints := append(direct, "Esc stop typing, then "+strings.Join(buttons, " · "))
+		return strings.Join(hints, " · ")
 	}
-	return strings.Join(hints, " · ")
+	return strings.Join(append(append(buttons, direct...), "i type", "Esc back"), " · ")
 }
 
 // A modal leaves one empty line beneath its buttons. Draw there after its
