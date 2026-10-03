@@ -125,6 +125,8 @@ func TestSecurityRemembersAndForgets(t *testing.T) {
 	if k.value() != "" {
 		t.Fatal("a wrong passphrase was remembered")
 	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // the message over the form
+	waitGone(t, a, sc, "wrong passphrase")
 	typeRunes(sc, "i")
 	typeRunes(sc, "test-passphrase")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing

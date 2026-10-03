@@ -49,6 +49,8 @@ type branchScope struct {
 	ed       *editors.Editor
 	// focus is the branch the cursor starts on.
 	focus string
+	// done is what was just done, said once the list is back over it.
+	done string
 }
 
 // showBranchManager loads the branches of a repository and lists them.
@@ -210,9 +212,9 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 			start = i
 		}
 	}
-	again := func(focus string) {
+	again := func(focus, done string) {
 		next := scope
-		next.focus = focus
+		next.focus, next.done = focus, done
 		a.showBranchManager(next)
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
@@ -226,6 +228,9 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name, scope.ed) }
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
+	if scope.done != "" {
+		a.note(scope.done)
+	}
 }
 
 // switchMainClone checks a branch out in the main clone and opens the editor
@@ -256,7 +261,7 @@ func (a *App) openMROn(pr forge.Project, branch string) (forge.MergeRequest, boo
 // deleteBranch deletes a branch in the clone (here), on origin (there), or
 // both, once asked; what cannot be done is said instead, and nothing is done.
 // Afterwards the manager comes back, the cursor where it was.
-func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, again func(string)) {
+func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, again func(focus, done string)) {
 	if why := b.guarded(); why != "" {
 		a.flash(why)
 		return
@@ -327,9 +332,8 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 			}
 			return "", nil
 		}, func(string) {
-			a.note(fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and ")))
 			a.refreshDisk()
-			again(b.name)
+			again(b.name, fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and ")))
 		})
 	})
 }

@@ -41,6 +41,7 @@ const (
 	pageForm      = "form"
 	pageComments  = "comments"
 	pageToggles   = "toggles"
+	pageMessage   = "message"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -367,7 +368,8 @@ func (a *App) closeModal(page string) {
 // isModalPage reports whether a page name is one of the overlays.
 func isModalPage(name string) bool {
 	switch name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree:
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree,
+		pageMessage:
 		return true
 	}
 	return false
@@ -434,10 +436,23 @@ func tildePath(p string) string {
 	return p
 }
 
-func (a *App) flash(msg string) { a.setStatus(tag(colWarn) + tview.Escape(msg) + tagEnd) }
-func (a *App) note(msg string)  { a.setStatus(tag(colMuted) + tview.Escape(msg) + tagEnd) }
+// flash, note and errorf tell the user something: a warning, a word on what
+// was done, a failure. The status line is the main screens' own; while a
+// dialog or the worktree view is in front it is out of the eye's way, under
+// the dimmed screen, so there the message comes up over the dialog instead
+// (showMessage).
+func (a *App) flash(msg string) { a.say(msg, colWarn) }
+func (a *App) note(msg string)  { a.say(msg, colMuted) }
 func (a *App) errorf(f string, v ...any) {
-	a.setStatus(tag(colBad) + tview.Escape(fmt.Sprintf(f, v...)) + tagEnd)
+	a.say(fmt.Sprintf(f, v...), colBad)
+}
+
+func (a *App) say(msg string, colour tcell.Color) {
+	if a.modalOpen() {
+		a.showMessage(msg, colour)
+		return
+	}
+	a.setStatus(tag(colour) + tview.Escape(msg) + tagEnd)
 }
 
 // ------------------------------------------------------------------- indexes

@@ -53,8 +53,13 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Commits of feat/view")
 
+	// Said over the view, not under it in the status line; Esc puts it away.
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "no merge request is open from feat/view")
+	waitFor(t, a, sc, "Esc close")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Esc close")
+	waitFor(t, a, sc, "every repository")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "every repository")

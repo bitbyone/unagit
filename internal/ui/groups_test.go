@@ -111,6 +111,9 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 
 	// d takes the worktrees and the folder; the branches and clones stay. The
 	// update's log closes on its own; Esc is the view's once it is in front.
+	// What p did comes up over the view; Esc puts it away.
+	waitFocus(t, a, func() bool { name, _ := a.pages.GetFrontPage(); return name == pageMessage })
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFocus(t, a, func() bool { name, _ := a.pages.GetFrontPage(); return name == pageWorktree })
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "every repository")
@@ -155,20 +158,20 @@ func TestGroupedWorktreeStartsANewBranchFromBases(t *testing.T) {
 		})
 	}
 	text := a.screenText(sc)
-	if !strings.Contains(text, "Base branch of each repository") {
-		t.Errorf("the selects are not said to be bases:\n%s", text)
+	if !strings.Contains(text, "Base branches") || strings.Contains(text, "rebases") {
+		t.Errorf("the selects are not headed as bases, in a line:\n%s", text)
 	}
 	if strings.Contains(text, "checked out in") {
 		t.Errorf("the selects say where branches are out:\n%s", text)
 	}
-	cur, all := options("gateway")
+	cur, all := options(baseLabel("gateway"))
 	if cur != "feat/rate" {
 		t.Errorf("gateway starts from %q, want the clone's feat/rate", cur)
 	}
 	if strings.Contains(strings.Join(all, ","), "feat/busy") || !strings.Contains(strings.Join(all, ","), "main") {
 		t.Errorf("gateway offers %v: main yes, the worktree's feat/busy no", all)
 	}
-	if cur, _ := options("billing"); cur != "main" {
+	if cur, _ := options(baseLabel("billing")); cur != "main" {
 		t.Errorf("billing starts from %q", cur)
 	}
 
@@ -247,7 +250,7 @@ func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
 				}
 			}
 			text := a.screenText(sc)
-			for _, want := range []string{"New branch", "Folder", "gateway", "billing", "Create", "Cancel"} {
+			for _, want := range []string{"New branch", "Folder name", "Base branches", "gateway", "billing", "Create", "Cancel"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}
@@ -255,7 +258,7 @@ func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
 			assertLegible(t, a, sc, "the grouped worktree form")
 			// The select opens on the branches, legibly too.
 			onLoop(a, func() bool {
-				form.SetFocus(form.GetFormItemIndex("gateway"))
+				form.SetFocus(form.GetFormItemIndex(baseLabel("gateway")))
 				a.tv.SetFocus(form)
 				return true
 			})

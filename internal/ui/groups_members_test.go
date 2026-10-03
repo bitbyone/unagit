@@ -157,7 +157,9 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 		t.Errorf("a worktree's branches offer to switch:\n%s", text)
 	}
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "git will not delete it")
+	waitFor(t, a, sc, "is checked out in group feat-push")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "is checked out in group feat-push")
 	typeRunes(sc, "b")
 	waitFor(t, a, sc, "Branches - acme/gateway")
 	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)

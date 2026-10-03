@@ -224,17 +224,17 @@ func sameDir(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-// hintGroupBases heads the selects, so that none of them is taken for the
-// branch the repository checks out: the group always makes a branch of its
-// own, and each select is only where it starts.
-const hintGroupBases = "Base branch of each repository - the new branch starts there,\n" +
-	"and p rebases it onto that branch until it is pushed:"
-
-// Labels of the fields above the repositories.
+// Labels of the form. The selects sit under a heading of their own, indented,
+// so that none is taken for the branch the repository checks out: the group
+// always makes a branch of its own, and each select is only where it starts.
 const (
 	labelGroupBranch = "New branch"
-	labelGroupFolder = "Folder"
+	labelGroupFolder = "Folder name"
+	labelGroupBases  = "Base branches"
 )
+
+// baseLabel is the label of a repository's base select.
+func baseLabel(dir string) string { return "  " + dir }
 
 // showGroupWorktreeForm asks for what the grouped worktree should be: the
 // branch made in every repository, the folder they go in, and the base of
@@ -245,7 +245,7 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 	form.SetItemPadding(1)
 	branch := form.AddInputField(labelGroupBranch, "", 0, nil, nil).GetFormItemByLabel(labelGroupBranch).(*tview.InputField)
 	folder := form.AddInputField(labelGroupFolder, "", 0, nil, nil).GetFormItemByLabel(labelGroupFolder).(*tview.InputField)
-	form.AddTextView("", hintGroupBases, 0, 2, true, false)
+	form.AddTextView(labelGroupBases, "the new branch starts in each repository from", 0, 1, true, false)
 	// The folder follows the branch until it is given a name of its own.
 	named := ""
 	branch.SetChangedFunc(func(text string) {
@@ -262,7 +262,7 @@ func (a *App) showGroupWorktreeForm(choices []groupChoice) {
 		if c.selected >= 0 && c.selected < len(c.branches) {
 			at = branchIndex(bases[i], c.branches[c.selected])
 		}
-		selects[i] = addSelect(form, c.dir, branchOptions(bases[i]), at)
+		selects[i] = addSelect(form, baseLabel(c.dir), branchOptions(bases[i]), at)
 	}
 
 	create := func() {

@@ -145,6 +145,15 @@ pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
 guards the lists.
 
+**A message goes where the eye is.** The status line belongs to the main
+screens. While a dialog, a picker or the worktree view is in front it sits
+under the dimmed screen where nobody looks - validation errors once appeared
+there - so `flash`, `note` and `errorf` (`say`) put the message in a small box
+over whatever is in front (`message.go`). A warning or error holds the keys
+until Esc; a note goes with the next key, which then does its work in the
+dialog. Say things through those three, never with `setStatus` directly, and
+say them after the dialog they belong to is drawn, or it covers them.
+
 Main views expose shortcuts through `?`: help keeps actions for the opening
 context in normal text and dims the rest.
 
