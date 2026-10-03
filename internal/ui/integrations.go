@@ -149,6 +149,9 @@ func (v *integrationsView) paintFocus(active bool) {
 }
 
 func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
+	if v.settings.settingsPickers(ev) {
+		return nil
+	}
 	move := 0
 	switch ev.Key() {
 	case tcell.KeyEsc, tcell.KeyLeft:

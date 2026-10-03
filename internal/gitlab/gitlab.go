@@ -732,3 +732,81 @@ func (c *Client) MergeRequestApprovals(ctx context.Context, mr forge.MergeReques
 	}
 	return a, nil
 }
+
+// CreateProject makes a project in a group. GitLab takes a README and the
+// first branch's name on creation, but neither a license nor a .gitignore:
+// those come from its templates and are committed right after, in one
+// commit, on the branch the README is on or will be.
+func (c *Client) CreateProject(ctx context.Context, g forge.Group, req forge.NewProject) (*forge.Project, error) {
+	visibility := req.Visibility
+	if visibility == "" {
+		visibility = forge.VisibilityPrivate
+	}
+	payload := map[string]any{
+		"name":                   req.Name,
+		"namespace_id":           g.ID,
+		"description":            req.Description,
+		"visibility":             visibility,
+		"initialize_with_readme": req.Readme,
+	}
+	if req.DefaultBranch != "" {
+		payload["default_branch"] = req.DefaultBranch
+	}
+	var p forge.Project
+	if err := c.postDecode(ctx, "/projects", payload, &p); err != nil {
+		return nil, err
+	}
+	var files []map[string]string
+	if req.License != "" {
+		who, err := c.CurrentUser(ctx)
+		if err != nil {
+			return nil, err
+		}
+		q := url.Values{}
+		q.Set("project", req.Name)
+		q.Set("fullname", who.Name)
+		var t struct {
+			Content string `json:"content"`
+		}
+		if _, err := c.get(ctx, "/templates/licenses/"+url.PathEscape(req.License), q, &t); err != nil {
+			return &p, fmt.Errorf("%s was created, but its license was not: %w", p.PathWithNamespace, err)
+		}
+		files = append(files, map[string]string{"action": "create", "file_path": "LICENSE", "content": t.Content})
+	}
+	if req.Gitignore != "" {
+		var t struct {
+			Content string `json:"content"`
+		}
+		if _, err := c.get(ctx, "/templates/gitignores/"+url.PathEscape(req.Gitignore), nil, &t); err != nil {
+			return &p, fmt.Errorf("%s was created, but its .gitignore was not: %w", p.PathWithNamespace, err)
+		}
+		files = append(files, map[string]string{"action": "create", "file_path": ".gitignore", "content": t.Content})
+	}
+	if len(files) > 0 {
+		branch := req.DefaultBranch
+		if branch == "" {
+			branch = p.DefaultBranch
+		}
+		if branch == "" {
+			branch = "main"
+		}
+		err := c.post(ctx, projectPath(p)+"/repository/commits", map[string]any{
+			"branch":         branch,
+			"commit_message": "Add " + strings.Join(fileNames(files), " and "),
+			"actions":        files,
+		})
+		if err != nil {
+			return &p, fmt.Errorf("%s was created, but its first files were not: %w", p.PathWithNamespace, err)
+		}
+		p.DefaultBranch = branch
+	}
+	return &p, nil
+}
+
+func fileNames(files []map[string]string) []string {
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = f["file_path"]
+	}
+	return names
+}

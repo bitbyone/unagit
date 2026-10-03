@@ -109,7 +109,9 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	waitFor(t, a, sc, "1 updated · 1 up to date")
 	gitIn(t, filepath.Join(dir, "gateway"), "merge-base", "--is-ancestor", "origin/main", "HEAD")
 
-	// d takes the worktrees and the folder; the branches and clones stay.
+	// d takes the worktrees and the folder; the branches and clones stay. The
+	// update's log closes on its own; Esc is the view's once it is in front.
+	waitFocus(t, a, func() bool { name, _ := a.pages.GetFrontPage(); return name == pageWorktree })
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "every repository")
 	typeRunes(sc, "d")

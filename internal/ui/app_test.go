@@ -40,6 +40,10 @@ type fakeServer struct {
 	// mrCommits, when set, is the JSON !7 lists as its commits, for a test
 	// whose merge request is real git history.
 	mrCommits atomic.Value
+	// postedProject is the body of the last repository created, and
+	// newRepoURL where the answer says it can be cloned from.
+	postedProject atomic.Value
+	newRepoURL    atomic.Value
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -51,6 +55,14 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, body)
 	}
+	// A new repository, to be cloned from wherever the test put one.
+	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		f.postedProject.Store(string(b))
+		url, _ := f.newRepoURL.Load().(string)
+		json(w, `{"id":3,"name":"tool","path_with_namespace":"acme/tool","default_branch":"main",
+			"web_url":"https://gl.test/acme/tool","http_url_to_repo":"`+url+`"}`)
+	})
 	// The group listings, so a refresh has something to read.
 	mux.HandleFunc("/api/v4/groups/1/projects", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",

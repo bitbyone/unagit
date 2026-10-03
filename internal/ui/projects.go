@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
@@ -72,139 +71,17 @@ func (a *App) newProjectsPane() *pane {
 		}
 	}
 
-	p.onAlt = func(r rune) bool {
-		// Alt-P takes every clone, not the one under the cursor.
-		if r == 'p' {
-			a.updateAllClones()
-			return true
+	p.selection = func() (string, []uiAction) {
+		if picked := a.markedProjects(); len(picked) > 0 {
+			return fmt.Sprintf("Actions · %d marked repositories", len(picked)), a.markedRepositoryActions(p, picked)
 		}
 		pr, ok := selected()
 		if !ok {
-			return false
+			return "", nil
 		}
-		switch r {
-		case 'd':
-			if dir, targets, ok := a.projectDiff(pr); ok {
-				a.diffMenu("Show in Hunk - "+pr.PathWithNamespace, dir, targets)
-			}
-		case 'b':
-			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
-		default:
-			return false
-		}
-		return true
+		return "Actions · " + pr.PathWithNamespace, a.repositoryActions(p, pr)
 	}
-
-	shared := a.filterKeysFor(p)
-	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
-		if shared(ev) {
-			return nil
-		}
-		// Ctrl-G gathers the list under the groups, as it gathers merge
-		// requests under their repositories.
-		if ev.Key() == tcell.KeyCtrlG {
-			a.toggleRepositoryGrouping()
-			return nil
-		}
-		if ev.Key() == tcell.KeyCtrlT {
-			if pr, ok := selected(); ok {
-				a.showRepositoryTags(pr.Instance, pr.PathWithNamespace)
-			}
-			return nil
-		}
-		// Ctrl-F stars the repository; it pages the list nowhere else.
-		if ev.Key() == tcell.KeyCtrlF {
-			if pr, ok := selected(); ok {
-				a.toggleFavourite(pr.Instance, pr.PathWithNamespace, 0, pr.PathWithNamespace)
-			}
-			return nil
-		}
-		// Ctrl-W opens a worktree for a branch of its own, or one for every
-		// marked repository together; w (below) is already taken by "open in
-		// the browser".
-		if ev.Key() == tcell.KeyCtrlW {
-			if picked := a.markedProjects(); len(picked) > 0 {
-				a.startGroupWorktree(picked)
-				return nil
-			}
-			if pr, ok := selected(); ok {
-				a.showWorktreePicker(pr)
-			}
-			return nil
-		}
-		if ev.Key() != tcell.KeyRune {
-			return ev
-		}
-		switch ev.Rune() {
-		case 'e':
-			if pr, ok := selected(); ok {
-				a.showProjectDirectory(pr)
-			}
-			return nil
-		case 'f':
-			a.showTagFilter()
-			return nil
-		case 'v':
-			a.showViewOptions()
-			return nil
-		case 'F':
-			if len(a.cfg.Filters.Tags) > 0 {
-				a.cfg.Filters.Tags = nil
-				a.applyFilters()
-				a.note("Showing every tag again")
-			}
-			return nil
-		case 'y':
-			if pr, ok := selected(); ok {
-				a.yankProject(pr)
-			}
-			return nil
-		case 'b':
-			if pr, ok := selected(); ok {
-				a.showBranchPicker(pr, nil)
-			}
-			return nil
-		case 'm':
-			if pr, ok := selected(); ok {
-				a.mrProjectScope = projectKey{pr.Instance, pr.PathWithNamespace}
-				a.mrsPane.reload()
-				a.switchTab(pageMRs)
-			}
-			return nil
-		case 'd':
-			if pr, ok := selected(); ok {
-				a.manageWorktrees(pr)
-			}
-			return nil
-		case 'w':
-			if pr, ok := selected(); ok && pr.WebURL != "" {
-				_ = openBrowser(pr.WebURL)
-				a.note("opened " + pr.WebURL)
-			}
-			return nil
-		case 'r':
-			a.refreshProjects()
-			return nil
-		case 'p':
-			if pr, ok := selected(); ok {
-				a.updateProject(pr)
-			}
-			return nil
-		case 'D':
-			if pr, ok := selected(); ok {
-				if dir, targets, ok := a.projectDiff(pr); ok {
-					a.diffKey(dir, targets)
-				}
-			}
-			return nil
-		case 'C':
-			if pr, ok := selected(); ok {
-				a.cloneProject(pr)
-			}
-			return nil
-		}
-		return ev
-	}
+	p.screen = func() (string, []uiAction) { return "Repositories", a.repositoriesActions(p) }
 
 	p.reload = func() { render(p.query) }
 	return p

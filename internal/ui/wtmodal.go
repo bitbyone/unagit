@@ -8,6 +8,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -252,119 +253,110 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 	return textBlock{title: title, rows: rows}
 }
 
-// worktreeViewHint is the footer: the keys of the block that is lit.
+// worktreeViewHint is the footer: the keys of the block that is lit, the
+// usual ones; Alt-Enter lists every action there is for it.
 func worktreeViewHint(r worktreeRow) string {
 	if r.grouped() {
-		return "j/k · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · Ctrl-R rebase · " +
-			"U unpublish · a add · r refresh · Esc back"
+		return "j/k · Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
+			"Ctrl-R rebase · a add · r refresh · Esc back"
 	}
-	keys := "j/k · Ctrl-O open · w web · c comments · l log · p pull · P push · C commit · n MR · " +
-		"D diff · Ctrl-R rebase · U unpublish"
+	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · l log · p pull · P push · " +
+		"C commit · n MR · D diff · Ctrl-R rebase"
 	if r.Group != "" {
 		keys += " · x take out"
 	}
 	return keys + " · r refresh · Esc back"
 }
 
+// worktreeViewActions are what can be done with the block that is lit.
+func (a *App) worktreeViewActions(v *wtView) []uiAction {
+	r := v.lit()
+	single := func() bool { return !r.grouped() }
+	open := func(ask bool) {
+		a.withEditor(ask, func(ed *editors.Editor) {
+			if r.grouped() {
+				a.openGroup(r, ed)
+			} else {
+				a.openWorktree(r, ed)
+			}
+		})
+	}
+	acts := a.worktreeActions(r, open, "C")
+	acts = append(acts,
+		uiAction{name: "Read the merge request's conversation", keys: "c", rank: 37, when: single, run: func() {
+			if mr, ok := a.openMRFor(r); ok {
+				a.showComments(mr)
+				return
+			}
+			a.flash("no merge request is open from " + r.Branch + " - n opens one")
+		}},
+		uiAction{name: "Open its merge request or page in the browser", keys: "w", rank: 38, when: single,
+			run: func() { a.openWorktreeWeb(r) }},
+		uiAction{name: "List the commits of the branch", keys: "l", rank: 39, when: single,
+			run: func() { a.showWorktreeLog(r) }},
+		uiAction{name: "Take this repository out of the group", keys: "x", rank: 65,
+			when: func() bool { return r.Group != "" }, run: func() { a.confirmTakeOut(v.row, r) }},
+	)
+	if v.row.grouped() && !r.grouped() {
+		acts = append(acts, uiAction{name: "Add a repository to the group", keys: "a", rank: 60,
+			run: func() { a.addToGroup(v.row) }})
+	}
+	return acts
+}
+
+// worktreeViewScreenActions are what the view itself can do.
+func (a *App) worktreeViewScreenActions() []uiAction {
+	return []uiAction{
+		{name: "Refresh: the disk, origin, comments", keys: "r", rank: 10, run: func() {
+			a.refreshDisk()
+			a.fetchWorktrees()
+			a.note("looking at the disk, and asking origin")
+		}},
+		{name: "Back to the list", keys: "Esc", rank: 900, run: a.closeWorktreeView},
+		{name: "Help: every key", keys: "?", rank: 950, run: a.showHelp},
+	}
+}
+
 // worktreeViewKeys is what the keys do in the view: move between the blocks,
 // or act on the one lit.
 func (a *App) worktreeViewKeys(v *wtView, ev *tcell.EventKey) *tcell.EventKey {
-	r := v.lit()
-	switch ev.Key() {
-	case tcell.KeyEsc:
+	move := func(at int) {
+		v.at = max(0, min(at, len(v.blocks())-1))
+		a.renderWorktreeView()
+	}
+	switch {
+	case ev.Key() == tcell.KeyEsc:
 		a.closeWorktreeView()
 		return nil
-	case tcell.KeyDown:
-		v.at = min(v.at+1, len(v.blocks())-1)
-		a.renderWorktreeView()
+	case ev.Key() == tcell.KeyDown:
+		move(v.at + 1)
 		return nil
-	case tcell.KeyUp:
-		v.at = max(v.at-1, 0)
-		a.renderWorktreeView()
+	case ev.Key() == tcell.KeyUp:
+		move(v.at - 1)
 		return nil
-	case tcell.KeyCtrlO:
-		if r.grouped() {
-			a.openGroup(r, nil)
-		} else {
-			a.openWorktree(r, nil)
-		}
-		return nil
-	case tcell.KeyCtrlR:
-		a.rebaseWorktree(r)
-		return nil
-	case tcell.KeyRune:
-	default:
-		return ev
-	}
-	if ev.Modifiers()&tcell.ModAlt != 0 {
-		if ev.Rune() == 'd' {
-			dir, targets := a.worktreeDiff(r)
-			a.diffMenu("Show in Hunk - "+r.Path, dir, targets)
-		}
-		return nil
-	}
-	switch ev.Rune() {
-	case 'j':
-		v.at = min(v.at+1, len(v.blocks())-1)
-		a.renderWorktreeView()
-	case 'k':
-		v.at = max(v.at-1, 0)
-		a.renderWorktreeView()
-	case 'g':
-		v.at = 0
-		a.renderWorktreeView()
-	case 'G':
-		v.at = len(v.blocks()) - 1
-		a.renderWorktreeView()
-	case 'q':
-		a.closeWorktreeView()
-	case '?':
-		a.showHelp()
-	case 'p':
-		a.updateWorktree(r)
-	case 'P':
-		if r.grouped() {
-			a.pushGroup(r)
-		} else {
-			a.pushWorktree(r)
-		}
-	case 'C':
-		a.commitWorktree(r)
-	case 'n':
-		if r.grouped() {
-			a.groupMergeRequests(r)
-		} else {
-			a.newMergeRequest(r)
-		}
-	case 'D':
-		a.diffKey(a.worktreeDiff(r))
-	case 'U':
-		a.unpublishBranches(r)
-	case 'r':
-		a.refreshDisk()
-		a.fetchWorktrees()
-		a.note("looking at the disk, and asking origin")
-	case 'a':
-		if v.row.grouped() {
-			a.addToGroup(v.row)
-		}
-	case 'x':
-		if r.Group != "" {
-			a.confirmTakeOut(v.row, r)
-		}
-	case 'w':
-		a.openWorktreeWeb(r)
-	case 'c':
-		if mr, ok := a.openMRFor(r); ok && !r.grouped() {
-			a.showComments(mr)
-		} else if !r.grouped() {
-			a.flash("no merge request is open from " + r.Branch + " - n opens one")
-		}
-	case 'l':
-		if !r.grouped() {
-			a.showWorktreeLog(r)
+	case ev.Key() == tcell.KeyRune && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0:
+		switch ev.Rune() {
+		case 'j':
+			move(v.at + 1)
+			return nil
+		case 'k':
+			move(v.at - 1)
+			return nil
+		case 'g':
+			move(0)
+			return nil
+		case 'G':
+			move(len(v.blocks()) - 1)
+			return nil
+		case 'q':
+			a.closeWorktreeView()
+			return nil
 		}
 	}
+	title := "Actions · " + v.lit().Path
+	a.actionKeys(ev,
+		func() (string, []uiAction) { return title, a.worktreeViewActions(v) },
+		func() (string, []uiAction) { return "Worktree view", a.worktreeViewScreenActions() })
 	return nil
 }
 

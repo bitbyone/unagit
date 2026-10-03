@@ -234,6 +234,9 @@ func (s *settingsView) focusList() {
 
 // listKeys drives the section list.
 func (s *settingsView) listKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if s.settingsPickers(ev) {
+		return nil
+	}
 	switch ev.Key() {
 	case tcell.KeyEsc:
 		s.app.switchTab(pageProjects)
@@ -269,6 +272,9 @@ func (s *settingsView) listKeys(ev *tcell.EventKey) *tcell.EventKey {
 
 // contentKeys is the part every section's pane shares.
 func (s *settingsView) contentKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
+	if s.settingsPickers(ev) {
+		return nil, true
+	}
 	switch ev.Key() {
 	case tcell.KeyEsc, tcell.KeyLeft:
 		s.focusList()
@@ -301,6 +307,9 @@ func (s *settingsView) newGeneralForm() *tview.Form {
 	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc {
 			s.focusList()
+			return nil
+		}
+		if s.settingsPickers(ev) {
 			return nil
 		}
 		if ev.Key() == tcell.KeyRune && ev.Rune() == '?' {

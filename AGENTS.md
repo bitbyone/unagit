@@ -126,6 +126,20 @@ configuration UI, `comments.go` the conversation, `filters.go` the shared
 filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
 the `?` screen as data.
 
+**What a screen can do is data.** Every list, the worktree view and Settings
+describe their actions as `uiAction`s (`palette.go`, the lists in
+`actions_lists.go`, Settings in `settings_actions.go`): a name, the key, a
+rank by how often it is wanted, when it can be done, and what it does. The
+same list answers the keys and fills the two action pickers - `Alt-Enter`
+(`Ctrl-A`) for the selection, `:` for the screen - so a key cannot do one
+thing while the picker says another. A new action goes into that list, not
+into a `switch` on runes; one too rare for a key gets `keys: ""` and lives in
+the picker alone (deleting a branch on origin does). A key whose action
+cannot be done now is still run, so that it says why; `when` only keeps the
+pickers to what can be done. In Settings an action presses its own key in
+the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
+guards the lists.
+
 Main views expose shortcuts through `?`: help keeps actions for the opening
 context in normal text and dims the rest.
 
@@ -319,6 +333,16 @@ server. Rules learned the hard way:
   the screen is wrapped (`quietScreen`, `screen.go`) to drop Show and Sync
   between Suspend and Resume. Hand a screen in with `App.SetScreen`, never
   `tv.SetScreen`, or the wrapper is lost.
+- **A table paints a cell's background over its text.** The selection band
+  and a row's own background (a marked row's) both repaint every cell of the
+  row, so a tag's pill on it lost its fill and became plain text between two
+  coloured ends - this went wrong twice, first with the cursor, then with
+  the marks. Pills, and anything else that must keep its colours on a
+  painted row, are drawn again after the table, from `keptTable`: `markup`
+  for the cursor's band, `banded` for a row with a background of its own.
+  Give a row a background and you must give its pills a `banded` markup on
+  that background (`tagsField` does). `TestTagsOnRepositories` checks the
+  pill plain, under the cursor, marked, and both.
 - The `u` (underline) style flag is broken in this version: setting attributes
   afterwards loses the bit but keeps tcell's underline, so everything after a
   link came out underlined. Links use colour only.

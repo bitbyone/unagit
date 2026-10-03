@@ -67,119 +67,14 @@ func (a *App) newMRsPane() *pane {
 		}
 	}
 
-	p.onAlt = func(r rune) bool {
+	p.selection = func() (string, []uiAction) {
 		mr, ok := selected()
 		if !ok {
-			return false
+			return "", nil
 		}
-		switch r {
-		case 'r':
-			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
-		case 'v':
-			a.withEditor(true, func(ed *editors.Editor) { a.pickReviewStart(mr, ed) })
-		case 'd':
-			a.diffMR(mr, true)
-		default:
-			return false
-		}
-		return true
+		return fmt.Sprintf("Actions · %s !%d", a.projectPathOfMR(mr), mr.IID), a.mergeRequestActions(p, mr)
 	}
-
-	shared := a.filterKeysFor(p)
-	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
-		if shared(ev) {
-			return nil
-		}
-		// Ctrl-G gathers the list under the projects; g is taken by "go to
-		// the first row".
-		if ev.Key() == tcell.KeyCtrlG {
-			a.toggleGrouping()
-			return nil
-		}
-		// Ctrl-F stars the merge request, as it stars a repository.
-		if ev.Key() == tcell.KeyCtrlF {
-			if mr, ok := selected(); ok {
-				path := a.projectPathOfMR(mr)
-				a.toggleFavourite(mr.Instance, path, mr.IID, fmt.Sprintf("%s !%d", path, mr.IID))
-			}
-			return nil
-		}
-		// Ctrl-R opens the review worktree, next to Ctrl-O for the branch one.
-		if ev.Key() == tcell.KeyCtrlR {
-			if mr, ok := selected(); ok {
-				a.openMRReview(mr, nil)
-			}
-			return nil
-		}
-		if ev.Key() != tcell.KeyRune {
-			return ev
-		}
-		switch ev.Rune() {
-		case 'f':
-			a.showProjectScopePicker()
-			return nil
-		case 'F':
-			a.mrProjectScope = projectKey{}
-			p.reload()
-			a.note("repository filter cleared")
-			return nil
-		case 'd':
-			if mr, ok := selected(); ok {
-				a.confirmDeleteMR(mr)
-			}
-			return nil
-		case 'w':
-			if mr, ok := selected(); ok && mr.WebURL != "" {
-				_ = openBrowser(mr.WebURL)
-				a.note("opened " + mr.WebURL)
-			}
-			return nil
-		case 'A':
-			if mr, ok := selected(); ok {
-				a.approveMR(mr, nil)
-			}
-			return nil
-		case 'P':
-			if mr, ok := selected(); ok {
-				a.publishMR(mr)
-			}
-			return nil
-		case 'p':
-			if mr, ok := selected(); ok {
-				a.updateMR(mr)
-			}
-			return nil
-		case 'D':
-			if mr, ok := selected(); ok {
-				a.diffMR(mr, false)
-			}
-			return nil
-		case 'C':
-			if mr, ok := selected(); ok {
-				a.cloneMRReview(mr)
-			}
-			return nil
-		case 'c':
-			if mr, ok := selected(); ok {
-				a.showComments(mr)
-			}
-			return nil
-		case 'v':
-			if mr, ok := selected(); ok {
-				a.pickReviewStart(mr, nil)
-			}
-			return nil
-		case 'y':
-			if mr, ok := selected(); ok {
-				a.yankMR(mr)
-			}
-			return nil
-		case 'r':
-			a.refreshMRs()
-			return nil
-		}
-		return ev
-	}
+	p.screen = func() (string, []uiAction) { return "Merge requests", a.mergeRequestsActions(p) }
 
 	p.reload = func() { render(p.query) }
 	return p

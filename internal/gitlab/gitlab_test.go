@@ -392,3 +392,60 @@ func TestDeletedLineKeepsItsLocation(t *testing.T) {
 		t.Fatalf("current line: %+v", notes[2])
 	}
 }
+
+// TestCreateProjectCommitsTheTemplates: GitLab takes the README and the
+// branch on creation; the license and .gitignore come from its templates and
+// are committed in one go on that branch.
+func TestCreateProjectCommitsTheTemplates(t *testing.T) {
+	var created, committed string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/projects":
+			b, _ := io.ReadAll(r.Body)
+			created = string(b)
+			fmt.Fprint(w, `{"id":77,"name":"tool","path_with_namespace":"acme/tool","default_branch":"trunk",
+				"http_url_to_repo":"https://gl.test/acme/tool.git"}`)
+		case r.URL.Path == "/api/v4/user":
+			fmt.Fprint(w, `{"username":"jane","name":"Jane Doe"}`)
+		case r.URL.Path == "/api/v4/templates/licenses/mit":
+			if r.URL.Query().Get("fullname") != "Jane Doe" {
+				t.Errorf("license asked for %q", r.URL.RawQuery)
+			}
+			fmt.Fprint(w, `{"content":"MIT License, Jane Doe"}`)
+		case r.URL.Path == "/api/v4/templates/gitignores/Go":
+			fmt.Fprint(w, `{"content":"*.test"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/projects/77/repository/commits":
+			b, _ := io.ReadAll(r.Body)
+			committed = string(b)
+			fmt.Fprint(w, `{}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	p, err := New(srv.URL, "t").CreateProject(context.Background(), forge.Group{ID: 5, FullPath: "acme"}, forge.NewProject{
+		Name: "tool", Description: "A tool", Visibility: forge.VisibilityInternal, Readme: true,
+		License: "mit", Gitignore: "Go", DefaultBranch: "trunk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.PathWithNamespace != "acme/tool" || p.DefaultBranch != "trunk" {
+		t.Errorf("project = %+v", p)
+	}
+	for _, want := range []string{`"namespace_id":5`, `"visibility":"internal"`, `"initialize_with_readme":true`,
+		`"default_branch":"trunk"`, `"description":"A tool"`} {
+		if !strings.Contains(created, want) {
+			t.Errorf("creation lacks %s: %s", want, created)
+		}
+	}
+	for _, want := range []string{`"branch":"trunk"`, `"file_path":"LICENSE"`, `MIT License, Jane Doe`,
+		`"file_path":".gitignore"`, `*.test`} {
+		if !strings.Contains(committed, want) {
+			t.Errorf("commit lacks %s: %s", want, committed)
+		}
+	}
+}

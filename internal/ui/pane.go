@@ -49,13 +49,17 @@ type pane struct {
 	query         string
 	statusMessage string
 
-	onQuery  func(string)                          // rebuild rows for a new query
-	onKey    func(*tcell.EventKey) *tcell.EventKey // extra NORMAL mode commands
-	onDetail func(idx int, focus bool)             // fill the detail column for a row
-	onOpen   func(ask bool)                        // Ctrl-O: clone/update and open the editor; Alt-O asks which editor
-	onAlt    func(r rune) bool                     // Alt with another opening key: the same, in an editor chosen first
-	headline func() string                         // header text
-	reload   func()                                // rebuild rows from the current data
+	onQuery  func(string)              // rebuild rows for a new query
+	onDetail func(idx int, focus bool) // fill the detail column for a row
+	onOpen   func(ask bool)            // Ctrl-O: clone/update and open the editor; Alt-O asks which editor
+	// selection and screen are what can be done with the row under the
+	// cursor (or the marked rows) and with the list itself: they answer the
+	// keys and fill the two action pickers (palette.go). selection says nil
+	// when there is no row.
+	selection func() (string, []uiAction)
+	screen    func() (string, []uiAction)
+	headline  func() string // header text
+	reload    func()        // rebuild rows from the current data
 
 	// detailFor is the data index the detail column currently shows, and
 	// debounce delays following the cursor so holding j does not fire a
@@ -394,17 +398,29 @@ func (p *pane) altKeys(ev *tcell.EventKey) bool {
 	if ev.Key() != tcell.KeyRune || ev.Modifiers()&tcell.ModAlt == 0 {
 		return false
 	}
-	switch {
-	case ev.Rune() == 'o' && p.onOpen != nil:
+	if ev.Rune() == 'o' && p.onOpen != nil {
 		p.onOpen(true)
-	case p.onAlt != nil:
-		p.onAlt(ev.Rune())
+		return true
 	}
+	p.actionKeys(ev)
 	return true
+}
+
+// actionKeys answers the action pickers' keys and the actions' own.
+func (p *pane) actionKeys(ev *tcell.EventKey) bool {
+	return p.app.actionKeys(ev, p.selection, p.screen)
+}
+
+// opensPicker reports whether a key opens one of the action pickers.
+func opensPicker(ev *tcell.EventKey) bool {
+	return opensSelectionActions(ev) || opensScreenActions(ev)
 }
 
 // tableKeys implements NORMAL mode.
 func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if opensPicker(ev) && p.actionKeys(ev) {
+		return nil
+	}
 	if p.altKeys(ev) {
 		return nil
 	}
@@ -470,8 +486,8 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 	}
-	if p.onKey != nil {
-		return p.onKey(ev)
+	if p.actionKeys(ev) {
+		return nil
 	}
 	return ev
 }
@@ -479,6 +495,9 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 // detailKeys handles the right hand column. Scrolling itself (j/k/g/G/Ctrl-F/
 // Ctrl-B/arrows) is already implemented by tview's TextView.
 func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if opensPicker(ev) && p.actionKeys(ev) {
+		return nil
+	}
 	if p.altKeys(ev) {
 		return nil
 	}
@@ -492,9 +511,7 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 		}
 		return nil
 	case tcell.KeyCtrlR:
-		if p.onKey != nil {
-			return p.onKey(ev)
-		}
+		p.actionKeys(ev)
 		return nil
 	case tcell.KeyRune:
 		switch ev.Rune() {
@@ -516,8 +533,8 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 	// The row commands work while reading the detail too.
-	if p.onKey != nil {
-		return p.onKey(ev)
+	if p.actionKeys(ev) {
+		return nil
 	}
 	return ev
 }

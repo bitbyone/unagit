@@ -109,6 +109,31 @@ type NewMergeRequest struct {
 	Squash             bool
 }
 
+// NewProject is what a repository is created from.
+type NewProject struct {
+	Name        string
+	Description string
+	// Visibility is VisibilityPrivate, VisibilityInternal or
+	// VisibilityPublic; internal is GitLab's, and GitHub takes it as private.
+	Visibility string
+	// Readme, License and Gitignore make the first commit: a README, a
+	// license by its key (mit, apache-2.0, ...) and a .gitignore by its
+	// template name (Go, Node, ...). With none of them the repository is
+	// created empty.
+	Readme    bool
+	License   string
+	Gitignore string
+	// DefaultBranch names the first branch; "" leaves it to the forge.
+	DefaultBranch string
+}
+
+// Visibilities of a repository.
+const (
+	VisibilityPrivate  = "private"
+	VisibilityInternal = "internal"
+	VisibilityPublic   = "public"
+)
+
 // MergeRequestDetail is the full payload.
 type MergeRequestDetail struct {
 	MergeRequest
@@ -266,6 +291,11 @@ type Provider interface {
 	// which, when the forge did. RemoveSourceBranch and Squash are GitLab
 	// options and GitHub ignores them.
 	CreateMergeRequest(ctx context.Context, p Project, req NewMergeRequest) (*MergeRequest, error)
+	// CreateProject makes a repository in a group - an organisation or the
+	// account itself on GitHub - and returns it as the list would hold it,
+	// without Instance. What the forge cannot do on creation (a GitLab
+	// license or .gitignore, a GitHub default branch) it does right after.
+	CreateProject(ctx context.Context, g Group, req NewProject) (*Project, error)
 	// UpdateMergeRequestDescription replaces the description of a merge
 	// request - to point merge requests made together at one another, once
 	// each one's address is known.

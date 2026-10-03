@@ -1040,3 +1040,44 @@ func (c *Client) MergeRequestApprovals(ctx context.Context, mr forge.MergeReques
 	}
 	return a, nil
 }
+
+// CreateProject makes a repository in an organisation, or in the account
+// itself. GitHub writes a license and a .gitignore from its templates only
+// into a repository it initialises, so either of them brings a README along;
+// the first branch is renamed afterwards, as creation cannot name it.
+func (c *Client) CreateProject(ctx context.Context, g forge.Group, req forge.NewProject) (*forge.Project, error) {
+	login, err := c.whoami(ctx)
+	if err != nil {
+		return nil, err
+	}
+	path := "/orgs/" + g.FullPath + "/repos"
+	if g.FullPath == login {
+		path = "/user/repos"
+	}
+	initialise := req.Readme || req.License != "" || req.Gitignore != ""
+	payload := map[string]any{
+		"name":        req.Name,
+		"description": req.Description,
+		"private":     req.Visibility != forge.VisibilityPublic,
+		"auto_init":   initialise,
+	}
+	if req.License != "" {
+		payload["license_template"] = req.License
+	}
+	if req.Gitignore != "" {
+		payload["gitignore_template"] = req.Gitignore
+	}
+	var created repo
+	if err := c.postDecode(ctx, path, payload, &created); err != nil {
+		return nil, err
+	}
+	p := created.project()
+	if initialise && req.DefaultBranch != "" && created.DefaultBranch != "" && created.DefaultBranch != req.DefaultBranch {
+		rename := "/repos/" + created.FullName + "/branches/" + url.PathEscape(created.DefaultBranch) + "/rename"
+		if err := c.post(ctx, rename, map[string]string{"new_name": req.DefaultBranch}); err != nil {
+			return &p, fmt.Errorf("%s was created, but its branch is still %s: %w", p.PathWithNamespace, created.DefaultBranch, err)
+		}
+		p.DefaultBranch = req.DefaultBranch
+	}
+	return &p, nil
+}

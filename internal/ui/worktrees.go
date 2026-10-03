@@ -21,7 +21,6 @@ import (
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
-	"github.com/tobola/unagit/internal/workspace"
 )
 
 // worktreeRow is one worktree made from Repositories for a branch of its own,
@@ -325,108 +324,14 @@ func (a *App) newWorktreesPane() *pane {
 			}
 		})
 	}
-	// Alt-P takes every worktree, as it takes every clone in Repositories.
-	p.onAlt = func(r rune) bool {
-		switch r {
-		case 'p':
-			a.updateAllWorktrees()
-			return true
-		case 'd':
-			if row, ok := selected(); ok {
-				dir, targets := a.worktreeDiff(row)
-				a.diffMenu("Show in Hunk - "+row.Path, dir, targets)
-			}
-			return true
+	p.selection = func() (string, []uiAction) {
+		r, ok := selected()
+		if !ok {
+			return "", nil
 		}
-		return false
+		return "Actions · " + r.Path, a.worktreeListActions(p, r)
 	}
-	p.onKey = func(ev *tcell.EventKey) *tcell.EventKey {
-		// Ctrl-R puts the branch on top of its base as it is now, even once
-		// pushed; it reviews a merge request in the other list.
-		if ev.Key() == tcell.KeyCtrlR {
-			if r, ok := selected(); ok {
-				a.rebaseWorktree(r)
-			}
-			return nil
-		}
-		if ev.Key() != tcell.KeyRune {
-			return ev
-		}
-		switch ev.Rune() {
-		case 'y':
-			if r, ok := selected(); ok {
-				a.yankWorktree(r)
-			}
-			return nil
-		case 'd':
-			r, ok := selected()
-			switch {
-			case !ok:
-			case r.grouped():
-				a.confirmDeleteGroup(r)
-			default:
-				a.confirmDeleteWorktreeEntry(a.worktreeProject(r), workspace.WorktreeEntry{
-					Label: r.Branch, Kind: "branch", Dirs: []string{r.Dir}})
-			}
-			return nil
-		case 'r':
-			a.refreshDisk()
-			a.fetchWorktrees()
-			a.note("looking at the disk, and asking origin")
-			return nil
-		case 'p':
-			if r, ok := selected(); ok {
-				a.updateWorktree(r)
-			}
-			return nil
-		case 'D':
-			if r, ok := selected(); ok {
-				a.diffKey(a.worktreeDiff(r))
-			}
-			return nil
-		case 'c':
-			if r, ok := selected(); ok {
-				a.commitWorktree(r)
-			}
-			return nil
-		case 'a':
-			if r, ok := selected(); ok {
-				a.addToGroup(r)
-			}
-			return nil
-		case 'U':
-			if r, ok := selected(); ok {
-				a.unpublishBranches(r)
-			}
-			return nil
-		case 'x':
-			if r, ok := selected(); ok {
-				a.removeFromGroup(r)
-			}
-			return nil
-		case 'P':
-			r, ok := selected()
-			switch {
-			case !ok:
-			case r.grouped():
-				a.pushGroup(r)
-			default:
-				a.pushWorktree(r)
-			}
-			return nil
-		case 'n':
-			r, ok := selected()
-			switch {
-			case !ok:
-			case r.grouped():
-				a.groupMergeRequests(r)
-			default:
-				a.newMergeRequest(r)
-			}
-			return nil
-		}
-		return ev
-	}
+	p.screen = func() (string, []uiAction) { return "Worktrees", a.worktreesActions(p) }
 	return p
 }
 

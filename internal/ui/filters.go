@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gdamore/tcell/v2"
-
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -240,29 +238,4 @@ func (a *App) selectedProjectOf(p *pane) (instance, path string) {
 		return mr.Instance, a.projectPathOfMR(mr)
 	}
 	return "", ""
-}
-
-// filterKeysFor wires the shared filter keys into a list.
-func (a *App) filterKeysFor(p *pane) func(*tcell.EventKey) bool {
-	return func(ev *tcell.EventKey) bool {
-		if ev.Key() != tcell.KeyRune {
-			return false
-		}
-		switch ev.Rune() {
-		case 'L':
-			a.toggleClonedOnly()
-			return true
-		case 'x':
-			instance, path := a.selectedProjectOf(p)
-			a.hideProject(instance, path)
-			return true
-		case 'X':
-			a.showHiddenPicker()
-			return true
-		case 'o':
-			a.showSortPicker()
-			return true
-		}
-		return false
-	}
 }

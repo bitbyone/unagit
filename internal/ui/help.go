@@ -133,6 +133,9 @@ func helpRows() []helpLine {
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
 		key("R  M  W  S", "Repositories · Merge requests · Worktrees · Settings"),
+		key("Alt-Enter", "every action on the selection, with its key"),
+		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
+		key(":", "every action of the screen, with its key"),
 		key("j  k", "move up and down"),
 		key("g  G", "first · last").in(helpLists | helpWorktreeList),
 		key("/", "filter: fuzzy, spaces separate terms").in(helpLists | helpWorktreeList),
@@ -199,7 +202,6 @@ func helpRows() []helpLine {
 		key("c", "commit everything; one message, or one per repo"),
 		key("a  x", "a group: add a repository · take one out"),
 		key("P", "push commits; -u when new; forced only after Ctrl-R"),
-		key("U", "delete the branch on origin; never one with an MR"),
 		key("n", "open a merge request; a group, one in each, linked"),
 		key("REMOTE", "no upstream · in sync · ↑ unpushed · ↓ behind · gone"),
 		key("MR", "the open merge request of the branch"),

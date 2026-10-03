@@ -84,7 +84,7 @@ func TestAGroupGrowsAndShrinks(t *testing.T) {
 // TestPushLeavesEmptyBranchesAndUTakesThemBack: P pushes only the branches
 // that have commits of their own; U deletes a branch on origin again, leaving
 // the local one.
-func TestPushLeavesEmptyBranchesAndUTakesThemBack(t *testing.T) {
+func TestPushLeavesEmptyBranchesAndThePickerTakesThemBack(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
 	gw, bl, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/push")
@@ -125,8 +125,13 @@ func TestPushLeavesEmptyBranchesAndUTakesThemBack(t *testing.T) {
 
 	onLoop(a, func() bool { a.refreshDisk(); return true })
 	waitFor(t, a, sc, "1/2") // the gateway in sync, billing not pushed
-	// In a group the repositories are picked first, none to begin with.
-	typeRunes(sc, "U")
+	// It has no key of its own: the actions picker finds it. In a group the
+	// repositories are picked first, none to begin with.
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · feat-push")
+	typeRunes(sc, "/branch on origin")
+	waitFor(t, a, sc, "Delete the branch on origin")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Delete on origin - feat-push")
 	waitFor(t, a, sc, "0 picked")
 	if strings.Contains(a.screenText(sc), "billing") {

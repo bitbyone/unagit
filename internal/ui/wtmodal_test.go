@@ -42,6 +42,11 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 
 	typeRunes(sc, "j")
 	waitFor(t, a, sc, "x take out") // a repository's keys
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · acme/gateway")
+	waitFor(t, a, sc, "Take this repository out of the group")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · acme/gateway")
 	typeRunes(sc, "l")
 	waitFor(t, a, sc, "Commits of feat/view since main")
 	waitFor(t, a, sc, "Count requests per client")

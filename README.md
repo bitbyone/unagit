@@ -66,6 +66,25 @@ Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
+**Nothing has to be remembered.** `Alt-Enter` (or `Ctrl-A`, for a terminal
+that keeps Alt-Enter for itself) lists everything that can be done with the
+row under the cursor - or with the selected rows, or the lit block of a
+worktree's view, or the section of Settings - and `:` everything the screen
+itself can do. Each action has its key beside it, so the list teaches the keys
+as it is used; what one usually comes for is at the top and what destroys
+something at the bottom. It opens on the list: `j`/`k` move, `Enter` does the
+action, `/` finds one by name. Some actions are rare enough to have no key at
+all and live only there.
+
+- **Create a new repository** (`:` in Repositories) asks where - one of the
+  groups picked in Settings, or a subgroup of one taken with its subgroups -
+  and for its name, description, visibility, first branch, a README, a license
+  and a `.gitignore`. It is created on the server, cloned at once and listed
+  with the others, with the cursor on it. GitLab gets the license and the
+  `.gitignore` from its templates in a commit right after; on GitHub either
+  of them brings a README along, as GitHub writes them only into a repository
+  it initialises.
+
 - `C` clones it to disk without opening the editor. `Ctrl-C` is left to end
   unagit, as it ends any program in a terminal.
 - `Ctrl-O` opens your editor in it at once, as it is on disk - no fetch, no
@@ -121,7 +140,8 @@ Repository directory overrides bypass all root and group rules. Worktrees live i
 Work that spans several repositories - a change to an API and its two clients,
 say, or a task for an AI agent that has to see all of them - wants them in one
 folder. In Repositories, `space` selects a repository and moves on (the header
-says `SELECT 3`, `Esc` clears it); `Ctrl-W` on a selection then asks for:
+says `SELECT 3`, and the selected rows have a band of their own; `Esc` clears
+it); `Ctrl-W` on a selection then asks for:
 
 - **New branch** - made in every repository, from the branch picked for it
   below. Left empty, nothing is created and each repository checks out the
@@ -147,7 +167,8 @@ and `Enter` opens it as a view of its own (see below).
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
 pushes every repository that has commits origin lacks - a branch with nothing
 of its own yet stays local, rather than leaving an empty branch on origin -
-`U` deletes branches on origin again - in a group, the repositories you pick
+**Delete the branch on origin** (in the `Alt-Enter` actions; it has no key)
+deletes branches on origin again - in a group, the repositories you pick
 with space, none to begin with; never one a merge request is open on; the
 local branches stay - and `d` deletes the worktrees - the
 branches and the main clones stay.
@@ -407,7 +428,9 @@ typing into it; while typing, `Esc` and then the letter press a button.
 
 | Key | |
 | --- | --- |
-| `R` `M` `S` | Repositories · Merge requests · Settings |
+| `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
+| `:` | every action of the screen, with its key |
+| `R` `M` `W` `S` | Repositories · Merge requests · Worktrees · Settings |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |

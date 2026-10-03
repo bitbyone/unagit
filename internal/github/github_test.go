@@ -650,3 +650,50 @@ func TestDeletedAndOutdatedCommentLocations(t *testing.T) {
 		t.Fatalf("locations: %+v", byID)
 	}
 }
+
+// TestCreateProjectInAnOrganisationAndInTheAccount: an organisation's
+// repository is made at its own endpoint, the account's at /user/repos; a
+// license initialises it, and the first branch is renamed to the one asked.
+func TestCreateProjectInAnOrganisationAndInTheAccount(t *testing.T) {
+	s := newStub(t)
+	s.handle("/user", userJSON)
+	var made, renamed string
+	s.mux.HandleFunc("/orgs/acme/repos", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		made = string(b)
+		fmt.Fprint(w, `{"id":5,"name":"tool","full_name":"acme/tool","default_branch":"main","owner":{"login":"acme"}}`)
+	})
+	s.mux.HandleFunc("/repos/acme/tool/branches/main/rename", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		renamed = string(b)
+		fmt.Fprint(w, `{}`)
+	})
+	s.mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		made = string(b)
+		fmt.Fprint(w, `{"id":6,"name":"notes","full_name":"toby/notes","owner":{"login":"toby"}}`)
+	})
+
+	p, err := s.client().CreateProject(context.Background(), forge.Group{FullPath: "acme"}, forge.NewProject{
+		Name: "tool", Visibility: forge.VisibilityInternal, License: "mit", DefaultBranch: "trunk"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"private":true`, `"auto_init":true`, `"license_template":"mit"`} {
+		if !strings.Contains(made, want) {
+			t.Errorf("creation lacks %s: %s", want, made)
+		}
+	}
+	if !strings.Contains(renamed, `"new_name":"trunk"`) || p.DefaultBranch != "trunk" {
+		t.Errorf("rename %q, project %+v", renamed, p)
+	}
+
+	p, err = s.client().CreateProject(context.Background(), forge.Group{FullPath: "toby"}, forge.NewProject{
+		Name: "notes", Visibility: forge.VisibilityPublic})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.PathWithNamespace != "toby/notes" || !strings.Contains(made, `"private":false`) || !strings.Contains(made, `"auto_init":false`) {
+		t.Errorf("project %+v from %s", p, made)
+	}
+}
