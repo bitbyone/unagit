@@ -128,9 +128,12 @@ func (c *Client) postDecode(ctx context.Context, path string, payload any, out a
 
 // send makes a request with a JSON body, decoding the answer when out is set.
 func (c *Client) send(ctx context.Context, method, path string, payload any, out any) error {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
+	var body []byte
+	if payload != nil {
+		var err error
+		if body, err = json.Marshal(payload); err != nil {
+			return err
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(body))
 	if err != nil {
@@ -1080,4 +1083,9 @@ func (c *Client) CreateProject(ctx context.Context, g forge.Group, req forge.New
 		p.DefaultBranch = req.DefaultBranch
 	}
 	return &p, nil
+}
+
+// DeleteBranch deletes a branch on the server.
+func (c *Client) DeleteBranch(ctx context.Context, p forge.Project, branch string) error {
+	return c.send(ctx, http.MethodDelete, "/repos/"+p.PathWithNamespace+"/git/refs/heads/"+branch, nil, nil)
 }

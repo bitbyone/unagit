@@ -449,3 +449,20 @@ func TestCreateProjectCommitsTheTemplates(t *testing.T) {
 		}
 	}
 }
+
+// TestDeleteBranchEscapesTheName: a branch with a slash is one path segment.
+func TestDeleteBranchEscapesTheName(t *testing.T) {
+	var seen string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Method + " " + r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	err := New(srv.URL, "t").DeleteBranch(context.Background(), forge.Project{ID: 7}, "feat/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen != "DELETE /api/v4/projects/7/repository/branches/feat%2Fx" {
+		t.Errorf("asked %q", seen)
+	}
+}

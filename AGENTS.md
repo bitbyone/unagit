@@ -139,7 +139,7 @@ same list answers the keys and fills the two action pickers - `Alt-Enter`
 (`Ctrl-A`) for the selection, `:` for the screen - so a key cannot do one
 thing while the picker says another. A new action goes into that list, not
 into a `switch` on runes; one too rare for a key gets `keys: ""` and lives in
-the picker alone (deleting a branch on origin does). A key whose action
+the picker alone (creating a repository does). A key whose action
 cannot be done now is still run, so that it says why; `when` only keeps the
 pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`

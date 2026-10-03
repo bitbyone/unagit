@@ -81,12 +81,26 @@ func TestAGroupGrowsAndShrinks(t *testing.T) {
 	}
 }
 
-// TestPushLeavesEmptyBranchesAndUTakesThemBack: P pushes only the branches
-// that have commits of their own; U deletes a branch on origin again, leaving
-// the local one.
-func TestPushLeavesEmptyBranchesAndThePickerTakesThemBack(t *testing.T) {
-	a, sc, _ := newTestAppSrv(t)
+// TestPushLeavesEmptyBranchesAndBranchesTakeThemBack: P pushes only the
+// branches that have commits of their own; the repository's branches (b)
+// delete one on origin again with Alt-D, leaving the local one.
+func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
+	a, sc, srv := newTestAppSrv(t)
 	gw, bl, form := markBoth(t, a, sc)
+	srv.deleteBranch.Store(func(id int, branch string) {
+		origin := gw.origin
+		if id == 2 {
+			origin = bl.origin
+		}
+		gitIn(t, origin, "branch", "-D", branch)
+	})
+	srv.liveBranches.Store(func(id int) []string {
+		origin := gw.origin
+		if id == 2 {
+			origin = bl.origin
+		}
+		return strings.Fields(gitIn(t, origin, "for-each-ref", "--format=%(refname:short)", "refs/heads"))
+	})
 	typeRunes(sc, "feat/push")
 	waitFor(t, a, sc, "feat-push")
 	pressButton(t, a, sc, form, "Create")
@@ -125,26 +139,32 @@ func TestPushLeavesEmptyBranchesAndThePickerTakesThemBack(t *testing.T) {
 
 	onLoop(a, func() bool { a.refreshDisk(); return true })
 	waitFor(t, a, sc, "1/2") // the gateway in sync, billing not pushed
-	// It has no key of its own: the actions picker finds it. In a group the
-	// repositories are picked first, none to begin with.
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Actions · feat-push")
-	typeRunes(sc, "/branch on origin")
-	waitFor(t, a, sc, "Delete the branch on origin")
+	// The branches of the gateway, from its block in the view: the cursor
+	// on the worktree's branch, which is out and so cannot be deleted here,
+	// only on origin.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Delete on origin - feat-push")
-	waitFor(t, a, sc, "0 picked")
-	if strings.Contains(a.screenText(sc), "billing") {
-		t.Errorf("billing, not on origin, is offered:\n%s", a.screenText(sc))
+	waitFor(t, a, sc, "every repository")
+	typeRunes(sc, "j")
+	waitFor(t, a, sc, "x take out")
+	typeRunes(sc, "b")
+	waitFor(t, a, sc, "Branches - acme/gateway")
+	waitFor(t, a, sc, "Alt-D on origin")
+	text := a.screenText(sc)
+	if !strings.Contains(text, "feat/push   local · origin  in sync       out in group feat-push") {
+		t.Errorf("feat/push does not say where it is:\n%s", text)
+	}
+	if strings.Contains(text, "Enter check out") {
+		t.Errorf("a worktree's branches offer to switch:\n%s", text)
 	}
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "pick a repository with space first")
-	typeRunes(sc, " ")
-	waitFor(t, a, sc, "1 picked")
+	waitFor(t, a, sc, "git will not delete it")
+	typeRunes(sc, "b")
+	waitFor(t, a, sc, "Branches - acme/gateway")
+	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)
+	waitFor(t, a, sc, "on origin?")
+	waitFor(t, a, sc, "The clone keeps it")
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "Delete these branches on origin?")
-	typeRunes(sc, "d")
-	waitFor(t, a, sc, "deleted on origin: gateway feat/push")
+	waitFor(t, a, sc, "deleted feat/push on origin")
 	if onOrigin(gw) {
 		t.Error("the branch is still on origin")
 	}

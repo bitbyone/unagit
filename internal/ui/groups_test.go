@@ -128,22 +128,59 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	}
 }
 
-// TestGroupedWorktreeIsWholeOrNothing: without a new branch, a branch checked
-// out in the main clone cannot be picked; the dialog says so and stays.
-func TestGroupedWorktreeIsWholeOrNothing(t *testing.T) {
+// TestGroupedWorktreeOffersOnlyBranchesItCanCheckOut: without a new branch a
+// select offers only the branches checked out nowhere - gateway's main is out
+// in its clone, billing has no other - and says nothing of where the others
+// are; Create refuses while one repository has none. With a new branch every
+// branch is offered again, to start from.
+func TestGroupedWorktreeOffersOnlyBranchesItCanCheckOut(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
+	options := func(label string) []string {
+		return onLoop(a, func() []string {
+			d := form.GetFormItemByLabel(label).(*tview.DropDown)
+			var out []string
+			at, _ := d.GetCurrentOption()
+			for i := 0; i < d.GetOptionCount(); i++ {
+				d.SetCurrentOption(i)
+				_, text := d.GetCurrentOption()
+				out = append(out, text)
+			}
+			d.SetCurrentOption(at)
+			return out
+		})
+	}
+	if got := options("gateway"); strings.Join(got, ",") != "feat/rate" {
+		t.Errorf("gateway offers %v, want feat/rate alone", got)
+	}
+	if got := options("billing"); len(got) != 1 || got[0] != noFreeBranch {
+		t.Errorf("billing offers %v", got)
+	}
+	if strings.Contains(a.screenText(sc), "checked out in") {
+		t.Errorf("the selects still say where branches are out:\n%s", a.screenText(sc))
+	}
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
 	typeRunes(sc, "same")
 	waitFor(t, a, sc, "same")
 	pressButton(t, a, sc, form, "Create")
-	waitFor(t, a, sc, "main of gateway is checked out in the main clone")
-	waitFor(t, a, sc, "checked out in the main clone") // marked in the select
-	if onLoop(a, func() bool { return a.pages.HasPage(pageForm) }) == false {
-		t.Error("the dialog closed on a branch it cannot use")
+	waitFor(t, a, sc, "every branch of billing is checked out elsewhere")
+	if !onLoop(a, func() bool { return a.pages.HasPage(pageForm) }) {
+		t.Error("the dialog closed on a repository it cannot use")
 	}
 	if _, err := os.Stat(filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "same")); err == nil {
 		t.Error("a refused group left its folder behind")
+	}
+
+	// A new branch starts from any branch.
+	onLoop(a, func() bool {
+		form.GetFormItemByLabel(labelGroupBranch).(*tview.InputField).SetText("feat/new")
+		return true
+	})
+	if got := options("gateway"); strings.Join(got, ",") != "main,feat/rate" {
+		t.Errorf("to start from, gateway offers %v", got)
+	}
+	if got := options("billing"); strings.Join(got, ",") != "main" {
+		t.Errorf("to start from, billing offers %v", got)
 	}
 }
 
@@ -157,10 +194,7 @@ func TestGroupedWorktreeChecksOutExistingBranches(t *testing.T) {
 		gitIn(t, gw.clone, "push", "-q", "origin", "main:feat/rate")
 		gitIn(t, bl.clone, "checkout", "-q", "-b", "elsewhere")
 	})
-	onLoop(a, func() bool {
-		form.GetFormItemByLabel("gateway").(*tview.DropDown).SetCurrentOption(1)
-		return true
-	})
+	// main is out in gateway's clone, so feat/rate is all it offers.
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
 	typeRunes(sc, "mixed")
 	waitFor(t, a, sc, "mixed")

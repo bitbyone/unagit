@@ -697,3 +697,19 @@ func TestCreateProjectInAnOrganisationAndInTheAccount(t *testing.T) {
 		t.Errorf("project %+v from %s", p, made)
 	}
 }
+
+// TestDeleteBranchDeletesItsRef: GitHub deletes a branch as a ref.
+func TestDeleteBranchDeletesItsRef(t *testing.T) {
+	s := newStub(t)
+	var seen string
+	s.mux.HandleFunc("/repos/acme/tool/git/refs/heads/feat/x", func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Method
+		w.WriteHeader(http.StatusNoContent)
+	})
+	if err := s.client().DeleteBranch(context.Background(), forge.Project{PathWithNamespace: "acme/tool"}, "feat/x"); err != nil {
+		t.Fatal(err)
+	}
+	if seen != http.MethodDelete {
+		t.Errorf("asked with %q", seen)
+	}
+}

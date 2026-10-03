@@ -315,6 +315,36 @@ func (g *Git) DeleteRemoteBranch(dir, branch, remoteBranch string) error {
 	return nil
 }
 
+// DeleteLocalBranch deletes a branch of the clone, merged or not: the caller
+// has said what would be lost (OnlyHere) and been told to go ahead.
+func (g *Git) DeleteLocalBranch(dir, branch string) error {
+	_, err := g.Run(dir, "branch", "-D", "--", branch)
+	return err
+}
+
+// OnlyHere counts the commits of a local branch that no branch of origin has:
+// what deleting it would lose.
+func (g *Git) OnlyHere(dir, branch string) int {
+	out, err := g.out(dir, "rev-list", "--count", "refs/heads/"+branch, "--not", "--remotes=origin")
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(out)
+	return n
+}
+
+// ForgetRemoteBranch tidies the clone after a branch was deleted on origin
+// some other way than by a push: its remote-tracking ref goes, and a local
+// branch that tracked it stops tracking it.
+func (g *Git) ForgetRemoteBranch(dir, branch string) {
+	_, _ = g.Run(dir, "branch", "-dr", "origin/"+branch)
+	for local, u := range g.BranchUpstreams(dir) {
+		if u.Name == "origin/"+branch {
+			_, _ = g.Run(dir, "branch", "--unset-upstream", local)
+		}
+	}
+}
+
 // Count is how many commits a range holds, 0 when git cannot say.
 func (g *Git) Count(dir, revRange string) int {
 	out, err := g.out(dir, "rev-list", "--count", revRange)

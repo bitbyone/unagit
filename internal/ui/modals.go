@@ -111,6 +111,19 @@ type pickerOptions struct {
 	onNew    func()         // n while browsing, when set
 	onDelete func(pickItem) // d while browsing, when set
 	again    rune           // while browsing, picks like Enter: the key that opened it
+	// keys are more keys while browsing, each acting on the item under the
+	// cursor, the picker closed first; written as an action's key is.
+	keys []pickKey
+	// footer replaces the hint of what Enter does, for a picker whose Enter
+	// is not a choice (onSelect nil).
+	enterHint string
+}
+
+// pickKey is a key of a picker that acts on the item under the cursor.
+type pickKey struct {
+	keys string
+	hint string
+	run  func(pickItem)
 }
 
 func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) {
@@ -161,7 +174,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	dismiss := func() { a.closeModal(pagePicker) }
 	choose := func() {
 		i := list.GetCurrentItem()
-		if i < 0 || i >= len(shown) {
+		if i < 0 || i >= len(shown) || onSelect == nil {
 			return
 		}
 		it := shown[i]
@@ -179,8 +192,16 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			return
 		}
 		hint := "   j/k move · / filter · Enter select"
-		if opts.again != 0 {
+		switch {
+		case onSelect == nil:
+			hint = "   j/k move · / filter"
+		case opts.enterHint != "":
+			hint = "   j/k move · / filter · Enter " + opts.enterHint
+		case opts.again != 0:
 			hint = fmt.Sprintf("   j/k move · / filter · Enter or %c select", opts.again)
+		}
+		for _, k := range opts.keys {
+			hint += " · " + k.keys + " " + k.hint
 		}
 		if onNew != nil {
 			hint += " · n new"
@@ -223,6 +244,16 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	})
 
 	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		for _, k := range opts.keys {
+			if (uiAction{keys: k.keys}).matches(ev) {
+				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+					it := shown[i]
+					dismiss()
+					k.run(it)
+				}
+				return nil
+			}
+		}
 		switch ev.Key() {
 		case tcell.KeyEsc:
 			dismiss()

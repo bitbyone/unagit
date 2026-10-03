@@ -10,9 +10,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
-	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
-	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -235,53 +233,6 @@ func (a *App) createWorktree(pr forge.Project, branch string, isNew bool) {
 		func(log func(string)) (string, error) {
 			return a.newManager(pr.Instance, pr.PathWithNamespace, log).EnsureWorktree(pr, branch, isNew)
 		}, a.showWorktreeAt)
-}
-
-// showBranchPicker lists the project's branches and switches the main clone to
-// the chosen one before opening the editor.
-func (a *App) showBranchPicker(pr forge.Project, ed *editors.Editor) {
-	client := a.client(pr.Instance)
-	if client == nil {
-		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
-		return
-	}
-	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		branches, err := client.ProjectBranches(ctx, pr)
-		if err != nil {
-			return "", err
-		}
-		log(fmt.Sprintf("%d branch(es)", len(branches)))
-		items := make([]pickItem, 0, len(branches))
-		for _, b := range branches {
-			sub := strings.TrimSpace(humanAge(b.CommittedDate) + "  " + b.CommitTitle)
-			if b.CommittedDate.IsZero() {
-				sub = b.CommitShortID
-			}
-			if b.Default {
-				sub = "default  " + sub
-			}
-			items = append(items, pickItem{Label: b.Name, Sub: sub, Data: b.Name})
-		}
-		a.tv.QueueUpdateDraw(func() {
-			a.closeModal(pageTask)
-			a.showPicker("Branch - "+pr.PathWithNamespace, items, func(it pickItem) {
-				branch := it.Data.(string)
-				a.runTaskOpening(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
-					session.Record{
-						Instance: pr.Instance,
-						Server:   a.instanceLabel(pr.Instance),
-						Project:  pr.PathWithNamespace,
-						Title:    branch,
-						Mode:     session.ModeRepository,
-					}, ed, func(log func(string)) (string, error) {
-						return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
-					})
-			})
-		})
-		return "", nil
-	})
 }
 
 // showProjectScopePicker limits the merge request list to a single project.

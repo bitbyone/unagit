@@ -91,9 +91,18 @@ all and live only there.
   pull. Only a repository not cloned yet is cloned first. The lists say where
   everything stands, and `p` updates it first when you want that. The same
   goes for `Ctrl-O` in Merge requests and Worktrees.
-- `b` lists every branch in a searchable modal and switches it **in that same
-  clone**, so there is one working copy per repository, not a directory per
-  branch.
+- `b` manages the branches. Each says whether it is in the clone, on origin
+  or both and how far apart (`↑2 ↓1`), whether it is checked out and where,
+  and whether it is the default or protected. `Enter` switches **that same
+  clone** to it, so there is one working copy per repository, not a directory
+  per branch. `d` deletes it in the clone (origin keeps it), `D` in the clone
+  and on origin, `Alt-D` on origin only (the clone keeps it, no longer
+  tracking). The default branch and protected ones are never deleted, one
+  checked out somewhere cannot be deleted in the clone, and one with an open
+  merge request is not deleted on origin. Commits that would be lost are
+  counted in the question first. In a worktree's view, `b` on a repository's
+  block opens the same list, without `Enter`: a worktree's branch is not
+  switched there.
 - `Ctrl-W` gives a branch a worktree of its own instead (`n` for a new
   branch). Nothing opens: unagit moves to Worktrees with the cursor on it, and
   `Ctrl-O` opens it when you want.
@@ -155,9 +164,10 @@ it); `Ctrl-W` on a selection then asks for:
 <root>/.unagit/groups/<folder>/.unagit-group.json
 ```
 
-Git checks a branch out only once, so a branch already checked out - usually
-the default one, in the main clone - is marked so in the list and cannot be
-picked without a new branch: give the group one, or switch that checkout away.
+Git checks a branch out only once, so without a new branch a repository
+offers only its branches checked out nowhere - usually not the default one,
+which the main clone has. With a new branch every branch is offered, to start
+from.
 Every repository is cloned, fetched and checked before anything is made, so a
 group is made whole or not at all. Once made, Worktrees shows it with the
 cursor on it.
@@ -167,11 +177,9 @@ and `Enter` opens it as a view of its own (see below).
 `Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
 pushes every repository that has commits origin lacks - a branch with nothing
 of its own yet stays local, rather than leaving an empty branch on origin -
-**Delete the branch on origin** (in the `Alt-Enter` actions; it has no key)
-deletes branches on origin again - in a group, the repositories you pick
-with space, none to begin with; never one a merge request is open on; the
-local branches stay - and `d` deletes the worktrees - the
-branches and the main clones stay.
+and `d` deletes the worktrees - the branches and the main clones stay. A
+branch pushed too early is taken off origin again from a repository's
+branches (`b` on its block in the view, `Alt-D` on the branch).
 
 A group grows and shrinks a repository at a time. `a` lists the repositories
 not in it yet, filtered as you type; the one picked gets the group's branch,
@@ -445,7 +453,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `D` `Alt-D` | in Hunk: what is not committed · or since the base, or a commit |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
-| `b` `m` `f` | branch picker · merge requests of this repo · limit to a repo |
+| `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
+| `d` `D` `Alt-D` | in branches: delete in the clone · everywhere · on origin |
 | `L` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |

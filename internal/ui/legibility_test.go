@@ -93,7 +93,7 @@ func TestEveryDialogIsLegible(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 
 	typeRunes(sc, "b")
-	waitFor(t, a, sc, "Branch - acme/gateway")
+	waitFor(t, a, sc, "Branches - acme/gateway")
 	assertLegible(t, a, sc, "the branch picker")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

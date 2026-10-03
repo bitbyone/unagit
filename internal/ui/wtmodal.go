@@ -260,8 +260,8 @@ func worktreeViewHint(r worktreeRow) string {
 		return "j/k · Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
 			"Ctrl-R rebase · a add · r refresh · Esc back"
 	}
-	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · l log · p pull · P push · " +
-		"C commit · n MR · D diff · Ctrl-R rebase"
+	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · l log · b branches · p pull · " +
+		"P push · C commit · n MR · D diff · Ctrl-R rebase"
 	if r.Group != "" {
 		keys += " · x take out"
 	}

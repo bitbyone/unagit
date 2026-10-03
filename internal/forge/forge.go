@@ -296,6 +296,9 @@ type Provider interface {
 	// without Instance. What the forge cannot do on creation (a GitLab
 	// license or .gitignore, a GitHub default branch) it does right after.
 	CreateProject(ctx context.Context, g Group, req NewProject) (*Project, error)
+	// DeleteBranch deletes a branch on the server. The forge refuses the
+	// default branch and a protected one.
+	DeleteBranch(ctx context.Context, p Project, branch string) error
 	// UpdateMergeRequestDescription replaces the description of a merge
 	// request - to point merge requests made together at one another, once
 	// each one's address is known.

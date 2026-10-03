@@ -76,9 +76,13 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Open in the browser", keys: "w", rank: 50, when: func() bool { return pr.WebURL != "" }, run: func() {
 			a.openWeb(pr.WebURL)
 		}},
-		{name: "Switch the main clone to another branch", keys: "b", rank: 60, run: func() { a.showBranchPicker(pr, nil) }},
-		{name: "Switch branch, in an editor you choose", keys: "Alt-B", rank: 65, run: func() {
-			a.withEditor(true, func(ed *editors.Editor) { a.showBranchPicker(pr, ed) })
+		{name: "Branches: switch, see where they are, delete", keys: "b", rank: 60, run: func() {
+			a.showBranchManager(branchScope{project: pr, checkout: true})
+		}},
+		{name: "Branches, switching in an editor you choose", keys: "Alt-B", rank: 65, run: func() {
+			a.withEditor(true, func(ed *editors.Editor) {
+				a.showBranchManager(branchScope{project: pr, checkout: true, ed: ed})
+			})
 		}},
 		{name: "Clone without opening", keys: "C", rank: 70, when: notCloned, run: func() { a.cloneProject(pr) }},
 		{name: "Copy the link, path, branch or directory", keys: "y", rank: 80, run: func() { a.yankProject(pr) }},
@@ -222,7 +226,13 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		{name: "Rebase onto its base", keys: "Ctrl-R", rank: 50, run: func() { a.rebaseWorktree(r) }},
 		{name: "Add a repository to the group", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},
 		{name: "Copy the directory or branch", keys: "y", rank: 70, run: func() { a.yankWorktree(r) }},
-		{name: "Delete the branch on origin", rank: 700, run: func() { a.unpublishBranches(r) }},
+		{name: "Branches of the repository: see, delete", keys: "b", rank: 72, when: single, run: func() {
+			if r.grouped() {
+				a.flash("branches are a repository's - light its block, or open the worktree with Enter")
+				return
+			}
+			a.showBranchManager(branchScope{project: a.worktreeProject(r), focus: r.Branch})
+		}},
 	}
 	return acts
 }

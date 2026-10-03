@@ -44,6 +44,12 @@ type fakeServer struct {
 	// newRepoURL where the answer says it can be cloned from.
 	postedProject atomic.Value
 	newRepoURL    atomic.Value
+	// deleteBranch, when set, is what deleting a branch on the server does:
+	// a test points it at the origin it made.
+	deleteBranch atomic.Value // func(project int, branch string)
+	// liveBranches, when set, lists a project's branches instead of the
+	// fixture: a test points it at the origin it made.
+	liveBranches atomic.Value // func(project int) []string
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -54,6 +60,20 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	json := func(w http.ResponseWriter, body string) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, body)
+	}
+	// Deleting a branch, handed to the test's origin.
+	for _, id := range []int{1, 2} {
+		prefix := fmt.Sprintf("/api/v4/projects/%d/repository/branches/", id)
+		mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodDelete {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if del, ok := f.deleteBranch.Load().(func(int, string)); ok {
+				del(id, strings.TrimPrefix(r.URL.Path, prefix))
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
 	}
 	// A new repository, to be cloned from wherever the test put one.
 	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +134,14 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"web_url":"https://gl.test/acme/gateway/-/merge_requests/42","updated_at":"2026-09-25T10:00:00Z"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/repository/branches", func(w http.ResponseWriter, r *http.Request) {
+		if live, ok := f.liveBranches.Load().(func(int) []string); ok {
+			var out []string
+			for _, b := range live(1) {
+				out = append(out, `{"name":"`+b+`","default":`+fmt.Sprint(b == "main")+`,"commit":{"short_id":"0"}}`)
+			}
+			json(w, "["+strings.Join(out, ",")+"]")
+			return
+		}
 		json(w, `[{"name":"main","default":true,"commit":{"short_id":"a1b2c3d","title":"Add rate limiting",
 			"committed_date":"2026-09-21T08:00:00Z"}},
 			{"name":"feat/rate","commit":{"short_id":"beef123","title":"Token bucket",
@@ -149,6 +177,14 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		})
 	}
 	mux.HandleFunc("/api/v4/projects/2/repository/branches", func(w http.ResponseWriter, r *http.Request) {
+		if live, ok := f.liveBranches.Load().(func(int) []string); ok {
+			var out []string
+			for _, b := range live(2) {
+				out = append(out, `{"name":"`+b+`","default":`+fmt.Sprint(b == "main")+`,"commit":{"short_id":"0"}}`)
+			}
+			json(w, "["+strings.Join(out, ",")+"]")
+			return
+		}
 		json(w, `[{"name":"main","default":true,"commit":{"short_id":"c0ffee1","title":"Round half even",
 			"committed_date":"2026-09-21T07:00:00Z"}}]`)
 	})
@@ -551,7 +587,7 @@ func TestHelpOpensAndCloses(t *testing.T) {
 	typeRunes(sc, "?")
 	waitFor(t, a, sc, "unagit · keys")
 	waitFor(t, a, sc, "REPOSITORIES")
-	waitFor(t, a, sc, "open as it is on disk; clones only what is missing")
+	waitFor(t, a, sc, "clone without opening the editor")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "unagit · keys")
@@ -605,7 +641,7 @@ func TestBranchPickerListsBranches(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 
 	typeRunes(sc, "b")
-	waitFor(t, a, sc, "Branch - acme/gateway")
+	waitFor(t, a, sc, "Branches - acme/gateway")
 	waitFor(t, a, sc, "feat/rate")
 	waitFor(t, a, sc, "default")
 	waitFor(t, a, sc, "Token bucket")
@@ -629,7 +665,7 @@ func TestBranchPickerListsBranches(t *testing.T) {
 	waitFor(t, a, sc, "feat/rate")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Branch - acme/gateway")
+	waitGone(t, a, sc, "Branches - acme/gateway")
 }
 
 func TestPickerNavigatesWithJK(t *testing.T) {
