@@ -142,6 +142,9 @@ func (a *App) tagsField(tags []string, width int, marked bool) (string, keptMark
 	var kept keptMarkup
 	if w > 0 {
 		kept.markup, kept.width = a.pills(tags, width, band)
+		if marked {
+			kept.banded = markup
+		}
 	}
 	return markup + strings.Repeat(" ", max(0, width-w)), kept
 }

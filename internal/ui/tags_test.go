@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -44,21 +45,36 @@ func TestTagsOnRepositories(t *testing.T) {
 	if !(gateway >= 0 && gateway < oss && oss < work) || !strings.Contains(line, "oss") {
 		t.Fatalf("the tags are not pills after the name: %q", line)
 	}
-	// The pills keep their colours on the selected row as well as off it:
-	// the band must not turn them into plain text between two ends.
+	// The pills keep their colours on every row a band is painted over - the
+	// cursor's, a marked row's, both - as well as off them: tview paints a
+	// cell's background over its text, which turned them into plain text
+	// between two ends (twice: the cursor first, then the marks).
 	x := len([]rune(line[:strings.Index(line, "oss")]))
-	for _, moved := range []bool{false, true} {
-		if moved {
-			typeRunes(sc, "j")
-			waitFor(t, a, sc, "acme/gateway")
-		}
-		_, style := cellAt(a, sc, x, lineOf(a.screenText(sc), "acme/gateway"))
-		fg, bg, _ := style.Decompose()
-		mint := tagColourOf("mint")
-		if bg != tcell.GetColor(mint.fill) || fg != tcell.GetColor(mint.ink) {
-			t.Errorf("selected %v: oss is drawn %v on %v, not in its own colours", !moved, fg, bg)
+	mint := tagColourOf("mint")
+	pillKept := func(state string) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			_, style := cellAt(a, sc, x, lineOf(a.screenText(sc), "acme/gateway"))
+			fg, bg, _ := style.Decompose()
+			if bg == tcell.GetColor(mint.fill) && fg == tcell.GetColor(mint.ink) {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Errorf("%s: oss is drawn %v on %v, not in its own colours", state, fg, bg)
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
 		}
 	}
+	pillKept("under the cursor")
+	typeRunes(sc, "j")
+	pillKept("plain")
+	typeRunes(sc, "k ") // marks it, and moves off
+	waitFor(t, a, sc, "SELECT 1")
+	pillKept("marked")
+	typeRunes(sc, "k")
+	pillKept("marked, under the cursor")
 	assertLegible(t, a, sc, "tagged repositories")
 	saved, err := config.Load()
 	if err != nil {

@@ -6,17 +6,23 @@ import (
 )
 
 // keptMarkup is a stretch of a row that keeps its own colours when the row is
-// selected: where it starts in the row, and its markup as drawn on the band.
+// painted over: where it starts in the row, its markup as drawn on the
+// selection band, and, for a row with a band of its own (a marked one), its
+// markup as drawn on that.
 type keptMarkup struct {
 	x      int
 	markup string
 	width  int
+	banded string
 }
 
-// keptTable is a table whose selected row keeps some of its colours. tview
-// paints the whole selected row in the selection's ink and band, which turned
-// a tag's pill into plain text between two coloured ends; the stretches kept
-// here are drawn again over the band once the table has drawn.
+// keptTable is a table whose painted rows keep some of their colours. tview
+// paints a cell's background over everything in it - the selected row in the
+// selection's ink and band, a row with a background of its own in that -
+// which turns a tag's pill into plain text between two coloured ends; the
+// stretches kept here are drawn again over the band once the table has drawn.
+// Any row given a background must keep its pills here, or they lose their
+// fill.
 type keptTable struct {
 	*tview.Table
 	fixed int
@@ -39,21 +45,25 @@ func (k *keptTable) keep(row int, m keptMarkup) {
 
 func (k *keptTable) Draw(screen tcell.Screen) {
 	k.Table.Draw(screen)
-	row, _ := k.GetSelection()
-	marks := k.kept[row]
-	if len(marks) == 0 {
-		return
-	}
+	selected, _ := k.GetSelection()
 	x, y, _, h := k.GetInnerRect()
 	offset, _ := k.GetOffset()
-	if row < k.fixed+offset {
-		return
-	}
-	line := y + k.fixed + row - k.fixed - offset
-	if line >= y+h {
-		return
-	}
-	for _, m := range marks {
-		tview.Print(screen, m.markup, x+m.x, line, m.width, tview.AlignLeft, colText)
+	for row, marks := range k.kept {
+		if row < k.fixed+offset {
+			continue
+		}
+		line := y + row - offset
+		if line >= y+h {
+			continue
+		}
+		for _, m := range marks {
+			markup := m.banded
+			if row == selected {
+				markup = m.markup
+			}
+			if markup != "" {
+				tview.Print(screen, markup, x+m.x, line, m.width, tview.AlignLeft, colText)
+			}
+		}
 	}
 }
