@@ -226,7 +226,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	var onSelect func(pickItem)
 	if scope.checkout {
 		opts.enterHint = "check out in the main clone"
-		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name, again) }
+		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name) }
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
 	if scope.done != "" {
@@ -289,10 +289,11 @@ const (
 	labelBranchFrom = "From"
 )
 
-// switchMainClone checks a branch out in the main clone and brings the list
-// back, the branch now out there. It opens no editor: opening is Ctrl-O's,
-// when the user wants it.
-func (a *App) switchMainClone(pr forge.Project, branch string, again func(focus, done string)) {
+// switchMainClone checks a branch out in the main clone and goes back to the
+// repositories, where the row shows the branch now out; a success needs no
+// more words than that. It opens no editor: opening is Ctrl-O's, when the
+// user wants it.
+func (a *App) switchMainClone(pr forge.Project, branch string) {
 	a.runTaskThen(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
 		func(log func(string)) (string, error) {
 			_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
@@ -300,7 +301,6 @@ func (a *App) switchMainClone(pr forge.Project, branch string, again func(focus,
 		}, func(string) {
 			a.refreshDisk()
 			a.projectsPane.reload()
-			again(branch, "switched the clone to "+branch)
 		})
 }
 

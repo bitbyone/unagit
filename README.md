@@ -98,7 +98,8 @@ all and live only there.
   and whether it is the default or protected. `Enter` switches **that same
   clone** to it, so there is one working copy per repository, not a directory
   per branch. It is a plain checkout: nothing is fetched and no editor
-  starts - `p` pulls, `Ctrl-O` opens. `n` makes a new branch in the clone, starting from the one under
+  starts - `p` pulls, `Ctrl-O` opens - and the list closes, the row showing
+  the branch now out. `n` makes a new branch in the clone, starting from the one under
   the cursor (or another you choose); it appears in the list with the cursor
   on it, and `Enter` switches to it when you want. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer

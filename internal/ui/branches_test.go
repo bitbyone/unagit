@@ -132,10 +132,15 @@ func TestNewBranchFromTheManager(t *testing.T) {
 	if lineOf(a.screenText(sc), "feature/x") < 0 {
 		t.Fatalf("the new branch is not listed:\n%s", a.screenText(sc))
 	}
-	// Enter switches, opens no editor, and the list comes back.
+	// Enter switches, opens no editor, closes the list and says nothing:
+	// the row shows the branch.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "switched the clone to feature/x")
-	waitFor(t, a, sc, "Branches - acme/gateway")
+	waitGone(t, a, sc, "Branches - acme/gateway")
+	waitGone(t, a, sc, "Switching acme/gateway")
+	waitFor(t, a, sc, "feature/x")
+	if onLoop(a, func() bool { return a.modalOpen() }) {
+		t.Errorf("something is still open after the switch:\n%s", a.screenText(sc))
+	}
 	if got := onLoop(a, func() int { return len(a.sessions.List()) }); got != 0 {
 		t.Errorf("switching opened an editor: %d session(s)", got)
 	}
