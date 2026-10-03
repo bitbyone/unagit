@@ -124,7 +124,7 @@ func (a *App) managedDir(instanceID, projectPath string) string {
 // but dark ink on a middle grey where every tag is light on a deep colour,
 // and always first. It shortens rather than be counted away when the column
 // is narrow.
-var chezmoiColour = tagColour{name: "chezmoi", ink: "#1c1b19", fill: "#8f8f8f"}
+var chezmoiColour = tagColour{name: "chezmoi", ink: "#1c1b19", fill: "#6e6e6e"}
 
 func chezmoiBadge(room int, style, behind string) (string, int) {
 	for _, text := range []string{"↗ Managed by Chezmoi", "↗ Chezmoi", "↗"} {
