@@ -246,6 +246,27 @@ func TestSwitchBranch(t *testing.T) {
 	}
 }
 
+// TestSwitchBranchTakesWhatOriginGotSinceTheClone: a branch pushed after the
+// clone is fetched, alone, and checked out tracking origin.
+func TestSwitchBranchTakesWhatOriginGotSinceTheClone(t *testing.T) {
+	origin := newOrigin(t)
+	m, _, p := newManager(t, origin)
+	dir, err := m.CloneProject(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, origin, "branch", "late", "main")
+	if _, err := m.SwitchBranch(p, "late"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Git().CurrentBranch(dir); got != "late" {
+		t.Errorf("branch = %q", got)
+	}
+	if got := git(t, dir, "rev-parse", "--abbrev-ref", "late@{upstream}"); got != "origin/late" {
+		t.Errorf("upstream = %q", got)
+	}
+}
+
 func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.CloneProject(p)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -133,10 +132,12 @@ func TestNewBranchFromTheManager(t *testing.T) {
 	if lineOf(a.screenText(sc), "feature/x") < 0 {
 		t.Fatalf("the new branch is not listed:\n%s", a.screenText(sc))
 	}
+	// Enter switches, opens no editor, and the list comes back.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "acme/gateway")
-	for i := 0; i < 100 && gitIn(t, p.clone, "rev-parse", "--abbrev-ref", "HEAD") != "feature/x"; i++ {
-		time.Sleep(50 * time.Millisecond)
+	waitFor(t, a, sc, "switched the clone to feature/x")
+	waitFor(t, a, sc, "Branches - acme/gateway")
+	if got := onLoop(a, func() int { return len(a.sessions.List()) }); got != 0 {
+		t.Errorf("switching opened an editor: %d session(s)", got)
 	}
 	if got := gitIn(t, p.clone, "rev-parse", "--abbrev-ref", "HEAD"); got != "feature/x" {
 		t.Errorf("Enter on the new branch left the clone on %s", got)

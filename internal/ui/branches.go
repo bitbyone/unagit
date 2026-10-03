@@ -10,10 +10,8 @@ import (
 
 	"github.com/rivo/tview"
 
-	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
-	"github.com/tobola/unagit/internal/session"
 )
 
 // The branches of a repository, managed in one list: where each one is - in
@@ -47,10 +45,8 @@ type branchInfo struct {
 // branchScope is what a branch manager is opened for.
 type branchScope struct {
 	project forge.Project
-	// checkout is set in Repositories: Enter switches the main clone, in the
-	// editor ed (nil: the favourite).
+	// checkout is set in Repositories: Enter switches the main clone.
 	checkout bool
-	ed       *editors.Editor
 	// focus is the branch the cursor starts on.
 	focus string
 	// done is what was just done, said once the list is back over it.
@@ -230,7 +226,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	var onSelect func(pickItem)
 	if scope.checkout {
 		opts.enterHint = "check out in the main clone"
-		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name, scope.ed) }
+		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name, again) }
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
 	if scope.done != "" {
@@ -293,18 +289,18 @@ const (
 	labelBranchFrom = "From"
 )
 
-// switchMainClone checks a branch out in the main clone and opens the editor
-// there.
-func (a *App) switchMainClone(pr forge.Project, branch string, ed *editors.Editor) {
-	a.runTaskOpening(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
-		session.Record{
-			Instance: pr.Instance,
-			Server:   a.instanceLabel(pr.Instance),
-			Project:  pr.PathWithNamespace,
-			Title:    branch,
-			Mode:     session.ModeRepository,
-		}, ed, func(log func(string)) (string, error) {
-			return a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
+// switchMainClone checks a branch out in the main clone and brings the list
+// back, the branch now out there. It opens no editor: opening is Ctrl-O's,
+// when the user wants it.
+func (a *App) switchMainClone(pr forge.Project, branch string, again func(focus, done string)) {
+	a.runTaskThen(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
+		func(log func(string)) (string, error) {
+			_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
+			return "", err
+		}, func(string) {
+			a.refreshDisk()
+			a.projectsPane.reload()
+			again(branch, "switched the clone to "+branch)
 		})
 }
 

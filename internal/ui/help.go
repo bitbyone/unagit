@@ -188,7 +188,6 @@ func helpRows() []helpLine {
 		key("Alt-P", "the same for every clone origin has moved past"),
 		key("Ctrl-W", "a worktree for a branch; n for a new one"),
 		key("space", "select; Ctrl-W then puts all in one folder"),
-		key("Alt-B", "the same, in an editor you choose"),
 		key("m", "show only this repository's merge requests"),
 		key("Ctrl-T", "tag the repository"),
 		key("v", "view: tags · grouping · favourites first"),

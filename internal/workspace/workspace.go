@@ -465,7 +465,9 @@ func (m *Manager) NewBranch(p forge.Project, name, from string) error {
 }
 
 // SwitchBranch checks a branch out in the main clone of a project, cloning it
-// first when needed.
+// first when needed. A local branch is a plain checkout - nothing is fetched
+// and nothing pulled, which is p's to do. Only a branch the clone has never
+// seen is fetched, that one branch alone, to have something to check out.
 func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
 	dir, err := m.ensureMain(p)
 	if err != nil {
@@ -474,22 +476,17 @@ func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
 	if st := m.git.Status(dir); st.Dirty {
 		return dir, fmt.Errorf("the working tree has uncommitted changes - commit or stash them before switching branch")
 	}
-	if err := m.git.Fetch(dir); err != nil {
-		m.log("! fetch failed, continuing with the refs already on disk")
-	}
 	m.log("Switching to %s", branch)
 	if m.git.LocalBranchExists(dir, branch) {
-		if err := m.git.Checkout(dir, branch); err != nil {
-			return dir, err
-		}
-	} else if m.git.RemoteBranchExists(dir, branch) {
-		if err := m.git.CheckoutTracking(dir, branch); err != nil {
-			return dir, err
-		}
-	} else {
+		return dir, m.git.Checkout(dir, branch)
+	}
+	if !m.git.RemoteBranchExists(dir, branch) {
+		_ = m.git.FetchRefspec(dir, branch)
+	}
+	if !m.git.RemoteBranchExists(dir, branch) {
 		return dir, fmt.Errorf("branch %q not found locally or on origin", branch)
 	}
-	return dir, m.pullIfClean(dir)
+	return dir, m.git.CheckoutTracking(dir, branch)
 }
 
 // Removal describes what deleting a directory would throw away.

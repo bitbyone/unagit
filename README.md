@@ -97,7 +97,8 @@ all and live only there.
   or both and how far apart (`↑2 ↓1`), whether it is checked out and where,
   and whether it is the default or protected. `Enter` switches **that same
   clone** to it, so there is one working copy per repository, not a directory
-  per branch. `n` makes a new branch in the clone, starting from the one under
+  per branch. It is a plain checkout: nothing is fetched and no editor
+  starts - `p` pulls, `Ctrl-O` opens. `n` makes a new branch in the clone, starting from the one under
   the cursor (or another you choose); it appears in the list with the cursor
   on it, and `Enter` switches to it when you want. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer
@@ -415,7 +416,7 @@ group.
 
 ## Editors
 
-Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v`, `b` -
+Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v` -
 opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
 `Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
 Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed: a

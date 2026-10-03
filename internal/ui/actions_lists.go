@@ -79,11 +79,6 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Branches", about: "Switch the clone to another branch, see where each stands against origin, delete those you are done with.", keys: "b", rank: 60, run: func() {
 			a.showBranchManager(branchScope{project: pr, checkout: true})
 		}},
-		{name: "Branches in…", about: "Branches, opening the branch you switch to in an editor you choose.", keys: "Alt-B", rank: 65, run: func() {
-			a.withEditor(true, func(ed *editors.Editor) {
-				a.showBranchManager(branchScope{project: pr, checkout: true, ed: ed})
-			})
-		}},
 		{name: "Clone", about: "Clone it under its root without starting an editor.", keys: "C", rank: 70, when: notCloned, run: func() { a.cloneProject(pr) }},
 		{name: "Copy", about: "Copy the web link, the path, the branch or the directory to the clipboard.", keys: "y", rank: 80, run: func() { a.yankProject(pr) }},
 		{name: "Diff", about: "Show in Hunk what is not committed: staged, unstaged and new files.", keys: "D", rank: 90, when: cloned, run: func() {
