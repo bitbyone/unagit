@@ -251,15 +251,15 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 	case st.ForceFrom != "":
 		return "force push required", "", colForce
 	case u.Name == "" && st.BaseBehind > 0:
-		return fmt.Sprintf("↓%d behind %s", st.BaseBehind, st.Base), "", colWarn
+		return fmt.Sprintf("%s%d behind %s", glyphBehind, st.BaseBehind, st.Base), "", colWarn
 	case u.Name == "":
 		return "no upstream", "", colWarn
 	case u.Ahead > 0 && u.Behind > 0:
-		return fmt.Sprintf("↑%d ↓%d diverged", u.Ahead, u.Behind), "", colWarn
+		return fmt.Sprintf("%s%d %s%d diverged", glyphAhead, u.Ahead, glyphBehind, u.Behind), "", colWarn
 	case u.Behind > 0:
-		return fmt.Sprintf("↓%d behind", u.Behind), "", colWarn
+		return fmt.Sprintf("%s%d behind", glyphBehind, u.Behind), "", colWarn
 	case u.Ahead > 0:
-		return fmt.Sprintf("↑%d unpushed", u.Ahead), "", colWarn
+		return fmt.Sprintf("%s%d unpushed", glyphAhead, u.Ahead), "", colWarn
 	}
 	return "in sync", u.Name, colOn
 }
@@ -500,9 +500,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 
 	for row, idx := range filtered {
 		r := a.worktrees[idx]
-		mark, count, countColour, branchColour := tag(colOn)+" ●"+tagEnd, "1", colDim, colBranch
+		mark, count, countColour, branchColour := tag(colOn)+" "+glyphDot+tagEnd, "1", colDim, colBranch
 		if r.grouped() {
-			mark, count, countColour = tag(colAccent)+" ◆"+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
+			mark, count, countColour = tag(colAccent)+" "+glyphGroup+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
 			if r.Branch == "" {
 				branchColour = colMuted
 			}

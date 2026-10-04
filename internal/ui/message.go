@@ -33,11 +33,11 @@ func (s severity) colour() tcell.Color {
 func (s severity) heading() string {
 	switch s {
 	case sevSuccess:
-		return "✓ Success"
+		return glyphCheck + " Success"
 	case sevWarning:
 		return "! Warning"
 	case sevError:
-		return "✗ Error"
+		return glyphCross + " Error"
 	}
 	return "i Info"
 }

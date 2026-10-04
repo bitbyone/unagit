@@ -33,9 +33,9 @@ func (a *App) drawTabs() {
 			parts = append(parts, fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), label))
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("[%s]%s[-]", colMuted.String(), label))
+		parts = append(parts, fmt.Sprintf("[%s]%s[-]", colTabInactive.String(), label))
 	}
-	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]│[-]", colDim.String())))
+	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)))
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.

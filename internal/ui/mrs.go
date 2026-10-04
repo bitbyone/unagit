@@ -356,13 +356,13 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 func mrMark(d mrDisk) string {
 	switch {
 	case d.Branch && d.Review:
-		return "◉"
+		return glyphDiskBoth
 	case d.Review:
-		return "◐"
+		return glyphDiskReview
 	case d.Branch:
-		return "●"
+		return glyphDiskBranch
 	}
-	return "○"
+	return glyphDiskNone
 }
 
 func mrMarkColor(d mrDisk) tcell.Color {
@@ -645,17 +645,43 @@ func openBrowser(url string) error { return workspace.OpenBrowser(url) }
 // ciMark is a pipeline's status as one glyph and its colour; "" for none.
 // GitLab's words and GitHub's are both here.
 func ciMark(status string) (string, tcell.Color) {
+	switch ciStateOf(status) {
+	case ciNone:
+		return "", colDim
+	case ciPassed:
+		return glyphCheck, colOn
+	case ciFailed:
+		return glyphCross, colBad
+	case ciRunning:
+		return glyphDot, colWarn
+	}
+	return glyphRing, colDim
+}
+
+// ciState is what a pipeline's status comes to, whichever forge's words it
+// is in.
+type ciState int
+
+const (
+	ciNone ciState = iota
+	ciPassed
+	ciFailed
+	ciRunning
+	ciOther
+)
+
+func ciStateOf(status string) ciState {
 	switch status {
 	case "":
-		return "", colDim
+		return ciNone
 	case "success":
-		return "✓", colOn
+		return ciPassed
 	case "failed", "failure", "error":
-		return "✗", colBad
+		return ciFailed
 	case "running", "pending", "created", "waiting_for_resource", "preparing":
-		return "●", colWarn
+		return ciRunning
 	}
-	return "○", colDim
+	return ciOther
 }
 
 // freshWords is the NEW column: how many commits were pushed since the last
@@ -663,9 +689,9 @@ func ciMark(status string) (string, tcell.Color) {
 func freshWords(n int) string {
 	switch {
 	case n > 0:
-		return fmt.Sprintf("●%d", n)
+		return fmt.Sprintf("%s%d", glyphDot, n)
 	case n < 0:
-		return "●"
+		return glyphDot
 	}
 	return ""
 }
@@ -745,7 +771,7 @@ func commentWords(mr forge.MergeRequest) (string, tcell.Color) {
 	case mr.UnresolvedKnown && mr.Unresolved > 0:
 		return fmt.Sprintf("%d", mr.Unresolved), colWarn
 	case mr.UnresolvedKnown && mr.Comments > 0:
-		return "✓", colDim
+		return glyphCheck, colDim
 	case mr.Comments > 0:
 		return fmt.Sprintf("%d", mr.Comments), colMuted
 	}
@@ -760,9 +786,9 @@ func approvalWords(mr forge.MergeRequest, me string) (string, tcell.Color) {
 	for _, who := range mr.ApprovedBy {
 		if who == me && me != "" {
 			if mr.ApprovalsRequired > n {
-				return fmt.Sprintf("✓%d/%d", n, mr.ApprovalsRequired), colOn
+				return fmt.Sprintf("%s%d/%d", glyphCheck, n, mr.ApprovalsRequired), colOn
 			}
-			return "✓", colOn
+			return glyphCheck, colOn
 		}
 	}
 	switch {

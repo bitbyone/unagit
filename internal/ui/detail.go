@@ -101,7 +101,7 @@ func pipelineMark(status string) string {
 	case "canceled", "skipped", "manual", "scheduled":
 		c = colDim
 	}
-	return tag(c) + "●" + tagEnd + " " + status
+	return tag(c) + glyphDot + tagEnd + " " + status
 }
 
 func users(list []forge.User) string {
@@ -326,7 +326,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 			}
 			d.raw(fmt.Sprintf("  %s%-14s%s %s%-20s%s %s%.1f%%%s\n",
 				tag(colText), esc(trim(l.name, 14)), tagEnd,
-				tag(colAccent), strings.Repeat("━", bars), tagEnd,
+				tag(colAccent), strings.Repeat(glyphBar, bars), tagEnd,
 				tag(colDim), l.pct, tagEnd))
 		}
 	}
@@ -366,11 +366,11 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 	d.section("On disk")
 	info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 	if info.Cloned {
-		d.kv("Clone", tag(colOn)+"●"+tagEnd+" "+esc(a.projectDir(pr.Instance, pr.PathWithNamespace)))
+		d.kv("Clone", tag(colOn)+glyphDot+tagEnd+" "+esc(a.projectDir(pr.Instance, pr.PathWithNamespace)))
 		d.kv("Branch", esc(info.Branch))
 	} else {
 		d.kv("Planned path", tag(colDim)+esc(a.projectDir(pr.Instance, pr.PathWithNamespace))+tagEnd)
-		d.kv("Clone", tag(colDim)+"○ not cloned (C clones, Ctrl-O clones and opens)"+tagEnd)
+		d.kv("Clone", tag(colDim)+glyphRing+" not cloned (C clones, Ctrl-O clones and opens)"+tagEnd)
 	}
 	if n := len(info.MRs); n > 0 {
 		d.kv("Worktrees", fmt.Sprintf("%d merge request worktree(s)", n))
@@ -626,14 +626,14 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 	d.section("On disk")
 	disk := a.diskOf(mr.Instance, path).MRs[mr.IID]
 	if disk.Branch {
-		d.kv("Branch", tag(colOn)+"●"+tagEnd+" "+esc(a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
+		d.kv("Branch", tag(colOn)+glyphDiskBranch+tagEnd+" "+esc(a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Branch", tag(colDim)+"○ Ctrl-O checks the branch out and opens the editor"+tagEnd)
+		d.kv("Branch", tag(colDim)+glyphDiskNone+" Ctrl-O checks the branch out and opens the editor"+tagEnd)
 	}
 	if disk.Review {
-		d.kv("Review", tag(colOn)+"◐"+tagEnd+" "+esc(a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
+		d.kv("Review", tag(colOn)+glyphDiskReview+tagEnd+" "+esc(a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Review", tag(colDim)+"○ Ctrl-R opens the change as pending edits to diff through"+tagEnd)
+		d.kv("Review", tag(colDim)+glyphDiskNone+" Ctrl-R opens the change as pending edits to diff through"+tagEnd)
 	}
 
 	if len(problems) > 0 {

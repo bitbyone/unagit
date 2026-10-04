@@ -162,11 +162,11 @@ func (b branchInfo) status() string {
 		case u.Name == "":
 			sync = "not tracking"
 		case u.Ahead > 0 && u.Behind > 0:
-			sync = fmt.Sprintf("↑%d ↓%d", u.Ahead, u.Behind)
+			sync = fmt.Sprintf("%s%d %s%d", glyphAhead, u.Ahead, glyphBehind, u.Behind)
 		case u.Ahead > 0:
-			sync = fmt.Sprintf("↑%d", u.Ahead)
+			sync = fmt.Sprintf("%s%d", glyphAhead, u.Ahead)
 		case u.Behind > 0:
-			sync = fmt.Sprintf("↓%d", u.Behind)
+			sync = fmt.Sprintf("%s%d", glyphBehind, u.Behind)
 		default:
 			sync = "in sync"
 		}

@@ -9,8 +9,6 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
-// hiddenMark is what a project kept out of the lists is drawn with.
-const hiddenMark = "⊘"
 
 // passesFilters reports whether a project survives the shared filters. Both
 // lists ask the same question, so a merge request disappears with the project
@@ -36,7 +34,7 @@ func (a *App) filterSummary(grouped bool) string {
 		parts = append(parts, tag(colOn)+"cloned only"+tagEnd+tag(colMuted))
 	}
 	if n := len(f.Hidden); n > 0 {
-		parts = append(parts, fmt.Sprintf("%s%s %d%s", tag(colWarn), hiddenMark, n, tagEnd)+tag(colMuted))
+		parts = append(parts, fmt.Sprintf("%s%s %d%s", tag(colWarn), glyphHidden, n, tagEnd)+tag(colMuted))
 	}
 	if grouped {
 		parts = append(parts, tag(colOn)+"grouped"+tagEnd+tag(colMuted))
@@ -118,9 +116,9 @@ const favouritesFirst = "favourites"
 // showSortPicker chooses the order both lists are drawn in.
 func (a *App) showSortPicker() {
 	f := &a.cfg.Filters
-	favourites := pickItem{Label: favouriteMark + " favourites first: on", Sub: "Enter: in order with the rest", Data: favouritesFirst}
+	favourites := pickItem{Label: glyphFavourite + " favourites first: on", Sub: "Enter: in order with the rest", Data: favouritesFirst}
 	if !f.FavouritesFirst() {
-		favourites.Label, favourites.Sub = favouriteMark+" favourites first: off", "Enter: ahead of the rest"
+		favourites.Label, favourites.Sub = glyphFavourite+" favourites first: off", "Enter: ahead of the rest"
 	}
 	items := []pickItem{
 		{Label: sortLabel(config.SortActivity), Sub: "what moved most recently, first", Data: config.SortActivity},
@@ -172,7 +170,7 @@ func (a *App) toggleFavourite(instance, path string, iid int, what string) {
 	starred := a.cfg.Filters.ToggleFavourite(instance, path, iid)
 	a.applyFilters()
 	if starred {
-		a.note(favouriteMark + " " + what + " is a favourite")
+		a.note(glyphFavourite + " " + what + " is a favourite")
 		return
 	}
 	a.note(what + " is no longer a favourite")
@@ -191,7 +189,7 @@ func (a *App) showHiddenPicker() {
 			for _, p := range a.projects {
 				marker, text := tag(colDim)+"·"+tagEnd, p.PathWithNamespace
 				if a.cfg.Filters.IsHidden(p.Instance, p.PathWithNamespace) {
-					marker = tag(colWarn) + hiddenMark + tagEnd
+					marker = tag(colWarn) + glyphHidden + tagEnd
 					text = tag(colMuted) + text + tagEnd
 				}
 				label := marker + " " + text
@@ -250,7 +248,7 @@ func (a *App) authorSummary() string {
 	case f.ShowHiddenAuthors:
 		return fmt.Sprintf(" · %s%d hidden author(s) shown%s%s", tag(colDim), n, tagEnd, tag(colMuted))
 	default:
-		return fmt.Sprintf(" · %s%s %d author(s)%s%s", tag(colWarn), hiddenMark, n, tagEnd, tag(colMuted))
+		return fmt.Sprintf(" · %s%s %d author(s)%s%s", tag(colWarn), glyphHidden, n, tagEnd, tag(colMuted))
 	}
 }
 
@@ -262,7 +260,7 @@ func (a *App) hideAuthor(mr forge.MergeRequest) {
 	}
 	a.cfg.Filters.ToggleAuthor(mr.Instance, name)
 	a.applyFilters()
-	a.note(fmt.Sprintf("%s %s's merge requests hidden · v shows them again", hiddenMark, name))
+	a.note(fmt.Sprintf("%s %s's merge requests hidden · v shows them again", glyphHidden, name))
 }
 
 // showMRViewOptions switches what the merge request list shows, and lists the
@@ -292,7 +290,7 @@ func (a *App) showMRViewOptions() {
 				items = append(items, toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i})
 			}
 			for _, h := range f.HiddenAuthors {
-				label := "  " + tag(colWarn) + hiddenMark + tagEnd + " " + esc(h.Username)
+				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + esc(h.Username)
 				if a.multiInstance() {
 					label += "   " + tag(colDim) + a.instanceLabel(h.Instance) + tagEnd
 				}

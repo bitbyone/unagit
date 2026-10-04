@@ -468,7 +468,7 @@ func (s *settingsView) fillServerTable(t *tview.Table, kind string) {
 		if kind == config.KindGitHub {
 			who = s.app.githubLogin(inst.ID)
 		}
-		mark := tview.NewTableCell(" " + tag(colAccent) + "●" + tagEnd).SetReference(inst.ID)
+		mark := tview.NewTableCell(" " + tag(colAccent) + glyphDot + tagEnd).SetReference(inst.ID)
 		t.SetCell(i+1, 0, mark)
 		t.SetCell(i+1, 1, tview.NewTableCell(inst.Label()).SetTextColor(colText))
 		t.SetCell(i+1, 2, tview.NewTableCell(who).SetTextColor(colMuted))
@@ -549,7 +549,7 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 		tokenLabel = "Token (stored)"
 	}
 	tokenAt := at()
-	form.AddPasswordField(tokenLabel, "", 44, maskRune, nil)
+	form.AddPasswordField(tokenLabel, "", 44, glyphMask, nil)
 	if isGitHub {
 		form.AddTextView("", "Token: a personal access token, repo scope.\n"+
 			"github.com only; Enterprise is unsupported.\n"+
@@ -620,7 +620,7 @@ func (s *settingsView) showTokenForm(inst *config.Instance) {
 	}
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("Token", "", 46, maskRune, nil)
+	form.AddPasswordField("Token", "", 46, glyphMask, nil)
 	form.AddTextView("", "A personal access token with "+scope+".\n"+
 		"It is stored encrypted in the vault.", 46, 2, true, false)
 	form.AddButton("Save", func() {
@@ -882,11 +882,11 @@ func (s *settingsView) labelGroup(node *tview.TreeNode, instanceID string, g for
 	}
 	switch inst.GroupScope(g.ID) {
 	case config.ScopeGroup:
-		node.SetText(tag(colOn) + "✓" + tagEnd + " " + g.FullPath +
+		node.SetText(tag(colOn) + glyphCheck + tagEnd + " " + g.FullPath +
 			"  " + tag(colMuted) + "(this group only)" + tagEnd + suffix)
 		nodeColour(node, colText)
 	case config.ScopeSubgroups:
-		node.SetText(tag(colOn) + "✓" + tagEnd + " " + g.FullPath +
+		node.SetText(tag(colOn) + glyphCheck + tagEnd + " " + g.FullPath +
 			"  " + tag(colAccent) + "(incl. subgroups)" + tagEnd + suffix)
 		nodeColour(node, colText)
 	default:
@@ -1056,7 +1056,7 @@ func (s *settingsView) toggleKeychain() {
 	}
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("Passphrase", "", 0, maskRune, nil)
+	form.AddPasswordField("Passphrase", "", 0, glyphMask, nil)
 	field := form.GetFormItemByLabel("Passphrase").(*tview.InputField)
 	form.AddTextView("", "Kept in the macOS Keychain, where only unagit\n"+
 		"may read it; any other program has to ask you.", 0, 2, true, false)
@@ -1130,8 +1130,8 @@ func (s *settingsView) showPassphraseForm() {
 	a := s.app
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("New passphrase", "", 40, maskRune, nil)
-	form.AddPasswordField("Repeat", "", 40, maskRune, nil)
+	form.AddPasswordField("New passphrase", "", 40, glyphMask, nil)
+	form.AddPasswordField("Repeat", "", 40, glyphMask, nil)
 	form.AddTextView("", "The vault is re-encrypted at once.\n"+
 		"There is no recovery if you forget it.", 40, 2, true, false)
 	form.AddButton("Change", func() {

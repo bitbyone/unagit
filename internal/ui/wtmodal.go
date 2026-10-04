@@ -73,7 +73,7 @@ func (a *App) showWorktreeView(r worktreeRow) {
 	frame.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		for row := y + 1; row < y+h-1; row++ {
 			for col := x + 1; col < x+w-1; col++ {
-				screen.SetContent(col, row, ' ', nil, tcell.StyleDefault)
+				screen.SetContent(col, row, ' ', nil, baseStyle())
 			}
 		}
 		width := max(1, w-4)

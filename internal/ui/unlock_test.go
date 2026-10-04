@@ -80,7 +80,7 @@ func indexOf(haystack, needle string) int {
 // TestClearMaskedReallyClears pins the workaround for tview's masked
 // InputField: a plain SetText("") leaves part of the previous value behind.
 func TestClearMaskedReallyClears(t *testing.T) {
-	in := tview.NewInputField().SetMaskCharacter(maskRune)
+	in := tview.NewInputField().SetMaskCharacter(glyphMask)
 	feed := func(s string) {
 		h := in.InputHandler()
 		for _, r := range s {

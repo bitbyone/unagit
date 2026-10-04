@@ -1,0 +1,107 @@
+{
+  "name": "unagit",
+  "description": "Muted, on the terminal's own background - quiet beside an editor",
+  "background": "default",
+  "text": {
+    "normal": "252",
+    "muted": "244",
+    "dim": "240",
+    "accent": "109",
+    "branch": "109",
+    "key": "215"
+  },
+  "state": {
+    "good": "108",
+    "warning": "179",
+    "bad": "167",
+    "force": "210",
+    "favourite": "220"
+  },
+  "border": {
+    "normal": "244",
+    "focus": "109",
+    "title": "109"
+  },
+  "tabs": {
+    "active": "109",
+    "inactive": "244",
+    "separator": "240"
+  },
+  "surface": {
+    "field": "236",
+    "raised": "238",
+    "field_focus": "23",
+    "field_typing": "24"
+  },
+  "selection": {
+    "background": "238",
+    "text": "231",
+    "marked": "23",
+    "marked_cursor": "30"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "240"
+  },
+  "markdown": {
+    "text": "252",
+    "heading": "109",
+    "code": "179",
+    "quote": "244",
+    "link": "109",
+    "muted": "240"
+  },
+  "chezmoi": {
+    "badge_ink": "#1c1b19",
+    "badge_fill": "#6e6e6e",
+    "heading_ink": "#1c1b19",
+    "heading_fill": "#f2b55c"
+  },
+  "tags": {
+    "rose": {"ink": "#f4a6b8", "fill": "#5b2431"},
+    "coral": {"ink": "#f6ac9c", "fill": "#5d2d23"},
+    "peach": {"ink": "#f8c4a0", "fill": "#5e3a21"},
+    "apricot": {"ink": "#f7d49e", "fill": "#5d4622"},
+    "butter": {"ink": "#f2e6a2", "fill": "#5a5225"},
+    "lime": {"ink": "#d3eaa2", "fill": "#48562a"},
+    "mint": {"ink": "#a8e6c4", "fill": "#2c533e"},
+    "sage": {"ink": "#bfd6b2", "fill": "#3d4a35"},
+    "teal": {"ink": "#9fd8d2", "fill": "#314f4b"},
+    "sky": {"ink": "#a3d5f0", "fill": "#274759"},
+    "azure": {"ink": "#a8c2f2", "fill": "#26385a"},
+    "periwinkle": {"ink": "#babaf4", "fill": "#262659"},
+    "lavender": {"ink": "#cdb8f2", "fill": "#392858"},
+    "lilac": {"ink": "#e2b9ec", "fill": "#4c2c54"},
+    "pink": {"ink": "#f2b8d8", "fill": "#582842"},
+    "sand": {"ink": "#e3d4c0", "fill": "#4d4232"}
+  },
+  "glyphs": {
+    "disk_none": "○",
+    "disk_branch": "●",
+    "disk_review": "◐",
+    "disk_both": "◉",
+    "group": "◆",
+    "hidden": "⊘",
+    "favourite": "★",
+    "check": "✓",
+    "cross": "✗",
+    "dot": "●",
+    "ring": "○",
+    "ahead": "↑",
+    "behind": "↓",
+    "external": "↗",
+    "merge": "⑂",
+    "select": "▾",
+    "mask": "•",
+    "bar": "━",
+    "tab_separator": "│"
+  },
+  "borders": {
+    "horizontal": "─",
+    "vertical": "│",
+    "top_left": "╭",
+    "top_right": "╮",
+    "bottom_left": "╰",
+    "bottom_right": "╯"
+  }
+}

@@ -124,10 +124,16 @@ func (a *App) managedDir(instanceID, projectPath string) string {
 // but dark ink on a middle grey where every tag is light on a deep colour,
 // and always first. It shortens rather than be counted away when the column
 // is narrow.
-var chezmoiColour = tagColour{name: "chezmoi", ink: "#1c1b19", fill: "#6e6e6e"}
+//
+// Both come from the theme: chezmoiHeading is the markup the detail's heading
+// starts with.
+var (
+	chezmoiColour  tagColour
+	chezmoiHeading string
+)
 
 func chezmoiBadge(room int, style, behind string) (string, int) {
-	for _, text := range []string{"↗ Managed by Chezmoi", "↗ Chezmoi", "↗"} {
+	for _, text := range []string{glyphExternal + " Managed by Chezmoi", glyphExternal + " Chezmoi", glyphExternal} {
 		if markup, w := pillOf(text, chezmoiColour, style, behind); w <= room {
 			return markup, w
 		}
@@ -166,7 +172,7 @@ func (a *App) chezmoiLine(d *detailBuf, pr forge.Project) {
 	// The detail has room to be plain about it: a square heading in amber,
 	// not the quiet pill of the list.
 	d.blank()
-	d.raw("[#1c1b19:#f2b55c:b] ↗ Managed by Chezmoi [-:-:-]\n")
+	d.raw(chezmoiHeading + " " + glyphExternal + " Managed by Chezmoi [-:-:-]\n")
 	d.kv("Checkout", esc(tildePath(dir)))
 	d.kv("Worktrees", esc(tildePath(a.pathManager(pr.Instance, pr.PathWithNamespace).MRRoot(pr.PathWithNamespace))))
 }

@@ -34,7 +34,7 @@ func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
 	}
 	var items []pickItem
 	if hasFav {
-		items = append(items, pickItem{Label: "★ " + fav.Name, Sub: kindOf(fav), Data: fav})
+		items = append(items, pickItem{Label: glyphFavourite + " " + fav.Name, Sub: kindOf(fav), Data: fav})
 	}
 	for _, e := range all {
 		if e.Found && (!hasFav || e.ID != fav.ID) {

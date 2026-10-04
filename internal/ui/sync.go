@@ -120,7 +120,7 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 		return "", colDim
 	}
 	if _, failed := a.fetchFailed[key]; failed {
-		return "✗ fetch", colBad
+		return glyphCross + " fetch", colBad
 	}
 	st, known := a.repoSync[key]
 	u := st.Upstream
@@ -138,13 +138,13 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 	case u.Name == "":
 		return "local", colDim
 	case u.Ahead > 0 && u.Behind > 0:
-		return fmt.Sprintf("↑%d↓%d", u.Ahead, u.Behind), colWarn
+		return fmt.Sprintf("%s%d%s%d", glyphAhead, u.Ahead, glyphBehind, u.Behind), colWarn
 	case u.Behind > 0:
-		return fmt.Sprintf("↓%d", u.Behind), colWarn
+		return fmt.Sprintf("%s%d", glyphBehind, u.Behind), colWarn
 	case u.Ahead > 0:
-		return fmt.Sprintf("↑%d", u.Ahead), colMuted
+		return fmt.Sprintf("%s%d", glyphAhead, u.Ahead), colMuted
 	}
-	return "✓", colOn
+	return glyphCheck, colOn
 }
 
 // projectEdits is the EDITS column of a repository: its clone's files with
@@ -554,7 +554,7 @@ func detachedWords(st remoteState) (string, tcell.Color) {
 	case st.From == "":
 		return "detached", colDim
 	case st.FromBehind > 0:
-		return fmt.Sprintf("↓%d %s", st.FromBehind, st.From), colWarn
+		return fmt.Sprintf("%s%d %s", glyphBehind, st.FromBehind, st.From), colWarn
 	}
 	return "at " + st.From, colDim
 }

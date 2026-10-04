@@ -81,13 +81,13 @@ func (b *blockList) Draw(screen tcell.Screen) {
 				draw(at)
 			}
 		}
-		edge := tcell.StyleDefault.Foreground(border)
+		edge := baseStyle().Foreground(border)
 		put(0, func(at int) {
-			screen.SetContent(x, at, '╭', nil, edge)
+			screen.SetContent(x, at, tview.Borders.TopLeft, nil, edge)
 			for col := x + 1; col < x+w-1; col++ {
-				screen.SetContent(col, at, '─', nil, edge)
+				screen.SetContent(col, at, tview.Borders.Horizontal, nil, edge)
 			}
-			screen.SetContent(x+w-1, at, '╮', nil, edge)
+			screen.SetContent(x+w-1, at, tview.Borders.TopRight, nil, edge)
 			name := bl.title
 			if i == lit {
 				name = "[::b]" + name + "[::-]"
@@ -96,17 +96,17 @@ func (b *blockList) Draw(screen tcell.Screen) {
 		})
 		for j, text := range bl.rows {
 			put(j+1, func(at int) {
-				screen.SetContent(x, at, '│', nil, edge)
-				screen.SetContent(x+w-1, at, '│', nil, edge)
+				screen.SetContent(x, at, tview.Borders.Vertical, nil, edge)
+				screen.SetContent(x+w-1, at, tview.Borders.Vertical, nil, edge)
 				tview.Print(screen, text, x+2, at, w-4, tview.AlignLeft, colText)
 			})
 		}
 		put(len(bl.rows)+1, func(at int) {
-			screen.SetContent(x, at, '╰', nil, edge)
+			screen.SetContent(x, at, tview.Borders.BottomLeft, nil, edge)
 			for col := x + 1; col < x+w-1; col++ {
-				screen.SetContent(col, at, '─', nil, edge)
+				screen.SetContent(col, at, tview.Borders.Horizontal, nil, edge)
 			}
-			screen.SetContent(x+w-1, at, '╯', nil, edge)
+			screen.SetContent(x+w-1, at, tview.Borders.BottomRight, nil, edge)
 		})
 	}
 }

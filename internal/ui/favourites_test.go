@@ -21,7 +21,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	if strings.Contains(a.screenText(sc), favouriteMark) {
+	if strings.Contains(a.screenText(sc), glyphFavourite) {
 		t.Fatal("a star before anything was starred")
 	}
 
@@ -74,7 +74,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 	// Unstarred, the star column goes as well.
 	sc.InjectKey(tcell.KeyCtrlF, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "no longer a favourite")
-	if strings.Contains(a.screenText(sc), favouriteMark) {
+	if strings.Contains(a.screenText(sc), glyphFavourite) {
 		t.Errorf("a star is left:\n%s", a.screenText(sc))
 	}
 }
@@ -100,7 +100,7 @@ func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
 
 	typeRunes(sc, "1")
 	waitFor(t, a, sc, "REPOSITORY")
-	if strings.Contains(a.screenText(sc), favouriteMark) {
+	if strings.Contains(a.screenText(sc), glyphFavourite) {
 		t.Error("starring a merge request starred its repository")
 	}
 }

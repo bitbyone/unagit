@@ -259,13 +259,13 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		pr := a.projects[idx]
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 
-		mark, markColour := " ○", colDim
+		mark, markColour := " "+glyphRing, colDim
 		if info.Cloned {
-			mark, markColour = " ●", colOn
+			mark, markColour = " "+glyphDot, colOn
 		}
 		nameColour := colText
 		if p.marks[idx] {
-			mark, markColour, nameColour = " ✓", colAccent, colAccent
+			mark, markColour, nameColour = " "+glyphCheck, colAccent, colAccent
 		}
 		if grouped {
 			mark = " " + mark

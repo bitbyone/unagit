@@ -25,8 +25,7 @@ const mergeFormWidth = 72
 
 // pipelineUnderway reports whether a pipeline status is one still going.
 func pipelineUnderway(status string) bool {
-	mark, _ := ciMark(status)
-	return mark == "●"
+	return ciStateOf(status) == ciRunning
 }
 
 // mergeMR asks how to merge, then merges. What stands in the way - a draft, a
@@ -120,8 +119,8 @@ func mergeWarnings(mr forge.MergeRequest, underway bool) []string {
 	if mr.Draft {
 		out = append(out, "it is a draft - Ctrl-D marks it ready")
 	}
-	switch mark, _ := ciMark(mr.Pipeline); {
-	case mark == "✗":
+	switch {
+	case ciStateOf(mr.Pipeline) == ciFailed:
 		out = append(out, "its pipeline failed")
 	case underway:
 		out = append(out, "its pipeline is still running")

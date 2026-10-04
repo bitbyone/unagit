@@ -152,7 +152,7 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 	for i, c := range commits {
 		subject := c.Subject
 		if c.Merge {
-			subject = "⑂ " + subject
+			subject = glyphMerge + " " + subject
 		}
 		subjects[i] = trim(subject, max(room, 24))
 		subjectW = max(subjectW, len([]rune(subjects[i])))
@@ -163,9 +163,9 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		mark := "  "
 		switch {
 		case c.New:
-			mark = "● "
+			mark = glyphDot + " "
 		case c.Unpushed:
-			mark = "↑ "
+			mark = glyphAhead + " "
 		}
 		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i]))
 		items[i].Sub = esc(logSub(c))
@@ -559,7 +559,7 @@ func (a *App) mergeRequestLog(mr forge.MergeRequest) {
 		}
 		title := fmt.Sprintf("Commit Log · %s !%d", path, mr.IID)
 		if fresh > 0 {
-			title += fmt.Sprintf(" · ● %d new since your last review", fresh)
+			title += fmt.Sprintf(" · %s %d new since your last review", glyphDot, fresh)
 		}
 		place := logPlace{title: title, project: project, dir: dir, branch: mr.SourceBranch, mr: &mr}
 		a.showCommitLog(place, listed, start)

@@ -84,7 +84,7 @@ func renderBubble(b bubble, width int) string {
 	total := max(width-b.Indent, minBubbleWidth)
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
-	edge := tag(b.Colour) + "│" + inkReset
+	edge := tag(b.Colour) + string(tview.Borders.Vertical) + inkReset
 	row := func(st *ink, text string) string {
 		pad := strings.Repeat(" ", max(0, inner-tview.TaggedStringWidth(text)))
 		line := st.restore() + text + inkReset + pad
@@ -92,7 +92,7 @@ func renderBubble(b bubble, width int) string {
 		return lead + edge + " " + line + " " + edge
 	}
 	rule := func(l, r string) string {
-		return lead + tag(b.Colour) + l + strings.Repeat("─", total-2) + r + inkReset
+		return lead + tag(b.Colour) + l + strings.Repeat(string(tview.Borders.Horizontal), total-2) + r + inkReset
 	}
 
 	head := tag(b.Colour) + "[::b]" + tview.Escape(trunc(b.Name, inner)) + inkReset
@@ -115,7 +115,7 @@ func renderBubble(b bubble, width int) string {
 		}
 	}
 
-	rows := []string{rule("╭", "╮"), row(&ink{}, head)}
+	rows := []string{rule(string(tview.Borders.TopLeft), string(tview.Borders.TopRight)), row(&ink{}, head)}
 	if where != "" {
 		rows = append(rows, row(&ink{}, where))
 	}
@@ -127,7 +127,7 @@ func renderBubble(b bubble, width int) string {
 			}
 		}
 	}
-	rows = append(rows, rule("╰", "╯"))
+	rows = append(rows, rule(string(tview.Borders.BottomLeft), string(tview.Borders.BottomRight)))
 	return strings.Join(rows, "\n")
 }
 

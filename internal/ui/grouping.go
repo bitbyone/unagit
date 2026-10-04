@@ -7,8 +7,6 @@ import (
 	"github.com/rivo/tview"
 )
 
-// favouriteMark leads the row of a favourite.
-const favouriteMark = "★"
 
 // listLayout is what a list tells layRows about its rows.
 type listLayout struct {
@@ -54,7 +52,7 @@ func (a *App) layRows(t *tview.Table, filtered []int, l listLayout) int {
 	for i, part := range parts {
 		if i > 0 && len(part) > 0 {
 			row++
-			t.SetCell(row, 0, tview.NewTableCell(tag(colDim)+strings.Repeat("─", max(l.width, 1))+tagEnd).
+			t.SetCell(row, 0, tview.NewTableCell(tag(colDim)+strings.Repeat(string(tview.Borders.Horizontal), max(l.width, 1))+tagEnd).
 				SetSelectable(false).SetExpansion(1))
 		}
 		if l.group == nil {
@@ -93,7 +91,7 @@ func starred(column int, favourite bool, mark string) string {
 	case column == 0:
 		return mark
 	case favourite:
-		return tag(colStar) + favouriteMark + tagEnd + mark
+		return tag(colStar) + glyphFavourite + tagEnd + mark
 	}
 	return " " + mark
 }

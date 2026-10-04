@@ -437,7 +437,7 @@ func rule() tview.Primitive {
 	line := tview.NewBox()
 	line.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		for col := x; col < x+w; col++ {
-			screen.SetContent(col, y, '─', nil, tcell.StyleDefault.Foreground(colDim))
+			screen.SetContent(col, y, tview.Borders.Horizontal, nil, baseStyle().Foreground(colDim))
 		}
 		return x, y, w, h
 	})
@@ -599,8 +599,8 @@ func fitFooterPadded(block *tview.Flex, footer *tview.TextView, inset, pad int) 
 		// show through it.
 		for row := y + inset; row < y+h-inset; row++ {
 			for i := range pad {
-				screen.SetContent(x+inset+i, row, ' ', nil, tcell.StyleDefault)
-				screen.SetContent(x+w-1-inset-i, row, ' ', nil, tcell.StyleDefault)
+				screen.SetContent(x+inset+i, row, ' ', nil, baseStyle())
+				screen.SetContent(x+w-1-inset-i, row, ' ', nil, baseStyle())
 			}
 		}
 		width := max(1, w-2*side)

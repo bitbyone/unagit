@@ -144,7 +144,7 @@ func (v *integrationsView) paintFocus(active bool) {
 		} else if card.enabled() {
 			state, color = "enabled", colOn
 		}
-		text := tag(color) + "● " + state + tagEnd + "\n\n" + card.description + "\n"
+		text := tag(color) + glyphDot + " " + state + tagEnd + "\n\n" + card.description + "\n"
 		if card.found != nil && card.binary != "" {
 			if found := card.found(); found != "" {
 				text += found + "\n"
@@ -240,7 +240,7 @@ func (v *integrationsView) renderEditors(focused bool) string {
 		// opening asks.
 		mark := "  "
 		if e.ID == cfg.FavouriteEditor {
-			mark = tag(colOn) + "★ " + tagEnd
+			mark = tag(colOn) + glyphFavourite + " " + tagEnd
 		}
 		name := fmt.Sprintf("%-*s", width, e.Name)
 		if !e.Found {

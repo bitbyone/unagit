@@ -17,24 +17,13 @@ type tagColour struct{ name, ink, fill string }
 // tagPalette is sixteen colours, each a pastel written on a deep shade of
 // itself: dark enough for the ink to read on every one, and apart enough to
 // tell side by side. A terminal without true colour gets the nearest of its
-// own, which tcell picks.
+// own, which tcell picks. The names are what a tag is saved with; the
+// colours come from the theme (setTheme).
 var tagPalette = []tagColour{
-	{"rose", "#f4a6b8", "#5b2431"},
-	{"coral", "#f6ac9c", "#5d2d23"},
-	{"peach", "#f8c4a0", "#5e3a21"},
-	{"apricot", "#f7d49e", "#5d4622"},
-	{"butter", "#f2e6a2", "#5a5225"},
-	{"lime", "#d3eaa2", "#48562a"},
-	{"mint", "#a8e6c4", "#2c533e"},
-	{"sage", "#bfd6b2", "#3d4a35"},
-	{"teal", "#9fd8d2", "#314f4b"},
-	{"sky", "#a3d5f0", "#274759"},
-	{"azure", "#a8c2f2", "#26385a"},
-	{"periwinkle", "#babaf4", "#262659"},
-	{"lavender", "#cdb8f2", "#392858"},
-	{"lilac", "#e2b9ec", "#4c2c54"},
-	{"pink", "#f2b8d8", "#582842"},
-	{"sand", "#e3d4c0", "#4d4232"},
+	{name: "rose"}, {name: "coral"}, {name: "peach"}, {name: "apricot"},
+	{name: "butter"}, {name: "lime"}, {name: "mint"}, {name: "sage"},
+	{name: "teal"}, {name: "sky"}, {name: "azure"}, {name: "periwinkle"},
+	{name: "lavender"}, {name: "lilac"}, {name: "pink"}, {name: "sand"},
 }
 
 // paletteIndex finds a colour by name; an unknown one is the first.
@@ -64,7 +53,7 @@ func pillEnds(style string) (left, right string) {
 // the selection band when the pill is drawn again over it.
 const behindList = "-"
 
-var behindBand = func() string { _, bg, _ := styleSelected.Decompose(); return bg.String() }()
+func behindBand() string { _, bg, _ := styleSelected.Decompose(); return bg.String() }
 
 // pill draws a tag as a pill: its name in light ink on a deep fill, rounded
 // at both ends when the style has ends, padded with a space when it has
@@ -137,7 +126,7 @@ func (a *App) pills(names []string, room int, behind string) (string, int) {
 // back as well, to be drawn again over the selection band, at where they
 // start in the field. A marked row has a band of its own under both.
 func (a *App) tagsField(tags []string, width int, marked, managed bool) (string, keptMarkup) {
-	behind, band := behindList, behindBand
+	behind, band := behindList, behindBand()
 	if marked {
 		_, bg, _ := styleMarkedSelected.Decompose()
 		behind, band = colMarked.String(), bg.String()
@@ -177,7 +166,7 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool) (string,
 // tagMark is the box in front of a tag in a multiple choice.
 func tagMark(on bool) string {
 	if on {
-		return tag(colOn) + "✓" + tagEnd
+		return tag(colOn) + glyphCheck + tagEnd
 	}
 	return tag(colDim) + "·" + tagEnd
 }
@@ -440,7 +429,7 @@ func (s *settingsView) fillTags() {
 		// start of the row, over the selection band.
 		markup, width := pill(tg, s.app.cfg.Ends(), behindList)
 		t.SetCell(i+1, 0, tview.NewTableCell(markup).SetReference(tg.Name))
-		over, _ := pill(tg, s.app.cfg.Ends(), behindBand)
+		over, _ := pill(tg, s.app.cfg.Ends(), behindBand())
 		s.tagsKept.keep(i+1, keptMarkup{markup: over, width: width})
 		t.SetCell(i+1, 1, tview.NewTableCell(tagColourOf(tg.Color).name).SetTextColor(colMuted))
 		count := ""

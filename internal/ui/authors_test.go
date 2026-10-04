@@ -27,7 +27,7 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 	waitGone(t, a, sc, "Rate limiting")
 	waitGone(t, a, sc, "Drop the old client")
 	waitFor(t, a, sc, "Invoice rounding")
-	waitFor(t, a, sc, hiddenMark+" 1 author(s)")
+	waitFor(t, a, sc, glyphHidden+" 1 author(s)")
 
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "View · Merge requests")
@@ -44,7 +44,7 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	must(t, err)
-	if len(saved.Filters.HiddenAuthors) != 0 || strings.Contains(a.screenText(sc), hiddenMark+" 1 author") {
+	if len(saved.Filters.HiddenAuthors) != 0 || strings.Contains(a.screenText(sc), glyphHidden+" 1 author") {
 		t.Errorf("renovate is still hidden: %+v", saved.Filters.HiddenAuthors)
 	}
 }

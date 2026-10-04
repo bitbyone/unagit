@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"strings"
+	"regexp"
 	"unicode"
 
 	"github.com/gdamore/tcell/v2"
@@ -251,10 +251,13 @@ func labelButtons(form *tview.Form) {
 }
 
 // keyOpen and keyClose wrap the letter that presses a button.
-var (
-	keyOpen  = tag(colKey) + "[::b]"
-	keyClose = "[::-]" + "[-]"
-)
+func keyOpen() string { return tag(colKey) + "[::b]" }
+
+const keyClose = "[::-]" + "[-]"
+
+// keyMarkup is what markKey puts around a letter, in any theme's colour: a
+// label marked before the theme changed still reads by its name.
+var keyMarkup = regexp.MustCompile(`\[[^\[\]]*\]\[::b\]|\[::-\]\[-\]`)
 
 // markKey colours the letter that presses a button. A key the label lacks - a
 // digit - is only in the hint.
@@ -262,7 +265,7 @@ func markKey(label string, key rune) string {
 	runes := []rune(label)
 	for i, r := range runes {
 		if unicode.ToLower(r) == key {
-			return string(runes[:i]) + keyOpen + string(r) + keyClose + string(runes[i+1:])
+			return string(runes[:i]) + keyOpen() + string(r) + keyClose + string(runes[i+1:])
 		}
 	}
 	return label
@@ -270,5 +273,5 @@ func markKey(label string, key rune) string {
 
 // buttonName is a button's label without the colour markKey added.
 func buttonName(label string) string {
-	return strings.NewReplacer(keyOpen, "", keyClose, "").Replace(label)
+	return keyMarkup.ReplaceAllString(label, "")
 }

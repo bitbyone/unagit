@@ -12,8 +12,6 @@ import (
 	"github.com/tobola/unagit/internal/secret"
 )
 
-// maskRune hides the passphrase as it is typed.
-const maskRune = '•'
 
 // showUnlock renders the passphrase dialog: opening the token vault, or
 // creating it on a first run. The key derivation runs on a background
@@ -216,8 +214,8 @@ const keychainService = "unagit vault passphrase"
 func passphraseField(label string) *tview.InputField {
 	return tview.NewInputField().
 		SetLabel(pad(label, 12)).
-		SetMaskCharacter(maskRune).
-		SetFieldBackgroundColor(tcell.ColorDefault).
+		SetMaskCharacter(glyphMask).
+		SetFieldBackgroundColor(colBackground).
 		SetFieldTextColor(colText).
 		SetLabelColor(colMuted)
 }
@@ -230,7 +228,7 @@ func passphraseField(label string) *tview.InputField {
 func clearMasked(input *tview.InputField) {
 	input.SetMaskCharacter(0)
 	input.SetText("")
-	input.SetMaskCharacter(maskRune)
+	input.SetMaskCharacter(glyphMask)
 }
 
 // pad right-pads a label so a column of fields lines up.

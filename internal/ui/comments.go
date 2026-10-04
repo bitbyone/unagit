@@ -16,14 +16,8 @@ import (
 )
 
 // mdTheme paints rendered markdown in the interface's own palette.
-var mdTheme = md.Theme{
-	Text:    colText.String(),
-	Heading: colAccent.String(),
-	Code:    colWarn.String(),
-	Quote:   colMuted.String(),
-	Link:    colAccent.String(),
-	Muted:   colDim.String(),
-}
+// It is set from the theme.
+var mdTheme md.Theme
 
 // renderMarkdown turns a comment body into tview markup, indented so it sits
 // under its author.
@@ -92,7 +86,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 				fit(func(width int) string {
 					text := renderConversation(notes, width)
 					if local := renderLocalThreads(localThreads, width); local != "" {
-						text += "\n\n" + tag(colDim) + strings.Repeat("━", 40) + tagEnd + "\n\n" + local
+						text += "\n\n" + tag(colDim) + strings.Repeat(glyphBar, 40) + tagEnd + "\n\n" + local
 					}
 					return text
 				})

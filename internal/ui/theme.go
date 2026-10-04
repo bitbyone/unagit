@@ -5,41 +5,81 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/md"
 )
 
-// Muted palette. Everything is deliberately low contrast: unagit is meant to
-// be opened from inside nvim, so it should not shout over the editor.
+// The colours everything is drawn with, set from the theme (themes.go) by
+// setTheme. They are package variables, as tview's own styles are: a theme
+// is the process's, and every application of it draws with the same one.
 var (
-	colBorder      = tcell.Color244
-	colBorderFocus = tcell.Color109
-	colTitle       = tcell.Color109
-	colMuted       = tcell.Color244
-	colDim         = tcell.Color240
-	colText        = tcell.Color252
-	colAccent      = tcell.Color109
-	colOn          = tcell.Color108
-	colWarn        = tcell.Color179
-	colStar        = tcell.Color220
-	colBad         = tcell.Color167
+	colBackground  tcell.Color // the screen; ColorDefault is the terminal's own
+	colBorder      tcell.Color
+	colBorderFocus tcell.Color
+	colTitle       tcell.Color
+	colMuted       tcell.Color
+	colDim         tcell.Color
+	colText        tcell.Color
+	colAccent      tcell.Color
+	colOn          tcell.Color
+	colWarn        tcell.Color
+	colStar        tcell.Color
+	colBad         tcell.Color
 	// colForce is a step short of colBad: something to do on purpose, not
 	// something wrong.
-	colForce     = tcell.Color210
-	colBranch    = tcell.Color109
-	colTabActive = tcell.Color109
+	colForce        tcell.Color
+	colBranch       tcell.Color
+	colTabActive    tcell.Color
+	colTabInactive  tcell.Color
+	colTabSeparator tcell.Color
 	// colSurface is a raised panel: the background of a field or a button at
 	// rest, and the ink on one that is active.
-	colSurface = tcell.Color236
-	colRaised  = tcell.Color238
+	colSurface tcell.Color
+	colRaised  tcell.Color
 	// colFieldFocus is the field a form's focus is on, colFieldTyping the same
 	// while it is typed into.
-	colFieldFocus  = tcell.Color23
-	colFieldTyping = tcell.Color24
+	colFieldFocus  tcell.Color
+	colFieldTyping tcell.Color
 	// colKey marks the letter that presses a button.
-	colKey = tcell.Color215
+	colKey tcell.Color
 )
 
-// applyTheme switches tview to single line rounded borders and a muted,
-// background-transparent colour scheme.
+// The glyphs that say what something is, set from the theme.
+var (
+	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
+	glyphGroup, glyphHidden, glyphFavourite                        string
+	glyphCheck, glyphCross, glyphDot, glyphRing                    string
+	glyphAhead, glyphBehind                                        string
+	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator         string
+	glyphMask                                                      rune
+	// selectMarker ends a closed select, so it looks like something that
+	// opens.
+	selectMarker string
+)
+
+// selectPadding is the room around an option the widest of the two takes
+// (the open list's two spaces either side).
+const selectPadding = 4
+
+// theme is the theme in use. themeOnce puts the default one in place the
+// first time anything is drawn; setTheme changes it after.
+var (
+	theme     Theme
+	themeOnce sync.Once
+)
+
+// applyTheme puts the default theme in place unless one is already: tview's
+// widgets copy its styles when they are made, so this comes before any.
+func applyTheme() {
+	themeOnce.Do(func() {
+		if theme.Name == "" {
+			setTheme(loadThemes("").byName[defaultThemeName])
+		}
+	})
+}
+
+// setTheme makes t the theme everything is drawn with from now on. Widgets
+// already made keep what they copied; the App rebuilds them (switchTheme).
 //
 // tview builds every interactive widget - buttons, drop-downs, check boxes,
 // form fields - out of one pair of colours used both ways round:
@@ -55,28 +95,64 @@ var (
 // as the terminal default, which cannot be reasoned about as ink, and buttons
 // and drop-downs came out invisible.
 //
-// PrimitiveBackgroundColor is the exception that stays at the terminal
-// default: it is only ever a background, so panels can be transparent and sit
-// on whatever the editor around them looks like.
-//
-// tview keeps its styles in package level variables, so this runs once per
-// process rather than once per application.
-func applyTheme() { themeOnce.Do(setTheme) }
+// PrimitiveBackgroundColor is the screen's background: the terminal default
+// unless the theme says otherwise, so panels can be transparent and sit on
+// whatever the editor around them looks like.
+func setTheme(t Theme) {
+	theme = t
 
-var themeOnce sync.Once
+	colBackground = colour(t.Background)
+	colText, colMuted, colDim = colour(t.Text.Normal), colour(t.Text.Muted), colour(t.Text.Dim)
+	colAccent, colBranch, colKey = colour(t.Text.Accent), colour(t.Text.Branch), colour(t.Text.Key)
+	colOn, colWarn, colBad = colour(t.State.Good), colour(t.State.Warning), colour(t.State.Bad)
+	colForce, colStar = colour(t.State.Force), colour(t.State.Favourite)
+	colBorder, colBorderFocus, colTitle = colour(t.Border.Normal), colour(t.Border.Focus), colour(t.Border.Title)
+	colTabActive, colTabInactive, colTabSeparator = colour(t.Tabs.Active), colour(t.Tabs.Inactive), colour(t.Tabs.Separator)
+	colSurface, colRaised = colour(t.Surface.Field), colour(t.Surface.Raised)
+	colFieldFocus, colFieldTyping = colour(t.Surface.FieldFocus), colour(t.Surface.FieldTyping)
 
-func setTheme() {
+	styleSelected = tcell.StyleDefault.
+		Background(colour(t.Selection.Background)).
+		Foreground(colour(t.Selection.Text)).
+		Bold(true)
+	colMarked = colour(t.Selection.Marked)
+	styleMarkedSelected = styleSelected.Background(colour(t.Selection.MarkedCursor))
+	dimFactor, colDimmedText = t.Backdrop.Dim, colour(t.Backdrop.Text)
+
+	mdTheme = md.Theme{
+		Text: colour(t.Markdown.Text).String(), Heading: colour(t.Markdown.Heading).String(),
+		Code: colour(t.Markdown.Code).String(), Quote: colour(t.Markdown.Quote).String(),
+		Link: colour(t.Markdown.Link).String(), Muted: colour(t.Markdown.Muted).String(),
+	}
+	chezmoiColour = tagColour{name: "chezmoi", ink: colour(t.Chezmoi.BadgeInk).String(), fill: colour(t.Chezmoi.BadgeFill).String()}
+	chezmoiHeading = "[" + colour(t.Chezmoi.HeadingInk).String() + ":" + colour(t.Chezmoi.HeadingFill).String() + ":b]"
+	for i, c := range tagPalette {
+		if ink, ok := t.Tags[c.name]; ok {
+			tagPalette[i].ink, tagPalette[i].fill = colour(ink.Ink).String(), colour(ink.Fill).String()
+		}
+	}
+
+	g := t.Glyphs
+	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
+	glyphGroup, glyphHidden, glyphFavourite = g.Group, g.Hidden, g.Favourite
+	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
+	glyphAhead, glyphBehind = g.Ahead, g.Behind
+	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
+	glyphMask = rune0(g.Mask)
+	selectMarker = " " + g.Select
+
+	b := t.Borders
 	r := tview.Borders
-	r.Horizontal, r.HorizontalFocus = '─', '─'
-	r.Vertical, r.VerticalFocus = '│', '│'
-	r.TopLeft, r.TopLeftFocus = '╭', '╭'
-	r.TopRight, r.TopRightFocus = '╮', '╮'
-	r.BottomLeft, r.BottomLeftFocus = '╰', '╰'
-	r.BottomRight, r.BottomRightFocus = '╯', '╯'
+	r.Horizontal, r.HorizontalFocus = rune0(b.Horizontal), rune0(b.Horizontal)
+	r.Vertical, r.VerticalFocus = rune0(b.Vertical), rune0(b.Vertical)
+	r.TopLeft, r.TopLeftFocus = rune0(b.TopLeft), rune0(b.TopLeft)
+	r.TopRight, r.TopRightFocus = rune0(b.TopRight), rune0(b.TopRight)
+	r.BottomLeft, r.BottomLeftFocus = rune0(b.BottomLeft), rune0(b.BottomLeft)
+	r.BottomRight, r.BottomRightFocus = rune0(b.BottomRight), rune0(b.BottomRight)
 	r.LeftT, r.RightT, r.TopT, r.BottomT, r.Cross = '├', '┤', '┬', '┴', '┼'
 	tview.Borders = r
 
-	tview.Styles.PrimitiveBackgroundColor = tcell.ColorDefault
+	tview.Styles.PrimitiveBackgroundColor = colBackground
 	// The pair described above.
 	tview.Styles.PrimaryTextColor = colText
 	tview.Styles.ContrastBackgroundColor = colSurface
@@ -90,6 +166,10 @@ func setTheme() {
 	tview.Styles.TitleColor = colTitle
 	tview.Styles.GraphicsColor = colBorder
 }
+
+// baseStyle is a cell of the screen's own background, for whatever is drawn
+// by hand rather than by a widget.
+func baseStyle() tcell.Style { return tcell.StyleDefault.Background(colBackground) }
 
 // focusBox brightens the border of the primitive that currently has focus.
 // tview v0.42 has no separate focused border colour, and the focus runes are
@@ -186,7 +266,7 @@ func (m *modalBox) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, fun
 }
 
 // dimFactor is how much of the original brightness survives behind a modal.
-const dimFactor = 0.42
+var dimFactor float64
 
 // dimArea darkens every cell in the rectangle while keeping its character, so
 // the interface stays recognisable behind the modal.
@@ -205,7 +285,7 @@ func dimArea(screen tcell.Screen, x, y, w, h int) {
 
 // colDimmedText stands in for the terminal's own foreground, whose RGB we
 // cannot know.
-var colDimmedText = tcell.Color240
+var colDimmedText tcell.Color
 
 // darken scales a colour towards black. Colours the terminal owns rather than
 // us - the default foreground and background - cannot be scaled, so a fallback
@@ -218,14 +298,6 @@ func darken(c tcell.Color, fallback tcell.Color) tcell.Color {
 	scale := func(shift int32) int32 { return int32(float64((hex>>shift)&0xff) * dimFactor) }
 	return tcell.NewRGBColor(scale(16), scale(8), scale(0))
 }
-
-// selectMarker ends a closed select, so it looks like something that opens;
-// selectPadding is the room around an option the widest of the two takes
-// (the open list's two spaces either side).
-const (
-	selectMarker  = " \u25be"
-	selectPadding = 4
-)
 
 // styleDropDown makes a select box readable and recognisable.
 //
@@ -291,7 +363,7 @@ func (a *App) openSelectKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
 func filterField(input *tview.InputField) *tview.InputField {
 	return input.
 		SetLabel(" / ").
-		SetFieldBackgroundColor(tcell.ColorDefault).
+		SetFieldBackgroundColor(colBackground).
 		SetFieldTextColor(colText).
 		SetLabelColor(colAccent)
 }
@@ -301,17 +373,13 @@ func tag(c tcell.Color) string { return "[" + c.String() + "]" }
 
 const tagEnd = "[-]"
 
-// Selection highlight: a full row band, readable on any terminal background.
-var styleSelected = tcell.StyleDefault.
-	Background(tcell.Color238).
-	Foreground(tcell.Color231).
-	Bold(true)
-
-// colMarked is the band of a row marked with space, a hue of its own so that
-// it cannot be taken for the cursor's grey; styleMarkedSelected is the cursor
-// on a marked row, a brighter step of the same hue, so that the row says
-// both at once.
+// styleSelected is the cursor's band across a row, readable on any
+// background. colMarked is the band of a row marked with space, a hue of its
+// own so that it cannot be taken for the cursor's grey; styleMarkedSelected
+// is the cursor on a marked row, a brighter step of the same hue, so that the
+// row says both at once.
 var (
-	colMarked           = tcell.Color23
-	styleMarkedSelected = styleSelected.Background(tcell.Color30)
+	styleSelected       tcell.Style
+	colMarked           tcell.Color
+	styleMarkedSelected tcell.Style
 )

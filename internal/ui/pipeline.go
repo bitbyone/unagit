@@ -62,7 +62,7 @@ func (a *App) listJobs(mr forge.MergeRequest, pipe *forge.Pipeline, jobs []forge
 	for i, j := range jobs {
 		mark, _ := ciMark(j.Status)
 		if mark == "" {
-			mark = "○"
+			mark = glyphRing
 		}
 		items[i] = pickItem{
 			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", mark, stageW, j.Stage, nameW, trim(j.Name, nameW))),
