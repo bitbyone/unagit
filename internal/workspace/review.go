@@ -23,6 +23,9 @@ type Review struct {
 	BaseSHA string
 	HeadSHA string
 	From    string
+	// Seen, when set, is the head the reviewer marked as reviewed without
+	// checking it out; it stands for the head the review last had.
+	Seen string
 }
 
 // Meta is what unagit records in a worktree's own git configuration, so an
@@ -247,6 +250,9 @@ func (m *Manager) MarkUnseen(mr forge.MergeRequest, project forge.Project, rev R
 		return nil
 	}
 	seen := m.ReadMeta(dir).Head
+	if rev.Seen != "" {
+		seen = rev.Seen
+	}
 	if seen == "" || !m.git.CommitExists(mainDir, seen) || seen == rev.HeadSHA {
 		return nil
 	}

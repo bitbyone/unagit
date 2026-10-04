@@ -807,12 +807,115 @@ func (c *Client) LatestPipeline(ctx context.Context, p forge.Project, ref string
 	return c.combinedStatus(ctx, p.PathWithNamespace, ref)
 }
 
-// MergeRequestPipeline is the combined status of the pull request's head.
+// MergeRequestPipeline is the combined status of the pull request's head,
+// or, for a repository that reports through GitHub Actions - check runs,
+// which the combined status leaves out - what its check runs add up to.
 func (c *Client) MergeRequestPipeline(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, error) {
+	p, _, err := c.PipelineJobs(ctx, mr)
+	return p, err
+}
+
+// PipelineJobs is the pull request's head: its check runs as jobs, and as
+// a pipeline the worst of them, or the combined status when there are none.
+func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, []forge.Job, error) {
 	if mr.SHA == "" || mr.ProjectPath == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return c.combinedStatus(ctx, mr.ProjectPath, mr.SHA)
+	var raw struct {
+		CheckRuns []struct {
+			ID         int64      `json:"id"`
+			Name       string     `json:"name"`
+			Status     string     `json:"status"`
+			Conclusion string     `json:"conclusion"`
+			HTMLURL    string     `json:"html_url"`
+			StartedAt  *time.Time `json:"started_at"`
+			Completed  *time.Time `json:"completed_at"`
+			App        struct {
+				Slug string `json:"slug"`
+			} `json:"app"`
+		} `json:"check_runs"`
+	}
+	q := url.Values{}
+	q.Set("per_page", "100")
+	if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/commits/"+url.PathEscape(mr.SHA)+"/check-runs", q, &raw); err != nil {
+		return nil, nil, err
+	}
+	if len(raw.CheckRuns) == 0 {
+		p, err := c.combinedStatus(ctx, mr.ProjectPath, mr.SHA)
+		return p, nil, err
+	}
+	jobs := make([]forge.Job, 0, len(raw.CheckRuns))
+	worst := "success"
+	rank := map[string]int{"success": 0, "skipped": 0, "manual": 1, "canceled": 2, "pending": 3, "running": 4, "failed": 5}
+	for _, r := range raw.CheckRuns {
+		job := forge.Job{ID: r.ID, Name: r.Name, Stage: r.App.Slug, Status: checkStatus(r.Status, r.Conclusion), WebURL: r.HTMLURL}
+		if r.StartedAt != nil && r.Completed != nil {
+			job.Duration = r.Completed.Sub(*r.StartedAt).Seconds()
+		}
+		if rank[job.Status] > rank[worst] {
+			worst = job.Status
+		}
+		jobs = append(jobs, job)
+	}
+	return &forge.Pipeline{Status: worst, SHA: mr.SHA, Ref: mr.SourceBranch}, jobs, nil
+}
+
+// checkStatus puts a check run's state into GitLab's words.
+func checkStatus(status, conclusion string) string {
+	switch status {
+	case "queued", "waiting", "requested", "pending":
+		return "pending"
+	case "in_progress":
+		return "running"
+	}
+	switch conclusion {
+	case "success":
+		return "success"
+	case "failure", "timed_out", "startup_failure":
+		return "failed"
+	case "cancelled", "stale":
+		return "canceled"
+	case "action_required":
+		return "manual"
+	}
+	return "skipped"
+}
+
+// JobLog is a GitHub Actions job's log; other apps' check runs have none.
+func (c *Client) JobLog(ctx context.Context, mr forge.MergeRequest, job forge.Job) (string, error) {
+	if job.Stage != "" && job.Stage != "github-actions" {
+		return "", fmt.Errorf("%s reports through %s, whose log is on its own page - w opens it", job.Name, job.Stage)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/repos/"+mr.ProjectPath+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/logs", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 300 {
+		return "", &apiError{status: resp.StatusCode, body: string(body), path: "job log"}
+	}
+	return string(body), nil
+}
+
+// RetryJob runs a GitHub Actions job again.
+func (c *Client) RetryJob(ctx context.Context, mr forge.MergeRequest, job forge.Job) error {
+	return c.post(ctx, "/repos/"+mr.ProjectPath+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
+}
+
+// UnresolvedThreads cannot be told through GitHub's REST API, which does not
+// say whether a review thread is resolved.
+func (c *Client) UnresolvedThreads(ctx context.Context, mr forge.MergeRequest) (int, bool, error) {
+	return 0, false, nil
 }
 
 // combinedStatus rolls GitHub's per commit statuses into one pipeline.

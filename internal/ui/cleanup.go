@@ -18,7 +18,7 @@ import (
 // changes, a reviewer's own edits, comments not yet published. Only servers
 // that were asked are looked at, and only repositories the index knows, so a
 // merge request is never taken for closed because it was not looked for.
-func (a *App) cleanUpClosed(instances []config.Instance, open []forge.MergeRequest) {
+func (a *App) cleanUpClosed(instances []config.Instance, open []forge.MergeRequest, then func(removed, kept []string)) {
 	asked := map[string]bool{}
 	for _, inst := range instances {
 		asked[inst.ID] = true
@@ -46,6 +46,7 @@ func (a *App) cleanUpClosed(instances []config.Instance, open []forge.MergeReque
 		}
 	}
 	if len(closed) == 0 {
+		then(nil, nil)
 		return
 	}
 	go func() {
@@ -81,20 +82,10 @@ func (a *App) cleanUpClosed(instances []config.Instance, open []forge.MergeReque
 		sort.Strings(removed)
 		sort.Strings(kept)
 		a.tv.QueueUpdateDraw(func() {
-			a.refreshDisk()
 			a.mrsPane.reload()
 			a.projectsPane.reload()
 			a.worktreesPane.reload()
-			switch {
-			case len(kept) > 0:
-				msg := "kept the worktrees of closed " + strings.Join(kept, ", ")
-				if len(removed) > 0 {
-					msg = "removed the worktrees of closed " + strings.Join(removed, ", ") + " · " + msg
-				}
-				a.flash(msg)
-			case len(removed) > 0:
-				a.done("removed the worktrees of closed " + strings.Join(removed, ", "))
-			}
+			then(removed, kept)
 		})
 	}()
 }
@@ -124,4 +115,46 @@ func workOf(mgr *workspace.Manager, dirs []string) string {
 		}
 	}
 	return ""
+}
+
+// sayRefreshed sums up what a refresh of the merge requests brought: what is
+// new, what was pushed since your review, what failed, and what was tidied
+// away - so the list says where to look first. Anything kept that could not
+// be tidied makes it a warning.
+func (a *App) sayRefreshed(before map[mrKey]bool, open []forge.MergeRequest, removed, kept []string) {
+	var parts []string
+	added, failed := 0, 0
+	for _, mr := range open {
+		if len(before) > 0 && !before[keyOfMR(mr)] {
+			added++
+		}
+		if mr.Pipeline == "failed" {
+			failed++
+		}
+	}
+	if added > 0 {
+		parts = append(parts, fmt.Sprintf("%d new", added))
+	}
+	if n := len(a.mrFresh); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d with commits since your review", n))
+	}
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d pipeline(s) failed", failed))
+	}
+	if len(removed) > 0 {
+		parts = append(parts, "removed the worktrees of closed "+strings.Join(removed, ", "))
+	}
+	if len(kept) > 0 {
+		parts = append(parts, "kept the worktrees of closed "+strings.Join(kept, ", "))
+	}
+	if len(parts) == 0 {
+		a.done(fmt.Sprintf("%d open merge request(s), nothing new", len(open)))
+		return
+	}
+	msg := fmt.Sprintf("%d open merge request(s): ", len(open)) + strings.Join(parts, " · ")
+	if len(kept) > 0 {
+		a.flash(msg)
+		return
+	}
+	a.done(msg)
 }

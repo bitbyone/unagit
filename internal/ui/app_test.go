@@ -29,6 +29,8 @@ type fakeServer struct {
 	requests  atomic.Int64
 	mrDetail  atomic.Int64
 	approvals atomic.Int64
+	// retried counts the jobs run again.
+	retried atomic.Int64
 	// postedComment holds the body of the last comment posted.
 	postedComment atomic.Value
 	// postedMR holds the JSON body of the last merge request created.
@@ -284,6 +286,21 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approvals", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"approvals_required":2,"approvals_left":1,"approved_by":[{"user":{"username":"john"}}]}`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":90,"status":"failed","web_url":"https://gl.test/acme/gateway/-/pipelines/90"}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines/90/jobs", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":6,"name":"lint","stage":"check","status":"success","duration":12},
+			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5"}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/jobs/5/trace", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "section_start:1:step_script\r\x1b[0K\x1b[32;1mRunning tests\x1b[0;m\n--- FAIL: TestBucket\nprogress 10%\rprogress 100%\n")
+	})
+	mux.HandleFunc("/api/v4/projects/1/jobs/5/retry", func(w http.ResponseWriter, r *http.Request) {
+		f.retried.Add(1)
+		json(w, `{}`)
 	})
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)

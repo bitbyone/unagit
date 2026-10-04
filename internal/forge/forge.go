@@ -92,8 +92,14 @@ type MergeRequest struct {
 	Reviewers []User `json:"reviewers,omitempty"`
 	Assignees []User `json:"assignees,omitempty"`
 	// Pipeline is the status of the head's latest pipeline, "" for none.
-	// The listings do not carry it; unagit asks for it on refresh.
-	Pipeline string `json:"pipeline,omitempty"`
+	// The listings do not carry it, nor the approvals and the threads not
+	// resolved; unagit asks for them on refresh. Unresolved means something
+	// only where UnresolvedKnown says the forge could tell.
+	Pipeline          string   `json:"pipeline,omitempty"`
+	ApprovedBy        []string `json:"approved_by,omitempty"`
+	ApprovalsRequired int      `json:"approvals_required,omitempty"`
+	Unresolved        int      `json:"unresolved,omitempty"`
+	UnresolvedKnown   bool     `json:"unresolved_known,omitempty"`
 	// Comments is how many people have said something. GitLab reports it on
 	// the listing; GitHub only on a single merge request, so there it stays
 	// zero until the detail is opened.
@@ -197,6 +203,18 @@ type Pipeline struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Job is one step of a pipeline: a GitLab job, a GitHub check run. Status
+// is in GitLab's words on both: success, failed, running, pending, canceled,
+// skipped, manual.
+type Job struct {
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	Stage    string  `json:"stage"`
+	Status   string  `json:"status"`
+	WebURL   string  `json:"web_url"`
+	Duration float64 `json:"duration"`
+}
+
 // Note is a comment. Notes that share a Thread are one conversation, and the
 // earliest of them is what it was started with.
 type Note struct {
@@ -272,6 +290,15 @@ type Provider interface {
 	// MergeRequestPipeline is the latest pipeline of the merge request's
 	// head, nil when there is none.
 	MergeRequestPipeline(ctx context.Context, mr MergeRequest) (*Pipeline, error)
+	// PipelineJobs is that pipeline and its jobs - GitHub's check runs.
+	PipelineJobs(ctx context.Context, mr MergeRequest) (*Pipeline, []Job, error)
+	// JobLog is a job's output as plain text.
+	JobLog(ctx context.Context, mr MergeRequest, job Job) (string, error)
+	// RetryJob runs a job again.
+	RetryJob(ctx context.Context, mr MergeRequest, job Job) error
+	// UnresolvedThreads counts the threads not resolved yet; known is false
+	// where the forge cannot say.
+	UnresolvedThreads(ctx context.Context, mr MergeRequest) (n int, known bool, err error)
 
 	// Approve records an approval of the merge request as the token's owner.
 	Approve(ctx context.Context, mr MergeRequest) error

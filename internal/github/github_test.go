@@ -727,3 +727,38 @@ func TestDeleteBranchDeletesItsRef(t *testing.T) {
 		t.Errorf("asked with %q", seen)
 	}
 }
+
+// TestChecksAreThePipeline: a head reporting through check runs - GitHub
+// Actions - is a pipeline as bad as its worst run, each run a job in
+// GitLab's words; without check runs the combined status stands.
+func TestChecksAreThePipeline(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/app/commits/abc/check-runs", `{"check_runs":[
+		{"id":1,"name":"build","status":"completed","conclusion":"success","app":{"slug":"github-actions"},
+		 "started_at":"2026-10-01T10:00:00Z","completed_at":"2026-10-01T10:01:30Z"},
+		{"id":2,"name":"test","status":"completed","conclusion":"failure","app":{"slug":"github-actions"}},
+		{"id":3,"name":"deploy","status":"queued","app":{"slug":"github-actions"}}]}`)
+	s.handle("/repos/acme/app/commits/def/check-runs", `{"check_runs":[]}`)
+	s.handle("/repos/acme/app/commits/def/status", `{"state":"success","sha":"def","total_count":1,"statuses":[{}]}`)
+	c, ctx := s.client(), context.Background()
+
+	p, jobs, err := c.PipelineJobs(ctx, forge.MergeRequest{ProjectPath: "acme/app", SHA: "abc"})
+	if err != nil || p == nil || p.Status != "failed" || len(jobs) != 3 {
+		t.Fatalf("pipeline %+v, jobs %+v, err %v", p, jobs, err)
+	}
+	want := []string{"success", "failed", "pending"}
+	for i, j := range jobs {
+		if j.Status != want[i] {
+			t.Errorf("%s is %q, want %q", j.Name, j.Status, want[i])
+		}
+	}
+	if jobs[0].Duration != 90 {
+		t.Errorf("build took %v, want 90s", jobs[0].Duration)
+	}
+	if p, _, err := c.PipelineJobs(ctx, forge.MergeRequest{ProjectPath: "acme/app", SHA: "def"}); err != nil || p == nil || p.Status != "success" {
+		t.Errorf("without check runs: %+v, %v", p, err)
+	}
+	if _, known, _ := c.UnresolvedThreads(ctx, forge.MergeRequest{}); known {
+		t.Error("GitHub claims to know which threads are resolved")
+	}
+}

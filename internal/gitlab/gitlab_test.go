@@ -466,3 +466,48 @@ func TestDeleteBranchEscapesTheName(t *testing.T) {
 		t.Errorf("asked %q", seen)
 	}
 }
+
+// TestPipelineJobsLogsRetryAndThreads: a merge request's newest pipeline and
+// its jobs, a job's trace as text, a retry posted to the job, and the
+// discussions still to resolve counted once each.
+func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
+	var retried string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v4/projects/3/merge_requests/7/pipelines":
+			fmt.Fprint(w, `[{"id":90,"status":"failed","web_url":"https://gl/p/90"}]`)
+		case "/api/v4/projects/3/pipelines/90/jobs":
+			fmt.Fprint(w, `[{"id":5,"name":"test","stage":"check","status":"failed","web_url":"https://gl/j/5","duration":61.2},
+				{"id":6,"name":"lint","stage":"check","status":"success"}]`)
+		case "/api/v4/projects/3/jobs/5/trace":
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "FAIL TestThing\n")
+		case "/api/v4/projects/3/jobs/5/retry":
+			retried = r.Method
+			fmt.Fprint(w, `{}`)
+		case "/api/v4/projects/3/merge_requests/7/discussions":
+			fmt.Fprint(w, `[{"id":"a","notes":[{"resolvable":true,"resolved":false},{"resolvable":true,"resolved":false}]},
+				{"id":"b","notes":[{"resolvable":true,"resolved":true}]},
+				{"id":"c","notes":[{"resolvable":false}]}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c, ctx := New(srv.URL, "t"), context.Background()
+	mr := forge.MergeRequest{IID: 7, ProjectID: 3}
+
+	p, jobs, err := c.PipelineJobs(ctx, mr)
+	if err != nil || p == nil || p.Status != "failed" || len(jobs) != 2 || jobs[0].Name != "test" || jobs[0].Duration != 61.2 {
+		t.Fatalf("pipeline %+v, jobs %+v, err %v", p, jobs, err)
+	}
+	if log, err := c.JobLog(ctx, mr, jobs[0]); err != nil || log != "FAIL TestThing\n" {
+		t.Errorf("log = %q, %v", log, err)
+	}
+	if err := c.RetryJob(ctx, mr, jobs[0]); err != nil || retried != http.MethodPost {
+		t.Errorf("retry: %v, method %q", err, retried)
+	}
+	if n, known, err := c.UnresolvedThreads(ctx, mr); err != nil || !known || n != 1 {
+		t.Errorf("unresolved = %d, %v, %v; want 1 thread", n, known, err)
+	}
+}

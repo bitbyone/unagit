@@ -126,11 +126,13 @@ func (a *App) filterMRs(query string) []int {
 // mrColumns works out how wide each column may be for the current table
 // width. The title takes whatever is left, and every cell is truncated to
 // fit, so the branch column never falls off the right edge.
-type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, ci, updated int }
+type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
 
 func (a *App) mrColumns(width int, rows []int) mrColumns {
 	// NEW: commits pushed since your last review; CI: the head's pipeline.
-	c := mrColumns{iid: 3, updated: 8, com: 3, fresh: 3, ci: 2}
+	// NEW, APPR and CI take room only when a row has something in them:
+	// a list nobody has reviewed, approved or built keeps its titles whole.
+	c := mrColumns{iid: 3, updated: 8, com: 3}
 	if a.cfg.Integrations.Incomm {
 		c.pub = 3 // PUB: what waits to be published from Incomm
 	}
@@ -141,6 +143,15 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		c.author = max(c.author, len(mr.Author.Username))
 		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
 		c.updated = max(c.updated, len(humanAge(mr.UpdatedAt)))
+		if a.mrFresh[keyOfMR(mr)] != 0 {
+			c.fresh = 3
+		}
+		if appr, _ := approvalWords(mr, a.me[mr.Instance]); appr != "" {
+			c.appr = 4
+		}
+		if mr.Pipeline != "" {
+			c.ci = 2
+		}
 	}
 	c.proj = atLeast(min(c.proj, 34), "REPO")
 	c.author = atLeast(min(c.author, 14), "AUTHOR")
@@ -151,12 +162,17 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		markW    = 2
 		minTitle = 24
 	)
-	gaps := 9
+	gaps := 7
+	for _, w := range []int{c.fresh, c.appr, c.ci} {
+		if w > 0 {
+			gaps++
+		}
+	}
 	if c.pub > 0 {
 		gaps++ // its own gap
 	}
 	fixed := func() int {
-		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.fresh + c.ci + c.updated + gaps
+		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.fresh + c.appr + c.ci + c.updated + gaps
 	}
 	c.title = width - fixed()
 	// Give the title room by shrinking the least important columns first.
@@ -257,10 +273,16 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	if c.pub > 0 {
 		header = append(header, field{text: "PUB", width: c.pub, colour: colDim, right: true})
 	}
-	header = append(header,
-		field{text: "NEW", width: c.fresh, colour: colDim, right: true},
-		field{text: "CI", width: c.ci, colour: colDim},
-		field{text: "UPDATED", width: c.updated, colour: colDim})
+	if c.fresh > 0 {
+		header = append(header, field{text: "NEW", width: c.fresh, colour: colDim, right: true})
+	}
+	if c.appr > 0 {
+		header = append(header, field{text: "APPR", width: c.appr, colour: colDim})
+	}
+	if c.ci > 0 {
+		header = append(header, field{text: "CI", width: c.ci, colour: colDim})
+	}
+	header = append(header, field{text: "UPDATED", width: c.updated, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
@@ -282,10 +304,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			pad := strings.Repeat(" ", max(0, c.title-len([]rune(short))-6))
 			titleField = field{raw: "[::d]draft[::-] " + tag(colText) + tview.Escape(short) + tagEnd + pad}
 		}
-		comments := ""
-		if mr.Comments > 0 {
-			comments = fmt.Sprintf("%d", mr.Comments)
-		}
+		comments, commentsColour := commentWords(mr)
 		pending := ""
 		if disk.Pending > 0 {
 			pending = fmt.Sprintf("%d", disk.Pending)
@@ -303,15 +322,22 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			titleField,
 			field{text: mr.Author.Username, width: c.author, colour: colMuted},
 			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
-			field{text: comments, width: c.com, colour: colWarn, right: true})
+			field{text: comments, width: c.com, colour: commentsColour, right: true})
 		if c.pub > 0 {
 			fields = append(fields, field{text: pending, width: c.pub, colour: colWarn, right: true})
 		}
 		ci, ciColour := ciMark(mr.Pipeline)
-		fields = append(fields,
-			field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: colWarn, right: true},
-			field{text: ci, width: c.ci, colour: ciColour},
-			field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
+		appr, apprColour := approvalWords(mr, a.me[mr.Instance])
+		if c.fresh > 0 {
+			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: colWarn, right: true})
+		}
+		if c.appr > 0 {
+			fields = append(fields, field{text: appr, width: c.appr, colour: apprColour})
+		}
+		if c.ci > 0 {
+			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
+		}
+		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
 			SetReference(idx).SetExpansion(1))
@@ -566,6 +592,10 @@ func (a *App) prepareReview(mr forge.MergeRequest, project forge.Project, client
 	rev.From = from
 
 	dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMRReview(mr, project, rev)
+	if err == nil {
+		// The review has the head now; a mark made without it is past.
+		a.tv.QueueUpdate(func() { a.forgetSeen(mr) })
+	}
 	if err != nil || !integrate {
 		return dir, err
 	}
@@ -645,30 +675,43 @@ func freshWords(n int) string {
 func (a *App) loadMRFresh() {
 	type job struct {
 		key  mrKey
-		dir  string
+		dir  string // where to count; "" when nothing is on disk
 		head string
+		seen string // a mark, standing for the review's head
 		mgr  *workspace.Manager
 	}
 	var jobs []job
 	for _, mr := range a.mrs {
-		path := a.projectPathOfMR(mr)
-		if mr.SHA == "" || !a.diskOf(mr.Instance, path).MRs[mr.IID].Review {
+		if mr.SHA == "" {
 			continue
 		}
-		jobs = append(jobs, job{keyOfMR(mr), a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch), mr.SHA,
-			a.pathManager(mr.Instance, path)})
+		path := a.projectPathOfMR(mr)
+		disk := a.diskOf(mr.Instance, path)
+		j := job{key: keyOfMR(mr), head: mr.SHA, seen: a.seen[seenKey(mr)], mgr: a.pathManager(mr.Instance, path)}
+		switch {
+		case disk.MRs[mr.IID].Review:
+			j.dir = a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)
+		case j.seen == "":
+			continue
+		case disk.Cloned:
+			j.dir = a.projectDir(mr.Instance, path)
+		}
+		jobs = append(jobs, j)
 	}
 	a.freshGen++
 	gen := a.freshGen
 	go func() {
 		fresh := map[mrKey]int{}
 		for _, j := range jobs {
-			seen := j.mgr.ReadMeta(j.dir).Head
+			seen := j.seen
+			if seen == "" {
+				seen = j.mgr.ReadMeta(j.dir).Head
+			}
 			if seen == "" || seen == j.head {
 				continue
 			}
 			n := -1
-			if j.mgr.Git().HasCommit(j.dir, j.head) {
+			if j.dir != "" && j.mgr.Git().HasCommit(j.dir, j.head) && j.mgr.Git().HasCommit(j.dir, seen) {
 				n = j.mgr.Git().Count(j.dir, seen+".."+j.head)
 			}
 			if n != 0 {
@@ -676,13 +719,57 @@ func (a *App) loadMRFresh() {
 			}
 		}
 		a.tv.QueueUpdateDraw(func() {
-			if gen != a.freshGen || maps.Equal(fresh, a.mrFresh) {
+			if gen != a.freshGen {
 				return
 			}
-			a.mrFresh = fresh
-			if a.mrsPane != nil {
-				a.mrsPane.reload()
+			if !maps.Equal(fresh, a.mrFresh) {
+				a.mrFresh = fresh
+				if a.mrsPane != nil {
+					a.mrsPane.reload()
+				}
+			}
+			if then := a.afterFresh; then != nil {
+				a.afterFresh = nil
+				then()
 			}
 		})
 	}()
+}
+
+// commentWords is the COM column: the threads not resolved yet, in amber,
+// where the forge can tell them; otherwise how many have said something.
+func commentWords(mr forge.MergeRequest) (string, tcell.Color) {
+	switch {
+	case mr.UnresolvedKnown && mr.Unresolved > 0:
+		return fmt.Sprintf("%d", mr.Unresolved), colWarn
+	case mr.UnresolvedKnown && mr.Comments > 0:
+		return "✓", colDim
+	case mr.Comments > 0:
+		return fmt.Sprintf("%d", mr.Comments), colMuted
+	}
+	return "", colDim
+}
+
+// approvalWords is the APPR column: ✓ when you have approved, else how many
+// of the approvals asked for are in, or how many there are when none is
+// asked for.
+func approvalWords(mr forge.MergeRequest, me string) (string, tcell.Color) {
+	n := len(mr.ApprovedBy)
+	for _, who := range mr.ApprovedBy {
+		if who == me && me != "" {
+			if mr.ApprovalsRequired > n {
+				return fmt.Sprintf("✓%d/%d", n, mr.ApprovalsRequired), colOn
+			}
+			return "✓", colOn
+		}
+	}
+	switch {
+	case mr.ApprovalsRequired > 0 && n >= mr.ApprovalsRequired:
+		return fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired), colOn
+	case mr.ApprovalsRequired > 0:
+		return fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired), colWarn
+	case n > 0:
+		return fmt.Sprintf("%d", n), colMuted
+	}
+	return "", colDim
 }

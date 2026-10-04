@@ -135,8 +135,20 @@ all and live only there.
   repository you never want to see.
 - The `NEW` column counts the commits pushed to a merge request since your
   review last checked out its head (`●` when they are not on disk to count),
-  and `CI` is its pipeline: `✓` passed, `✗` failed, `●` running. Both are
-  read on `r`.
+  `APPR` its approvals - `✓` when you approved, `1/2` of those asked for -
+  and `CI` its pipeline: `✓` passed, `✗` failed, `●` running. `COM` counts
+  the threads still to resolve, in amber, where GitLab says; on GitHub it
+  counts who has said something. All of it is read on `r`, and the
+  refresh sums up what it found: new merge requests, ones with commits
+  since your review, failed pipelines, worktrees tidied away. A column
+  nothing has anything in stays out of the way.
+- `V` marks a merge request as reviewed without opening it - read in the
+  browser, or in Hunk with `D` - so `NEW` and the commit log count only what
+  is pushed after.
+- `J` shows the head's pipeline: its jobs, the first that failed under the
+  cursor. `Enter` reads a job's log - its end, plain text - `R` runs it
+  again, `w` opens it, `W` the pipeline. On GitHub the jobs are the check
+  runs, and the log is GitHub Actions'.
 - `v` in Merge requests narrows them to yours, to those you review or are
   assigned to, or both, and can leave the drafts out.
 - When `r` finds a merge request merged or closed, its worktrees are removed

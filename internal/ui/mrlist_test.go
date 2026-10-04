@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -33,10 +34,17 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "r")
-	waitFor(t, a, sc, "removed the worktrees of closed acme/gateway !5")
-	// The rest of the line runs past a narrow status bar; it is read whole.
-	if said := onLoop(a, func() string { return a.mrsPane.statusMessage }); !strings.Contains(said, "kept the worktrees of closed acme/gateway !6 (1 uncommitted change(s))") {
-		t.Errorf("the kept worktree is not named: %q", said)
+	// The summary runs past the status bar; it is read whole.
+	said := ""
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if said = onLoop(a, func() string { return a.mrsPane.statusMessage }); strings.Contains(said, "removed the worktrees") {
+			break
+		}
+	}
+	for _, want := range []string{"removed the worktrees of closed acme/gateway !5", "kept the worktrees of closed acme/gateway !6 (1 uncommitted change(s))"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the summary does not say %q: %q", want, said)
+		}
 	}
 	if _, err := os.Stat(done); !os.IsNotExist(err) {
 		t.Errorf("the closed merge request's worktree is still there: %v", err)

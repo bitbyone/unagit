@@ -96,8 +96,12 @@ type App struct {
 	// mrFresh counts the commits pushed to a merge request since its review
 	// last checked out its head, -1 when there are some not yet on disk;
 	// freshGen numbers its loads.
-	mrFresh     map[mrKey]int
-	freshGen    int
+	mrFresh  map[mrKey]int
+	freshGen int
+	// seen is the heads marked as reviewed without a review on disk, by
+	// seenKey; afterFresh runs once the next count of NEW is in.
+	seen        map[string]string
+	afterFresh  func()
 	groups      []forge.Group
 	projByKey   map[projectKey]forge.Project
 	projUpdated time.Time
@@ -488,6 +492,7 @@ func (a *App) loadIndexes() {
 	}
 	if m, err := index.Load[index.MergeRequests](config.IndexPath("mrs")); err == nil {
 		a.mrs, a.mrsUpdated, a.me = m.Items, m.UpdatedAt, m.Me
+		a.loadSeen()
 		a.staleMRs = index.Stale(m.Version, len(m.Items))
 	}
 	if g, err := index.Load[index.Groups](config.IndexPath("groups")); err == nil {
@@ -779,6 +784,10 @@ func (a *App) refreshMRs() {
 		return
 	}
 	jobs := a.groupJobs(instances)
+	before := map[mrKey]bool{}
+	for _, mr := range a.mrs {
+		before[keyOfMR(mr)] = true
+	}
 	clients := map[string]forge.Provider{}
 	for _, j := range jobs {
 		clients[j.inst.ID] = j.client
@@ -814,8 +823,8 @@ func (a *App) refreshMRs() {
 		}
 
 		all = index.DedupeMergeRequests(all)
-		log("Reading their pipelines …")
-		mrPipelines(ctx, all, clients)
+		log("Reading their pipelines, approvals and threads …")
+		mrExtras(ctx, all, clients)
 		me := map[string]string{}
 		for id, client := range clients {
 			if u, err := client.CurrentUser(ctx); err == nil && u != nil {
@@ -830,8 +839,18 @@ func (a *App) refreshMRs() {
 			a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, me
 			a.sortHold = nil
 			a.forgetClosedFavourites(instances, all)
+			asked := map[string]bool{}
+			for _, inst := range instances {
+				asked[inst.ID] = true
+			}
+			a.pruneSeen(asked, all)
 			a.refreshDisk()
-			a.cleanUpClosed(instances, all)
+			a.cleanUpClosed(instances, all, func(removed, kept []string) {
+				// The count of NEW comes once the disk is looked at again;
+				// the summary waits for it.
+				a.afterFresh = func() { a.sayRefreshed(before, all, removed, kept) }
+				a.refreshDisk()
+			})
 			a.mrsPane.reload()
 			a.worktreesPane.reload()
 			a.projectsPane.reload()
@@ -842,10 +861,11 @@ func (a *App) refreshMRs() {
 	})
 }
 
-// mrPipelines fills in the pipeline of every merge request, several at a
-// time. A pipeline that cannot be read is left out: it is a mark in a
-// column, not a reason to fail the refresh. It runs off the event loop.
-func mrPipelines(ctx context.Context, mrs []forge.MergeRequest, clients map[string]forge.Provider) {
+// mrExtras fills in what the listings leave out - the pipeline, the
+// approvals, the threads not resolved - for every merge request, several at
+// a time. What cannot be read is left out: it is a mark in a column, not a
+// reason to fail the refresh. It runs off the event loop.
+func mrExtras(ctx context.Context, mrs []forge.MergeRequest, clients map[string]forge.Provider) {
 	sem := make(chan struct{}, refreshFanOut)
 	var wg sync.WaitGroup
 	for i := range mrs {
@@ -859,6 +879,12 @@ func mrPipelines(ctx context.Context, mrs []forge.MergeRequest, clients map[stri
 			defer func() { <-sem; wg.Done() }()
 			if p, err := client.MergeRequestPipeline(ctx, *mr); err == nil && p != nil {
 				mr.Pipeline = p.Status
+			}
+			if ap, err := client.MergeRequestApprovals(ctx, *mr); err == nil && ap != nil {
+				mr.ApprovedBy, mr.ApprovalsRequired = ap.ApprovedBy, ap.Required
+			}
+			if n, known, err := client.UnresolvedThreads(ctx, *mr); err == nil {
+				mr.Unresolved, mr.UnresolvedKnown = n, known
 			}
 		}(&mrs[i])
 	}

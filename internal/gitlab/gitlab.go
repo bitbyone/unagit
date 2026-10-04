@@ -561,6 +561,66 @@ func (c *Client) MergeRequestPipeline(ctx context.Context, mr forge.MergeRequest
 	return &pipelines[0], nil
 }
 
+// PipelineJobs is the newest pipeline of the merge request and its jobs.
+func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, []forge.Job, error) {
+	p, err := c.MergeRequestPipeline(ctx, mr)
+	if err != nil || p == nil {
+		return p, nil, err
+	}
+	jobs, err := getAll[forge.Job](ctx, c, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/pipelines/"+strconv.Itoa(p.ID)+"/jobs", nil)
+	return p, jobs, err
+}
+
+// JobLog is a job's trace.
+func (c *Client) JobLog(ctx context.Context, mr forge.MergeRequest, job forge.Job) (string, error) {
+	return c.getText(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/trace")
+}
+
+// RetryJob runs a job again.
+func (c *Client) RetryJob(ctx context.Context, mr forge.MergeRequest, job forge.Job) error {
+	return c.post(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/retry", struct{}{})
+}
+
+// UnresolvedThreads counts the discussions with a note still to resolve.
+func (c *Client) UnresolvedThreads(ctx context.Context, mr forge.MergeRequest) (int, bool, error) {
+	discussions, err := getAll[discussion](ctx, c, mrPath(mr)+"/discussions", nil)
+	if err != nil {
+		return 0, false, err
+	}
+	n := 0
+	for _, d := range discussions {
+		for _, note := range d.Notes {
+			if note.Resolvable && !note.Resolved {
+				n++
+				break
+			}
+		}
+	}
+	return n, true, nil
+}
+
+// getText is a GET whose answer is plain text, a job's trace.
+func (c *Client) getText(ctx context.Context, path string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 300 {
+		return "", &apiError{status: resp.StatusCode, body: string(body), path: path}
+	}
+	return string(body), nil
+}
+
 // branch is GitLab's branch shape.
 type branch struct {
 	Name      string `json:"name"`

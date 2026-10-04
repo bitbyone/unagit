@@ -500,6 +500,7 @@ func (a *App) localLog(place logPlace, focus, done string) {
 // where a review of what is new starts. It is looked at from whichever
 // checkout of it is on disk; nothing is cloned to list it.
 func (a *App) mergeRequestLog(mr forge.MergeRequest) {
+	seen := a.seen[seenKey(mr)]
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
@@ -519,6 +520,7 @@ func (a *App) mergeRequestLog(mr forge.MergeRequest) {
 		defer cancel()
 		mr := a.refreshMR(client, mr, log)
 		rev := reviewRefs(ctx, client, mr, log)
+		rev.Seen = seen
 		m := a.newManager(mr.Instance, path, log)
 		var err error
 		commits, err = forgeCommits(ctx, client, mr)

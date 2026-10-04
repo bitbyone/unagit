@@ -352,8 +352,8 @@ func TestStaleIndexSaysSo(t *testing.T) {
 	}
 	waitFor(t, a, sc, "Rate limiting")
 	for _, line := range strings.Split(a.screenText(sc), "\n") {
-		if strings.Contains(line, "Rate limiting") && !strings.Contains(line, " 4 ") {
-			t.Errorf("the comment count did not arrive with the refresh: %q", line)
+		if strings.Contains(line, "Rate limiting") && !strings.Contains(line, " 1/2 ") {
+			t.Errorf("the approvals did not arrive with the refresh: %q", line)
 		}
 	}
 }
