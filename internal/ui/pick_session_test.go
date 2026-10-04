@@ -176,3 +176,56 @@ func TestPickSessionReturnsTheChosenOne(t *testing.T) {
 		t.Fatal("the picker did not return")
 	}
 }
+
+func TestMatchPlacesWantsEveryWord(t *testing.T) {
+	t.Parallel()
+	places := []session.Record{
+		{Project: "acme/gateway", Mode: session.ModeRepository, Title: "main", Dir: "/w/acme/gateway"},
+		{Project: "acme/gateway", IID: 7, Mode: session.ModeReview, Title: "Rate limiting", Dir: "/w/acme/.unagit/gateway/review-7-feat-rate"},
+		{Project: "my2n/ci-commons", Mode: session.ModeRepository, Title: "master", Dir: "/w/my2n/ci-commons"},
+		{Project: "feat-both", Mode: session.ModeGroup, Title: "gateway · billing", Dir: "/w/.unagit/groups/feat-both"},
+	}
+	for query, want := range map[string]int{
+		"gateway":        3, // the clone, the review and the group holding it
+		"gateway review": 1,
+		"!7":             1,
+		"RATE":           1,
+		"incomm":         0, // no scattered letters: c-i-...-c-o-m-m is not incomm
+		"group":          1,
+		"":               4,
+	} {
+		if got := len(MatchPlaces(places, query)); got != want {
+			t.Errorf("MatchPlaces(%q) = %d, want %d", query, got, want)
+		}
+	}
+}
+
+// TestThePickerFiltersOnSlash: / narrows the list as letters are typed, the
+// letters never reaching the list as shortcuts, the best match first - a
+// loose one may stay below, as in every list's / - and Enter takes it.
+func TestThePickerFiltersOnSlash(t *testing.T) {
+	sc, done := runPicker(t, 100, 30)
+	sc.InjectKey(tcell.KeyRune, '/', tcell.ModNone)
+	for _, r := range "gateway" {
+		sc.InjectKey(tcell.KeyRune, r, tcell.ModNone)
+	}
+	text := waitScreen(t, sc, "/ gateway")
+	if strings.Contains(text, "!120") {
+		t.Errorf("the filter left in what does not match:\n%s", text)
+	}
+	if lineOf(text, "acme/gateway") > lineOf(text, "struct-context") {
+		t.Errorf("the best match is not first:\n%s", text)
+	}
+	if !strings.Contains(text, "Enter go there") {
+		t.Errorf("the hint does not follow the filter:\n%s", text)
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	select {
+	case r := <-done:
+		if r.Project != "acme/gateway" {
+			t.Errorf("chose %+v", r)
+		}
+	case <-time.After(patience):
+		t.Fatal("the picker did not return")
+	}
+}

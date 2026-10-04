@@ -39,7 +39,7 @@ func rootCmd() *cobra.Command {
 			return ui.NewLocked(cfg).Run()
 		},
 	}
-	root.AddCommand(cdCmd(), sessionsCmd(), whereCmd(),
+	root.AddCommand(cdCmd(), goCmd(), sessionsCmd(), whereCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root

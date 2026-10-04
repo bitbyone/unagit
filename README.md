@@ -517,6 +517,16 @@ unagit sessions      # what is open, for scripts
 the way `chezmoi cd` does. `unagit cd --print` writes just the path, for
 `ug() { cd "$(unagit cd --print "$@")" || return; }`.
 
+`unagit go` does the same for anything on disk, open or not: a clone, a
+merge request's review or branch worktree, another worktree, a grouped
+worktree. It needs no passphrase - it reads unagit's index and the disk.
+
+```sh
+unagit go                  # everything on disk; / narrows the list
+unagit go gateway review   # every word has to match; one match needs no asking
+unagit go --print '!42'    # the path, for ugo() { cd "$(unagit go --print "$@")"; }
+```
+
 ## Keys
 
 Every form works like the lists: in NORMAL, `j`/`k` (or Tab) move from field

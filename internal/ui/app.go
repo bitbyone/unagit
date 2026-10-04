@@ -51,6 +51,8 @@ const (
 type mrDisk struct {
 	Branch bool // a real branch, can be committed and pushed
 	Review bool // the whole change pending on the merge base
+	// BranchDir and ReviewDir are where those worktrees are.
+	BranchDir, ReviewDir string
 	// Pending counts the Incomm comments and replies in both worktrees that are
 	// meant for the merge request and have not been published yet.
 	Pending int
@@ -1009,12 +1011,27 @@ func (a *App) refreshGroups() {
 // It reads .git/HEAD directly instead of shelling out to git, so it stays fast
 // even with hundreds of projects.
 func (a *App) refreshDisk() {
+	// Counting what waits to be published reads a small file per worktree, and
+	// only means something when Incomm is in use.
+	a.disk, a.worktrees = a.scanDisk(a.cfg.Integrations.Incomm)
+	a.localRefreshed = time.Now()
+	a.loadWorktreeRemotes()
+	a.loadRepoSync(false)
+	a.loadMRFresh()
+	a.reloadWorktreeView()
+	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
+		a.worktreesPane.reload()
+	}
+}
+
+// scanDisk reads what is on disk for every repository of the lists - the
+// clone, the merge requests' worktrees, the other worktrees - and the grouped
+// worktrees. It changes nothing, so unagit go can read the same without an
+// interface around it.
+func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRow) {
 	disk := make(map[projectKey]diskInfo, len(a.projects))
 	seen := map[projectKey]bool{}
 	var worktrees []worktreeRow
-	// Counting what waits to be published reads a small file per worktree, and
-	// only means something when Incomm is in use.
-	countPending := a.cfg.Integrations.Incomm
 
 	inspect := func(key projectKey) {
 		if key.Path == "" || seen[key] {
@@ -1064,9 +1081,9 @@ func (a *App) refreshDisk() {
 				}
 				d := info.MRs[iid]
 				if review {
-					d.Review = true
+					d.Review, d.ReviewDir = true, filepath.Join(root, e.Name())
 				} else {
-					d.Branch = true
+					d.Branch, d.BranchDir = true, filepath.Join(root, e.Name())
 				}
 				if countPending {
 					d.Pending += incomm.PendingIn(filepath.Join(root, e.Name()))
@@ -1107,16 +1124,7 @@ func (a *App) refreshDisk() {
 		}
 		worktrees = append(worktrees, row)
 	}
-	a.disk = disk
-	a.worktrees = worktrees
-	a.localRefreshed = time.Now()
-	a.loadWorktreeRemotes()
-	a.loadRepoSync(false)
-	a.loadMRFresh()
-	a.reloadWorktreeView()
-	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
-		a.worktreesPane.reload()
-	}
+	return disk, worktrees
 }
 
 // diskOf returns the cached state of one project.
