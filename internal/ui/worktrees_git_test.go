@@ -87,6 +87,7 @@ func (p *realProject) rescan() {
 }
 
 func TestRemoteColumnShowsWhereEachBranchStands(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -121,6 +122,7 @@ func TestRemoteColumnShowsWhereEachBranchStands(t *testing.T) {
 }
 
 func TestRemoteColumnIsQuestionMarkWhenTheCloneCannotBeRead(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	now := time.Now()
@@ -136,7 +138,7 @@ func TestRemoteColumnIsQuestionMarkWhenTheCloneCannotBeRead(t *testing.T) {
 		}
 		return ""
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(patience)
 	for !strings.Contains(rowOfBranch(), " ? ") && time.Now().Before(deadline) {
 		time.Sleep(30 * time.Millisecond)
 	}
@@ -146,6 +148,7 @@ func TestRemoteColumnIsQuestionMarkWhenTheCloneCannotBeRead(t *testing.T) {
 }
 
 func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -163,7 +166,7 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 	}
 	waitForHeader := func(present, absent []string) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
+		deadline := time.Now().Add(patience)
 		ok := func() bool {
 			h := header()
 			for _, w := range present {
@@ -195,6 +198,7 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 }
 
 func TestMergeRequestColumnNamesTheOpenRequestOfABranch(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -211,6 +215,7 @@ func TestMergeRequestColumnNamesTheOpenRequestOfABranch(t *testing.T) {
 }
 
 func TestPushSendsANewBranchWithItsUpstream(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -235,6 +240,7 @@ func TestPushSendsANewBranchWithItsUpstream(t *testing.T) {
 }
 
 func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -252,6 +258,7 @@ func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
 }
 
 func TestPushIsRefusedWhenOriginIsAhead(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -287,6 +294,7 @@ func openForm(t *testing.T, a *App, sc tcell.SimulationScreen) *tview.Form {
 }
 
 func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -348,6 +356,7 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 }
 
 func TestNewMergeRequestListsSeveralCommitsUnderTheBranchName(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -372,6 +381,7 @@ func TestNewMergeRequestListsSeveralCommitsUnderTheBranchName(t *testing.T) {
 }
 
 func TestNewMergeRequestNeedsATitle(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -393,6 +403,7 @@ func TestNewMergeRequestNeedsATitle(t *testing.T) {
 }
 
 func TestNewMergeRequestOffersToPushFirst(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -416,6 +427,7 @@ func TestNewMergeRequestOffersToPushFirst(t *testing.T) {
 }
 
 func TestNewMergeRequestIsRefusedWhenOneIsAlreadyOpen(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -433,6 +445,7 @@ func TestNewMergeRequestIsRefusedWhenOneIsAlreadyOpen(t *testing.T) {
 }
 
 func TestNewMergeRequestIsRefusedWhenBehind(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -454,6 +467,7 @@ func TestNewMergeRequestIsRefusedWhenBehind(t *testing.T) {
 }
 
 func TestMergeRequestDefaultsAndBranchNames(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{
 		"feat/add-user-form": "Add user form",
 		"fix_the_thing":      "Fix the thing",

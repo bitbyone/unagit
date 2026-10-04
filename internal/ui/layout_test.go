@@ -14,7 +14,8 @@ import (
 
 // longMRs replaces the merge request index with entries whose titles and
 // branches are long enough to compete for the available width.
-func longMRs(t *testing.T, instanceID string) {
+func longMRs(t *testing.T, cfg *config.Config) {
+	instanceID := cfg.Instances[0].ID
 	t.Helper()
 	author := func(name string) struct {
 		Username string `json:"username"`
@@ -35,12 +36,13 @@ func longMRs(t *testing.T, instanceID string) {
 			SourceBranch: "renovate/golang-x-crypto-vulnerability",
 			Author:       author("ci"), UpdatedAt: time.Now().Add(-time.Hour)},
 	}
-	must(t, index.Save(config.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
+	must(t, index.Save(cfg.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
 }
 
 func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
+	t.Parallel()
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	longMRs(t, cfg.Instances[0].ID)
+	longMRs(t, cfg)
 	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -57,7 +59,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 
 	// Narrow: the title gives way, the branch must not fall off the edge.
 	resize(sc, 84, 20)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(patience)
 	var narrow string
 	for time.Now().Before(deadline) {
 		narrow = a.screenText(sc)
@@ -84,6 +86,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 // TestSelectedRowIsABand checks the highlight covers the row rather than just
 // the words in it.
 func TestSelectedRowIsABand(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -119,6 +122,7 @@ func rowOf(t *testing.T, a *App, sc tcell.SimulationScreen, needle string) int {
 // TestModalsDimTheBackground checks the scrim darkens what is underneath while
 // leaving it readable, rather than blanking it out.
 func TestModalsDimTheBackground(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -172,7 +176,7 @@ func cellAt(a *App, sc tcell.SimulationScreen, x, y int) (rune, tcell.Style) {
 	select {
 	case c := <-done:
 		return c.r, c.s
-	case <-time.After(2 * time.Second):
+	case <-time.After(patience):
 		return 0, tcell.StyleDefault
 	}
 }
@@ -194,6 +198,7 @@ func openSection(t *testing.T, a *App, sc tcell.SimulationScreen, section int) {
 }
 
 func TestSettingsCyclesGroupScope(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGroups)
@@ -222,7 +227,7 @@ func TestSettingsCyclesGroupScope(t *testing.T) {
 	}
 
 	// The choice is written to disk straight away.
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}

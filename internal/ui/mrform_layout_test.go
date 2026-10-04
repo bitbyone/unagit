@@ -18,6 +18,7 @@ func (r rect) String() string { return fmt.Sprintf("x=%d y=%d w=%d h=%d", r.x, r
 // checks every field, checkbox and button lies inside the frame it is drawn in,
 // that the labels are not cut, and that the checkboxes can be seen.
 func TestMergeRequestFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {120, 34}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := newTestAppSrv(t)

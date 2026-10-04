@@ -11,6 +11,7 @@ import (
 )
 
 func TestSanitize(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"feature/login":    "feature-login",
 		"fix: crash":       "fix--crash",
@@ -28,6 +29,7 @@ func TestSanitize(t *testing.T) {
 }
 
 func TestPaths(t *testing.T) {
+	t.Parallel()
 	m := New(Options{Root: "/root", GitLabURL: "https://gl.example"}, nil)
 	if got := m.ProjectDir("group/sub/app"); got != filepath.FromSlash("/root/group/sub/app") {
 		t.Errorf("ProjectDir = %q", got)
@@ -105,6 +107,7 @@ func newManager(t *testing.T, origin string) (*Manager, string, forge.Project) {
 }
 
 func TestCloneProjectLeavesAnExistingCloneAlone(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 
 	dir, err := m.CloneProject(p)
@@ -129,6 +132,7 @@ func TestCloneProjectLeavesAnExistingCloneAlone(t *testing.T) {
 }
 
 func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}
 
@@ -171,6 +175,7 @@ func TestEnsureMRCreatesIndependentWorktree(t *testing.T) {
 }
 
 func TestEnsureMRFromForkUsesMergeRequestRef(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	// Different source project: the source branch does not exist on origin.
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 99, TargetProjectID: 1}
@@ -188,6 +193,7 @@ func TestEnsureMRFromForkUsesMergeRequestRef(t *testing.T) {
 }
 
 func TestEnsureMRWhenBranchIsCheckedOutInMainClone(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	if _, err := m.SwitchBranch(p, "feature/login"); err != nil {
 		t.Fatal(err)
@@ -208,6 +214,7 @@ func TestEnsureMRWhenBranchIsCheckedOutInMainClone(t *testing.T) {
 // take a plain git push - git's default refuses one whose upstream has
 // another name - and that push must land on the source branch.
 func TestPushFromAFallbackBranchGoesToTheSourceBranch(t *testing.T) {
+	t.Parallel()
 	origin := newOrigin(t)
 	m, _, p := newManager(t, origin)
 	if _, err := m.SwitchBranch(p, "feature/login"); err != nil {
@@ -233,6 +240,7 @@ func TestPushFromAFallbackBranchGoesToTheSourceBranch(t *testing.T) {
 }
 
 func TestSwitchBranch(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.SwitchBranch(p, "feature/login")
 	if err != nil {
@@ -249,6 +257,7 @@ func TestSwitchBranch(t *testing.T) {
 // TestSwitchBranchTakesWhatOriginGotSinceTheClone: a branch pushed after the
 // clone is fetched, alone, and checked out tracking origin.
 func TestSwitchBranchTakesWhatOriginGotSinceTheClone(t *testing.T) {
+	t.Parallel()
 	origin := newOrigin(t)
 	m, _, p := newManager(t, origin)
 	dir, err := m.CloneProject(p)
@@ -268,6 +277,7 @@ func TestSwitchBranchTakesWhatOriginGotSinceTheClone(t *testing.T) {
 }
 
 func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.CloneProject(p)
 	if err != nil {
@@ -285,6 +295,7 @@ func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
 }
 
 func TestInspectReportsLocalWork(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.CloneProject(p)
 	if err != nil {
@@ -303,6 +314,7 @@ func TestInspectReportsLocalWork(t *testing.T) {
 }
 
 func TestRemoveMRKeepsTheMainClone(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	wt, err := m.EnsureMR(mr, p)
@@ -321,6 +333,7 @@ func TestRemoveMRKeepsTheMainClone(t *testing.T) {
 }
 
 func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
+	t.Parallel()
 	m, root, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	if _, err := m.EnsureMR(mr, p); err != nil {
@@ -342,6 +355,7 @@ func TestRemoveProjectRemovesWorktreesAndEmptyParents(t *testing.T) {
 // TestTokenNeverTouchesDisk guards the central promise of the tool: the token
 // is handed to git through the environment of the child process only.
 func TestTokenNeverTouchesDisk(t *testing.T) {
+	t.Parallel()
 	const token = "glpat-super-secret-token-value"
 	origin := newOrigin(t)
 	root := t.TempDir()
@@ -381,6 +395,7 @@ func TestTokenNeverTouchesDisk(t *testing.T) {
 // TestRemoteURLFollowsTheProtocol: over SSH the address the forge reported
 // wins, because it knows about custom ports and hosts.
 func TestRemoteURLFollowsTheProtocol(t *testing.T) {
+	t.Parallel()
 	p := forge.Project{
 		PathWithNamespace: "group/app",
 		HTTPURLToRepo:     "https://gl.example/group/app.git",
@@ -408,6 +423,7 @@ func TestRemoteURLFollowsTheProtocol(t *testing.T) {
 
 // TestSetRemoteSwitchesAnExistingClone
 func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
+	t.Parallel()
 	origin := newOrigin(t)
 	root := t.TempDir()
 	p := forge.Project{ID: 1, PathWithNamespace: "group/app", DefaultBranch: "main",
@@ -446,6 +462,7 @@ func TestSetRemoteSwitchesAnExistingClone(t *testing.T) {
 }
 
 func TestCloneProjectLeavesExistingCheckoutAlone(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.CloneProject(p)
 	if err != nil {
@@ -472,6 +489,7 @@ func TestCloneProjectLeavesExistingCheckoutAlone(t *testing.T) {
 }
 
 func TestExactDestinationAndLegacyWorktrees(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	parent := t.TempDir()
 	m.opts.ProjectDirectory = filepath.Join(parent, "renamed")
@@ -514,6 +532,7 @@ func TestExactDestinationAndLegacyWorktrees(t *testing.T) {
 // have been; deleting the repository takes them and leaves the checkout and
 // its remote as they were.
 func TestManagedCheckoutIsUsedAndKept(t *testing.T) {
+	t.Parallel()
 	origin := newOrigin(t)
 	managed := filepath.Join(t.TempDir(), "chezmoi")
 	git(t, filepath.Dir(managed), "clone", "-q", origin, managed)

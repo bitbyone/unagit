@@ -11,6 +11,7 @@ import (
 // dialog, not a line in the status bar under it; Esc closes the box and
 // nothing more. A note goes with the next key, which still does its work.
 func TestADialogsMessagesComeUpOverIt(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	pressButton(t, a, sc, form, "Create")
@@ -51,6 +52,7 @@ func TestADialogsMessagesComeUpOverIt(t *testing.T) {
 // by the dialog; the message over it leaves both as they were - dimming twice
 // made the screen look inverted.
 func TestAMessageOverADialogDimsNothingMore(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	markBoth(t, a, sc)
 	text := a.screenText(sc)
@@ -74,6 +76,7 @@ func TestAMessageOverADialogDimsNothingMore(t *testing.T) {
 // its first line names the severity in the severity's colour; a success or
 // a note goes with the next key, a warning or an error waits for Esc.
 func TestAMessageSaysWhatKindItIs(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	markBoth(t, a, sc)
 	for _, c := range []struct {

@@ -10,6 +10,7 @@ import (
 )
 
 func TestEnsureWorktreeNewBranchFromMainHEAD(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	main, err := m.CloneProject(p)
 	if err != nil {
@@ -40,6 +41,7 @@ func TestEnsureWorktreeNewBranchFromMainHEAD(t *testing.T) {
 }
 
 func TestEnsureWorktreeExistingRemoteBranch(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 
 	wt, err := m.EnsureWorktree(p, "feature/login", false)
@@ -60,6 +62,7 @@ func TestEnsureWorktreeExistingRemoteBranch(t *testing.T) {
 }
 
 func TestEnsureWorktreeExistingLocalOnlyBranch(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	main, err := m.CloneProject(p)
 	if err != nil {
@@ -77,6 +80,7 @@ func TestEnsureWorktreeExistingLocalOnlyBranch(t *testing.T) {
 }
 
 func TestEnsureWorktreeOpensAnExistingOneAsItIs(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	wt, err := m.EnsureWorktree(p, "feature/login", false)
 	if err != nil {
@@ -99,6 +103,7 @@ func TestEnsureWorktreeOpensAnExistingOneAsItIs(t *testing.T) {
 }
 
 func TestWorktreeEntriesListsMergeRequestAndPlainWorktrees(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	if _, err := m.EnsureMR(mr, p); err != nil {
@@ -138,6 +143,7 @@ func TestWorktreeEntriesListsMergeRequestAndPlainWorktrees(t *testing.T) {
 }
 
 func TestRemoveWorktreeDirKeepsEverythingElse(t *testing.T) {
+	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", SourceProjectID: 1, TargetProjectID: 1}
 	mrDir, err := m.EnsureMR(mr, p)

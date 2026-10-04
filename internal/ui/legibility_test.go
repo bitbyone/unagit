@@ -76,6 +76,7 @@ func onLoopCells(a *App, sc tcell.SimulationScreen) ([]tcell.SimCell, int, int) 
 // each screen. The focused state is the one that breaks, so each dialog is
 // looked at with the focus in it.
 func TestEveryDialogIsLegible(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	assertLegible(t, a, sc, "the repository list")
@@ -121,6 +122,7 @@ func TestEveryDialogIsLegible(t *testing.T) {
 
 // TestSettingsIsLegible covers the forms, where the pair matters most.
 func TestSettingsIsLegible(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 

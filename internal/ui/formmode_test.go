@@ -13,6 +13,7 @@ import (
 // the one with the focus painted in an accent of its own - i types again, and
 // a button is its letter.
 func TestFormsHaveANormalAndAnInsertMode(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	pressed := ""

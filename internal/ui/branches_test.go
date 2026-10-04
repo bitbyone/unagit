@@ -12,6 +12,7 @@ import (
 // would switch the clone; the default is never deleted; d deletes a branch
 // in the clone, saying what is lost; D deletes one everywhere.
 func TestBranchesFromRepositories(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -78,6 +79,7 @@ func TestBranchesFromRepositories(t *testing.T) {
 // cursor - here one only origin has - and the list comes back with the
 // cursor on it, not switched to; Enter then switches the clone to it.
 func TestNewBranchFromTheManager(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -151,6 +153,7 @@ func TestNewBranchFromTheManager(t *testing.T) {
 
 // TestTheNewBranchFormFitsItsFrame draws the form at several sizes.
 func TestTheNewBranchFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, srv := newTestAppSrv(t)

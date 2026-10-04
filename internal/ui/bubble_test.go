@@ -10,6 +10,7 @@ import (
 )
 
 func TestBubbleIsABoxOfTheAskedWidth(t *testing.T) {
+	t.Parallel()
 	out := renderBubble(bubble{Name: "jane", Colour: colAccent, Meta: tag(colDim) + "2h ago" + tagEnd,
 		Body: "a comment that is a good deal longer than the box it has to fit into, so it must wrap"}, 40)
 	rows := strings.Split(out, "\n")
@@ -30,6 +31,7 @@ func TestBubbleIsABoxOfTheAskedWidth(t *testing.T) {
 }
 
 func TestAReplyIsNestedAndNarrower(t *testing.T) {
+	t.Parallel()
 	out := renderBubbles([]bubble{
 		{Name: "ann", Colour: colAccent, Body: "root"},
 		{Name: "john", Colour: colAccent, Body: "answer", Indent: 2},
@@ -47,6 +49,7 @@ func TestAReplyIsNestedAndNarrower(t *testing.T) {
 }
 
 func TestStyleSurvivesAWrappedLine(t *testing.T) {
+	t.Parallel()
 	// A code span that is cut across two rows must still be coloured on the
 	// second one, although the border between them had to reset the style.
 	out := renderBubble(bubble{Name: "x", Colour: colAccent,
@@ -65,6 +68,7 @@ func TestStyleSurvivesAWrappedLine(t *testing.T) {
 }
 
 func TestBubbleNeverGoesNarrowerThanItsFloor(t *testing.T) {
+	t.Parallel()
 	out := renderBubble(bubble{Name: "x", Colour: colAccent, Body: "hi"}, 5)
 	for _, r := range strings.Split(out, "\n") {
 		if w := tview.TaggedStringWidth(r); w != minBubbleWidth {
@@ -74,6 +78,7 @@ func TestBubbleNeverGoesNarrowerThanItsFloor(t *testing.T) {
 }
 
 func TestConversationIsBoxesInThreads(t *testing.T) {
+	t.Parallel()
 	notes := []forge.Note{
 		{ID: 1, Thread: "t", Body: "first", Author: forge.User{Username: "ann"}, Path: "a.go", Line: 3, Resolvable: true},
 		{ID: 2, Thread: "t", Body: "answer", Author: forge.User{Username: "john"}},
@@ -91,6 +96,7 @@ func TestConversationIsBoxesInThreads(t *testing.T) {
 }
 
 func TestAPlaceThatDoesNotFitGetsItsOwnRowAndKeepsTheTime(t *testing.T) {
+	t.Parallel()
 	long := "src/pages/appPages/organizations/components/AddOrganizationModal/addOrganizationSchema.ts:10"
 	out := renderBubble(bubble{Name: "tomas", Colour: colAccent,
 		Meta:  tag(colDim) + "2d ago" + tagEnd + tag(colWarn) + " · unresolved" + tagEnd,
@@ -119,6 +125,7 @@ func TestAPlaceThatDoesNotFitGetsItsOwnRowAndKeepsTheTime(t *testing.T) {
 }
 
 func TestOnlyTheFirstCommentSaysWhetherTheConversationIsResolved(t *testing.T) {
+	t.Parallel()
 	root := forge.Note{Resolvable: true, Resolved: false}
 	if got := noteMeta(root, false); !strings.Contains(got, "unresolved") {
 		t.Errorf("the first comment should carry the state: %q", got)

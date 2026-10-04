@@ -11,6 +11,7 @@ import (
 // the repository is cloned only once a commit is chosen, so a
 // large one does not hold the list up.
 func TestReviewStartListsCommitsWithoutCloning(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 

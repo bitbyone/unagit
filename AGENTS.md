@@ -44,7 +44,9 @@ gofmt -l . && go vet ./...
 
 Everything must be gofmt-clean, vet-clean and race-clean before a commit. The
 UI package's tests run a real tview application against a simulation screen and
-take ~15 s; that is normal.
+take about two minutes under the race detector; that is normal. They run in
+parallel, four at a time (`parallelTests` in `ui/main_test.go`, measured: more
+is slower under the race detector).
 
 Commit and push every finished change, in every repository you touched (unagit
 and `../incomm`), without waiting to be asked: the user wants nothing left
@@ -349,6 +351,23 @@ server. Rules learned the hard way:
   and deadlocks tview; the legibility test skips such items, and so should you.
 - Fixture merge requests need distinct `id`s (the dedupe is by id) and
   `Version: index.Version`, or the list arrives empty or stale.
+- **A test never touches the user's configuration directory.** Each test's
+  `Config` carries a directory of its own (`cfg.SetDir`), and everything in
+  `internal/ui` - code and tests - reads paths from it: `a.cfg.VaultPath()`,
+  `a.cfg.IndexPath(…)`, `config.LoadFrom(a.cfg.Dir())`, never the package
+  level `config.VaultPath()` and friends, which mean `~/.config/unagit`.
+  Mixing the two once wrote a test vault over the user's real one.
+  `TestMain` points the usual directory at a temporary one as a second
+  guard; do not remove it.
+- Every test calls `t.Parallel()` unless it changes process state: `t.Setenv`
+  (a fake binary on `PATH`), a package variable it swaps (`passphraseStore`,
+  `copyToClipboard`, `pickerStarted`), or it measures time (the debounce).
+  Those stay serial and run before the parallel ones.
+- Under parallel load a screen can take seconds to catch up. Waits poll up to
+  `patience` and end the moment their condition holds; never `time.Sleep`
+  and then assert. And wait for the state the next key depends on, not for
+  text that was already there before it - a title still showing under a
+  closing log, or a hint two cards share.
 
 ### tview quirks already paid for
 

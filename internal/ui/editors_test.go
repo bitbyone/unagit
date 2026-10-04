@@ -71,7 +71,7 @@ func TestEditorsCardChoosesTheFavourite(t *testing.T) {
 	typeRunes(sc, "j") // None, ★ Neovim, Zed
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "★ Zed")
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "opened in Zed")
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	var got []byte
 	for time.Now().Before(deadline) {
 		if got, _ = os.ReadFile(marker); len(got) > 0 {

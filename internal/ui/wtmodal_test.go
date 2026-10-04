@@ -32,6 +32,7 @@ func lookGroup(t *testing.T, a *App, sc tcell.SimulationScreen) string {
 // TestAWorktreeIsAViewOfBlocks: Enter opens the view, the group first; j lights
 // a repository and the keys turn to it; l lists its commits; Esc goes back.
 func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	lookGroup(t, a, sc)
 	waitFor(t, a, sc, "1 commit(s) of its own")
@@ -70,6 +71,7 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 // view says it is reading and shows no block; the first blocks it shows are
 // every block, each with all of its rows.
 func TestTheWorktreeViewIsDrawnWhole(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/whole")
@@ -77,7 +79,7 @@ func TestTheWorktreeViewIsDrawnWhole(t *testing.T) {
 	pressButton(t, a, sc, form, "Create")
 	waitFor(t, a, sc, "created ")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(patience)
 	for {
 		text := a.screenText(sc)
 		if strings.Contains(text, "every repository") {
@@ -99,6 +101,7 @@ func TestTheWorktreeViewIsDrawnWhole(t *testing.T) {
 // TestAWorktreeOfItsOwnIsAViewToo: a single worktree is one block, with the
 // same keys.
 func TestAWorktreeOfItsOwnIsAViewToo(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -116,6 +119,7 @@ func TestAWorktreeOfItsOwnIsAViewToo(t *testing.T) {
 
 // TestTheWorktreeViewFitsItsFrame draws the view at several sizes.
 func TestTheWorktreeViewFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := newTestAppSrv(t)

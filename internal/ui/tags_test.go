@@ -28,6 +28,7 @@ func openTagSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 // time, and they are drawn as pills after its name; f narrows the list to the
 // tags chosen, any of them, and F shows every repository again.
 func TestTagsOnRepositories(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
@@ -53,7 +54,7 @@ func TestTagsOnRepositories(t *testing.T) {
 	mint := tagColourOf("mint")
 	pillKept := func(state string) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
+		deadline := time.Now().Add(patience)
 		for {
 			_, style := cellAt(a, sc, x, lineOf(a.screenText(sc), "acme/gateway"))
 			fg, bg, _ := style.Decompose()
@@ -76,7 +77,7 @@ func TestTagsOnRepositories(t *testing.T) {
 	typeRunes(sc, "k")
 	pillKept("marked, under the cursor")
 	assertLegible(t, a, sc, "tagged repositories")
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +102,7 @@ func TestTagsOnRepositories(t *testing.T) {
 // colour, a renamed one stays on its repositories, a removed one leaves them,
 // and s changes how the pills end.
 func TestTagSettings(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
@@ -165,6 +167,7 @@ func TestTagSettings(t *testing.T) {
 // button inside the frame, the frame whole, the labels on screen, and the
 // colour list legible once it is open.
 func TestTagFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}, {64, 20}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -227,6 +230,7 @@ func TestTagFormFitsItsFrame(t *testing.T) {
 // group, its repositories wear the tag, and Ctrl-T on one of them says where
 // the tag comes from and can take it off there alone.
 func TestGroupTagsReachTheRepositories(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "4")
@@ -273,6 +277,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 // TestViewOptionsHideTheTags: v switches the tags out of the list and back;
 // they go on filtering.
 func TestViewOptionsHideTheTags(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
@@ -307,6 +312,7 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 // Groups & roots tags the whole server, and every repository on it wears the
 // tag.
 func TestServerTagsReachEveryRepository(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "4")

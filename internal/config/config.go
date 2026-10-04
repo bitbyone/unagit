@@ -413,6 +413,12 @@ type Config struct {
 	// folded into Instances.
 	LegacyURL    string  `yaml:"gitlab_url,omitempty"`
 	LegacyGroups []Group `yaml:"groups,omitempty"`
+
+	// dir is where this configuration lives, with its vault and indexes.
+	// Held by the value rather than read from the environment each time, so
+	// that two configurations can live side by side - the tests run in
+	// parallel, each with a directory of its own.
+	dir string
 }
 
 // Default returns a configuration with sane defaults filled in.
@@ -440,6 +446,33 @@ func Dir() string {
 // Path is the location of config.yaml.
 func Path() string { return filepath.Join(Dir(), "config.yaml") }
 
+// SetDir moves the configuration to another directory; everything it reads
+// and writes from then on is there.
+func (c *Config) SetDir(dir string) { c.dir = dir }
+
+// Dir is the directory this configuration lives in: the one it was loaded
+// from or given, and the usual one otherwise.
+func (c *Config) Dir() string {
+	if c.dir != "" {
+		return c.dir
+	}
+	return Dir()
+}
+
+// Path is the location of this configuration's config.yaml.
+func (c *Config) Path() string { return filepath.Join(c.Dir(), "config.yaml") }
+
+// VaultPath is the location of the encrypted tokens beside this configuration.
+func (c *Config) VaultPath() string { return filepath.Join(c.Dir(), "tokens.enc") }
+
+// LegacyTokenPath is where a single token lived before the vault.
+func (c *Config) LegacyTokenPath() string { return filepath.Join(c.Dir(), "token.enc") }
+
+// IndexPath is the location of a cached index file beside this configuration.
+func (c *Config) IndexPath(name string) string {
+	return filepath.Join(c.Dir(), "index-"+name+".json")
+}
+
 // VaultPath is the location of the encrypted tokens.
 func VaultPath() string { return filepath.Join(Dir(), "tokens.enc") }
 
@@ -452,9 +485,13 @@ func IndexPath(name string) string { return filepath.Join(Dir(), "index-"+name+"
 // Load reads config.yaml, applies defaults and folds any legacy layout into
 // the current one. A missing file yields the defaults rather than an error:
 // everything can be set up from the Settings tab.
-func Load() (*Config, error) {
+func Load() (*Config, error) { return LoadFrom(Dir()) }
+
+// LoadFrom is Load from a directory of the caller's choosing.
+func LoadFrom(dir string) (*Config, error) {
 	cfg := Default()
-	b, err := os.ReadFile(Path())
+	cfg.dir = dir
+	b, err := os.ReadFile(cfg.Path())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
@@ -464,7 +501,7 @@ func Load() (*Config, error) {
 	// What a file does not say it has seen, it has not.
 	cfg.DefaultTagsSeen = 0
 	if err := yaml.Unmarshal(b, cfg); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", Path(), err)
+		return nil, fmt.Errorf("parse %s: %w", cfg.Path(), err)
 	}
 	cfg.normalise()
 	return cfg, nil
@@ -540,7 +577,7 @@ func (c *Config) normalise() {
 
 // Save writes config.yaml, creating the config directory when needed.
 func (c *Config) Save() error {
-	if err := os.MkdirAll(Dir(), 0o700); err != nil {
+	if err := os.MkdirAll(c.Dir(), 0o700); err != nil {
 		return err
 	}
 	c.tildePaths()
@@ -548,7 +585,7 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path(), b, 0o600)
+	return os.WriteFile(c.Path(), b, 0o600)
 }
 
 // Instance returns the instance with this id, or nil.

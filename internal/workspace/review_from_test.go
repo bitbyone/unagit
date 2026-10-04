@@ -31,6 +31,7 @@ func answerComments(t *testing.T, work string) {
 // TestReviewFromACommitPendsOnlyWhatFollows: narrowed to the answer to the
 // comments, only that answer is pending; the commits before it are HEAD.
 func TestReviewFromACommitPendsOnlyWhatFollows(t *testing.T) {
+	t.Parallel()
 	origin, base, _ := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -72,6 +73,7 @@ func TestReviewFromACommitPendsOnlyWhatFollows(t *testing.T) {
 // TestReviewFromRefusesACommitThatIsNotTheMergeRequests: the merge base and the
 // target's own commits are not the merge request's work.
 func TestReviewFromRefusesACommitThatIsNotTheMergeRequests(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	target := git(t, origin, "rev-parse", "main")
@@ -86,6 +88,7 @@ func TestReviewFromRefusesACommitThatIsNotTheMergeRequests(t *testing.T) {
 // TestReviewFromLeavesYourEditsAlone: narrowing resets the worktree, so with
 // edits of the reviewer's in it, it refuses instead.
 func TestReviewFromLeavesYourEditsAlone(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
@@ -108,6 +111,7 @@ func TestReviewFromLeavesYourEditsAlone(t *testing.T) {
 // gives every commit a new id: the ones already reviewed must not come back as
 // new.
 func TestMRCommitsMarksWhatCameAfterTheLastReview(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -154,6 +158,7 @@ func TestMRCommitsMarksWhatCameAfterTheLastReview(t *testing.T) {
 // without a clone when there is no review yet, and with a review worktree the
 // clone is fetched for the commits it has not got.
 func TestMarkUnseenClonesNothing(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()

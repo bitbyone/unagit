@@ -33,6 +33,7 @@ func lineOf(screen, needle string) int {
 // selected row, so the cursor coming back to the first row of the first group
 // used to leave that group's heading hidden under the column header.
 func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
+	t.Parallel()
 	for _, list := range []string{"merge requests", "repositories"} {
 		t.Run(list, func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -77,6 +78,7 @@ func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
 // otherwise keeps following the end of a list that once fitted, and the
 // cursor was left somewhere off screen.
 func TestGroupingKeepsTheCursorInView(t *testing.T) {
+	t.Parallel()
 	// A long list, and one that fits the screen until the headings come.
 	for _, size := range []struct{ rows, height int }{{30, 16}, {10, 22}} {
 		for _, list := range []string{"merge requests", "repositories"} {
@@ -138,6 +140,7 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 // or subgroup they live in, each named by what is left of its path, and the
 // merge request list keeps a grouping of its own.
 func TestGroupRepositories(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() {
@@ -182,6 +185,7 @@ func TestGroupRepositories(t *testing.T) {
 // TestClearingTheFilterGoesToTheTop: a filter that is changed or cleared puts
 // the cursor on the first row, and the view goes with it, to the very top.
 func TestClearingTheFilterGoesToTheTop(t *testing.T) {
+	t.Parallel()
 	for _, grouped := range []bool{false, true} {
 		t.Run(fmt.Sprintf("grouped %v", grouped), func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -225,6 +229,7 @@ func TestClearingTheFilterGoesToTheTop(t *testing.T) {
 // tags and paths, puts its detail under itself below 180 columns; the merge
 // requests below 130.
 func TestDetailStacksBelowItsListsWidth(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		tab   string
 		pane  func(a *App) *pane

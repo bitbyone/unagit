@@ -64,7 +64,7 @@ func newRememberingApp(t *testing.T, passphrase string) (*App, tcell.SimulationS
 		t.Fatal(err)
 	}
 	v.Set(cfg.Instances[0].ID, "glpat-test-token")
-	if err := v.Save(config.VaultPath()); err != nil {
+	if err := v.Save(cfg.VaultPath()); err != nil {
 		t.Fatal(err)
 	}
 	return startApp(t, NewLocked(cfg))
@@ -111,7 +111,7 @@ func TestSecurityRemembersAndForgets(t *testing.T) {
 	k := useFakeKeychain(t, "")
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	onLoop(a, func() bool { return a.vault.Save(config.VaultPath()) == nil })
+	onLoop(a, func() bool { return a.vault.Save(a.cfg.VaultPath()) == nil })
 	openSection(t, a, sc, sectionSecurity)
 	waitFor(t, a, sc, "Keychain not used")
 	waitFor(t, a, sc, "k keychain")
@@ -135,7 +135,7 @@ func TestSecurityRemembersAndForgets(t *testing.T) {
 	if got := k.value(); got != "test-passphrase" {
 		t.Errorf("the Keychain holds %q", got)
 	}
-	if saved, err := config.Load(); err != nil || !saved.RememberPassphrase {
+	if saved, err := config.LoadFrom(a.cfg.Dir()); err != nil || !saved.RememberPassphrase {
 		t.Errorf("the choice was not saved: %v", err)
 	}
 
@@ -144,7 +144,7 @@ func TestSecurityRemembersAndForgets(t *testing.T) {
 	if k.value() != "" {
 		t.Error("forgetting left the passphrase in the Keychain")
 	}
-	if saved, _ := config.Load(); saved.RememberPassphrase {
+	if saved, _ := config.LoadFrom(a.cfg.Dir()); saved.RememberPassphrase {
 		t.Error("forgetting was not saved")
 	}
 }

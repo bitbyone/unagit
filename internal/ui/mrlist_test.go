@@ -17,6 +17,7 @@ import (
 // request no longer open are gone without a question; one with work of the
 // user's in it is kept and named.
 func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -36,7 +37,7 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 	typeRunes(sc, "R")
 	// The summary runs past the status bar; it is read whole.
 	said := ""
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(patience); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if said = onLoop(a, func() string { return a.mrsPane.statusMessage }); strings.Contains(said, "removed the worktrees") {
 			break
 		}
@@ -59,6 +60,7 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 // TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent: NEW counts what was pushed
 // since the review last checked out the head; CI is the pipeline's mark.
 func TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -97,6 +99,7 @@ func TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent(t *testing.T) {
 // TestMineAndToReview: the view options narrow the merge requests to those of
 // whom the token belongs to, written or to review, and leave the drafts out.
 func TestMineAndToReview(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() {
@@ -145,6 +148,7 @@ func TestMineAndToReview(t *testing.T) {
 // TestBranchesKnowTheirMergeRequests: a branch with a merge request open says
 // so, and m on it does not open a second one.
 func TestBranchesKnowTheirMergeRequests(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -168,6 +172,7 @@ func TestBranchesKnowTheirMergeRequests(t *testing.T) {
 // TestALogFollowsTheTerminal: the subjects are cut where the dialog ends,
 // again after the terminal changes size.
 func TestALogFollowsTheTerminal(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")

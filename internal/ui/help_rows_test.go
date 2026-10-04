@@ -8,6 +8,7 @@ import "testing"
 // every row is a heading, a blank, or a key with one short line about it. What
 // needs more words goes in the README.
 func TestHelpIsKeysNotProse(t *testing.T) {
+	t.Parallel()
 	const (
 		maxKey  = 15 // "Tab / Shift-Tab"; a longer key widens the column for every row
 		maxText = 52 // one line next to the keys, once the help is 100 columns wide

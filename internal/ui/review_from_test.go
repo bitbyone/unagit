@@ -48,6 +48,7 @@ func mrOnOrigin(t *testing.T, srv *fakeServer, p *realProject, subjects ...strin
 // for without a race under test; what it leaves on disk is the workspace
 // package's to check.)
 func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -112,6 +113,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 // TestReviewStartPickerFits draws the picker at several sizes: every commit
 // on screen and the frame whole.
 func TestReviewStartPickerFits(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, srv := newTestAppSrv(t)
@@ -141,6 +143,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 // TestCMakesTheReviewWithoutOpeningIt: C on a merge request builds the review
 // worktree as Ctrl-R does and stops there; Ctrl-C is left to end unagit.
 func TestCMakesTheReviewWithoutOpeningIt(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")

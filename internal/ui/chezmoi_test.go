@@ -37,6 +37,7 @@ func newChezmoiApp(t *testing.T) (*App, tcell.SimulationScreen, string) {
 // that is not a tag: first, in its own colours on every kind of row, and
 // absent from the tags and the configuration.
 func TestChezmoiKeepsItsRepository(t *testing.T) {
+	t.Parallel()
 	a, sc, checkout := newChezmoiApp(t)
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
 	changeOnLoop(a, func() { a.cfg.ToggleTag(inst, "acme/gateway", "oss"); a.applyFilters() })
@@ -60,7 +61,7 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 	x := len([]rune(line[:strings.Index(line, "↗")]))
 	badgeKept := func(state string) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
+		deadline := time.Now().Add(patience)
 		for {
 			_, style := cellAt(a, sc, x, lineOf(a.screenText(sc), "acme/gateway"))
 			fg, bg, _ := style.Decompose()
@@ -120,7 +121,7 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 		t.Error("the integration is off and the repository is still chezmoi's")
 	}
 	must(t, onLoop(a, func() error { return a.cfg.Save() }))
-	raw, err := os.ReadFile(filepath.Join(config.Dir(), "config.yaml"))
+	raw, err := os.ReadFile(filepath.Join(a.cfg.Dir(), "config.yaml"))
 	must(t, err)
 	if strings.Contains(string(raw), checkout) {
 		t.Errorf("chezmoi's checkout was saved in the configuration:\n%s", raw)
@@ -130,6 +131,7 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 // TestChezmoiInTheDetail: the detail heads the repository with the badge and
 // says where the checkout and the worktrees are; the help names the marker.
 func TestChezmoiInTheDetail(t *testing.T) {
+	t.Parallel()
 	a, sc, checkout := newChezmoiApp(t)
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Checkout")
@@ -145,6 +147,7 @@ func TestChezmoiInTheDetail(t *testing.T) {
 // TestChezmoiBadgeNarrows: a narrow column gets a shorter badge, never a
 // count or half a word.
 func TestChezmoiBadgeNarrows(t *testing.T) {
+	t.Parallel()
 	for room, want := range map[int]string{40: " ↗ Managed by Chezmoi ", 15: " ↗ Chezmoi ", 4: " ↗ ", 2: ""} {
 		markup, w := chezmoiBadge(room, config.TagEndsSquare, behindList)
 		if got := stripTags(markup); got != want || w != len([]rune(want)) {

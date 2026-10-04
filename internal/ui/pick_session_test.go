@@ -47,7 +47,7 @@ func runPicker(t *testing.T, w, h int) (tcell.SimulationScreen, chan session.Rec
 	// forgets the size; set it once it runs, and say so.
 	waitScreen(t, sc, "Open in an editor")
 	resize(sc, w, h)
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		_, sw, _ := contentsOf(sc)
 		// Drawn again at the new size: the frame is whole.
@@ -76,7 +76,7 @@ func contentsOf(sc tcell.SimulationScreen) ([]tcell.SimCell, int, int) {
 	select {
 	case c := <-out:
 		return c.cells, c.w, c.h
-	case <-time.After(2 * time.Second):
+	case <-time.After(patience):
 		return nil, 0, 0
 	}
 }
@@ -99,7 +99,7 @@ func screenOf(sc tcell.SimulationScreen) string {
 
 func waitScreen(t *testing.T, sc tcell.SimulationScreen, want string) string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		if text := screenOf(sc); strings.Contains(text, want) {
 			return text
@@ -172,7 +172,7 @@ func TestPickSessionReturnsTheChosenOne(t *testing.T) {
 		if r.IID != 120 {
 			t.Errorf("chose %+v, want !120", r)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(patience):
 		t.Fatal("the picker did not return")
 	}
 }

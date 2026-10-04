@@ -10,6 +10,7 @@ import (
 // TestChangePatchReadsAsPartOfOne: the patch of a repository names its files
 // under the prefix, new files included, measured from the base it is given.
 func TestChangePatchReadsAsPartOfOne(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	git(t, f.clone, "checkout", "-q", "-b", "feat/x")
 	write(t, f.clone, "a.txt", "committed on the branch\n")
@@ -38,6 +39,7 @@ func TestChangePatchReadsAsPartOfOne(t *testing.T) {
 // TestCommitAllTakesEverything: modified, new and deleted files go into one
 // commit; a clean tree commits nothing.
 func TestCommitAllTakesEverything(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	write(t, f.clone, "a.txt", "changed\n")
 	write(t, f.clone, "new.txt", "new\n")

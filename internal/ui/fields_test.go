@@ -15,6 +15,7 @@ import (
 // paints unreadable text and it takes typed letters - and it looks different from
 // the ones in Settings. Repeated elements come from fields.go.
 func TestSharedFieldsAreTheOnlyWayToMakeThem(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -39,6 +40,7 @@ func TestSharedFieldsAreTheOnlyWayToMakeThem(t *testing.T) {
 // merge request form, as it was seen going wrong: an unreadable highlight, and
 // letters typed into it.
 func TestSelectBoxIsReadableAndIgnoresTyping(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -110,6 +112,7 @@ func TestSelectBoxIsReadableAndIgnoresTyping(t *testing.T) {
 // TestTextAreaOpensOnItsFirstLine: a proposed description of several lines is
 // read from the top; tview's own text area opened scrolled to its last line.
 func TestTextAreaOpensOnItsFirstLine(t *testing.T) {
+	t.Parallel()
 	form := tview.NewForm()
 	area := addTextArea(form, "Description", "- first\n- second\n- third\n- fourth\n- fifth\n- sixth\n- seventh", 3)
 	screen := tcell.NewSimulationScreen("UTF-8")
@@ -135,6 +138,7 @@ func TestTextAreaOpensOnItsFirstLine(t *testing.T) {
 // option, and a column of them ended ragged; they are as wide as the widest,
 // on screen as well as in their rectangles.
 func TestTheSelectsOfAFormAreOneWidth(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	form := openNewRepository(t, a, sc)
@@ -179,6 +183,7 @@ func TestTheSelectsOfAFormAreOneWidth(t *testing.T) {
 // closes the list, keeps what was chosen, and leaves the dialog and the
 // keyboard where they were; a second Esc leaves the dialog.
 func TestEscClosesAnOpenSelectAndNotTheDialog(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	form := openNewRepository(t, a, sc)

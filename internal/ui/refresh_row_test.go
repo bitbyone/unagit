@@ -7,12 +7,12 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 )
 
 func TestWithDetailTakesWhatTheForgeSaysAndKeepsUnagitsOwn(t *testing.T) {
+	t.Parallel()
 	old := forge.MergeRequest{
 		IID: 7, ID: 70, Title: "Rate limiting", TargetBranch: "main", Comments: 4,
 		Instance: "gl", ProjectPath: "acme/gateway",
@@ -38,6 +38,7 @@ func TestWithDetailTakesWhatTheForgeSaysAndKeepsUnagitsOwn(t *testing.T) {
 }
 
 func TestApplyMRUpdateChangesOneRowAndKeepsTheIndexTime(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -66,7 +67,7 @@ func TestApplyMRUpdateChangesOneRowAndKeepsTheIndexTime(t *testing.T) {
 		t.Errorf("index time moved from %v to %v", indexed, got)
 	}
 	// It reached the saved index too, so the next start shows it.
-	saved, err := index.Load[index.MergeRequests](config.IndexPath("mrs"))
+	saved, err := index.Load[index.MergeRequests](a.cfg.IndexPath("mrs"))
 	must(t, err)
 	found := false
 	for _, mr := range saved.Items {
@@ -80,6 +81,7 @@ func TestApplyMRUpdateChangesOneRowAndKeepsTheIndexTime(t *testing.T) {
 }
 
 func TestOpeningTheDetailBringsItsRowUpToDate(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -101,7 +103,7 @@ func TestOpeningTheDetailBringsItsRowUpToDate(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Jane Doe") // the detail has loaded; the server says 2 comments
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(patience)
 	for comments() != 2 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -111,6 +113,7 @@ func TestOpeningTheDetailBringsItsRowUpToDate(t *testing.T) {
 }
 
 func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -143,7 +146,7 @@ func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
 
 	// Found by the detail: the row says the new time, but stays where it is.
 	a.tv.QueueUpdateDraw(func() { a.applyMRUpdate(older, false, true) })
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(patience)
 	shown := func() time.Time {
 		return onLoop(a, func() time.Time {
 			for _, mr := range a.mrs {
@@ -166,7 +169,7 @@ func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
 
 	// Opening the request lets it take its place.
 	a.tv.QueueUpdateDraw(func() { a.applyMRUpdate(older, false, false) })
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(patience)
 	for order()[0] == 7 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -179,6 +182,7 @@ func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
 // its pipeline and approvals come with it - fetches the one clone, and the
 // one worktree; R is the whole list.
 func TestRRefreshesTheRow(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")

@@ -18,6 +18,7 @@ func (c *countingScreen) Sync() { c.syncs++; c.SimulationScreen.Sync() }
 // TestNothingIsDrawnWhileAnEditorHasTheTerminal: a draw between Suspend and
 // Resume hung tcell for good, and unagit with it, once the editor closed.
 func TestNothingIsDrawnWhileAnEditorHasTheTerminal(t *testing.T) {
+	t.Parallel()
 	inner := &countingScreen{SimulationScreen: tcell.NewSimulationScreen("UTF-8")}
 	must(t, inner.Init())
 	s := &quietScreen{Screen: inner}

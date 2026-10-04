@@ -330,10 +330,8 @@ func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
 // testInstanceID is the id the fixture's server gets, derived from its URL.
 func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv("UNAGIT_CONFIG_DIR", dir)
-
 	cfg := config.Default()
+	cfg.SetDir(t.TempDir())
 	cfg.RootDir = t.TempDir()
 	// An editor every machine has, chosen, so opening does not stop to ask.
 	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
@@ -359,11 +357,11 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
 		{IID: 8, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Drop the old client", SourceBranch: "chore/drop", TargetBranch: "main", UpdatedAt: now.Add(-2 * time.Hour), Comments: 1, Instance: id},
 	}
-	must(t, index.Save(config.IndexPath("projects"),
+	must(t, index.Save(cfg.IndexPath("projects"),
 		index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: projects}))
-	must(t, index.Save(config.IndexPath("mrs"),
+	must(t, index.Save(cfg.IndexPath("mrs"),
 		index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: mrs}))
-	must(t, index.Save(config.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(),
+	must(t, index.Save(cfg.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(),
 		Items: []forge.Group{{ID: 1, FullPath: "acme", Name: "acme", Instance: id}}}))
 	return cfg
 }
@@ -414,7 +412,7 @@ func onLoop[T any](a *App, read func() T) T {
 	select {
 	case v := <-out:
 		return v
-	case <-time.After(2 * time.Second):
+	case <-time.After(patience):
 		var zero T
 		return zero
 	}
@@ -429,7 +427,7 @@ func (a *App) screenText(sc tcell.SimulationScreen) string {
 	select {
 	case s := <-done:
 		return s
-	case <-time.After(2 * time.Second):
+	case <-time.After(patience):
 		return ""
 	}
 }
@@ -452,7 +450,7 @@ func dumpScreen(sc tcell.SimulationScreen) string {
 // waitFor polls the screen until it contains want.
 func waitFor(t *testing.T, a *App, sc tcell.SimulationScreen, want string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		if strings.Contains(a.screenText(sc), want) {
 			return
@@ -464,7 +462,7 @@ func waitFor(t *testing.T, a *App, sc tcell.SimulationScreen, want string) {
 
 func waitGone(t *testing.T, a *App, sc tcell.SimulationScreen, gone string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		if !strings.Contains(a.screenText(sc), gone) {
 			return
@@ -491,6 +489,7 @@ func typeRunes(sc tcell.SimulationScreen, s string) {
 // ------------------------------------------------------------------- tests
 
 func TestStartsOnTheProjectList(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "[1] Repositories")
 	waitFor(t, a, sc, "[2] Merge requests")
@@ -501,6 +500,7 @@ func TestStartsOnTheProjectList(t *testing.T) {
 }
 
 func TestTabKeysSwitchViews(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -525,6 +525,7 @@ func TestTabKeysSwitchViews(t *testing.T) {
 }
 
 func TestFuzzyFilterNarrowsTheList(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/billing")
 
@@ -544,6 +545,7 @@ func TestFuzzyFilterNarrowsTheList(t *testing.T) {
 }
 
 func TestProjectDetailPane(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// Wide enough for the detail to sit beside the list.
@@ -576,6 +578,7 @@ func TestProjectDetailPane(t *testing.T) {
 }
 
 func TestMergeRequestDetailPane(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -604,6 +607,7 @@ func TestMergeRequestDetailPane(t *testing.T) {
 }
 
 func TestHelpOpensAndCloses(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -617,6 +621,7 @@ func TestHelpOpensAndCloses(t *testing.T) {
 }
 
 func TestSettingsOpensOnItsSections(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -632,6 +637,7 @@ func TestSettingsOpensOnItsSections(t *testing.T) {
 }
 
 func TestProjectFilterOnTheMergeRequestList(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/billing")
 
@@ -651,6 +657,7 @@ func TestProjectFilterOnTheMergeRequestList(t *testing.T) {
 }
 
 func TestDeleteIsRefusedWhenNothingIsOnDisk(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -660,6 +667,7 @@ func TestDeleteIsRefusedWhenNothingIsOnDisk(t *testing.T) {
 }
 
 func TestBranchPickerListsBranches(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -692,6 +700,7 @@ func TestBranchPickerListsBranches(t *testing.T) {
 }
 
 func TestPickerNavigatesWithJK(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -715,6 +724,7 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 // TestReviewKeyAsksForTheDiffRefs checks Ctrl-R goes through GitLab for the
 // commit the merge request is diffed against, rather than guessing.
 func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")

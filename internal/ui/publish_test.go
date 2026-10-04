@@ -55,6 +55,7 @@ func refreshLists(a *App) {
 }
 
 func TestPendingCommentsAreCountedInThePubColumn(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := gatewayWorktrees(t, a)
@@ -148,6 +149,7 @@ func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
 }
 
 func TestLocalCommentsShowWhatIsNotPublished(t *testing.T) {
+	t.Parallel()
 	threads := incomm.ThreadsAt(incomm.Place{Dir: worktreeOf(t, `{"version":2,"notes":[
  {"id":"a","file":"a.go","startLine":3,"author":"user","authorTitle":"Jan","content":"waiting **bold**","audience":"agent+external",
   "replies":[{"id":"a1","author":"agent","authorTitle":"Opus 5","content":"my answer","audience":"external"}]},
@@ -189,6 +191,7 @@ func worktreeOf(t *testing.T, notes string) string {
 }
 
 func TestPublishSummaryCountsResolvesToo(t *testing.T) {
+	t.Parallel()
 	post := incomm.Step{File: "a.go", Line: 3, IsRoot: true, Comment: incomm.Comment{Author: "user", Content: "hello"}}
 	resolve := incomm.Step{File: "a.go", Line: 3, Resolve: true}
 	mr := forge.MergeRequest{IID: 7}
@@ -211,6 +214,7 @@ func TestPublishSummaryCountsResolvesToo(t *testing.T) {
 }
 
 func TestPublishSummaryKeepsToOneScreen(t *testing.T) {
+	t.Parallel()
 	var steps []incomm.Step
 	for i := range 15 {
 		steps = append(steps, incomm.Step{File: "a.go", Line: i + 1, IsRoot: true,

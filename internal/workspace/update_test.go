@@ -19,12 +19,6 @@ type updateFixture struct {
 
 func newUpdateFixture(t *testing.T) updateFixture {
 	t.Helper()
-	// A rebase writes commits, and the user running the tests may have no
-	// identity configured.
-	for _, kv := range [][2]string{{"GIT_AUTHOR_NAME", "test"}, {"GIT_AUTHOR_EMAIL", "test@example.com"},
-		{"GIT_COMMITTER_NAME", "test"}, {"GIT_COMMITTER_EMAIL", "test@example.com"}} {
-		t.Setenv(kv[0], kv[1])
-	}
 	dir := t.TempDir()
 	bare := filepath.Join(dir, "origin.git")
 	git(t, dir, "init", "--bare", "--initial-branch=main", bare)
@@ -50,6 +44,7 @@ func (f updateFixture) moveOrigin(t *testing.T, file, content string) {
 }
 
 func TestUpdateFastForwardsACleanClone(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	f.moveOrigin(t, "a.txt", "two\n")
 	got, err := f.m.UpdateClone(f.clone)
@@ -65,6 +60,7 @@ func TestUpdateFastForwardsACleanClone(t *testing.T) {
 }
 
 func TestUpdateRebasesLocalCommitsAndEdits(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	f.moveOrigin(t, "a.txt", "two\n")
 	write(t, f.clone, "b.txt", "mine\n")
@@ -108,6 +104,7 @@ func assertUntouched(t *testing.T, f updateFixture, head, status string) {
 }
 
 func TestUpdateRefusesEditsThatCollide(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	f.moveOrigin(t, "a.txt", "two\n")
 	write(t, f.clone, "a.txt", "my edit\n")
@@ -124,6 +121,7 @@ func TestUpdateRefusesEditsThatCollide(t *testing.T) {
 }
 
 func TestUpdateRollsBackAConflictingRebase(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	f.moveOrigin(t, "a.txt", "two\n")
 	write(t, f.clone, "a.txt", "mine\n")
@@ -142,6 +140,7 @@ func TestUpdateRollsBackAConflictingRebase(t *testing.T) {
 }
 
 func TestUpdatePassesOverABranchWithoutUpstream(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	git(t, f.clone, "checkout", "-b", "local-only")
 	if _, err := f.m.UpdateClone(f.clone); !errors.Is(err, ErrNotTracking) {
@@ -152,6 +151,7 @@ func TestUpdatePassesOverABranchWithoutUpstream(t *testing.T) {
 // TestUpdateRebasesANewBranchOntoItsBase: a branch not pushed yet follows the
 // branch it was made from; once pushed, it follows its own upstream.
 func TestUpdateRebasesANewBranchOntoItsBase(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	git(t, f.clone, "branch", "--no-track", "feat/x", "origin/main")
 	if err := f.m.git.SetBranchBase(f.clone, "feat/x", "main"); err != nil {
@@ -186,6 +186,7 @@ func TestUpdateRebasesANewBranchOntoItsBase(t *testing.T) {
 // base and notes where origin's copy stood; the force push replaces exactly
 // that, and refuses once someone has pushed over it.
 func TestRebaseOntoBaseOfAPushedBranch(t *testing.T) {
+	t.Parallel()
 	f := newUpdateFixture(t)
 	git(t, f.clone, "checkout", "-q", "-b", "feat/x")
 	if err := f.m.git.SetBranchBase(f.clone, "feat/x", "main"); err != nil {
@@ -232,6 +233,7 @@ func TestRebaseOntoBaseOfAPushedBranch(t *testing.T) {
 // TestOpeningAMergeRequestLeavesItAndPUpdatesIt: opening an existing branch
 // worktree does not fetch; UpdateMR brings it to the published head.
 func TestOpeningAMergeRequestLeavesItAndPUpdatesIt(t *testing.T) {
+	t.Parallel()
 	origin := newOrigin(t)
 	m, _, p := newManager(t, origin)
 	mr := forge.MergeRequest{IID: 1, SourceBranch: "feature/login", TargetBranch: "main", SourceProjectID: 1, TargetProjectID: 1}

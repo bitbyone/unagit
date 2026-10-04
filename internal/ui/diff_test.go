@@ -25,7 +25,7 @@ func fakeHunk(t *testing.T) (log string) {
 
 func waitForLog(t *testing.T, log string, want ...string) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		data, _ := os.ReadFile(log)
 		ok := true
@@ -85,6 +85,7 @@ func TestDShowsTheChangesInHunk(t *testing.T) {
 // fit are left out, so the one with the cursor is whole and nothing is drawn
 // over the frame.
 func TestIntegrationsKeepTheCardInView(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -92,7 +93,9 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 			resize(sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
 			typeRunes(sc, "jj") // Incomm, Editors, Hunk
-			waitFor(t, a, sc, "e toggle")
+			// Hunk's own line: the keys may not have landed yet, and the
+			// Incomm card says "e toggle" as well.
+			waitFor(t, a, sc, "D opens what")
 			text := a.screenText(sc)
 			for _, want := range []string{"Hunk", "D opens what", "c check"} {
 				if !strings.Contains(text, want) {

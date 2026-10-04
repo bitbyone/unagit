@@ -1070,7 +1070,7 @@ func (s *settingsView) toggleKeychain() {
 		go func() {
 			// The passphrase is checked against the vault first, so what is
 			// remembered is sure to open it.
-			_, err := secret.OpenVault(config.VaultPath(), entered)
+			_, err := secret.OpenVault(a.cfg.VaultPath(), entered)
 			if err == nil {
 				err = passphraseStore.set(entered)
 			}
@@ -1122,8 +1122,8 @@ func (s *settingsView) fillSecurity() {
 			"exist in memory. Git gets them through a one-shot credential helper,\n"+
 			"so they never reach .git/config or a remote URL.",
 		tag(colDim), tagEnd, stored,
-		tag(colDim), tagEnd, tildePath(config.VaultPath()),
-		tag(colDim), tagEnd, tildePath(config.Path())))
+		tag(colDim), tagEnd, tildePath(s.app.cfg.VaultPath()),
+		tag(colDim), tagEnd, tildePath(s.app.cfg.Path())))
 }
 
 func (s *settingsView) showPassphraseForm() {

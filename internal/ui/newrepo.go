@@ -229,7 +229,7 @@ func (a *App) adoptProject(p forge.Project) {
 	}
 	a.projects = append(a.projects, p)
 	a.reindexProjects()
-	_ = index.Save(config.IndexPath("projects"), index.Projects{
+	_ = index.Save(a.cfg.IndexPath("projects"), index.Projects{
 		Version: index.Version, UpdatedAt: a.projUpdated, Items: a.projects})
 	// The marks point into the list as it was.
 	a.projectsPane.marks = nil

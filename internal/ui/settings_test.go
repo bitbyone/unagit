@@ -30,7 +30,7 @@ func currentForm(a *App) *tview.Form {
 	select {
 	case f := <-done:
 		return f
-	case <-time.After(2 * time.Second):
+	case <-time.After(patience):
 		return nil
 	}
 }
@@ -75,6 +75,7 @@ func pressButton(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Fo
 // TestGeneralSectionEditsTheConfig: the editor and the root are set from the
 // interface, not from the file.
 func TestGeneralSectionEditsTheConfig(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGeneral)
@@ -101,7 +102,7 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	if strings.Join(a.cfg.EditorArgs, " ") != "--config foo ." {
 		t.Errorf("editor args = %q", a.cfg.EditorArgs)
 	}
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +114,7 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 // TestAddServerFromTheInterface is the whole point of this screen: a second
 // GitLab, with its own token, without touching a file.
 func TestAddServerFromTheInterface(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitLab)
@@ -148,14 +150,14 @@ func TestAddServerFromTheInterface(t *testing.T) {
 		t.Error("no API client for the new server")
 	}
 	// It survives a restart, and the token is not in the config file.
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(saved.Instances) != 2 {
 		t.Fatalf("saved instances = %+v", saved.Instances)
 	}
-	raw := readConfigFile(t)
+	raw := readConfigFile(t, a)
 	if strings.Contains(raw, "glpat-personal-token") {
 		t.Fatal("the token was written to config.yaml")
 	}
@@ -165,9 +167,9 @@ func TestAddServerFromTheInterface(t *testing.T) {
 	waitFor(t, a, sc, "SERVER")
 }
 
-func readConfigFile(t *testing.T) string {
+func readConfigFile(t *testing.T, a *App) string {
 	t.Helper()
-	b, err := readFileString(config.Path())
+	b, err := readFileString(a.cfg.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,6 +178,7 @@ func readConfigFile(t *testing.T) string {
 
 // TestTokenFormStoresAndRemoves
 func TestTokenFormStoresAndRemoves(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitLab)
@@ -206,10 +209,11 @@ func TestTokenFormStoresAndRemoves(t *testing.T) {
 // TestGroupRootOverrideMovesTheClone: a per-group directory is the point of
 // the Groups & roots section.
 func TestGroupRootOverrideMovesTheClone(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
-	before := a.projectDir(id, "acme/gateway")
+	before := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") })
 
 	openSection(t, a, sc, sectionGroups)
 	waitFor(t, a, sc, "incl. subgroups")
@@ -221,14 +225,14 @@ func TestGroupRootOverrideMovesTheClone(t *testing.T) {
 	setField(t, a, form, 0, "/tmp/unagit-acme")
 	pressButton(t, a, sc, form, "Save")
 
-	after := a.projectDir(id, "acme/gateway")
+	after := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") })
 	if after == before {
 		t.Fatalf("the clone directory did not move: %s", after)
 	}
 	if !strings.HasPrefix(after, "/tmp/unagit-acme/") {
 		t.Fatalf("clone directory = %s", after)
 	}
-	if got := a.cfg.Instance(id).Group(1).RootDir; got != "/tmp/unagit-acme" {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).Group(1).RootDir }); got != "/tmp/unagit-acme" {
 		t.Errorf("stored root = %q", got)
 	}
 
@@ -236,13 +240,14 @@ func TestGroupRootOverrideMovesTheClone(t *testing.T) {
 	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Clone directory · acme")
 	pressButton(t, a, sc, currentForm(a), "Inherit")
-	if got := a.projectDir(id, "acme/gateway"); got != before {
+	if got := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") }); got != before {
 		t.Errorf("after Inherit the clone directory is %s, want %s", got, before)
 	}
 }
 
 // TestServerRootOverrideAppliesToEverythingOnIt
 func TestServerRootOverrideAppliesToEverythingOnIt(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
@@ -256,16 +261,17 @@ func TestServerRootOverrideAppliesToEverythingOnIt(t *testing.T) {
 	setField(t, a, form, 0, "/tmp/unagit-server")
 	pressButton(t, a, sc, form, "Save")
 
-	if got := a.projectDir(id, "acme/gateway"); !strings.HasPrefix(got, "/tmp/unagit-server/") {
+	if got := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") }); !strings.HasPrefix(got, "/tmp/unagit-server/") {
 		t.Fatalf("clone directory = %s", got)
 	}
-	if got := a.cfg.Instance(id).RootDir; got != "/tmp/unagit-server" {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).RootDir }); got != "/tmp/unagit-server" {
 		t.Errorf("stored server root = %q", got)
 	}
 }
 
 // TestRemoveServerForgetsItsToken
 func TestRemoveServerForgetsItsToken(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
@@ -287,6 +293,7 @@ func TestRemoveServerForgetsItsToken(t *testing.T) {
 
 // TestSecuritySectionChangesThePassphrase
 func TestSecuritySectionChangesThePassphrase(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionSecurity)
@@ -306,10 +313,10 @@ func TestSecuritySectionChangesThePassphrase(t *testing.T) {
 	waitFor(t, a, sc, "Passphrase changed")
 
 	// The vault on disk now opens with the new passphrase only.
-	if _, err := openVaultFile(t, "brand-new"); err != nil {
+	if _, err := openVaultFile(t, a, "brand-new"); err != nil {
 		t.Errorf("the new passphrase does not open the vault: %v", err)
 	}
-	if _, err := openVaultFile(t, "test-passphrase"); err == nil {
+	if _, err := openVaultFile(t, a, "test-passphrase"); err == nil {
 		t.Error("the old passphrase still opens the vault")
 	}
 }
@@ -319,14 +326,15 @@ func readFileString(path string) (string, error) {
 	return string(b), err
 }
 
-func openVaultFile(t *testing.T, passphrase string) (*secret.Vault, error) {
+func openVaultFile(t *testing.T, a *App, passphrase string) (*secret.Vault, error) {
 	t.Helper()
-	return secret.OpenVault(config.VaultPath(), []byte(passphrase))
+	return secret.OpenVault(a.cfg.VaultPath(), []byte(passphrase))
 }
 
 // TestAddGitHubAccount: the GitHub form has no URL, because github.com is the
 // only address there is.
 func TestAddGitHubAccount(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitHub)
@@ -373,6 +381,7 @@ func TestAddGitHubAccount(t *testing.T) {
 // TestGitHubOrgIsOnOrOff: there are no subgroups on GitHub, so space toggles
 // rather than cycles.
 func TestGitHubOrgIsOnOrOff(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -395,7 +404,7 @@ func TestGitHubOrgIsOnOrOff(t *testing.T) {
 	typeRunes(sc, "jjj")
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "selected")
-	if got := a.cfg.Instance(id).GroupScope(10); got != config.ScopeGroup {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).GroupScope(10) }); got != config.ScopeGroup {
 		t.Fatalf("scope = %q, want %q", got, config.ScopeGroup)
 	}
 	// A GitHub organisation never says "incl. subgroups".
@@ -405,7 +414,7 @@ func TestGitHubOrgIsOnOrOff(t *testing.T) {
 
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "unselected")
-	if got := a.cfg.Instance(id).GroupScope(10); got != "" {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).GroupScope(10) }); got != "" {
 		t.Fatalf("scope = %q, want unselected", got)
 	}
 }
@@ -435,10 +444,11 @@ func setDropDown(t *testing.T, a *App, form *tview.Form, index int, option strin
 // TestSwitchingToSSHOffersToRepointExistingClones is the whole point of the
 // setting: the repositories already on disk keep the old protocol otherwise.
 func TestSwitchingToSSHOffersToRepointExistingClones(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID
-	if got := a.cfg.Instance(id).Protocol(); got != config.ProtocolHTTPS {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).Protocol() }); got != config.ProtocolHTTPS {
 		t.Fatalf("protocol starts at %q", got)
 	}
 
@@ -451,7 +461,7 @@ func TestSwitchingToSSHOffersToRepointExistingClones(t *testing.T) {
 	setDropDown(t, a, form, 3, config.ProtocolSSH)
 	pressButton(t, a, sc, form, "Save")
 
-	if got := a.cfg.Instance(id).Protocol(); got != config.ProtocolSSH {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).Protocol() }); got != config.ProtocolSSH {
 		t.Fatalf("protocol = %q", got)
 	}
 	// Nothing is cloned in this fixture, so it says so rather than asking.
@@ -459,7 +469,7 @@ func TestSwitchingToSSHOffersToRepointExistingClones(t *testing.T) {
 	// And the table shows it.
 	waitFor(t, a, sc, "ssh")
 
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,6 +480,7 @@ func TestSwitchingToSSHOffersToRepointExistingClones(t *testing.T) {
 
 // TestNewServersDefaultToHTTPS keeps the behaviour unagit always had.
 func TestNewServersDefaultToHTTPS(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitLab)
@@ -481,12 +492,17 @@ func TestNewServersDefaultToHTTPS(t *testing.T) {
 	setField(t, a, form, 1, "https://gitlab.other")
 	pressButton(t, a, sc, form, "Save")
 
-	added := a.cfg.Instance("gitlab-other")
-	if added == nil {
-		t.Fatalf("instances = %+v", a.cfg.Instances)
+	protocol := onLoop(a, func() string {
+		if inst := a.cfg.Instance("gitlab-other"); inst != nil {
+			return inst.Protocol()
+		}
+		return "missing"
+	})
+	if protocol == "missing" {
+		t.Fatal("the server was not added")
 	}
-	if added.Protocol() != config.ProtocolHTTPS {
-		t.Errorf("protocol = %q", added.Protocol())
+	if protocol != config.ProtocolHTTPS {
+		t.Errorf("protocol = %q", protocol)
 	}
 }
 
@@ -496,6 +512,7 @@ func TestNewServersDefaultToHTTPS(t *testing.T) {
 // transparent - which painted the text in its own background's colour and left
 // a blank block on screen.
 func TestProtocolSelectIsLegibleWhenFocused(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitLab)
@@ -557,6 +574,7 @@ func borderColours(t *testing.T, a *App, sc tcell.SimulationScreen) (sidebar, co
 // TestSettingsShowsWhichHalfHasTheKeyboard: without it there is no telling
 // whether typing goes to the sidebar or to the pane beside it.
 func TestSettingsShowsWhichHalfHasTheKeyboard(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "4")
@@ -593,6 +611,7 @@ func TestSettingsShowsWhichHalfHasTheKeyboard(t *testing.T) {
 // TestSelectBoxRefusesTyping: tview would otherwise feed the keys into a
 // hidden search field and open the list on them.
 func TestSelectBoxRefusesTyping(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGitLab)
@@ -628,12 +647,17 @@ func TestSelectBoxRefusesTyping(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	time.Sleep(100 * time.Millisecond)
-	a.tv.QueueUpdateDraw(func() {
-		_, text := form.GetFormItem(3).(*tview.DropDown).GetCurrentOption()
-		drop <- text
-	})
-	if got := <-drop; got != config.ProtocolSSH {
+	selected := func() string {
+		return onLoop(a, func() string {
+			_, text := form.GetFormItem(3).(*tview.DropDown).GetCurrentOption()
+			return text
+		})
+	}
+	deadline := time.Now().Add(patience)
+	for selected() != config.ProtocolSSH && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := selected(); got != config.ProtocolSSH {
 		t.Fatalf("the arrows do not select either: %q", got)
 	}
 }
@@ -658,7 +682,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	assertLegible(t, a, sc, "disabled integration")
 	typeRunes(sc, "e")
 	waitFor(t, a, sc, "● enabled")
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +692,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	assertLegible(t, a, sc, "enabled integration")
 	typeRunes(sc, "e")
 	waitFor(t, a, sc, "● disabled")
-	saved, err = config.Load()
+	saved, err = config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -676,7 +700,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 		t.Fatal("disabled integration was not saved")
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(patience)
 	for onLoop(a, func() bool { return strings.Contains(a.settings.integrations.cards[0].view.GetText(true), "e toggle") }) {
 		if time.Now().After(deadline) {
 			t.Fatal("unfocused integration still shows action keys")
@@ -699,6 +723,7 @@ func buttonIndex(form *tview.Form, name string) int {
 // TestTheGroupTreeCursorIsTheListBand: the cursor on a group is the same
 // band as in every list, whatever colour the group's text is.
 func TestTheGroupTreeCursorIsTheListBand(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGroups)
@@ -708,7 +733,7 @@ func TestTheGroupTreeCursorIsTheListBand(t *testing.T) {
 	col := strings.Index(strings.Split(a.screenText(sc), "\n")[row], "acme")
 	col = len([]rune(strings.Split(a.screenText(sc), "\n")[row][:col]))
 	_, want, _ := styleSelected.Decompose()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(patience)
 	for {
 		fg, bg, _ := cellStyleAt(a, sc, col, row).Decompose()
 		if bg == want && fg != bg {

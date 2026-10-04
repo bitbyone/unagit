@@ -79,6 +79,7 @@ func newReviewManager(t *testing.T, origin string) (*Manager, forge.Project) {
 // TestReviewWorktreeHoldsTheWholeChange is the point of the whole feature:
 // what git reports as pending must be exactly what GitLab shows as Changes.
 func TestReviewWorktreeHoldsTheWholeChange(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -120,6 +121,7 @@ func TestReviewWorktreeHoldsTheWholeChange(t *testing.T) {
 // nothing may be staged. Staging the change instead leaves gitsigns, gitgutter
 // and a plain git diff with nothing to show.
 func TestReviewWorktreeIsWhatAGutterReads(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -155,6 +157,7 @@ func TestReviewWorktreeIsWhatAGutterReads(t *testing.T) {
 // TestReviewWorktreeRecordsItsMetadata: an editor has to be able to find out
 // what it is looking at.
 func TestReviewWorktreeRecordsItsMetadata(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -177,6 +180,7 @@ func TestReviewWorktreeRecordsItsMetadata(t *testing.T) {
 // TestBranchAndReviewWorktreesAreIndependent: each carries its own metadata,
 // which per-worktree config is what makes possible.
 func TestBranchAndReviewWorktreesAreIndependent(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -212,6 +216,7 @@ func TestBranchAndReviewWorktreesAreIndependent(t *testing.T) {
 // TestReviewWorktreeKeepsYourEdits: reopening a review must not throw away
 // notes typed into the files.
 func TestReviewWorktreeKeepsYourEdits(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -237,6 +242,7 @@ func TestReviewWorktreeKeepsYourEdits(t *testing.T) {
 // TestReviewWorktreeFollowsAForcePush: a rebased merge request has to end up
 // with a new base and a new head, not a merge of the two.
 func TestReviewWorktreeFollowsAForcePush(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -276,6 +282,7 @@ func TestReviewWorktreeFollowsAForcePush(t *testing.T) {
 // TestReviewFallsBackToTheLocalMergeBase: without GitLab's answer the base is
 // worked out from the repository.
 func TestReviewFallsBackToTheLocalMergeBase(t *testing.T) {
+	t.Parallel()
 	origin, base, _ := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -290,6 +297,7 @@ func TestReviewFallsBackToTheLocalMergeBase(t *testing.T) {
 
 // TestRemoveMRRemovesBothWorktrees
 func TestRemoveMRRemovesBothWorktrees(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	mr := reviewMR()
@@ -318,6 +326,7 @@ func TestRemoveMRRemovesBothWorktrees(t *testing.T) {
 // TestInspectProjectSeesReviewEdits: only the reviewer's own edits count as
 // work worth warning about, the pending merge request itself does not.
 func TestInspectProjectSeesReviewEdits(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 
@@ -347,6 +356,7 @@ func readFile(t *testing.T, dir, name string) string {
 // TestHeadRefFormatFollowsTheForge: GitHub publishes pull request heads under
 // refs/pull/<n>/head, GitLab under refs/merge-requests/<n>/head.
 func TestHeadRefFormatFollowsTheForge(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	work := filepath.Join(dir, "work")
 	bare := filepath.Join(dir, "origin.git")
@@ -393,6 +403,7 @@ func TestHeadRefFormatFollowsTheForge(t *testing.T) {
 // comments written or imported there may show as part of the change - and
 // they must survive the worktree following the merge request.
 func TestReviewKeepsCommittedCommentsOutOfTheChange(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	work, bare := filepath.Join(dir, "work"), filepath.Join(dir, "origin.git")
 	git(t, dir, "init", "-q", "--bare", "--initial-branch=main", bare)
@@ -490,6 +501,7 @@ func TestReviewKeepsCommittedCommentsOutOfTheChange(t *testing.T) {
 // that does not commit its Incomm store - must not list it as untracked in
 // git status, which lazygit and editors show next to the change.
 func TestReviewIgnoresAnUncommittedCommentStore(t *testing.T) {
+	t.Parallel()
 	origin, base, head := newDivergedOrigin(t)
 	m, p := newReviewManager(t, origin)
 	dir, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})

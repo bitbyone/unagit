@@ -23,6 +23,7 @@ func keyEvent(spec string) *tcell.EventKey {
 }
 
 func TestAnActionMatchesItsOwnKeyAndNoOther(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		spec string
 		ev   *tcell.EventKey
@@ -48,6 +49,7 @@ func TestAnActionMatchesItsOwnKeyAndNoOther(t *testing.T) {
 // TestNoTwoActionsShareAKey: in each list a key belongs to one action, or to
 // several of which only one can be done at a time - each of them says when.
 func TestNoTwoActionsShareAKey(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	lists := actionLists(a)
@@ -108,6 +110,7 @@ func actionLists(a *App) map[string][]uiAction {
 // name and explain the one under the cursor below, so every action has both,
 // the name a few words and the explanation a sentence that fits the pane.
 func TestEveryActionIsNamedAndExplained(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	for list, acts := range actionLists(a) {
@@ -129,6 +132,7 @@ func TestEveryActionIsNamedAndExplained(t *testing.T) {
 // scrolls and the explanation of the action under the cursor stays at the
 // bottom.
 func TestTheActionPickerFitsWhatItHolds(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 20}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -169,6 +173,7 @@ func TestTheActionPickerFitsWhatItHolds(t *testing.T) {
 // TestAltEnterListsWhatCanBeDoneWithTheRow: the actions of the row, the
 // usual first and each with its key; Enter does the one under the cursor.
 func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "g")
@@ -198,6 +203,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 
 // TestCtrlAIsAltEnter: for the terminals that keep Alt-Enter.
 func TestCtrlAIsAltEnter(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -211,6 +217,7 @@ func TestCtrlAIsAltEnter(t *testing.T) {
 // TestColonListsWhatTheScreenCanDo: the screen's own actions, a new
 // repository among them though it has no key.
 func TestColonListsWhatTheScreenCanDo(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, ":")
@@ -228,6 +235,7 @@ func TestColonListsWhatTheScreenCanDo(t *testing.T) {
 // to the group picked, and the repository comes back cloned, in the list,
 // under the cursor.
 func TestANewRepositoryIsCreatedClonedAndListed(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// What GitLab would have made, with its README.
@@ -286,6 +294,7 @@ func openNewRepository(t *testing.T, a *App, sc tcell.SimulationScreen) *tview.F
 
 // TestTheNewRepositoryFormFitsItsFrame draws the form at several sizes.
 func TestTheNewRepositoryFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -317,6 +326,7 @@ func TestTheNewRepositoryFormFitsItsFrame(t *testing.T) {
 // TestSettingsHasActionsToo: a section lists what its keys do, and an action
 // picked there is the key pressed.
 func TestSettingsHasActionsToo(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionTags)

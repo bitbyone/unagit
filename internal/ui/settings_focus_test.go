@@ -15,6 +15,7 @@ import (
 // are pressed in, and the keyboard must not stay with the button that went
 // away - Esc still leads back to the sections, and the form still answers.
 func TestSavingGeneralKeepsTheKeyboard(t *testing.T) {
+	t.Parallel()
 	for _, button := range []string{"Save", "Revert"} {
 		t.Run(button, func(t *testing.T) {
 			a, sc := newTestApp(t)
@@ -79,6 +80,7 @@ func waitFocus(t *testing.T, a *App, ok func() bool) {
 // Groups & roots shows and the one a clone goes to - straight away, and after
 // a restart from the saved file.
 func TestANewRootReachesGroupsAndClones(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGeneral)
@@ -99,7 +101,7 @@ func TestANewRootReachesGroupsAndClones(t *testing.T) {
 	}
 	check(a, sc, "after Save")
 
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}

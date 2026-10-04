@@ -9,6 +9,7 @@ import (
 )
 
 func TestProjectDirectoryOverride(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	dir := filepath.Join(t.TempDir(), "custom")
@@ -25,7 +26,7 @@ func TestProjectDirectoryOverride(t *testing.T) {
 	setField(t, a, form, 0, dir)
 	pressButton(t, a, sc, form, "Save")
 	waitFor(t, a, sc, "Clone directory:")
-	cfg, err := config.Load()
+	cfg, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestProjectDirectoryOverride(t *testing.T) {
 	waitFor(t, a, sc, "Blank restores")
 	pressButton(t, a, sc, currentForm(a), "Inherit")
 	waitFor(t, a, sc, "Clone directory:")
-	cfg, err = config.Load()
+	cfg, err = config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +54,7 @@ func TestProjectDirectoryOverride(t *testing.T) {
 }
 
 func TestWorktreeDiskModes(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := onLoop(a, func() string { return a.cfg.Instances[0].ID })

@@ -21,6 +21,7 @@ func linkConfig() *config.Config {
 // TestParseMRLinkReadsWhatPeoplePaste: the links come from a browser, with
 // whatever tab or comment anchor was open.
 func TestParseMRLinkReadsWhatPeoplePaste(t *testing.T) {
+	t.Parallel()
 	cfg := linkConfig()
 	id := func(name string) string {
 		for _, inst := range cfg.Instances {
@@ -51,6 +52,7 @@ func TestParseMRLinkReadsWhatPeoplePaste(t *testing.T) {
 }
 
 func TestParseMRLinkSaysWhatIsWrong(t *testing.T) {
+	t.Parallel()
 	cfg := linkConfig()
 	for raw, want := range map[string]string{
 		"group/app!12": "not a merge request address",
@@ -68,6 +70,7 @@ func TestParseMRLinkSaysWhatIsWrong(t *testing.T) {
 // TestGoalOpensAMergeRequestOutsideTheIndex: a link to a repository that is
 // not in any selected group still opens, looked up by its path.
 func TestGoalOpensAMergeRequestOutsideTheIndex(t *testing.T) {
+	t.Parallel()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
 	link, err := ParseMRLink(cfg, srv.URL+"/acme/other/-/merge_requests/5")
@@ -84,6 +87,7 @@ func TestGoalOpensAMergeRequestOutsideTheIndex(t *testing.T) {
 // TestGoalReviewsAMergeRequestFromTheList: one the list has is selected there
 // and opened for review.
 func TestGoalReviewsAMergeRequestFromTheList(t *testing.T) {
+	t.Parallel()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
 	link, err := ParseMRLink(cfg, srv.URL+"/acme/gateway/-/merge_requests/8")

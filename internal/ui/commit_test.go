@@ -15,6 +15,7 @@ import (
 // TestCommitEverythingInAGroup: c commits every repository of a grouped
 // worktree, new files included, under one message or a repository's own.
 func TestCommitEverythingInAGroup(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/c")
@@ -61,6 +62,7 @@ func TestCommitEverythingInAGroup(t *testing.T) {
 
 // TestCommitFormFitsItsFrame draws the commit form of a group at several sizes.
 func TestCommitFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := newTestAppSrv(t)
@@ -103,6 +105,7 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 // TestCommitOfOneRepositoryInAGroupNamesIt: with changes in one repository of
 // a group, the message field is that repository's, and so is the commit.
 func TestCommitOfOneRepositoryInAGroupNamesIt(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/one")

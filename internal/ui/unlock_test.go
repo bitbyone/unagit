@@ -18,7 +18,7 @@ func newLockedTestApp(t *testing.T, passphrase string) (*App, tcell.SimulationSc
 		t.Fatal(err)
 	}
 	v.Set(cfg.Instances[0].ID, "glpat-test-token")
-	if err := v.Save(config.VaultPath()); err != nil {
+	if err := v.Save(cfg.VaultPath()); err != nil {
 		t.Fatal(err)
 	}
 	return startApp(t, NewLocked(cfg))

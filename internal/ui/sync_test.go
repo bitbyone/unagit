@@ -12,6 +12,7 @@ import (
 // TestRemoteColumnAndUpdates: r fetches every clone and REMOTE says how far
 // behind each is; p updates the one under the cursor, Alt-P every other.
 func TestRemoteColumnAndUpdates(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/billing")
 	gw := newRealProject(t, a, "acme/gateway")
@@ -26,6 +27,9 @@ func TestRemoteColumnAndUpdates(t *testing.T) {
 	}
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "↓1")
+	// One row can show it while the other clone is still fetching, and a pull
+	// that races its own fetch says something else than fast-forwarded.
+	waitFetched(t, a)
 
 	// The refresh may reorder the list; p takes the row under the cursor,
 	// whichever that is, and only that one.
@@ -54,6 +58,7 @@ func TestRemoteColumnAndUpdates(t *testing.T) {
 // the main clone, REMOTE names a rebase left half way, and the detail lists
 // the files.
 func TestRepositoriesShowTheCloneItself(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/billing")
 	gw := newRealProject(t, a, "acme/gateway")
@@ -81,6 +86,7 @@ func TestRepositoriesShowTheCloneItself(t *testing.T) {
 // TestOpenTakesTheCloneAsItIs: Ctrl-O opens a clone without fetching or
 // pulling, however far origin has moved; p is what updates it.
 func TestOpenTakesTheCloneAsItIs(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/billing")
 	gw := newRealProject(t, a, "acme/gateway")
@@ -105,6 +111,7 @@ func TestOpenTakesTheCloneAsItIs(t *testing.T) {
 // TestEditsShowOnFocusAndOnSwitchingTabs: what changed in another window shows
 // when the terminal comes back to the front, and when a list is switched to.
 func TestEditsShowOnFocusAndOnSwitchingTabs(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/billing")
 	gw := newRealProject(t, a, "acme/gateway")
@@ -128,7 +135,7 @@ func TestEditsShowOnFocusAndOnSwitchingTabs(t *testing.T) {
 // waitForRow waits until the screen line holding text has want as a word.
 func waitForRow(t *testing.T, a *App, sc tcell.SimulationScreen, text, want string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		if containsField(rowWith(a, sc, text), want) {
 			return
@@ -136,4 +143,16 @@ func waitForRow(t *testing.T, a *App, sc tcell.SimulationScreen, text, want stri
 		time.Sleep(30 * time.Millisecond)
 	}
 	t.Fatalf("the row of %s never showed %q:\n%s", text, want, a.screenText(sc))
+}
+
+// waitFetched waits until no fetch is running in the background.
+func waitFetched(t *testing.T, a *App) {
+	t.Helper()
+	deadline := time.Now().Add(patience)
+	for onLoop(a, func() int { return a.fetching }) > 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the fetches never finished")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

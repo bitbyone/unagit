@@ -12,6 +12,7 @@ import (
 )
 
 func TestCloneRepositoriesWithoutEditor(t *testing.T) {
+	t.Parallel()
 	origin := t.TempDir()
 	cmd := exec.Command("git", "init", "--bare", "--initial-branch=main", origin)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -35,7 +36,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 			waitSelected(t, a, a.projectsPane, idx)
 		}
 		typeRunes(sc, "C")
-		deadline := time.Now().Add(5 * time.Second)
+		deadline := time.Now().Add(patience)
 		for !onLoop(a, func() bool {
 			pr := a.projects[idx]
 			return a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned && !a.modalOpen()
@@ -58,6 +59,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 }
 
 func TestCloneFailureKeepsLogOpen(t *testing.T) {
+	t.Parallel()
 	missing := filepath.Join(t.TempDir(), "missing.git")
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")

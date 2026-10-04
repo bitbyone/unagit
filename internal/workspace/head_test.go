@@ -33,6 +33,7 @@ func linkedWorktree(t *testing.T, head string, moved time.Time) string {
 }
 
 func TestWorktreeHeadReadsTheBranchWithoutRunningGit(t *testing.T) {
+	t.Parallel()
 	moved := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
 	dir := linkedWorktree(t, "ref: refs/heads/feature/login", moved)
 	branch, at := WorktreeHead(dir)
@@ -45,6 +46,7 @@ func TestWorktreeHeadReadsTheBranchWithoutRunningGit(t *testing.T) {
 }
 
 func TestWorktreeHeadOfADetachedOrUnreadableWorktree(t *testing.T) {
+	t.Parallel()
 	dir := linkedWorktree(t, "9fceb02d0ae598e95dc970b74767f19372d61af8", time.Now())
 	if branch, _ := WorktreeHead(dir); branch != "(detached)" {
 		t.Errorf("detached HEAD = %q", branch)
@@ -55,6 +57,7 @@ func TestWorktreeHeadOfADetachedOrUnreadableWorktree(t *testing.T) {
 }
 
 func TestWorktreeHeadOfAnOrdinaryCheckout(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
 		t.Fatal(err)

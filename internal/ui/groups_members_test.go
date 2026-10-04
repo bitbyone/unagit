@@ -16,6 +16,7 @@ import (
 // TestAGroupGrowsAndShrinks: a takes a repository into a grouped worktree on
 // the group's branch, x lets it go again, its branch kept.
 func TestAGroupGrowsAndShrinks(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/billing")
 	newRealProject(t, a, "acme/gateway")
@@ -85,6 +86,7 @@ func TestAGroupGrowsAndShrinks(t *testing.T) {
 // branches that have commits of their own; the repository's branches (b)
 // delete one on origin again with Alt-D, leaving the local one.
 func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	gw, bl, form := markBoth(t, a, sc)
 	srv.deleteBranch.Store(func(id int, branch string) {
@@ -121,7 +123,7 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 	commitIn(t, filepath.Join(dir, "gateway"), "g.txt", "Count requests")
 	onLoop(a, func() bool { a.refreshDisk(); return true })
 	// The gateway's commit is counted before P is pressed.
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for onLoop(a, func() int { return a.wtRemote[filepath.Join(dir, "gateway")].Own }) == 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("the gateway's own commit was never counted")
@@ -129,7 +131,7 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 		time.Sleep(30 * time.Millisecond)
 	}
 	typeRunes(sc, "P")
-	deadline = time.Now().Add(5 * time.Second)
+	deadline = time.Now().Add(patience)
 	for !onOrigin(gw) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}

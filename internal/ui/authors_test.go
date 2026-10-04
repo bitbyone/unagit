@@ -11,6 +11,7 @@ import (
 // the list and the header counts the author; View Options turns the filter
 // off for a while and shows the author again for good, one by one.
 func TestHideAnAuthorsMergeRequests(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() {
@@ -41,7 +42,7 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 	waitFor(t, a, sc, "no author hidden")
 	waitFor(t, a, sc, "Rate limiting")
 
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	must(t, err)
 	if len(saved.Filters.HiddenAuthors) != 0 || strings.Contains(a.screenText(sc), hiddenMark+" 1 author") {
 		t.Errorf("renovate is still hidden: %+v", saved.Filters.HiddenAuthors)

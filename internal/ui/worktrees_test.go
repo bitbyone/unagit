@@ -29,6 +29,7 @@ func makeWorktree(t *testing.T, a *App, project, name, head string, moved time.T
 }
 
 func TestWorktreesTabListsBranchWorktreesAcrossRepositories(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	now := time.Now()
@@ -59,6 +60,7 @@ func TestWorktreesTabListsBranchWorktreesAcrossRepositories(t *testing.T) {
 }
 
 func TestWorktreesFilterNarrowsTheList(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	now := time.Now()
@@ -75,6 +77,7 @@ func TestWorktreesFilterNarrowsTheList(t *testing.T) {
 }
 
 func TestWorktreesTabIsEmptyWithoutWorktrees(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "3")

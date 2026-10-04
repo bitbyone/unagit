@@ -5,7 +5,6 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 )
@@ -22,13 +21,13 @@ func seenKey(mr forge.MergeRequest) string {
 }
 
 func (a *App) loadSeen() {
-	if seen, err := index.Load[map[string]string](config.IndexPath("seen")); err == nil && seen != nil {
+	if seen, err := index.Load[map[string]string](a.cfg.IndexPath("seen")); err == nil && seen != nil {
 		a.seen = seen
 	}
 }
 
 func (a *App) saveSeen() {
-	if err := index.Save(config.IndexPath("seen"), a.seen); err != nil {
+	if err := index.Save(a.cfg.IndexPath("seen"), a.seen); err != nil {
 		a.errorf("cannot remember what was reviewed: %v", err)
 	}
 }

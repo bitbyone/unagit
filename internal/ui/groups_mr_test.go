@@ -16,6 +16,7 @@ import (
 // TestRelatedListIsReplacedNotAddedTo: linking again writes the list afresh;
 // what the author wrote stays, and nothing is listed twice.
 func TestRelatedListIsReplacedNotAddedTo(t *testing.T) {
+	t.Parallel()
 	a := forge.MergeRequest{ProjectPath: "acme/api", IID: 1, WebURL: "https://x/api/1", Title: "API"}
 	b := forge.MergeRequest{ProjectPath: "acme/web", IID: 2, WebURL: "https://x/web/2", Title: "Web"}
 	c := forge.MergeRequest{ProjectPath: "acme/cli", IID: 3, WebURL: "https://x/cli/3", Title: "CLI"}
@@ -42,6 +43,7 @@ func TestRelatedListIsReplacedNotAddedTo(t *testing.T) {
 // changes after the first round gets its merge request in a second, and the
 // merge request opened in the first is linked to it.
 func TestALaterRoundLinksTheEarlierMergeRequests(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/both")
@@ -88,6 +90,7 @@ func TestALaterRoundLinksTheEarlierMergeRequests(t *testing.T) {
 // one Incomm store are counted in Worktrees and belong, path and all, to the
 // merge request of the repository they are on.
 func TestAGroupsCommentsReachTheRightMergeRequest(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	onLoop(a, func() bool { a.cfg.Integrations.Incomm = true; return true })
 	_, _, form := markBoth(t, a, sc)
@@ -136,6 +139,7 @@ func TestAGroupsCommentsReachTheRightMergeRequest(t *testing.T) {
 // TestARepositoryCanBeLeftOut: "(no merge request)" keeps a repository out of
 // the round, and its merge request is not opened.
 func TestARepositoryCanBeLeftOut(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/both")
@@ -171,6 +175,7 @@ func TestARepositoryCanBeLeftOut(t *testing.T) {
 // TestAClosedMergeRequestIsLetGoOnRefresh: r in Worktrees finds a merge request
 // closed on the forge, drops it, and the worktree is free to open a new one.
 func TestAClosedMergeRequestIsLetGoOnRefresh(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/both")
@@ -196,7 +201,7 @@ func TestAClosedMergeRequestIsLetGoOnRefresh(t *testing.T) {
 	srv.closed42.Store(true)
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "no longer open: !42 closed")
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for strings.Contains(rowWith(a, sc, "feat-both"), "!42") {
 		if time.Now().After(deadline) {
 			t.Fatalf("the row still names the closed merge request: %q", rowWith(a, sc, "feat-both"))

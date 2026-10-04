@@ -40,7 +40,7 @@ func markBoth(t *testing.T, a *App, sc tcell.SimulationScreen, prepare ...func(g
 // waitForPath polls until a path exists, or fails with the screen.
 func waitForPath(t *testing.T, a *App, sc tcell.SimulationScreen, path string, exists bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) {
 		_, err := os.Stat(path)
 		if (err == nil) == exists {
@@ -52,6 +52,7 @@ func waitForPath(t *testing.T, a *App, sc tcell.SimulationScreen, path string, e
 }
 
 func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	gw, bl, _ := markBoth(t, a, sc)
 	// A commit origin has and the clones do not: the new branch starts there.
@@ -136,6 +137,7 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 // branch offered but one a worktree has out, and nothing said of where they
 // are.
 func TestGroupedWorktreeStartsANewBranchFromBases(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	// gateway's clone is on feat/rate, and a worktree has main's sibling out.
 	_, _, form := markBoth(t, a, sc, func(gw, bl *realProject) {
@@ -213,6 +215,7 @@ func onLoopPair[A, B any](a *App, read func() (A, B)) (A, B) {
 // TestGroupedWorktreeBranchesFromTheClonesBranch: with the clone on another
 // branch, the group's branch starts there.
 func TestGroupedWorktreeBranchesFromTheClonesBranch(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc, func(gw, bl *realProject) {
 		gitIn(t, gw.clone, "checkout", "-q", "-b", "elsewhere")
@@ -234,6 +237,7 @@ func TestGroupedWorktreeBranchesFromTheClonesBranch(t *testing.T) {
 // TestGroupedWorktreeFormFitsItsFrame draws the form at several sizes, as the
 // merge request form is.
 func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {120, 34}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := newTestAppSrv(t)
@@ -272,6 +276,7 @@ func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
 // TestCtrlWShowsTheNewWorktree: a worktree made with Ctrl-W is not opened;
 // Worktrees comes up with the cursor on it.
 func TestCtrlWShowsTheNewWorktree(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	newRealProject(t, a, "acme/gateway")
@@ -307,6 +312,7 @@ func TestCtrlWShowsTheNewWorktree(t *testing.T) {
 // request in every repository, into the branch each was made from, under one
 // title, then gives every description the links to the others.
 func TestGroupMergeRequestsLinkEachOther(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	_, _, form := markBoth(t, a, sc)
 	typeRunes(sc, "feat/both")
@@ -363,6 +369,7 @@ func TestGroupMergeRequestsLinkEachOther(t *testing.T) {
 // clone, so git would refuse it a worktree, and it is not offered; feat/rate
 // is.
 func TestCtrlWOffersOnlyBranchesThatCanHaveAWorktree(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	newRealProject(t, a, "acme/gateway")
@@ -382,6 +389,7 @@ func TestCtrlWOffersOnlyBranchesThatCanHaveAWorktree(t *testing.T) {
 // from one end to the other, not the cursor's grey, and the cursor on it is a
 // brighter step of the same hue.
 func TestAMarkedRowIsABandOfItsOwn(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/billing")
 	typeRunes(sc, " ") // marks the first row and moves to the next
@@ -396,7 +404,7 @@ func TestAMarkedRowIsABandOfItsOwn(t *testing.T) {
 	}
 	typeRunes(sc, "k")
 	_, want, _ := styleMarkedSelected.Decompose()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(patience)
 	for {
 		_, bg, _ := cellStyleAt(a, sc, len(line)/2, row).Decompose()
 		if bg == want {

@@ -195,7 +195,7 @@ func New(cfg *config.Config, vault *secret.Vault) *App {
 		tv:       tview.NewApplication(),
 		pages:    tview.NewPages(),
 		cfg:      cfg,
-		sessions: session.New(config.Dir()),
+		sessions: session.New(cfg.Dir()),
 		disk:     map[projectKey]diskInfo{},
 	}
 	a.setVault(vault)
@@ -209,7 +209,7 @@ func NewLocked(cfg *config.Config) *App {
 		tv:       tview.NewApplication(),
 		pages:    tview.NewPages(),
 		cfg:      cfg,
-		sessions: session.New(config.Dir()),
+		sessions: session.New(cfg.Dir()),
 		disk:     map[projectKey]diskInfo{},
 	}
 }
@@ -486,16 +486,16 @@ func (a *App) say(msg string, sev severity) {
 // ------------------------------------------------------------------- indexes
 
 func (a *App) loadIndexes() {
-	if p, err := index.Load[index.Projects](config.IndexPath("projects")); err == nil {
+	if p, err := index.Load[index.Projects](a.cfg.IndexPath("projects")); err == nil {
 		a.projects, a.projUpdated = p.Items, p.UpdatedAt
 		a.staleProjects = index.Stale(p.Version, len(p.Items))
 	}
-	if m, err := index.Load[index.MergeRequests](config.IndexPath("mrs")); err == nil {
+	if m, err := index.Load[index.MergeRequests](a.cfg.IndexPath("mrs")); err == nil {
 		a.mrs, a.mrsUpdated, a.me = m.Items, m.UpdatedAt, m.Me
 		a.loadSeen()
 		a.staleMRs = index.Stale(m.Version, len(m.Items))
 	}
-	if g, err := index.Load[index.Groups](config.IndexPath("groups")); err == nil {
+	if g, err := index.Load[index.Groups](a.cfg.IndexPath("groups")); err == nil {
 		a.groups = g.Items
 	}
 	a.adoptLegacyIndex()
@@ -757,7 +757,7 @@ func (a *App) refreshProjects() {
 
 		all = index.DedupeProjects(all)
 		idx := index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: all}
-		if err := index.Save(config.IndexPath("projects"), idx); err != nil {
+		if err := index.Save(a.cfg.IndexPath("projects"), idx); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
@@ -832,7 +832,7 @@ func (a *App) refreshMRs() {
 			}
 		}
 		idx := index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all, Me: me}
-		if err := index.Save(config.IndexPath("mrs"), idx); err != nil {
+		if err := index.Save(a.cfg.IndexPath("mrs"), idx); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
@@ -986,7 +986,7 @@ func (a *App) refreshGroups() {
 			}
 			return all[i].FullPath < all[j].FullPath
 		})
-		if err := index.Save(config.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(), Items: all}); err != nil {
+		if err := index.Save(a.cfg.IndexPath("groups"), index.Groups{Version: index.Version, UpdatedAt: time.Now(), Items: all}); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
@@ -1151,7 +1151,6 @@ func (a *App) runTaskThen(title string, fn func(log func(string)) (string, error
 // in the editor, unless then is given; then it is handed to then instead.
 func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Editor, then func(string), fn func(log func(string)) (string, error)) {
 	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
-	view.SetChangedFunc(func() { view.ScrollToEnd() })
 	view.SetTextColor(colText)
 	box(view.Box, title).SetBorderPadding(0, 0, 1, 1)
 
@@ -1174,6 +1173,9 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 	log := func(line string) {
 		a.tv.QueueUpdateDraw(func() {
 			fmt.Fprintln(view, tag(colMuted)+tview.Escape(line)+tagEnd)
+			// Scrolled here, on the event loop, rather than from a changed
+			// handler: tview calls that from a goroutine of its own.
+			view.ScrollToEnd()
 		})
 	}
 
@@ -1185,6 +1187,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 			if err != nil {
 				fmt.Fprintf(view, "\n%s%s%s\n\n%sPress Esc to close.%s\n",
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)
+				view.ScrollToEnd()
 				return
 			}
 			if dir == "" || then != nil {
@@ -1222,7 +1225,7 @@ func (a *App) saveVault() {
 	if a.vault == nil {
 		return
 	}
-	if err := a.vault.Save(config.VaultPath()); err != nil {
+	if err := a.vault.Save(a.cfg.VaultPath()); err != nil {
 		a.errorf("cannot save the tokens: %v", err)
 		return
 	}

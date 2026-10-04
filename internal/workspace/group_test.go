@@ -6,6 +6,7 @@ import (
 )
 
 func TestMemberDirNamesKeepNamesApart(t *testing.T) {
+	t.Parallel()
 	got := MemberDirNames([]string{"acme/api", "acme/web", "tools/api"})
 	want := []string{"acme-api", "web", "tools-api"}
 	if !reflect.DeepEqual(got, want) {
@@ -14,6 +15,7 @@ func TestMemberDirNamesKeepNamesApart(t *testing.T) {
 }
 
 func TestGroupRoundTrips(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	g := Group{Name: "multi", Branch: "feat/multi", Members: []GroupMember{
 		{Instance: "gl", Project: "acme/api", Dir: "api", Branch: "feat/multi", Base: "main"}}}
@@ -33,6 +35,7 @@ func TestGroupRoundTrips(t *testing.T) {
 }
 
 func TestNewMemberDirNameKeepsClearOfTheOthers(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		taken []string
 		path  string

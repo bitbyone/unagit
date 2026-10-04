@@ -18,6 +18,7 @@ const separator = "│────────"
 // the headings are the order and the star only marks the row; with
 // favourites first turned off in the order picker it is the same flat.
 func TestFavouriteRepositoriesComeFirst(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	if strings.Contains(a.screenText(sc), favouriteMark) {
@@ -37,7 +38,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 		t.Errorf("the cursor went to %s", got)
 	}
 	assertLegible(t, a, sc, "a starred repository")
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,6 +82,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 // TestFavouriteMergeRequestsComeFirst: the same for a merge request, which is
 // starred on its own, not with its repository.
 func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -107,6 +109,7 @@ func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
 // no longer lists is merged or closed, and its star goes with it, so the
 // favourites in the config do not pile up. The rest stay.
 func TestRefreshForgetsClosedFavourites(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.cfg.Instances[0].ID })
@@ -125,11 +128,11 @@ func TestRefreshForgetsClosedFavourites(t *testing.T) {
 	forgotten := func() bool {
 		return onLoop(a, func() bool { return !a.cfg.Filters.IsFavourite(inst, "acme/gateway", 99) })
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) && !forgotten() {
 		time.Sleep(20 * time.Millisecond)
 	}
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}

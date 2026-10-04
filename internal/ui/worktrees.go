@@ -1024,7 +1024,7 @@ func (a *App) adoptMergeRequest(mr forge.MergeRequest) {
 		}
 	}
 	a.mrs = append(a.mrs, mr)
-	_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
+	_ = index.Save(a.cfg.IndexPath("mrs"), index.MergeRequests{
 		Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
 	a.mrsPane.reload()
 	a.worktreesPane.reload()

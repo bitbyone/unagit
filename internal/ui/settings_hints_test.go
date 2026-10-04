@@ -8,6 +8,7 @@ import (
 )
 
 func TestSettingsHintsStayInsidePanels(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "4")

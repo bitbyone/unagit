@@ -20,7 +20,7 @@ const maskRune = '•'
 // goroutine so the interface stays responsive, and the passphrase buffer is
 // wiped as soon as it has been used.
 func (a *App) showUnlock() {
-	_, statErr := os.Stat(config.VaultPath())
+	_, statErr := os.Stat(a.cfg.VaultPath())
 	creating := os.IsNotExist(statErr)
 
 	msg := tview.NewTextView().SetDynamicColors(true)
@@ -69,12 +69,12 @@ func (a *App) showUnlock() {
 		}
 		remember := a.cfg.RememberPassphrase && !remembered && passphraseStore.available()
 		go func() {
-			vault, isNew, err := secret.OpenOrCreate(config.VaultPath(), entered)
+			vault, isNew, err := secret.OpenOrCreate(a.cfg.VaultPath(), entered)
 			var imported bool
 			if err == nil && len(a.cfg.Instances) > 0 {
 				// A token.enc from before unagit had a vault belongs to the
 				// instance the old single-server config became.
-				imported, _ = vault.ImportSingleToken(config.LegacyTokenPath(), a.cfg.Instances[0].ID, entered)
+				imported, _ = vault.ImportSingleToken(a.cfg.LegacyTokenPath(), a.cfg.Instances[0].ID, entered)
 			}
 			var rememberErr error
 			if err == nil && remember {
@@ -105,7 +105,7 @@ func (a *App) showUnlock() {
 				}
 				a.setVault(vault)
 				if isNew || imported {
-					if err := vault.Save(config.VaultPath()); err != nil {
+					if err := vault.Save(a.cfg.VaultPath()); err != nil {
 						fail(err.Error())
 						return
 					}

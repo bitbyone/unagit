@@ -36,6 +36,7 @@ func cloneOnDisk(t *testing.T, a *App, instance, path string) {
 
 // TestClonedOnlyNarrowsBothLists: one key, both tabs.
 func TestClonedOnlyNarrowsBothLists(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	cloneOnDisk(t, a, a.cfg.Instances[0].ID, "acme/gateway")
@@ -60,6 +61,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 
 // TestHidingAProjectHidesItsMergeRequests
 func TestHidingAProjectHidesItsMergeRequests(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
@@ -77,7 +79,7 @@ func TestHidingAProjectHidesItsMergeRequests(t *testing.T) {
 	}
 
 	// It is remembered.
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +91,7 @@ func TestHidingAProjectHidesItsMergeRequests(t *testing.T) {
 // TestHiddenPickerBringsThemBack: the modal is the one place a hidden project
 // can still be found.
 func TestHiddenPickerBringsThemBack(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "x")
@@ -116,6 +119,7 @@ func TestHiddenPickerBringsThemBack(t *testing.T) {
 
 // TestHiddenPickerShowsAll
 func TestHiddenPickerShowsAll(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	done := make(chan struct{})
@@ -139,6 +143,7 @@ func TestHiddenPickerShowsAll(t *testing.T) {
 
 // TestSortOrderIsSharedAndRemembered
 func TestSortOrderIsSharedAndRemembered(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// By activity, the newest project is first.
@@ -167,7 +172,7 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 		t.Fatalf("first merge request row by name = %q", got)
 	}
 
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,6 +199,7 @@ func firstRow(t *testing.T, a *App, sc tcell.SimulationScreen) string {
 
 // TestFiltersSurviveARestart
 func TestFiltersSurviveARestart(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// Hide first: with "cloned only" on, this fixture has nothing on disk and
@@ -204,7 +210,7 @@ func TestFiltersSurviveARestart(t *testing.T) {
 	waitFor(t, a, sc, "cloned only")
 	time.Sleep(80 * time.Millisecond)
 
-	saved, err := config.Load()
+	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,6 +225,7 @@ func TestFiltersSurviveARestart(t *testing.T) {
 // TestCommentCountInTheList: the number is worth seeing before opening
 // anything.
 func TestCommentCountInTheList(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -247,6 +254,7 @@ func TestCommentCountInTheList(t *testing.T) {
 // TestGroupByProject: the merge requests gather under their project and keep
 // the shared order inside it.
 func TestGroupByProject(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -309,12 +317,13 @@ func TestGroupByProject(t *testing.T) {
 // TestStaleIndexSaysSo: a cache written before a field existed leaves its
 // column empty, which on its own looks like the feature not working.
 func TestStaleIndexSaysSo(t *testing.T) {
+	t.Parallel()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
 
 	// Rewrite the merge request cache the way an older unagit would have: no
 	// version, and no comment counts.
-	raw, err := os.ReadFile(config.IndexPath("mrs"))
+	raw, err := os.ReadFile(cfg.IndexPath("mrs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +336,7 @@ func TestStaleIndexSaysSo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(config.IndexPath("mrs"), out, 0o600); err != nil {
+	if err := os.WriteFile(cfg.IndexPath("mrs"), out, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -343,7 +352,7 @@ func TestStaleIndexSaysSo(t *testing.T) {
 	typeRunes(sc, "2")
 	typeRunes(sc, "R")
 	stale := func() bool { return onLoop(a, func() bool { return a.staleMRs }) }
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	for time.Now().Before(deadline) && stale() {
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -361,6 +370,7 @@ func TestStaleIndexSaysSo(t *testing.T) {
 // TestPathColumnShowsWhereItIsCloned: with per-group roots, two repositories
 // can live in different places, and the column is what tells them apart.
 func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	id := a.cfg.Instances[0].ID

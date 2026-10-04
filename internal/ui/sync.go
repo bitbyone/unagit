@@ -10,7 +10,6 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
@@ -489,7 +488,7 @@ func (a *App) forgetClosedWorktreeMRs(then func()) {
 					kept = append(kept, mr)
 				}
 				a.mrs = kept
-				_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
+				_ = index.Save(a.cfg.IndexPath("mrs"), index.MergeRequests{
 					Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
 				a.mrsPane.reload()
 				a.worktreesPane.reload()

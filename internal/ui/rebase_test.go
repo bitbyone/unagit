@@ -13,6 +13,7 @@ import (
 // puts a pushed branch on top of its base, the row asks for a force push, and
 // P does it after asking.
 func TestRebaseOntoBaseThenForcePush(t *testing.T) {
+	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")

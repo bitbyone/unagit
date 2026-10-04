@@ -14,6 +14,7 @@ import (
 // commit under the cursor and the rest of its message, and Enter opens the
 // commit's detail, Esc coming back to the log.
 func TestCommitLogs(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "g")
@@ -70,6 +71,7 @@ func TestCommitLogs(t *testing.T) {
 // commit; the row then says which commit and how far behind its branch it is,
 // and B goes back to the branch.
 func TestCheckOutACommitAndComeBack(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -100,6 +102,7 @@ func TestCheckOutACommitAndComeBack(t *testing.T) {
 // the cursor, Ctrl-W a branch at it in a worktree of its own; the clone
 // stays where it was.
 func TestABranchAndAWorktreeFromACommit(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -143,6 +146,7 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 // TestCopyACommit: y offers the link, a line for a chat - repository,
 // branch, commit and subject, then the link - and the ids.
 func TestCopyACommit(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")

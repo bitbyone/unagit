@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 )
@@ -75,7 +74,7 @@ func (a *App) applyMRRefresh(fresh forge.MergeRequest) {
 // saveMRIndex writes the merge request index as the list now has it, the
 // time of the last full refresh kept.
 func (a *App) saveMRIndex() {
-	_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
+	_ = index.Save(a.cfg.IndexPath("mrs"), index.MergeRequests{
 		Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs, Me: a.me})
 }
 

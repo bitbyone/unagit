@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
-
-	"github.com/tobola/unagit/internal/config"
 )
 
 // TestAPipelineUpClose: J lists the jobs with the failed one under the
 // cursor; Enter reads its log, cleaned of colours, and Esc comes back; R
 // runs it again.
 func TestAPipelineUpClose(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -33,6 +32,9 @@ func TestAPipelineUpClose(t *testing.T) {
 		t.Errorf("the log lost its text:\n%s", text)
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	// The pipeline's title shows under the log too; the log has to be gone
+	// before R, or R goes to it.
+	waitGone(t, a, sc, "--- FAIL: TestBucket")
 	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
 
 	typeRunes(sc, "R")
@@ -46,6 +48,7 @@ func TestAPipelineUpClose(t *testing.T) {
 // what is pushed after it shows as new, and the mark is kept beside the
 // indexes.
 func TestMarkAsReviewed(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -61,7 +64,7 @@ func TestMarkAsReviewed(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gV")
 	waitFor(t, a, sc, "!7 marked as reviewed at "+head[:8])
-	data, err := os.ReadFile(config.IndexPath("seen"))
+	data, err := os.ReadFile(a.cfg.IndexPath("seen"))
 	must(t, err)
 	if !strings.Contains(string(data), head) {
 		t.Errorf("the mark was not kept: %s", data)
@@ -82,6 +85,7 @@ func TestMarkAsReviewed(t *testing.T) {
 
 // TestARefreshSaysWhereToLook: the summary after r names what failed.
 func TestARefreshSaysWhereToLook(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -92,6 +96,7 @@ func TestARefreshSaysWhereToLook(t *testing.T) {
 }
 
 func TestCleanLog(t *testing.T) {
+	t.Parallel()
 	got := cleanLog("\x1b[32;1mok\x1b[0;m\nsection_end:12:build\r\x1b[0Kdone\n1%\r50%\r100%")
 	if got != "ok\ndone\n100%" {
 		t.Errorf("cleanLog = %q", got)

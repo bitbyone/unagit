@@ -21,6 +21,7 @@ func openMRDetail(t *testing.T, a *App, sc tcell.SimulationScreen) {
 // TestDetailShowsOnlyTheNewestComments keeps the column readable; the rest
 // live in the modal.
 func TestDetailShowsOnlyTheNewestComments(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 
@@ -36,6 +37,7 @@ func TestDetailShowsOnlyTheNewestComments(t *testing.T) {
 
 // TestCommentsAreRenderedAsMarkdown: the asterisks become weight, not text.
 func TestCommentsAreRenderedAsMarkdown(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 	waitFor(t, a, sc, "retry loop")
@@ -47,6 +49,7 @@ func TestCommentsAreRenderedAsMarkdown(t *testing.T) {
 
 // TestCommentsModalShowsTheWholeConversation
 func TestCommentsModalShowsTheWholeConversation(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 
@@ -70,6 +73,7 @@ func TestCommentsModalShowsTheWholeConversation(t *testing.T) {
 
 // TestWriteAComment drives the composer and checks what reached the server.
 func TestWriteAComment(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	openMRDetail(t, a, sc)
 
@@ -95,6 +99,7 @@ func TestWriteAComment(t *testing.T) {
 
 // TestComposerRefusesAnEmptyComment
 func TestComposerRefusesAnEmptyComment(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	openMRDetail(t, a, sc)
 	typeRunes(sc, "c")
@@ -111,6 +116,7 @@ func TestComposerRefusesAnEmptyComment(t *testing.T) {
 
 // TestApproveAsksFirst: it is visible to everyone, so it is confirmed.
 func TestApproveAsksFirst(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -140,6 +146,7 @@ func TestApproveAsksFirst(t *testing.T) {
 
 // TestApproveFromTheCommentsModal
 func TestApproveFromTheCommentsModal(t *testing.T) {
+	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	openMRDetail(t, a, sc)
 	typeRunes(sc, "c")
@@ -159,6 +166,7 @@ func TestApproveFromTheCommentsModal(t *testing.T) {
 // TestCommentsAreGroupedIntoThreads: a reply belongs under what it answers,
 // not wherever its timestamp happens to fall.
 func TestCommentsAreGroupedIntoThreads(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 	typeRunes(sc, "c")
@@ -212,6 +220,7 @@ func column(line, word string) int {
 // the cursor back on the first row - so Enter on the fourth merge request
 // showed the first one instead.
 func TestEnterOpensTheRowYouAreOn(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -237,6 +246,7 @@ func TestEnterOpensTheRowYouAreOn(t *testing.T) {
 // TestRedrawKeepsTheCursor: a refresh, a resize or a filter toggle must not
 // move it either.
 func TestRedrawKeepsTheCursor(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
@@ -269,7 +279,7 @@ func TestRedrawKeepsTheCursor(t *testing.T) {
 // waitSelected waits for the cursor to land on a data row.
 func waitSelected(t *testing.T, a *App, p *pane, want int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(patience)
 	got := -1
 	for time.Now().Before(deadline) {
 		if got = onLoop(a, p.selectedIndex); got == want {
@@ -285,6 +295,7 @@ func waitSelected(t *testing.T, a *App, p *pane, want int) {
 // not scrolled down to the last line. The terminal is kept short so the
 // conversation does not fit and where it is scrolled to shows.
 func TestCommentsOpenAtTheTop(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	resize(sc, 140, 16)
 	openMRDetail(t, a, sc)

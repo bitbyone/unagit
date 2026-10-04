@@ -10,6 +10,7 @@ import (
 )
 
 func TestConfirmationButtonShortcuts(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	accepted := 0
@@ -41,6 +42,7 @@ func TestConfirmationButtonShortcuts(t *testing.T) {
 }
 
 func TestFormButtonShortcuts(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	saved, inherited, cancelled, existing := 0, 0, 0, 0
@@ -98,6 +100,7 @@ func TestFormButtonShortcuts(t *testing.T) {
 }
 
 func TestButtonShortcutCollisionsAndDisabled(t *testing.T) {
+	t.Parallel()
 	keys := buttonKeys([]string{"Change", "Cancel", "Clone"})
 	// h, j, k, l and i move and start typing in a form; no button takes them.
 	if string(keys) != "aco" {
@@ -150,6 +153,7 @@ func assertMutedHint(t *testing.T, a *App, sc tcell.SimulationScreen, hint strin
 }
 
 func TestSimpleDialogsKeepInlineHints(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	waitGone(t, a, sc, "e directory")
@@ -164,6 +168,7 @@ func TestSimpleDialogsKeepInlineHints(t *testing.T) {
 }
 
 func TestHelpUsesTheOpeningContext(t *testing.T) {
+	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	check := func(title string, active, inactive []string) {
