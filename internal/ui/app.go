@@ -135,6 +135,10 @@ type App struct {
 	// newer answer.
 	wtRemote map[string]remoteState
 	wtGen    int
+	// wtSize is what each worktree takes on disk, by directory, measured in
+	// the background; wtSizing holds the ones being measured now.
+	wtSize   map[string]int64
+	wtSizing map[string]bool
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -1016,6 +1020,7 @@ func (a *App) refreshDisk() {
 	a.disk, a.worktrees = a.scanDisk(a.cfg.Integrations.Incomm)
 	a.localRefreshed = time.Now()
 	a.loadWorktreeRemotes()
+	a.loadWorktreeSizes(false)
 	a.loadRepoSync(false)
 	a.loadMRFresh()
 	a.reloadWorktreeView()
@@ -1066,7 +1071,8 @@ func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRo
 					wtDir := filepath.Join(root, name)
 					branch, moved := workspace.WorktreeHead(wtDir)
 					worktrees = append(worktrees, worktreeRow{
-						Instance: key.Instance, Path: key.Path, Branch: branch, Dir: wtDir, Moved: moved})
+						Instance: key.Instance, Path: key.Path, Branch: branch, Dir: wtDir, Moved: moved,
+						Created: workspace.WorktreeCreated(wtDir)})
 					continue
 				}
 				review := root == legacyReviews

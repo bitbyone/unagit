@@ -217,6 +217,8 @@ func helpRows() []helpLine {
 		key("REPOS", "how many repositories the worktree holds"),
 		key("EDITS", "files not committed; Repositories too"),
 		key("COM", "Incomm comments; amber while some wait for P"),
+		key("SIZE", "what it takes on disk; R measures again"),
+		key("CREATED", "when the worktree was made"),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail),

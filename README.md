@@ -251,6 +251,15 @@ Opening never waits for comments: on your own work they come second.
 files and deletions - and in a grouped worktree every repository at once.
 One message serves all of them; any repository can be given its own instead.
 
+### How old, how big
+
+Worktrees also says how old each one is and what it takes: `CREATED` is when
+it was made, `SIZE` what its files take on disk - a group's summed - with
+whatever was built in it, but not the object store it shares with its clone.
+Sizes are measured in the background the first time a worktree is seen, and
+again on `R`. Nothing is removed for being old or big; that stays your call,
+with `d`.
+
 ### Keeping worktrees current
 
 A branch unagit makes - in a grouped worktree, or with `n` in the `Ctrl-W`

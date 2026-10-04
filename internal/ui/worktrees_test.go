@@ -83,3 +83,34 @@ func TestWorktreesTabIsEmptyWithoutWorktrees(t *testing.T) {
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "0/0 worktrees")
 }
+
+// TestWorktreesSayHowBigAndHowOld: SIZE is measured in the background and
+// summed from the files, CREATED is when the worktree was made, and both give
+// way when the terminal is narrow.
+func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	dir := p.worktree("feature/audit-log")
+	must(t, os.WriteFile(filepath.Join(dir, "big.bin"), make([]byte, 3<<20), 0o644))
+	made := time.Now().Add(-50 * time.Hour)
+	must(t, os.Chtimes(filepath.Join(dir, ".git"), made, made))
+	p.rescan()
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "3.0 MB")
+	row := rowWith(a, sc, "feature/audit-log")
+	if !strings.Contains(row, "2d ago") {
+		t.Errorf("CREATED does not say two days: %q", row)
+	}
+	text := a.screenText(sc)
+	if !strings.Contains(text, "SIZE") || !strings.Contains(text, "CREATED") {
+		t.Errorf("the columns are not headed:\n%s", text)
+	}
+
+	resize(sc, 80, 20)
+	waitGone(t, a, sc, "CREATED")
+	if !strings.Contains(a.screenText(sc), "REMOTE") {
+		t.Errorf("REMOTE gave way before the new columns:\n%s", a.screenText(sc))
+	}
+}

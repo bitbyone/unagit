@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -573,5 +574,35 @@ func TestManagedCheckoutIsUsedAndKept(t *testing.T) {
 	}
 	if out := git(t, managed, "worktree", "list"); strings.Count(out, "\n") != 0 {
 		t.Errorf("git still lists a removed worktree:\n%s", out)
+	}
+}
+
+func TestDiskUsageCountsTheFilesAndCreatedIsTheGitFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, size := range map[string]int{"a": 100, "sub/b": 1000} {
+		if err := os.WriteFile(filepath.Join(dir, name), make([]byte, size), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := DiskUsage(dir); got != 1100 {
+		t.Errorf("DiskUsage = %d, want 1100", got)
+	}
+	if !WorktreeCreated(dir).IsZero() {
+		t.Error("a directory with no .git has no creation time")
+	}
+	made := time.Now().Add(-72 * time.Hour).Truncate(time.Second)
+	gitFile := filepath.Join(dir, ".git")
+	if err := os.WriteFile(gitFile, []byte("gitdir: /x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(gitFile, made, made); err != nil {
+		t.Fatal(err)
+	}
+	if got := WorktreeCreated(dir); !got.Equal(made) {
+		t.Errorf("WorktreeCreated = %v, want %v", got, made)
 	}
 }

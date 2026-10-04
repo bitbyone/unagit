@@ -276,8 +276,9 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 // worktreesActions are what Worktrees itself can do.
 func (a *App) worktreesActions(p *pane) []uiAction {
 	acts := []uiAction{
-		{name: "Refresh All", about: "Look at the disk again, fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
+		{name: "Refresh All", about: "Look at the disk again - what each worktree takes measured anew - fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
+			a.loadWorktreeSizes(true)
 			a.fetchWorktrees()
 			a.note("looking at the disk, and asking origin")
 		}},

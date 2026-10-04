@@ -39,10 +39,15 @@ func (a *App) groupRow(g workspace.GroupDir) worktreeRow {
 			continue
 		}
 		branch, moved := workspace.WorktreeHead(dir)
+		created := workspace.WorktreeCreated(dir)
 		row.Members = append(row.Members, worktreeRow{
-			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved, Base: m.Base, Group: g.Dir})
+			Instance: m.Instance, Path: m.Project, Branch: branch, Dir: dir, Moved: moved, Base: m.Base, Group: g.Dir,
+			Created: created})
 		if moved.After(row.Moved) {
 			row.Moved = moved
+		}
+		if row.Created.IsZero() || created.Before(row.Created) {
+			row.Created = created
 		}
 		if i == 0 {
 			shared = branch

@@ -14,6 +14,7 @@ package workspace
 
 import (
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -698,6 +699,34 @@ func WorktreeHead(dir string) (branch string, moved time.Time) {
 		}
 	}
 	return branch, time.Time{}
+}
+
+// WorktreeCreated is when a worktree was made: git writes its .git file once,
+// at worktree add, and nothing touches it after. Zero when it cannot be read.
+func WorktreeCreated(dir string) time.Time {
+	if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		return fi.ModTime()
+	}
+	return time.Time{}
+}
+
+// DiskUsage is what the files under dir take, by their sizes - the checkout
+// and whatever was built in it. A worktree shares the object store with its
+// clone, so that is not counted; what cannot be read is passed over.
+func DiskUsage(dir string) int64 {
+	var total int64
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.Type().IsRegular() {
+			if info, err := d.Info(); err == nil {
+				total += info.Size()
+			}
+		}
+		return nil
+	})
+	return total
 }
 
 // RemoveMR deletes the worktrees of a merge request - both the branch one and

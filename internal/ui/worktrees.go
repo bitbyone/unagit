@@ -21,6 +21,7 @@ import (
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/workspace"
 )
 
 // worktreeRow is one worktree made from Repositories for a branch of its own,
@@ -31,6 +32,7 @@ type worktreeRow struct {
 	Branch   string // what the worktree has checked out now
 	Dir      string
 	Moved    time.Time // when its HEAD last moved
+	Created  time.Time // when it was made; a group's, its oldest member's
 	// Base is the branch a group member was made from, as the group noted it;
 	// the repository's own note wins when there is one.
 	Base string
@@ -387,12 +389,15 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 
 	repoW, branchW, serverW, pathW, actW, remoteW, mrW := 10, 6, 0, 0, 8, len("REMOTE"), len("MR")
 	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
+	createdW, sizeW := len("CREATED"), len("SIZE")
 	mrs := map[int]string{}
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
 		repoW = max(repoW, len([]rune(r.Path)))
 		branchW = max(branchW, len([]rune(a.worktreeBranch(r))))
 		actW = max(actW, len(humanAge(r.Moved)))
+		createdW = max(createdW, len(humanAge(r.Created)))
+		sizeW = max(sizeW, len([]rune(a.worktreeSize(r))))
 		if withServer {
 			serverW = max(serverW, len([]rune(a.worktreeServer(r))))
 		}
@@ -427,16 +432,17 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		fields++
 	}
 	// What gives way when the row is tight, in this order: the directory, whole
-	// (half a path says nothing), the merge request, the comments, then the
-	// edits. REMOTE stays. The comments are counted only with Incomm on.
-	showPath, showMR, showEdits := true, true, true
+	// (half a path says nothing), when it was made, its size, the merge
+	// request, the comments, then the edits. REMOTE stays. The comments are
+	// counted only with Incomm on.
+	showPath, showCreated, showSize, showMR, showEdits := true, true, true, true, true
 	showComments := a.cfg.Integrations.Incomm
 	cost := func() int {
 		total, gaps := fixed, fields
 		for _, c := range []struct {
 			on bool
 			w  int
-		}{{showPath, pathW}, {showMR, mrW}, {showComments, comW}, {showEdits, editsW}} {
+		}{{showPath, pathW}, {showCreated, createdW}, {showSize, sizeW}, {showMR, mrW}, {showComments, comW}, {showEdits, editsW}} {
 			if c.on {
 				total += c.w
 				gaps++
@@ -444,10 +450,14 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		return total + gaps
 	}
-	for room-cost() < minRepo && (showPath || showMR || showComments || showEdits) {
+	for room-cost() < minRepo && (showPath || showCreated || showSize || showMR || showComments || showEdits) {
 		switch {
 		case showPath:
 			showPath = false
+		case showCreated:
+			showCreated = false
+		case showSize:
+			showSize = false
 		case showMR:
 			showMR = false
 		case showComments:
@@ -478,6 +488,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	if showPath {
 		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
+	}
+	if showSize {
+		header = append(header, field{text: "SIZE", width: sizeW, colour: colDim, right: true})
+	}
+	if showCreated {
+		header = append(header, field{text: "CREATED", width: createdW, colour: colDim})
 	}
 	header = append(header, field{text: "ACTIVITY", width: actW, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).SetSelectable(false).SetExpansion(1))
@@ -518,6 +534,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		if showPath {
 			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: colMuted})
+		}
+		if showSize {
+			cells = append(cells, field{text: a.worktreeSize(r), width: sizeW, colour: colMuted, right: true})
+		}
+		if showCreated {
+			cells = append(cells, field{text: humanAge(r.Created), width: createdW, colour: colMuted})
 		}
 		cells = append(cells, field{text: humanAge(r.Moved), width: actW, colour: colMuted})
 		p.table.SetCell(row+1, 0, tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1))
@@ -1028,4 +1050,66 @@ func (a *App) adoptMergeRequest(mr forge.MergeRequest) {
 		Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
 	a.mrsPane.reload()
 	a.worktreesPane.reload()
+}
+
+// loadWorktreeSizes measures what each worktree takes on disk, in the
+// background: walking a checkout with what was built in it can take
+// seconds. Only the ones not measured yet are, unless again is set.
+func (a *App) loadWorktreeSizes(again bool) {
+	if a.wtSize == nil {
+		a.wtSize, a.wtSizing = map[string]int64{}, map[string]bool{}
+	}
+	var dirs []string
+	for _, r := range a.worktrees {
+		members := []worktreeRow{r}
+		if r.grouped() {
+			members = r.Members
+		}
+		for _, m := range members {
+			if _, known := a.wtSize[m.Dir]; a.wtSizing[m.Dir] || known && !again {
+				continue
+			}
+			a.wtSizing[m.Dir] = true
+			dirs = append(dirs, m.Dir)
+		}
+	}
+	if len(dirs) == 0 {
+		return
+	}
+	go func() {
+		// Two at a time: the disk, not the processor, is what they wait for.
+		sem := make(chan struct{}, 2)
+		for _, dir := range dirs {
+			sem <- struct{}{}
+			go func() {
+				defer func() { <-sem }()
+				n := workspace.DiskUsage(dir)
+				a.tv.QueueUpdateDraw(func() {
+					a.wtSize[dir] = n
+					delete(a.wtSizing, dir)
+					if a.worktreesPane != nil && a.worktreesPane.reload != nil {
+						a.worktreesPane.reload()
+					}
+				})
+			}()
+		}
+	}()
+}
+
+// worktreeSize is the SIZE column: what the worktree takes, a group's summed
+// over its repositories; "…" while some of it is still being measured.
+func (a *App) worktreeSize(r worktreeRow) string {
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	var total int64
+	for _, m := range members {
+		n, known := a.wtSize[m.Dir]
+		if !known {
+			return "…"
+		}
+		total += n
+	}
+	return humanBytes(total)
 }
