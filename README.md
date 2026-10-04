@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- [1] Repositories │ [2] Merge requests │ [4] Settings
+ [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Settings
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
