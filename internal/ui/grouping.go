@@ -7,7 +7,6 @@ import (
 	"github.com/rivo/tview"
 )
 
-
 // listLayout is what a list tells layRows about its rows.
 type listLayout struct {
 	// favourite reports whether a row is starred.

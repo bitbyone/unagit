@@ -12,7 +12,6 @@ import (
 	"github.com/tobola/unagit/internal/secret"
 )
 
-
 // showUnlock renders the passphrase dialog: opening the token vault, or
 // creating it on a first run. The key derivation runs on a background
 // goroutine so the interface stays responsive, and the passphrase buffer is

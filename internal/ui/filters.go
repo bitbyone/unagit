@@ -9,7 +9,6 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
-
 // passesFilters reports whether a project survives the shared filters. Both
 // lists ask the same question, so a merge request disappears with the project
 // it belongs to.
