@@ -72,7 +72,8 @@ func (a *App) loadRepoSync(fetch bool) {
 				} else if upstreams == nil {
 					st.Unreadable = true
 				} else {
-					st.Detached = true
+					st = detachedState(j.git, j.dir)
+					st.Edits, st.Busy = max(j.git.Edits(j.dir), 0), j.git.OperationInProgress(j.dir)
 				}
 				a.tv.QueueUpdateDraw(func() {
 					if a.repoSync == nil {
@@ -132,7 +133,7 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 	case st.Busy != "":
 		return busyWords(st.Busy), colBad
 	case st.Detached:
-		return "detached", colDim
+		return detachedWords(st)
 	case u.Gone:
 		return "gone", colBad
 	case u.Name == "":
@@ -172,7 +173,7 @@ func (a *App) syncSentence(key projectKey) string {
 	case st.Busy != "":
 		text, colour = "a "+st.Busy+" is in progress: finish it, or abort it, in the clone", colBad
 	case st.Detached:
-		text, colour = "detached HEAD, no branch to update", colDim
+		text, colour = detachedSentence(st), colDim
 	case u.Gone:
 		text, colour = "upstream gone: the branch was deleted on origin", colBad
 	case u.Name == "":
@@ -526,4 +527,46 @@ func (a *App) updateMR(mr forge.MergeRequest) {
 		}
 		return fmt.Sprintf("!%d: %s", mr.IID, outcome), nil
 	})
+}
+
+// detachedLabel is what the branch column says of a detached HEAD: the commit
+// it is at, marked so it is not taken for a branch.
+func detachedLabel(sha string) string { return "@" + shortSHA(sha) }
+
+// detachedState is where a detached HEAD stands: which branch it left and
+// how many of that branch's commits it is behind. It runs off the event
+// loop.
+func detachedState(git *gitx.Git, dir string) remoteState {
+	st := remoteState{Detached: true, From: git.LastBranch(dir)}
+	if st.From != "" {
+		ref := "origin/" + st.From
+		if !git.RemoteBranchExists(dir, st.From) {
+			ref = st.From
+		}
+		st.FromBehind = max(git.Count(dir, "HEAD.."+ref), 0)
+	}
+	return st
+}
+
+// detachedWords is the REMOTE column of a detached HEAD: how far behind the
+// branch it came from, which says it is an old state.
+func detachedWords(st remoteState) (string, tcell.Color) {
+	switch {
+	case st.From == "":
+		return "detached", colDim
+	case st.FromBehind > 0:
+		return fmt.Sprintf("↓%d %s", st.FromBehind, st.From), colWarn
+	}
+	return "at " + st.From, colDim
+}
+
+// detachedSentence says the same in a sentence, and the way back.
+func detachedSentence(st remoteState) string {
+	switch {
+	case st.From == "":
+		return "detached HEAD: no branch is out · b picks one"
+	case st.FromBehind > 0:
+		return fmt.Sprintf("detached HEAD, %d commit(s) behind %s · Back to Branch returns to it", st.FromBehind, st.From)
+	}
+	return fmt.Sprintf("detached HEAD at the tip of %s · Back to Branch returns to it", st.From)
 }

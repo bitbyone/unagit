@@ -6,19 +6,50 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/workspace"
 )
 
-// The commit log, one list for a repository, a merge request and a worktree:
-// newest first, the pane under it giving who made the commit under the
-// cursor, when, and the rest of its message. Enter shows the commit in Hunk
-// when the checkout has it, w opens it on the server, y copies its id.
+// The commit log, one list wherever it is opened: newest first, the pane
+// under it giving who made the commit under the cursor, when, and the rest of
+// its message. Enter is the same everywhere - the commit's detail, over the
+// log, back to it on Esc - and the other keys are what the place it was
+// opened from can do with a commit: look at it in Hunk, check it out, review
+// a merge request from it, start a branch or a worktree there, open or copy
+// it. A merge request's log marks what is new since the last review and
+// starts on the oldest of it.
 
 // logCommit is one commit of a log, from git or from the forge.
 type logCommit struct {
 	gitx.LogEntry
-	WebURL string
+	WebURL   string
+	New      bool // a merge request's, not yet given a review
+	Unpushed bool // not on the branch's upstream yet
+}
+
+// logPlace is where a log was opened, and so what can be done with its
+// commits.
+type logPlace struct {
+	title   string
+	project forge.Project
+	// dir is the checkout the commits are looked at and checked out in, ""
+	// when nothing is on disk; branch is what the log is of.
+	dir    string
+	branch string
+	// checkout lets C put HEAD on a commit; mr makes it a merge request's
+	// log, reviewed from a commit with Ctrl-R; branches lets n and Ctrl-W
+	// start a branch or a worktree at one.
+	checkout bool
+	mr       *forge.MergeRequest
+	branches bool
+	// reload reads the log again, the cursor on focus, after something
+	// changed what it shows, and says done over it.
+	reload func(focus, done string)
 }
 
 // historyLimit is how far back a log goes; it is for looking around, not
@@ -29,14 +60,13 @@ const historyLimit = 200
 // list has the rest of the message.
 const subjectWidth = 52
 
-// showCommitLog lists commits. dir is the checkout Enter shows them from, ""
-// when there is none on disk.
-func (a *App) showCommitLog(title string, commits []logCommit, dir string) {
+// showCommitLog lists commits, the cursor on start.
+func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	if len(commits) == 0 {
 		a.note("no commits to show")
 		return
 	}
-	// The subjects make a column, so the ages after them line up.
+	// The subjects make a column, so what comes after them lines up.
 	subjects := make([]string, len(commits))
 	width := 0
 	for i, c := range commits {
@@ -49,33 +79,75 @@ func (a *App) showCommitLog(title string, commits []logCommit, dir string) {
 	}
 	items := make([]pickItem, len(commits))
 	for i, c := range commits {
-		label := fmt.Sprintf("%s  %-*s", shortSHA(c.SHA), width, subjects[i])
-		items[i] = pickItem{Label: esc(label), Sub: humanAge(c.When), About: commitAbout(c), Data: c}
-	}
-	show := func(it pickItem) {
-		c := it.Data.(logCommit)
-		bin, ok := a.hunkBinary()
+		// The picker filters on the text as it is drawn, so the marks are
+		// plain characters, not colour tags.
+		mark := "  "
 		switch {
-		case !ok:
-			return
-		case dir == "":
-			a.flash("not cloned - Enter shows a commit once the repository is on disk")
-		case !gitx.New("", nil).HasCommit(dir, c.SHA):
-			a.flash(shortSHA(c.SHA) + " is not in the clone yet - pull it, or open the review, first")
-		default:
-			go a.runView(bin, diffView{dir: dir, args: []string{"show", c.SHA}})
+		case c.New:
+			mark = "● "
+		case c.Unpushed:
+			mark = "↑ "
 		}
+		label := fmt.Sprintf("%s%s  %-*s", mark, shortSHA(c.SHA), width, subjects[i])
+		// The age first, in a column of its own; what points at the commit
+		// after it, where a varying length disturbs nothing.
+		sub := strings.TrimSpace(fmt.Sprintf("%-8s  %s", humanAge(c.When), refWords(c.Refs)))
+		items[i] = pickItem{Label: esc(label), Sub: esc(sub), About: commitAbout(c, place), Data: i}
 	}
-	opts := pickerOptions{pack: true, explain: true, enterHint: "show in Hunk", keys: []pickKey{
-		{keys: "w", hint: "browser", run: func(it pickItem) { a.openWeb(it.Data.(logCommit).WebURL) }},
-		{keys: "y", hint: "copy id", run: func(it pickItem) { a.yank("commit id", it.Data.(logCommit).SHA) }},
-	}}
-	a.showPickerWith(title, items, opts, show)
+	at := func(it pickItem) logCommit { return commits[it.Data.(int)] }
+	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
+
+	keys := []pickKey{
+		{keys: "D", hint: "diff", run: func(it pickItem) { a.showCommitDiff(place, at(it), false, again(it)) }},
+		{keys: "Alt-D", hint: "since", run: func(it pickItem) { a.showCommitDiff(place, at(it), true, again(it)) }},
+	}
+	if place.checkout {
+		keys = append(keys, pickKey{keys: "C", hint: "checkout", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }})
+	}
+	if place.mr != nil {
+		mr := *place.mr
+		keys = append(keys,
+			pickKey{keys: "Ctrl-R", hint: "review from here", run: func(it pickItem) { a.openMRReviewFrom(mr, at(it).SHA, nil) }},
+			pickKey{keys: "Alt-R", hint: "…in an editor", run: func(it pickItem) {
+				sha := at(it).SHA
+				a.withEditor(true, func(ed *editors.Editor) { a.openMRReviewFrom(mr, sha, ed) })
+			}})
+	}
+	if place.branches {
+		keys = append(keys,
+			pickKey{keys: "n", hint: "branch", run: func(it pickItem) { a.branchAtCommit(place, at(it), again(it)) }},
+			pickKey{keys: "Ctrl-W", hint: "worktree", run: func(it pickItem) { a.worktreeAtCommit(place, at(it), again(it)) }})
+	}
+	keys = append(keys,
+		pickKey{keys: "w", hint: "browser", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
+		pickKey{keys: "y", hint: "copy", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
+
+	opts := pickerOptions{start: start, pack: true, explain: true, enterHint: "details", keys: keys}
+	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
 }
 
-// commitAbout is the pane under the log: author and time, then the body.
-func commitAbout(c logCommit) string {
+// refWords is what points at a commit, as short as it reads: HEAD, the
+// branches and tags, origin's copies.
+func refWords(refs []string) string {
+	words := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		ref = strings.Replace(ref, "HEAD -> ", "HEAD→", 1)
+		ref = strings.TrimPrefix(ref, "tag: ")
+		if ref == "origin/HEAD" {
+			continue
+		}
+		words = append(words, ref)
+	}
+	return strings.Join(words, " ")
+}
+
+// commitAbout is the pane under the log: author and time, then the body, and
+// what a review from a merge commit would bring in.
+func commitAbout(c logCommit, place logPlace) string {
 	about := c.Author + " · " + c.When.Format("2006-01-02 15:04")
+	if place.mr != nil && c.Merge {
+		about += " · merge commit: a review from here includes what it merged"
+	}
 	if body := strings.Join(strings.Fields(c.Body), " "); body != "" {
 		about += " · " + body
 	}
@@ -84,13 +156,222 @@ func commitAbout(c logCommit) string {
 
 func shortSHA(sha string) string { return sha[:min(8, len(sha))] }
 
-// repositoryLog is the log of a repository: of the branch out in the clone,
-// or, before it is cloned, of the default branch on the server.
+// onDisk says why a commit cannot be looked at in the checkout, or "".
+func (a *App) onDisk(place logPlace, c logCommit) string {
+	switch {
+	case place.dir == "":
+		return "not cloned - C on the repository clones it, then its commits can be looked at"
+	case !gitx.New("", nil).HasCommit(place.dir, c.SHA):
+		return shortSHA(c.SHA) + " is not on disk yet - pull, or open the review, first"
+	}
+	return ""
+}
+
+// showCommitDiff shows a commit in Hunk, or, since, everything from it to
+// the working tree; the log comes back when Hunk is closed.
+func (a *App) showCommitDiff(place logPlace, c logCommit, since bool, back func()) {
+	bin, ok := a.hunkBinary()
+	if !ok {
+		return
+	}
+	if why := a.onDisk(place, c); why != "" {
+		a.flash(why)
+		return
+	}
+	args := []string{"show", c.SHA}
+	if since {
+		args = []string{"diff", c.SHA}
+	}
+	go func() {
+		a.runView(bin, diffView{dir: place.dir, args: args})
+		a.tv.QueueUpdateDraw(back)
+	}()
+}
+
+// showCommitDetail is a commit whole: who, when, what points at it, the
+// message, and the files it changed. Esc goes back to the log.
+func (a *App) showCommitDetail(place logPlace, c logCommit, back func()) {
+	d := &detailBuf{}
+	d.title(c.Subject)
+	d.blank()
+	d.kv("Commit", esc(c.SHA))
+	d.kv("Author", esc(c.Author))
+	d.kv("Date", esc(c.When.Format("Mon 2006-01-02 15:04")+" · "+humanAge(c.When)))
+	d.kv("Refs", esc(strings.Join(c.Refs, ", ")))
+	if c.Merge {
+		d.kv("Merge", "yes")
+	}
+	if url := a.commitURL(place, c); url != "" {
+		d.kv("Link", esc(url))
+	}
+	if c.Body != "" {
+		d.blank()
+		d.raw(tag(colText) + esc(c.Body) + tagEnd + "\n")
+	}
+	view := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetWordWrap(true).SetScrollable(true)
+	view.SetText(d.String())
+	box(view.Box, "Commit "+shortSHA(c.SHA))
+	hintPanel(view.Box, func() string { return "j/k scroll · Esc back to the log" }, 0, 0, 1, 1)
+	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == 'q' || ev.Rune() == 'h' {
+			a.closeModal(pageCommit)
+			back()
+			return nil
+		}
+		return ev
+	})
+	a.pages.AddPage(pageCommit, modalPct(view, 70, 70), true, true)
+	a.tv.SetFocus(view)
+	// What it changed comes from git, off the event loop.
+	if a.onDisk(place, c) == "" {
+		dir := place.dir
+		go func() {
+			stat, err := gitx.New("", nil).ShowStat(dir, c.SHA)
+			if err != nil || stat == "" {
+				return
+			}
+			a.tv.QueueUpdateDraw(func() {
+				view.SetText(d.String() + "\n" + tag(colWarn) + "[::b]FILES[::-]" + tagEnd + "\n" + tag(colMuted) + esc(stat) + tagEnd + "\n")
+			})
+		}()
+	}
+}
+
+// checkoutCommit puts HEAD of the checkout on a commit. The list then shows
+// the commit where the branch was, and how far behind that branch it is;
+// Back to Branch returns.
+func (a *App) checkoutCommit(place logPlace, c logCommit) {
+	if why := a.onDisk(place, c); why != "" {
+		a.flash(why)
+		return
+	}
+	pr := place.project
+	a.runTaskThen(fmt.Sprintf("Checking out %s in %s", shortSHA(c.SHA), tildePath(place.dir)),
+		func(log func(string)) (string, error) {
+			return "", a.newManager(pr.Instance, pr.PathWithNamespace, log).CheckoutCommit(place.dir, c.SHA)
+		}, func(string) { a.afterHeadMoved() })
+}
+
+// afterHeadMoved shows what a checkout changed: the branch column, and where
+// the clone or the worktree now stands.
+func (a *App) afterHeadMoved() {
+	a.refreshDisk()
+	a.loadRepoSync(false)
+	a.loadWorktreeRemotes()
+	a.projectsPane.reload()
+	a.worktreesPane.reload()
+}
+
+// branchAtCommit asks for a name and makes a branch at a commit, in the clone.
+func (a *App) branchAtCommit(place logPlace, c logCommit, back func()) {
+	if why := a.onDisk(place, c); why != "" {
+		a.flash(why)
+		return
+	}
+	pr := place.project
+	a.askName("New Branch at "+shortSHA(c.SHA), "", func(name string) {
+		a.runTaskThen("Creating "+name, func(log func(string)) (string, error) {
+			return "", a.newManager(pr.Instance, pr.PathWithNamespace, log).NewBranch(pr, name, c.SHA)
+		}, func(string) {
+			a.refreshDisk()
+			place.reload(c.SHA, fmt.Sprintf("created %s at %s", name, shortSHA(c.SHA)))
+		})
+	}, back)
+}
+
+// worktreeAtCommit asks for a name and makes a branch at a commit in a
+// worktree of its own, for an old state without moving the clone.
+func (a *App) worktreeAtCommit(place logPlace, c logCommit, back func()) {
+	if why := a.onDisk(place, c); why != "" {
+		a.flash(why)
+		return
+	}
+	pr := place.project
+	a.askName("New Worktree at "+shortSHA(c.SHA), "at-"+c.SHA[:min(7, len(c.SHA))], func(name string) {
+		a.runTaskThen(fmt.Sprintf("Creating a worktree of %s (%s)", pr.PathWithNamespace, name),
+			func(log func(string)) (string, error) {
+				return a.newManager(pr.Instance, pr.PathWithNamespace, log).WorktreeAt(pr, name, c.SHA)
+			}, a.showWorktreeAt)
+	}, back)
+}
+
+// askName is a form with one name in it; Cancel goes back.
+func (a *App) askName(title, value string, create func(name string), back func()) {
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField(labelBranchName, value, 0, nil, nil)
+	form.AddButton("Create", func() {
+		name := strings.TrimSpace(form.GetFormItemByLabel(labelBranchName).(*tview.InputField).GetText())
+		if name == "" {
+			a.flash("enter a name for the branch")
+			return
+		}
+		a.closeModal(pageForm)
+		create(name)
+	})
+	form.AddButton("Cancel", func() {
+		a.closeModal(pageForm)
+		back()
+	})
+	a.showFormModalSized(title, form, 60, 7)
+}
+
+// commitURL is a commit's page on the server, "" without one.
+func (a *App) commitURL(place logPlace, c logCommit) string {
+	if c.WebURL != "" {
+		return c.WebURL
+	}
+	if client := a.client(place.project.Instance); client != nil {
+		return client.CommitURL(place.project, c.SHA)
+	}
+	return ""
+}
+
+// yankCommit offers what can be copied of a commit, the link first. The
+// reference is a line to paste into a chat: what and where in words, then
+// the link, which the chat makes clickable.
+func (a *App) yankCommit(place logPlace, c logCommit) {
+	url := a.commitURL(place, c)
+	short := shortSHA(c.SHA)
+	reference, markdown := "", ""
+	if url != "" {
+		parts := []string{place.project.PathWithNamespace}
+		if place.branch != "" {
+			parts = append(parts, place.branch)
+		}
+		parts = append(parts, short, trim(c.Subject, 60))
+		reference = strings.Join(parts, " · ") + " " + url
+		markdown = fmt.Sprintf("[%s %s](%s)", short, c.Subject, url)
+	}
+	message := c.Subject
+	if c.Body != "" {
+		message += "\n\n" + c.Body
+	}
+	a.showYank("Copy · "+short, []yankItem{
+		{"Link", url},
+		{"Reference", reference},
+		{"Markdown", markdown},
+		{"Commit id", c.SHA},
+		{"Short id", short},
+		{"Subject", c.Subject},
+		{"Message", message},
+	})
+}
+
+// ---------------------------------------------------------- the three logs
+
+// repositoryLog is the log of a repository: of what is out in the clone, or,
+// before it is cloned, of the default branch on the server.
 func (a *App) repositoryLog(pr forge.Project) {
-	if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
-		mgr := a.pathManager(pr.Instance, pr.PathWithNamespace)
-		dir := mgr.ProjectDir(pr.PathWithNamespace)
-		a.localLog(dir, "Commit log · "+pr.PathWithNamespace)
+	info := a.diskOf(pr.Instance, pr.PathWithNamespace)
+	if info.Cloned {
+		var place logPlace
+		place = logPlace{
+			title: "Commit Log · " + pr.PathWithNamespace + " (" + info.Branch + ")", project: pr,
+			dir: a.projectDir(pr.Instance, pr.PathWithNamespace), branch: info.Branch, checkout: true, branches: true,
+			reload: func(focus, done string) { a.localLog(place, focus, done) },
+		}
+		a.localLog(place, "", "")
 		return
 	}
 	client := a.client(pr.Instance)
@@ -98,6 +379,8 @@ func (a *App) repositoryLog(pr forge.Project) {
 		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
 		return
 	}
+	place := logPlace{title: fmt.Sprintf("Commit Log · %s (%s on the server)", pr.PathWithNamespace, pr.DefaultBranch),
+		project: pr, branch: pr.DefaultBranch}
 	var commits []logCommit
 	a.runTaskThen("Reading the commits of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -105,20 +388,61 @@ func (a *App) repositoryLog(pr forge.Project) {
 		listed, err := client.ProjectCommits(ctx, pr, pr.DefaultBranch, 100)
 		commits = forgeLog(listed)
 		return "", err
-	}, func(string) {
-		a.showCommitLog(fmt.Sprintf("Commit log · %s (%s on the server)", pr.PathWithNamespace, pr.DefaultBranch), commits, "")
-	})
+	}, func(string) { a.showCommitLog(place, commits, 0) })
+}
+
+// worktreeLog is the log of the branch a worktree has out. A grouped
+// worktree has one per repository; its view gives each block its own.
+func (a *App) worktreeLog(r worktreeRow) {
+	if r.grouped() {
+		a.flash("a group has a log per repository - open its view with Enter and light one")
+		return
+	}
+	var place logPlace
+	place = logPlace{
+		title: "Commit Log · " + r.Path + " (" + r.Branch + ")", project: a.worktreeProject(r),
+		dir: r.Dir, branch: r.Branch, checkout: true, branches: true,
+		reload: func(focus, done string) { a.localLog(place, focus, done) },
+	}
+	a.localLog(place, "", "")
+}
+
+// localLog reads a checkout's log off the event loop and lists it, the
+// cursor on focus, done said once it is drawn.
+func (a *App) localLog(place logPlace, focus, done string) {
+	git := gitx.New("", nil)
+	go func() {
+		entries, err := git.History(place.dir, "HEAD", historyLimit)
+		unpushed := git.Unpushed(place.dir)
+		a.tv.QueueUpdateDraw(func() {
+			if err != nil {
+				a.errorf("reading the log: %v", err)
+				return
+			}
+			commits := make([]logCommit, len(entries))
+			start := 0
+			for i, e := range entries {
+				commits[i] = logCommit{LogEntry: e, Unpushed: unpushed[e.SHA]}
+				if e.SHA == focus {
+					start = i
+				}
+			}
+			a.showCommitLog(place, commits, start)
+			if done != "" {
+				a.done(done)
+			}
+		})
+	}()
 }
 
 // mergeRequestLog is the commits of a merge request as the server has them,
-// shown from whichever checkout of it is on disk.
+// those new since the last review marked, the cursor on the oldest of them:
+// where a review of what is new starts. It is looked at from whichever
+// checkout of it is on disk; nothing is cloned to list it.
 func (a *App) mergeRequestLog(mr forge.MergeRequest) {
+	project := a.mrProject(mr)
+	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
-	if client == nil {
-		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(mr.Instance))
-		return
-	}
-	path := a.projectPathOfMR(mr)
 	dir := ""
 	disk := a.diskOf(mr.Instance, path)
 	switch {
@@ -129,45 +453,52 @@ func (a *App) mergeRequestLog(mr forge.MergeRequest) {
 	case disk.Cloned:
 		dir = a.projectDir(mr.Instance, path)
 	}
-	var commits []logCommit
+	var commits []workspace.MRCommit
 	a.runTaskThen(fmt.Sprintf("Reading the commits of %s !%d", path, mr.IID), func(log func(string)) (string, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		listed, _, err := client.MergeRequestCommits(ctx, mr, 0)
-		commits = forgeLog(listed)
-		return "", err
+		mr := a.refreshMR(client, mr, log)
+		rev := reviewRefs(ctx, client, mr, log)
+		m := a.newManager(mr.Instance, path, log)
+		var err error
+		commits, err = forgeCommits(ctx, client, mr)
+		if err != nil {
+			log("! " + err.Error())
+			log("  reading them from a clone instead")
+			if commits, err = m.MRCommits(mr, project, rev); err != nil {
+				return "", err
+			}
+		} else if err := m.MarkUnseen(mr, project, rev, commits); err != nil {
+			log("! could not tell which commits are new: " + err.Error())
+		}
+		if len(commits) == 0 {
+			return "", fmt.Errorf("!%d has no commits of its own", mr.IID)
+		}
+		return "", nil
 	}, func(string) {
-		a.showCommitLog(fmt.Sprintf("Commit log · %s !%d", path, mr.IID), commits, dir)
+		// They come oldest first; the log is newest first.
+		listed := make([]logCommit, len(commits))
+		start, fresh := 0, 0
+		for i, c := range commits {
+			at := len(commits) - 1 - i
+			listed[at] = logCommit{LogEntry: c.LogEntry, New: c.New}
+			if client != nil {
+				listed[at].WebURL = client.CommitURL(project, c.SHA)
+			}
+			if c.New {
+				if fresh == 0 {
+					start = at
+				}
+				fresh++
+			}
+		}
+		title := fmt.Sprintf("Commit Log · %s !%d", path, mr.IID)
+		if fresh > 0 {
+			title += fmt.Sprintf(" · ● %d new since your last review", fresh)
+		}
+		place := logPlace{title: title, project: project, dir: dir, branch: mr.SourceBranch, mr: &mr}
+		a.showCommitLog(place, listed, start)
 	})
-}
-
-// worktreeLog is the log of the branch a worktree has out. A grouped
-// worktree has one per repository; its view gives each block its own.
-func (a *App) worktreeLog(r worktreeRow) {
-	if r.grouped() {
-		a.flash("a group has a log per repository - open its view with Enter and light one")
-		return
-	}
-	a.localLog(r.Dir, "Commit log · "+r.Path+" ("+r.Branch+")")
-}
-
-// localLog reads a checkout's log off the event loop and lists it.
-func (a *App) localLog(dir, title string) {
-	git := gitx.New("", nil)
-	go func() {
-		entries, err := git.History(dir, "HEAD", historyLimit)
-		a.tv.QueueUpdateDraw(func() {
-			if err != nil {
-				a.errorf("reading the log: %v", err)
-				return
-			}
-			commits := make([]logCommit, len(entries))
-			for i, e := range entries {
-				commits[i] = logCommit{LogEntry: e}
-			}
-			a.showCommitLog(title, commits, dir)
-		})
-	}()
 }
 
 // forgeLog turns the forge's commits, newest first as it answers, into a log.
@@ -189,4 +520,12 @@ func forgeLog(listed []forge.Commit) []logCommit {
 		}, WebURL: c.WebURL}
 	}
 	return commits
+}
+
+// backToBranch checks out again the branch a detached HEAD came from.
+func (a *App) backToBranch(pr forge.Project, dir string) {
+	a.runTaskThen("Back to the branch in "+tildePath(dir), func(log func(string)) (string, error) {
+		_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).BackToBranch(dir)
+		return "", err
+	}, func(string) { a.afterHeadMoved() })
 }

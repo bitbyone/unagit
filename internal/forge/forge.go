@@ -252,6 +252,8 @@ type Provider interface {
 	ProjectLanguages(ctx context.Context, p Project) (map[string]float64, error)
 	LatestPipeline(ctx context.Context, p Project, ref string) (*Pipeline, error)
 	ProjectBranches(ctx context.Context, p Project) ([]Branch, error)
+	// CommitURL is a commit's page on the server.
+	CommitURL(p Project, sha string) string
 
 	MergeRequestDetail(ctx context.Context, mr MergeRequest) (*MergeRequestDetail, error)
 	// MergeRequestNotes returns all comments when limit is zero.

@@ -41,7 +41,7 @@ func mrOnOrigin(t *testing.T, srv *fakeServer, p *realProject, subjects ...strin
 	return gitIn(t, work, "rev-parse", "HEAD")
 }
 
-// TestReviewFromACommitStartsOnWhatIsNew: v lists the commits, marks nothing
+// TestReviewFromACommitStartsOnWhatIsNew: the log lists the commits, marks nothing
 // before any review, and after one puts the cursor on the first commit the
 // review has not been given. (Enter opens an editor, which tview cannot suspend
 // for without a race under test; what it leaves on disk is the workspace
@@ -54,8 +54,8 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 
 	typeRunes(sc, "M")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "v")
-	waitFor(t, a, sc, "Review !7 from a commit to the head")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	text := a.screenText(sc)
 	for _, want := range []string{"Add a token bucket", "Count per client"} {
 		if !strings.Contains(text, want) {
@@ -67,7 +67,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Review !7 from a commit")
+	waitGone(t, a, sc, "Commit Log · acme/gateway !7")
 
 	// A whole review, as Ctrl-R leaves it, then the author answers the
 	// comments in a new commit.
@@ -84,7 +84,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 	}
 	answer := mrOnOrigin(t, srv, p, "Answer the review")
 
-	typeRunes(sc, "v")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "1 new since your last review")
 	row := "● " + answer[:8] + "  Answer the review"
 	text = a.screenText(sc)
@@ -120,8 +120,8 @@ func TestReviewStartPickerFits(t *testing.T) {
 			resize(sc, size.w, size.h)
 			typeRunes(sc, "M")
 			waitFor(t, a, sc, "Rate limiting")
-			typeRunes(sc, "v")
-			waitFor(t, a, sc, "Review !7 from a commit")
+			sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+			waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 			text := a.screenText(sc)
 			for _, want := range []string{"Add a token bucket", "Count per client", "/ filter"} {
 				if !strings.Contains(text, want) {

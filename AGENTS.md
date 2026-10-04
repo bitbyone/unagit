@@ -265,7 +265,8 @@ HEAD = merge base     index = merge base     working tree = merge request head
   edited something" cannot mean "is anything unstaged". It is
   `git diff --name-only <the head we last checked out>`, and when that cannot
   be determined the worktree is left alone rather than reset.
-- `v` narrows the same worktree to one commit onwards: HEAD and the index go
+- `Ctrl-R` in a merge request's commit log narrows the same worktree to one
+  commit onwards: HEAD and the index go
   to that commit's parent, the working tree stays the head, and
   `unagit.mr.base` follows HEAD while `unagit.mr.from` names the commit (unset
   again by a whole review). "New since the last review" is `git cherry` against

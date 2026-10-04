@@ -355,11 +355,29 @@ side is picked up on the next review. `Ctrl-O` gives you the ordinary branch
 checkout instead, when you mean to commit and push; it opens as it is, and
 `p` brings it to the merge request's head.
 
-When the author answers your comments in new commits, `v` lists the commits
-with the cursor on the first one you have not reviewed yet - a rebase does not
-fool it - and `Enter` reopens the review with only that commit and what follows
-pending. The list comes from the server, so a repository not cloned yet is
-cloned only after you pick a commit.
+When the author answers your comments in new commits, `Ctrl-L` lists the
+commits with the ones you have not reviewed marked `●` and the cursor on the
+oldest of them - a rebase does not fool it - and `Ctrl-R` there reopens the
+review with only that commit and what follows pending. The list comes from
+the server, so a repository not cloned yet is cloned only after you pick a
+commit.
+
+The same commit log opens on a repository and a worktree too, and what it
+offers follows from where it was opened. `Enter` shows a commit's detail -
+author, date, branches and tags pointing at it, the whole message, the files
+it changed - and `Esc` comes back to the list. `D` shows the commit in Hunk,
+`Alt-D` everything from it to the working tree. In a clone or a worktree `C`
+checks the commit out with a detached HEAD: the branch column then shows
+`@<commit>` and the REMOTE column how far behind the branch it left it is,
+and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
+`Ctrl-W` a worktree of its own, for an old state without moving the clone.
+`w` opens the commit on the server, and `y` copies its id, its link, a
+markdown link, or a line for a chat: repository, branch, commit and subject
+followed by the link.
+
+A detached HEAD is a checkout with no branch: you can commit there, but the
+commits belong to no branch, and unagit will not push them - make a branch
+with `n` first.
 
 A link pasted from chat or email goes straight there:
 
@@ -417,7 +435,7 @@ group.
 
 ## Editors
 
-Everything that opens a directory - `Ctrl-O`, `Ctrl-R`, `v` -
+Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -
 opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
 `Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
 Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed: a
@@ -467,9 +485,11 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `p` | update: a fast-forward, or a rebase of your work; never a conflict |
 | `Alt-O` `Alt-R` … | the same, in an editor you choose |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
-| `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
-| `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` shows one in Hunk |
+| `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` details |
+| `D` `Alt-D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
+| `Ctrl-R` | in a merge request's log: review from the commit to the head |
+| `B` | back to the branch a commit was checked out from |
 | `c` `a` | read and write comments · approve |
 | `D` `Alt-D` | in Hunk: what is not committed · or since the base, or a commit |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |

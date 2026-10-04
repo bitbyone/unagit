@@ -48,10 +48,10 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Actions · acme/gateway")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
-	waitFor(t, a, sc, "Commit log · acme/gateway (feat/view)")
+	waitFor(t, a, sc, "Commit Log · acme/gateway (feat/view)")
 	waitFor(t, a, sc, "Count requests per client")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Commit log · acme/gateway")
+	waitGone(t, a, sc, "Commit Log · acme/gateway")
 
 	// Said over the view, not under it in the status line; Esc puts it away.
 	typeRunes(sc, "c")

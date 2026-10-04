@@ -44,6 +44,7 @@ const (
 	pageComments  = "comments"
 	pageToggles   = "toggles"
 	pageMessage   = "message"
+	pageCommit    = "commit"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -379,7 +380,7 @@ func (a *App) closeModal(page string) {
 func isModalPage(name string) bool {
 	switch name {
 	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree,
-		pageMessage:
+		pageMessage, pageCommit:
 		return true
 	}
 	return false
@@ -949,7 +950,13 @@ func (a *App) refreshDisk() {
 		info := diskInfo{MRs: map[int]mrDisk{}}
 		if head, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD")); err == nil {
 			info.Cloned = true
-			info.Branch = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(head)), "ref: refs/heads/"))
+			head := strings.TrimSpace(string(head))
+			if branch, ok := strings.CutPrefix(head, "ref: refs/heads/"); ok {
+				info.Branch = branch
+			} else {
+				// Detached: the commit stands where a branch would.
+				info.Branch = detachedLabel(head)
+			}
 		} else if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && !fi.IsDir() {
 			info.Cloned = true
 		}

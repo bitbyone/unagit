@@ -3,17 +3,19 @@ package ui
 import (
 	"os"
 	"testing"
+
+	"github.com/gdamore/tcell/v2"
 )
 
-// TestReviewStartListsCommitsWithoutCloning: v draws its list from the forge;
+// TestReviewStartListsCommitsWithoutCloning: the log draws its list from the forge;
 // the repository is cloned only once a commit is chosen, so a
 // large one does not hold the list up.
 func TestReviewStartListsCommitsWithoutCloning(t *testing.T) {
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 
-	typeRunes(sc, "v")
-	waitFor(t, a, sc, "Review !7 from a commit to the head")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	waitFor(t, a, sc, "beef1230  Token bucket")
 
 	root := onLoop(a, func() string { return a.cfg.RootDir })

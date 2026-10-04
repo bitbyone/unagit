@@ -757,8 +757,10 @@ type LogEntry struct {
 	Author  string
 	When    time.Time
 	Merge   bool // it has more than one parent
-	// Body is the message below the subject, when the list asked for it.
+	// Body is the message below the subject, and Refs the branches, tags
+	// and HEAD that point at the commit, when the list asked for them.
 	Body string
+	Refs []string
 }
 
 // Commits lists the commits of to that from lacks, oldest first.
@@ -788,27 +790,74 @@ func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
 // History lists the commits reachable from rev, newest first, at most limit, the
 // body of each message with them.
 func (g *Git) History(dir, rev string, limit int) ([]LogEntry, error) {
-	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%b%x1e", rev, "--")
+	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%D%x1f%s%x1f%b%x1e", rev, "--")
 	if err != nil {
 		return nil, err
 	}
 	var entries []LogEntry
 	for _, record := range strings.Split(out, "\x1e") {
-		f := strings.SplitN(strings.TrimLeft(record, "\n"), "\x1f", 6)
-		if len(f) < 6 {
+		f := strings.SplitN(strings.TrimLeft(record, "\n"), "\x1f", 7)
+		if len(f) < 7 {
 			continue
 		}
 		unix, _ := strconv.ParseInt(f[3], 10, 64)
+		var refs []string
+		for _, ref := range strings.Split(f[4], ", ") {
+			if ref = strings.TrimSpace(ref); ref != "" {
+				refs = append(refs, ref)
+			}
+		}
 		entries = append(entries, LogEntry{
 			SHA:     f[0],
 			Merge:   len(strings.Fields(f[1])) > 1,
 			Author:  f[2],
 			When:    time.Unix(unix, 0),
-			Subject: f[4],
-			Body:    strings.TrimSpace(f[5]),
+			Refs:    refs,
+			Subject: f[5],
+			Body:    strings.TrimSpace(f[6]),
 		})
 	}
 	return entries, nil
+}
+
+// Unpushed is the commits of HEAD its upstream lacks, nil when there is no
+// upstream to measure by.
+func (g *Git) Unpushed(dir string) map[string]bool {
+	out, err := g.out(dir, "rev-list", "@{upstream}..HEAD")
+	if err != nil {
+		return nil
+	}
+	set := map[string]bool{}
+	for _, sha := range strings.Fields(out) {
+		set[sha] = true
+	}
+	return set
+}
+
+// ShowStat is what a commit changed, file by file, as git show --stat says.
+func (g *Git) ShowStat(dir, sha string) (string, error) {
+	return g.out(dir, "show", "--stat", "--format=", sha)
+}
+
+// LastBranch is the branch a working tree last had out before HEAD was
+// detached, read from HEAD's reflog, or "" when it cannot tell.
+func (g *Git) LastBranch(dir string) string {
+	for n := 1; n <= 50; n++ {
+		ref, err := g.out(dir, "rev-parse", "--symbolic-full-name", fmt.Sprintf("@{-%d}", n))
+		if err != nil {
+			return ""
+		}
+		if name, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+			return name
+		}
+	}
+	return ""
+}
+
+// CheckoutDetached puts HEAD on a commit, no branch out.
+func (g *Git) CheckoutDetached(dir, commit string) error {
+	_, err := g.Run(dir, "checkout", "--detach", commit)
+	return err
 }
 
 // HasCommit says whether the repository has a commit's objects, which a

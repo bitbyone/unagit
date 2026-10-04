@@ -51,6 +51,10 @@ func (r worktreeRow) grouped() bool { return r.Members != nil }
 type remoteState struct {
 	Unreadable bool // git could not be asked: the clone is gone or broken
 	Detached   bool
+	// From is the branch a detached HEAD came from and FromBehind how many
+	// of its commits - origin's copy's, when there is one - HEAD lacks.
+	From       string
+	FromBehind int
 	Upstream   gitx.Upstream
 	// Base is the branch this one was made from, when unagit made it; Onto is
 	// what it is compared with and rebased onto (origin's copy when there is
@@ -190,7 +194,7 @@ func remoteStateOf(git *gitx.Git, r worktreeRow, upstreams map[string]gitx.Upstr
 	case upstreams == nil:
 		return remoteState{Unreadable: true}
 	case r.Branch == "(detached)":
-		return remoteState{Detached: true}
+		return detachedState(git, r.Dir)
 	}
 	st := remoteState{Upstream: upstreams[r.Branch], Base: bases[r.Branch]}
 	if st.Base == "" {
@@ -238,7 +242,8 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 	case st.Busy != "":
 		return busyWords(st.Busy), "", colBad
 	case st.Detached:
-		return "detached", "", colDim
+		words, colour := detachedWords(st)
+		return words, "", colour
 	case u.Gone:
 		return "upstream gone", "", colBad
 	case st.ForceFrom != "":
@@ -722,7 +727,7 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 	case st.Busy != "":
 		return "a " + st.Busy + " is in progress: finish it, or abort it, in the directory"
 	case st.Detached:
-		return "detached HEAD, no branch to push"
+		return detachedSentence(st)
 	case u.Gone:
 		return "upstream gone: the branch was deleted on origin"
 	case st.ForceFrom != "":

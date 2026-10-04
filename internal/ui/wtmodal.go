@@ -291,7 +291,7 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 		}},
 		uiAction{name: "Open in Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
 			run: func() { a.openWorktreeWeb(r) }},
-		uiAction{name: "Show Commit Log", about: "The commits of the lit repository's branch, newest first; Enter shows one in Hunk.", keys: "Ctrl-L", rank: 39, when: single,
+		uiAction{name: "Show Commit Log", about: "The lit repository's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: single,
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Remove from Group…", about: "Remove this repository's worktree from the group; its branch stays.", keys: "x", rank: 65,
 			when: func() bool { return r.Group != "" }, run: func() { a.confirmTakeOut(v.row, r) }},

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
@@ -79,7 +80,10 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Branches…", about: "Switch the clone to another branch, see where each stands against origin, delete those you are done with.", keys: "b", rank: 60, run: func() {
 			a.showBranchManager(branchScope{project: pr, checkout: true})
 		}},
-		{name: "Show Commit Log", about: "The commits of the branch out in the clone, or of the default branch on the server before it is cloned.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
+		{name: "Show Commit Log", about: "What is out in the clone, newest first, or the server's default branch before it is cloned: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
+		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 59,
+			when: func() bool { return strings.HasPrefix(a.diskOf(pr.Instance, pr.PathWithNamespace).Branch, "@") },
+			run:  func() { a.backToBranch(pr, a.projectDir(pr.Instance, pr.PathWithNamespace)) }},
 		{name: "Clone", about: "Clone it under its root without starting an editor.", keys: "C", rank: 70, when: notCloned, run: func() { a.cloneProject(pr) }},
 		{name: "Copy…", about: "Copy the web link, the path, the branch or the directory to the clipboard.", keys: "y", rank: 80, run: func() { a.yankProject(pr) }},
 		{name: "Show Uncommitted Changes", about: "Show in Hunk what is not committed: staged, unstaged and new files.", keys: "D", rank: 90, when: cloned, run: func() {
@@ -148,21 +152,17 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 	}
 	return []uiAction{
 		{name: "Review", about: "Open a review worktree: the whole change as unstaged edits on the merge base, so the editor's gutter shows it.", keys: "Ctrl-R", rank: 10, run: func() { a.openMRReview(mr, nil) }},
-		{name: "Review from Commit…", about: "Review only from a commit onwards, such as what is new since your last review.", keys: "v", rank: 15, run: func() { a.pickReviewStart(mr, nil) }},
 		{name: "Open Branch in Editor", about: "Open a worktree of the source branch, for committing to it.", keys: "Ctrl-O", rank: 20, run: func() { p.onOpen(false) }},
 		{name: "Show Conversation", about: "Read the merge request's threads and write a comment.", keys: "c", rank: 25, run: func() { a.showComments(mr) }},
 		{name: "Show Details", about: "Open the column on the right: description, pipeline, approvals, changes.", keys: "Enter", rank: 30, run: p.enter},
 		{name: "Open in Browser", about: "Open the merge request's page on the server.", keys: "w", rank: 35, when: func() bool { return mr.WebURL != "" }, run: func() {
 			a.openWeb(mr.WebURL)
 		}},
-		{name: "Show Commit Log", about: "The commits of the merge request, newest first; Enter shows one in Hunk.", keys: "Ctrl-L", rank: 38, run: func() { a.mergeRequestLog(mr) }},
+		{name: "Show Commit Log", about: "The merge request's commits, those new since your last review marked: diff one, or review from it.", keys: "Ctrl-L", rank: 15, run: func() { a.mergeRequestLog(mr) }},
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
 		{name: "Publish Comments", about: "Post the comments you wrote in Incomm to the merge request.", keys: "P", rank: 45, run: func() { a.publishMR(mr) }},
 		{name: "Review in Editor…", about: "Choose the editor, then open the review.", keys: "Alt-R", rank: 50, run: func() {
 			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
-		}},
-		{name: "Review from Commit in Editor…", about: "Choose the editor, then review from a commit onwards.", keys: "Alt-V", rank: 52, run: func() {
-			a.withEditor(true, func(ed *editors.Editor) { a.pickReviewStart(mr, ed) })
 		}},
 		{name: "Open Branch in Editor…", about: "Choose the editor, then open the worktree of the source branch.", keys: "Alt-O", rank: 55, run: func() { p.onOpen(true) }},
 		{name: "Pull Branch", about: "Fetch and fast-forward the branch worktree to the source branch.", keys: "p", rank: 60, run: func() { a.updateMR(mr) }},
@@ -204,6 +204,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 	acts := []uiAction{
 		{name: "Open in Editor", about: "Open the worktree in your favourite editor.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
 		{name: "Open in Editor…", about: "Choose the editor, then open the worktree.", keys: "Alt-O", rank: 15, run: func() { open(true) }},
+		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,
+			when: func() bool { return r.Branch == "(detached)" }, run: func() { a.backToBranch(a.worktreeProject(r), r.Dir) }},
 		{name: "Pull", about: "Bring the branch up to origin; a branch not yet pushed is rebased onto its base.", keys: "p", rank: 20, run: func() { a.updateWorktree(r) }},
 		{name: "Commit All…", about: "Commit every change in the worktree, with a message you write.", keys: commitKey, rank: 25, run: func() { a.commitWorktree(r) }},
 		{name: "Push", about: "Push the branch to origin, setting up its upstream the first time.", keys: "P", rank: 30, run: func() {
@@ -239,7 +241,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 	acts := a.worktreeActions(r, p.onOpen, "c")
 	return append(acts,
-		uiAction{name: "Show Commit Log", about: "The commits of the worktree's branch, newest first; Enter shows one in Hunk.", keys: "Ctrl-L", rank: 39, when: func() bool { return !r.grouped() },
+		uiAction{name: "Show Commit Log", about: "The worktree's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: func() bool { return !r.grouped() },
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Open View", about: "Open the worktree's view: its state, commits and merge request, block by block.", keys: "Enter", rank: 5, run: p.enter},
 		uiAction{name: "Remove from Group…", about: "Remove one repository's worktree from the group; its branch stays.", keys: "x", rank: 65, when: func() bool { return r.grouped() },

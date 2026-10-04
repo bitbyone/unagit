@@ -451,17 +451,77 @@ func (m *Manager) NewBranch(p forge.Project, name, from string) error {
 	if m.git.LocalBranchExists(mainDir, name) {
 		return fmt.Errorf("%s already exists in the clone", name)
 	}
-	start := from
-	if !m.git.LocalBranchExists(mainDir, from) {
+	// A commit, from a log, is where the branch starts and nothing more:
+	// there is no branch to rebase it onto later.
+	start, base := from, from
+	switch {
+	case m.git.LocalBranchExists(mainDir, from):
+	case isCommitID(from) && m.git.HasCommit(mainDir, from):
+		base = ""
+	default:
 		_ = m.git.FetchRefspec(mainDir, from)
 		start = "origin/" + from
 	}
 	if err := m.git.CreateBranch(mainDir, name, start); err != nil {
 		return err
 	}
-	_ = m.git.SetBranchBase(mainDir, name, from)
+	if base != "" {
+		_ = m.git.SetBranchBase(mainDir, name, base)
+	}
 	m.log("Created %s from %s", name, from)
 	return nil
+}
+
+// isCommitID tells a commit id from a branch name, as far as one can.
+func isCommitID(s string) bool {
+	if len(s) < 7 || len(s) > 40 {
+		return false
+	}
+	for _, r := range s {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
+	return true
+}
+
+// WorktreeAt makes a new branch at a commit and checks it out in a worktree
+// of its own, for looking at an old state without moving the clone.
+func (m *Manager) WorktreeAt(p forge.Project, branch, commit string) (string, error) {
+	mainDir, err := m.ensureMain(p)
+	if err != nil {
+		return "", err
+	}
+	if m.git.LocalBranchExists(mainDir, branch) {
+		return "", fmt.Errorf("%s already exists in the clone - pick another name", branch)
+	}
+	wtDir := m.WorktreeDir(p.PathWithNamespace, branch)
+	if err := os.MkdirAll(filepath.Dir(wtDir), 0o755); err != nil {
+		return "", err
+	}
+	m.git.WorktreePrune(mainDir)
+	m.log("Creating worktree %s at %s", branch, commit[:min(8, len(commit))])
+	return wtDir, m.addWorktreeFrom(mainDir, wtDir, branch, commit)
+}
+
+// CheckoutCommit detaches HEAD at a commit, in the clone or a worktree.
+func (m *Manager) CheckoutCommit(dir, commit string) error {
+	if st := m.git.Status(dir); st.Dirty {
+		return fmt.Errorf("the working tree has uncommitted changes - commit or stash them first")
+	}
+	return m.git.CheckoutDetached(dir, commit)
+}
+
+// BackToBranch checks out again the branch a detached HEAD came from.
+func (m *Manager) BackToBranch(dir string) (string, error) {
+	branch := m.git.LastBranch(dir)
+	if branch == "" {
+		return "", fmt.Errorf("cannot tell which branch this was on - pick one with b")
+	}
+	if st := m.git.Status(dir); st.Dirty {
+		return "", fmt.Errorf("the working tree has uncommitted changes - commit or stash them first")
+	}
+	return branch, m.git.Checkout(dir, branch)
 }
 
 // SwitchBranch checks a branch out in the main clone of a project, cloning it

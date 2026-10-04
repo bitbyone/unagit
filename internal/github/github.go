@@ -62,6 +62,14 @@ func (c *Client) HeadRef(iid int) string { return fmt.Sprintf("refs/pull/%d/head
 // GitUser is the user name git authenticates with; the token is the password.
 func (c *Client) GitUser() string { return "x-access-token" }
 
+// CommitURL is a commit's page on the server.
+func (c *Client) CommitURL(p forge.Project, sha string) string {
+	if p.WebURL == "" {
+		return ""
+	}
+	return strings.TrimRight(p.WebURL, "/") + "/commit/" + sha
+}
+
 type apiError struct {
 	status int
 	body   string
