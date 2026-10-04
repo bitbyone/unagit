@@ -36,7 +36,7 @@ func (a *App) newMRsPane() *pane {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
-			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject), tagEnd+scope)
+			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.authorSummary(), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -88,7 +88,7 @@ func (a *App) filterMRs(query string) []int {
 		if a.mrProjectScope.Path != "" && key != a.mrProjectScope {
 			continue
 		}
-		if !a.passesFilters(mr.Instance, path) {
+		if !a.passesFilters(mr.Instance, path) || a.cfg.Filters.HidesAuthor(mr.Instance, mr.Author.Username) {
 			continue
 		}
 		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,

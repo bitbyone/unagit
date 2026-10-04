@@ -239,6 +239,8 @@ func helpRows() []helpLine {
 		key("f  F", "limit to one repository · clear the limit"),
 		key("COM", "comments; GitHub fills it in once opened"),
 		key("PUB", "Incomm comments not yet published"),
+		key("H", "hide the author's merge requests (bots)"),
+		key("v", "view: grouping · cloned only · hidden authors"),
 		blank(),
 
 		section("Comments  (c)", 0),

@@ -131,6 +131,10 @@ all and live only there.
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
 - `/` fuzzy-finds, `L` hides everything you have not cloned (also in `v`), `x` hides a
   repository you never want to see.
+- `H` on a merge request hides its author's merge requests - Renovate's, a
+  CI bot's - and the header counts the hidden authors. `v` in Merge requests
+  turns the filter off for a while, or, space on an author, shows that one
+  again for good.
 
 **Where things land is yours to decide.** A repository is cloned under the
 first of: its exact repository destination (`e` in Repositories), its group's
@@ -500,6 +504,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `n` | in branches: a new branch from the one under the cursor |
 | `d` `D` `Alt-D` | in branches: delete in the clone · everywhere · on origin |
 | `L` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
+| `H` `v` | in Merge requests: hide the author's merge requests · view options, the hidden authors |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
 | `v` | in Repositories: what the list shows - tags, grouping, favourites first |

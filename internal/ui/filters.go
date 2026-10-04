@@ -239,3 +239,78 @@ func (a *App) selectedProjectOf(p *pane) (instance, path string) {
 	}
 	return "", ""
 }
+
+// authorSummary is what the merge request header says of the hidden authors:
+// how many are kept out, or that they are shown for now.
+func (a *App) authorSummary() string {
+	f := &a.cfg.Filters
+	switch n := len(f.HiddenAuthors); {
+	case n == 0:
+		return ""
+	case f.ShowHiddenAuthors:
+		return fmt.Sprintf(" · %s%d hidden author(s) shown%s%s", tag(colDim), n, tagEnd, tag(colMuted))
+	default:
+		return fmt.Sprintf(" · %s%s %d author(s)%s%s", tag(colWarn), hiddenMark, n, tagEnd, tag(colMuted))
+	}
+}
+
+// hideAuthor keeps an author's merge requests out of the list.
+func (a *App) hideAuthor(mr forge.MergeRequest) {
+	name := mr.Author.Username
+	if a.cfg.Filters.HidesAuthor(mr.Instance, name) {
+		return
+	}
+	a.cfg.Filters.ToggleAuthor(mr.Instance, name)
+	a.applyFilters()
+	a.note(fmt.Sprintf("%s %s's merge requests hidden · v shows them again", hiddenMark, name))
+}
+
+// showMRViewOptions switches what the merge request list shows, and lists the
+// hidden authors: space on one shows that author's merge requests again.
+func (a *App) showMRViewOptions() {
+	f := &a.cfg.Filters
+	type option struct {
+		label string
+		on    func() bool
+		flip  func()
+	}
+	options := []option{
+		{"grouped by repository (Ctrl-G)", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
+		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
+		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
+		{"hide the authors below", func() bool { return !f.ShowHiddenAuthors }, func() { f.ShowHiddenAuthors = !f.ShowHiddenAuthors }},
+	}
+	a.showToggles(toggles{
+		title: "View · Merge requests",
+		verb:  "on/off",
+		items: func() []toggleItem {
+			items := make([]toggleItem, 0, len(options)+len(f.HiddenAuthors))
+			for i, o := range options {
+				items = append(items, toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i})
+			}
+			for _, h := range f.HiddenAuthors {
+				label := "  " + tag(colWarn) + hiddenMark + tagEnd + " " + esc(h.Username)
+				if a.multiInstance() {
+					label += "   " + tag(colDim) + a.instanceLabel(h.Instance) + tagEnd
+				}
+				items = append(items, toggleItem{Label: label, Search: h.Username, Data: h})
+			}
+			return items
+		},
+		toggle: func(it toggleItem) {
+			switch d := it.Data.(type) {
+			case int:
+				options[d].flip()
+			case config.HiddenAuthor:
+				f.ToggleAuthor(d.Instance, d.Username)
+			}
+			a.applyFilters()
+		},
+		status: func() string {
+			if len(f.HiddenAuthors) == 0 {
+				return tag(colDim) + "no author hidden · H on a merge request hides its author" + tagEnd
+			}
+			return fmt.Sprintf("%s%d author(s) hidden · space on one shows it again%s", tag(colDim), len(f.HiddenAuthors), tagEnd)
+		},
+	})
+}

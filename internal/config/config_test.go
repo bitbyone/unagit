@@ -465,3 +465,27 @@ func TestPathsAreKeptFromHome(t *testing.T) {
 		t.Errorf("the root does not expand back: %q", loaded.Root())
 	}
 }
+
+// TestHiddenAuthors: hiding is per server, cumulative, undone one by one, and
+// the filter can be turned off without forgetting anyone; hiding another
+// author turns it on again.
+func TestHiddenAuthors(t *testing.T) {
+	var f Filters
+	if !f.ToggleAuthor("gl", "renovate") || !f.ToggleAuthor("gl", "dependabot") {
+		t.Fatal("hiding did not report hidden")
+	}
+	if !f.HidesAuthor("gl", "renovate") || f.HidesAuthor("gh", "renovate") || f.HidesAuthor("gl", "jane") {
+		t.Error("hiding is not per server and per author")
+	}
+	f.ShowHiddenAuthors = true
+	if f.HidesAuthor("gl", "renovate") || len(f.HiddenAuthors) != 2 {
+		t.Error("turning the filter off hid or forgot someone")
+	}
+	f.ToggleAuthor("gl", "ci-bot")
+	if f.ShowHiddenAuthors || !f.HidesAuthor("gl", "renovate") {
+		t.Error("hiding another author did not turn the filter on")
+	}
+	if f.ToggleAuthor("gl", "renovate") || f.HidesAuthor("gl", "renovate") || !f.HidesAuthor("gl", "dependabot") {
+		t.Error("showing one author again touched the others")
+	}
+}

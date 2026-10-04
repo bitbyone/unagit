@@ -173,6 +173,8 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Toggle Favourite", about: "Star it, so it can be kept at the top; again takes the star away.", keys: "Ctrl-F", rank: 100, run: func() {
 			a.toggleFavourite(mr.Instance, path, mr.IID, fmt.Sprintf("%s !%d", path, mr.IID))
 		}},
+		{name: "Hide Author", about: "Keep this author's merge requests out of the list - a bot's, most often; View Options shows them again.", keys: "H", rank: 475,
+			when: func() bool { return mr.Author.Username != "" }, run: func() { a.hideAuthor(mr) }},
 		a.hideAction(p),
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
@@ -189,6 +191,7 @@ func (a *App) mergeRequestsActions(p *pane) []uiAction {
 				p.reload()
 				a.note("repository filter cleared")
 			}},
+		{name: "View Options…", about: "What the list shows: grouping, favourites first, cloned only, and the authors kept out of it.", keys: "v", rank: 410, run: a.showMRViewOptions},
 		{name: "Toggle Grouping", about: "Group the merge requests under their repositories, or list them flat.", keys: "Ctrl-G", rank: 420, run: a.toggleGrouping},
 	}
 	acts = append(acts, a.filterActions()...)

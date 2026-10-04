@@ -218,6 +218,46 @@ type Filters struct {
 	// FavouritesInPlace leaves the favourites among the other rows. By
 	// default they come first, set apart from the rest.
 	FavouritesInPlace bool `yaml:"favourites_in_place,omitempty" json:"favourites_in_place,omitempty"`
+	// HiddenAuthors keep their merge requests out of the list - bots, most
+	// often, whose merge requests would bury the rest. ShowHiddenAuthors
+	// turns that off for a while without forgetting who they are.
+	HiddenAuthors     []HiddenAuthor `yaml:"hidden_authors,omitempty" json:"hidden_authors,omitempty"`
+	ShowHiddenAuthors bool           `yaml:"show_hidden_authors,omitempty" json:"show_hidden_authors,omitempty"`
+}
+
+// HiddenAuthor is an author of a server whose merge requests are not listed.
+type HiddenAuthor struct {
+	Instance string `yaml:"instance" json:"instance"`
+	Username string `yaml:"username" json:"username"`
+}
+
+// HidesAuthor reports whether an author's merge requests are kept out of the
+// list now.
+func (f *Filters) HidesAuthor(instance, username string) bool {
+	if f.ShowHiddenAuthors {
+		return false
+	}
+	for _, h := range f.HiddenAuthors {
+		if h.Instance == instance && h.Username == username {
+			return true
+		}
+	}
+	return false
+}
+
+// ToggleAuthor hides an author's merge requests, or shows them again, and
+// reports whether the author is now hidden. Hiding one turns the filter
+// back on, since that is what was asked for.
+func (f *Filters) ToggleAuthor(instance, username string) bool {
+	for i, h := range f.HiddenAuthors {
+		if h.Instance == instance && h.Username == username {
+			f.HiddenAuthors = append(f.HiddenAuthors[:i], f.HiddenAuthors[i+1:]...)
+			return false
+		}
+	}
+	f.HiddenAuthors = append(f.HiddenAuthors, HiddenAuthor{Instance: instance, Username: username})
+	f.ShowHiddenAuthors = false
+	return true
 }
 
 // Favourite is a starred repository, or with an IID one of its merge
