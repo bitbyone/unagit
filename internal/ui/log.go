@@ -56,17 +56,23 @@ type logPlace struct {
 // for archaeology.
 const historyLimit = 200
 
-// subjectWidth is as much of a subject as a log row shows; the pane under the
-// list has the rest of the message.
-const subjectWidth = 52
-
 // showCommitLog lists commits, the cursor on start.
 func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	if len(commits) == 0 {
 		a.note("no commits to show")
 		return
 	}
-	// The subjects make a column, so what comes after them lines up.
+	// The subjects make a column, so what comes after them lines up, and
+	// it takes what the dialog has left after the id, the age and the refs:
+	// a subject is cut only where the dialog ends. The pane under the list
+	// has the rest of the message.
+	refsW := 0
+	for _, c := range commits {
+		refsW = max(refsW, len([]rune(refWords(c.Refs))))
+	}
+	// A row is a mark and the id (12), the subject, then the age with the
+	// gaps around it (13) and the refs.
+	room := logRowWidth(a.screenWidth()) - 12 - 13 - min(refsW, 32)
 	subjects := make([]string, len(commits))
 	width := 0
 	for i, c := range commits {
@@ -74,7 +80,7 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 		if c.Merge {
 			subject = "⑂ " + subject
 		}
-		subjects[i] = trim(subject, subjectWidth)
+		subjects[i] = trim(subject, max(room, 24))
 		width = max(width, len([]rune(subjects[i])))
 	}
 	items := make([]pickItem, len(commits))
@@ -157,6 +163,19 @@ func commitAbout(c logCommit, place logPlace) string {
 }
 
 func shortSHA(sha string) string { return sha[:min(8, len(sha))] }
+
+// logRowWidth is how wide a row of the log is on a screen so wide: the wide
+// picker's share of it, less its frame and padding.
+func logRowWidth(screen int) int { return screen*widePct/100 - 4 }
+
+// screenWidth is the terminal's width as last drawn.
+func (a *App) screenWidth() int {
+	if a.screen == nil {
+		return 120
+	}
+	w, _ := a.screen.Size()
+	return w
+}
 
 // onDisk says why a commit cannot be looked at in the checkout, or "".
 func (a *App) onDisk(place logPlace, c logCommit) string {

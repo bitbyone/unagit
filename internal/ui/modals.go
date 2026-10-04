@@ -132,6 +132,9 @@ type pickerOptions struct {
 	explain bool
 }
 
+// widePct is how much of the screen across a wide picker takes.
+const widePct = 90
+
 // explainLines is the most an explanation may take; it is a sentence, not a
 // paragraph.
 const explainLines = 3
@@ -408,7 +411,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		footerLines := len(tview.WordWrap(normalHint(), inner))
 		a.pages.AddPage(pagePicker, modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines), true, true)
 	} else if opts.wide {
-		a.pages.AddPage(pagePicker, modalPct(frame, 90, 75), true, true)
+		a.pages.AddPage(pagePicker, modalPct(frame, widePct, 75), true, true)
 	} else {
 		a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
 	}
