@@ -546,6 +546,21 @@ func (c *Client) LatestPipeline(ctx context.Context, p forge.Project, ref string
 	return &pipelines[0], nil
 }
 
+// MergeRequestPipeline is the newest pipeline run for the merge request.
+func (c *Client) MergeRequestPipeline(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, error) {
+	var pipelines []forge.Pipeline
+	q := url.Values{}
+	q.Set("per_page", "1")
+	path := "/projects/" + projectRef(mr.ProjectID, mr.ProjectPath) + "/merge_requests/" + strconv.Itoa(mr.IID) + "/pipelines"
+	if _, err := c.get(ctx, path, q, &pipelines); err != nil {
+		return nil, err
+	}
+	if len(pipelines) == 0 {
+		return nil, nil
+	}
+	return &pipelines[0], nil
+}
+
 // branch is GitLab's branch shape.
 type branch struct {
 	Name      string `json:"name"`

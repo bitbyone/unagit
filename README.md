@@ -101,7 +101,9 @@ all and live only there.
   starts - `p` pulls, `Ctrl-O` opens - and the list closes, the row showing
   the branch now out. `n` makes a new branch in the clone, starting from the one under
   the cursor (or another you choose); it appears in the list with the cursor
-  on it, and `Enter` switches to it when you want. `d` deletes it in the clone (origin keeps it), `D` in the clone
+  on it, and `Enter` switches to it when you want. A branch with a merge
+  request open says `!12 open`; `m` on one without opens a merge request
+  from it, pushing it first if origin lacks it. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer
   tracking). The default branch and protected ones are never deleted, one
   checked out somewhere cannot be deleted in the clone, and one with an open
@@ -131,6 +133,16 @@ all and live only there.
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
 - `/` fuzzy-finds, `L` hides everything you have not cloned (also in `v`), `x` hides a
   repository you never want to see.
+- The `NEW` column counts the commits pushed to a merge request since your
+  review last checked out its head (`●` when they are not on disk to count),
+  and `CI` is its pipeline: `✓` passed, `✗` failed, `●` running. Both are
+  read on `r`.
+- `v` in Merge requests narrows them to yours, to those you review or are
+  assigned to, or both, and can leave the drafts out.
+- When `r` finds a merge request merged or closed, its worktrees are removed
+  without asking - unless they hold work of yours: uncommitted changes,
+  unpushed commits, your own edits in a review, comments not yet published.
+  Those are kept, and named.
 - `H` on a merge request hides its author's merge requests - Renovate's, a
   CI bot's - and the header counts the hidden authors. `v` in Merge requests
   turns the filter off for a while, or, space on an author, shows that one
@@ -377,8 +389,9 @@ checks the commit out with a detached HEAD: the branch column then shows
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
 `w` opens the commit on the server, and `y` copies its id, its link, a
-markdown link, or a line for a chat: repository, branch, commit and subject
-followed by the link.
+markdown link, or a link with text for a chat: repository, branch, commit
+and subject followed by the link. `y` on a merge request or a repository
+offers the same kind of line.
 
 A detached HEAD is a checkout with no branch: you can commit there, but the
 commits belong to no branch, and unagit will not push them - make a branch

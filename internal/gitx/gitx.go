@@ -734,7 +734,12 @@ type CommitMsg struct {
 
 // CommitsAhead lists the commits of HEAD that base lacks, oldest first.
 func (g *Git) CommitsAhead(dir, base string) ([]CommitMsg, error) {
-	out, err := g.Run(dir, "log", "--reverse", "--format=%s%x1f%b%x1e", base+"..HEAD")
+	return g.CommitsAheadOf(dir, base, "HEAD")
+}
+
+// CommitsAheadOf is CommitsAhead for a branch that need not be out.
+func (g *Git) CommitsAheadOf(dir, base, head string) ([]CommitMsg, error) {
+	out, err := g.Run(dir, "log", "--reverse", "--format=%s%x1f%b%x1e", base+".."+head)
 	if err != nil {
 		return nil, err
 	}

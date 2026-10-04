@@ -88,8 +88,16 @@ type App struct {
 	// when a token is verified.
 	logins map[string]string
 
-	projects    []forge.Project
-	mrs         []forge.MergeRequest
+	projects []forge.Project
+	mrs      []forge.MergeRequest
+	// me is who the token of each server belongs to, as the last refresh
+	// of the merge requests found out.
+	me map[string]string
+	// mrFresh counts the commits pushed to a merge request since its review
+	// last checked out its head, -1 when there are some not yet on disk;
+	// freshGen numbers its loads.
+	mrFresh     map[mrKey]int
+	freshGen    int
 	groups      []forge.Group
 	projByKey   map[projectKey]forge.Project
 	projUpdated time.Time
@@ -479,7 +487,7 @@ func (a *App) loadIndexes() {
 		a.staleProjects = index.Stale(p.Version, len(p.Items))
 	}
 	if m, err := index.Load[index.MergeRequests](config.IndexPath("mrs")); err == nil {
-		a.mrs, a.mrsUpdated = m.Items, m.UpdatedAt
+		a.mrs, a.mrsUpdated, a.me = m.Items, m.UpdatedAt, m.Me
 		a.staleMRs = index.Stale(m.Version, len(m.Items))
 	}
 	if g, err := index.Load[index.Groups](config.IndexPath("groups")); err == nil {
@@ -771,6 +779,10 @@ func (a *App) refreshMRs() {
 		return
 	}
 	jobs := a.groupJobs(instances)
+	clients := map[string]forge.Provider{}
+	for _, j := range jobs {
+		clients[j.inst.ID] = j.client
+	}
 	paths := a.snapshotProjectPaths()
 	a.runTask("Refreshing merge requests", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -802,15 +814,24 @@ func (a *App) refreshMRs() {
 		}
 
 		all = index.DedupeMergeRequests(all)
-		idx := index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all}
+		log("Reading their pipelines …")
+		mrPipelines(ctx, all, clients)
+		me := map[string]string{}
+		for id, client := range clients {
+			if u, err := client.CurrentUser(ctx); err == nil && u != nil {
+				me[id] = u.Username
+			}
+		}
+		idx := index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all, Me: me}
 		if err := index.Save(config.IndexPath("mrs"), idx); err != nil {
 			return "", err
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.mrs, a.mrsUpdated, a.staleMRs = all, idx.UpdatedAt, false
+			a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, me
 			a.sortHold = nil
 			a.forgetClosedFavourites(instances, all)
 			a.refreshDisk()
+			a.cleanUpClosed(instances, all)
 			a.mrsPane.reload()
 			a.worktreesPane.reload()
 			a.projectsPane.reload()
@@ -819,6 +840,29 @@ func (a *App) refreshMRs() {
 		log(fmt.Sprintf("Done: %d merge request(s) indexed.", len(all)))
 		return "", nil
 	})
+}
+
+// mrPipelines fills in the pipeline of every merge request, several at a
+// time. A pipeline that cannot be read is left out: it is a mark in a
+// column, not a reason to fail the refresh. It runs off the event loop.
+func mrPipelines(ctx context.Context, mrs []forge.MergeRequest, clients map[string]forge.Provider) {
+	sem := make(chan struct{}, refreshFanOut)
+	var wg sync.WaitGroup
+	for i := range mrs {
+		client := clients[mrs[i].Instance]
+		if client == nil {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(mr *forge.MergeRequest) {
+			defer func() { <-sem; wg.Done() }()
+			if p, err := client.MergeRequestPipeline(ctx, *mr); err == nil && p != nil {
+				mr.Pipeline = p.Status
+			}
+		}(&mrs[i])
+	}
+	wg.Wait()
 }
 
 // snapshotProjectPaths copies the project id to path mapping per instance, for
@@ -1037,6 +1081,7 @@ func (a *App) refreshDisk() {
 	a.localRefreshed = time.Now()
 	a.loadWorktreeRemotes()
 	a.loadRepoSync(false)
+	a.loadMRFresh()
 	a.reloadWorktreeView()
 	if a.worktreesPane != nil && a.worktreesPane.reload != nil {
 		a.worktreesPane.reload()

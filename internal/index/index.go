@@ -15,7 +15,7 @@ import (
 // Version is the shape of the cached indexes. It goes up whenever a field is
 // added that an older cache cannot have, so the interface can say a refresh
 // would bring something new rather than leaving a column quietly empty.
-const Version = 1
+const Version = 2
 
 // Projects is the cached project index.
 type Projects struct {
@@ -24,11 +24,13 @@ type Projects struct {
 	Items     []forge.Project `json:"items"`
 }
 
-// MergeRequests is the cached merge request index.
+// MergeRequests is the cached merge request index. Me is who the token of
+// each server belongs to, by server, so "mine" and "to review" can be told.
 type MergeRequests struct {
 	Version   int                  `json:"version"`
 	UpdatedAt time.Time            `json:"updated_at"`
 	Items     []forge.MergeRequest `json:"items"`
+	Me        map[string]string    `json:"me,omitempty"`
 }
 
 // Groups is the cached group tree.

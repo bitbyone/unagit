@@ -127,6 +127,10 @@ type pickerOptions struct {
 	// wide is a picker with many keys: most of the screen across, so their
 	// hints stay on a line or two.
 	wide bool
+	// relabel, when set, writes the items' labels again for a row of width
+	// cells, whenever the picker is drawn at a width it was not before - a
+	// list whose columns follow the terminal.
+	relabel func(items []pickItem, width int)
 	// explain keeps a pane at the bottom with the About of the item under
 	// the cursor, so the items themselves can be named in a word.
 	explain bool
@@ -407,6 +411,16 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		return list
 	}}
+	if opts.relabel != nil {
+		frame.resized = func(width int) {
+			opts.relabel(items, width)
+			at := list.GetCurrentItem()
+			rebuild(input.GetText())
+			if at >= 0 && at < list.GetItemCount() {
+				list.SetCurrentItem(at)
+			}
+		}
+	}
 	if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
 		a.pages.AddPage(pagePicker, modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines), true, true)
@@ -437,6 +451,20 @@ func rule() tview.Primitive {
 type pickerFrame struct {
 	*tview.Flex
 	target func() tview.Primitive
+	// resized hears the width of a row whenever it changes.
+	resized func(width int)
+	width   int
+}
+
+func (f *pickerFrame) Draw(screen tcell.Screen) {
+	if f.resized != nil {
+		_, _, w, _ := f.GetRect()
+		if row := w - 4; row != f.width {
+			f.width = row
+			f.resized(row)
+		}
+	}
+	f.Flex.Draw(screen)
 }
 
 func (f *pickerFrame) Focus(delegate func(p tview.Primitive)) { delegate(f.target()) }

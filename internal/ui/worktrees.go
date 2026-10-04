@@ -905,7 +905,7 @@ func (a *App) prepareMergeRequest(r worktreeRow, pr forge.Project, client forge.
 			return "", fmt.Errorf("%s has no other branch to merge %s into", pr.PathWithNamespace, r.Branch)
 		}
 		var title, description string
-		if commits, err := mgr.Git().CommitsAhead(r.Dir, "origin/"+defaultBranch); err == nil {
+		if commits, err := mgr.Git().CommitsAheadOf(r.Dir, "origin/"+defaultBranch, r.Branch); err == nil {
 			title, description = mergeRequestDefaults(r.Branch, commits)
 		} else {
 			log("! could not read the commits, so nothing is proposed: " + err.Error())

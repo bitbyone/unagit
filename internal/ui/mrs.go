@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ func (a *App) newMRsPane() *pane {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
-			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.authorSummary(), tagEnd+scope)
+			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.whoseSummary()+a.authorSummary(), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -88,7 +89,7 @@ func (a *App) filterMRs(query string) []int {
 		if a.mrProjectScope.Path != "" && key != a.mrProjectScope {
 			continue
 		}
-		if !a.passesFilters(mr.Instance, path) || a.cfg.Filters.HidesAuthor(mr.Instance, mr.Author.Username) {
+		if !a.passesFilters(mr.Instance, path) || !a.passesMRFilters(mr) {
 			continue
 		}
 		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
@@ -125,10 +126,11 @@ func (a *App) filterMRs(query string) []int {
 // mrColumns works out how wide each column may be for the current table
 // width. The title takes whatever is left, and every cell is truncated to
 // fit, so the branch column never falls off the right edge.
-type mrColumns struct{ proj, iid, title, author, branch, com, pub, updated int }
+type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, ci, updated int }
 
 func (a *App) mrColumns(width int, rows []int) mrColumns {
-	c := mrColumns{iid: 3, updated: 8, com: 3}
+	// NEW: commits pushed since your last review; CI: the head's pipeline.
+	c := mrColumns{iid: 3, updated: 8, com: 3, fresh: 3, ci: 2}
 	if a.cfg.Integrations.Incomm {
 		c.pub = 3 // PUB: what waits to be published from Incomm
 	}
@@ -149,12 +151,12 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		markW    = 2
 		minTitle = 24
 	)
-	gaps := 7
+	gaps := 9
 	if c.pub > 0 {
 		gaps++ // its own gap
 	}
 	fixed := func() int {
-		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.updated + gaps
+		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.fresh + c.ci + c.updated + gaps
 	}
 	c.title = width - fixed()
 	// Give the title room by shrinking the least important columns first.
@@ -255,7 +257,10 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	if c.pub > 0 {
 		header = append(header, field{text: "PUB", width: c.pub, colour: colDim, right: true})
 	}
-	header = append(header, field{text: "UPDATED", width: c.updated, colour: colDim})
+	header = append(header,
+		field{text: "NEW", width: c.fresh, colour: colDim, right: true},
+		field{text: "CI", width: c.ci, colour: colDim},
+		field{text: "UPDATED", width: c.updated, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
@@ -302,7 +307,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if c.pub > 0 {
 			fields = append(fields, field{text: pending, width: c.pub, colour: colWarn, right: true})
 		}
-		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
+		ci, ciColour := ciMark(mr.Pipeline)
+		fields = append(fields,
+			field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: colWarn, right: true},
+			field{text: ci, width: c.ci, colour: ciColour},
+			field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
 
 		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
 			SetReference(idx).SetExpansion(1))
@@ -600,3 +609,80 @@ func (a *App) mrProject(mr forge.MergeRequest) forge.Project {
 }
 
 func openBrowser(url string) error { return workspace.OpenBrowser(url) }
+
+// ciMark is a pipeline's status as one glyph and its colour; "" for none.
+// GitLab's words and GitHub's are both here.
+func ciMark(status string) (string, tcell.Color) {
+	switch status {
+	case "":
+		return "", colDim
+	case "success":
+		return "✓", colOn
+	case "failed", "failure", "error":
+		return "✗", colBad
+	case "running", "pending", "created", "waiting_for_resource", "preparing":
+		return "●", colWarn
+	}
+	return "○", colDim
+}
+
+// freshWords is the NEW column: how many commits were pushed since the last
+// review, "●" when some were but they are not on disk to count.
+func freshWords(n int) string {
+	switch {
+	case n > 0:
+		return fmt.Sprintf("●%d", n)
+	case n < 0:
+		return "●"
+	}
+	return ""
+}
+
+// loadMRFresh finds, off the event loop, which merge requests have commits
+// newer than the head their review last checked out. A review records that
+// head; the index knows the head now. A load that a newer one has overtaken
+// is dropped.
+func (a *App) loadMRFresh() {
+	type job struct {
+		key  mrKey
+		dir  string
+		head string
+		mgr  *workspace.Manager
+	}
+	var jobs []job
+	for _, mr := range a.mrs {
+		path := a.projectPathOfMR(mr)
+		if mr.SHA == "" || !a.diskOf(mr.Instance, path).MRs[mr.IID].Review {
+			continue
+		}
+		jobs = append(jobs, job{keyOfMR(mr), a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch), mr.SHA,
+			a.pathManager(mr.Instance, path)})
+	}
+	a.freshGen++
+	gen := a.freshGen
+	go func() {
+		fresh := map[mrKey]int{}
+		for _, j := range jobs {
+			seen := j.mgr.ReadMeta(j.dir).Head
+			if seen == "" || seen == j.head {
+				continue
+			}
+			n := -1
+			if j.mgr.Git().HasCommit(j.dir, j.head) {
+				n = j.mgr.Git().Count(j.dir, seen+".."+j.head)
+			}
+			if n != 0 {
+				fresh[j.key] = n
+			}
+		}
+		a.tv.QueueUpdateDraw(func() {
+			if gen != a.freshGen || maps.Equal(fresh, a.mrFresh) {
+				return
+			}
+			a.mrFresh = fresh
+			if a.mrsPane != nil {
+				a.mrsPane.reload()
+			}
+		})
+	}()
+}

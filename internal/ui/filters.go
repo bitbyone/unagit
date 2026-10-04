@@ -278,6 +278,9 @@ func (a *App) showMRViewOptions() {
 		{"grouped by repository (Ctrl-G)", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
 		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
 		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
+		{"only mine", func() bool { return f.OnlyMine }, func() { f.OnlyMine = !f.OnlyMine }},
+		{"only those I review or am assigned", func() bool { return f.OnlyToReview }, func() { f.OnlyToReview = !f.OnlyToReview }},
+		{"hide drafts", func() bool { return f.HideDrafts }, func() { f.HideDrafts = !f.HideDrafts }},
 		{"hide the authors below", func() bool { return !f.ShowHiddenAuthors }, func() { f.ShowHiddenAuthors = !f.ShowHiddenAuthors }},
 	}
 	a.showToggles(toggles{
@@ -313,4 +316,55 @@ func (a *App) showMRViewOptions() {
 			return fmt.Sprintf("%s%d author(s) hidden · space on one shows it again%s", tag(colDim), len(f.HiddenAuthors), tagEnd)
 		},
 	})
+}
+
+// passesMRFilters reports whether a merge request survives the filters only
+// merge requests have: hidden authors, drafts, and whose they are. Whose is
+// known once a refresh has asked each server who the token belongs to; until
+// then a server's merge requests are not narrowed by it.
+func (a *App) passesMRFilters(mr forge.MergeRequest) bool {
+	f := &a.cfg.Filters
+	if f.HidesAuthor(mr.Instance, mr.Author.Username) || f.HideDrafts && mr.Draft {
+		return false
+	}
+	me := a.me[mr.Instance]
+	if me == "" || !f.OnlyMine && !f.OnlyToReview {
+		return true
+	}
+	if f.OnlyMine && mr.Author.Username == me {
+		return true
+	}
+	if f.OnlyToReview {
+		for _, u := range append(append([]forge.User{}, mr.Reviewers...), mr.Assignees...) {
+			if u.Username == me {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// whoseSummary is what the merge request header says of the filters on whose
+// they are and of the drafts.
+func (a *App) whoseSummary() string {
+	f := &a.cfg.Filters
+	var parts []string
+	switch {
+	case f.OnlyMine && f.OnlyToReview:
+		parts = append(parts, "mine or to review")
+	case f.OnlyMine:
+		parts = append(parts, "mine")
+	case f.OnlyToReview:
+		parts = append(parts, "to review")
+	}
+	if (f.OnlyMine || f.OnlyToReview) && len(a.me) == 0 {
+		parts[len(parts)-1] += " (r to learn who you are)"
+	}
+	if f.HideDrafts {
+		parts = append(parts, "no drafts")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " · " + tag(colOn) + strings.Join(parts, " · ") + tagEnd + tag(colMuted)
 }

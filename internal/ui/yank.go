@@ -71,6 +71,7 @@ func (a *App) yankMR(mr forge.MergeRequest) {
 	path := a.projectPathOfMR(mr)
 	items := []yankItem{
 		{"Link", mr.WebURL},
+		{"Link with text", linkWithText(mr.WebURL, path, a.mrReference(mr)[len(path):], trim(mr.Title, 60), mr.SourceBranch)},
 		{"Reference", a.mrReference(mr)},
 		{"Source branch", mr.SourceBranch},
 		{"Title", mr.Title},
@@ -91,6 +92,7 @@ func (a *App) yankMR(mr forge.MergeRequest) {
 func (a *App) yankProject(pr forge.Project) {
 	items := []yankItem{
 		{"Link", pr.WebURL},
+		{"Link with text", linkWithText(pr.WebURL, pr.PathWithNamespace, trim(pr.Description, 60))},
 		{"Path", pr.PathWithNamespace},
 		{"Clone address", a.newManager(pr.Instance, pr.PathWithNamespace, nil).RemoteURL(pr)},
 	}
@@ -117,4 +119,20 @@ func (a *App) yankWorktree(r worktreeRow) {
 		items = append(items, yankItem{"Merge request link", mr.WebURL}, yankItem{"Reference", a.mrReference(mr)})
 	}
 	a.showYank("Copy "+r.Branch, items)
+}
+
+// linkWithText is a line to paste into a chat: what it is, in words, then
+// the link, which the chat makes clickable. Empty words are left out, and
+// without a link there is nothing to paste.
+func linkWithText(url string, words ...string) string {
+	if url == "" {
+		return ""
+	}
+	var kept []string
+	for _, w := range words {
+		if w = strings.TrimSpace(w); w != "" {
+			kept = append(kept, w)
+		}
+	}
+	return strings.Join(kept, " · ") + " " + url
 }

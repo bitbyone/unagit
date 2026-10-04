@@ -59,10 +59,18 @@ func TestYankCopiesTheLinkFirst(t *testing.T) {
 		t.Errorf("clipboard = %q", got)
 	}
 
-	// j moves to the next one, and y takes it.
+	// j moves to the next one, and y takes it: a line for a chat, then the
+	// reference.
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Copy acme/gateway!7")
 	typeRunes(sc, "jy")
+	waitFor(t, a, sc, "copied link with text")
+	if got := c.get(); got != "acme/gateway · !7 · Rate limiting · feat/rate https://gl.example/acme/gateway/-/merge_requests/7" {
+		t.Errorf("clipboard = %q, want the link with text", got)
+	}
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Copy acme/gateway!7")
+	typeRunes(sc, "jjy")
 	waitFor(t, a, sc, "copied reference")
 	if got := c.get(); got != "acme/gateway!7" {
 		t.Errorf("clipboard = %q, want the reference", got)

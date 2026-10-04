@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -154,9 +155,22 @@ func TestGroupMergeRequestsFansOutOverRepositories(t *testing.T) {
 		repos = append(repos, fmt.Sprintf(`{"id":%d,"name":"r%d","full_name":"acme/r%d","owner":{"login":"acme"}}`, i, i, i))
 	}
 	s.handle("/orgs/acme/repos", "["+strings.Join(repos, ",")+"]")
+	// Instant answers overlap only by luck, which a busy machine does not
+	// have: the first two to arrive wait for each other, so requests that are
+	// really sent together are always seen together. Sent one by one, the
+	// first waits out the timeout alone and the test fails as it should.
+	var arrived atomic.Int32
+	together := make(chan struct{})
 	for i := 1; i <= 12; i++ {
 		i := i
 		s.mux.HandleFunc(fmt.Sprintf("/repos/acme/r%d/pulls", i), func(w http.ResponseWriter, r *http.Request) {
+			if arrived.Add(1) == 2 {
+				close(together)
+			}
+			select {
+			case <-together:
+			case <-time.After(2 * time.Second):
+			}
 			if got := r.URL.Query().Get("state"); got != "open" {
 				t.Errorf("state = %q", got)
 			}

@@ -30,6 +30,9 @@ type logCommit struct {
 	WebURL   string
 	New      bool // a merge request's, not yet given a review
 	Unpushed bool // not on the branch's upstream yet
+	// CI is the pipeline status, where the forge said it: a merge request's
+	// head has one.
+	CI string
 }
 
 // logPlace is where a log was opened, and so what can be done with its
@@ -62,44 +65,11 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 		a.note("no commits to show")
 		return
 	}
-	// The subjects make a column, so what comes after them lines up, and
-	// it takes what the dialog has left after the id, the age and the refs:
-	// a subject is cut only where the dialog ends. The pane under the list
-	// has the rest of the message.
-	refsW := 0
-	for _, c := range commits {
-		refsW = max(refsW, len([]rune(refWords(c.Refs))))
-	}
-	// A row is a mark and the id (12), the subject, then the age with the
-	// gaps around it (13) and the refs.
-	room := logRowWidth(a.screenWidth()) - 12 - 13 - min(refsW, 32)
-	subjects := make([]string, len(commits))
-	width := 0
-	for i, c := range commits {
-		subject := c.Subject
-		if c.Merge {
-			subject = "⑂ " + subject
-		}
-		subjects[i] = trim(subject, max(room, 24))
-		width = max(width, len([]rune(subjects[i])))
-	}
 	items := make([]pickItem, len(commits))
 	for i, c := range commits {
-		// The picker filters on the text as it is drawn, so the marks are
-		// plain characters, not colour tags.
-		mark := "  "
-		switch {
-		case c.New:
-			mark = "● "
-		case c.Unpushed:
-			mark = "↑ "
-		}
-		label := fmt.Sprintf("%s%s  %-*s", mark, shortSHA(c.SHA), width, subjects[i])
-		// The age first, in a column of its own; what points at the commit
-		// after it, where a varying length disturbs nothing.
-		sub := strings.TrimSpace(fmt.Sprintf("%-8s  %s", humanAge(c.When), refWords(c.Refs)))
-		items[i] = pickItem{Label: esc(label), Sub: esc(sub), About: commitAbout(c, place), Data: i}
+		items[i] = pickItem{About: commitAbout(c, place), Data: i}
 	}
+	labelLog(items, commits, logRowWidth(a.screenWidth()))
 	at := func(it pickItem) logCommit { return commits[it.Data.(int)] }
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
 
@@ -130,7 +100,8 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 
 	// Not packed: the rows are short, but the keys are many, and their hints
 	// should fit on a line or two rather than wrap down the side.
-	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys}
+	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
+		relabel: func(items []pickItem, width int) { labelLog(items, commits, width) }}
 	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
 }
 
@@ -163,6 +134,54 @@ func commitAbout(c logCommit, place logPlace) string {
 }
 
 func shortSHA(sha string) string { return sha[:min(8, len(sha))] }
+
+// labelLog writes the rows of a log for a row of width cells. The subjects
+// make a column, so what comes after them lines up, and it takes what the row
+// has left after the id, the age and the refs: a subject is cut only where
+// the dialog ends. The pane under the list has the rest of the message.
+func labelLog(items []pickItem, commits []logCommit, width int) {
+	refsW := 0
+	for _, c := range commits {
+		refsW = max(refsW, len([]rune(logSub(c))))
+	}
+	// A row is a mark and the id (12), the subject, and after a gap (3)
+	// the age, the pipeline and the refs.
+	room := width - 12 - 3 - min(refsW, 44)
+	subjects := make([]string, len(commits))
+	subjectW := 0
+	for i, c := range commits {
+		subject := c.Subject
+		if c.Merge {
+			subject = "⑂ " + subject
+		}
+		subjects[i] = trim(subject, max(room, 24))
+		subjectW = max(subjectW, len([]rune(subjects[i])))
+	}
+	for i, c := range commits {
+		// The picker filters on the text as it is drawn, so the marks are
+		// plain characters, not colour tags.
+		mark := "  "
+		switch {
+		case c.New:
+			mark = "● "
+		case c.Unpushed:
+			mark = "↑ "
+		}
+		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i]))
+		items[i].Sub = esc(logSub(c))
+	}
+}
+
+// logSub is what follows a subject: the age in a column of its own, then the
+// pipeline and what points at the commit, where a varying length disturbs
+// nothing.
+func logSub(c logCommit) string {
+	rest := refWords(c.Refs)
+	if ci, _ := ciMark(c.CI); ci != "" {
+		rest = strings.TrimSpace(ci + " " + c.CI + " " + rest)
+	}
+	return strings.TrimSpace(fmt.Sprintf("%-8s  %s", humanAge(c.When), rest))
+}
 
 // logRowWidth is how wide a row of the log is on a screen so wide: the wide
 // picker's share of it, less its frame and padding.
@@ -379,14 +398,9 @@ func (a *App) commitURL(place logPlace, c logCommit) string {
 func (a *App) yankCommit(place logPlace, c logCommit) {
 	url := a.commitURL(place, c)
 	short := shortSHA(c.SHA)
-	reference, markdown := "", ""
+	reference := linkWithText(url, place.project.PathWithNamespace, place.branch, short, trim(c.Subject, 60))
+	markdown := ""
 	if url != "" {
-		parts := []string{place.project.PathWithNamespace}
-		if place.branch != "" {
-			parts = append(parts, place.branch)
-		}
-		parts = append(parts, short, trim(c.Subject, 60))
-		reference = strings.Join(parts, " · ") + " " + url
 		markdown = fmt.Sprintf("[%s %s](%s)", short, c.Subject, url)
 	}
 	message := c.Subject
@@ -395,7 +409,7 @@ func (a *App) yankCommit(place logPlace, c logCommit) {
 	}
 	a.showYank("Copy · "+short, []yankItem{
 		{"Link", url},
-		{"Reference", reference},
+		{"Link with text", reference},
 		{"Markdown", markdown},
 		{"Commit id", c.SHA},
 		{"Short id", short},
@@ -537,6 +551,9 @@ func (a *App) mergeRequestLog(mr forge.MergeRequest) {
 				}
 				fresh++
 			}
+		}
+		if len(listed) > 0 {
+			listed[0].CI = mr.Pipeline
 		}
 		title := fmt.Sprintf("Commit Log · %s !%d", path, mr.IID)
 		if fresh > 0 {

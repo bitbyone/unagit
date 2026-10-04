@@ -744,6 +744,7 @@ type WorktreeEntry struct {
 	Label string   // "!42 fix-bug" for a merge request, the branch name otherwise
 	Kind  string   // "merge request" or "branch"
 	Dirs  []string // every directory this entry removes
+	IID   int      // the merge request's, 0 for a branch
 }
 
 // WorktreeEntries lists every worktree hanging off a project's main clone,
@@ -813,7 +814,7 @@ func (m *Manager) WorktreeEntries(projectPath string) []WorktreeEntry {
 		if g.review != "" {
 			dirs = append(dirs, g.review)
 		}
-		out = append(out, WorktreeEntry{Label: label, Kind: "merge request", Dirs: dirs})
+		out = append(out, WorktreeEntry{Label: label, Kind: "merge request", Dirs: dirs, IID: iid})
 	}
 	return append(out, plain...)
 }

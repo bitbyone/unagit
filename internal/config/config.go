@@ -223,6 +223,12 @@ type Filters struct {
 	// turns that off for a while without forgetting who they are.
 	HiddenAuthors     []HiddenAuthor `yaml:"hidden_authors,omitempty" json:"hidden_authors,omitempty"`
 	ShowHiddenAuthors bool           `yaml:"show_hidden_authors,omitempty" json:"show_hidden_authors,omitempty"`
+	// OnlyMine and OnlyToReview narrow the merge requests to those you
+	// wrote, and those you are asked to review or are assigned; with both,
+	// to either. HideDrafts leaves the drafts out.
+	OnlyMine     bool `yaml:"only_mine,omitempty" json:"only_mine,omitempty"`
+	OnlyToReview bool `yaml:"only_to_review,omitempty" json:"only_to_review,omitempty"`
+	HideDrafts   bool `yaml:"hide_drafts,omitempty" json:"hide_drafts,omitempty"`
 }
 
 // HiddenAuthor is an author of a server whose merge requests are not listed.

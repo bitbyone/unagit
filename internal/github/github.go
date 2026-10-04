@@ -605,6 +605,13 @@ func (p pull) mergeRequest(projectPath string) forge.MergeRequest {
 		UpdatedAt:    p.UpdatedAt,
 		Author:       forge.User{Username: p.User.Login, Name: p.User.Name},
 		ProjectPath:  projectPath,
+		SHA:          p.Head.SHA,
+	}
+	for _, u := range p.RequestedReviewers {
+		mr.Reviewers = append(mr.Reviewers, forge.User{Username: u.Login, Name: u.Name})
+	}
+	for _, u := range p.Assignees {
+		mr.Assignees = append(mr.Assignees, forge.User{Username: u.Login, Name: u.Name})
 	}
 	if p.Base.Repo != nil {
 		mr.ProjectID = p.Base.Repo.ID
@@ -798,6 +805,14 @@ func (c *Client) LatestPipeline(ctx context.Context, p forge.Project, ref string
 		return nil, nil
 	}
 	return c.combinedStatus(ctx, p.PathWithNamespace, ref)
+}
+
+// MergeRequestPipeline is the combined status of the pull request's head.
+func (c *Client) MergeRequestPipeline(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, error) {
+	if mr.SHA == "" || mr.ProjectPath == "" {
+		return nil, nil
+	}
+	return c.combinedStatus(ctx, mr.ProjectPath, mr.SHA)
 }
 
 // combinedStatus rolls GitHub's per commit statuses into one pipeline.

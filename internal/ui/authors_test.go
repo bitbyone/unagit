@@ -32,7 +32,7 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 	waitFor(t, a, sc, "View · Merge requests")
 	waitFor(t, a, sc, "renovate")
 	assertLegible(t, a, sc, "the merge request view options")
-	typeRunes(sc, "jjj ") // hide the authors below: off
+	typeRunes(sc, "jjjjjj ") // hide the authors below: off
 	waitFor(t, a, sc, "1 hidden author(s) shown")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, " ") // on again

@@ -40,6 +40,7 @@ type branchInfo struct {
 	protected bool
 	when      time.Time
 	title     string
+	mr        int // the merge request open from it, 0 for none
 }
 
 // branchScope is what a branch manager is opened for.
@@ -180,6 +181,9 @@ func (b branchInfo) status() string {
 	if b.protected {
 		marks = append(marks, "protected")
 	}
+	if b.mr > 0 {
+		marks = append(marks, fmt.Sprintf("!%d open", b.mr))
+	}
 	if !b.when.IsZero() {
 		marks = append(marks, humanAge(b.when)+"  "+b.title)
 	}
@@ -207,6 +211,9 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	items := make([]pickItem, len(branches))
 	start := 0
 	for i, b := range branches {
+		if mr, ok := a.openMROn(pr, b.name); ok {
+			b.mr = mr.IID
+		}
 		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, b.name), Sub: b.status(), Data: b}
 		if b.name == scope.focus {
 			start = i
@@ -219,6 +226,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
 		{keys: "n", hint: "new", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
+		{keys: "m", hint: "merge request", run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
 		{keys: "d", hint: "delete here", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
 		{keys: "D", hint: "everywhere", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
 		{keys: "Alt-D", hint: "on origin", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
@@ -392,4 +400,40 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 			again(b.name, fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and ")))
 		})
 	})
+}
+
+// branchMergeRequest opens a merge request from a branch of the clone, as n
+// does from a worktree: pushed first when origin lacks it, asking. A branch
+// with one open says so.
+func (a *App) branchMergeRequest(pr forge.Project, b branchInfo) {
+	client := a.client(pr.Instance)
+	switch {
+	case client == nil:
+		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
+		return
+	case b.mr > 0:
+		a.flash(fmt.Sprintf("!%d is already open from %s", b.mr, b.name))
+		return
+	case b.isDefault:
+		a.flash(b.name + " is the default branch - a merge request goes from another into it")
+		return
+	case b.local && b.upstream.Behind > 0:
+		a.flash(fmt.Sprintf("origin has %d commit(s) of %s the clone lacks - pull first", b.upstream.Behind, b.name))
+		return
+	}
+	r := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: b.name,
+		Dir: a.projectDir(pr.Instance, pr.PathWithNamespace)}
+	if !b.local {
+		a.prepareMergeRequest(r, pr, client, false, false)
+		return
+	}
+	setUpstream := b.upstream.Name == ""
+	if !b.remote || setUpstream || b.upstream.Ahead > 0 {
+		body := fmt.Sprintf("[::b]%s[::-] is not on origin as it is in the clone.\n\nA merge request needs it there: push it and continue?", esc(b.name))
+		a.confirmWith("Create merge request", body, "Push and continue", nil, func() {
+			a.prepareMergeRequest(r, pr, client, true, setUpstream)
+		})
+		return
+	}
+	a.prepareMergeRequest(r, pr, client, false, false)
 }

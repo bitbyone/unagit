@@ -87,6 +87,13 @@ type MergeRequest struct {
 	TargetProjectID int       `json:"target_project_id"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	Author          User      `json:"author"`
+	// SHA is the head commit; Reviewers and Assignees who it is asked of.
+	SHA       string `json:"sha,omitempty"`
+	Reviewers []User `json:"reviewers,omitempty"`
+	Assignees []User `json:"assignees,omitempty"`
+	// Pipeline is the status of the head's latest pipeline, "" for none.
+	// The listings do not carry it; unagit asks for it on refresh.
+	Pipeline string `json:"pipeline,omitempty"`
 	// Comments is how many people have said something. GitLab reports it on
 	// the listing; GitHub only on a single merge request, so there it stays
 	// zero until the detail is opened.
@@ -262,6 +269,9 @@ type Provider interface {
 	// many there are; a limit of zero returns all of them.
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)
 	MergeRequestApprovals(ctx context.Context, mr MergeRequest) (*Approvals, error)
+	// MergeRequestPipeline is the latest pipeline of the merge request's
+	// head, nil when there is none.
+	MergeRequestPipeline(ctx context.Context, mr MergeRequest) (*Pipeline, error)
 
 	// Approve records an approval of the merge request as the token's owner.
 	Approve(ctx context.Context, mr MergeRequest) error
