@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -161,5 +162,37 @@ func TestCopyACommit(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q is not offered:\n%s", want, text)
 		}
+	}
+}
+
+// TestDiffInALogBringsTheCommit: D on a merge request's commit while the
+// repository is not on disk clones it, fetches the merge request, and shows
+// the commit in Hunk; the log comes back after.
+func TestDiffInALogBringsTheCommit(t *testing.T) {
+	hunk := fakeHunk(t)
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	head := mrOnOrigin(t, srv, p, "Add a token bucket")
+	must(t, os.RemoveAll(p.clone))
+	onLoop(a, func() bool {
+		for i := range a.projects {
+			a.projects[i].HTTPURLToRepo = p.origin
+		}
+		a.reindexProjects()
+		return true
+	})
+	p.rescan()
+
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
+	typeRunes(sc, "D")
+	waitForLog(t, hunk, p.clone+" show "+head)
+	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
+	if got := gitIn(t, p.clone, "cat-file", "-t", head); got != "commit" {
+		t.Errorf("the clone does not have the commit: %s", got)
 	}
 }

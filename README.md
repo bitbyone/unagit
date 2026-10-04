@@ -366,7 +366,9 @@ The same commit log opens on a repository and a worktree too, and what it
 offers follows from where it was opened. `Enter` shows a commit's detail -
 author, date, branches and tags pointing at it, the whole message, the files
 it changed - and `Esc` comes back to the list. `D` shows the commit in Hunk,
-`Alt-D` everything from it to the working tree. In a clone or a worktree `C`
+`Alt-D` everything from it to the working tree; a commit not on disk yet is
+brought first - the repository cloned, the merge request fetched - so a log
+can be paged through without stopping to clone. In a clone or a worktree `C`
 checks the commit out with a detached HEAD: the branch column then shows
 `@<commit>` and the REMOTE column how far behind the branch it left it is,
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,

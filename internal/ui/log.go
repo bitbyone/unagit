@@ -104,8 +104,8 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
 
 	keys := []pickKey{
-		{keys: "D", hint: "diff", run: func(it pickItem) { a.showCommitDiff(place, at(it), false, again(it)) }},
-		{keys: "Alt-D", hint: "since", run: func(it pickItem) { a.showCommitDiff(place, at(it), true, again(it)) }},
+		{keys: "D", hint: "diff", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), false) }},
+		{keys: "Alt-D", hint: "since", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
 		keys = append(keys, pickKey{keys: "C", hint: "checkout", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }})
@@ -189,24 +189,49 @@ func (a *App) onDisk(place logPlace, c logCommit) string {
 }
 
 // showCommitDiff shows a commit in Hunk, or, since, everything from it to
-// the working tree; the log comes back when Hunk is closed.
-func (a *App) showCommitDiff(place logPlace, c logCommit, since bool, back func()) {
+// the working tree; the log comes back when Hunk is closed. A commit not on
+// disk is brought first - the repository cloned, the merge request or origin
+// fetched - so a log can be paged through without stopping to clone.
+func (a *App) showCommitDiff(place logPlace, commits []logCommit, i int, since bool) {
 	bin, ok := a.hunkBinary()
 	if !ok {
 		return
 	}
-	if why := a.onDisk(place, c); why != "" {
-		a.flash(why)
-		return
-	}
+	c := commits[i]
 	args := []string{"show", c.SHA}
 	if since {
 		args = []string{"diff", c.SHA}
 	}
-	go func() {
-		a.runView(bin, diffView{dir: place.dir, args: args})
-		a.tv.QueueUpdateDraw(back)
-	}()
+	show := func(place logPlace) {
+		go func() {
+			a.runView(bin, diffView{dir: place.dir, args: args})
+			a.tv.QueueUpdateDraw(func() { a.showCommitLog(place, commits, i) })
+		}()
+	}
+	if a.onDisk(place, c) == "" {
+		show(place)
+		return
+	}
+	// Since is measured against a working tree, and a fresh clone's is not
+	// what the log was of; only a commit itself can be brought and shown.
+	if since && place.dir == "" {
+		a.flash("not cloned - D shows the commit itself; from it to now needs the repository on disk")
+		return
+	}
+	pr := place.project
+	var dir string
+	a.runTaskThen("Bringing "+shortSHA(c.SHA)+" of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+		var err error
+		dir, err = a.newManager(pr.Instance, pr.PathWithNamespace, log).BringCommits(pr, place.mr, c.SHA)
+		return "", err
+	}, func(string) {
+		a.refreshDisk()
+		a.projectsPane.reload()
+		if place.dir == "" {
+			place.dir = dir
+		}
+		show(place)
+	})
 }
 
 // showCommitDetail is a commit whole: who, when, what points at it, the

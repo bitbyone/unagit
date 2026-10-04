@@ -472,6 +472,34 @@ func (m *Manager) NewBranch(p forge.Project, name, from string) error {
 	return nil
 }
 
+// BringCommits makes sure the main clone has a log's commits, so they can be
+// looked at: it clones the repository when it is not on disk, and fetches a
+// merge request's head - or, for any other log, origin - when the commit is
+// still missing. It answers the clone's directory.
+func (m *Manager) BringCommits(p forge.Project, mr *forge.MergeRequest, commit string) (string, error) {
+	dir, err := m.ensureMain(p)
+	if err != nil {
+		return "", err
+	}
+	if m.git.HasCommit(dir, commit) {
+		return dir, nil
+	}
+	if mr != nil {
+		m.log("Fetching !%d", mr.IID)
+		err = m.git.FetchRefspec(dir, m.headRef(mr.IID))
+	} else {
+		m.log("Fetching origin")
+		err = m.git.Fetch(dir)
+	}
+	if err != nil {
+		return "", err
+	}
+	if !m.git.HasCommit(dir, commit) {
+		return "", fmt.Errorf("%s is not on origin any more - it may have been force-pushed away", commit[:min(8, len(commit))])
+	}
+	return dir, nil
+}
+
 // isCommitID tells a commit id from a branch name, as far as one can.
 func isCommitID(s string) bool {
 	if len(s) < 7 || len(s) > 40 {
