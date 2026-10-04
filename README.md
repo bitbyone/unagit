@@ -292,7 +292,9 @@ Hunk is a terminal diff viewer made for reviewing a whole changeset. Install
 card turns it off. `D` hands it the terminal the way an editor gets it, always
 on what the row's working tree has not committed - staged, unstaged and new
 files. In a review worktree that is the whole merge request; in a grouped
-worktree, every repository in one review.
+worktree, every repository in one review. A merge request with nothing on
+disk gets its review made first - the repository cloned if need be - so `D`
+down the list never stops to ask for `C`.
 
 `Alt-D` asks first, in a list:
 

@@ -248,7 +248,26 @@ func (a *App) diffMR(mr forge.MergeRequest, menu bool) {
 			a.diffKey(branch, targets)
 		}
 	default:
-		a.flash(fmt.Sprintf("!%d is not on disk - C makes its review", mr.IID))
+		// Nothing on disk yet: make the review, as C would - the repository
+		// cloned if it has to be - and show it, so going down the list with
+		// D does not stop to clone first.
+		if _, ok := a.hunkBinary(); !ok {
+			return
+		}
+		client := a.client(mr.Instance)
+		integrate := a.cfg.Integrations.Incomm
+		a.runTaskThen(fmt.Sprintf("Preparing %s !%d for Hunk", path, mr.IID), func(log func(string)) (string, error) {
+			return a.prepareReview(mr, project, client, "", integrate, log)
+		}, func(dir string) {
+			a.refreshDisk()
+			a.mrsPane.reload()
+			a.projectsPane.reload()
+			if !workspace.Exists(dir) {
+				a.flash(fmt.Sprintf("!%d could not be put on disk", mr.IID))
+				return
+			}
+			a.diffMR(mr, menu)
+		})
 	}
 }
 

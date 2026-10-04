@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -166,5 +167,40 @@ func TestCMakesTheReviewWithoutOpeningIt(t *testing.T) {
 	}
 	if strings.Contains(a.screenText(sc), "opened ") {
 		t.Error("the editor was started")
+	}
+}
+
+// TestDOnAMergeRequestNotOnDisk: D in the list makes the review - cloning
+// the repository first - and shows it in Hunk, rather than asking for C.
+func TestDOnAMergeRequestNotOnDisk(t *testing.T) {
+	hunk := fakeHunk(t)
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	mrOnOrigin(t, srv, p, "Add a token bucket")
+	must(t, os.RemoveAll(p.clone))
+	onLoop(a, func() bool {
+		for i := range a.projects {
+			a.projects[i].HTTPURLToRepo = p.origin
+		}
+		a.reindexProjects()
+		return true
+	})
+	p.rescan()
+
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gD")
+	dir := onLoop(a, func() string {
+		for _, mr := range a.mrs {
+			if mr.IID == 7 {
+				return a.reviewDir(mr.Instance, "acme/gateway", mr.IID, mr.SourceBranch)
+			}
+		}
+		return ""
+	})
+	waitForLog(t, hunk, dir+" diff")
+	if !workspace.Exists(p.clone) {
+		t.Error("the repository was not cloned")
 	}
 }
