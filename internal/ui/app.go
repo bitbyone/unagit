@@ -191,6 +191,10 @@ func (a *App) mrSortTime(mr forge.MergeRequest) time.Time {
 // New builds the application with an already open vault, for tests and for
 // callers that unlocked it themselves.
 func New(cfg *config.Config, vault *secret.Vault) *App {
+	// tview's widgets copy its styles when they are made, so the theme comes
+	// first - and once per process, which also orders it before the widgets
+	// of every other application made in parallel.
+	applyTheme()
 	a := &App{
 		tv:       tview.NewApplication(),
 		pages:    tview.NewPages(),
@@ -205,6 +209,7 @@ func New(cfg *config.Config, vault *secret.Vault) *App {
 // NewLocked builds the application with the tokens still encrypted; the
 // passphrase is asked for in a modal once the interface is up.
 func NewLocked(cfg *config.Config) *App {
+	applyTheme()
 	return &App{
 		tv:       tview.NewApplication(),
 		pages:    tview.NewPages(),

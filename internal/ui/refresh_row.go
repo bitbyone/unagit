@@ -24,6 +24,16 @@ func (a *App) refreshMRRow(mr forge.MergeRequest) {
 		return
 	}
 	a.note(fmt.Sprintf("asking about !%d …", mr.IID))
+	a.fetchMR(client, mr, true)
+}
+
+// refetchMR is refreshMRRow without a word on screen, for an action that has
+// just said what it did and wants the row to follow.
+func (a *App) refetchMR(client forge.Provider, mr forge.MergeRequest) { a.fetchMR(client, mr, false) }
+
+// fetchMR asks about one merge request and puts the answer in the list; say
+// adds that it is up to date once that is known.
+func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
@@ -34,13 +44,13 @@ func (a *App) refreshMRRow(mr forge.MergeRequest) {
 		}
 		fresh := []forge.MergeRequest{withDetail(mr, det)}
 		mrExtras(ctx, fresh, map[string]forge.Provider{mr.Instance: client})
-		a.tv.QueueUpdateDraw(func() { a.applyMRRefresh(fresh[0]) })
+		a.tv.QueueUpdateDraw(func() { a.applyMRRefresh(fresh[0], say) })
 	}()
 }
 
 // applyMRRefresh puts one merge request as the server now has it into the
 // list, or takes it out when it is no longer open.
-func (a *App) applyMRRefresh(fresh forge.MergeRequest) {
+func (a *App) applyMRRefresh(fresh forge.MergeRequest, say bool) {
 	if state := strings.ToLower(fresh.State); state != "" && state != "opened" && state != "open" {
 		kept := a.mrs[:0]
 		for _, m := range a.mrs {
@@ -67,7 +77,9 @@ func (a *App) applyMRRefresh(fresh forge.MergeRequest) {
 		return
 	}
 	a.applyMRUpdate(fresh, true, false)
-	a.afterFresh = func() { a.done(fmt.Sprintf("!%d is up to date", fresh.IID)) }
+	if say {
+		a.afterFresh = func() { a.done(fmt.Sprintf("!%d is up to date", fresh.IID)) }
+	}
 	a.refreshDisk()
 }
 

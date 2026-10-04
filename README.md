@@ -420,6 +420,29 @@ It asks for the passphrase as usual, opens the editor, and leaves you in the
 lists when you close it. The merge request does not have to be in a selected
 group.
 
+### Finishing a review
+
+The rest of a merge request's life is a key away too, on GitLab and GitHub
+alike:
+
+- `A` approves, after asking - everyone on it will see it.
+- `M` merges. The dialog lists first what the list knows to stand in the way
+  - a draft, a pipeline failed or still running, approvals missing, threads
+  not resolved - and then asks whether to squash and whether to delete the
+  source branch. While the pipeline runs it offers to wait for it instead
+  (auto-merge on GitHub, where the repository has to allow it). The merge is
+  of the head the list has seen: a push since then is refused rather than
+  merged unread, and unagit says to look first.
+- `Ctrl-D` marks a merge request as a draft, or a draft as ready.
+- `a` lists who can be asked to review - the repository's members on GitLab,
+  those with push access on GitHub - with the reviewers asked marked;
+  `space` asks or withdraws, and `Esc` saves the choice.
+- **Close Merge Request…** (in `Alt-Enter`, no key of its own) closes it
+  without merging, after asking. Its branch stays.
+
+After each the row is asked about again, so the list shows what the server
+now has.
+
 ## The rest of it
 
 - **One list, several servers.** Any number of GitLab instances plus GitHub,
@@ -432,7 +455,7 @@ group.
   everything the API knows: reviewers, approvals, pipeline, labels, commits,
   how far behind the target it is.
 - **Comments as markdown**, threaded the way they were written. `c` opens the
-  conversation, `i` replies, `a` approves (it asks first - everyone sees it).
+  conversation, `i` replies, `A` approves (it asks first - everyone sees it).
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
@@ -520,7 +543,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `D` `Alt-D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
-| `c` `a` | read and write comments · approve |
+| `c` `A` | read and write comments · approve |
+| `M` `Ctrl-D` `a` | in Merge requests: merge · draft or ready · reviewers |
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |

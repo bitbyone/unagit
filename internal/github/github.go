@@ -556,7 +556,10 @@ func (c *Client) GroupProjects(ctx context.Context, g forge.Group, _ bool) ([]fo
 
 // pull is GitHub's pull request shape.
 type pull struct {
-	ID      int    `json:"id"`
+	ID int `json:"id"`
+	// NodeID is the pull request's id in the GraphQL API, which alone can
+	// change a draft or turn on auto-merge.
+	NodeID  string `json:"node_id"`
 	Number  int    `json:"number"`
 	Title   string `json:"title"`
 	State   string `json:"state"`

@@ -15,6 +15,10 @@ import (
 // cannot do, so a caller can tell "not possible here" from a failure.
 var ErrNotSupported = errors.New("not supported by this forge")
 
+// ErrHeadMoved is what Merge returns when commits were pushed after the head
+// it was told to merge.
+var ErrHeadMoved = errors.New("the merge request has new commits - refresh it and look again")
+
 // ErrMergeRequestExists is what CreateMergeRequest returns, wrapped in a message
 // that names the request when the forge said which, when an open merge request
 // already exists for that source branch.
@@ -120,6 +124,21 @@ type NewMergeRequest struct {
 	Draft              bool
 	RemoveSourceBranch bool
 	Squash             bool
+}
+
+// MergeOptions say how a merge request is merged.
+type MergeOptions struct {
+	// Squash makes one commit of the merge request's commits.
+	Squash bool
+	// RemoveSourceBranch deletes the source branch on the server once merged.
+	// When the merge is left to the pipeline, GitHub leaves that to the
+	// repository's own setting.
+	RemoveSourceBranch bool
+	// WhenPipelineSucceeds leaves the merge to the head's pipeline: it
+	// happens once that passes, rather than now.
+	WhenPipelineSucceeds bool
+	// SHA is the head the user decided on.
+	SHA string
 }
 
 // NewProject is what a repository is created from.
@@ -338,6 +357,20 @@ type Provider interface {
 	// DeleteBranch deletes a branch on the server. The forge refuses the
 	// default branch and a protected one.
 	DeleteBranch(ctx context.Context, p Project, branch string) error
+	// Merge merges the merge request, or with WhenPipelineSucceeds sets it to
+	// merge itself once the head's pipeline passes. With SHA set the forge
+	// refuses when the head has moved since, and the error wraps ErrHeadMoved.
+	Merge(ctx context.Context, mr MergeRequest, opts MergeOptions) error
+	// SetDraft marks the merge request as a draft, or as ready for review.
+	SetDraft(ctx context.Context, mr MergeRequest, draft bool) error
+	// CloseMergeRequest closes it without merging; its branch stays.
+	CloseMergeRequest(ctx context.Context, mr MergeRequest) error
+	// ReviewerCandidates lists who can be asked to review: the repository's
+	// members on GitLab, those who can be assigned on GitHub.
+	ReviewerCandidates(ctx context.Context, mr MergeRequest) ([]User, error)
+	// SetReviewers makes these user names the reviewers asked, adding and
+	// removing as needed.
+	SetReviewers(ctx context.Context, mr MergeRequest, usernames []string) error
 	// UpdateMergeRequestDescription replaces the description of a merge
 	// request - to point merge requests made together at one another, once
 	// each one's address is known.

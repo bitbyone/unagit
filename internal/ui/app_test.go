@@ -54,6 +54,25 @@ type fakeServer struct {
 	// liveBranches, when set, lists a project's branches instead of the
 	// fixture: a test points it at the origin it made.
 	liveBranches atomic.Value // func(project int) []string
+	// writes are the changes !7 was sent - a merge, a title, a state, its
+	// reviewers - each as "METHOD path body".
+	writesMu sync.Mutex
+	writes   []string
+}
+
+// record keeps a change sent to the fake forge.
+func (f *fakeServer) record(r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	f.writesMu.Lock()
+	defer f.writesMu.Unlock()
+	f.writes = append(f.writes, r.Method+" "+r.URL.Path+" "+strings.TrimSpace(string(body)))
+}
+
+// written is what record kept so far.
+func (f *fakeServer) written() []string {
+	f.writesMu.Lock()
+	defer f.writesMu.Unlock()
+	return append([]string(nil), f.writes...)
 }
 
 // fakeGitLab serves the handful of endpoints the detail column needs.
@@ -228,6 +247,11 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"project_id":3,"web_url":"https://gl.example/acme/other/-/merge_requests/5"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			f.record(r)
+			json(w, `{}`)
+			return
+		}
 		f.mrDetail.Add(1)
 		json(w, `{"iid":7,"title":"Rate limiting","description":"Adds a token bucket.",
 			"source_branch":"feat/rate","target_branch":"main","project_id":1,
@@ -269,6 +293,24 @@ func fakeGitLab(t *testing.T) *fakeServer {
 				{"id":5,"body":"changed title","system":true,
 				 "created_at":"2026-09-20T06:00:00Z","author":{"username":"jane"}}]}
 		]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/merge", func(w http.ResponseWriter, r *http.Request) {
+		f.record(r)
+		json(w, `{"state":"merged"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/members/all", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":11,"username":"jane","name":"Jane Doe","state":"active"},
+			{"id":12,"username":"john","name":"John Roe","state":"active"},
+			{"id":13,"username":"mike","name":"Mike Moe","state":"active"}]`)
+	})
+	mux.HandleFunc("/api/v4/users", func(w http.ResponseWriter, r *http.Request) {
+		ids := map[string]int{"jane": 11, "john": 12, "mike": 13}
+		name := r.URL.Query().Get("username")
+		if id, ok := ids[name]; ok {
+			json(w, fmt.Sprintf(`[{"id":%d,"username":%q}]`, id, name))
+			return
+		}
+		json(w, `[]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approve", func(w http.ResponseWriter, r *http.Request) {
 		f.approvals.Add(1)

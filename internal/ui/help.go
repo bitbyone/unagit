@@ -237,6 +237,9 @@ func helpRows() []helpLine {
 		key("p", "pull the branch worktree; rebases your work"),
 		key("c", "read the conversation, write a comment"),
 		key("A", "approve; asks first"),
+		key("M", "merge: now, or when the pipeline succeeds"),
+		key("Ctrl-D", "mark as a draft · mark ready"),
+		key("a", "reviewers: space asks or withdraws, Esc saves"),
 		key("P", "publish Incomm comments and resolved threads"),
 		key("f  F", "limit to one repository · clear the limit"),
 		key("COM", "threads open (GitLab) · else how many commented"),
@@ -257,7 +260,7 @@ func helpRows() []helpLine {
 		key("r", "reload"),
 		blank(),
 
-		section("Settings  (S)", helpSettingsList),
+		section("Settings  (4)", helpSettingsList),
 		key("j  k", "move between the sections"),
 		key("Enter", "edit the section"),
 		blank(),

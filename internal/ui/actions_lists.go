@@ -147,6 +147,10 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 // mergeRequestActions are what can be done with one merge request.
 func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 	path := a.projectPathOfMR(mr)
+	draftName, draftAbout := "Mark as Draft", "Mark it as a draft, not ready to merge; the same key makes it ready again."
+	if mr.Draft {
+		draftName, draftAbout = "Mark as Ready", "Take the draft mark off, so it can be reviewed and merged."
+	}
 	onDisk := func() bool {
 		d := a.diskOf(mr.Instance, path).MRs[mr.IID]
 		return d.Branch || d.Review
@@ -164,6 +168,9 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Mark as Reviewed", about: "Take the head as seen without opening the review - read in the browser, or in Hunk - so NEW counts only what is pushed after.", keys: "V", rank: 17, run: func() { a.markReviewed(mr) }},
 		{name: "Show Pipeline…", about: "The jobs of the head's pipeline, the first that failed under the cursor: read its log, retry it, open it.", keys: "J", rank: 37, run: func() { a.showPipeline(mr, 0) }},
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
+		{name: "Merge…", about: "Merge it on the server - now, or once its pipeline succeeds - after saying what stands in the way.", keys: "M", rank: 41, run: func() { a.mergeMR(mr) }},
+		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
+		{name: "Reviewers…", about: "Choose who is asked to review: space asks or withdraws, Esc saves.", keys: "a", rank: 43, run: func() { a.editReviewers(mr) }},
 		{name: "Publish Comments", about: "Post the comments you wrote in Incomm to the merge request.", keys: "P", rank: 45, run: func() { a.publishMR(mr) }},
 		{name: "Review in Editor…", about: "Choose the editor, then open the review.", keys: "Alt-R", rank: 50, run: func() {
 			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
@@ -179,6 +186,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Hide Author", about: "Keep this author's merge requests out of the list - a bot's, most often; View Options shows them again.", keys: "H", rank: 475,
 			when: func() bool { return mr.Author.Username != "" }, run: func() { a.hideAuthor(mr) }},
 		a.hideAction(p),
+		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
 }

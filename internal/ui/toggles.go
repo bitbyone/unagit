@@ -33,6 +33,11 @@ type toggles struct {
 	status func() string
 	// keys are the extra keys of the list, each with its hint.
 	keys []toggleKey
+	// closed, when set, runs once the dialog is gone: for a choice that is
+	// made all at once rather than toggle by toggle. escSays is then what the
+	// footer says Esc does, instead of close.
+	closed  func()
+	escSays string
 }
 
 type toggleKey struct {
@@ -58,7 +63,11 @@ func (a *App) showToggles(t toggles) {
 		for _, k := range t.keys {
 			keys += fmt.Sprintf(" · %c %s", k.key, k.hint)
 		}
-		keys += " · / search · Esc close"
+		esc := "close"
+		if t.escSays != "" {
+			esc = t.escSays
+		}
+		keys += " · / search · Esc " + esc
 		if filtering {
 			keys = "type to search · ↑/↓ move · Enter " + t.verb + " · Esc list"
 		}
@@ -109,7 +118,12 @@ func (a *App) showToggles(t toggles) {
 		t.toggle(shown[i])
 		rebuild(input.GetText())
 	}
-	dismiss := func() { a.closeModal(pageToggles) }
+	dismiss := func() {
+		a.closeModal(pageToggles)
+		if t.closed != nil {
+			t.closed()
+		}
+	}
 	move := func(delta int) {
 		if n := list.GetItemCount(); n > 0 {
 			list.SetCurrentItem(max(0, min(list.GetCurrentItem()+delta, n-1)))
