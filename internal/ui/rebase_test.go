@@ -27,7 +27,7 @@ func TestRebaseOntoBaseThenForcePush(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new\n"), 0o644))
 	p.rescan()
 
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "EDITS")
 	waitFor(t, a, sc, "in sync")
 	if row := rowWith(a, sc, "feat/x"); !containsField(row, "2") {

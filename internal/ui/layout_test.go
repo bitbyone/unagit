@@ -43,7 +43,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	longMRs(t, cfg.Instances[0].ID)
 	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "29747")
 
 	// Wide: the whole title fits, the branch is still there.
@@ -185,7 +185,7 @@ func cellStyleAt(a *App, sc tcell.SimulationScreen, x, y int) tcell.Style {
 // openSection walks the Settings sidebar to a section and moves into it.
 func openSection(t *testing.T, a *App, sc tcell.SimulationScreen, section int) {
 	t.Helper()
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, sectionNames[section])
 	a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })
 	waitFor(t, a, sc, sectionNames[section])

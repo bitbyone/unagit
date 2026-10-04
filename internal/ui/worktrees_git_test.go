@@ -113,7 +113,7 @@ func TestRemoteColumnShowsWhereEachBranchStands(t *testing.T) {
 	gitIn(t, p.clone, "fetch", "-q", "--prune")
 	p.rescan()
 
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "5/5 worktrees")
 	for _, want := range []string{"no upstream", "in sync", "origin/feat/sync", "↑1 unpushed", "↓1 behind", "upstream gone", "REMOTE"} {
 		waitFor(t, a, sc, want)
@@ -126,7 +126,7 @@ func TestRemoteColumnIsQuestionMarkWhenTheCloneCannotBeRead(t *testing.T) {
 	now := time.Now()
 	makeWorktree(t, a, "acme/gateway", "wt-feat-x", "ref: refs/heads/feat/x", now)
 	a.tv.QueueUpdateDraw(func() { a.refreshDisk() })
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "1/1 worktrees")
 	rowOfBranch := func() string {
 		for _, line := range strings.Split(a.screenText(sc), "\n") {
@@ -151,7 +151,7 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 	p := newRealProject(t, a, "acme/gateway")
 	p.worktree("feat/rate")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "no upstream")
 	header := func() string {
 		for _, line := range strings.Split(a.screenText(sc), "\n") {
@@ -202,7 +202,7 @@ func TestMergeRequestColumnNamesTheOpenRequestOfABranch(t *testing.T) {
 	p.worktree("feat/free")
 	p.rescan()
 
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "2/2 worktrees")
 	waitFor(t, a, sc, "!7")
 	if got := strings.Count(a.screenText(sc), "!7"); got != 1 {
@@ -217,7 +217,7 @@ func TestPushSendsANewBranchWithItsUpstream(t *testing.T) {
 	dir := p.worktree("feat/new-thing")
 	commitIn(t, dir, "n.txt", "a change")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "no upstream")
 
 	typeRunes(sc, "P")
@@ -242,7 +242,7 @@ func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/more")
 	commitIn(t, dir, "m.txt", "one more")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "↑1 unpushed")
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "in sync")
@@ -264,7 +264,7 @@ func TestPushIsRefusedWhenOriginIsAhead(t *testing.T) {
 	gitIn(t, p.clone, "fetch", "-q")
 	before := gitIn(t, p.origin, "rev-parse", "feat/behind")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "diverged")
 
 	typeRunes(sc, "P")
@@ -294,7 +294,7 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 	commitIn(t, dir, "n.txt", "Add the new thing", "It does this.\n\nAnd that.")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/new-thing")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "in sync")
 
 	form := openForm(t, a, sc)
@@ -343,7 +343,7 @@ func TestNewMergeRequestProposesTheSingleCommit(t *testing.T) {
 
 	// The new request is in the list without a refresh, and the row says so.
 	waitFor(t, a, sc, "!42")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "!42")
 }
 
@@ -356,7 +356,7 @@ func TestNewMergeRequestListsSeveralCommitsUnderTheBranchName(t *testing.T) {
 	commitIn(t, dir, "2.txt", "Second step")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/new-thing")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "in sync")
 
 	form := openForm(t, a, sc)
@@ -378,7 +378,7 @@ func TestNewMergeRequestNeedsATitle(t *testing.T) {
 	dir := p.worktree("feat/new-thing")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/new-thing")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "in sync")
 
 	form := openForm(t, a, sc) // no commits ahead of main: nothing is proposed
@@ -399,7 +399,7 @@ func TestNewMergeRequestOffersToPushFirst(t *testing.T) {
 	dir := p.worktree("feat/new-thing")
 	commitIn(t, dir, "n.txt", "Only here")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "no upstream")
 
 	typeRunes(sc, "n")
@@ -422,7 +422,7 @@ func TestNewMergeRequestIsRefusedWhenOneIsAlreadyOpen(t *testing.T) {
 	dir := p.worktree("feat/rate") // !7 is open for it in the index
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/rate")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "in sync")
 
 	typeRunes(sc, "n")
@@ -443,7 +443,7 @@ func TestNewMergeRequestIsRefusedWhenBehind(t *testing.T) {
 	gitIn(t, other, "push", "-q", "origin", "feat/behind")
 	gitIn(t, p.clone, "fetch", "-q")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "↓1 behind")
 
 	typeRunes(sc, "n")

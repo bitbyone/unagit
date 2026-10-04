@@ -103,7 +103,7 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 	moved := gw.elsewhere("main")
 	commitIn(t, moved, "later.txt", "main moved on again")
 	gitIn(t, moved, "push", "-q", "origin", "main")
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "1 new on origin/main")
 	typeRunes(sc, "p")
 	waitFor(t, a, sc, "1 updated · 1 up to date")

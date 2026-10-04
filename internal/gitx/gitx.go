@@ -100,7 +100,7 @@ func hint(out string) string {
 		return "\n\nThe host is not in your known_hosts yet. Connect once by hand to accept it:" +
 			"\n    ssh -T git@<host>"
 	case strings.Contains(out, "could not read Username"), strings.Contains(out, "Authentication failed"):
-		return "\n\nThe token was refused. Check it in Settings [S], or clone over ssh instead."
+		return "\n\nThe token was refused. Check it in Settings [4], or clone over ssh instead."
 	}
 	return ""
 }

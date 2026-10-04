@@ -10,7 +10,7 @@ import (
 func TestSettingsHintsStayInsidePanels(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Default root")
 	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionSecurity, sectionIntegrations} {
 		a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })
@@ -82,6 +82,6 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 	}
 	a.tv.QueueUpdateDraw(func() { a.note("settings saved") })
 	waitFor(t, a, sc, "settings saved")
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "? help")
 }

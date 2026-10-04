@@ -358,7 +358,7 @@ func (a *App) whoseSummary() string {
 		parts = append(parts, "to review")
 	}
 	if (f.OnlyMine || f.OnlyToReview) && len(a.me) == 0 {
-		parts[len(parts)-1] += " (r to learn who you are)"
+		parts[len(parts)-1] += " (R to learn who you are)"
 	}
 	if f.HideDrafts {
 		parts = append(parts, "no drafts")

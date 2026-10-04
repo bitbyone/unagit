@@ -31,9 +31,9 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 	gitIn(t, p.clone, "worktree", "add", "-q", "-b", "feat/rate", open)
 	p.rescan()
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	// The summary runs past the status bar; it is read whole.
 	said := ""
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
@@ -85,7 +85,7 @@ func TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent(t *testing.T) {
 		}
 		a.refreshDisk()
 	})
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "●1")
 	line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), "Rate limiting")]
 	if !strings.Contains(line, "●1") || !strings.Contains(line, "✗") {
@@ -114,7 +114,7 @@ func TestMineAndToReview(t *testing.T) {
 			}
 		}
 	})
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "View · Merge requests")

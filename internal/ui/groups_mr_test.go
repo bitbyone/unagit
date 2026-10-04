@@ -194,7 +194,7 @@ func TestAClosedMergeRequestIsLetGoOnRefresh(t *testing.T) {
 	waitFor(t, a, sc, "!42")
 
 	srv.closed42.Store(true)
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "no longer open: !42 closed")
 	deadline := time.Now().Add(5 * time.Second)
 	for strings.Contains(rowWith(a, sc, "feat-both"), "!42") {

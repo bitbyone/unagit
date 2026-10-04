@@ -40,7 +40,7 @@ func TestWithDetailTakesWhatTheForgeSaysAndKeepsUnagitsOwn(t *testing.T) {
 func TestApplyMRUpdateChangesOneRowAndKeepsTheIndexTime(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	indexed := onLoop(a, func() time.Time { return a.mrsUpdated })
@@ -82,7 +82,7 @@ func TestApplyMRUpdateChangesOneRowAndKeepsTheIndexTime(t *testing.T) {
 func TestOpeningTheDetailBringsItsRowUpToDate(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	comments := func() int {
@@ -113,7 +113,7 @@ func TestOpeningTheDetailBringsItsRowUpToDate(t *testing.T) {
 func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	order := func() []int {
@@ -173,4 +173,42 @@ func TestDetailShowsTheFreshTimeWithoutMovingTheRow(t *testing.T) {
 	if got := order(); got[0] == 7 {
 		t.Errorf("opening should let the row move to where its time puts it: %v", got)
 	}
+}
+
+// TestRRefreshesTheRow: r asks about the one merge request under the cursor -
+// its pipeline and approvals come with it - fetches the one clone, and the
+// one worktree; R is the whole list.
+func TestRRefreshesTheRow(t *testing.T) {
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	p.worktree("feat/x")
+	p.rescan()
+
+	// A clone: origin moved, r sees it.
+	other := p.elsewhere("main")
+	commitIn(t, other, "theirs.txt", "theirs")
+	gitIn(t, other, "push", "-q", "origin", "main")
+	typeRunes(sc, "gr")
+	waitFor(t, a, sc, "fetched acme/gateway")
+	waitFor(t, a, sc, "↓1")
+
+	// A merge request: what a full refresh reads, for this row alone.
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gr")
+	waitFor(t, a, sc, "!7 is up to date")
+	line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), "Rate limiting")]
+	if !strings.Contains(line, "1/2") || !strings.Contains(line, "✗") {
+		t.Errorf("the row did not get its approvals and pipeline: %q", line)
+	}
+	if onLoop(a, func() bool { return a.mrsUpdated.IsZero() }) {
+		t.Error("refreshing a row lost the time of the last full refresh")
+	}
+
+	// A worktree.
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "feat/x")
+	typeRunes(sc, "gr")
+	waitFor(t, a, sc, "fetched acme/gateway")
 }

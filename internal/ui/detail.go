@@ -148,7 +148,7 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 	if client == nil {
 		p.setDetail(pr.PathWithNamespace,
 			a.renderProject(pr, nil, nil, nil, nil, wtFacts{}, []string{
-				a.instanceLabel(pr.Instance) + " has no token yet - set one in Settings [S]"}))
+				a.instanceLabel(pr.Instance) + " has no token yet - set one in Settings [4]"}))
 		return
 	}
 
@@ -407,7 +407,7 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		p.setDetail(title, a.renderMR(mr, path, nil, nil, nil, 0, nil, []string{
-			a.instanceLabel(mr.Instance) + " has no token yet - set one in Settings [S]"}, 0))
+			a.instanceLabel(mr.Instance) + " has no token yet - set one in Settings [4]"}, 0))
 		return
 	}
 

@@ -23,7 +23,7 @@ import (
 func (a *App) showPipeline(mr forge.MergeRequest, focus int64) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)

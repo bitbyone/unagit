@@ -53,7 +53,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 	p := newRealProject(t, a, "acme/gateway")
 	head := mrOnOrigin(t, srv, p, "Add a token bucket", "Count per client")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
@@ -119,7 +119,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 			p := newRealProject(t, a, "acme/gateway")
 			mrOnOrigin(t, srv, p, "Add a token bucket", "Count per client", "Answer the review")
 			resize(sc, size.w, size.h)
-			typeRunes(sc, "M")
+			typeRunes(sc, "2")
 			waitFor(t, a, sc, "Rate limiting")
 			sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 			waitFor(t, a, sc, "Commit Log · acme/gateway !7")
@@ -146,7 +146,7 @@ func TestCMakesTheReviewWithoutOpeningIt(t *testing.T) {
 	p := newRealProject(t, a, "acme/gateway")
 	mrOnOrigin(t, srv, p, "Add a token bucket")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "C")
 	waitFor(t, a, sc, "!7 is ready for review")
@@ -188,7 +188,7 @@ func TestDOnAMergeRequestNotOnDisk(t *testing.T) {
 	})
 	p.rescan()
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gD")
 	dir := onLoop(a, func() string {

@@ -19,13 +19,13 @@ import (
 func (a *App) listActions(p *pane) []uiAction {
 	return []uiAction{
 		{name: "Filter", about: "Narrow the list by typing; the letters need not be next to each other.", keys: "/", rank: 300, run: p.startFilter},
-		{name: "Go to Repositories", about: "Every repository of the servers and groups you picked.", keys: "R", rank: 900, when: func() bool { return a.currentTab() != pageProjects },
+		{name: "Go to Repositories", about: "Every repository of the servers and groups you picked.", keys: "1", rank: 900, when: func() bool { return a.currentTab() != pageProjects },
 			run: func() { a.switchTab(pageProjects) }},
-		{name: "Go to Merge Requests", about: "The open merge requests of those repositories.", keys: "M", rank: 900, when: func() bool { return a.currentTab() != pageMRs },
+		{name: "Go to Merge Requests", about: "The open merge requests of those repositories.", keys: "2", rank: 900, when: func() bool { return a.currentTab() != pageMRs },
 			run: func() { a.switchTab(pageMRs) }},
-		{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "W", rank: 900, when: func() bool { return a.currentTab() != pageWorktrees },
+		{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "3", rank: 900, when: func() bool { return a.currentTab() != pageWorktrees },
 			run: func() { a.switchTab(pageWorktrees) }},
-		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "S", rank: 910, run: func() { a.switchTab(pageSettings) }},
+		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "4", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	}
@@ -80,6 +80,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Branches…", about: "Switch the clone to another branch, see where each stands against origin, delete those you are done with.", keys: "b", rank: 60, run: func() {
 			a.showBranchManager(branchScope{project: pr, checkout: true})
 		}},
+		{name: "Refresh", about: "Fetch this clone from origin and see where it stands, leaving the rest of the list as it is.", keys: "r", rank: 57, run: func() { a.refreshProjectRow(pr) }},
 		{name: "Show Commit Log", about: "What is out in the clone, newest first, or the server's default branch before it is cloned: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 59,
 			when: func() bool { return strings.HasPrefix(a.diskOf(pr.Instance, pr.PathWithNamespace).Branch, "@") },
@@ -124,7 +125,7 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 // repositoriesActions are what Repositories itself can do.
 func (a *App) repositoriesActions(p *pane) []uiAction {
 	acts := []uiAction{
-		{name: "Refresh", about: "Ask the servers for the repositories again; the list is a cache until then.", keys: "r", rank: 10, run: a.refreshProjects},
+		{name: "Refresh All", about: "Ask the servers for the repositories again; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
 		{name: "Pull All Clones", about: "Fetch every clone and fast-forward those origin has moved past.", keys: "Alt-P", rank: 30, run: a.updateAllClones},
 		{name: "View Options…", about: "What the list shows: tags after the names, grouping, favourites first, cloned only.", keys: "v", rank: 410, run: a.showViewOptions},
@@ -159,6 +160,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 			a.openWeb(mr.WebURL)
 		}},
 		{name: "Show Commit Log", about: "The merge request's commits, those new since your last review marked: diff one, or review from it.", keys: "Ctrl-L", rank: 15, run: func() { a.mergeRequestLog(mr) }},
+		{name: "Refresh", about: "Ask the server about this merge request alone: its state, head, pipeline, approvals and threads.", keys: "r", rank: 16, run: func() { a.refreshMRRow(mr) }},
 		{name: "Mark as Reviewed", about: "Take the head as seen without opening the review - read in the browser, or in Hunk - so NEW counts only what is pushed after.", keys: "V", rank: 17, run: func() { a.markReviewed(mr) }},
 		{name: "Show Pipeline…", about: "The jobs of the head's pipeline, the first that failed under the cursor: read its log, retry it, open it.", keys: "J", rank: 37, run: func() { a.showPipeline(mr, 0) }},
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
@@ -184,7 +186,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 // mergeRequestsActions are what Merge requests itself can do.
 func (a *App) mergeRequestsActions(p *pane) []uiAction {
 	acts := []uiAction{
-		{name: "Refresh", about: "Ask the servers for the open merge requests again.", keys: "r", rank: 10, run: a.refreshMRs},
+		{name: "Refresh All", about: "Ask the servers for the open merge requests again, with their pipelines, approvals and threads.", keys: "R", rank: 10, run: a.refreshMRs},
 		{name: "Filter by Repository…", about: "Show only the merge requests of one repository.", keys: "f", rank: 20, run: a.showProjectScopePicker},
 		{name: "Clear Repository Filter", about: "Show the merge requests of every repository again.", keys: "F", rank: 25, when: func() bool { return a.mrProjectScope.Path != "" },
 			run: func() {
@@ -245,6 +247,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 	acts := a.worktreeActions(r, p.onOpen, "c")
 	return append(acts,
+		uiAction{name: "Refresh", about: "Fetch this worktree's repository and bring in its merge request's comments, leaving the rest as it is.", keys: "r", rank: 38,
+			run: func() { a.refreshWorktreeRow(r) }},
 		uiAction{name: "Show Commit Log", about: "The worktree's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: func() bool { return !r.grouped() },
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Open View", about: "Open the worktree's view: its state, commits and merge request, block by block.", keys: "Enter", rank: 5, run: p.enter},
@@ -264,7 +268,7 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 // worktreesActions are what Worktrees itself can do.
 func (a *App) worktreesActions(p *pane) []uiAction {
 	acts := []uiAction{
-		{name: "Refresh", about: "Look at the disk again, fetch origin and bring in new comments.", keys: "r", rank: 10, run: func() {
+		{name: "Refresh All", about: "Look at the disk again, fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
 			a.fetchWorktrees()
 			a.note("looking at the disk, and asking origin")

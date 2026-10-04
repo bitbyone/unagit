@@ -28,7 +28,7 @@ func TestMergeRequestFormFitsItsFrame(t *testing.T) {
 			gitIn(t, dir, "push", "-q", "-u", "origin", "feature/audit-log")
 			p.rescan()
 			resize(sc, size.w, size.h)
-			typeRunes(sc, "W")
+			typeRunes(sc, "3")
 			waitFor(t, a, sc, "in sync")
 			form := openForm(t, a, sc)
 			waitFor(t, a, sc, "Description")

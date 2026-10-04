@@ -16,7 +16,7 @@ import (
 func TestAPipelineUpClose(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gJ")
 	waitFor(t, a, sc, "Pipeline · acme/gateway !7 · ✗ failed")
@@ -57,7 +57,7 @@ func TestMarkAsReviewed(t *testing.T) {
 			}
 		}
 	})
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gV")
 	waitFor(t, a, sc, "!7 marked as reviewed at "+head[:8])
@@ -84,9 +84,9 @@ func TestMarkAsReviewed(t *testing.T) {
 func TestARefreshSaysWhereToLook(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "1 pipeline(s) failed")
 	waitFor(t, a, sc, "✗")
 }

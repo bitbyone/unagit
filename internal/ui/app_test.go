@@ -492,9 +492,9 @@ func typeRunes(sc tcell.SimulationScreen, s string) {
 
 func TestStartsOnTheProjectList(t *testing.T) {
 	a, sc := newTestApp(t)
-	waitFor(t, a, sc, "Repositories [R]")
-	waitFor(t, a, sc, "Merge requests [M]")
-	waitFor(t, a, sc, "Settings [S]")
+	waitFor(t, a, sc, "Repositories [1]")
+	waitFor(t, a, sc, "Merge requests [2]")
+	waitFor(t, a, sc, "Settings [4]")
 	waitFor(t, a, sc, "acme/gateway")
 	waitFor(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "? help")
@@ -504,20 +504,20 @@ func TestTabKeysSwitchViews(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	waitFor(t, a, sc, "!7")
 	if a.currentTab() != pageMRs {
 		t.Fatalf("tab = %q", a.currentTab())
 	}
 
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "GitLab servers")
 	if a.currentTab() != pageSettings {
 		t.Fatalf("tab = %q", a.currentTab())
 	}
 
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/billing")
 	if a.currentTab() != pageProjects {
 		t.Fatalf("tab = %q", a.currentTab())
@@ -579,7 +579,7 @@ func TestMergeRequestDetailPane(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 
@@ -620,7 +620,7 @@ func TestSettingsOpensOnItsSections(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	for _, section := range sectionNames {
 		waitFor(t, a, sc, section)
 	}
@@ -694,7 +694,7 @@ func TestBranchPickerListsBranches(t *testing.T) {
 func TestPickerNavigatesWithJK(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	typeRunes(sc, "f") // limit merge requests to a project
@@ -717,7 +717,7 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 func TestReviewKeyAsksForTheDiffRefs(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	before := srv.mrDetail.Load()

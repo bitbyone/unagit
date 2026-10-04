@@ -161,7 +161,7 @@ func TestAddServerFromTheInterface(t *testing.T) {
 	}
 	// With two servers the lists say where a row came from.
 	waitFor(t, a, sc, "Personal")
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "SERVER")
 }
 
@@ -559,7 +559,7 @@ func borderColours(t *testing.T, a *App, sc tcell.SimulationScreen) (sidebar, co
 func TestSettingsShowsWhichHalfHasTheKeyboard(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "GitLab servers")
 
 	sidebar, content := borderColours(t, a, sc)

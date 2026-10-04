@@ -333,7 +333,7 @@ func (a *App) start() {
 
 	switch {
 	case a.staleProjects || a.staleMRs:
-		a.flash("The cached index is from an older unagit - press r on each tab to fill in what it did not know")
+		a.flash("The cached index is from an older unagit - press R on each tab to fill in what it did not know")
 	case len(a.cfg.Instances) == 0:
 		a.switchTab(pageSettings)
 		a.settings.selectSection(sectionGitLab)
@@ -645,9 +645,9 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 	}
 	if len(ready) == 0 {
 		if len(missing) > 0 {
-			return nil, fmt.Errorf("no token for %s - set one in Settings [S]", strings.Join(missing, ", "))
+			return nil, fmt.Errorf("no token for %s - set one in Settings [4]", strings.Join(missing, ", "))
 		}
-		return nil, fmt.Errorf("no groups selected - open Settings [S] first")
+		return nil, fmt.Errorf("no groups selected - open Settings [4] first")
 	}
 	return ready, nil
 }

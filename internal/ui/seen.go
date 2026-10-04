@@ -37,7 +37,7 @@ func (a *App) saveSeen() {
 // marks count only what is pushed after it.
 func (a *App) markReviewed(mr forge.MergeRequest) {
 	if mr.SHA == "" {
-		a.flash("the head of this merge request is not known yet - r refreshes the list")
+		a.flash("the head of this merge request is not known yet - r refreshes it")
 		return
 	}
 	if a.seen == nil {

@@ -61,7 +61,7 @@ func TestPendingCommentsAreCountedInThePubColumn(t *testing.T) {
 
 	// With Incomm off nothing is read and there is no column.
 	refreshLists(a)
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	if strings.Contains(a.screenText(sc), "PUB") {
 		t.Fatal("the PUB column is shown although Incomm is off")
@@ -114,7 +114,7 @@ func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	gatewayWorktrees(t, a)
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	// Off: it says so instead of looking.

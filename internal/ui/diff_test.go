@@ -74,7 +74,7 @@ func TestDShowsTheChangesInHunk(t *testing.T) {
 
 	// A clone: hunk diff, in the clone.
 	must(t, os.WriteFile(filepath.Join(gw.clone, "a.txt"), []byte("edited\n"), 0o644))
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "REPOSITORY")
 	typeRunes(sc, "g")
 	typeRunes(sc, "D")
@@ -123,7 +123,7 @@ func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
 	sha := gitIn(t, dir, "rev-parse", "HEAD")
 	must(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("edited\n"), 0o644))
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/x")
 
 	typeRunes(sc, "D")

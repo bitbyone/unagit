@@ -53,7 +53,7 @@ func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
 				a.mrsPane.reload()
 			})
 			if list == "merge requests" {
-				typeRunes(sc, "M")
+				typeRunes(sc, "2")
 				waitFor(t, a, sc, "Rate limiting")
 				heading = "acme/gateway  ("
 				sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
@@ -100,7 +100,7 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 					})
 					pane, label := a.projectsPane, func(i int) string { return a.projects[i].PathWithNamespace }
 					if list == "merge requests" {
-						typeRunes(sc, "M")
+						typeRunes(sc, "2")
 						waitFor(t, a, sc, "Rate limiting")
 						pane, label = a.mrsPane, func(i int) string { return a.mrs[i].Title }
 					}
@@ -167,13 +167,13 @@ func TestGroupRepositories(t *testing.T) {
 	}
 
 	// The merge requests are not grouped by it.
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	if strings.Contains(a.screenText(sc), "acme/gateway  (") {
 		t.Error("grouping the repositories grouped the merge requests too")
 	}
 
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Repositories listed flat again")
 	waitFor(t, a, sc, "acme/tools/cli")
@@ -230,8 +230,8 @@ func TestDetailStacksBelowItsListsWidth(t *testing.T) {
 		pane  func(a *App) *pane
 		limit int
 	}{
-		{"R", func(a *App) *pane { return a.projectsPane }, 180},
-		{"M", func(a *App) *pane { return a.mrsPane }, 130},
+		{"1", func(a *App) *pane { return a.projectsPane }, 180},
+		{"2", func(a *App) *pane { return a.mrsPane }, 130},
 	} {
 		t.Run(c.tab, func(t *testing.T) {
 			a, sc := newTestApp(t)

@@ -103,7 +103,7 @@ func TestEveryDialogIsLegible(t *testing.T) {
 	assertLegible(t, a, sc, "the hidden repositories modal")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "MERGE REQUEST")

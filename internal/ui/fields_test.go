@@ -46,7 +46,7 @@ func TestSelectBoxIsReadableAndIgnoresTyping(t *testing.T) {
 	commitIn(t, dir, "n.txt", "Add the audit log", "")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feature/audit-log")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "in sync")
 	form := openForm(t, a, sc)
 	waitFor(t, a, sc, "Target branch")

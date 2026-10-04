@@ -179,7 +179,7 @@ func (a *App) showNewRepository() {
 func (a *App) createRepository(home repoHome, req forge.NewProject) {
 	client := a.client(home.inst.ID)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [S]", home.inst.Label())
+		a.errorf("%s has no token - set one in Settings [4]", home.inst.Label())
 		return
 	}
 	var made projectKey

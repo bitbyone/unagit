@@ -15,7 +15,7 @@ import (
 // openTagSettings opens Settings › Tags with the keyboard in the table.
 func openTagSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionTags)
@@ -229,7 +229,7 @@ func TestTagFormFitsItsFrame(t *testing.T) {
 func TestGroupTagsReachTheRepositories(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionGroups)
@@ -247,7 +247,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 		t.Errorf("the group does not show its tag: %q", line)
 	}
 
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/billing")
 	for _, repo := range []string{"acme/gateway", "acme/billing"} {
 		if line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), repo)]; !strings.Contains(line, "work") {
@@ -309,7 +309,7 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 func TestServerTagsReachEveryRepository(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "S")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionGroups)
@@ -327,7 +327,7 @@ func TestServerTagsReachEveryRepository(t *testing.T) {
 		t.Errorf("the server does not show its tag: %q", line)
 	}
 
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/billing")
 	screen = a.screenText(sc)
 	for _, repo := range []string{"acme/gateway", "acme/billing"} {

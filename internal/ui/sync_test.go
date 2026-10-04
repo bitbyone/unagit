@@ -24,7 +24,7 @@ func TestRemoteColumnAndUpdates(t *testing.T) {
 		commitIn(t, other, "theirs.txt", "theirs")
 		gitIn(t, other, "push", "-q", "origin", "main")
 	}
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "↓1")
 
 	// The refresh may reorder the list; p takes the row under the cursor,
@@ -119,9 +119,9 @@ func TestEditsShowOnFocusAndOnSwitchingTabs(t *testing.T) {
 
 	must(t, os.WriteFile(filepath.Join(gw.clone, "two.txt"), []byte("2\n"), 0o644))
 	stale()
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Merge requests")
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitForRow(t, a, sc, "acme/gateway", "2")
 }
 

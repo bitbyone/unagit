@@ -12,7 +12,7 @@ import (
 func openMRDetail(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Jane Doe")
@@ -113,7 +113,7 @@ func TestComposerRefusesAnEmptyComment(t *testing.T) {
 func TestApproveAsksFirst(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	typeRunes(sc, "A")
@@ -214,7 +214,7 @@ func column(line, word string) int {
 func TestEnterOpensTheRowYouAreOn(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	typeRunes(sc, "j") // onto the second row, acme/billing !9
@@ -239,7 +239,7 @@ func TestEnterOpensTheRowYouAreOn(t *testing.T) {
 func TestRedrawKeepsTheCursor(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "jj") // the third row
 

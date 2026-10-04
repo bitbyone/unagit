@@ -59,7 +59,7 @@ func (a *App) showBranchManager(scope branchScope) {
 	pr := scope.project
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(pr.Instance))
 		return
 	}
 	cloned := a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned
@@ -409,7 +409,7 @@ func (a *App) branchMergeRequest(pr forge.Project, b branchInfo) {
 	client := a.client(pr.Instance)
 	switch {
 	case client == nil:
-		a.errorf("%s has no token - set one in Settings [S]", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(pr.Instance))
 		return
 	case b.mr > 0:
 		a.flash(fmt.Sprintf("!%d is already open from %s", b.mr, b.name))

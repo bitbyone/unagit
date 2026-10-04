@@ -104,7 +104,7 @@ func TestAWorktreeOfItsOwnIsAViewToo(t *testing.T) {
 	p := newRealProject(t, a, "acme/gateway")
 	p.worktree("feat/solo")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/solo")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "c comments")

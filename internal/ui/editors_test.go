@@ -136,7 +136,7 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	dir := p.worktree("feat/window")
 	gitIn(t, dir, "push", "-q", "-u", "origin", "feat/window")
 	p.rescan()
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/window")
 
 	sc.InjectKey(tcell.KeyRune, 'o', tcell.ModAlt)

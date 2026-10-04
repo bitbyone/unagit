@@ -18,7 +18,7 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 			a.mrs[i].Author.Username = map[int]string{7: "renovate", 8: "renovate", 9: "jane"}[a.mrs[i].IID]
 		}
 	})
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g") // !7, renovate's
 	waitFor(t, a, sc, "Rate limiting")

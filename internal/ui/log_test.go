@@ -56,7 +56,7 @@ func TestCommitLogs(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Commit Log")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
@@ -184,7 +184,7 @@ func TestDiffInALogBringsTheCommit(t *testing.T) {
 	})
 	p.rescan()
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)

@@ -48,7 +48,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 	waitFor(t, a, sc, "cloned only")
 
 	// The merge request list is narrowed by the same setting.
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	if strings.Contains(a.screenText(sc), "Invoice rounding") {
 		t.Error("the merge request of an uncloned project is still listed")
@@ -70,7 +70,7 @@ func TestHidingAProjectHidesItsMergeRequests(t *testing.T) {
 	waitGone(t, a, sc, "○ acme/gateway")
 	waitFor(t, a, sc, "⊘ 1")
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
 	if strings.Contains(a.screenText(sc), "Rate limiting") {
 		t.Error("the merge request of a hidden project is still listed")
@@ -161,7 +161,7 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 	}
 
 	// The merge request list follows the same setting.
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "by name")
 	if got := firstRow(t, a, sc); !strings.Contains(got, "acme/billing") {
 		t.Fatalf("first merge request row by name = %q", got)
@@ -221,7 +221,7 @@ func TestFiltersSurviveARestart(t *testing.T) {
 func TestCommentCountInTheList(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	waitFor(t, a, sc, "COM")
 
@@ -249,7 +249,7 @@ func TestCommentCountInTheList(t *testing.T) {
 func TestGroupByProject(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
@@ -340,8 +340,8 @@ func TestStaleIndexSaysSo(t *testing.T) {
 	// Refreshing clears it, and brings back what the old cache could not
 	// hold. The task closes itself when it succeeds, so the effect is what
 	// gets waited for rather than the line it logs.
-	typeRunes(sc, "M")
-	typeRunes(sc, "r")
+	typeRunes(sc, "2")
+	typeRunes(sc, "R")
 	stale := func() bool { return onLoop(a, func() bool { return a.staleMRs }) }
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) && stale() {

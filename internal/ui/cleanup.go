@@ -45,6 +45,12 @@ func (a *App) cleanUpClosed(instances []config.Instance, open []forge.MergeReque
 			}
 		}
 	}
+	a.tidy(closed, then)
+}
+
+// tidy removes the worktrees of the given merge requests, by repository,
+// keeping and naming those that hold work, and hands then what it did.
+func (a *App) tidy(closed map[projectKey][]int, then func(removed, kept []string)) {
 	if len(closed) == 0 {
 		then(nil, nil)
 		return

@@ -83,7 +83,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	// By activity: !7, !9, !8.
 	typeRunes(sc, "jj")
@@ -96,7 +96,7 @@ func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "a starred merge request")
 
-	typeRunes(sc, "R")
+	typeRunes(sc, "1")
 	waitFor(t, a, sc, "REPOSITORY")
 	if strings.Contains(a.screenText(sc), favouriteMark) {
 		t.Error("starring a merge request starred its repository")
@@ -119,9 +119,9 @@ func TestRefreshForgetsClosedFavourites(t *testing.T) {
 		a.applyFilters()
 	})
 
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "r")
+	typeRunes(sc, "R")
 	forgotten := func() bool {
 		return onLoop(a, func() bool { return !a.cfg.Filters.IsFavourite(inst, "acme/gateway", 99) })
 	}

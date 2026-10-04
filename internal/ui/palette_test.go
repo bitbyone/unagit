@@ -200,7 +200,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 func TestCtrlAIsAltEnter(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)

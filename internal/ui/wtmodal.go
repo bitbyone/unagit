@@ -257,14 +257,14 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 func worktreeViewHint(r worktreeRow) string {
 	if r.grouped() {
 		return "j/k · Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
-			"Ctrl-R rebase · a add · r refresh · Esc back"
+			"Ctrl-R rebase · a add · r refresh · R all · Esc back"
 	}
 	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · Ctrl-L log · b branches · p pull · " +
 		"P push · C commit · n MR · D diff · Ctrl-R rebase"
 	if r.Group != "" {
 		keys += " · x take out"
 	}
-	return keys + " · r refresh · Esc back"
+	return keys + " · r refresh · R all · Esc back"
 }
 
 // worktreeViewActions are what can be done with the block that is lit.
@@ -306,7 +306,12 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 // worktreeViewScreenActions are what the view itself can do.
 func (a *App) worktreeViewScreenActions() []uiAction {
 	return []uiAction{
-		{name: "Refresh", about: "Look at the disk again, fetch origin and bring in new comments.", keys: "r", rank: 10, run: func() {
+		{name: "Refresh", about: "Fetch this worktree's repositories and bring in its comments.", keys: "r", rank: 9, run: func() {
+			if v := a.wtView; v != nil {
+				a.refreshWorktreeRow(v.row)
+			}
+		}},
+		{name: "Refresh All", about: "Look at the disk again, fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
 			a.fetchWorktrees()
 			a.note("looking at the disk, and asking origin")

@@ -40,7 +40,7 @@ func TestYankCopiesTheLinkFirst(t *testing.T) {
 	c := fakeClipboard(t, true)
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	onLoop(a, func() bool { a.mrs[0].WebURL = "https://gl.example/acme/gateway/-/merge_requests/7"; return true })
 

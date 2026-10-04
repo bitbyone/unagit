@@ -38,7 +38,7 @@ func TestWorktreesTabListsBranchWorktreesAcrossRepositories(t *testing.T) {
 	makeWorktree(t, a, "acme/gateway", "7-feat-rate", "ref: refs/heads/feat/rate", now)
 	a.tv.QueueUpdateDraw(func() { a.refreshDisk() })
 
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "2/2 worktrees")
 	waitFor(t, a, sc, "feat/x")
 	waitFor(t, a, sc, "oh-my-god")
@@ -53,7 +53,7 @@ func TestWorktreesTabListsBranchWorktreesAcrossRepositories(t *testing.T) {
 	if !strings.Contains(text, "acme/billing") || !strings.Contains(text, "acme/gateway") {
 		t.Errorf("rows should name their repository:\n%s", text)
 	}
-	if !strings.Contains(text, "Worktrees [W]") {
+	if !strings.Contains(text, "Worktrees [3]") {
 		t.Errorf("the tab bar should offer the page:\n%s", text)
 	}
 }
@@ -65,7 +65,7 @@ func TestWorktreesFilterNarrowsTheList(t *testing.T) {
 	makeWorktree(t, a, "acme/gateway", "wt-feat-x", "ref: refs/heads/feat/x", now)
 	makeWorktree(t, a, "acme/billing", "wt-oh-my-god", "ref: refs/heads/oh-my-god", now)
 	a.tv.QueueUpdateDraw(func() { a.refreshDisk() })
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "2/2 worktrees")
 
 	typeRunes(sc, "/")
@@ -77,6 +77,6 @@ func TestWorktreesFilterNarrowsTheList(t *testing.T) {
 func TestWorktreesTabIsEmptyWithoutWorktrees(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "W")
+	typeRunes(sc, "3")
 	waitFor(t, a, sc, "0/0 worktrees")
 }

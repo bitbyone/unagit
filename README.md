@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- Repositories [R] │ Merge requests [M] │ Settings [S]
+ Repositories [1] │ Merge requests [2] │ Settings [4]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **Settings [S]** you add servers (`a`), paste a
+Nothing to edit by hand. In **Settings [4]** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -62,7 +62,7 @@ Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
 
 ## Navigating
 
-`R` lists every repository across every server and group you picked. `○ ● ◐ ◉`
+`1` lists every repository across every server and group you picked. `○ ● ◐ ◉`
 say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
@@ -118,8 +118,8 @@ all and live only there.
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
   from the refs on disk, so it costs nothing, and read again whenever you
   switch to a list or come back to the terminal from another window - an edit
-  made in your editor shows up without asking. `r` fetches every clone in the
-  background first, and the header counts the fetches still running. A
+  made in your editor shows up without asking. `R` fetches every clone in the
+  background first - `r` only the one under the cursor - and the header counts the fetches still running. A
   rebase or merge git stopped in the middle of shows there instead, in red.
 - `EDITS` counts the files not committed in the clone, and `Enter` lists them
   with the clone's branch, HEAD and the commits origin does not have yet.
@@ -138,7 +138,7 @@ all and live only there.
   `APPR` its approvals - `✓` when you approved, `1/2` of those asked for -
   and `CI` its pipeline: `✓` passed, `✗` failed, `●` running. `COM` counts
   the threads still to resolve, in amber, where GitLab says; on GitHub it
-  counts who has said something. All of it is read on `r`, and the
+  counts who has said something. All of it is read on `R`, and the
   refresh sums up what it found: new merge requests, ones with commits
   since your review, failed pipelines, worktrees tidied away. A column
   nothing has anything in stays out of the way.
@@ -151,7 +151,7 @@ all and live only there.
   runs, and the log is GitHub Actions'.
 - `v` in Merge requests narrows them to yours, to those you review or are
   assigned to, or both, and can leave the drafts out.
-- When `r` finds a merge request merged or closed, its worktrees are removed
+- When `R` finds a merge request merged or closed, its worktrees are removed
   without asking - unless they hold work of yours: uncommitted changes,
   unpushed commits, your own edits in a review, comments not yet published.
   Those are kept, and named.
@@ -226,7 +226,7 @@ is known ends each description with a **Related merge requests** list linking
 the others. A repository that would need a force push, or has nothing to
 merge into its target, is named and left out; the rest go ahead.
 
-A merge request closed or merged on the forge is let go on `r` in Worktrees:
+A merge request closed or merged on the forge is let go on `R` in Worktrees:
 the worktree stays as it is, it just has no merge request any more, and `n`
 can open a new one.
 
@@ -242,8 +242,8 @@ unagit gives the folder that store when it makes the group, so Incomm does not
 settle in some folder above it, and reads it repository by repository: `P` on
 a merge request in Merge requests publishes the comments on its repository's
 folder, with their paths as the repository names them, and the list counts
-them as waiting. In Worktrees, `r` also brings the comments of the merge
-requests open from every worktree - a group's into its one store - and `COM`
+them as waiting. In Worktrees, `R` also brings the comments of the merge
+requests open from every worktree - `r` those of the one under the cursor - a group's into its one store - and `COM`
 counts what Incomm holds, amber while some of it waits to be published.
 Opening never waits for comments: on your own work they come second.
 
@@ -262,7 +262,7 @@ as a clone does in Repositories - a pushed branch is never rebased onto its
 base, since that would rewrite what origin has and need a force push, which
 unagit does not do. The same rules apply: a fast-forward when nothing local is
 in the way, a rebase otherwise, and nothing at all when that would conflict.
-`r` fetches first, `Alt-P` updates every worktree.
+`R` fetches first, `Alt-P` updates every worktree.
 
 `Ctrl-R` goes further: it puts the branch - its commits and its uncommitted
 edits - on top of its base as it is now, pushed or not, so that it reads as
@@ -506,7 +506,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | --- | --- |
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
-| `R` `M` `W` `S` | Repositories · Merge requests · Worktrees · Settings |
+| `1` `2` `3` `4` | Repositories · Merge requests · Worktrees · Settings |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
@@ -532,7 +532,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
 | `v` | in Repositories: what the list shows - tags, grouping, favourites first |
-| `d` `w` `r` | delete from disk · open in the browser · refresh |
+| `d` `w` | delete from disk · open in the browser |
+| `r` `R` | refresh the row under the cursor · the whole list |
 | `?` `q` | help · quit |
 
 On-disk markers: `○` nothing, `●` branch worktree, `◐` review worktree, `◉`

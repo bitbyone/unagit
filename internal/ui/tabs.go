@@ -14,11 +14,12 @@ type tab struct {
 	title string
 }
 
+// The tabs are numbered: letters are the lists' own, and R refreshes.
 var tabs = []tab{
-	{pageProjects, 'R', "Repositories"},
-	{pageMRs, 'M', "Merge requests"},
-	{pageWorktrees, 'W', "Worktrees"},
-	{pageSettings, 'S', "Settings"},
+	{pageProjects, '1', "Repositories"},
+	{pageMRs, '2', "Merge requests"},
+	{pageWorktrees, '3', "Worktrees"},
+	{pageSettings, '4', "Settings"},
 }
 
 // drawTabs renders the tab bar, highlighting the visible page.

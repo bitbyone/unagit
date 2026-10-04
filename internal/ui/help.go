@@ -132,7 +132,7 @@ func blank() helpLine                                 { return helpLine{} }
 func helpRows() []helpLine {
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
-		key("R  M  W  S", "Repositories · Merge requests · Worktrees · Settings"),
+		key("1  2  3  4", "Repositories · Merge requests · Worktrees · Settings"),
 		key("Alt-Enter", "every action on the selection, with its key"),
 		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
 		key(":", "every action of the screen, with its key"),
@@ -171,7 +171,8 @@ func helpRows() []helpLine {
 		key("D  Alt-D", "Hunk: not committed · since the base"),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
-		key("r", "refresh; Worktrees: fetch, MR states, comments"),
+		key("r", "refresh the row: fetch it, ask the server about it"),
+		key("R", "refresh the whole list from the servers"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),

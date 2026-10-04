@@ -17,7 +17,6 @@ import (
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
-	"github.com/tobola/unagit/internal/index"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
@@ -439,6 +438,10 @@ func withDetail(mr forge.MergeRequest, det *forge.MergeRequestDetail) forge.Merg
 	mr.Title, mr.Draft, mr.State = det.Title, det.Draft, det.State
 	mr.SourceBranch, mr.TargetBranch = det.SourceBranch, det.TargetBranch
 	mr.UpdatedAt, mr.Comments = det.UpdatedAt, det.UserNotesCount
+	if det.SHA != "" {
+		mr.SHA = det.SHA
+	}
+	mr.Reviewers, mr.Assignees = det.Reviewers, det.Assignees
 	if det.WebURL != "" {
 		mr.WebURL = det.WebURL
 	}
@@ -486,8 +489,7 @@ func (a *App) applyMRUpdate(fresh forge.MergeRequest, redetail, keepOrder bool) 
 			delete(a.sortHold, key)
 		}
 		a.mrs[i] = fresh
-		_ = index.Save(config.IndexPath("mrs"), index.MergeRequests{
-			Version: index.Version, UpdatedAt: a.mrsUpdated, Items: a.mrs})
+		a.saveMRIndex()
 		a.mrsPane.reload()
 		if redetail {
 			a.reloadMRDetail(fresh)

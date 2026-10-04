@@ -14,7 +14,7 @@ import (
 func TestDetailFollowsTheSelection(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -59,7 +59,7 @@ func TestProjectDetailFollowsTheSelection(t *testing.T) {
 func TestClosedDetailAsksForNothing(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	before := srv.requests.Load()
@@ -74,7 +74,7 @@ func TestClosedDetailAsksForNothing(t *testing.T) {
 func TestDetailDebouncesRapidMovement(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -99,7 +99,7 @@ func TestDetailDebouncesRapidMovement(t *testing.T) {
 func TestDetailStopsFollowingWhenClosed(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "M")
+	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)

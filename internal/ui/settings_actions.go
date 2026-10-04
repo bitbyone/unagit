@@ -93,9 +93,9 @@ func (s *settingsView) settingsScreen() (string, []uiAction) {
 	acts = append(acts,
 		uiAction{name: "Back to Sections", about: "Return to the list of sections.", keys: "Esc", rank: 100, when: func() bool { return s.contentFocused },
 			run: s.focusList},
-		uiAction{name: "Go to Repositories", about: "Every repository of the servers and groups you picked.", keys: "R", rank: 900, run: func() { a.switchTab(pageProjects) }},
-		uiAction{name: "Go to Merge Requests", about: "The open merge requests of those repositories.", keys: "M", rank: 900, run: func() { a.switchTab(pageMRs) }},
-		uiAction{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "W", rank: 900, run: func() { a.switchTab(pageWorktrees) }},
+		uiAction{name: "Go to Repositories", about: "Every repository of the servers and groups you picked.", keys: "1", rank: 900, run: func() { a.switchTab(pageProjects) }},
+		uiAction{name: "Go to Merge Requests", about: "The open merge requests of those repositories.", keys: "2", rank: 900, run: func() { a.switchTab(pageMRs) }},
+		uiAction{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "3", rank: 900, run: func() { a.switchTab(pageWorktrees) }},
 		uiAction{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		uiAction{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	)
