@@ -1,0 +1,60 @@
+{
+  "name": "catppuccin-mocha",
+  "description": "Catppuccin Mocha: soft pastels on a deep blue-grey",
+  "background": "#1e1e2e",
+  "text": {
+    "normal": "#cdd6f4",
+    "muted": "#a6adc8",
+    "dim": "#6c7086",
+    "accent": "#89b4fa",
+    "branch": "#cba6f7",
+    "key": "#fab387"
+  },
+  "state": {
+    "good": "#a6e3a1",
+    "warning": "#f9e2af",
+    "bad": "#f38ba8",
+    "force": "#eba0ac",
+    "favourite": "#f9e2af"
+  },
+  "border": {
+    "normal": "#585b70",
+    "focus": "#89b4fa",
+    "title": "#b4befe"
+  },
+  "tabs": {
+    "active": "#89b4fa",
+    "inactive": "#7f849c",
+    "separator": "#45475a"
+  },
+  "surface": {
+    "field": "#313244",
+    "raised": "#45475a",
+    "field_focus": "#2b3651",
+    "field_typing": "#34436a"
+  },
+  "selection": {
+    "background": "#45475a",
+    "text": "#cdd6f4",
+    "marked": "#24434a",
+    "marked_cursor": "#2f5a63"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#585b70"
+  },
+  "markdown": {
+    "text": "#cdd6f4",
+    "heading": "#89b4fa",
+    "code": "#fab387",
+    "quote": "#a6adc8",
+    "link": "#89dceb",
+    "muted": "#7f849c"
+  },
+  "chezmoi": {
+    "badge_ink": "#1e1e2e",
+    "badge_fill": "#7f849c",
+    "heading_ink": "#1e1e2e",
+    "heading_fill": "#f9e2af"
+  }
+}

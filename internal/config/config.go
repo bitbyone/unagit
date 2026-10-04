@@ -408,6 +408,9 @@ type Config struct {
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`
+	// Theme names the theme unagit draws with: one it comes with, or one of
+	// the user's in <config>/themes. Empty is the default one.
+	Theme string `yaml:"theme,omitempty"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.
@@ -467,6 +470,9 @@ func (c *Config) VaultPath() string { return filepath.Join(c.Dir(), "tokens.enc"
 
 // LegacyTokenPath is where a single token lived before the vault.
 func (c *Config) LegacyTokenPath() string { return filepath.Join(c.Dir(), "token.enc") }
+
+// ThemesDir is where the user's own themes are, beside this configuration.
+func (c *Config) ThemesDir() string { return filepath.Join(c.Dir(), "themes") }
 
 // IndexPath is the location of a cached index file beside this configuration.
 func (c *Config) IndexPath(name string) string {

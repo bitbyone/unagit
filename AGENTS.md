@@ -318,6 +318,20 @@ the process died. `unagit cd` `exec`s a shell there (a process cannot change
 its parent's directory); `--print` writes the path for a command substitution,
 which is why the picker draws on `/dev/tty` and never on stdout.
 
+**Everything drawn comes from the theme.** A colour or a glyph is never
+written where it is drawn: it is a variable set by `setTheme` (`colMuted`,
+`glyphDiskReview`, `styleSelected`, ...) from a theme file
+(`internal/ui/themes/*.json`, the user's in `<config>/themes`). Something new
+to draw gets a key of its own in `Theme` (themes.go), a value in
+`themes/unagit.json` - the default must name every key, which
+`TestTheDefaultThemeIsTodaysLook` checks - and a line in `colours()` or
+`glyphs()` so a wrong value is named. A cell drawn by hand uses `baseStyle()`,
+never `tcell.StyleDefault`, or it leaves a hole in a theme with a background.
+Nothing computed from a colour may be a package-level value: it would be
+computed before any theme is on. A theme is the process's, like tview's
+styles, so a test that changes it is serial; `TestEveryThemeIsLegible` walks
+the dialogs in every built-in theme and catches what was missed.
+
 **The theme is one pair of colours.** tview builds every interactive widget out
 of `PrimaryTextColor` / `ContrastBackgroundColor` used both ways round: at rest
 the dark one is the background, when active it is the ink. Both halves must

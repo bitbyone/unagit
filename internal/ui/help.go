@@ -27,12 +27,13 @@ const (
 	helpIntegrations
 	helpSecurity
 	helpTags
+	helpTheme
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags
+	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -70,6 +71,8 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpGroups, "Groups"
 		case sectionTags:
 			return helpTags, "Tags"
+		case sectionTheme:
+			return helpTheme, "Theme"
 		case sectionIntegrations:
 			return helpIntegrations, "Integrations"
 		case sectionSecurity:
@@ -130,6 +133,8 @@ func blank() helpLine                                 { return helpLine{} }
 // data rather than as one long string is what lets the keys line up in their
 // own column.
 func helpRows() []helpLine {
+	// The rows show the theme's glyphs, so there has to be one.
+	applyTheme()
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
 		key("1  2  3  4", "Repositories · Merge requests · Worktrees · Settings"),
@@ -280,6 +285,11 @@ func helpRows() []helpLine {
 		section("Settings · tags", helpTags),
 		key("a e d", "add · edit · remove a tag"),
 		key("s", "pill ends: rounded (Nerd Font) · circles · square"),
+		key("Esc", "back to the sections"),
+		blank(),
+		section("Settings · theme", helpTheme),
+		key("Enter", "draw unagit in the theme under the cursor"),
+		key("r", "read <config>/themes/*.json again"),
 		key("Esc", "back to the sections"),
 		blank(),
 		section("Settings · security", helpSecurity),

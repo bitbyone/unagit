@@ -29,10 +29,20 @@ func assertLegible(t *testing.T, a *App, sc tcell.SimulationScreen, what string)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			c := cells[y*w+x]
+			fg, bg, _ := c.Style.Decompose()
+			// A hole in a theme's own background shows as much as a letter
+			// does, so this one is checked on every cell.
+			if bg == tcell.ColorDefault && colBackground != tcell.ColorDefault {
+				problems = append(problems, fmt.Sprintf("%q at %d,%d left on the terminal's background in a theme with its own",
+					string(c.Runes), x, y))
+				if len(problems) > 6 {
+					break
+				}
+				continue
+			}
 			if len(c.Runes) == 0 || c.Runes[0] == ' ' || c.Runes[0] == 0 {
 				continue // nothing to read
 			}
-			fg, bg, _ := c.Style.Decompose()
 			why := ""
 			switch {
 			case fg == bg:
@@ -78,6 +88,12 @@ func onLoopCells(a *App, sc tcell.SimulationScreen) ([]tcell.SimCell, int, int) 
 func TestEveryDialogIsLegible(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	walkDialogs(t, a, sc)
+}
+
+// walkDialogs opens the dialogs one after another and looks at each.
+func walkDialogs(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
 	waitFor(t, a, sc, "acme/gateway")
 	assertLegible(t, a, sc, "the repository list")
 
@@ -124,9 +140,15 @@ func TestEveryDialogIsLegible(t *testing.T) {
 func TestSettingsIsLegible(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	walkSettings(t, a, sc)
+}
+
+// walkSettings looks at every section and at a form with each item focused.
+func walkSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
 	waitFor(t, a, sc, "acme/gateway")
 
-	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionSecurity, sectionIntegrations} {
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionTheme, sectionSecurity, sectionIntegrations} {
 		openSection(t, a, sc, section)
 		waitFor(t, a, sc, sectionNames[section])
 		assertLegible(t, a, sc, "settings: "+sectionNames[section])

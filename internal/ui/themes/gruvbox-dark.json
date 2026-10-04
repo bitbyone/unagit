@@ -1,0 +1,60 @@
+{
+  "name": "gruvbox-dark",
+  "description": "Gruvbox Dark: warm retro colours on brown-black",
+  "background": "#282828",
+  "text": {
+    "normal": "#ebdbb2",
+    "muted": "#a89984",
+    "dim": "#7c6f64",
+    "accent": "#83a598",
+    "branch": "#8ec07c",
+    "key": "#fe8019"
+  },
+  "state": {
+    "good": "#b8bb26",
+    "warning": "#fabd2f",
+    "bad": "#fb4934",
+    "force": "#fe8019",
+    "favourite": "#fabd2f"
+  },
+  "border": {
+    "normal": "#665c54",
+    "focus": "#83a598",
+    "title": "#d5c4a1"
+  },
+  "tabs": {
+    "active": "#fabd2f",
+    "inactive": "#a89984",
+    "separator": "#504945"
+  },
+  "surface": {
+    "field": "#3c3836",
+    "raised": "#504945",
+    "field_focus": "#32403b",
+    "field_typing": "#3c5048"
+  },
+  "selection": {
+    "background": "#504945",
+    "text": "#fbf1c7",
+    "marked": "#2f3f37",
+    "marked_cursor": "#3e5546"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#665c54"
+  },
+  "markdown": {
+    "text": "#ebdbb2",
+    "heading": "#fabd2f",
+    "code": "#fe8019",
+    "quote": "#a89984",
+    "link": "#83a598",
+    "muted": "#928374"
+  },
+  "chezmoi": {
+    "badge_ink": "#282828",
+    "badge_fill": "#928374",
+    "heading_ink": "#282828",
+    "heading_fill": "#fabd2f"
+  }
+}

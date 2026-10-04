@@ -495,6 +495,44 @@ now has.
   that wants it gets a macOS dialog. After a rebuild macOS asks once whether
   the new binary may.
 
+## Themes
+
+Everything unagit draws with is a theme: the colours of text, borders,
+fields, the selection and every state, the screen's background, and the
+glyphs that say what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `↑ ↓`, the
+borders). Settings › Theme lists them with a strip of their colours; `Enter`
+puts one on at once and remembers it.
+
+unagit comes with three: **unagit**, the muted default, which keeps the
+terminal's own background so it sits quietly beside an editor;
+**catppuccin-mocha**; and **gruvbox-dark**. The last two paint a background
+of their own.
+
+Your own go in `~/.config/unagit/themes/*.json` (`r` in the section reads
+them again). A theme names only what it changes and takes the rest from the
+one it `extends` - the default when it says nothing:
+
+```json
+{
+  "name": "midnight",
+  "description": "gruvbox with a blue accent and hearts for favourites",
+  "extends": "gruvbox-dark",
+  "background": "#101418",
+  "text": { "accent": "#7aa2f7" },
+  "glyphs": { "favourite": "♥" }
+}
+```
+
+A colour is `"default"` (the terminal's own), `"#rrggbb"`, a number of the
+256-colour palette (`"109"`) or a colour name. Every key there is, with what
+it is for, is in [`internal/ui/themes/unagit.json`](internal/ui/themes/unagit.json)
+and described in [`internal/ui/themes.go`](internal/ui/themes.go): `text`,
+`state`, `border`, `tabs`, `surface`, `selection`, `backdrop` (the dimming
+behind a dialog), `markdown`, `chezmoi`, `tags` (each tag colour's ink and
+fill), `glyphs` and `borders`. A file that cannot be used - a colour that is
+not one, a glyph of two characters, a theme that extends itself - is listed
+in the section with what is wrong, and the others still load.
+
 ## Editors
 
 Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -
@@ -589,6 +627,7 @@ both, `⊘` hidden.
 ~/.config/unagit/tokens.enc       sealed with your passphrase
 ~/.config/unagit/index-*.json     the cached lists
 ~/.config/unagit/sessions/        what is open in an editor right now
+~/.config/unagit/themes/*.json    themes of your own
 ```
 
 Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.

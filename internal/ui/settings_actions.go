@@ -60,6 +60,12 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 			a.keyIn(s.tags, "Change Pill Ends", "How the pills end: rounded (needs a Nerd Font), circles or square.", "s", 30, nil),
 			a.keyIn(s.tags, "Remove Tag…", "Delete the tag and take it off every repository.", "d", 800, some),
 		}
+	case sectionTheme:
+		return sectionNames[s.current], []uiAction{
+			{name: "Use Theme", about: "Draw unagit in the theme under the cursor, from now on.", keys: "Enter", rank: 10,
+				when: func() bool { return s.selectedTheme() != "" }, run: func() { s.useSelectedTheme() }},
+			a.keyIn(s.themes, "Read Themes Again", "Read the themes in the configuration's themes folder again, after editing one.", "r", 20, nil),
+		}
 	case sectionSecurity:
 		return sectionNames[s.current], []uiAction{
 			a.keyIn(s.security, "Change Passphrase…", "Encrypt the tokens again under a new passphrase.", "c", 10, nil),

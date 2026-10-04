@@ -22,11 +22,12 @@ const (
 	sectionGitHub
 	sectionGroups
 	sectionTags
+	sectionTheme
 	sectionSecurity
 	sectionIntegrations
 )
 
-var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Security", "Integrations"}
+var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Theme", "Security", "Integrations"}
 
 // settingsView is the whole configuration: a list of sections on the left and
 // the section's editor on the right. Nothing here needs the file to be edited
@@ -44,6 +45,9 @@ type settingsView struct {
 	tree         *tview.TreeView
 	tags         *tview.Table
 	tagsKept     *keptTable
+	themes       *tview.Table
+	themePanel   *tview.Flex
+	themeNotes   *tview.TextView
 	security     *tview.TextView
 
 	current int
@@ -74,6 +78,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.tree = s.newGroupTree()
 	s.tags = s.newTagTable()
 	s.tagsKept = newKeptTable(s.tags, 1)
+	s.themes = s.newThemeTable()
 	s.security = s.newSecurityPane()
 
 	s.content = tview.NewPages()
@@ -83,6 +88,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("github", s.github, true, false)
 	s.content.AddPage("groups", s.tree, true, false)
 	s.content.AddPage("tags", s.tagsKept, true, false)
+	s.content.AddPage("theme", s.themePanel, true, false)
 	s.content.AddPage("security", s.security, true, false)
 
 	for _, panel := range []*tview.Box{s.gitlab.Box, s.github.Box} {
@@ -94,6 +100,7 @@ func (a *App) newSettingsView() *settingsView {
 	hintPanel(s.tags.Box, func() string {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
 	}, 0, 0, 1, 1)
+	hintPanel(s.themePanel.Box, func() string { return "Enter use · r read the themes again · Esc back" }, 0, 0, 1, 1)
 	hintPanel(s.security.Box, func() string {
 		if passphraseStore.available() {
 			return "c change passphrase · k keychain · Esc back"
@@ -115,6 +122,7 @@ func (s *settingsView) reload() {
 	s.fillServerTables()
 	s.fillTree()
 	s.fillTags()
+	s.fillThemes()
 	s.fillSecurity()
 }
 
@@ -141,6 +149,9 @@ func (s *settingsView) show(section int) {
 	case sectionTags:
 		s.fillTags()
 		s.content.SwitchToPage("tags")
+	case sectionTheme:
+		s.fillThemes()
+		s.content.SwitchToPage("theme")
 	case sectionSecurity:
 		s.content.SwitchToPage("security")
 	}
@@ -164,6 +175,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.tags
 	case sectionIntegrations:
 		return s.integrations
+	case sectionTheme:
+		return s.themes
 	case sectionSecurity:
 		return s.security
 	}
@@ -183,6 +196,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.tags.Box
 	case sectionIntegrations:
 		return s.integrations.cards[s.integrations.current].view.Box
+	case sectionTheme:
+		return s.themePanel.Box
 	case sectionSecurity:
 		return s.security.Box
 	}
@@ -196,7 +211,7 @@ func (s *settingsView) paintFocus() {
 	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.security.Box,
+		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -220,6 +235,8 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.tree)
 	case sectionTags:
 		s.app.tv.SetFocus(s.tags)
+	case sectionTheme:
+		s.app.tv.SetFocus(s.themes)
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
 	}

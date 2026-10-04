@@ -1,0 +1,190 @@
+package ui
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+// The theme is the process's, so every test that puts one on is serial and
+// puts the default back when it is done.
+
+func restoreDefaultTheme(t *testing.T) {
+	t.Cleanup(func() { setTheme(loadThemes("").byName[defaultThemeName]) })
+}
+
+// TestTheDefaultThemeIsTodaysLook: the default names every colour and glyph
+// itself - nothing is left to a zero value - and is the palette unagit had
+// before themes.
+func TestTheDefaultThemeIsTodaysLook(t *testing.T) {
+	t.Parallel()
+	d := loadThemes("").byName[defaultThemeName]
+	for key, value := range d.colours() {
+		if value == "" {
+			t.Errorf("the default theme leaves %s out", key)
+		}
+	}
+	for key, value := range d.glyphs() {
+		if value == "" {
+			t.Errorf("the default theme leaves %s out", key)
+		}
+	}
+	if len(d.Tags) != len(tagPalette) {
+		t.Errorf("the default theme paints %d tag colours of %d", len(d.Tags), len(tagPalette))
+	}
+	for key, want := range map[string]tcell.Color{
+		"background": tcell.ColorDefault, "text.normal": tcell.Color252, "text.muted": tcell.Color244,
+		"text.dim": tcell.Color240, "text.accent": tcell.Color109, "state.good": tcell.Color108,
+		"state.warning": tcell.Color179, "state.bad": tcell.Color167, "surface.field": tcell.Color236,
+		"selection.background": tcell.Color238, "selection.text": tcell.Color231,
+	} {
+		if got := colour(d.colours()[key]); got != want {
+			t.Errorf("%s = %v, want %v as before themes", key, got, want)
+		}
+	}
+}
+
+// TestUserThemesExtendAndSayWhatIsWrong: a theme of the user's names what it
+// changes and takes the rest from what it extends; one that cannot be used is
+// named with the key that is wrong, and the others still load.
+func TestUserThemesExtendAndSayWhatIsWrong(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	write := func(name, body string) {
+		must(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644))
+	}
+	write("mine.json", `{"description": "Mine", "extends": "gruvbox-dark", "text": {"accent": "#ff0000"}, "glyphs": {"favourite": "♥"}}`)
+	write("broken.json", `{"name": "broken", "state": {"bad": "reddish"}, "glyphs": {"check": "ok"}}`)
+	write("loop.json", `{"name": "loop", "extends": "loop"}`)
+	write("unreadable.json", `{"name": `)
+
+	set := loadThemes(dir)
+	mine, ok := set.byName["mine"]
+	if !ok {
+		t.Fatalf("mine.json was not loaded; problems: %v", set.problems)
+	}
+	gruvbox := set.byName["gruvbox-dark"]
+	if mine.Text.Accent != "#ff0000" || mine.Glyphs.Favourite != "♥" {
+		t.Errorf("what mine changes is lost: %+v", mine.Text)
+	}
+	if mine.Background != gruvbox.Background || mine.Text.Normal != gruvbox.Text.Normal {
+		t.Error("what mine leaves out is not gruvbox's")
+	}
+	if mine.Glyphs.Check != "✓" {
+		t.Errorf("what neither changes is not the default's: %q", mine.Glyphs.Check)
+	}
+	if mine.file == "" {
+		t.Error("mine does not say where it came from")
+	}
+	problems := strings.Join(set.problems, "\n")
+	for _, want := range []string{"broken.json", "state.bad", "glyphs.check", "loop.json", "unreadable.json"} {
+		if !strings.Contains(problems, want) {
+			t.Errorf("the problems do not name %s:\n%s", want, problems)
+		}
+	}
+	for _, name := range []string{"broken", "loop"} {
+		if _, ok := set.byName[name]; ok {
+			t.Errorf("%s is offered though it cannot be used", name)
+		}
+	}
+	if set.names[0] != defaultThemeName {
+		t.Errorf("the default is not listed first: %v", set.names)
+	}
+}
+
+// TestEveryThemeIsLegible walks the dialogs and Settings in every theme unagit
+// comes with: nothing in its own background, nothing at the terminal's ink on
+// a chosen colour, and, in a theme with a background of its own, nothing left
+// on the terminal's.
+func TestEveryThemeIsLegible(t *testing.T) {
+	restoreDefaultTheme(t)
+	for _, name := range loadThemes("").names {
+		t.Run(name, func(t *testing.T) {
+			a, sc := newThemedApp(t, name)
+			walkDialogs(t, a, sc)
+			b, sc2 := newThemedApp(t, name)
+			walkSettings(t, b, sc2)
+			c, sc3 := newThemedApp(t, name)
+			walkDrawnByHand(t, c, sc3)
+		})
+	}
+}
+
+// walkDrawnByHand looks at what is drawn cell by cell rather than by a
+// widget - a grouped worktree's view of blocks - and at the dialogs of a
+// merge request's end.
+func walkDrawnByHand(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "g")
+	typeRunes(sc, "M")
+	waitFor(t, a, sc, "Merge acme/gateway !7")
+	assertLegible(t, a, sc, "the merge form")
+	typeRunes(sc, "c")
+	waitGone(t, a, sc, "Merge acme/gateway !7")
+	typeRunes(sc, "a")
+	waitFor(t, a, sc, "Mike Moe")
+	assertLegible(t, a, sc, "the reviewers")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Mike Moe")
+	typeRunes(sc, "1")
+	waitFor(t, a, sc, "acme/billing")
+	lookGroup(t, a, sc)
+	assertLegible(t, a, sc, "a grouped worktree's view")
+}
+
+// newThemedApp is newTestApp with the theme chosen in its configuration, the
+// way a user's start would have it.
+func newThemedApp(t *testing.T, name string) (*App, tcell.SimulationScreen) {
+	t.Helper()
+	cfg := writeTestConfig(t, fakeGitLab(t).URL)
+	cfg.Theme = name
+	must(t, cfg.Save())
+	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	if got := onLoop(a, func() string { return theme.Name }); got != name {
+		t.Fatalf("the app drew with %q, not %q", got, name)
+	}
+	return a, sc
+}
+
+// TestChoosingAThemePutsItOnAndKeepsIt: Enter in Settings › Theme draws the
+// screen again in the theme, stays in the section, and saves the choice,
+// which a later start puts on.
+func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
+	restoreDefaultTheme(t)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "catppuccin-mocha")
+	row := lineOf(a.screenText(sc), "catppuccin-mocha") - lineOf(a.screenText(sc), "unagit ")
+	for i := 0; i < row; i++ {
+		typeRunes(sc, "j")
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Theme: catppuccin-mocha")
+	if got := onLoop(a, func() tcell.Color { return colBackground }); got != tcell.GetColor("#1e1e2e") {
+		t.Errorf("the background is %v, not catppuccin's", got)
+	}
+	if got := onLoop(a, func() int { return a.settings.current }); got != sectionTheme {
+		t.Errorf("the switch left Settings › Theme for section %d", got)
+	}
+	assertLegible(t, a, sc, "Settings › Theme in catppuccin")
+
+	saved := readConfigFile(t, a)
+	if !strings.Contains(saved, "theme: catppuccin-mocha") {
+		t.Errorf("the choice was not saved:\n%s", saved)
+	}
+
+	setTheme(loadThemes("").byName[defaultThemeName])
+	again := New(a.cfg, testVault(t, a.cfg))
+	b, sc2 := startApp(t, again)
+	waitFor(t, b, sc2, "acme/gateway")
+	if got := onLoop(b, func() string { return theme.Name }); got != "catppuccin-mocha" {
+		t.Errorf("a new start drew with %q", got)
+	}
+}

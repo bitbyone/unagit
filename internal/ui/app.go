@@ -139,6 +139,10 @@ type App struct {
 	// the background; wtSizing holds the ones being measured now.
 	wtSize   map[string]int64
 	wtSizing map[string]bool
+	// themes are the themes there are, built-in and the user's;
+	// themeProblem says why the chosen one is not on, until it is said.
+	themes       themeSet
+	themeProblem string
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -280,30 +284,8 @@ func forgeGroup(g config.Group) forge.Group {
 // Run builds the interface and starts the event loop.
 func (a *App) Run() error {
 	applyTheme()
-
-	a.tabs = tview.NewTextView().SetDynamicColors(true)
-	a.status = tview.NewTextView().SetDynamicColors(true)
-	a.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
-
-	a.projectsPane = a.newProjectsPane()
-	a.mrsPane = a.newMRsPane()
-	a.worktreesPane = a.newWorktreesPane()
-	a.settings = a.newSettingsView()
-
-	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
-	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
-	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
-	a.tab = pageProjects
-	a.drawTabs()
-
-	settingsLayout := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(a.settings.root, 0, 1, true).
-		AddItem(tview.NewFlex().AddItem(a.status, 0, 1, false).AddItem(a.helpHint, 8, 0, false), 1, 0, false)
-	a.pages.AddPage(pageSettings, settingsLayout, true, false)
-
-	layout := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(a.tabs, 1, 0, false).
-		AddItem(a.pages, 0, 1, true)
+	a.chooseTheme()
+	layout := a.buildInterface()
 
 	a.tv.SetInputCapture(a.globalKeys)
 	a.tv.SetBeforeDrawFunc(func(screen tcell.Screen) bool {
@@ -331,9 +313,43 @@ func (a *App) Run() error {
 	return err
 }
 
+// buildInterface makes every widget of the main screens. tview's widgets
+// copy the theme's colours when they are made, so a new theme is put on by
+// making them again (switchTheme).
+func (a *App) buildInterface() tview.Primitive {
+	a.pages = tview.NewPages()
+	a.tabs = tview.NewTextView().SetDynamicColors(true)
+	a.status = tview.NewTextView().SetDynamicColors(true)
+	a.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
+
+	a.projectsPane = a.newProjectsPane()
+	a.mrsPane = a.newMRsPane()
+	a.worktreesPane = a.newWorktreesPane()
+	a.settings = a.newSettingsView()
+
+	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
+	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
+	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
+	a.tab = pageProjects
+	a.drawTabs()
+
+	settingsLayout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(a.settings.root, 0, 1, true).
+		AddItem(tview.NewFlex().AddItem(a.status, 0, 1, false).AddItem(a.helpHint, 8, 0, false), 1, 0, false)
+	a.pages.AddPage(pageSettings, settingsLayout, true, false)
+
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(a.tabs, 1, 0, false).
+		AddItem(a.pages, 0, 1, true)
+}
+
 // start loads the cached indexes and shows the first tab. It runs once the
 // vault is open.
 func (a *App) start() {
+	if a.themeProblem != "" {
+		defer a.flash(a.themeProblem)
+		a.themeProblem = ""
+	}
 	a.loadIndexes()
 	a.detectChezmoi()
 	a.refreshDisk()
