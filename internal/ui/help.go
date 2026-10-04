@@ -168,7 +168,7 @@ func helpRows() []helpLine {
 		key("C  B", "in the log: check out a commit · back to branch"),
 		key("n  Ctrl-W", "in the log: a branch · a worktree at the commit"),
 		key("w  y", "in the log: browser · copy id, link, reference"),
-		key("D  Alt-D", "Hunk: not committed · since base or a commit"),
+		key("D  Alt-D", "Hunk: not committed · since the base"),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
 		key("r", "refresh; Worktrees: fetch, MR states, comments"),

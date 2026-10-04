@@ -296,13 +296,10 @@ worktree, every repository in one review. A merge request with nothing on
 disk gets its review made first - the repository cloned if need be - so `D`
 down the list never stops to ask for `C`.
 
-`Alt-D` asks first, in a list:
-
-| Choice | What Hunk shows |
-| --- | --- |
-| Not committed | the same as `D` |
-| Since `origin/<base>` | the branch's commits since its base, and what is not committed: a worktree's base, a clone's upstream, a merge request's target |
-| a commit | that commit alone - the ones since the base, or the latest without one; a review lists the merge request's |
+`Alt-D` in Repositories and Worktrees shows everything since the branch's
+base instead: its commits and what is not committed, measured from a
+worktree's base or a clone's upstream. One commit at a time is the commit
+log's - `Ctrl-L`, then `D` on the commit.
 
 Hunk reads one repository at a time, so for a grouped worktree unagit puts the
 changes of its repositories together into one patch, new files included, and
@@ -499,7 +496,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `a` | read and write comments · approve |
-| `D` `Alt-D` | in Hunk: what is not committed · or since the base, or a commit |
+| `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |

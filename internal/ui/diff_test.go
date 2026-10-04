@@ -109,9 +109,10 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 	}
 }
 
-// TestAltDOffersSinceTheBaseAndEachCommit: D is what is not committed; Alt-D
-// lists that, the whole branch since its base, and its commits one by one.
-func TestAltDOffersSinceTheBaseAndEachCommit(t *testing.T) {
+// TestAltDShowsEverythingSinceTheBase: D is what is not committed; Alt-D
+// goes straight to the whole branch since its base, the commits and the
+// edits together, with no list to choose from.
+func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
 	log := fakeHunk(t)
 	a, sc, _ := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
@@ -132,11 +133,12 @@ func TestAltDOffersSinceTheBaseAndEachCommit(t *testing.T) {
 	}
 
 	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)
-	waitFor(t, a, sc, "Show in Hunk")
-	for _, want := range []string{"Not committed", "Since origin/main", "Add the thing"} {
-		waitFor(t, a, sc, want)
+	got = waitForLog(t, log, dir+" diff ")
+	if strings.Contains(a.screenText(sc), "Show in Hunk") {
+		t.Errorf("Alt-D still asks:\n%s", a.screenText(sc))
 	}
-	typeRunes(sc, "jj") // Not committed, Since, the commit
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitForLog(t, log, "show "+sha)
+	base := gitIn(t, dir, "merge-base", "HEAD", "origin/main")
+	if !strings.Contains(got, base) && !strings.Contains(got, "origin/main") {
+		t.Errorf("Alt-D did not measure from the base: %s", got)
+	}
 }

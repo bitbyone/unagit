@@ -91,9 +91,9 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 				a.diffKey(dir, targets)
 			}
 		}},
-		{name: "Show Changes…", about: "Choose what Hunk shows: what is not committed, the branch since its base, or one commit.", keys: "Alt-D", rank: 95, when: cloned, run: func() {
+		{name: "Show Changes Since Base", about: "The branch's commits since its base and what is not committed, in Hunk; one commit is the commit log's.", keys: "Alt-D", rank: 95, when: cloned, run: func() {
 			if dir, targets, ok := a.projectDiff(pr); ok {
-				a.diffMenu("Show in Hunk - "+pr.PathWithNamespace, dir, targets)
+				a.diffSince(dir, targets)
 			}
 		}},
 		{name: "Toggle Favourite", about: "Star it, so it can be kept at the top; again takes the star away.", keys: "Ctrl-F", rank: 100, run: func() {
@@ -167,8 +167,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Open Branch in Editor…", about: "Choose the editor, then open the worktree of the source branch.", keys: "Alt-O", rank: 55, run: func() { p.onOpen(true) }},
 		{name: "Pull Branch", about: "Fetch and fast-forward the branch worktree to the source branch.", keys: "p", rank: 60, run: func() { a.updateMR(mr) }},
 		{name: "Prepare Review", about: "Make the review worktree without starting an editor.", keys: "C", rank: 65, run: func() { a.cloneMRReview(mr) }},
-		{name: "Show Changes", about: "Show the whole merge request in Hunk.", keys: "D", rank: 70, run: func() { a.diffMR(mr, false) }},
-		{name: "Show Changes…", about: "Choose what Hunk shows: the whole change or one of its commits.", keys: "Alt-D", rank: 75, run: func() { a.diffMR(mr, true) }},
+		{name: "Show Changes", about: "Show the whole merge request in Hunk, making its review first when nothing is on disk; one commit is the commit log's.", keys: "D", rank: 70, run: func() { a.diffMR(mr) }},
 		{name: "Copy…", about: "Copy the web link, the !reference or the source branch to the clipboard.", keys: "y", rank: 80, run: func() { a.yankMR(mr) }},
 		{name: "Toggle Favourite", about: "Star it, so it can be kept at the top; again takes the star away.", keys: "Ctrl-F", rank: 100, run: func() {
 			a.toggleFavourite(mr.Instance, path, mr.IID, fmt.Sprintf("%s !%d", path, mr.IID))
@@ -221,9 +220,9 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		{name: "New Merge Request…", about: "Open a merge request from this branch on the server.", keys: "n", rank: 35, when: single, run: func() { a.newMergeRequest(r) }},
 		{name: "New Linked Merge Requests…", about: "Open a merge request in each repository of the group, each linking the others.", keys: "n", rank: 35, when: grouped, run: func() { a.groupMergeRequests(r) }},
 		{name: "Show Uncommitted Changes", about: "Show in Hunk what is not committed: staged, unstaged and new files.", keys: "D", rank: 40, run: func() { a.diffKey(a.worktreeDiff(r)) }},
-		{name: "Show Changes…", about: "Choose what Hunk shows: what is not committed, the branch since its base, or one commit.", keys: "Alt-D", rank: 45, run: func() {
+		{name: "Show Changes Since Base", about: "The branch's commits since its base and what is not committed, in Hunk; one commit is the commit log's.", keys: "Alt-D", rank: 45, run: func() {
 			dir, targets := a.worktreeDiff(r)
-			a.diffMenu("Show in Hunk - "+r.Path, dir, targets)
+			a.diffSince(dir, targets)
 		}},
 		{name: "Rebase onto Base", about: "Rebase the branch onto its base even once pushed; P then force-pushes with a lease.", keys: "Ctrl-R", rank: 50, run: func() { a.rebaseWorktree(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},

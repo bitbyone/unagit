@@ -5,15 +5,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
-// D shows in Hunk what a row's working tree has not committed; Alt-D offers
-// more - everything since the branch's base, or one commit. A grouped worktree
+// D shows in Hunk what a row's working tree has not committed; Alt-D
+// everything since the branch's base - its commits and what is not committed.
+// One commit at a time is the commit log's (Ctrl-L). A grouped worktree
 // is one review of all its repositories: Hunk reads one repository at a time,
 // so their changes are put together into a single patch, each path under its
 // repository's folder.
@@ -61,9 +61,6 @@ type diffView struct {
 	since   bool
 }
 
-// commitLimit keeps a long history from burying the choices above it.
-const commitLimit = 20
-
 // diffKey is D: always what is not committed - staged, unstaged and new files.
 // In a review worktree that is the whole merge request.
 func (a *App) diffKey(dir string, targets []diffTarget) {
@@ -78,58 +75,31 @@ func (a *App) diffKey(dir string, targets []diffTarget) {
 	go a.runView(bin, v)
 }
 
-// diffMenu is Alt-D: what is not committed, everything since the base, or one
-// commit at a time, chosen in a list. Reading the commits takes git, so the
-// list comes up once it has answered.
-func (a *App) diffMenu(title, dir string, targets []diffTarget) {
+// diffSince is Alt-D: everything since the base - the branch's commits and
+// what is not committed - in one view, a grouped worktree's repositories
+// together. Finding the base takes git, so it runs off the event loop.
+func (a *App) diffSince(dir string, targets []diffTarget) {
 	bin, ok := a.hunkBinary()
 	if !ok {
 		return
 	}
 	grouped := len(targets) > 1 || len(targets) == 1 && targets[0].name != ""
 	go func() {
-		var items []pickItem
-		add := func(label, sub string, v diffView) {
-			items = append(items, pickItem{Label: label, Sub: sub, Data: v})
-		}
-		if grouped {
-			add("Not committed", "every repository", diffView{dir: dir, targets: targets})
-		} else {
-			add("Not committed", "staged, unstaged and new files", diffView{dir: dir, args: []string{"diff"}})
-		}
 		froms := make([]string, len(targets))
-		bases := map[string]bool{}
+		known := false
 		for i, t := range targets {
 			froms[i] = t.mgr.ChangeBase(t.dir, t.base)
-			if froms[i] != "HEAD" {
-				bases[t.mgr.Git().BaseRef(t.dir, t.base)] = true
-			}
+			known = known || froms[i] != "HEAD"
 		}
-		if len(bases) > 0 {
-			names := make([]string, 0, len(bases))
-			for b := range bases {
-				names = append(names, b)
-			}
-			sort.Strings(names)
-			label := "Since " + strings.Join(names, ", ")
-			if grouped {
-				add(label, "every repository: its commits and what is not committed", diffView{dir: dir, targets: targets, since: true})
-			} else {
-				add(label, "the commits and what is not committed", diffView{dir: dir, args: []string{"diff", froms[0]}})
-			}
+		if !known {
+			a.tv.QueueUpdateDraw(func() { a.flash("no base known to measure from - D shows what is not committed") })
+			return
 		}
-		for i, t := range targets {
-			for _, c := range t.mgr.Commits(t.dir, froms[i], commitLimit) {
-				sub := c.When
-				if grouped {
-					sub = t.name + "  " + sub
-				}
-				add(c.SHA[:8]+"  "+c.Subject, sub, diffView{dir: t.dir, args: []string{"show", c.SHA}})
-			}
+		v := diffView{dir: dir, args: []string{"diff", froms[0]}}
+		if grouped {
+			v = diffView{dir: dir, targets: targets, since: true}
 		}
-		a.tv.QueueUpdateDraw(func() {
-			a.showPicker(title, items, func(it pickItem) { go a.runView(bin, it.Data.(diffView)) })
-		})
+		a.runView(bin, v)
 	}()
 }
 
@@ -208,7 +178,7 @@ func (a *App) worktreeDiff(r worktreeRow) (string, []diffTarget) {
 
 // diffMR shows a merge request: its review worktree, where the whole change is
 // not committed, or its branch worktree against the target.
-func (a *App) diffMR(mr forge.MergeRequest, menu bool) {
+func (a *App) diffMR(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	mgr := a.pathManager(mr.Instance, path)
@@ -216,37 +186,9 @@ func (a *App) diffMR(mr forge.MergeRequest, menu bool) {
 	branch := a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)
 	switch {
 	case workspace.Exists(review):
-		if !menu {
-			a.diffKey(review, nil)
-			return
-		}
-		bin, ok := a.hunkBinary()
-		if !ok {
-			return
-		}
-		go func() {
-			items := []pickItem{{Label: "The whole merge request", Sub: "as the review has it",
-				Data: diffView{dir: review, args: []string{"diff"}}}}
-			// The review checks out the merge base; the commits are in the
-			// object store all the same.
-			if meta := mgr.ReadMeta(review); meta.Base != "" && meta.Head != "" {
-				for _, c := range mgr.CommitsIn(review, meta.Base+".."+meta.Head, commitLimit) {
-					items = append(items, pickItem{Label: c.SHA[:8] + "  " + c.Subject, Sub: c.When,
-						Data: diffView{dir: review, args: []string{"show", c.SHA}}})
-				}
-			}
-			a.tv.QueueUpdateDraw(func() {
-				a.showPicker(fmt.Sprintf("Show in Hunk - !%d", mr.IID), items,
-					func(it pickItem) { go a.runView(bin, it.Data.(diffView)) })
-			})
-		}()
+		a.diffKey(review, nil)
 	case workspace.Exists(branch):
-		targets := []diffTarget{{mgr: mgr, dir: branch, base: mr.TargetBranch}}
-		if menu {
-			a.diffMenu(fmt.Sprintf("Show in Hunk - !%d", mr.IID), branch, targets)
-		} else {
-			a.diffKey(branch, targets)
-		}
+		a.diffKey(branch, []diffTarget{{mgr: mgr, dir: branch, base: mr.TargetBranch}})
 	default:
 		// Nothing on disk yet: make the review, as C would - the repository
 		// cloned if it has to be - and show it, so going down the list with
@@ -266,7 +208,7 @@ func (a *App) diffMR(mr forge.MergeRequest, menu bool) {
 				a.flash(fmt.Sprintf("!%d could not be put on disk", mr.IID))
 				return
 			}
-			a.diffMR(mr, menu)
+			a.diffMR(mr)
 		})
 	}
 }
