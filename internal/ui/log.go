@@ -122,7 +122,9 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 		pickKey{keys: "w", hint: "browser", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
 		pickKey{keys: "y", hint: "copy", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
 
-	opts := pickerOptions{start: start, pack: true, explain: true, enterHint: "details", keys: keys}
+	// Not packed: the rows are short, but the keys are many, and their hints
+	// should fit on a line or two rather than wrap down the side.
+	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys}
 	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
 }
 

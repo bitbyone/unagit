@@ -124,6 +124,9 @@ type pickerOptions struct {
 	// as tall as its rows - rather than to most of the screen, so short rows
 	// are not left at the edge of a wide empty box.
 	pack bool
+	// wide is a picker with many keys: most of the screen across, so their
+	// hints stay on a line or two.
+	wide bool
 	// explain keeps a pane at the bottom with the About of the item under
 	// the cursor, so the items themselves can be named in a word.
 	explain bool
@@ -391,7 +394,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	box(flex.Box, title)
 
 	pad := 0
-	if opts.pack {
+	if opts.pack || opts.explain {
 		pad = 1
 	}
 	fitFooterPadded(flex, footer, 1, pad)
@@ -404,6 +407,8 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
 		a.pages.AddPage(pagePicker, modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines), true, true)
+	} else if opts.wide {
+		a.pages.AddPage(pagePicker, modalPct(frame, 90, 75), true, true)
 	} else {
 		a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
 	}
