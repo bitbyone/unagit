@@ -44,14 +44,14 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	waitFor(t, a, sc, "x take out") // a repository's keys
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Actions · acme/gateway")
-	waitFor(t, a, sc, "Take out")
+	waitFor(t, a, sc, "Remove from Group…")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Actions · acme/gateway")
-	typeRunes(sc, "l")
-	waitFor(t, a, sc, "Commits of feat/view since main")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit log · acme/gateway (feat/view)")
 	waitFor(t, a, sc, "Count requests per client")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Commits of feat/view")
+	waitGone(t, a, sc, "Commit log · acme/gateway")
 
 	// Said over the view, not under it in the status line; Esc puts it away.
 	typeRunes(sc, "c")

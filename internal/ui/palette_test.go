@@ -112,7 +112,7 @@ func TestEveryActionIsNamedAndExplained(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	for list, acts := range actionLists(a) {
 		for _, act := range acts {
-			if n := len([]rune(act.name)); n == 0 || n > 24 || strings.ContainsAny(act.name, ":,;") {
+			if n := len([]rune(act.name)); n == 0 || n > 32 || strings.ContainsAny(act.name, ":,;") {
 				t.Errorf("%s: %q is not a short name", list, act.name)
 			}
 			if act.about == "" {
@@ -175,7 +175,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Actions · acme/gateway")
 	text := a.screenText(sc)
-	open, worktree, hide := lineOf(text, "Open in…"), lineOf(text, "New worktree"), lineOf(text, "Hide ")
+	open, worktree, hide := lineOf(text, "Open in Editor…"), lineOf(text, "New Worktree…"), lineOf(text, "Hide or Unhide")
 	if open < 0 || worktree < 0 || hide < 0 || !(open < worktree && worktree < hide) {
 		t.Errorf("the actions are not in the order they are wanted:\n%s", text)
 	}
@@ -205,7 +205,7 @@ func TestCtrlAIsAltEnter(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Actions · acme/gateway !7")
-	waitFor(t, a, sc, "Review in…")
+	waitFor(t, a, sc, "Review in Editor…")
 }
 
 // TestColonListsWhatTheScreenCanDo: the screen's own actions, a new
@@ -214,7 +214,7 @@ func TestColonListsWhatTheScreenCanDo(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, ":")
-	waitFor(t, a, sc, "New repository")
+	waitFor(t, a, sc, "New Repository…")
 	text := a.screenText(sc)
 	if lineOf(text, "Refresh ") > lineOf(text, "Quit ") {
 		t.Errorf("quitting is listed before refreshing:\n%s", text)
@@ -276,7 +276,7 @@ func TestANewRepositoryIsCreatedClonedAndListed(t *testing.T) {
 func openNewRepository(t *testing.T, a *App, sc tcell.SimulationScreen) *tview.Form {
 	t.Helper()
 	typeRunes(sc, ":")
-	waitFor(t, a, sc, "New repository")
+	waitFor(t, a, sc, "New Repository…")
 	typeRunes(sc, "/new repository")
 	waitFor(t, a, sc, "FILTER")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -323,7 +323,7 @@ func TestSettingsHasActionsToo(t *testing.T) {
 	waitFor(t, a, sc, "a add")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Make a new tag")
-	waitFor(t, a, sc, "Pill ends")
+	waitFor(t, a, sc, "Change Pill Ends")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // the first: add a tag
 	waitFor(t, a, sc, "Colour")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

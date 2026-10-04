@@ -757,6 +757,8 @@ type LogEntry struct {
 	Author  string
 	When    time.Time
 	Merge   bool // it has more than one parent
+	// Body is the message below the subject, when the list asked for it.
+	Body string
 }
 
 // Commits lists the commits of to that from lacks, oldest first.
@@ -781,6 +783,39 @@ func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
 		})
 	}
 	return entries, nil
+}
+
+// History lists the commits reachable from rev, newest first, at most limit, the
+// body of each message with them.
+func (g *Git) History(dir, rev string, limit int) ([]LogEntry, error) {
+	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%b%x1e", rev, "--")
+	if err != nil {
+		return nil, err
+	}
+	var entries []LogEntry
+	for _, record := range strings.Split(out, "\x1e") {
+		f := strings.SplitN(strings.TrimLeft(record, "\n"), "\x1f", 6)
+		if len(f) < 6 {
+			continue
+		}
+		unix, _ := strconv.ParseInt(f[3], 10, 64)
+		entries = append(entries, LogEntry{
+			SHA:     f[0],
+			Merge:   len(strings.Fields(f[1])) > 1,
+			Author:  f[2],
+			When:    time.Unix(unix, 0),
+			Subject: f[4],
+			Body:    strings.TrimSpace(f[5]),
+		})
+	}
+	return entries, nil
+}
+
+// HasCommit says whether the repository has a commit's objects, which a
+// commit known only from the forge may not be.
+func (g *Git) HasCommit(dir, sha string) bool {
+	_, err := g.out(dir, "cat-file", "-e", sha+"^{commit}")
+	return err == nil
 }
 
 // IsAncestor reports whether a is reachable from b.

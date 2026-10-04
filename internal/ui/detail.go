@@ -127,10 +127,11 @@ func commitLines(d *detailBuf, commits []forge.Commit) {
 
 func trim(s string, n int) string {
 	s = strings.TrimSpace(strings.SplitN(s, "\n", 2)[0])
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
+	return string(r[:n-1]) + "…"
 }
 
 // ------------------------------------------------------- project detail

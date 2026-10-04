@@ -139,9 +139,11 @@ the `?` screen as data.
 describe their actions as `uiAction`s (`palette.go`, the lists in
 `actions_lists.go`, Settings in `settings_actions.go`): a name, a sentence
 about it, the key, a rank by how often it is wanted, when it can be done,
-and what it does. The name is what the action is called - "Branches", not
-"Branches: switch, see where they are, delete" - and the explanation goes
-into `about`, which the picker shows under the list
+and what it does. The name is what the action is called, the way IntelliJ
+names its actions - "Open in Browser", "Branches…", "Show Commit Log", Title
+Case, `…` when a dialog or a list follows - not a description ("Branches:
+switch, see where they are, delete") and not a bare noun ("Browser"). The
+explanation goes into `about`, which the picker shows under the list
 (`TestEveryActionIsNamedAndExplained`). The
 same list answers the keys and fills the two action pickers - `Alt-Enter`
 (`Ctrl-A`) for the selection, `:` for the screen - so a key cannot do one

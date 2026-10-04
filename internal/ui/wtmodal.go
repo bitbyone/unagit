@@ -9,7 +9,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/editors"
-	"github.com/tobola/unagit/internal/workspace"
 )
 
 // Enter on a row of Worktrees opens the worktree as one view of its own: a
@@ -236,7 +235,7 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 			label = ""
 		}
 		if f.ownCount > 3 {
-			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · l lists them", f.ownCount-3)+tagEnd))
+			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · Ctrl-L lists them", f.ownCount-3)+tagEnd))
 		}
 	}
 	if len(f.dirty) > 0 {
@@ -260,7 +259,7 @@ func worktreeViewHint(r worktreeRow) string {
 		return "j/k · Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
 			"Ctrl-R rebase · a add · r refresh · Esc back"
 	}
-	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · l log · b branches · p pull · " +
+	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · Ctrl-L log · b branches · p pull · " +
 		"P push · C commit · n MR · D diff · Ctrl-R rebase"
 	if r.Group != "" {
 		keys += " · x take out"
@@ -283,22 +282,22 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 	}
 	acts := a.worktreeActions(r, open, "C")
 	acts = append(acts,
-		uiAction{name: "Conversation", about: "Read the threads of the merge request open from this branch and write a comment.", keys: "c", rank: 37, when: single, run: func() {
+		uiAction{name: "Show Conversation", about: "Read the threads of the merge request open from this branch and write a comment.", keys: "c", rank: 37, when: single, run: func() {
 			if mr, ok := a.openMRFor(r); ok {
 				a.showComments(mr)
 				return
 			}
 			a.flash("no merge request is open from " + r.Branch + " - n opens one")
 		}},
-		uiAction{name: "Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
+		uiAction{name: "Open in Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
 			run: func() { a.openWorktreeWeb(r) }},
-		uiAction{name: "Commits", about: "List the branch's commits since its base.", keys: "l", rank: 39, when: single,
-			run: func() { a.showWorktreeLog(r) }},
-		uiAction{name: "Take out", about: "Remove this repository's worktree from the group; its branch stays.", keys: "x", rank: 65,
+		uiAction{name: "Show Commit Log", about: "The commits of the lit repository's branch, newest first; Enter shows one in Hunk.", keys: "Ctrl-L", rank: 39, when: single,
+			run: func() { a.worktreeLog(r) }},
+		uiAction{name: "Remove from Group…", about: "Remove this repository's worktree from the group; its branch stays.", keys: "x", rank: 65,
 			when: func() bool { return r.Group != "" }, run: func() { a.confirmTakeOut(v.row, r) }},
 	)
 	if v.row.grouped() && !r.grouped() {
-		acts = append(acts, uiAction{name: "Add repository", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60,
+		acts = append(acts, uiAction{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60,
 			run: func() { a.addToGroup(v.row) }})
 	}
 	return acts
@@ -312,7 +311,7 @@ func (a *App) worktreeViewScreenActions() []uiAction {
 			a.fetchWorktrees()
 			a.note("looking at the disk, and asking origin")
 		}},
-		{name: "Back", about: "Close the view and return to the list.", keys: "Esc", rank: 900, run: a.closeWorktreeView},
+		{name: "Back to List", about: "Close the view and return to the list.", keys: "Esc", rank: 900, run: a.closeWorktreeView},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 	}
 }
@@ -378,38 +377,4 @@ func (a *App) openWorktreeWeb(r worktreeRow) {
 	}
 	_ = openBrowser(url)
 	a.done("opened " + url)
-}
-
-// showWorktreeLog lists the commits of a repository's branch since its base,
-// or the latest ones; Enter shows one in Hunk when it is on.
-func (a *App) showWorktreeLog(r worktreeRow) {
-	base := a.wtRemote[r.Dir].Base
-	if base == "" {
-		base = r.Base
-	}
-	mgr := a.pathManager(r.Instance, r.Path)
-	go func() {
-		from := mgr.ChangeBase(r.Dir, base)
-		commits := mgr.Commits(r.Dir, from, 50)
-		a.tv.QueueUpdateDraw(func() {
-			if len(commits) == 0 {
-				a.flash(r.Branch + " has no commits of its own yet")
-				return
-			}
-			items := make([]pickItem, len(commits))
-			for i, c := range commits {
-				items[i] = pickItem{Label: c.SHA[:8] + "  " + c.Subject, Sub: c.When, Data: c}
-			}
-			title := "Commits of " + r.Branch
-			if from != "HEAD" && base != "" {
-				title += " since " + base
-			}
-			a.showPicker(title, items, func(it pickItem) {
-				c := it.Data.(workspace.CommitLine)
-				if bin, ok := a.hunkBinary(); ok {
-					go a.runView(bin, diffView{dir: r.Dir, args: []string{"show", c.SHA}})
-				}
-			})
-		})
-	}()
 }

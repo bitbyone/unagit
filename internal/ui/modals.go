@@ -382,8 +382,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			lines = max(lines, len(tview.WordWrap(it.About, inner)))
 		}
 		lines = min(lines, explainLines)
-		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false)
-		extra = 1 + lines
+		// A rule above the explanation and one below it, so it reads as a
+		// pane of its own and not as the start of the key hints.
+		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false).AddItem(rule(), 1, 0, false)
+		extra = 2 + lines
 	}
 	flex.AddItem(footer, 1, 0, false)
 	box(flex.Box, title)

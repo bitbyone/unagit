@@ -469,6 +469,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
 | `v` | review from a chosen commit to the head |
 | `y` | copy the link, reference, branch or directory |
+| `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` shows one in Hunk |
 | `c` `a` | read and write comments · approve |
 | `D` `Alt-D` | in Hunk: what is not committed · or since the base, or a commit |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
