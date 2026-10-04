@@ -28,7 +28,7 @@ func (a *App) drawTabs() {
 	var parts []string
 	for _, t := range tabs {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
-		label := tview.Escape(fmt.Sprintf(" %s [%c] ", t.title, t.key))
+		label := tview.Escape(fmt.Sprintf(" [%c] %s ", t.key, t.title))
 		if t.page == current {
 			parts = append(parts, fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), label))
 			continue

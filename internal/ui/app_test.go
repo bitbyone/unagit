@@ -492,9 +492,9 @@ func typeRunes(sc tcell.SimulationScreen, s string) {
 
 func TestStartsOnTheProjectList(t *testing.T) {
 	a, sc := newTestApp(t)
-	waitFor(t, a, sc, "Repositories [1]")
-	waitFor(t, a, sc, "Merge requests [2]")
-	waitFor(t, a, sc, "Settings [4]")
+	waitFor(t, a, sc, "[1] Repositories")
+	waitFor(t, a, sc, "[2] Merge requests")
+	waitFor(t, a, sc, "[4] Settings")
 	waitFor(t, a, sc, "acme/gateway")
 	waitFor(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "? help")

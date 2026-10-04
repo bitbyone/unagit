@@ -21,7 +21,7 @@ import (
 func (a *App) refreshMRRow(mr forge.MergeRequest) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
 		return
 	}
 	a.note(fmt.Sprintf("asking about !%d …", mr.IID))

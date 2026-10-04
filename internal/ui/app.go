@@ -645,9 +645,9 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 	}
 	if len(ready) == 0 {
 		if len(missing) > 0 {
-			return nil, fmt.Errorf("no token for %s - set one in Settings [4]", strings.Join(missing, ", "))
+			return nil, fmt.Errorf("no token for %s - set one in [4] Settings", strings.Join(missing, ", "))
 		}
-		return nil, fmt.Errorf("no groups selected - open Settings [4] first")
+		return nil, fmt.Errorf("no groups selected - open [4] Settings first")
 	}
 	return ready, nil
 }

@@ -436,7 +436,7 @@ func (a *App) repositoryLog(pr forge.Project) {
 	}
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
 		return
 	}
 	place := logPlace{title: fmt.Sprintf("Commit Log · %s (%s on the server)", pr.PathWithNamespace, pr.DefaultBranch),

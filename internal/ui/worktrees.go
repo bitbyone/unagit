@@ -848,7 +848,7 @@ func (a *App) newMergeRequest(r worktreeRow) {
 	pr := a.worktreeProject(r)
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
 		return
 	}
 	if mr, ok := a.openMRFor(r); ok {

@@ -57,7 +57,7 @@ func (a *App) addToGroup(r worktreeRow) {
 // then asks which one to take.
 func (a *App) prepareGroupMember(r worktreeRow, pr forge.Project) {
 	if a.client(pr.Instance) == nil {
-		a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
 		return
 	}
 	g, err := workspace.ReadGroup(r.Dir)

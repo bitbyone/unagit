@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- Repositories [1] │ Merge requests [2] │ Settings [4]
+ [1] Repositories │ [2] Merge requests │ [4] Settings
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **Settings [4]** you add servers (`a`), paste a
+Nothing to edit by hand. In **[4] Settings** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing

@@ -53,7 +53,7 @@ func TestWorktreesTabListsBranchWorktreesAcrossRepositories(t *testing.T) {
 	if !strings.Contains(text, "acme/billing") || !strings.Contains(text, "acme/gateway") {
 		t.Errorf("rows should name their repository:\n%s", text)
 	}
-	if !strings.Contains(text, "Worktrees [3]") {
+	if !strings.Contains(text, "[3] Worktrees") {
 		t.Errorf("the tab bar should offer the page:\n%s", text)
 	}
 }

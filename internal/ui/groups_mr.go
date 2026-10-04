@@ -47,7 +47,7 @@ func (a *App) groupMergeRequests(r worktreeRow) {
 	for i, m := range r.Members {
 		client := a.client(m.Instance)
 		if client == nil {
-			a.errorf("%s has no token - set one in Settings [4]", a.instanceLabel(m.Instance))
+			a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(m.Instance))
 			return
 		}
 		g := groupMR{member: m, project: a.worktreeProject(m), client: client, name: filepath.Base(m.Dir)}
