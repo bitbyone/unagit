@@ -147,7 +147,8 @@ func waitSelectedNot(t *testing.T, a *App, was int) {
 
 // TestRefreshProgressWrapsRatherThanHides: on a terminal too narrow for the
 // summary and the progress side by side, the progress takes a line of its
-// own under the summary, whole, and the list above gives it the room.
+// own above the summary, whole, the summary staying the bottom line and the
+// list giving up the room.
 func TestRefreshProgressWrapsRatherThanHides(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
@@ -164,19 +165,19 @@ func TestRefreshProgressWrapsRatherThanHides(t *testing.T) {
 	for _, width := range []int{80, 50, 24} {
 		resize(sc, width, 24)
 		// The spinner redraws the header; once it has, the job is a line
-		// of its own, without the summary.
+		// of its own above the summary, which is the last line.
 		deadline := time.Now().Add(patience)
 		for {
 			text := a.screenText(sc)
 			lines := strings.Split(text, "\n")
 			summary := lineOf(text, "NORMAL")
-			whole := strings.Join(lines[max(0, summary):], " ")
-			if summary >= 0 && !strings.Contains(lines[summary], "refreshing") &&
+			whole := strings.Join(lines[:max(0, summary)], " ")
+			if summary >= 0 && summary == len(lines)-1-trailingBlank(lines) && !strings.Contains(lines[summary], "refreshing") &&
 				strings.Contains(strings.Join(strings.Fields(whole), " "), "refreshing merge requests") {
 				break
 			}
 			if time.Now().After(deadline) {
-				t.Fatalf("at %d columns the progress is not whole under the summary:\n%s", width, text)
+				t.Fatalf("at %d columns the progress is not whole above the summary:\n%s", width, text)
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
@@ -191,6 +192,15 @@ func TestRefreshProgressWrapsRatherThanHides(t *testing.T) {
 	if text := a.screenText(sc); strings.TrimSpace(strings.Split(text, "\n")[23]) == "" {
 		t.Errorf("the status line kept its extra row:\n%s", text)
 	}
+}
+
+// trailingBlank counts the empty lines at the end of a screen's text.
+func trailingBlank(lines []string) int {
+	n := 0
+	for i := len(lines) - 1; i >= 0 && strings.TrimSpace(lines[i]) == ""; i-- {
+		n++
+	}
+	return n
 }
 
 // lineAt is the line of text that holds what, or "".
