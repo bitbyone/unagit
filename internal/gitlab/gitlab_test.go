@@ -511,3 +511,36 @@ func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
 		t.Errorf("unresolved = %d, %v, %v; want 1 thread", n, known, err)
 	}
 }
+
+// TestGitLabsPipelineObjectDoesNotBreakTheDecode: GitLab sends "pipeline" as
+// an object on a merge request - its older name for head_pipeline - where
+// the shared field of that name is a string. Both the detail and the listing
+// have to read past it.
+func TestGitLabsPipelineObjectDoesNotBreakTheDecode(t *testing.T) {
+	const pipeline = `"pipeline":{"id":90,"sha":"bbb222","status":"running","web_url":"https://gl.example/p/90"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/merge_requests") {
+			fmt.Fprint(w, `[{"id":1,"iid":42,"project_id":1,"title":"t",`+pipeline+`}]`)
+			return
+		}
+		fmt.Fprint(w, `{"iid":42,"title":"t",`+pipeline+`,"head_pipeline":{"id":90,"status":"running"}}`)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "t")
+	det, err := c.MergeRequestDetail(context.Background(), forge.MergeRequest{ProjectID: 1, IID: 42})
+	if err != nil {
+		t.Fatalf("the detail: %v", err)
+	}
+	if det.Pipeline == nil || det.Pipeline.Status != "running" {
+		t.Errorf("the head pipeline is lost: %+v", det.Pipeline)
+	}
+	mrs, err := c.GroupMergeRequests(context.Background(), forge.Group{ID: 1}, true)
+	if err != nil {
+		t.Fatalf("the listing: %v", err)
+	}
+	if len(mrs) != 1 || mrs[0].IID != 42 {
+		t.Errorf("listed %+v", mrs)
+	}
+}

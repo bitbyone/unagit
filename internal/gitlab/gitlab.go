@@ -402,6 +402,10 @@ func (c *Client) GroupProjects(ctx context.Context, g forge.Group, includeSubgro
 // the project path.
 type mergeRequest struct {
 	forge.MergeRequest
+	// Pipeline shadows the shared field of the same JSON name: GitLab sends
+	// an object there (its older name for head_pipeline), which would fail
+	// the whole decode as a string. The status is read on refresh.
+	Pipeline   json.RawMessage `json:"pipeline"`
 	References struct {
 		Full string `json:"full"`
 	} `json:"references"`
@@ -657,17 +661,19 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 	q.Set("include_diverged_commits_count", "true")
 	var raw struct {
 		forge.MergeRequest
-		Description                 string   `json:"description"`
-		CreatedAt                   string   `json:"created_at"`
-		Labels                      []string `json:"labels"`
-		MergeStatus                 string   `json:"merge_status"`
-		DetailedMergeStatus         string   `json:"detailed_merge_status"`
-		HasConflicts                bool     `json:"has_conflicts"`
-		BlockingDiscussionsResolved bool     `json:"blocking_discussions_resolved"`
-		ChangesCount                string   `json:"changes_count"`
-		UserNotesCount              int      `json:"user_notes_count"`
-		Upvotes                     int      `json:"upvotes"`
-		Downvotes                   int      `json:"downvotes"`
+		// See mergeRequest: GitLab's pipeline is an object.
+		Pipeline                    json.RawMessage `json:"pipeline"`
+		Description                 string          `json:"description"`
+		CreatedAt                   string          `json:"created_at"`
+		Labels                      []string        `json:"labels"`
+		MergeStatus                 string          `json:"merge_status"`
+		DetailedMergeStatus         string          `json:"detailed_merge_status"`
+		HasConflicts                bool            `json:"has_conflicts"`
+		BlockingDiscussionsResolved bool            `json:"blocking_discussions_resolved"`
+		ChangesCount                string          `json:"changes_count"`
+		UserNotesCount              int             `json:"user_notes_count"`
+		Upvotes                     int             `json:"upvotes"`
+		Downvotes                   int             `json:"downvotes"`
 		Assignees                   []struct {
 			Username string `json:"username"`
 			Name     string `json:"name"`

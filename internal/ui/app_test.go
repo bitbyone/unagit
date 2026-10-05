@@ -262,6 +262,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"created_at":"2026-09-18T10:00:00Z","updated_at":"2026-09-21T07:00:00Z",
 			"diverged_commits_count":3,
 			"diff_refs":{"base_sha":"base000","head_sha":"head000","start_sha":"base000"},
+			"pipeline":{"id":90,"status":"running"},
 			"head_pipeline":{"status":"running"},"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/notes", func(w http.ResponseWriter, r *http.Request) {
