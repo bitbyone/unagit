@@ -213,6 +213,9 @@ func helpRows() []helpLine {
 		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
 		key("REMOTE", glyphCheck+" up to date · "+glyphBehind+" behind · "+glyphAhead+" unpushed; r fetches"),
+		key("MR", "merge requests with a worktree on disk"),
+		key(glyphHidden+" in MR", "its merge requests are hidden (H, x in MRs)"),
+		key("WT", "worktrees of branches, not of merge requests"),
 		blank(),
 
 		section("Worktrees", helpWorktrees),

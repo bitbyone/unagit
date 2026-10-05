@@ -26,6 +26,14 @@ func TestARepositorysMergeRequestsCanBeHidden(t *testing.T) {
 
 	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/gateway") // the repository itself stays
+	// Its MR column says its merge requests are hidden; billing's does not.
+	if line := lineAt(a.screenText(sc), "acme/gateway"); !strings.Contains(line, glyphHidden) {
+		t.Errorf("the repository does not show its merge requests hidden: %q", line)
+	}
+	if line := lineAt(a.screenText(sc), "acme/billing"); strings.Contains(line, glyphHidden) {
+		t.Errorf("a repository whose merge requests show is marked: %q", line)
+	}
+	assertLegible(t, a, sc, "a repository with its merge requests hidden")
 
 	typeRunes(sc, "2")
 	typeRunes(sc, "v")

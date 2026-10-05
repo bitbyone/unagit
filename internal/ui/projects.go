@@ -141,8 +141,14 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 
 	branchW, actW, serverW, pathW, syncW := 6, 8, 0, 0, len("REMOTE")
+	// MR is how many merge requests have a worktree on disk, after a mark
+	// when the repository's merge requests are hidden (H here, x there).
+	mrW := 2
 	for _, idx := range filtered {
 		pr := a.projects[idx]
+		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
+			mrW = 4
+		}
 		words, _ := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		syncW = max(syncW, len([]rune(words)))
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
@@ -173,7 +179,6 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	}
 	const (
 		editsW  = len("EDITS")
-		mrW     = 2
 		wtW     = 2
 		gaps    = 6
 		minName = 20
@@ -280,6 +285,12 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if n := len(info.MRs); n > 0 {
 			mrCount = fmt.Sprintf("%d", n)
 		}
+		mrField := field{text: mrCount, width: mrW, colour: colWarn, right: true}
+		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
+			hidden := strings.TrimSpace(glyphHidden + " " + mrCount)
+			pad := strings.Repeat(" ", max(0, mrW-len([]rune(hidden))))
+			mrField = field{raw: pad + tag(colWarn) + esc(hidden) + tagEnd}
+		}
 		wtCount := ""
 		if info.Worktrees > 0 {
 			wtCount = fmt.Sprintf("%d", info.Worktrees)
@@ -307,7 +318,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
 		}
 		fields = append(fields,
-			field{text: mrCount, width: mrW, colour: colWarn, right: true},
+			mrField,
 			field{text: wtCount, width: wtW, colour: colWarn, right: true},
 			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
 

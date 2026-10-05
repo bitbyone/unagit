@@ -25,8 +25,11 @@ type quietScreen struct {
 	// onFocus runs, off the event loop, whenever the terminal regains focus.
 	onFocus func()
 	// dimmed is set once a modal has dimmed what is under it in the frame
-	// being drawn, and cleared when the frame is shown (modalBox).
+	// being drawn, and cleared when the frame is shown (modalBox). under is
+	// where the last modal drawn in the frame stands, which the next one
+	// over it dims, and nothing else.
 	dimmed bool
+	under  struct{ x, y, w, h int }
 }
 
 // Init asks the terminal to report focus; most do (iTerm2, Ghostty, kitty,
@@ -67,6 +70,7 @@ func (s *quietScreen) Resume() error {
 
 func (s *quietScreen) Show() {
 	s.dimmed = false
+	s.under.w = 0
 	if !s.suspended.Load() {
 		s.Screen.Show()
 	}

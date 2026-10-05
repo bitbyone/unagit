@@ -232,16 +232,23 @@ func modalFull(content tview.Primitive) *modalBox {
 
 func (m *modalBox) Draw(screen tcell.Screen) {
 	x, y, w, h := m.GetRect()
-	// Only the lowest modal dims, once a frame. A second one - a message over
-	// a dialog - dimmed it all again: what we coloured went darker twice, the
-	// terminal's own ink stayed at the one grey it falls back to, and the
-	// screen came out looking inverted. The one on top stands out by its
-	// border; the dialog under it stays as it was.
-	if q, ok := screen.(*quietScreen); !ok || !q.dimmed {
-		dimArea(screen, x, y, w, h)
-		if ok {
+	// The lowest modal dims the whole terminal, the tabs above the pages
+	// too, once a frame. One over it dims only the dialog it stands on: a
+	// second dimming of everything - a message over a dialog - took what we
+	// coloured darker twice while the terminal's own ink stayed at the one
+	// grey it falls back to, and the screen came out looking inverted. So
+	// every cell is dimmed once at most, and the dialog in front is the one
+	// left bright.
+	q, quiet := screen.(*quietScreen)
+	switch {
+	case !quiet || !q.dimmed:
+		sw, sh := screen.Size()
+		dimArea(screen, 0, 0, sw, sh)
+		if quiet {
 			q.dimmed = true
 		}
+	case q.under.w > 0:
+		dimArea(screen, q.under.x, q.under.y, q.under.w, q.under.h)
 	}
 
 	cw, ch := w, h
@@ -253,6 +260,15 @@ func (m *modalBox) Draw(screen tcell.Screen) {
 	}
 	m.content.SetRect(x+(w-cw)/2, y+(h-ch)/2, cw, ch)
 	m.content.Draw(screen)
+	if quiet {
+		// A content that places itself (tview's Modal) is handed the whole
+		// area, which is already dimmed; what it draws is not known, so a
+		// modal over it dims nothing more.
+		q.under.w = 0
+		if cw < w || ch < h {
+			q.under.x, q.under.y, q.under.w, q.under.h = m.content.GetRect()
+		}
+	}
 }
 
 func (m *modalBox) Focus(delegate func(p tview.Primitive)) { delegate(m.content) }

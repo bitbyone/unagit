@@ -110,28 +110,45 @@ func messageText(a *App) string {
 	})
 }
 
-// TestAMessageOverADialogDimsNothingMore: the screen behind is dimmed once,
-// by the dialog; the message over it leaves both as they were - dimming twice
-// made the screen look inverted.
-func TestAMessageOverADialogDimsNothingMore(t *testing.T) {
+// TestModalsDimEachCellOnce: a dialog dims the whole terminal, the tabs
+// too; a message over it dims the dialog it stands on and leaves the rest
+// as it was - dimming everything twice made the screen look inverted - so
+// every cell is dimmed once at most and the box in front is the bright one.
+func TestModalsDimEachCellOnce(t *testing.T) {
 	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	tabs := func() tcell.Style {
+		text := a.screenText(sc)
+		row := lineOf(text, "[1] Repositories")
+		col := len([]rune(strings.Split(text, "\n")[row][:strings.Index(strings.Split(text, "\n")[row], "[1] Repositories")])) + 1
+		return cellStyleAt(a, sc, col, row)
+	}
+	bright := tabs()
 	markBoth(t, a, sc)
+	if got := tabs(); got == bright {
+		t.Error("the tabs are not dimmed under a dialog")
+	}
 	text := a.screenText(sc)
 	listRow := lineOf(text, "acme/billing")
 	listCol := len([]rune(strings.Split(text, "\n")[listRow][:strings.Index(strings.Split(text, "\n")[listRow], "acme/billing")])) + 1
 	formRow := lineOf(text, "Folder name")
 	formCol := len([]rune(strings.Split(text, "\n")[formRow][:strings.Index(strings.Split(text, "\n")[formRow], "Folder name")])) + 1
-	list, form := cellStyleAt(a, sc, listCol, listRow), cellStyleAt(a, sc, formCol, formRow)
+	list, form, tab := cellStyleAt(a, sc, listCol, listRow), cellStyleAt(a, sc, formCol, formRow), tabs()
 
 	changeOnLoop(a, func() { a.flash("over the dialog") })
 	waitFor(t, a, sc, "over the dialog")
 	if got := cellStyleAt(a, sc, listCol, listRow); got != list {
 		t.Errorf("the list behind went from %v to %v", list, got)
 	}
-	if got := cellStyleAt(a, sc, formCol, formRow); got != form {
-		t.Errorf("the dialog under the message went from %v to %v", form, got)
+	if got := tabs(); got != tab {
+		t.Errorf("the tabs went from %v to %v", tab, got)
 	}
+	fg, _, _ := form.Decompose()
+	if got, _, _ := cellStyleAt(a, sc, formCol, formRow).Decompose(); got.Hex() != onLoop(a, func() tcell.Color { return darken(fg, colDimmedText) }).Hex() {
+		t.Errorf("the dialog under the message is %v, not its own %v dimmed once", got, fg)
+	}
+	assertLegible(t, a, sc, "a message over a dialog")
 }
 
 // TestAMessageSaysWhatKindItIs: the box is filled like a confirmation, and
