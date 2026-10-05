@@ -51,6 +51,43 @@ func TestAPipelineUpClose(t *testing.T) {
 	}
 }
 
+// TestJobsStillToRun: the jobs that wait - a manual one, a trigger job -
+// are listed with their own marks; R starts the manual one, and Enter on
+// the trigger job lists the pipeline it started, Esc coming back.
+func TestJobsStillToRun(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
+	waitFor(t, a, sc, glyphManual+"  deploy")
+	waitFor(t, a, sc, glyphTrigger+" e2e")
+	text := a.screenText(sc)
+	if lint, tests, deploy := strings.Index(text, "lint"), strings.Index(text, "unit tests"), strings.Index(text, "deploy"); !(lint < tests && tests < deploy) {
+		t.Errorf("the jobs are not in the order of their stages:\n%s", text)
+	}
+	assertLegible(t, a, sc, "jobs still to run")
+
+	typeRunes(sc, "G") // e2e, the last
+	waitFor(t, a, sc, "Enter lists its jobs")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "browser tests")
+	waitFor(t, a, sc, glyphTrigger+" e2e · ")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "browser tests")
+	waitFor(t, a, sc, "unit tests")
+
+	typeRunes(sc, "k") // deploy, manual
+	waitFor(t, a, sc, "waits to be started")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "deploy started")
+	if srv.played.Load() != 1 || srv.retried.Load() != 0 {
+		t.Errorf("played %d, retried %d; want the manual job played", srv.played.Load(), srv.retried.Load())
+	}
+}
+
 // TestTheBrowserLeavesThePipelineOpen: w and W open the job and the
 // pipeline in the browser and the jobs stay on screen, the cursor where it
 // was. Serial: it swaps the browser.
@@ -77,7 +114,8 @@ func TestTheBrowserLeavesThePipelineOpen(t *testing.T) {
 			return main
 		})
 	}
-	typeRunes(sc, "j")
+	typeRunes(sc, "k") // off the failed job, onto lint
+	waitFor(t, a, sc, "lint · success")
 	before := cursor()
 	for _, key := range []string{"w", "W"} {
 		typeRunes(sc, key)

@@ -174,6 +174,11 @@ type Glyphs struct {
 	// Dot is a state's bullet - running, on, new - and Ring its empty one.
 	Dot  string `json:"dot"`
 	Ring string `json:"ring"`
+	// Manual is a job that waits for a hand to start it, Scheduled one that
+	// waits for its time, Trigger one that starts a pipeline of its own.
+	Manual    string `json:"manual"`
+	Scheduled string `json:"scheduled"`
+	Trigger   string `json:"trigger"`
 	// Ahead and Behind are commits not pushed and not pulled.
 	Ahead  string `json:"ahead"`
 	Behind string `json:"behind"`
@@ -417,6 +422,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
 		"glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
+		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger,
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator,

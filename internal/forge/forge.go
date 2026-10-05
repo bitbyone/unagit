@@ -232,6 +232,20 @@ type Job struct {
 	Status   string  `json:"status"`
 	WebURL   string  `json:"web_url"`
 	Duration float64 `json:"duration"`
+	// Downstream is the pipeline a trigger job started - a GitLab bridge,
+	// a child or another project's pipeline - nil for a job of its own.
+	Downstream *Downstream `json:"downstream_pipeline,omitempty"`
+	// Trigger is a job that starts another pipeline rather than running
+	// anything itself; it has no log.
+	Trigger bool `json:"trigger,omitempty"`
+}
+
+// Downstream is the pipeline a trigger job started, and whose it is.
+type Downstream struct {
+	ID        int    `json:"id"`
+	ProjectID int    `json:"project_id"`
+	Status    string `json:"status"`
+	WebURL    string `json:"web_url"`
 }
 
 // Note is a comment. Notes that share a Thread are one conversation, and the
@@ -323,6 +337,11 @@ type Provider interface {
 	JobLog(ctx context.Context, p Project, job Job) (string, error)
 	// RetryJob runs a job again.
 	RetryJob(ctx context.Context, p Project, job Job) error
+	// PlayJob starts a job that waits to be started by hand - a manual
+	// one, or a delayed one before its time. GitHub has none.
+	PlayJob(ctx context.Context, p Project, job Job) error
+	// DownstreamJobs is the pipeline a trigger job started and its jobs.
+	DownstreamJobs(ctx context.Context, job Job) (*Pipeline, []Job, error)
 	// UnresolvedThreads counts the threads not resolved yet; known is false
 	// where the forge cannot say.
 	UnresolvedThreads(ctx context.Context, mr MergeRequest) (n int, known bool, err error)

@@ -134,6 +134,9 @@ type pickerOptions struct {
 	// explain keeps a pane at the bottom with the About of the item under
 	// the cursor, so the items themselves can be named in a word.
 	explain bool
+	// back, when set, is where Esc goes after closing the picker: a list
+	// opened from another goes back to it.
+	back func()
 }
 
 // widePct is how much of the screen across a wide picker takes.
@@ -302,6 +305,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		switch ev.Key() {
 		case tcell.KeyEsc:
 			dismiss()
+			if opts.back != nil {
+				opts.back()
+			}
 			return nil
 		case tcell.KeyEnter:
 			choose()

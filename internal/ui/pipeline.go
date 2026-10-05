@@ -14,8 +14,9 @@ import (
 )
 
 // A pipeline up close: its jobs - GitHub's check runs - with the first that
-// failed under the cursor. Enter reads a job's log, R runs it again, w opens
-// it in the browser, so a red CI column can be dealt with without leaving
+// failed under the cursor, those still to run listed too. Enter reads a
+// job's log, or a trigger job's pipeline; R runs it again, or starts a
+// manual one; w opens it in the browser, so a red CI column can be dealt with without leaving
 // unagit. It is a merge request's pipeline, or a branch's - a clone's, a
 // worktree's, one repository's of a group.
 
@@ -26,6 +27,9 @@ type ciTarget struct {
 	project  forge.Project
 	label    string
 	load     func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error)
+	// back, when set, is where Esc on the jobs goes: a downstream pipeline
+	// goes back to the one that started it.
+	back func()
 }
 
 // mrCI is a merge request's pipeline: the one its head ran.
@@ -144,21 +148,17 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	}
 	nameW, stageW := 0, 0
 	for _, j := range jobs {
-		nameW = max(nameW, len([]rune(j.Name)))
+		nameW = max(nameW, len([]rune(jobName(j))))
 		stageW = max(stageW, len([]rune(j.Stage)))
 	}
 	nameW = min(nameW, 48)
 	items := make([]pickItem, len(jobs))
 	start := -1
 	for i, j := range jobs {
-		mark, _ := ciMark(j.Status)
-		if mark == "" {
-			mark = glyphRing
-		}
 		items[i] = pickItem{
-			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", mark, stageW, j.Stage, nameW, trim(j.Name, nameW))),
+			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", jobMark(j), stageW, j.Stage, nameW, trim(jobName(j), nameW))),
 			Sub:   esc(strings.TrimSpace(j.Status + "  " + duration(j.Duration))),
-			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", j.Name, j.Status, duration(j.Duration), j.WebURL))),
+			About: esc(jobAbout(j)),
 			Data:  i,
 		}
 		switch {
@@ -174,12 +174,88 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	}
 	mark, _ := ciMark(pipe.Status)
 	title := fmt.Sprintf("Pipeline · %s · %s %s", target.label, mark, pipe.Status)
-	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", keys: []pickKey{
-		{keys: "R", hint: "retry", run: func(it pickItem) { a.retryJob(target, at(it)) }},
+	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", back: target.back, keys: []pickKey{
+		{keys: "R", hint: "run", run: func(it pickItem) { a.runJob(target, at(it)) }},
 		{keys: "w", hint: "browser", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
 		{keys: "W", hint: "pipeline", stay: true, run: func(it pickItem) { a.openWeb(pipe.WebURL) }},
 	}}
-	a.showPickerWith(title, items, opts, func(it pickItem) { a.showJobLog(target, at(it), back(it)) })
+	a.showPickerWith(title, items, opts, func(it pickItem) {
+		job := at(it)
+		if job.Trigger {
+			a.showDownstream(target, job, back(it))
+			return
+		}
+		a.showJobLog(target, job, back(it))
+	})
+}
+
+// waitsForAHand reports whether a job runs only when started: a manual
+// one, or a delayed one before its time.
+func waitsForAHand(j forge.Job) bool { return j.Status == "manual" || j.Status == "scheduled" }
+
+// jobMark is a job's state as one glyph: a manual job's and a delayed one's
+// are told apart from those that merely wait their turn.
+func jobMark(j forge.Job) string {
+	switch j.Status {
+	case "manual":
+		return glyphManual
+	case "scheduled":
+		return glyphScheduled
+	}
+	if mark, _ := ciMark(j.Status); mark != "" {
+		return mark
+	}
+	return glyphRing
+}
+
+// jobName is a job's name, a trigger job's marked as one.
+func jobName(j forge.Job) string {
+	if j.Trigger {
+		return glyphTrigger + " " + j.Name
+	}
+	return j.Name
+}
+
+// jobAbout is the sentence under the jobs about the one under the cursor.
+func jobAbout(j forge.Job) string {
+	parts := []string{j.Name, j.Status}
+	switch {
+	case j.Status == "manual":
+		parts = append(parts, "waits to be started - R starts it")
+	case j.Status == "scheduled":
+		parts = append(parts, "waits for its time - R starts it now")
+	case j.Trigger && j.Downstream != nil:
+		parts = append(parts, "starts a pipeline of its own - Enter lists its jobs")
+	case j.Trigger:
+		parts = append(parts, "starts a pipeline of its own, not yet started")
+	}
+	if d := duration(j.Duration); d != "" {
+		parts = append(parts, d)
+	}
+	return strings.Join(parts, " · ") + " " + j.WebURL
+}
+
+// showDownstream lists the jobs of the pipeline a trigger job started; Esc
+// comes back to the pipeline it was started from.
+func (a *App) showDownstream(parent ciTarget, job forge.Job, back func()) {
+	if job.Downstream == nil {
+		a.note(job.Name + " has not started its pipeline yet")
+		back()
+		return
+	}
+	project := forge.Project{ID: job.Downstream.ProjectID, Instance: parent.instance}
+	if project.ID == parent.project.ID {
+		project = parent.project
+	}
+	a.showPipeline(ciTarget{
+		instance: parent.instance,
+		project:  project,
+		label:    parent.label + " " + glyphTrigger + " " + job.Name,
+		back:     back,
+		load: func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error) {
+			return client.DownstreamJobs(ctx, job)
+		},
+	}, 0)
 }
 
 // duration says how long a job ran, coarsely.
@@ -194,15 +270,23 @@ func duration(seconds float64) string {
 	return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds())%60)
 }
 
-// retryJob runs a job again and comes back to the pipeline, the cursor on it.
-func (a *App) retryJob(target ciTarget, job forge.Job) {
+// runJob starts a job: one that waits for a hand is played, one that ran
+// is run again; then the pipeline comes back, the cursor on it.
+func (a *App) runJob(target ciTarget, job forge.Job) {
 	client := a.client(target.instance)
-	a.runTaskThen("Retrying "+job.Name, func(log func(string)) (string, error) {
+	title, said := "Retrying "+job.Name, job.Name+" runs again"
+	if waitsForAHand(job) {
+		title, said = "Starting "+job.Name, job.Name+" started"
+	}
+	a.runTaskThen(title, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
+		if waitsForAHand(job) {
+			return "", client.PlayJob(ctx, target.project, job)
+		}
 		return "", client.RetryJob(ctx, target.project, job)
 	}, func(string) {
-		a.showPipelineThen(target, job.ID, func() { a.done(job.Name + " runs again") })
+		a.showPipelineThen(target, job.ID, func() { a.done(said) })
 	})
 }
 

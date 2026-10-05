@@ -29,8 +29,9 @@ type fakeServer struct {
 	requests  atomic.Int64
 	mrDetail  atomic.Int64
 	approvals atomic.Int64
-	// retried counts the jobs run again.
+	// retried counts the jobs run again, played the manual ones started.
 	retried atomic.Int64
+	played  atomic.Int64
 	// postedComment holds the body of the last comment posted.
 	postedComment atomic.Value
 	// postedMR holds the JSON body of the last merge request created.
@@ -359,8 +360,24 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `[{"id":90,"status":"failed","web_url":"https://gl.test/acme/gateway/-/pipelines/90"}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines/90/jobs", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `[{"id":6,"name":"lint","stage":"check","status":"success","duration":12},
+		json(w, `[{"id":10,"name":"deploy","stage":"deploy","status":"manual"},
+			{"id":4,"name":"lint","stage":"check","status":"success","duration":12,"web_url":"https://gl.test/j/4"},
 			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5"}]`)
+	})
+	// A trigger job, and the child pipeline it started.
+	mux.HandleFunc("/api/v4/projects/1/pipelines/90/bridges", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":11,"name":"e2e","stage":"deploy","status":"running",
+			"downstream_pipeline":{"id":92,"project_id":1,"status":"running"}}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines/92", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{"id":92,"status":"running","web_url":"https://gl.test/acme/gateway/-/pipelines/92"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines/92/jobs", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":30,"name":"browser tests","stage":"e2e","status":"running"}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/jobs/10/play", func(w http.ResponseWriter, r *http.Request) {
+		f.played.Add(1)
+		json(w, `{}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/jobs/5/trace", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")

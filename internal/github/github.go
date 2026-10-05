@@ -947,6 +947,18 @@ func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) e
 	return c.post(ctx, "/repos/"+p.PathWithNamespace+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
 }
 
+// PlayJob has nothing to start: GitHub has no manual jobs. A workflow run
+// by hand is started from its page.
+func (c *Client) PlayJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	return errors.New("GitHub has no manual jobs - a workflow run by hand starts from its page (w)")
+}
+
+// DownstreamJobs has nothing to read: GitHub's check runs start no
+// pipelines of their own.
+func (c *Client) DownstreamJobs(ctx context.Context, job forge.Job) (*forge.Pipeline, []forge.Job, error) {
+	return nil, nil, errors.New("GitHub's checks start no pipelines of their own")
+}
+
 // UnresolvedThreads cannot be told through GitHub's REST API, which does not
 // say whether a review thread is resolved.
 func (c *Client) UnresolvedThreads(ctx context.Context, mr forge.MergeRequest) (int, bool, error) {

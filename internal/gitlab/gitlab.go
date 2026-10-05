@@ -587,7 +587,7 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 	if err != nil || p == nil {
 		return p, nil, err
 	}
-	jobs, err := getAll[forge.Job](ctx, c, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/pipelines/"+strconv.Itoa(p.ID)+"/jobs", nil)
+	jobs, err := c.pipelineJobs(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath), p.ID)
 	return p, jobs, err
 }
 
@@ -597,8 +597,61 @@ func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch
 	if err != nil || pipe == nil {
 		return pipe, nil, err
 	}
-	jobs, err := getAll[forge.Job](ctx, c, projectPath(p)+"/pipelines/"+strconv.Itoa(pipe.ID)+"/jobs", nil)
+	jobs, err := c.pipelineJobs(ctx, projectPath(p), pipe.ID)
 	return pipe, jobs, err
+}
+
+// pipelineJobs is every job of a pipeline - those still to run, manual and
+// delayed ones included - with its trigger jobs, in the order of its
+// stages: a stage comes where its first job was made, which is how GitLab
+// made them, and a job run again stays in its stage.
+func (c *Client) pipelineJobs(ctx context.Context, project string, pipeline int) ([]forge.Job, error) {
+	base := project + "/pipelines/" + strconv.Itoa(pipeline)
+	jobs, err := getAll[forge.Job](ctx, c, base+"/jobs", nil)
+	if err != nil {
+		return nil, err
+	}
+	bridges, err := getAll[forge.Job](ctx, c, base+"/bridges", nil)
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound {
+		// A server older than the bridges has no trigger jobs to list.
+		bridges, err = nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	for i := range bridges {
+		bridges[i].Trigger = true
+	}
+	jobs = append(jobs, bridges...)
+	first := map[string]int64{}
+	for _, j := range jobs {
+		if at, ok := first[j.Stage]; !ok || j.ID < at {
+			first[j.Stage] = j.ID
+		}
+	}
+	sort.SliceStable(jobs, func(i, k int) bool {
+		if a, b := first[jobs[i].Stage], first[jobs[k].Stage]; a != b {
+			return a < b
+		}
+		return jobs[i].ID < jobs[k].ID
+	})
+	return jobs, nil
+}
+
+// DownstreamJobs is the pipeline a trigger job started and its jobs.
+func (c *Client) DownstreamJobs(ctx context.Context, job forge.Job) (*forge.Pipeline, []forge.Job, error) {
+	d := job.Downstream
+	if d == nil {
+		return nil, nil, fmt.Errorf("%s started no pipeline", job.Name)
+	}
+	project := "/projects/" + strconv.Itoa(d.ProjectID)
+	var pipe forge.Pipeline
+	if _, err := c.get(ctx, project+"/pipelines/"+strconv.Itoa(d.ID), nil, &pipe); err != nil {
+		return nil, nil, err
+	}
+	jobs, err := c.pipelineJobs(ctx, project, d.ID)
+	return &pipe, jobs, err
 }
 
 // JobLog is a job's trace.
@@ -609,6 +662,11 @@ func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (st
 // RetryJob runs a job again.
 func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
 	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/retry", struct{}{})
+}
+
+// PlayJob starts a manual or delayed job.
+func (c *Client) PlayJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/play", struct{}{})
 }
 
 // UnresolvedThreads counts the discussions with a note still to resolve.

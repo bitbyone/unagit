@@ -159,7 +159,10 @@ all and live only there.
   cursor. The same `J` works on a repository (the clone's branch, or the
   default branch before it is cloned), on a worktree (its merge request's
   pipeline while one is open, else the branch's), and on a grouped worktree,
-  where it asks which repository first. `Enter` reads a job's log - its end,
+  where it asks which repository first. The jobs still to run are there
+  too: a manual one (`▶`), which `R` starts, a delayed one (`◷`), which `R`
+  starts at once, and a trigger job (`↳`), on which `Enter` lists the
+  pipeline it started and `Esc` comes back. `Enter` reads a job's log - its end,
   in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
   `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
   the pipeline, and the jobs stay open behind the browser. On GitHub the

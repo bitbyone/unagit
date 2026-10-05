@@ -49,6 +49,7 @@ var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
 	glyphGroup, glyphHidden, glyphFavourite                        string
 	glyphCheck, glyphCross, glyphDot, glyphRing                    string
+	glyphManual, glyphScheduled, glyphTrigger                      string
 	glyphAhead, glyphBehind                                        string
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator         string
 	glyphMask                                                      rune
@@ -136,6 +137,7 @@ func setTheme(t Theme) {
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphGroup, glyphHidden, glyphFavourite = g.Group, g.Hidden, g.Favourite
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
+	glyphManual, glyphScheduled, glyphTrigger = g.Manual, g.Scheduled, g.Trigger
 	glyphAhead, glyphBehind = g.Ahead, g.Behind
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
 	glyphMask = rune0(g.Mask)

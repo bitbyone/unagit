@@ -471,7 +471,7 @@ func TestDeleteBranchEscapesTheName(t *testing.T) {
 // its jobs, a job's trace as text, a retry posted to the job, and the
 // discussions still to resolve counted once each.
 func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
-	var retried string
+	var retried, played string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v4/projects/3/merge_requests/7/pipelines":
@@ -484,6 +484,16 @@ func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
 		case "/api/v4/projects/3/pipelines/90/jobs":
 			fmt.Fprint(w, `[{"id":5,"name":"test","stage":"check","status":"failed","web_url":"https://gl/j/5","duration":61.2},
 				{"id":6,"name":"lint","stage":"check","status":"success"}]`)
+		case "/api/v4/projects/3/pipelines/90/bridges":
+			fmt.Fprint(w, `[{"id":8,"name":"child","stage":"check","status":"success",
+				"downstream_pipeline":{"id":91,"project_id":4,"status":"success"}}]`)
+		case "/api/v4/projects/4/pipelines/91":
+			fmt.Fprint(w, `{"id":91,"status":"success"}`)
+		case "/api/v4/projects/4/pipelines/91/jobs":
+			fmt.Fprint(w, `[{"id":21,"name":"deploy","stage":"deploy","status":"manual"},
+				{"id":20,"name":"build","stage":"build","status":"success"}]`)
+		case "/api/v4/projects/4/jobs/21/play":
+			played = r.Method
 		case "/api/v4/projects/3/jobs/5/trace":
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "FAIL TestThing\n")
@@ -503,12 +513,27 @@ func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
 	mr := forge.MergeRequest{IID: 7, ProjectID: 3}
 
 	p, jobs, err := c.PipelineJobs(ctx, mr)
-	if err != nil || p == nil || p.Status != "failed" || len(jobs) != 2 || jobs[0].Name != "test" || jobs[0].Duration != 61.2 {
+	if err != nil || p == nil || p.Status != "failed" || len(jobs) != 3 || jobs[0].Name != "test" || jobs[0].Duration != 61.2 {
 		t.Fatalf("pipeline %+v, jobs %+v, err %v", p, jobs, err)
+	}
+	child := jobs[2]
+	if !child.Trigger || child.Downstream == nil || child.Downstream.ID != 91 || jobs[0].Trigger {
+		t.Fatalf("the trigger job is %+v", child)
+	}
+	dp, djobs, err := c.DownstreamJobs(ctx, child)
+	if err != nil || dp == nil || dp.ID != 91 || len(djobs) != 2 {
+		t.Fatalf("downstream %+v, jobs %+v, err %v", dp, djobs, err)
+	}
+	// The stages in the order they were made, whatever order they came in.
+	if djobs[0].Name != "build" || djobs[1].Status != "manual" {
+		t.Errorf("downstream jobs in the wrong order: %+v", djobs)
+	}
+	if err := c.PlayJob(ctx, forge.Project{ID: 4}, djobs[1]); err != nil || played != http.MethodPost {
+		t.Errorf("play: %v, method %q", err, played)
 	}
 	repo := forge.Project{ID: 3}
 	bp, bjobs, err := c.BranchPipelineJobs(ctx, repo, "feat/x")
-	if err != nil || bp == nil || bp.Ref != "feat/x" || len(bjobs) != 2 {
+	if err != nil || bp == nil || bp.Ref != "feat/x" || len(bjobs) != 3 {
 		t.Fatalf("branch pipeline %+v, jobs %+v, err %v", bp, bjobs, err)
 	}
 	if log, err := c.JobLog(ctx, repo, jobs[0]); err != nil || log != "FAIL TestThing\n" {
