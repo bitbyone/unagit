@@ -15,7 +15,7 @@ import (
 // Version is the shape of the cached indexes. It goes up whenever a field is
 // added that an older cache cannot have, so the interface can say a refresh
 // would bring something new rather than leaving a column quietly empty.
-const Version = 2
+const Version = 3
 
 // Projects is the cached project index.
 type Projects struct {

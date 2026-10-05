@@ -140,7 +140,7 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 	// NEW: commits pushed since your last review; CI: the head's pipeline.
 	// NEW, APPR and CI take room only when a row has something in them:
 	// a list nobody has reviewed, approved or built keeps its titles whole.
-	c := mrColumns{iid: 3, updated: 8, com: 3}
+	c := mrColumns{iid: 3, updated: 8, com: len("COM")}
 	if a.cfg.Integrations.Incomm {
 		c.pub = 3 // PUB: what waits to be published from Incomm
 	}
@@ -154,8 +154,10 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		if a.mrFresh[keyOfMR(mr)] != 0 {
 			c.fresh = 3
 		}
-		if appr, _ := approvalWords(mr, a.me[mr.Instance]); appr != "" {
-			c.appr = 4
+		_, comW := commentWords(mr)
+		c.com = max(c.com, comW)
+		if _, w := approvalWords(mr, a.me[mr.Instance]); w > 0 {
+			c.appr = max(c.appr, w, len("APPR"))
 		}
 		if mr.Pipeline != "" {
 			c.ci = 2
@@ -313,7 +315,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			pad := strings.Repeat(" ", max(0, c.title-len([]rune(short))-6))
 			titleField = field{raw: "[::d]draft[::-] " + tag(colText) + tview.Escape(short) + tagEnd + pad}
 		}
-		comments, commentsColour := commentWords(mr)
+		comments, commentsW := commentWords(mr)
 		pending := ""
 		if disk.Pending > 0 {
 			pending = fmt.Sprintf("%d", disk.Pending)
@@ -334,14 +336,14 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if c.fresh > 0 {
 			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
 		}
-		fields = append(fields, field{text: comments, width: c.com, colour: commentsColour, right: true})
+		fields = append(fields, field{raw: rightAligned(comments, commentsW, c.com)})
 		if c.pub > 0 {
 			fields = append(fields, field{text: pending, width: c.pub, colour: role("merge_requests.pending"), right: true})
 		}
 		ci, ciColour := ciMark(mr.Pipeline)
-		appr, apprColour := approvalWords(mr, a.me[mr.Instance])
+		appr, apprW := approvalWords(mr, a.me[mr.Instance])
 		if c.appr > 0 {
-			fields = append(fields, field{text: appr, width: c.appr, colour: apprColour})
+			fields = append(fields, field{raw: rightAligned(appr, apprW, c.appr)})
 		}
 		if c.ci > 0 {
 			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
@@ -808,40 +810,51 @@ func (a *App) loadMRFresh() {
 	}()
 }
 
-// commentWords is the COM column: the threads not resolved yet, in amber,
-// where the forge can tell them; otherwise how many have said something.
-func commentWords(mr forge.MergeRequest) (string, tcell.Color) {
+// commentWords is the COM column: where the forge can tell, the threads
+// still to resolve, those resolved and the comments in all, as 2/4/9 in
+// their own colours; where it cannot, the comments alone. It comes back as
+// markup and the cells it takes.
+func commentWords(mr forge.MergeRequest) (string, int) {
+	all := fmt.Sprint(mr.Comments)
 	switch {
-	case mr.UnresolvedKnown && mr.Unresolved > 0:
-		return fmt.Sprintf("%d", mr.Unresolved), colWarn
-	case mr.UnresolvedKnown && mr.Comments > 0:
-		return glyphCheck, colDim
+	case mr.UnresolvedKnown && (mr.Unresolved > 0 || mr.Resolved > 0 || mr.Comments > 0):
+		open, done := fmt.Sprint(mr.Unresolved), fmt.Sprint(mr.Resolved)
+		return tag(role("comments.unresolved")) + open + tagEnd + tag(colDim) + "/" + tagEnd +
+				tag(role("comments.resolved")) + done + tagEnd + tag(colDim) + "/" + tagEnd +
+				tag(role("comments.all")) + all + tagEnd,
+			len(open) + len(done) + len(all) + 2
 	case mr.Comments > 0:
-		return fmt.Sprintf("%d", mr.Comments), colMuted
+		return tag(role("comments.all")) + all + tagEnd, len(all)
 	}
-	return "", colDim
+	return "", 0
 }
 
-// approvalWords is the APPR column: ✓ when you have approved, else how many
-// of the approvals asked for are in, or how many there are when none is
-// asked for.
-func approvalWords(mr forge.MergeRequest, me string) (string, tcell.Color) {
+// approvalWords is the APPR column: the approvals given of those asked
+// for, as 1/2 - amber while some are missing, green once all are in - and
+// a mark before it when one of them is yours. It comes back as markup and
+// the cells it takes.
+func approvalWords(mr forge.MergeRequest, me string) (string, int) {
 	n := len(mr.ApprovedBy)
+	if n == 0 && mr.ApprovalsRequired == 0 {
+		return "", 0
+	}
+	colour := role("approvals.missing")
+	if n >= mr.ApprovalsRequired {
+		colour = role("approvals.done")
+	}
+	words := fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired)
+	markup, width := tag(colour)+words+tagEnd, len(words)
 	for _, who := range mr.ApprovedBy {
 		if who == me && me != "" {
-			if mr.ApprovalsRequired > n {
-				return fmt.Sprintf("%s%d/%d", glyphCheck, n, mr.ApprovalsRequired), colOn
-			}
-			return glyphCheck, colOn
+			markup = tag(role("approvals.mine")) + glyphApproved + tagEnd + markup
+			width += len([]rune(glyphApproved))
+			break
 		}
 	}
-	switch {
-	case mr.ApprovalsRequired > 0 && n >= mr.ApprovalsRequired:
-		return fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired), colOn
-	case mr.ApprovalsRequired > 0:
-		return fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired), colWarn
-	case n > 0:
-		return fmt.Sprintf("%d", n), colMuted
-	}
-	return "", colDim
+	return markup, width
+}
+
+// rightAligned is markup of a width padded on the left to fill cells.
+func rightAligned(markup string, width, cells int) string {
+	return strings.Repeat(" ", max(0, cells-width)) + markup
 }

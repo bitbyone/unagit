@@ -51,7 +51,7 @@ var (
 	glyphCheck, glyphCross, glyphDot, glyphRing                    string
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried        string
 	glyphUser, glyphStarred                                        string
-	glyphCIDone, glyphCIIdle                                       string
+	glyphCIDone, glyphCIIdle, glyphApproved                        string
 	glyphAhead, glyphBehind                                        string
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator         string
 	glyphMask                                                      rune
@@ -151,7 +151,7 @@ func setTheme(t Theme) {
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried
 	glyphUser, glyphStarred = g.User, g.Starred
-	glyphCIDone, glyphCIIdle = g.CIDone, g.CIIdle
+	glyphCIDone, glyphCIIdle, glyphApproved = g.CIDone, g.CIIdle, g.Approved
 	glyphAhead, glyphBehind = g.Ahead, g.Behind
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
 	glyphMask = rune0(g.Mask)

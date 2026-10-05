@@ -545,7 +545,7 @@ func TestPipelineJobsLogsRetryAndThreads(t *testing.T) {
 	if err := c.RetryJob(ctx, repo, jobs[0]); err != nil || retried != http.MethodPost {
 		t.Errorf("retry: %v, method %q", err, retried)
 	}
-	if n, known, err := c.UnresolvedThreads(ctx, mr); err != nil || !known || n != 1 {
+	if n, done, known, err := c.Threads(ctx, mr); err != nil || !known || n != 1 || done != 1 {
 		t.Errorf("unresolved = %d, %v, %v; want 1 thread", n, known, err)
 	}
 }

@@ -191,3 +191,30 @@ func TestALogFollowsTheTerminal(t *testing.T) {
 		t.Errorf("the row lost its age to the subject: %q", line)
 	}
 }
+
+// TestCommentsAndApprovalsRead: COM is open/resolved/all where the forge can
+// tell, else the comments alone; APPR is approvals of those asked for, with
+// a mark when one is yours; each in exactly the cells it says.
+func TestCommentsAndApprovalsRead(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		mr       forge.MergeRequest
+		com, apr string
+	}{
+		{forge.MergeRequest{UnresolvedKnown: true, Unresolved: 2, Resolved: 4, Comments: 9}, "2/4/9", ""},
+		{forge.MergeRequest{UnresolvedKnown: true, Comments: 3}, "0/0/3", ""},
+		{forge.MergeRequest{Comments: 6}, "6", ""},
+		{forge.MergeRequest{ApprovedBy: []string{"jane"}, ApprovalsRequired: 2}, "", "1/2"},
+		{forge.MergeRequest{ApprovedBy: []string{"me", "jane"}, ApprovalsRequired: 2}, "", glyphApproved + "2/2"},
+		{forge.MergeRequest{ApprovedBy: []string{"jane"}}, "", "1/0"},
+	} {
+		com, comW := commentWords(c.mr)
+		if got := plainText(com); got != c.com || comW != len([]rune(c.com)) {
+			t.Errorf("COM of %+v = %q (%d cells), want %q", c.mr, got, comW, c.com)
+		}
+		apr, aprW := approvalWords(c.mr, "me")
+		if got := plainText(apr); got != c.apr || aprW != len([]rune(c.apr)) {
+			t.Errorf("APPR of %+v = %q (%d cells), want %q", c.mr, got, aprW, c.apr)
+		}
+	}
+}

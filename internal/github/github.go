@@ -1083,10 +1083,10 @@ func (c *Client) DownstreamJobs(ctx context.Context, job forge.Job) (*forge.Pipe
 	return nil, nil, errors.New("GitHub's checks start no pipelines of their own")
 }
 
-// UnresolvedThreads cannot be told through GitHub's REST API, which does not
+// Threads cannot be told through GitHub's REST API, which does not
 // say whether a review thread is resolved.
-func (c *Client) UnresolvedThreads(ctx context.Context, mr forge.MergeRequest) (int, bool, error) {
-	return 0, false, nil
+func (c *Client) Threads(ctx context.Context, mr forge.MergeRequest) (int, int, bool, error) {
+	return 0, 0, false, nil
 }
 
 // combinedStatus rolls GitHub's per commit statuses into one pipeline.

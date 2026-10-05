@@ -45,6 +45,14 @@ var colourRoles = []colourRole{
 	{"column.size", "text.muted", "what it takes on disk, when the theme has no heat"},
 	{"column.age", "text.muted", "how long ago: activity, updated, created"},
 
+	// A merge request's threads and approvals.
+	{"comments.unresolved", "state.warning", "threads still to resolve"},
+	{"comments.resolved", "state.good", "threads resolved"},
+	{"comments.all", "column.mr", "comments in all"},
+	{"approvals.missing", "state.warning", "approvals still missing"},
+	{"approvals.done", "state.good", "every approval asked for is in"},
+	{"approvals.mine", "state.good", "the mark of your own approval"},
+
 	// A pipeline's state, wherever it is drawn.
 	{"ci.success", "state.good", "a pipeline or a job that passed"},
 	{"ci.failed", "state.bad", "one that failed"},

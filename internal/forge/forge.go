@@ -103,12 +103,14 @@ type MergeRequest struct {
 	Assignees []User `json:"assignees,omitempty"`
 	// Pipeline is the status of the head's latest pipeline, "" for none.
 	// The listings do not carry it, nor the approvals and the threads not
-	// resolved; unagit asks for them on refresh. Unresolved means something
-	// only where UnresolvedKnown says the forge could tell.
+	// resolved; unagit asks for them on refresh. Unresolved and Resolved -
+	// threads still to resolve and threads resolved - mean something only
+	// where UnresolvedKnown says the forge could tell.
 	Pipeline          string   `json:"pipeline,omitempty"`
 	ApprovedBy        []string `json:"approved_by,omitempty"`
 	ApprovalsRequired int      `json:"approvals_required,omitempty"`
 	Unresolved        int      `json:"unresolved,omitempty"`
+	Resolved          int      `json:"resolved,omitempty"`
 	UnresolvedKnown   bool     `json:"unresolved_known,omitempty"`
 	// Comments is how many people have said something. GitLab reports it on
 	// the listing; GitHub only on a single merge request, so there it stays
@@ -399,9 +401,10 @@ type Provider interface {
 	Jobs(ctx context.Context, p Project, pipe Pipeline) ([]Job, error)
 	// CommitFiles is what a commit changed, file by file.
 	CommitFiles(ctx context.Context, p Project, sha string) ([]FileChange, error)
-	// UnresolvedThreads counts the threads not resolved yet; known is false
+	// Threads counts the threads to resolve, those not resolved yet and those
+	// resolved; known is false
 	// where the forge cannot say.
-	UnresolvedThreads(ctx context.Context, mr MergeRequest) (n int, known bool, err error)
+	Threads(ctx context.Context, mr MergeRequest) (unresolved, resolved int, known bool, err error)
 
 	// Approve records an approval of the merge request as the token's owner.
 	Approve(ctx context.Context, mr MergeRequest) error

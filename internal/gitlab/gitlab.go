@@ -838,22 +838,30 @@ func (c *Client) PlayJob(ctx context.Context, p forge.Project, job forge.Job) er
 	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/play", struct{}{})
 }
 
-// UnresolvedThreads counts the discussions with a note still to resolve.
-func (c *Client) UnresolvedThreads(ctx context.Context, mr forge.MergeRequest) (int, bool, error) {
+// Threads counts the discussions to resolve: those with a note still to
+// resolve, and those resolved.
+func (c *Client) Threads(ctx context.Context, mr forge.MergeRequest) (int, int, bool, error) {
 	discussions, err := getAll[discussion](ctx, c, mrPath(mr)+"/discussions", nil)
 	if err != nil {
-		return 0, false, err
+		return 0, 0, false, err
 	}
-	n := 0
+	unresolved, resolved := 0, 0
 	for _, d := range discussions {
+		resolvable, open := false, false
 		for _, note := range d.Notes {
-			if note.Resolvable && !note.Resolved {
-				n++
-				break
+			if note.Resolvable {
+				resolvable = true
+				open = open || !note.Resolved
 			}
 		}
+		switch {
+		case open:
+			unresolved++
+		case resolvable:
+			resolved++
+		}
 	}
-	return n, true, nil
+	return unresolved, resolved, true, nil
 }
 
 // getText is a GET whose answer is plain text, a job's trace.

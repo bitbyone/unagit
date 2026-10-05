@@ -1149,7 +1149,7 @@ func (a *App) onLoopWait(ctx context.Context, fn func()) bool {
 func keepExtras(mr *forge.MergeRequest, old forge.MergeRequest) {
 	mr.Pipeline = old.Pipeline
 	mr.ApprovedBy, mr.ApprovalsRequired = old.ApprovedBy, old.ApprovalsRequired
-	mr.Unresolved, mr.UnresolvedKnown = old.Unresolved, old.UnresolvedKnown
+	mr.Unresolved, mr.Resolved, mr.UnresolvedKnown = old.Unresolved, old.Resolved, old.UnresolvedKnown
 }
 
 // mrExtras fills in what the listings leave out - the pipeline, the
@@ -1195,17 +1195,17 @@ func mrExtras(ctx context.Context, mrs []forge.MergeRequest, which []int, client
 					approvedBy, required = ap.ApprovedBy, ap.Required
 				}
 			}()
-			unresolved, known := asked.Unresolved, asked.UnresolvedKnown
+			unresolved, resolved, known := asked.Unresolved, asked.Resolved, asked.UnresolvedKnown
 			go func() {
 				defer each.Done()
-				if n, k, err := client.UnresolvedThreads(ctx, asked); err == nil {
-					unresolved, known = n, k
+				if open, done, k, err := client.Threads(ctx, asked); err == nil {
+					unresolved, resolved, known = open, done, k
 				}
 			}()
 			each.Wait()
 			mr.Pipeline = pipeline
 			mr.ApprovedBy, mr.ApprovalsRequired = approvedBy, required
-			mr.Unresolved, mr.UnresolvedKnown = unresolved, known
+			mr.Unresolved, mr.Resolved, mr.UnresolvedKnown = unresolved, resolved, known
 		}(&mrs[i])
 	}
 	wg.Wait()

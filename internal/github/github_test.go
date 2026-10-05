@@ -765,7 +765,7 @@ func TestChecksAreThePipeline(t *testing.T) {
 	if err != nil || bp == nil || bp.Status != "running" || bp.Ref != "main" || len(bjobs) != 1 {
 		t.Errorf("branch pipeline %+v, jobs %+v, err %v", bp, bjobs, err)
 	}
-	if _, known, _ := c.UnresolvedThreads(ctx, forge.MergeRequest{}); known {
+	if _, _, known, _ := c.Threads(ctx, forge.MergeRequest{}); known {
 		t.Error("GitHub claims to know which threads are resolved")
 	}
 }
