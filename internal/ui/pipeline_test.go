@@ -88,6 +88,67 @@ func TestJobsStillToRun(t *testing.T) {
 	}
 }
 
+// TestARunningPipelineIsFollowed: the jobs of a running pipeline and the
+// log of a running job are read again as they go, the log keeping to its
+// end, and the following stops once the job is done.
+func TestARunningPipelineIsFollowed(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	changeOnLoop(a, func() { a.ciEvery = 50 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, glyphTrigger+" e2e")
+	typeRunes(sc, "G")
+	waitFor(t, a, sc, "Enter lists its jobs")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "browser tests")
+	waitFor(t, a, sc, "running · following")
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "step one")
+	waitFor(t, a, sc, "browser tests · running · following")
+	srv.e2eLog.Store("step two\n")
+	waitFor(t, a, sc, "step two")
+	srv.e2eLog.Store("step two\nall green\n")
+	srv.e2eDone.Store(true)
+	waitFor(t, a, sc, "all green")
+	waitFor(t, a, sc, "browser tests · success")
+	waitGone(t, a, sc, "following")
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "all green")
+	// Back on the child pipeline, read again and no longer followed.
+	waitFor(t, a, sc, glyphTrigger+" e2e · "+glyphCheck+" success")
+	if strings.Contains(a.screenText(sc), "following") {
+		t.Errorf("a finished pipeline is still followed:\n%s", a.screenText(sc))
+	}
+}
+
+// TestTheJobsFollowTheirPipeline: the list of a running pipeline's jobs
+// changes in place as the jobs do, the cursor where it was.
+func TestTheJobsFollowTheirPipeline(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	changeOnLoop(a, func() { a.ciEvery = 50 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, glyphTrigger+" e2e")
+	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "running · following")
+	list := onLoop(a, func() *tview.List { l, _ := a.tv.GetFocus().(*tview.List); return l })
+	srv.e2eDone.Store(true)
+	waitFor(t, a, sc, "browser tests · success")
+	waitGone(t, a, sc, "following")
+	if same := onLoop(a, func() bool { l, _ := a.tv.GetFocus().(*tview.List); return l == list }); !same {
+		t.Error("the jobs were opened again rather than put in place")
+	}
+}
+
 // TestTheBrowserLeavesThePipelineOpen: w and W open the job and the
 // pipeline in the browser and the jobs stay on screen, the cursor where it
 // was. Serial: it swaps the browser.

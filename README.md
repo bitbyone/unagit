@@ -165,8 +165,13 @@ all and live only there.
   pipeline it started and `Esc` comes back. `Enter` reads a job's log - its end,
   in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
   `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
-  the pipeline, and the jobs stay open behind the browser. On GitHub the
-  jobs are the check runs, and the log is GitHub Actions'.
+  the pipeline, and the jobs stay open behind the browser. While a pipeline
+  runs, its jobs are read again every few seconds and change in place
+  (the title says "following"), and a running job's log keeps growing at
+  its end, as `tail -f` does, unless you have scrolled up; neither forge
+  pushes changes, so this is asking again, and it stops when nothing
+  moves any more. On GitHub the jobs are the check runs, and the log is
+  GitHub Actions', which GitHub gives only once the job has finished.
 - `v` in Merge requests narrows them to yours, to those you review or are
   assigned to, or both, and can leave the drafts out.
 - When `R` finds a merge request merged or closed, its worktrees are removed

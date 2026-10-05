@@ -100,6 +100,9 @@ type App struct {
 	me map[string]string
 	// people is what the accounts of each server are called (people.go).
 	people index.Users
+	// ciEvery is how often a running pipeline is read again; 0 is the
+	// usual five seconds, and tests make it short.
+	ciEvery time.Duration
 	// mrFresh counts the commits pushed to a merge request since its review
 	// last checked out its head, -1 when there are some not yet on disk;
 	// freshGen numbers its loads.

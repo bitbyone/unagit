@@ -137,6 +137,21 @@ type pickerOptions struct {
 	// back, when set, is where Esc goes after closing the picker: a list
 	// opened from another goes back to it.
 	back func()
+	// same tells whether two items are the same thing, for a picker whose
+	// items are put again while it is open: the cursor stays on it. Unset,
+	// the labels are compared.
+	same func(a, b pickItem) bool
+}
+
+// livePicker is a picker that is open, whose items can be put again while
+// it is - a list of something that changes as it is watched. Both run on
+// the event loop.
+type livePicker struct {
+	// open reports whether the picker is still on screen.
+	open func() bool
+	// set puts new items and a new title in, the cursor kept on the item
+	// it was on and the filter kept as typed.
+	set func(title string, items []pickItem)
 }
 
 // widePct is how much of the screen across a wide picker takes.
@@ -156,7 +171,7 @@ type pickKey struct {
 	stay bool
 }
 
-func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) {
+func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) *livePicker {
 	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
@@ -383,9 +398,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	inner = min(inner, 76)
 
 	extra := 0
+	explain := func(int) {}
 	if opts.explain {
 		about := tview.NewTextView().SetWrap(true).SetWordWrap(true).SetTextColor(colMuted)
-		explain := func(i int) {
+		explain = func(i int) {
 			if i >= 0 && i < len(shown) {
 				about.SetText(shown[i].About)
 				return
@@ -432,15 +448,48 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 		}
 	}
+	var page tview.Primitive
 	if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
-		a.pages.AddPage(pagePicker, modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines), true, true)
+		page = modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines)
 	} else if opts.wide {
-		a.pages.AddPage(pagePicker, modalPct(frame, widePct, 75), true, true)
+		page = modalPct(frame, widePct, 75)
 	} else {
-		a.pages.AddPage(pagePicker, modalPct(frame, 70, 70), true, true)
+		page = modalPct(frame, 70, 70)
 	}
+	a.pages.AddPage(pagePicker, page, true, true)
 	setMode(false)
+
+	same := opts.same
+	if same == nil {
+		same = func(a, b pickItem) bool { return a.Label == b.Label }
+	}
+	return &livePicker{
+		open: func() bool { return a.pages.GetPage(pagePicker) == page },
+		set: func(title string, next []pickItem) {
+			var current *pickItem
+			if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+				it := shown[i]
+				current = &it
+			}
+			at := list.GetCurrentItem()
+			items = next
+			rebuild(input.GetText())
+			if current != nil {
+				for i, it := range shown {
+					if same(it, *current) {
+						at = i
+						break
+					}
+				}
+			}
+			if at >= 0 && at < list.GetItemCount() {
+				list.SetCurrentItem(at)
+			}
+			explain(list.GetCurrentItem())
+			box(flex.Box, title)
+		},
+	}
 }
 
 // rule is a line across a dialog, setting a pane apart from what is above.

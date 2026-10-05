@@ -139,28 +139,19 @@ func (a *App) showPipelineThen(target ciTarget, focus int64, then func()) {
 	})
 }
 
-// listJobs shows the jobs of a pipeline.
+// listJobs shows the jobs of a pipeline, and while it runs follows it: the
+// jobs are read again every so often and put in place, the cursor staying
+// on the job it was on.
 func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, focus int64) {
 	if len(jobs) == 0 {
 		mark, _ := ciMark(pipe.Status)
 		a.note(fmt.Sprintf("%s: %s %s, no jobs to show", target.label, mark, pipe.Status))
 		return
 	}
-	nameW, stageW := 0, 0
-	for _, j := range jobs {
-		nameW = max(nameW, len([]rune(jobName(j))))
-		stageW = max(stageW, len([]rune(j.Stage)))
-	}
-	nameW = min(nameW, 48)
-	items := make([]pickItem, len(jobs))
+	// state is the pipeline as last read; the follower puts it again.
+	state := &pipelineState{pipe: pipe, jobs: jobs}
 	start := -1
 	for i, j := range jobs {
-		items[i] = pickItem{
-			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", jobMark(j), stageW, j.Stage, nameW, trim(jobName(j), nameW))),
-			Sub:   esc(strings.TrimSpace(j.Status + "  " + duration(j.Duration))),
-			About: esc(jobAbout(j)),
-			Data:  i,
-		}
 		switch {
 		case j.ID == focus && focus != 0:
 			start = i
@@ -168,18 +159,18 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 			start = i
 		}
 	}
-	at := func(it pickItem) forge.Job { return jobs[it.Data.(int)] }
+	at := func(it pickItem) forge.Job { return it.Data.(forge.Job) }
 	back := func(it pickItem) func() {
-		return func() { a.listJobs(target, pipe, jobs, at(it).ID) }
+		return func() { a.listJobs(target, state.pipe, state.jobs, at(it).ID) }
 	}
-	mark, _ := ciMark(pipe.Status)
-	title := fmt.Sprintf("Pipeline · %s · %s %s", target.label, mark, pipe.Status)
-	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", back: target.back, keys: []pickKey{
-		{keys: "R", hint: "run", run: func(it pickItem) { a.runJob(target, at(it)) }},
-		{keys: "w", hint: "browser", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
-		{keys: "W", hint: "pipeline", stay: true, run: func(it pickItem) { a.openWeb(pipe.WebURL) }},
-	}}
-	a.showPickerWith(title, items, opts, func(it pickItem) {
+	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", back: target.back,
+		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
+		keys: []pickKey{
+			{keys: "R", hint: "run", run: func(it pickItem) { a.runJob(target, at(it)) }},
+			{keys: "w", hint: "browser", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
+			{keys: "W", hint: "pipeline", stay: true, run: func(it pickItem) { a.openWeb(state.pipe.WebURL) }},
+		}}
+	picker := a.showPickerWith(state.title(target), jobItems(jobs), opts, func(it pickItem) {
 		job := at(it)
 		if job.Trigger {
 			a.showDownstream(target, job, back(it))
@@ -187,6 +178,104 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		}
 		a.showJobLog(target, job, back(it))
 	})
+	if state.moving() {
+		go a.followPipeline(target, state, picker)
+	}
+}
+
+// pipelineState is a pipeline and its jobs as last read.
+type pipelineState struct {
+	pipe *forge.Pipeline
+	jobs []forge.Job
+}
+
+// moving reports whether the pipeline will change by itself: it, or a job
+// of it, is running or waiting its turn or its time. One that waits only
+// for a hand does not.
+func (s *pipelineState) moving() bool {
+	if ciStateOf(s.pipe.Status) == ciRunning {
+		return true
+	}
+	for _, j := range s.jobs {
+		if jobMoving(j) {
+			return true
+		}
+	}
+	return false
+}
+
+// jobMoving reports whether a job will change by itself.
+func jobMoving(j forge.Job) bool { return ciStateOf(j.Status) == ciRunning || j.Status == "scheduled" }
+
+// title is the jobs' title: whose pipeline, how it stands, and whether it
+// is being followed.
+func (s *pipelineState) title(target ciTarget) string {
+	mark, _ := ciMark(s.pipe.Status)
+	title := fmt.Sprintf("Pipeline · %s · %s %s", target.label, mark, s.pipe.Status)
+	if s.moving() {
+		title += " · following"
+	}
+	return title
+}
+
+// jobItems are the rows of the jobs, each carrying its job.
+func jobItems(jobs []forge.Job) []pickItem {
+	nameW, stageW := 0, 0
+	for _, j := range jobs {
+		nameW = max(nameW, len([]rune(jobName(j))))
+		stageW = max(stageW, len([]rune(j.Stage)))
+	}
+	nameW = min(nameW, 48)
+	items := make([]pickItem, len(jobs))
+	for i, j := range jobs {
+		items[i] = pickItem{
+			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", jobMark(j), stageW, j.Stage, nameW, trim(jobName(j), nameW))),
+			Sub:   esc(strings.TrimSpace(j.Status + "  " + duration(j.Duration))),
+			About: esc(jobAbout(j)),
+			Data:  j,
+		}
+	}
+	return items
+}
+
+// followEvery is how often a running pipeline is read again; a running
+// job's log is read a little more often.
+func (a *App) followEvery() time.Duration {
+	if a.ciEvery > 0 {
+		return a.ciEvery
+	}
+	return 5 * time.Second
+}
+
+// followPipeline reads a running pipeline again every so often and puts
+// its jobs in the picker, until the picker is closed or nothing in the
+// pipeline moves any more. A failed reading is tried again next time.
+func (a *App) followPipeline(target ciTarget, state *pipelineState, picker *livePicker) {
+	client := a.client(target.instance)
+	if client == nil {
+		return
+	}
+	for {
+		time.Sleep(a.followEvery())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		var still bool
+		if !a.onLoopWait(ctx, func() { still = picker.open() && state.moving() }) || !still {
+			cancel()
+			return
+		}
+		pipe, jobs, err := target.load(ctx, client)
+		cancel()
+		if err != nil || pipe == nil {
+			continue
+		}
+		a.tv.QueueUpdateDraw(func() {
+			if !picker.open() {
+				return
+			}
+			state.pipe, state.jobs = pipe, jobs
+			picker.set(state.title(target), jobItems(jobs))
+		})
+	}
 }
 
 // waitsForAHand reports whether a job runs only when started: a manual
@@ -364,26 +453,50 @@ func keptSGR(seq string) string {
 	return "\x1b[" + strings.Join(kept, ";") + "m"
 }
 
-// showJobLog reads a job's log and shows its end; Esc goes back.
+// showJobLog reads a job's log and shows its end; Esc goes back. While the
+// job runs the log is read again every so often, and when the end is in
+// view it stays in view, as tail -f does.
 func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 	client := a.client(target.instance)
 	var text string
 	a.runTaskThen("Reading the log of "+job.Name, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		raw, err := client.JobLog(ctx, target.project, job)
-		text = logMarkup(raw)
+		var err error
+		text, err = readJobLog(ctx, client, target, job)
 		return "", err
 	}, func(string) {
 		view := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetScrollable(true).SetTextColor(colText)
 		view.SetText(text)
 		view.ScrollToEnd()
-		mark, _ := ciMark(job.Status)
-		box(view.Box, fmt.Sprintf("%s %s · %s", mark, job.Name, job.Status))
+		title := func(j forge.Job) string {
+			t := fmt.Sprintf("%s %s · %s", jobMark(j), j.Name, j.Status)
+			if jobMoving(j) {
+				t += " · following"
+			}
+			return t
+		}
+		box(view.Box, title(job))
 		hintPanel(view.Box, func() string {
 			return "j/k scroll · Ctrl-D/U half a page · Ctrl-F/B page · g/G top/end · w browser · Esc back to the jobs"
 		}, 0, 0, 1, 1)
+		// atEnd is whether the reader is at the end, where new lines are
+		// followed; scrolling up leaves it, G comes back to it.
+		atEnd := true
 		view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+			switch ev.Key() {
+			case tcell.KeyUp, tcell.KeyPgUp, tcell.KeyHome, tcell.KeyCtrlU, tcell.KeyCtrlB:
+				atEnd = false
+			case tcell.KeyEnd:
+				atEnd = true
+			case tcell.KeyRune:
+				switch ev.Rune() {
+				case 'k', 'g':
+					atEnd = false
+				case 'G':
+					atEnd = true
+				}
+			}
 			if halfPage(view, ev) {
 				return nil
 			}
@@ -398,7 +511,68 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 			}
 			return ev
 		})
-		a.pages.AddPage(pageCommit, modalPct(view, 90, 85), true, true)
+		page := modalPct(view, 90, 85)
+		a.pages.AddPage(pageCommit, page, true, true)
 		a.tv.SetFocus(view)
+		if jobMoving(job) {
+			open := func() bool { return a.pages.GetPage(pageCommit) == page }
+			go a.followLog(target, job, open, func(j forge.Job, text string) {
+				row, col := view.GetScrollOffset()
+				view.SetText(text)
+				if atEnd {
+					view.ScrollToEnd()
+				} else {
+					view.ScrollTo(row, col)
+				}
+				box(view.Box, title(j))
+			})
+		}
 	})
+}
+
+// readJobLog is a job's log as markup. GitHub gives a log only once its
+// job has finished, and that is said in its place rather than as an error.
+func readJobLog(ctx context.Context, client forge.Provider, target ciTarget, job forge.Job) (string, error) {
+	raw, err := client.JobLog(ctx, target.project, job)
+	if err != nil && jobMoving(job) && client.Kind() == forge.KindGitHub {
+		return tag(colMuted) + "GitHub gives a job's log once the job has finished; it appears here then." + tagEnd, nil
+	}
+	return logMarkup(raw), err
+}
+
+// followLog reads a running job and its log again every so often and hands
+// both to show, until the log is closed or the job is done - read once
+// more then, so its last lines are there.
+func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show func(forge.Job, string)) {
+	client := a.client(target.instance)
+	if client == nil {
+		return
+	}
+	for jobMoving(job) {
+		time.Sleep(a.followEvery() * 3 / 5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		var still bool
+		if !a.onLoopWait(ctx, func() { still = open() }) || !still {
+			cancel()
+			return
+		}
+		if _, jobs, err := target.load(ctx, client); err == nil {
+			for _, j := range jobs {
+				if j.ID == job.ID {
+					job = j
+				}
+			}
+		}
+		text, err := readJobLog(ctx, client, target, job)
+		cancel()
+		if err != nil {
+			continue
+		}
+		current := job
+		a.tv.QueueUpdateDraw(func() {
+			if open() {
+				show(current, text)
+			}
+		})
+	}
 }

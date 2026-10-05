@@ -64,6 +64,10 @@ type fakeServer struct {
 	holdMRList   atomic.Value // chan struct{}
 	// namesAsked counts the questions about an account's name.
 	namesAsked atomic.Int64
+	// e2eDone ends the child pipeline's job, and e2eLog is what it has
+	// written after its first line.
+	e2eDone atomic.Bool
+	e2eLog  atomic.Value
 	// writes are the changes !7 was sent - a merge, a title, a state, its
 	// reviewers - each as "METHOD path body".
 	writesMu sync.Mutex
@@ -369,11 +373,24 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `[{"id":11,"name":"e2e","stage":"deploy","status":"running",
 			"downstream_pipeline":{"id":92,"project_id":1,"status":"running"}}]`)
 	})
+	// The child pipeline runs until a test says it is done, and its job
+	// writes the lines a test gives it.
+	e2eStatus := func() string {
+		if f.e2eDone.Load() {
+			return "success"
+		}
+		return "running"
+	}
 	mux.HandleFunc("/api/v4/projects/1/pipelines/92", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `{"id":92,"status":"running","web_url":"https://gl.test/acme/gateway/-/pipelines/92"}`)
+		json(w, fmt.Sprintf(`{"id":92,"status":%q,"web_url":"https://gl.test/acme/gateway/-/pipelines/92"}`, e2eStatus()))
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines/92/jobs", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `[{"id":30,"name":"browser tests","stage":"e2e","status":"running"}]`)
+		json(w, fmt.Sprintf(`[{"id":30,"name":"browser tests","stage":"e2e","status":%q}]`, e2eStatus()))
+	})
+	mux.HandleFunc("/api/v4/projects/1/jobs/30/trace", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		log, _ := f.e2eLog.Load().(string)
+		fmt.Fprint(w, "step one\n"+log)
 	})
 	mux.HandleFunc("/api/v4/projects/1/jobs/10/play", func(w http.ResponseWriter, r *http.Request) {
 		f.played.Add(1)
