@@ -45,6 +45,19 @@ var colourRoles = []colourRole{
 	{"column.size", "text.muted", "what it takes on disk, when the theme has no heat"},
 	{"column.age", "text.muted", "how long ago: activity, updated, created"},
 
+	// A pipeline's state, wherever it is drawn.
+	{"ci.success", "state.good", "a pipeline or a job that passed"},
+	{"ci.failed", "state.bad", "one that failed"},
+	{"ci.running", "text.accent", "one under way, or waiting its turn"},
+	{"ci.idle", "text.dim", "one skipped or canceled"},
+	{"ci.manual", "text.accent", "one waiting to be started by hand, or for its time"},
+
+	// The list of starred repositories.
+	{"starred.description", "text.muted", "what a starred repository says it is"},
+	{"starred.language", "text.dim", "the language it is written in"},
+	{"starred.stars", "state.favourite", "how many stars it has"},
+	{"starred.activity", "column.age", "how long ago it moved"},
+
 	// Badges in the tags column.
 	{"badge.starred.ink", "chezmoi.badge_ink", "the badge of a repository cloned from the stars"},
 	{"badge.starred.fill", "chezmoi.badge_fill", ""},

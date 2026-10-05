@@ -91,7 +91,7 @@ func TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "●1")
 	line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), "Rate limiting")]
-	if !strings.Contains(line, "●1") || !strings.Contains(line, "✗") {
+	if !strings.Contains(line, "●1") || !strings.Contains(line, " "+glyphCIDone+" ") {
 		t.Errorf("the row does not say what is new and how CI went: %q", line)
 	}
 	assertLegible(t, a, sc, "the merge request list")

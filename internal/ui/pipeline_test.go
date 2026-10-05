@@ -21,7 +21,7 @@ func TestAPipelineUpClose(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gJ")
-	waitFor(t, a, sc, "Pipeline · acme/gateway !7 · ✗ failed")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7 · "+glyphCIDone+" failed")
 	waitFor(t, a, sc, "unit tests")
 	assertLegible(t, a, sc, "a pipeline's jobs")
 
@@ -121,7 +121,7 @@ func TestARunningPipelineIsFollowed(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "all green")
 	// Back on the child pipeline, read again and no longer followed.
-	waitFor(t, a, sc, glyphTrigger+" e2e · "+glyphCheck+" success")
+	waitFor(t, a, sc, glyphTrigger+" e2e · "+glyphCIDone+" success")
 	if strings.Contains(a.screenText(sc), "following") {
 		t.Errorf("a finished pipeline is still followed:\n%s", a.screenText(sc))
 	}
@@ -245,7 +245,7 @@ func TestARefreshSaysWhereToLook(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "1 pipeline failed")
-	waitFor(t, a, sc, "✗")
+	waitFor(t, a, sc, glyphCIDone)
 }
 
 // TestLogInColour: a job's log is drawn in its own colours, its brackets
@@ -406,7 +406,7 @@ func TestEarlierPipelinesAndAttempts(t *testing.T) {
 	// The cursor is on the failure that counts, not on the attempt before.
 	waitFor(t, a, sc, "unit tests · failed · 1m15s")
 	text := a.screenText(sc)
-	if lineOf(text, glyphRetried+" unit tests") > lineOf(text, "✗  test    unit tests") {
+	if lineOf(text, glyphRetried+" unit tests") > lineOf(text, glyphCIDone+"  test    unit tests") {
 		t.Errorf("the earlier attempt is not above the one that followed:\n%s", text)
 	}
 	typeRunes(sc, "k")
@@ -422,7 +422,7 @@ func TestEarlierPipelinesAndAttempts(t *testing.T) {
 	assertLegible(t, a, sc, "the pipelines of a merge request")
 	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "✓ success")
+	waitFor(t, a, sc, glyphCIDone+" success")
 	waitGone(t, a, sc, "deploy")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Pipelines · acme/gateway !7")
@@ -549,5 +549,57 @@ func TestTheLogStaysBehindTheBrowser(t *testing.T) {
 	}
 	if said := onLoop(a, func() string { return a.transient }); said != "" {
 		t.Errorf("the word went to the main screen's status line: %q", said)
+	}
+}
+
+// TestARunningPipelineTurnsAndIsFollowed: a shown merge request whose
+// pipeline runs has a turning mark in CI, is asked about again until the
+// pipeline has ended, and then the watching stops.
+func TestARunningPipelineTurnsAndIsFollowed(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	changeOnLoop(a, func() { a.ciAskEvery = 1500 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	changeOnLoop(a, func() {
+		for i := range a.mrs {
+			if a.mrs[i].IID == 9 {
+				a.mrs[i].Pipeline = "running"
+			}
+		}
+		a.mrsPane.reload()
+	})
+	frames := []rune(theme.Glyphs.CIRunning)
+	seen := map[rune]bool{}
+	deadline := time.Now().Add(patience)
+	for len(seen) < 2 {
+		line := rowWith(a, sc, "Invoice rounding")
+		for _, f := range frames {
+			if strings.ContainsRune(line, f) {
+				seen[f] = true
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the running pipeline's mark does not turn: %q", line)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// The fixture's pipeline for !9 passed: asked again, it ends.
+	for onLoop(a, func() bool { return a.ciWatching }) {
+		if time.Now().After(deadline) {
+			t.Fatal("the watching never stopped")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := onLoop(a, func() string {
+		for _, mr := range a.mrs {
+			if mr.IID == 9 {
+				return mr.Pipeline
+			}
+		}
+		return ""
+	}); got != "success" {
+		t.Errorf("!9's pipeline is %q after following it", got)
 	}
 }

@@ -180,6 +180,10 @@ type App struct {
 	repoSync    map[projectKey]remoteState
 	fetchFailed map[projectKey]string
 	fetching    int
+	// ciWatching is set while running pipelines are followed, and
+	// ciAskEvery is how often they are asked about; 0 is the usual (cipoll.go).
+	ciWatching bool
+	ciAskEvery time.Duration
 	// starred is the starred repositories that were cloned (starred.go).
 	starred []forge.Project
 	// repoSize is what each cloned repository takes on disk, its worktrees

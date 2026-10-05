@@ -240,6 +240,12 @@ type Glyphs struct {
 	// Spinner is the frames of what turns while a job runs behind the
 	// interface, one character each, in order.
 	Spinner string `json:"spinner"`
+	// CIRunning is the frames of a pipeline under way, turning in its
+	// column until it ends; CIDone the mark of one that passed or failed
+	// (its colour says which), CIIdle of one skipped or canceled.
+	CIRunning string `json:"ci_running"`
+	CIDone    string `json:"ci_done"`
+	CIIdle    string `json:"ci_idle"`
 }
 
 // readTheme reads one theme file over a base: what the file does not say
@@ -475,6 +481,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
 		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User, "glyphs.starred": g.Starred,
+		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator,
@@ -510,12 +517,15 @@ func (t Theme) validate() error {
 	}
 	problems = append(problems, roleProblems(t)...)
 	for key, value := range t.NerdGlyphs.named() {
-		if key == "nerd_glyphs.spinner" {
+		if key == "nerd_glyphs.spinner" || key == "nerd_glyphs.ci_running" {
 			continue
 		}
 		if utf8.RuneCountInString(value) != 1 {
 			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
 		}
+	}
+	if t.Glyphs.CIRunning == "" {
+		problems = append(problems, "glyphs.ci_running: it needs at least one frame")
 	}
 	if t.Glyphs.Spinner == "" {
 		problems = append(problems, "glyphs.spinner: it needs at least one frame")

@@ -81,7 +81,11 @@ func (a *App) newMRsPane() *pane {
 	}
 	p.screen = func() (string, []uiAction) { return "Merge requests", a.mergeRequestsActions(p) }
 
-	p.reload = func() { render(p.query) }
+	p.reload = func() {
+		render(p.query)
+		// A pipeline seen running is followed until it ends.
+		a.watchCI()
+	}
 	return p
 }
 
@@ -272,13 +276,14 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		field{text: "MR", width: c.iid, colour: role("merge_requests.header")},
 		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
 		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")},
-		field{text: "BRANCH", width: c.branch, colour: role("merge_requests.header")},
-		field{text: "COM", width: c.com, colour: role("merge_requests.header"), right: true})
-	if c.pub > 0 {
-		header = append(header, field{text: "PUB", width: c.pub, colour: role("merge_requests.header"), right: true})
-	}
+		field{text: "BRANCH", width: c.branch, colour: role("merge_requests.header")})
+	// NEW first: commits to look at come before what was said about them.
 	if c.fresh > 0 {
 		header = append(header, field{text: "NEW", width: c.fresh, colour: role("merge_requests.header"), right: true})
+	}
+	header = append(header, field{text: "COM", width: c.com, colour: role("merge_requests.header"), right: true})
+	if c.pub > 0 {
+		header = append(header, field{text: "PUB", width: c.pub, colour: role("merge_requests.header"), right: true})
 	}
 	if c.appr > 0 {
 		header = append(header, field{text: "APPR", width: c.appr, colour: role("merge_requests.header")})
@@ -325,16 +330,16 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},
 			titleField,
 			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")},
-			field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")},
-			field{text: comments, width: c.com, colour: commentsColour, right: true})
+			field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")})
+		if c.fresh > 0 {
+			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
+		}
+		fields = append(fields, field{text: comments, width: c.com, colour: commentsColour, right: true})
 		if c.pub > 0 {
 			fields = append(fields, field{text: pending, width: c.pub, colour: role("merge_requests.pending"), right: true})
 		}
 		ci, ciColour := ciMark(mr.Pipeline)
 		appr, apprColour := approvalWords(mr, a.me[mr.Instance])
-		if c.fresh > 0 {
-			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
-		}
 		if c.appr > 0 {
 			fields = append(fields, field{text: appr, width: c.appr, colour: apprColour})
 		}
@@ -654,17 +659,38 @@ var openBrowser = workspace.OpenBrowser
 // ciMark is a pipeline's status as one glyph and its colour; "" for none.
 // GitLab's words and GitHub's are both here.
 func ciMark(status string) (string, tcell.Color) {
+	switch status {
+	case "manual":
+		return glyphManual, role("ci.manual")
+	case "scheduled":
+		return glyphScheduled, role("ci.manual")
+	case "canceled", "cancelled", "skipped":
+		return glyphCIIdle, role("ci.idle")
+	}
 	switch ciStateOf(status) {
 	case ciNone:
 		return "", colDim
 	case ciPassed:
-		return glyphCheck, colOn
+		return glyphCIDone, role("ci.success")
 	case ciFailed:
-		return glyphCross, colBad
+		return glyphCIDone, role("ci.failed")
 	case ciRunning:
-		return glyphDot, colWarn
+		return ciFrame(), role("ci.running")
 	}
-	return glyphRing, colDim
+	return glyphCIIdle, role("ci.idle")
+}
+
+// ciTurn is how far the mark of a pipeline under way has turned; the
+// watcher of running pipelines turns it (cipoll.go).
+var ciTurn int
+
+// ciFrame is the mark of a pipeline under way, as far as it has turned.
+func ciFrame() string {
+	frames := []rune(theme.Glyphs.CIRunning)
+	if len(frames) == 0 {
+		return glyphDot
+	}
+	return string(frames[ciTurn%len(frames)])
 }
 
 // ciState is what a pipeline's status comes to, whichever forge's words it

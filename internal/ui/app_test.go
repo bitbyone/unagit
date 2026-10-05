@@ -271,6 +271,9 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"author":{"username":"bob","name":"Bob Ross"},"detailed_merge_status":"mergeable",
 			"created_at":"2026-09-19T10:00:00Z","updated_at":"2026-09-21T07:00:00Z"}`)
 	})
+	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":95,"status":"success"}]`)
+	})
 	mux.HandleFunc("/api/v4/projects/2/merge_requests/9/notes", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[]`)
 	})

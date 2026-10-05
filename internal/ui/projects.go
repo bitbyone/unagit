@@ -143,13 +143,13 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	branchW, actW, serverW, pathW, syncW := 6, 8, 0, 0, len("REMOTE")
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
-	mrW := 2
+	mrW, hiddenW := 2, 0
 	sizeW := len("SIZE")
 	for _, idx := range filtered {
 		pr := a.projects[idx]
 		sizeW = max(sizeW, len([]rune(a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}))))
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
-			mrW = 4
+			hiddenW = 1
 		}
 		words, _ := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		syncW = max(syncW, len([]rune(words)))
@@ -186,6 +186,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		minName = 20
 	)
 	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + sizeW + 1 + actW + gaps + 2
+	if hiddenW > 0 {
+		fixed += hiddenW + 1
+	}
 	if withServer {
 		fixed += serverW + 1
 	}
@@ -255,6 +258,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	if pathW > 0 {
 		header = append(header, field{text: "PATH", width: pathW, colour: role("repositories.header")})
 	}
+	// The mark of hidden merge requests is a column of its own, without a
+	// heading, so it stands in one column and the counts in another.
+	if hiddenW > 0 {
+		header = append(header, field{text: "", width: hiddenW, colour: role("repositories.header")})
+	}
 	header = append(header,
 		field{text: "MR", width: mrW, colour: role("repositories.header"), right: true},
 		field{text: "WT", width: wtW, colour: role("repositories.header"), right: true},
@@ -295,15 +303,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			mrCount = fmt.Sprintf("%d", n)
 		}
 		mrField := field{text: mrCount, width: mrW, colour: role("repositories.mr"), right: true}
+		hiddenMark := ""
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
-			// The mark quiet, the count in its own colour beside it.
-			hidden := tag(role("repositories.hidden")) + glyphHidden + tagEnd
-			width := 1
-			if mrCount != "" {
-				hidden += " " + tag(role("repositories.mr")) + mrCount + tagEnd
-				width += 1 + len(mrCount)
-			}
-			mrField = field{raw: strings.Repeat(" ", max(0, mrW-width)) + hidden}
+			hiddenMark = glyphHidden
 		}
 		wtCount := ""
 		if info.Worktrees > 0 {
@@ -334,6 +336,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: role("repositories.edits"), right: true})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
+		}
+		if hiddenW > 0 {
+			fields = append(fields, field{text: hiddenMark, width: hiddenW, colour: role("repositories.hidden")})
 		}
 		fields = append(fields,
 			mrField,

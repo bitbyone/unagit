@@ -203,7 +203,7 @@ func TestRRefreshesTheRow(t *testing.T) {
 	typeRunes(sc, "gr")
 	waitFor(t, a, sc, "!7 is up to date")
 	line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), "Rate limiting")]
-	if !strings.Contains(line, "1/2") || !strings.Contains(line, "✗") {
+	if !strings.Contains(line, "1/2") || !strings.Contains(line, glyphCIDone) {
 		t.Errorf("the row did not get its approvals and pipeline: %q", line)
 	}
 	if onLoop(a, func() bool { return a.mrsUpdated.IsZero() }) {

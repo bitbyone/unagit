@@ -33,7 +33,17 @@ func waitWritten(t *testing.T, srv *fakeServer, want string) string {
 func waitRowFetched(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	deadline := time.Now().Add(patience)
-	for !strings.Contains(rowWith(a, sc, "Rate limiting"), "✗") {
+	failed := func() bool {
+		return onLoop(a, func() bool {
+			for _, mr := range a.mrs {
+				if mr.IID == 7 {
+					return mr.Pipeline == "failed"
+				}
+			}
+			return false
+		})
+	}
+	for !failed() {
 		if time.Now().After(deadline) {
 			t.Fatalf("the row was never asked about again:\n%s", a.screenText(sc))
 		}

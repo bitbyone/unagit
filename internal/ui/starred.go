@@ -107,28 +107,15 @@ func (a *App) listStarred(starred []forge.Project, start int) {
 		a.note("nothing is starred")
 		return
 	}
-	nameW := 0
-	for _, p := range starred {
-		nameW = max(nameW, len([]rune(p.PathWithNamespace)))
-	}
-	nameW = min(nameW, 48)
 	items := make([]pickItem, len(starred))
 	for i, p := range starred {
-		mark := " "
-		if a.diskOf(p.Instance, p.PathWithNamespace).Cloned {
-			mark = glyphDiskBranch
-		}
-		sub := strings.TrimSpace(fmt.Sprintf("%s  %s %d  %s", p.Language, glyphStarred, p.Stars, humanAge(p.LastActivityAt)))
-		items[i] = pickItem{
-			Label: esc(fmt.Sprintf("%s %-*s", mark, nameW, trim(p.PathWithNamespace, nameW))),
-			Sub:   esc(sub),
-			About: esc(p.Description),
-			Data:  i,
-		}
+		items[i] = pickItem{About: esc(p.Description), Data: i}
 	}
+	label := func(items []pickItem, width int) { a.labelStarred(items, starred, width) }
+	label(items, logRowWidth(a.screenWidth()))
 	at := func(it pickItem) forge.Project { return starred[it.Data.(int)] }
 	again := func(it pickItem) func() { return func() { a.listStarred(starred, it.Data.(int)) } }
-	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "readme",
+	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "readme", relabel: label,
 		enterName: "View README", enterAbout: "Read the repository's README, drawn from its markdown.",
 		keys: []pickKey{
 			{keys: "C", hint: "clone", name: "Clone", about: "Clone it under its root; it then joins Repositories, with a badge saying it is starred.",
@@ -139,6 +126,46 @@ func (a *App) listStarred(starred []forge.Project, start int) {
 	a.showPickerWith(fmt.Sprintf("Starred repositories · %d", len(starred)), items, opts, func(it pickItem) {
 		a.showReadme(at(it), again(it))
 	})
+}
+
+// labelStarred writes the rows of the starred list for a row of width
+// cells, in columns without headings: the name, as much of the description
+// as the row leaves, and at the right the language, the stars and how long
+// ago it moved, each column as wide as its longest.
+func (a *App) labelStarred(items []pickItem, starred []forge.Project, width int) {
+	nameW, langW, starsW, ageW := 0, 0, 0, 0
+	for _, p := range starred {
+		nameW = max(nameW, len([]rune(p.PathWithNamespace)))
+		langW = max(langW, len([]rune(p.Language)))
+		starsW = max(starsW, len(fmt.Sprint(p.Stars)))
+		ageW = max(ageW, len(humanAge(p.LastActivityAt)))
+	}
+	nameW = min(nameW, 40)
+	// The mark, the name and three gaps, then what floats at the right.
+	right := langW + 2 + len([]rune(glyphStarred)) + 1 + starsW + 2 + ageW
+	descW := max(0, width-2-nameW-2-right-2)
+	for i, p := range starred {
+		mark := " "
+		if a.diskOf(p.Instance, p.PathWithNamespace).Cloned {
+			mark = glyphDiskBranch
+		}
+		desc := ""
+		if descW >= 8 {
+			desc = trim(strings.Join(strings.Fields(p.Description), " "), descW)
+		}
+		items[i].Label = fmt.Sprintf("%s %s  %s  %s  %s%s %*d%s  %s",
+			esc(mark), esc(padTo(trim(p.PathWithNamespace, nameW), nameW)),
+			tag(role("starred.description"))+esc(padTo(desc, descW))+tagEnd,
+			tag(role("starred.language"))+esc(padTo(p.Language, langW))+tagEnd,
+			tag(role("starred.stars")), glyphStarred, starsW, p.Stars, tagEnd,
+			tag(role("starred.activity"))+esc(humanAge(p.LastActivityAt))+tagEnd)
+		items[i].Sub = ""
+	}
+}
+
+// padTo pads text with spaces to width cells.
+func padTo(text string, width int) string {
+	return text + strings.Repeat(" ", max(0, width-len([]rune(text))))
 }
 
 // cloneStarred clones a starred repository, keeps it in Repositories, and
@@ -187,7 +214,7 @@ func (a *App) showReadme(pr forge.Project, back func()) {
 		view.SetText(md.RenderTheme(text, mdTheme))
 		box(view.Box, "README · "+esc(pr.PathWithNamespace))
 		hintPanel(view.Box, func() string {
-			return "j/k scroll · Ctrl-D/U half a page · e open in the editor · w browser · Esc back"
+			return "j/k scroll · Ctrl-D/U half a page · O open in the editor · w browser · Esc back"
 		}, 0, 0, 1, 1)
 		view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 			if halfPage(view, ev) {
@@ -198,7 +225,7 @@ func (a *App) showReadme(pr forge.Project, back func()) {
 				a.closeModal(pageCommit)
 				back()
 				return nil
-			case ev.Rune() == 'e':
+			case ev.Rune() == 'O':
 				a.openReadme(pr, text)
 				return nil
 			case ev.Rune() == 'w':

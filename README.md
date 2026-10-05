@@ -164,7 +164,7 @@ all and live only there.
   measured behind the list at the start and again as the last step of `R`.
 - With a GitHub account, `:` in Repositories › View Starred Repositories…
   lists what you starred, with its language and stars: `Enter` reads the
-  README, drawn from its markdown (`e` opens it in your editor), `w` the
+  README, drawn from its markdown (`O` opens it in your editor), `w` the
   page in the browser, `C` clones it. A repository cloned from there joins
   Repositories, though none of your groups holds it, with a star badge
   saying where it came from (`index-starred.json` keeps it there).

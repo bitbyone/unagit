@@ -76,6 +76,8 @@
     "sand": {"ink": "#e3d4c0", "fill": "#4d4232"}
   },
   "colours": {
+    "ci.running": "74",
+    "starred.stars": "222",
     "column.branch": "74",
     "column.mr": "110",
     "column.wt": "173",
@@ -108,7 +110,10 @@
     "mask": "•",
     "bar": "━",
     "tab_separator": "│",
-    "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
+    "ci_running": "◐◓◑◒",
+    "ci_done": "●",
+    "ci_idle": "○"
   },
   "nerd_glyphs": {
     "user": "\uf007",
