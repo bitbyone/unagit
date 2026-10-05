@@ -388,6 +388,12 @@ func (a *App) openProject(pr forge.Project, ed *editors.Editor) {
 
 // cloneProject keeps the task's directory empty so completion returns to the list.
 func (a *App) cloneProject(pr forge.Project) {
+	// Nothing to do is said in passing, not with a dialog that comes and
+	// goes before it can be read.
+	if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		a.note(pr.PathWithNamespace + " is already cloned, at " + tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
+		return
+	}
 	a.runTask("Cloning "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
 		return "", err

@@ -234,6 +234,38 @@ func (a *App) updateAllClones() {
 	a.updateMany(fmt.Sprintf("Updating %d cloned repositories", len(items)), items)
 }
 
+// updateFavouriteClones pulls the starred repositories that are cloned.
+func (a *App) updateFavouriteClones() {
+	var picked []forge.Project
+	for _, pr := range a.projects {
+		if a.cfg.Filters.IsFavourite(pr.Instance, pr.PathWithNamespace, 0) {
+			picked = append(picked, pr)
+		}
+	}
+	if len(picked) == 0 {
+		a.note("no repository is a favourite - Ctrl-F stars one")
+		return
+	}
+	a.updateClones("favourite", picked)
+}
+
+// updateClones pulls those of the repositories that are cloned, what says
+// which they are ("marked", "favourite").
+func (a *App) updateClones(what string, picked []forge.Project) {
+	var items []updateItem
+	for _, pr := range picked {
+		if a.disk[projectKey{pr.Instance, pr.PathWithNamespace}].Cloned {
+			items = append(items, updateItem{label: pr.PathWithNamespace, instance: pr.Instance,
+				path: pr.PathWithNamespace, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
+		}
+	}
+	if len(items) == 0 {
+		a.note("none of the " + what + " repositories is cloned - nothing to pull")
+		return
+	}
+	a.updateMany(fmt.Sprintf("Updating %s", counted(len(items), what+" repository", what+" repositories")), items)
+}
+
 // worktreeItems turns rows of the Worktrees list into what updateMany takes: a
 // grouped worktree is all of its members.
 func (a *App) worktreeItems(rows []worktreeRow) []updateItem {

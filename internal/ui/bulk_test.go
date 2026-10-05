@@ -111,3 +111,19 @@ func TestARepositorysSizeCountsItsWorktrees(t *testing.T) {
 		t.Errorf("a repository not cloned has a size: %q", line)
 	}
 }
+
+// TestCloningAClonedRepositorySaysSo: C on a clone says so in passing, at
+// the right of the status line, and opens no dialog to close again.
+func TestCloningAClonedRepositorySaysSo(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	typeRunes(sc, "g")
+	typeRunes(sc, "C")
+	waitFor(t, a, sc, "acme/gateway is already cloned")
+	if onLoop(a, func() bool { return a.pages.HasPage(pageTask) || a.modalOpen() }) {
+		t.Error("C on a clone opened a dialog")
+	}
+}

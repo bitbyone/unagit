@@ -154,9 +154,11 @@ all and live only there.
   terminal is too narrow for both, that end takes a line of its own just
   above the status line.
 - Space marks rows in Repositories and Merge requests, and the keys then
-  act on every marked row at once: `x` and `H` hide, `r` refreshes,
-  `Ctrl-F` stars, `V` marks merge requests reviewed, `Ctrl-W` makes one
-  grouped worktree of repositories. Alt-Enter lists what the marks can do.
+  act on every marked row at once: `x` and `H` hide, `r` refreshes, `p`
+  pulls, `C` clones, `Ctrl-T` tags, `Ctrl-F` stars, `y` copies one of each
+  a line, `V` marks merge requests reviewed, `Ctrl-W` makes one grouped
+  worktree of repositories. Alt-Enter lists what the marks can do. `:` in
+  Repositories also pulls every favourite at once.
 - Repositories' `SIZE` is what a clone takes on disk with all its
   worktrees - its merge requests', reviews', branches', grouped ones' -
   measured behind the list at the start and again as the last step of `R`.

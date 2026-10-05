@@ -126,6 +126,7 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 		{name: "Refresh All", about: "Ask the servers for the repositories again; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
 		{name: "Pull All Clones", about: "Fetch every clone and fast-forward those origin has moved past.", keys: "Alt-P", rank: 30, run: a.updateAllClones},
+		{name: "Pull All Favourites", about: "Fetch the starred clones and fast-forward those origin has moved past.", rank: 31, run: a.updateFavouriteClones},
 		{name: "View Options…", about: "What the list shows: tags after the names, grouping, favourites first, cloned only.", keys: "v", rank: 410, run: a.showViewOptions},
 		{name: "Toggle Grouping", about: "Group the repositories under their groups, or list them flat.", keys: "Ctrl-G", rank: 420, run: a.toggleRepositoryGrouping},
 		{name: "Filter by Tags…", about: "Show only the repositories wearing the tags you choose.", keys: "f", rank: 430, run: a.showTagFilter},

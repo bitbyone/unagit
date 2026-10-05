@@ -29,7 +29,7 @@ func (a *App) showYank(title string, items []yankItem) {
 			continue
 		}
 		// Padded, so the values start in one column and read as a table.
-		picks = append(picks, pickItem{Label: fmt.Sprintf("%-*s", width, it.what), Sub: esc(it.text), Data: it})
+		picks = append(picks, pickItem{Label: fmt.Sprintf("%-*s", width, it.what), Sub: esc(firstLine(it.text) + moreLines(it.text)), Data: it})
 	}
 	if len(picks) == 0 {
 		a.flash("nothing to copy here")
@@ -46,8 +46,9 @@ func (a *App) showYank(title string, items []yankItem) {
 // typically - the terminal is asked to do it (OSC 52), which most do; the note
 // says which happened, since the second cannot be confirmed.
 func (a *App) yank(what, text string) {
+	said := firstLine(text) + moreLines(text)
 	if err := copyToClipboard(text); err == nil {
-		a.done(fmt.Sprintf("copied %s: %s", strings.ToLower(what), text))
+		a.done(fmt.Sprintf("copied %s: %s", strings.ToLower(what), said))
 		return
 	}
 	if a.screen == nil {
@@ -55,7 +56,15 @@ func (a *App) yank(what, text string) {
 		return
 	}
 	a.screen.SetClipboard([]byte(text))
-	a.done(fmt.Sprintf("sent %s to the terminal's clipboard: %s", strings.ToLower(what), text))
+	a.done(fmt.Sprintf("sent %s to the terminal's clipboard: %s", strings.ToLower(what), said))
+}
+
+// moreLines says how many lines follow the first of a text, "" for one.
+func moreLines(text string) string {
+	if n := strings.Count(text, "\n"); n > 0 {
+		return fmt.Sprintf(" (+%d more)", n)
+	}
+	return ""
 }
 
 // mrReference is how the forge itself writes a merge request in text.
@@ -100,6 +109,57 @@ func (a *App) yankProject(pr forge.Project) {
 		items = append(items, yankItem{"Directory", a.projectDir(pr.Instance, pr.PathWithNamespace)})
 	}
 	a.showYank("Copy "+pr.PathWithNamespace, items)
+}
+
+// yankProjects copies one thing of each of several repositories, one a line.
+func (a *App) yankProjects(picked []forge.Project) {
+	lines := func(of func(pr forge.Project) string) string {
+		var out []string
+		for _, pr := range picked {
+			if s := of(pr); s != "" {
+				out = append(out, s)
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	a.showYank("Copy "+counted(len(picked), "repository", "repositories"), []yankItem{
+		{"Links", lines(func(pr forge.Project) string { return pr.WebURL })},
+		{"Paths", lines(func(pr forge.Project) string { return pr.PathWithNamespace })},
+		{"Clone addresses", lines(func(pr forge.Project) string {
+			return a.newManager(pr.Instance, pr.PathWithNamespace, nil).RemoteURL(pr)
+		})},
+		{"Directories", lines(func(pr forge.Project) string {
+			if !a.disk[projectKey{pr.Instance, pr.PathWithNamespace}].Cloned {
+				return ""
+			}
+			return a.projectDir(pr.Instance, pr.PathWithNamespace)
+		})},
+	})
+}
+
+// yankMRs copies one thing of each of several merge requests, one a line.
+func (a *App) yankMRs(picked []forge.MergeRequest) {
+	lines := func(of func(mr forge.MergeRequest) string) string {
+		var out []string
+		for _, mr := range picked {
+			if s := of(mr); s != "" {
+				out = append(out, s)
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	a.showYank("Copy "+counted(len(picked), "merge request", "merge requests"), []yankItem{
+		{"Links", lines(func(mr forge.MergeRequest) string { return mr.WebURL })},
+		{"References", lines(func(mr forge.MergeRequest) string { return a.mrReference(mr) })},
+		{"Source branches", lines(func(mr forge.MergeRequest) string { return mr.SourceBranch })},
+		{"Titles", lines(func(mr forge.MergeRequest) string { return mr.Title })},
+		{"Markdown links", lines(func(mr forge.MergeRequest) string {
+			if mr.WebURL == "" {
+				return ""
+			}
+			return fmt.Sprintf("[%s](%s)", mr.Title, mr.WebURL)
+		})},
+	})
 }
 
 func (a *App) yankWorktree(r worktreeRow) {

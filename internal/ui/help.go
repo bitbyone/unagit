@@ -204,7 +204,7 @@ func helpRows() []helpLine {
 		key("p", "pull; rebases your work; refuses on a conflict"),
 		key("Alt-P", "the same for every clone origin has moved past"),
 		key("Ctrl-W", "a worktree for a branch; n for a new one"),
-		key("space", "mark; Ctrl-W x H r Ctrl-F then act on all"),
+		key("space", "mark; Ctrl-W x H r p C y Ctrl-T/F act on all"),
 		key("m", "show only this repository's merge requests"),
 		key("Ctrl-T", "tag the repository"),
 		key("J", "pipeline of the clone's branch: log · run"),
@@ -271,7 +271,7 @@ func helpRows() []helpLine {
 		key("P", "in the jobs: earlier pipelines, ↺ attempts"),
 		key("H", "hide the author's merge requests (bots)"),
 		key("x", "hide the repository's MRs; refreshes skip them"),
-		key("space", "mark; x H r V Ctrl-F then act on all"),
+		key("space", "mark; x H r V y Ctrl-F then act on all"),
 		key("v", "view: mine · to review · drafts · hidden authors"),
 		blank(),
 

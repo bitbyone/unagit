@@ -102,3 +102,22 @@ func TestYankFallsBackToTheTerminal(t *testing.T) {
 		t.Errorf("terminal clipboard = %q, want the repository path", got)
 	}
 }
+
+// TestMarkedRepositoriesAreCopiedOneALine: y with rows marked copies one
+// thing of each, one a line, and the note says how many lines there are.
+func TestMarkedRepositoriesAreCopiedOneALine(t *testing.T) {
+	c := fakeClipboard(t, true)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "  ")
+	waitFor(t, a, sc, "SELECT 2")
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Copy 2 repositories")
+	waitFor(t, a, sc, "(+1 more)")
+	typeRunes(sc, "/paths")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "copied paths")
+	if got := c.get(); got != "acme/gateway\nacme/billing" && got != "acme/billing\nacme/gateway" {
+		t.Errorf("clipboard = %q", got)
+	}
+}

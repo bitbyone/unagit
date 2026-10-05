@@ -92,9 +92,85 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 			}
 			a.note(counted(len(picked), "repository is", "repositories are") + " no longer favourites")
 		}},
+		{name: "Pull All Marked", about: "Fetch the marked clones and fast-forward those origin has moved past.", keys: "p", rank: 50, run: func() {
+			done()
+			p.reload()
+			a.updateClones("marked", picked)
+		}},
+		{name: "Clone All Marked", about: "Clone the marked repositories not yet on disk, one after another.", keys: "C", rank: 55, run: func() {
+			done()
+			p.reload()
+			a.cloneProjects(picked)
+		}},
+		{name: "Edit Tags of All…", about: "Put a tag on every marked repository, or, when all wear it, take it off them all.", keys: "Ctrl-T", rank: 60, run: func() {
+			a.showTagChoice(fmt.Sprintf("Tags of %s", counted(len(picked), "repository", "repositories")),
+				func() []string { return a.tagsOfAll(picked) },
+				func() []string { return nil },
+				func(name string) {
+					toggleAll(len(picked),
+						func(i int) bool { return wears(a.cfg.TagsOf(picked[i].Instance, picked[i].PathWithNamespace), name) },
+						func(i int) { a.cfg.ToggleTag(picked[i].Instance, picked[i].PathWithNamespace, name) })
+					a.applyFilters()
+				})
+		}},
+		{name: "Copy All…", about: "Copy the links, paths, clone addresses or directories of the marked repositories, one a line.", keys: "y", rank: 70, run: func() {
+			a.yankProjects(picked)
+		}},
 		{name: "Toggle Mark", about: "Mark the row under the cursor, or take its mark away.", keys: "space", rank: 20, run: p.toggleMark},
 		{name: "Clear Marks", about: "Take every mark away.", keys: "Esc", rank: 900, run: p.clearMarks},
 	}
+}
+
+// wears reports whether a list of tags has one.
+func wears(tags []string, name string) bool {
+	for _, t := range tags {
+		if t == name {
+			return true
+		}
+	}
+	return false
+}
+
+// tagsOfAll is the tags every one of the repositories wears.
+func (a *App) tagsOfAll(picked []forge.Project) []string {
+	var out []string
+	for _, name := range a.cfg.TagsOf(picked[0].Instance, picked[0].PathWithNamespace) {
+		all := true
+		for _, pr := range picked[1:] {
+			if !wears(a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace), name) {
+				all = false
+				break
+			}
+		}
+		if all {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// cloneProjects clones those of the repositories not yet on disk, one after
+// another, under one log.
+func (a *App) cloneProjects(picked []forge.Project) {
+	var todo []forge.Project
+	for _, pr := range picked {
+		if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+			todo = append(todo, pr)
+		}
+	}
+	if len(todo) == 0 {
+		a.note("every marked repository is already cloned")
+		return
+	}
+	a.runTask("Cloning "+counted(len(todo), "repository", "repositories"), func(log func(string)) (string, error) {
+		for _, pr := range todo {
+			log("Cloning " + pr.PathWithNamespace)
+			if _, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr); err != nil {
+				return "", fmt.Errorf("%s: %w", pr.PathWithNamespace, err)
+			}
+		}
+		return "", nil
+	})
 }
 
 // markedMRs is the marked merge requests, in the list's order of data.
@@ -172,6 +248,9 @@ func (a *App) markedMRActions(p *pane, picked []forge.MergeRequest) []uiAction {
 			a.loadMRFresh()
 			p.reload()
 			a.done(fmt.Sprintf("%s marked as reviewed", counted(marked, "merge request", "merge requests")))
+		}},
+		{name: "Copy All…", about: "Copy the links, references, branches or titles of the marked merge requests, one a line.", keys: "y", rank: 55, run: func() {
+			a.yankMRs(picked)
 		}},
 		{name: "Star or Unstar All", about: "Make every marked merge request a favourite, or, when all are, none of them.", keys: "Ctrl-F", rank: 50, run: func() {
 			done()
