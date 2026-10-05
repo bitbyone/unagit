@@ -161,6 +161,8 @@ func helpRows() []helpLine {
 		key("letter", "the button whose letter is lit"),
 		key("j k  Tab", "a form: from field to field, over the buttons"),
 		key("i  Enter", "type into the field; Esc stops typing"),
+		key("Ctrl-D Ctrl-U", "a log or a commit: half a page down · up"),
+		key("Ctrl-F Ctrl-B", "a log or a commit: a page down · up"),
 		blank(),
 
 		section("Every list", helpLists|helpWorktreeList),

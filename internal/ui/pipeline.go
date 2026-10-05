@@ -245,8 +245,13 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		view.ScrollToEnd()
 		mark, _ := ciMark(job.Status)
 		box(view.Box, fmt.Sprintf("%s %s · %s", mark, job.Name, job.Status))
-		hintPanel(view.Box, func() string { return "j/k scroll · g/G top/end · w browser · Esc back to the jobs" }, 0, 0, 1, 1)
+		hintPanel(view.Box, func() string {
+			return "j/k scroll · Ctrl-D/U half a page · Ctrl-F/B page · g/G top/end · w browser · Esc back to the jobs"
+		}, 0, 0, 1, 1)
 		view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+			if halfPage(view, ev) {
+				return nil
+			}
 			switch {
 			case ev.Key() == tcell.KeyEsc, ev.Rune() == 'q', ev.Rune() == 'h':
 				a.closeModal(pageCommit)

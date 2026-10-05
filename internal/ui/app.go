@@ -1283,6 +1283,9 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 
 	done := false
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if halfPage(view, ev) {
+			return nil
+		}
 		if done && (ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == 'q') {
 			a.closeModal(pageTask)
 			a.setStatus("")
@@ -1291,7 +1294,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 		return ev
 	})
 
-	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Ctrl-F/B page")
+	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Ctrl-D/U half a page · Ctrl-F/B page")
 	block := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(view, 0, 1, true).AddItem(footer, 1, 0, false)
 	fitFooter(block, footer, 0)
 	a.pages.AddPage(pageTask, modalPct(block, 80, 70), true, true)
@@ -1310,7 +1313,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 		dir, err := fn(log)
 		a.tv.QueueUpdateDraw(func() {
 			done = true
-			footer.SetText("j/k scroll · g/G first/last · Ctrl-F/B page · Enter/Esc/q close")
+			footer.SetText("j/k scroll · g/G first/last · Ctrl-D/U half a page · Ctrl-F/B page · Enter/Esc/q close")
 			if err != nil {
 				fmt.Fprintf(view, "\n%s%s%s\n\n%sPress Esc to close.%s\n",
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)

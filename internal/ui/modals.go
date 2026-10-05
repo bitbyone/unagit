@@ -614,3 +614,22 @@ func fitFooterPadded(block *tview.Flex, footer *tview.TextView, inset, pad int) 
 		return x + side, y + inset, max(0, w-2*side), max(0, h-2*inset)
 	})
 }
+
+// halfPage moves a reader by half its height on Ctrl-D and Ctrl-U, as vim
+// does, and reports whether the key was one of them. Whole pages are tview's
+// own: Ctrl-F and Ctrl-B, PgDn and PgUp.
+func halfPage(view *tview.TextView, ev *tcell.EventKey) bool {
+	_, _, _, height := view.GetInnerRect()
+	step := max(1, height/2)
+	row, col := view.GetScrollOffset()
+	switch ev.Key() {
+	case tcell.KeyCtrlD:
+		// tview keeps the last page in view if this goes past the end.
+		view.ScrollTo(row+step, col)
+	case tcell.KeyCtrlU:
+		view.ScrollTo(max(0, row-step), col)
+	default:
+		return false
+	}
+	return true
+}

@@ -33,6 +33,10 @@ func TestAPipelineUpClose(t *testing.T) {
 	if !strings.Contains(text, "Running tests") || !strings.Contains(text, "progress 100%") {
 		t.Errorf("the log lost its text:\n%s", text)
 	}
+	// Ctrl-D in the log scrolls it and is not the list's draft key.
+	sc.InjectKey(tcell.KeyCtrlU, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyCtrlD, 0, tcell.ModNone)
+	waitFor(t, a, sc, "--- FAIL: TestBucket")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	// The pipeline's title shows under the log too; the log has to be gone
 	// before R, or R goes to it.
@@ -202,4 +206,36 @@ func TestJOnAGroupAsksWhichRepository(t *testing.T) {
 	typeRunes(sc, "gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Pipeline · acme/gateway · feat/ci")
+}
+
+// TestHalfPage: Ctrl-D and Ctrl-U move a reader by half its height, and
+// Ctrl-U stops at the top.
+func TestHalfPage(t *testing.T) {
+	t.Parallel()
+	view := tview.NewTextView().SetScrollable(true)
+	view.SetRect(0, 0, 40, 20)
+	lines := make([]string, 100)
+	for i := range lines {
+		lines[i] = "line"
+	}
+	view.SetText(strings.Join(lines, "\n"))
+	view.ScrollToBeginning()
+	key := func(k tcell.Key) int {
+		if !halfPage(view, tcell.NewEventKey(k, 0, tcell.ModNone)) {
+			t.Fatalf("%v was not taken", k)
+		}
+		row, _ := view.GetScrollOffset()
+		return row
+	}
+	for _, step := range []struct {
+		key  tcell.Key
+		want int
+	}{{tcell.KeyCtrlD, 10}, {tcell.KeyCtrlD, 20}, {tcell.KeyCtrlU, 10}, {tcell.KeyCtrlU, 0}, {tcell.KeyCtrlU, 0}} {
+		if got := key(step.key); got != step.want {
+			t.Fatalf("after %v the top row is %d, want %d", step.key, got, step.want)
+		}
+	}
+	if halfPage(view, tcell.NewEventKey(tcell.KeyRune, 'j', tcell.ModNone)) {
+		t.Error("j was taken for a half page")
+	}
 }
