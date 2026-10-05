@@ -792,6 +792,97 @@ type groupJob struct {
 	inst   config.Instance
 	group  config.Group
 	client forge.Provider
+	// projects, when set, are the only repositories of the group whose
+	// merge requests are asked for - the ones the list shows - and carried
+	// what the others had when last read (narrowMRJobs).
+	projects []forge.Project
+	carried  []forge.MergeRequest
+}
+
+// narrowLimit is how many shown repositories a group may have for its
+// merge requests to be asked for repository by repository; past it, one
+// listing of the whole group is quicker.
+const narrowLimit = 60
+
+// narrowMRJobs makes a refresh of merge requests ask about what the list
+// shows: in a group where repositories, or their merge requests, are
+// hidden, the shown repositories are asked one by one, and the hidden
+// keep what they had - a group's listing of every merge request was most
+// of a refresh's wait, for rows nobody looks at. It runs on the event loop.
+func (a *App) narrowMRJobs(jobs []groupJob) {
+	for i, job := range jobs {
+		var shown []forge.Project
+		hidden := map[string]bool{}
+		for _, pr := range a.projects {
+			if pr.Instance != job.inst.ID || !job.group.Owns(pr.PathWithNamespace) {
+				continue
+			}
+			if a.passesFilters(pr.Instance, pr.PathWithNamespace) && !a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
+				shown = append(shown, pr)
+			} else {
+				hidden[pr.PathWithNamespace] = true
+			}
+		}
+		if len(hidden) == 0 || len(shown) > narrowLimit {
+			continue
+		}
+		jobs[i].projects = shown
+		if jobs[i].projects == nil {
+			jobs[i].projects = []forge.Project{}
+		}
+		// Every merge request of the group not asked about is carried: the
+		// hidden repositories', and those of a repository the index does
+		// not know yet - left out, they would look closed, and their
+		// worktrees would be tidied away.
+		asked := map[string]bool{}
+		for _, pr := range shown {
+			asked[pr.PathWithNamespace] = true
+		}
+		for _, mr := range a.mrs {
+			path := a.projectPathOfMR(mr)
+			if mr.Instance == job.inst.ID && job.group.Owns(path) && !asked[path] {
+				jobs[i].carried = append(jobs[i].carried, mr)
+			}
+		}
+	}
+}
+
+// projectsMRs asks for the open merge requests of each repository, a few
+// at a time.
+func projectsMRs(ctx context.Context, client forge.Provider, projects []forge.Project) ([]forge.MergeRequest, error) {
+	var (
+		mu       sync.Mutex
+		out      []forge.MergeRequest
+		firstErr error
+		wg       sync.WaitGroup
+	)
+	sem := make(chan struct{}, extrasFanOut)
+	for _, pr := range projects {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			ms, err := client.ProjectMergeRequests(ctx, pr)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				return
+			}
+			for i := range ms {
+				ms[i].ProjectID = pr.ID
+				if ms[i].ProjectPath == "" {
+					ms[i].ProjectPath = pr.PathWithNamespace
+				}
+			}
+			out = append(out, ms...)
+		}()
+	}
+	wg.Wait()
+	return out, firstErr
 }
 
 // groupJobs pairs every selected group with its client, on the event loop, so
@@ -908,6 +999,7 @@ func (a *App) refreshMRs() {
 		return
 	}
 	jobs := a.groupJobs(instances)
+	a.narrowMRJobs(jobs)
 	before := map[mrKey]bool{}
 	for _, mr := range a.mrs {
 		before[keyOfMR(mr)] = true
@@ -926,6 +1018,17 @@ func (a *App) refreshMRs() {
 		var asked atomic.Int32
 		var err error
 		all, err = fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.MergeRequest, error) {
+			if job.projects != nil {
+				ms, err := projectsMRs(ctx, job.client, job.projects)
+				if err != nil {
+					return nil, err
+				}
+				for i := range ms {
+					ms[i].Instance = job.inst.ID
+				}
+				progress(fmt.Sprintf("groups %d/%d", asked.Add(1), len(jobs)))
+				return append(ms, job.carried...), nil
+			}
 			ms, err := job.client.GroupMergeRequests(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
 			if err != nil {
 				return nil, err

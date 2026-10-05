@@ -344,6 +344,9 @@ type Provider interface {
 	GroupProjects(ctx context.Context, g Group, includeSubgroups bool) ([]Project, error)
 	// GroupMergeRequests lists the open merge requests of a group.
 	GroupMergeRequests(ctx context.Context, g Group, includeSubgroups bool) ([]MergeRequest, error)
+	// ProjectMergeRequests lists the open merge requests of one repository,
+	// for a refresh that asks only about the repositories the list shows.
+	ProjectMergeRequests(ctx context.Context, p Project) ([]MergeRequest, error)
 
 	ProjectDetail(ctx context.Context, p Project) (*ProjectDetail, error)
 	ProjectCommits(ctx context.Context, p Project, ref string, limit int) ([]Commit, error)

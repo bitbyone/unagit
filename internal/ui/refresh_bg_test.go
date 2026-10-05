@@ -76,6 +76,22 @@ func TestRefreshAsksOnlyAboutWhatIsShown(t *testing.T) {
 	if n := srv.mr7Pipelines.Load(); n != 0 {
 		t.Errorf("a hidden merge request's pipeline was asked for %d time(s)", n)
 	}
+	// With a repository's merge requests hidden, the group is not listed
+	// whole: the shown repository is asked alone.
+	if n := srv.groupListed.Load(); n != 0 {
+		t.Errorf("the whole group was listed %d time(s)", n)
+	}
+	// The hidden merge requests are still in the index, as they were.
+	if got := onLoop(a, func() []int {
+		var iids []int
+		for _, mr := range a.mrs {
+			iids = append(iids, mr.IID)
+		}
+		return iids
+	}); len(got) != 3 {
+		t.Errorf("the index holds %v; the hidden repository's merge requests left it", got)
+	}
+	waitFor(t, a, sc, "1 open merge request")
 	got := onLoop(a, func() string {
 		for _, mr := range a.mrs {
 			if mr.IID == 7 {

@@ -62,6 +62,8 @@ type fakeServer struct {
 	// closed.
 	mr7Pipelines atomic.Int64
 	holdMRList   atomic.Value // chan struct{}
+	// groupListed counts the listings of a whole group's merge requests.
+	groupListed atomic.Int64
 	// namesAsked counts the questions about an account's name.
 	namesAsked atomic.Int64
 	// e2eDone ends the child pipeline's job, and e2eLog is what it has
@@ -127,20 +129,25 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			{"id":2,"name":"billing","path_with_namespace":"acme/billing",
 			"default_branch":"main","last_activity_at":"2026-09-22T09:00:00Z"}]`)
 	})
-	mux.HandleFunc("/api/v4/groups/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
-		if hold, ok := f.holdMRList.Load().(chan struct{}); ok {
-			<-hold
-		}
-		// Distinct ids: the index dedupes by them, as GitLab always sends them.
-		json(w, `[{"id":107,"iid":7,"title":"Rate limiting","source_branch":"feat/rate","target_branch":"main",
+	// Distinct ids: the index dedupes by them, as GitLab always sends them.
+	gatewayMRs := `{"id":107,"iid":7,"title":"Rate limiting","source_branch":"feat/rate","target_branch":"main",
 			"project_id":1,"user_notes_count":4,"author":{"username":"jane"},
 			"references":{"full":"acme/gateway!7"},"updated_at":"2026-09-22T10:00:00Z"},
 			{"id":108,"iid":8,"title":"Drop the old client","source_branch":"chore/drop","target_branch":"main",
 			"project_id":1,"user_notes_count":1,"author":{"username":"jane"},
-			"references":{"full":"acme/gateway!8"},"updated_at":"2026-09-22T08:00:00Z"},
-			{"id":109,"iid":9,"title":"Invoice rounding","source_branch":"fix/round","target_branch":"main",
+			"references":{"full":"acme/gateway!8"},"updated_at":"2026-09-22T08:00:00Z"}`
+	billingMRs := `{"id":109,"iid":9,"title":"Invoice rounding","source_branch":"fix/round","target_branch":"main",
 			"project_id":2,"user_notes_count":0,"author":{"username":"bob"},
-			"references":{"full":"acme/billing!9"},"updated_at":"2026-09-22T09:00:00Z"}]`)
+			"references":{"full":"acme/billing!9"},"updated_at":"2026-09-22T09:00:00Z"}`
+	hold := func() {
+		if hold, ok := f.holdMRList.Load().(chan struct{}); ok {
+			<-hold
+		}
+	}
+	mux.HandleFunc("/api/v4/groups/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		f.groupListed.Add(1)
+		hold()
+		json(w, "["+gatewayMRs+","+billingMRs+"]")
 	})
 	mux.HandleFunc("/api/v4/projects/1", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",
@@ -175,7 +182,8 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			json(w, `[]`)
+			hold()
+			json(w, "["+gatewayMRs+"]")
 			return
 		}
 		b, _ := io.ReadAll(r.Body)
@@ -206,7 +214,8 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/2/merge_requests", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			json(w, `[]`)
+			hold()
+			json(w, "["+billingMRs+"]")
 			return
 		}
 		b, _ := io.ReadAll(r.Body)
@@ -471,9 +480,9 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: now.Add(-time.Hour), Instance: id},
 	}
 	mrs := []forge.MergeRequest{
-		{IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Comments: 4, Instance: id},
-		{IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
-		{IID: 8, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Drop the old client", SourceBranch: "chore/drop", TargetBranch: "main", UpdatedAt: now.Add(-2 * time.Hour), Comments: 1, Instance: id},
+		{ID: 107, IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Comments: 4, Instance: id},
+		{ID: 109, IID: 9, ProjectID: 2, ProjectPath: "acme/billing", Title: "Invoice rounding", SourceBranch: "fix/round", TargetBranch: "main", UpdatedAt: now.Add(-time.Hour), Instance: id},
+		{ID: 108, IID: 8, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Drop the old client", SourceBranch: "chore/drop", TargetBranch: "main", UpdatedAt: now.Add(-2 * time.Hour), Comments: 1, Instance: id},
 	}
 	must(t, index.Save(cfg.IndexPath("projects"),
 		index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: projects}))

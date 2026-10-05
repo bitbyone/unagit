@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -345,8 +346,56 @@ func getAll[T any](ctx context.Context, c *Client, path string, q url.Values) ([
 		q = url.Values{}
 	}
 	q.Set("per_page", "100")
-	var all []T
-	page := "1"
+	q.Set("page", "1")
+	var first []T
+	header, err := c.get(ctx, path, q, &first)
+	if err != nil {
+		return nil, err
+	}
+	// GitLab says how many pages there are, and the rest are asked for side
+	// by side: a group's hundreds of merge requests took a dozen round trips
+	// one after another. A listing too long to be counted does not say, and
+	// is followed page by page.
+	if total, err := strconv.Atoi(header.Get("x-total-pages")); err == nil && total > 1 {
+		pages := make([][]T, total+1)
+		pages[1] = first
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var firstErr error
+		sem := make(chan struct{}, pageFanOut)
+		for n := 2; n <= total; n++ {
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				pq := url.Values{}
+				for k, v := range q {
+					pq[k] = v
+				}
+				pq.Set("page", strconv.Itoa(n))
+				var batch []T
+				_, err := c.get(ctx, path, pq, &batch)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil && firstErr == nil {
+					firstErr = err
+				}
+				pages[n] = batch
+			}(n)
+		}
+		wg.Wait()
+		if firstErr != nil {
+			return nil, firstErr
+		}
+		var all []T
+		for _, page := range pages[1:] {
+			all = append(all, page...)
+		}
+		return all, nil
+	}
+	all := first
+	page := header.Get("x-next-page")
 	for page != "" {
 		select {
 		case <-ctx.Done():
@@ -364,6 +413,9 @@ func getAll[T any](ctx context.Context, c *Client, path string, q url.Values) ([
 	}
 	return all, nil
 }
+
+// pageFanOut is how many pages of one listing are asked for at once.
+const pageFanOut = 4
 
 // CurrentUser verifies the token and returns the authenticated user.
 func (c *Client) CurrentUser(ctx context.Context) (*forge.User, error) {
@@ -441,6 +493,29 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 	if err != nil {
 		return nil, err
 	}
+	return listedMRs(raw), nil
+}
+
+// ProjectMergeRequests returns the open merge requests of one project.
+func (c *Client) ProjectMergeRequests(ctx context.Context, p forge.Project) ([]forge.MergeRequest, error) {
+	q := url.Values{}
+	q.Set("state", "opened")
+	q.Set("order_by", "updated_at")
+	raw, err := getAll[mergeRequest](ctx, c, projectPath(p)+"/merge_requests", q)
+	if err != nil {
+		return nil, err
+	}
+	out := listedMRs(raw)
+	for i := range out {
+		if out[i].ProjectPath == "" {
+			out[i].ProjectPath = p.PathWithNamespace
+		}
+	}
+	return out, nil
+}
+
+// listedMRs turns the listing's shape into forge's.
+func listedMRs(raw []mergeRequest) []forge.MergeRequest {
 	out := make([]forge.MergeRequest, 0, len(raw))
 	for _, mr := range raw {
 		m := mr.MergeRequest
@@ -452,7 +527,7 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 		}
 		out = append(out, m)
 	}
-	return out, nil
+	return out
 }
 
 func groupPath(g forge.Group) string { return "/groups/" + strconv.Itoa(g.ID) }

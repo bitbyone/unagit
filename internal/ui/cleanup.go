@@ -128,24 +128,33 @@ func workOf(mgr *workspace.Manager, dirs []string) string {
 // away - so the list says where to look first. Anything kept that could not
 // be tidied makes it a warning.
 func (a *App) sayRefreshed(before map[mrKey]bool, open []forge.MergeRequest, removed, kept []string) {
+	// What the list shows is what is counted: the hidden ones were not
+	// asked about, and a count of them says nothing worth reading.
 	var parts []string
-	added, failed := 0, 0
+	shown, added, failed, fresh := 0, 0, 0, 0
 	for _, mr := range open {
+		if !a.passesFilters(mr.Instance, a.projectPathOfMR(mr)) || !a.passesMRFilters(mr) {
+			continue
+		}
+		shown++
 		if len(before) > 0 && !before[keyOfMR(mr)] {
 			added++
 		}
 		if mr.Pipeline == "failed" {
 			failed++
 		}
+		if a.mrFresh[keyOfMR(mr)] != 0 {
+			fresh++
+		}
 	}
 	if added > 0 {
 		parts = append(parts, fmt.Sprintf("%d new", added))
 	}
-	if n := len(a.mrFresh); n > 0 {
-		parts = append(parts, fmt.Sprintf("%d with commits since your review", n))
+	if fresh > 0 {
+		parts = append(parts, fmt.Sprintf("%d with commits since your review", fresh))
 	}
 	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d pipeline(s) failed", failed))
+		parts = append(parts, counted(failed, "pipeline", "pipelines")+" failed")
 	}
 	if len(removed) > 0 {
 		parts = append(parts, "removed the worktrees of closed "+strings.Join(removed, ", "))
@@ -153,11 +162,12 @@ func (a *App) sayRefreshed(before map[mrKey]bool, open []forge.MergeRequest, rem
 	if len(kept) > 0 {
 		parts = append(parts, "kept the worktrees of closed "+strings.Join(kept, ", "))
 	}
+	opened := counted(shown, "open merge request", "open merge requests")
 	if len(parts) == 0 {
-		a.done(fmt.Sprintf("%d open merge request(s), nothing new", len(open)))
+		a.done(opened + ", nothing new")
 		return
 	}
-	msg := fmt.Sprintf("%d open merge request(s): ", len(open)) + strings.Join(parts, " · ")
+	msg := opened + ": " + strings.Join(parts, " · ")
 	if len(kept) > 0 {
 		a.flash(msg)
 		return

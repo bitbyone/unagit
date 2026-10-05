@@ -681,6 +681,11 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 	return all, nil
 }
 
+// ProjectMergeRequests returns the open pull requests of one repository.
+func (c *Client) ProjectMergeRequests(ctx context.Context, p forge.Project) ([]forge.MergeRequest, error) {
+	return c.projectPulls(ctx, p)
+}
+
 func (c *Client) projectPulls(ctx context.Context, p forge.Project) ([]forge.MergeRequest, error) {
 	q := url.Values{}
 	q.Set("state", "open")

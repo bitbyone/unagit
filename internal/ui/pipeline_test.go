@@ -244,7 +244,7 @@ func TestARefreshSaysWhereToLook(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "R")
-	waitFor(t, a, sc, "1 pipeline(s) failed")
+	waitFor(t, a, sc, "1 pipeline failed")
 	waitFor(t, a, sc, "✗")
 }
 

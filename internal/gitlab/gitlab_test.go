@@ -6,8 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -637,5 +640,45 @@ func TestPipelinesAndTheirAttempts(t *testing.T) {
 	files, err := c.CommitFiles(ctx, repo, "abc")
 	if err != nil || len(files) != 1 || files[0].Added != 2 || files[0].Deleted != 1 {
 		t.Errorf("files %+v, %v", files, err)
+	}
+}
+
+// TestPagesAreReadSideBySide: when GitLab says how many pages a listing has,
+// the rest are asked for at once, and come back in their order.
+func TestPagesAreReadSideBySide(t *testing.T) {
+	var inFlight, most atomic.Int32
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		if page > 1 {
+			n := inFlight.Add(1)
+			for m := most.Load(); n > m && !most.CompareAndSwap(m, n); m = most.Load() {
+			}
+			if n >= 3 {
+				close(release)
+			}
+			select {
+			case <-release:
+			case <-time.After(2 * time.Second):
+			}
+			defer inFlight.Add(-1)
+		}
+		w.Header().Set("x-total-pages", "4")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `[{"id":%d,"iid":%d,"state":"opened"}]`, page, page)
+	}))
+	defer srv.Close()
+	mrs, err := New(srv.URL, "t").ProjectMergeRequests(context.Background(), forge.Project{ID: 1, PathWithNamespace: "a/b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mrs) != 4 || mrs[0].IID != 1 || mrs[3].IID != 4 {
+		t.Fatalf("got %+v", mrs)
+	}
+	if most.Load() < 3 {
+		t.Errorf("at most %d pages were asked for at once", most.Load())
+	}
+	if mrs[0].ProjectPath != "a/b" {
+		t.Errorf("a project's merge request lost its path: %q", mrs[0].ProjectPath)
 	}
 }
