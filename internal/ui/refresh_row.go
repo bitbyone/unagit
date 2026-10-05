@@ -68,6 +68,8 @@ func (a *App) applyMRRefresh(fresh forge.MergeRequest, say bool) {
 			}
 		}
 		a.mrs = kept
+		// The marks point into the list as it was.
+		a.mrsPane.marks = nil
 		a.saveMRIndex()
 		a.forgetSeen(fresh)
 		a.mrsPane.reload()

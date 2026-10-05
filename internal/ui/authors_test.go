@@ -103,9 +103,9 @@ func TestHiddenPeopleComeFirst(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "v")
-	waitFor(t, a, sc, glyphUser+"renovate")
+	waitFor(t, a, sc, glyphUser+" renovate")
 	text := a.screenText(sc)
-	if lineOf(text, glyphUser+"renovate") > lineOf(text, "acme/billing · its merge requests") {
+	if lineOf(text, glyphUser+" renovate") > lineOf(text, "acme/billing · its merge requests") {
 		t.Errorf("the hidden author is not before the repositories:\n%s", text)
 	}
 	assertLegible(t, a, sc, "hidden people and repositories")

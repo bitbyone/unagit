@@ -153,6 +153,13 @@ all and live only there.
   a warning or an error comes up in a box of its own until `Esc`. When the
   terminal is too narrow for both, that end takes a line of its own just
   above the status line.
+- Space marks rows in Repositories and Merge requests, and the keys then
+  act on every marked row at once: `x` and `H` hide, `r` refreshes,
+  `Ctrl-F` stars, `V` marks merge requests reviewed, `Ctrl-W` makes one
+  grouped worktree of repositories. Alt-Enter lists what the marks can do.
+- Repositories' `SIZE` is what a clone takes on disk with all its
+  worktrees - its merge requests', reviews', branches', grouped ones' -
+  measured behind the list at the start and again as the last step of `R`.
 - Authors and reviewers are shown by name. GitLab's lists carry the names;
   GitHub's carry only logins, so `R` asks for the names it does not know
   and keeps them in `index-users.json` for a month.

@@ -24,6 +24,8 @@ import (
 func (a *App) newMRsPane() *pane {
 	p := a.newPane("Merge requests")
 	p.stackBelow = 130
+	// Space marks merge requests for what can be done to several at once.
+	p.markable = true
 	var filtered []int
 
 	p.headline = func() string {
@@ -68,6 +70,9 @@ func (a *App) newMRsPane() *pane {
 	}
 
 	p.selection = func() (string, []uiAction) {
+		if picked := a.markedMRs(); len(picked) > 0 {
+			return fmt.Sprintf("Actions · %d marked merge requests", len(picked)), a.markedMRActions(p, picked)
+		}
 		mr, ok := selected()
 		if !ok {
 			return "", nil
@@ -338,8 +343,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
 
-		p.table.SetCell(row, 0, tview.NewTableCell(rowText(fields)).
-			SetReference(idx).SetExpansion(1))
+		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
+		if p.marks[idx] {
+			cell.SetBackgroundColor(colMarked).SetSelectedStyle(styleMarkedSelected)
+		}
+		p.table.SetCell(row, 0, cell)
 	}
 
 	layout := listLayout{favourite: favourite, draw: drawRow, width: p.contentWidth()}

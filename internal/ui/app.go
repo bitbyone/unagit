@@ -180,6 +180,10 @@ type App struct {
 	repoSync    map[projectKey]remoteState
 	fetchFailed map[projectKey]string
 	fetching    int
+	// repoSize is what each cloned repository takes on disk, its worktrees
+	// included, and repoSizing those being measured (reposize.go).
+	repoSize   map[projectKey]int64
+	repoSizing map[projectKey]bool
 	// fetchJob is the fetches under way as one job on the status line, and
 	// freshJob the counting of new commits.
 	fetchJob, freshJob *bgJob
@@ -886,6 +890,9 @@ func (a *App) refreshProjects() {
 		a.reindexProjects()
 		a.refreshDisk()
 		a.loadRepoSync(true)
+		// What each takes on disk is measured again last: it is the slowest
+		// and the least pressing.
+		a.loadRepoSizes(true)
 		a.projectsPane.reload()
 		a.mrsPane.reload()
 		a.settings.reload()
@@ -985,6 +992,8 @@ func (a *App) refreshMRs() {
 		return index.Save(a.cfg.IndexPath("mrs"), idx)
 	}, func() {
 		a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, idx.Me
+		// The marks point into the list that was.
+		a.mrsPane.marks = nil
 		a.people = people
 		a.sortHold = nil
 		a.forgetClosedFavourites(instances, all)
@@ -1214,6 +1223,7 @@ func (a *App) refreshDisk() {
 	a.localRefreshed = time.Now()
 	a.loadWorktreeRemotes()
 	a.loadWorktreeSizes(false)
+	a.loadRepoSizes(false)
 	a.loadRepoSync(false)
 	a.loadMRFresh()
 	a.reloadWorktreeView()

@@ -274,6 +274,22 @@ func (g *Git) CheckedOut(mainDir string) map[string]string {
 	return found
 }
 
+// WorktreeDirs is every working tree of the repository - the main one
+// first, then each worktree, wherever it was made - nil when git cannot say.
+func (g *Git) WorktreeDirs(mainDir string) []string {
+	out, err := g.out(mainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil
+	}
+	var dirs []string
+	for _, line := range strings.Split(out, "\n") {
+		if rest, ok := strings.CutPrefix(line, "worktree "); ok {
+			dirs = append(dirs, rest)
+		}
+	}
+	return dirs
+}
+
 // CheckedOutIn is the working tree that has branch checked out, or "".
 func (g *Git) CheckedOutIn(mainDir, branch string) string {
 	return g.CheckedOut(mainDir)[branch]

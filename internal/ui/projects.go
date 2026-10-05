@@ -144,8 +144,10 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
 	mrW := 2
+	sizeW := len("SIZE")
 	for _, idx := range filtered {
 		pr := a.projects[idx]
+		sizeW = max(sizeW, len([]rune(a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}))))
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
 			mrW = 4
 		}
@@ -183,7 +185,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		gaps    = 6
 		minName = 20
 	)
-	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + actW + gaps + 2
+	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + sizeW + 1 + actW + gaps + 2
 	if withServer {
 		fixed += serverW + 1
 	}
@@ -253,6 +255,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	header = append(header,
 		field{text: "MR", width: mrW, colour: colDim, right: true},
 		field{text: "WT", width: wtW, colour: colDim, right: true},
+		field{text: "SIZE", width: sizeW, colour: colDim, right: true},
 		field{text: "ACTIVITY", width: actW, colour: colDim})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
@@ -320,6 +323,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		fields = append(fields,
 			mrField,
 			field{text: wtCount, width: wtW, colour: colWarn, right: true},
+			field{text: a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}), width: sizeW, colour: colMuted, right: true},
 			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
 
 		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)

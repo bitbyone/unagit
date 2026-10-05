@@ -120,16 +120,6 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 	return acts
 }
 
-// markedRepositoryActions are what can be done with the marked repositories
-// together.
-func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiAction {
-	return []uiAction{
-		{name: "New Grouped Worktree…", about: "Make one folder holding a worktree of each marked repository, on a new branch of its own.", keys: "Ctrl-W", rank: 10, run: func() { a.startGroupWorktree(picked) }},
-		{name: "Toggle Mark", about: "Mark the row under the cursor, or take its mark away.", keys: "space", rank: 20, run: p.toggleMark},
-		{name: "Clear Marks", about: "Take every mark away.", keys: "Esc", rank: 30, run: p.clearMarks},
-	}
-}
-
 // repositoriesActions are what Repositories itself can do.
 func (a *App) repositoriesActions(p *pane) []uiAction {
 	acts := []uiAction{
@@ -294,6 +284,7 @@ func (a *App) worktreesActions(p *pane) []uiAction {
 		{name: "Refresh All", about: "Look at the disk again - what each worktree takes measured anew - fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
 			a.loadWorktreeSizes(true)
+			a.loadRepoSizes(true)
 			a.fetchWorktrees()
 		}},
 		{name: "Pull All Worktrees", about: "Bring every worktree up to origin.", keys: "Alt-P", rank: 20, run: a.updateAllWorktrees},
