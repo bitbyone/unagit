@@ -384,8 +384,15 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
 	createdW, sizeW := len("CREATED"), len("SIZE")
 	mrs := map[int]string{}
+	// CI is the newest pipeline of the branch, its merge request's when it
+	// has one; a group has none of its own. It takes room only when some
+	// row has one.
+	ciW := 0
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
+		if a.worktreeCI(r) != "" {
+			ciW = 2
+		}
 		repoW = max(repoW, len([]rune(r.Path)))
 		branchW = max(branchW, len([]rune(a.worktreeBranch(r))))
 		actW = max(actW, len(humanAge(r.Moved)))
@@ -422,6 +429,10 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	fixed := markW + reposW + branchW + remoteW + actW
 	if withServer {
 		fixed += serverW
+		fields++
+	}
+	if ciW > 0 {
+		fixed += ciW
 		fields++
 	}
 	// What gives way when the row is tight, in this order: the directory, whole
@@ -471,8 +482,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	header = append(header,
 		field{text: "REPOSITORY", width: repoW, colour: role("worktrees.header")},
 		field{text: "REPOS", width: reposW, colour: role("worktrees.header"), right: true},
-		field{text: "BRANCH", width: branchW, colour: role("worktrees.header")},
-		field{text: "REMOTE", width: remoteW, colour: role("worktrees.header")})
+		field{text: "BRANCH", width: branchW, colour: role("worktrees.header")})
+	if ciW > 0 {
+		header = append(header, field{text: "CI", width: ciW, colour: role("worktrees.header")})
+	}
+	header = append(header, field{text: "REMOTE", width: remoteW, colour: role("worktrees.header")})
 	if showEdits {
 		header = append(header, field{text: "EDITS", width: editsW, colour: role("worktrees.header"), right: true})
 	}
@@ -520,8 +534,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		cells = append(cells,
 			field{text: r.Path, width: repoW, colour: role("worktrees.repository")},
 			field{text: count, width: reposW, colour: countColour, right: true},
-			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour},
-			remote)
+			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour})
+		if ciW > 0 {
+			ci, ciColour := ciMark(a.worktreeCI(r))
+			cells = append(cells, field{text: ci, width: ciW, colour: ciColour})
+		}
+		cells = append(cells, remote)
 		if showEdits {
 			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: role("worktrees.edits"), right: true})
 		}

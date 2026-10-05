@@ -145,8 +145,14 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// when the repository's merge requests are hidden (H here, x there).
 	mrW, hiddenW := 2, 0
 	sizeW := len("SIZE")
+	// CI is the newest pipeline of the branch shown, and takes room only
+	// when some row has one.
+	ciW := 0
 	for _, idx := range filtered {
 		pr := a.projects[idx]
+		if a.repositoryCI(pr) != "" {
+			ciW = 2
+		}
 		sizeW = max(sizeW, len([]rune(a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}))))
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
 			hiddenW = 1
@@ -188,6 +194,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + sizeW + 1 + actW + gaps + 2
 	if hiddenW > 0 {
 		fixed += hiddenW + 1
+	}
+	if ciW > 0 {
+		fixed += ciW + 1
 	}
 	if withServer {
 		fixed += serverW + 1
@@ -251,8 +260,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	if tagsW > 0 {
 		header = append(header, field{text: "TAGS", width: tagsW, colour: role("repositories.header")})
 	}
+	header = append(header, field{text: "BRANCH", width: branchW, colour: role("repositories.header")})
+	if ciW > 0 {
+		header = append(header, field{text: "CI", width: ciW, colour: role("repositories.header")})
+	}
 	header = append(header,
-		field{text: "BRANCH", width: branchW, colour: role("repositories.header")},
 		field{text: "REMOTE", width: syncW, colour: role("repositories.header")},
 		field{text: "EDITS", width: editsW, colour: role("repositories.header"), right: true})
 	if pathW > 0 {
@@ -329,8 +341,12 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{raw: tags})
 		}
 		words, wordsColour := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
+		fields = append(fields, field{text: branch, width: branchW, colour: branchColour})
+		if ciW > 0 {
+			ci, ciColour := ciMark(a.repositoryCI(pr))
+			fields = append(fields, field{text: ci, width: ciW, colour: ciColour})
+		}
 		fields = append(fields,
-			field{text: branch, width: branchW, colour: branchColour},
 			field{text: words, width: syncW, colour: wordsColour},
 			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: role("repositories.edits"), right: true})
 		if pathW > 0 {

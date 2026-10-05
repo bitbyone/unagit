@@ -184,6 +184,11 @@ type App struct {
 	// ciAskEvery is how often they are asked about; 0 is the usual (cipoll.go).
 	ciWatching bool
 	ciAskEvery time.Duration
+	// branchStatus is the newest pipeline of each branch the lists show that
+	// has no merge request, and ciAsking those being asked about
+	// (branchci.go).
+	branchStatus map[branchKey]string
+	ciAsking     map[branchKey]bool
 	// starred is the starred repositories that were cloned (starred.go).
 	starred []forge.Project
 	// repoSize is what each cloned repository takes on disk, its worktrees
@@ -634,6 +639,7 @@ func (a *App) loadIndexes() {
 	if u, err := index.Load[index.Users](a.cfg.IndexPath("users")); err == nil {
 		a.people = u
 	}
+	a.loadBranchCI()
 	a.loadStarred()
 	a.adoptLegacyIndex()
 	a.reindexProjects()
@@ -996,6 +1002,7 @@ func (a *App) refreshProjects() {
 		a.mrsPane.reload()
 		a.settings.reload()
 		a.done(fmt.Sprintf("%d repositories indexed", len(all)))
+		a.askBranchCI(a.repositoryCITargets(), "reading pipelines")
 	})
 }
 

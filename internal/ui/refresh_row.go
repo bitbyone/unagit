@@ -104,6 +104,7 @@ func (a *App) saveMRIndex() {
 // refreshProjectRow fetches one clone and reads again where it stands.
 func (a *App) refreshProjectRow(pr forge.Project) {
 	key := projectKey{pr.Instance, pr.PathWithNamespace}
+	a.askBranchCI([]branchKey{{pr.Instance, pr.PathWithNamespace, a.repositoryBranch(pr)}}, "")
 	if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
 		a.note(pr.PathWithNamespace + " is not cloned - nothing to fetch; R refreshes the list")
 		return
@@ -138,6 +139,8 @@ func (a *App) refreshWorktreeRow(r worktreeRow) {
 	members := []worktreeRow{r}
 	if r.grouped() {
 		members = r.Members
+	} else {
+		a.askBranchCI([]branchKey{{r.Instance, r.Path, r.Branch}}, "")
 	}
 	type fetch struct {
 		dir  string

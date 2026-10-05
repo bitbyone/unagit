@@ -255,6 +255,7 @@ func TestLanguagesBecomePercentages(t *testing.T) {
 
 func TestCombinedStatusBecomesAPipeline(t *testing.T) {
 	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs", `{"check_runs":[]}`)
 	s.handle("/repos/acme/api/commits/main/status",
 		`{"state":"failure","sha":"abc123","total_count":2,
 		  "statuses":[{"updated_at":"2026-09-21T10:00:00Z","target_url":"https://ci"}]}`)
@@ -275,10 +276,25 @@ func TestCombinedStatusBecomesAPipeline(t *testing.T) {
 
 func TestNoStatusesMeansNoPipeline(t *testing.T) {
 	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs", `{"check_runs":[]}`)
 	s.handle("/repos/acme/api/commits/main/status", `{"state":"pending","total_count":0}`)
 	pipe, err := s.client().LatestPipeline(context.Background(),
 		forge.Project{PathWithNamespace: "acme/api"}, "main")
 	if err != nil || pipe != nil {
+		t.Fatalf("pipeline = %+v, err = %v", pipe, err)
+	}
+}
+
+// A repository that builds with Actions has check runs and no statuses;
+// its branch's pipeline is what they add up to.
+func TestLatestPipelineReadsCheckRuns(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs",
+		`{"check_runs":[{"id":1,"name":"test","status":"completed","conclusion":"success"},
+		  {"id":2,"name":"lint","status":"in_progress"}]}`)
+	pipe, err := s.client().LatestPipeline(context.Background(),
+		forge.Project{PathWithNamespace: "acme/api"}, "main")
+	if err != nil || pipe == nil || pipe.Status != "running" {
 		t.Fatalf("pipeline = %+v, err = %v", pipe, err)
 	}
 }

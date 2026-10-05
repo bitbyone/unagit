@@ -40,6 +40,22 @@ type Groups struct {
 	Items     []forge.Group `json:"items"`
 }
 
+// Pipelines is the newest pipeline of the branches the lists show which no
+// merge request answers for: a repository's branch, a worktree's. Status is
+// in GitLab's words, as everywhere.
+type Pipelines struct {
+	UpdatedAt time.Time        `json:"updated_at"`
+	Items     []BranchPipeline `json:"items"`
+}
+
+// BranchPipeline is one branch's newest pipeline.
+type BranchPipeline struct {
+	Instance string `json:"instance"`
+	Project  string `json:"project"`
+	Branch   string `json:"branch"`
+	Status   string `json:"status"`
+}
+
 // Users is what the accounts of each server are called, by server and by
 // username. GitHub's lists name an author by login alone; a name is asked
 // for once and then kept for NameAge, since people seldom change theirs.

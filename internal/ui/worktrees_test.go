@@ -114,3 +114,44 @@ func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
 		t.Errorf("REMOTE gave way before the new columns:\n%s", a.screenText(sc))
 	}
 }
+
+// TestCIOfBranches: a refresh reads the newest pipeline of each repository's
+// branch and each worktree's into a CI column, keeps it for the next start,
+// and a grouped worktree leaves the column empty.
+func TestCIOfBranches(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	// acme/gateway's main has passed, acme/billing has never been built.
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, " CI ")
+	waitForRow(t, a, sc, "acme/gateway", glyphCIDone)
+	if row := rowWith(a, sc, "acme/billing"); containsField(row, glyphCIDone) {
+		t.Errorf("acme/billing has no pipeline, yet its row has one: %q", row)
+	}
+	saved := onLoop(a, func() string {
+		b, _ := os.ReadFile(a.cfg.IndexPath("pipelines"))
+		return string(b)
+	})
+	if !strings.Contains(saved, `"project": "acme/gateway"`) {
+		t.Errorf("the pipelines are not kept for the next start:\n%s", saved)
+	}
+
+	makeWorktree(t, a, "acme/gateway", "wt-feat-x", "ref: refs/heads/feat/x", time.Now())
+	a.tv.QueueUpdateDraw(func() {
+		a.refreshDisk()
+		a.askBranchCI(a.worktreeCITargets(), "")
+	})
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "feat/x")
+	waitForRow(t, a, sc, "feat/x", glyphCIDone)
+
+	// A group has a branch in each repository and no pipeline of its own.
+	group := onLoop(a, func() string {
+		member := worktreeRow{Instance: a.cfg.Instances[0].ID, Path: "acme/gateway", Branch: "feat/x", Dir: "/x"}
+		return a.worktreeCI(worktreeRow{Path: "g", Branch: "feat/x", Dir: "/g", Members: []worktreeRow{member}})
+	})
+	if group != "" {
+		t.Errorf("a grouped worktree shows a pipeline: %q", group)
+	}
+}

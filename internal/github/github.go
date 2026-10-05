@@ -856,15 +856,13 @@ func (c *Client) ProjectLanguages(ctx context.Context, p forge.Project) (map[str
 	return out, nil
 }
 
-// LatestPipeline maps the combined commit status of a ref onto a pipeline.
+// LatestPipeline is what a ref's check runs add up to, the way
+// BranchPipelineJobs reads them, or its combined status when it has none: a
+// repository that builds with GitHub Actions reports through check runs
+// alone.
 func (c *Client) LatestPipeline(ctx context.Context, p forge.Project, ref string) (*forge.Pipeline, error) {
-	if ref == "" {
-		ref = p.DefaultBranch
-	}
-	if ref == "" {
-		return nil, nil
-	}
-	return c.combinedStatus(ctx, p.PathWithNamespace, ref)
+	pipe, _, err := c.BranchPipelineJobs(ctx, p, ref)
+	return pipe, err
 }
 
 // MergeRequestPipeline is the combined status of the pull request's head,

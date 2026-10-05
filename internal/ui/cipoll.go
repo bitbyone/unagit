@@ -7,11 +7,12 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
-// A pipeline under way turns its mark in the CI column, and the list,
-// which is otherwise read only on a refresh, follows it: the merge
-// requests the list shows whose pipeline is running are asked about again
-// every so often, and only those, until each has ended. Then the watching
-// stops, until a pipeline is seen running again.
+// A pipeline under way turns its mark in the CI column, and the lists,
+// which are otherwise read only on a refresh, follow it: the merge
+// requests the list shows whose pipeline is running, and the branches of
+// Repositories and Worktrees whose is, are asked about again every so
+// often, and only those, until each has ended. Then the watching stops,
+// until a pipeline is seen running again.
 
 // ciTurnEvery is how often the mark of a running pipeline turns.
 const ciTurnEvery = 300 * time.Millisecond
@@ -33,10 +34,22 @@ func (a *App) runningMRs() []forge.MergeRequest {
 	return out
 }
 
+// runningBranches is the branches without a merge request whose newest
+// pipeline was last seen running. It runs on the event loop.
+func (a *App) runningBranches() []branchKey {
+	var out []branchKey
+	for k, status := range a.branchStatus {
+		if ciStateOf(status) == ciRunning {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
 // watchCI starts the watching when a shown pipeline is running and it is
 // not watched already. It runs on the event loop and is cheap to call.
 func (a *App) watchCI() {
-	if a.ciWatching || len(a.runningMRs()) == 0 {
+	if a.ciWatching || len(a.runningMRs()) == 0 && len(a.runningBranches()) == 0 {
 		return
 	}
 	a.ciWatching = true
@@ -57,19 +70,20 @@ func (a *App) followCI() {
 	for range ticker.C {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		ok := a.onLoopWait(ctx, func() {
-			running := a.runningMRs()
-			if len(running) == 0 {
+			running, branches := a.runningMRs(), a.runningBranches()
+			if len(running) == 0 && len(branches) == 0 {
 				a.ciWatching = false
 				return
 			}
 			ciTurn++
-			if a.currentTab() == pageMRs && a.mrsPane != nil && a.mrsPane.reload != nil {
-				a.mrsPane.reload()
+			if p := a.ciPane(); p != nil && p.reload != nil {
+				p.reload()
 			}
 			if time.Since(asked) < every {
 				return
 			}
 			asked = time.Now()
+			a.askBranchCI(branches, "")
 			for _, mr := range running {
 				client := a.client(mr.Instance)
 				if client == nil || asking[keyOfMR(mr)] {
@@ -96,4 +110,17 @@ func (a *App) followCI() {
 			return
 		}
 	}
+}
+
+// ciPane is the list in front when it has a CI column, nil otherwise.
+func (a *App) ciPane() *pane {
+	switch a.currentTab() {
+	case pageMRs:
+		return a.mrsPane
+	case pageProjects:
+		return a.projectsPane
+	case pageWorktrees:
+		return a.worktreesPane
+	}
+	return nil
 }
