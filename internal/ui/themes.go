@@ -136,6 +136,14 @@ type Theme struct {
 	// saved by them.
 	Tags map[string]TagInk `json:"tags"`
 
+	// Roles colour what the theme wants set apart, by the role's name
+	// (themeroles.go); every role it leaves out falls back on another, down
+	// to the colours above.
+	Roles map[string]string `json:"colours,omitempty"`
+	// Heat is the colours a size is drawn in from the least to the most -
+	// two or more, spread over sixteen shades - none for no heat.
+	Heat []string `json:"heat,omitempty"`
+
 	Glyphs Glyphs `json:"glyphs"`
 	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
 	// Nerd Font (Settings › Theme): only the ones it names, the rest as
@@ -242,6 +250,13 @@ func readTheme(data []byte, base Theme) (Theme, error) {
 	for name, ink := range base.Tags {
 		t.Tags[name] = ink
 	}
+	t.Roles = map[string]string{}
+	for key, value := range base.Roles {
+		t.Roles[key] = value
+	}
+	// A copy too: decoding into the base's own slice wrote every theme's
+	// heat over the one before it.
+	t.Heat = append([]string(nil), base.Heat...)
 	t.Name, t.Description, t.Extends, t.file = "", "", "", ""
 	if err := json.Unmarshal(data, &t); err != nil {
 		return Theme{}, err
@@ -481,6 +496,17 @@ func (t Theme) validate() error {
 			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
 		}
 	}
+	for key, value := range t.Roles {
+		if _, err := parseColour(value); err != nil {
+			problems = append(problems, "colours."+key+": "+err.Error())
+		}
+	}
+	for i, value := range t.Heat {
+		if _, err := parseColour(value); err != nil {
+			problems = append(problems, fmt.Sprintf("heat[%d]: %v", i, err))
+		}
+	}
+	problems = append(problems, roleProblems(t)...)
 	for key, value := range t.NerdGlyphs.named() {
 		if key == "nerd_glyphs.spinner" {
 			continue

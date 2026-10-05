@@ -342,8 +342,12 @@ the process died. `unagit cd` `exec`s a shell there (a process cannot change
 its parent's directory); `--print` writes the path for a command substitution,
 which is why the picker draws on `/dev/tty` and never on stdout.
 
-**Everything drawn comes from the theme.** A colour or a glyph is never
-written where it is drawn: it is a variable set by `setTheme` (`colMuted`,
+**Everything drawn comes from the theme.** A colour drawn is a role
+(`themeroles.go`): a name, and the role it falls back on when a theme does
+not name it, down to a base colour - so a theme stays short and can still
+colour anything. A new colour is a new role with a sensible fallback, never
+`colWarn` written into a column because it happens to look right. A colour
+or a glyph is never written where it is drawn: it is a variable set by `setTheme` (`colMuted`,
 `glyphDiskReview`, `styleSelected`, ...) from a theme file
 (`internal/ui/themes/*.json`, the user's in `<config>/themes`). Something new
 to draw gets a key of its own in `Theme` (themes.go), a value in

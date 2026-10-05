@@ -138,6 +138,9 @@ func setTheme(t Theme) {
 		}
 	}
 
+	roleColours = resolveRoles(t)
+	heatScale = heatShades(t.Heat)
+
 	g := t.Glyphs
 	if nerdFont {
 		g = g.over(t.NerdGlyphs)

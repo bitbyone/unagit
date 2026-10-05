@@ -56,5 +56,11 @@
     "badge_fill": "#928374",
     "heading_ink": "#282828",
     "heading_fill": "#fabd2f"
-  }
+  },
+  "colours": {
+    "column.mr": "#83a598",
+    "column.wt": "#fe8019",
+    "column.age": "#928374"
+  },
+  "heat": ["#4a6f73", "#8f4436"]
 }

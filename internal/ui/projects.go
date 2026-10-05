@@ -236,27 +236,30 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 	}
 
-	header := []field{{text: "", width: markW, colour: colDim}}
+	// The heat of a size is where it stands between the least and the most
+	// a repository takes.
+	least, most := a.repoSizeRange()
+	header := []field{{text: "", width: markW, colour: role("repositories.header")}}
 	if withServer {
-		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
+		header = append(header, field{text: "SERVER", width: serverW, colour: role("repositories.header")})
 	}
 	header = append(header,
-		field{text: "REPOSITORY", width: nameW, colour: colDim})
+		field{text: "REPOSITORY", width: nameW, colour: role("repositories.header")})
 	if tagsW > 0 {
-		header = append(header, field{text: "TAGS", width: tagsW, colour: colDim})
+		header = append(header, field{text: "TAGS", width: tagsW, colour: role("repositories.header")})
 	}
 	header = append(header,
-		field{text: "BRANCH", width: branchW, colour: colDim},
-		field{text: "REMOTE", width: syncW, colour: colDim},
-		field{text: "EDITS", width: editsW, colour: colDim, right: true})
+		field{text: "BRANCH", width: branchW, colour: role("repositories.header")},
+		field{text: "REMOTE", width: syncW, colour: role("repositories.header")},
+		field{text: "EDITS", width: editsW, colour: role("repositories.header"), right: true})
 	if pathW > 0 {
-		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
+		header = append(header, field{text: "PATH", width: pathW, colour: role("repositories.header")})
 	}
 	header = append(header,
-		field{text: "MR", width: mrW, colour: colDim, right: true},
-		field{text: "WT", width: wtW, colour: colDim, right: true},
-		field{text: "SIZE", width: sizeW, colour: colDim, right: true},
-		field{text: "ACTIVITY", width: actW, colour: colDim})
+		field{text: "MR", width: mrW, colour: role("repositories.header"), right: true},
+		field{text: "WT", width: wtW, colour: role("repositories.header"), right: true},
+		field{text: "SIZE", width: sizeW, colour: role("repositories.header"), right: true},
+		field{text: "ACTIVITY", width: actW, colour: role("repositories.header")})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
@@ -275,24 +278,29 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if grouped {
 			mark = " " + mark
 		}
-		branch, branchColour := info.Branch, colBranch
+		branch, branchColour := info.Branch, role("repositories.branch")
 		if !info.Cloned {
 			branch, branchColour = pr.DefaultBranch, colDim
 		}
 		path := tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace))
 		pathColour := colDim
 		if info.Cloned {
-			pathColour = colMuted
+			pathColour = role("repositories.path")
 		}
 		mrCount := ""
 		if n := len(info.MRs); n > 0 {
 			mrCount = fmt.Sprintf("%d", n)
 		}
-		mrField := field{text: mrCount, width: mrW, colour: colWarn, right: true}
+		mrField := field{text: mrCount, width: mrW, colour: role("repositories.mr"), right: true}
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
-			hidden := strings.TrimSpace(glyphHidden + " " + mrCount)
-			pad := strings.Repeat(" ", max(0, mrW-len([]rune(hidden))))
-			mrField = field{raw: pad + tag(colWarn) + esc(hidden) + tagEnd}
+			// The mark quiet, the count in its own colour beside it.
+			hidden := tag(role("repositories.hidden")) + glyphHidden + tagEnd
+			width := 1
+			if mrCount != "" {
+				hidden += " " + tag(role("repositories.mr")) + mrCount + tagEnd
+				width += 1 + len(mrCount)
+			}
+			mrField = field{raw: strings.Repeat(" ", max(0, mrW-width)) + hidden}
 		}
 		wtCount := ""
 		if info.Worktrees > 0 {
@@ -302,7 +310,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		fields := []field{{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)}}
 		nameX := markW + 1
 		if withServer {
-			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: colAccent})
+			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1
 		}
 		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
@@ -316,15 +324,16 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		fields = append(fields,
 			field{text: branch, width: branchW, colour: branchColour},
 			field{text: words, width: syncW, colour: wordsColour},
-			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: colWarn, right: true})
+			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: role("repositories.edits"), right: true})
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
 		}
 		fields = append(fields,
 			mrField,
-			field{text: wtCount, width: wtW, colour: colWarn, right: true},
-			field{text: a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}), width: sizeW, colour: colMuted, right: true},
-			field{text: humanAge(pr.LastActivityAt), width: actW, colour: colMuted})
+			field{text: wtCount, width: wtW, colour: role("repositories.wt"), right: true},
+			field{text: a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}), width: sizeW,
+				colour: heatColour(a.repoSize[projectKey{pr.Instance, pr.PathWithNamespace}], least, most, role("repositories.size")), right: true},
+			field{text: humanAge(pr.LastActivityAt), width: actW, colour: role("repositories.activity")})
 
 		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
 		if p.marks[idx] {

@@ -75,6 +75,12 @@
     "pink": {"ink": "#f2b8d8", "fill": "#582842"},
     "sand": {"ink": "#e3d4c0", "fill": "#4d4232"}
   },
+  "colours": {
+    "column.mr": "110",
+    "column.wt": "173",
+    "column.age": "103"
+  },
+  "heat": ["#5a7f8c", "#8f5a5a"],
   "glyphs": {
     "disk_none": "○",
     "disk_branch": "●",

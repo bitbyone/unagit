@@ -594,6 +594,18 @@ fill), `glyphs` and `borders`. A file that cannot be used - a colour that is
 not one, a glyph of two characters, a theme that extends itself - is listed
 in the section with what is wrong, and the others still load.
 
+Anything else drawn has a colour of its own under `colours`, by name -
+`repositories.mr`, `worktrees.size`, `merge_requests.author` - and each
+falls back on a more general one when the theme leaves it out: a list's
+column on the column of every list (`column.mr`, `column.age`), that on a
+base colour (`text.accent`, `text.muted`). So a theme changes a few base
+colours and everything follows, and names only what it wants set apart.
+Every name and what it falls back on is in
+[`internal/ui/themeroles.go`](internal/ui/themeroles.go). `heat` is two
+colours, the coldest and the hottest, which sizes are drawn between - from
+the least a repository or a worktree takes to the most, on a logarithmic
+scale - in sixteen shades worked out between them, as faded as the ends.
+
 ## Editors
 
 Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -

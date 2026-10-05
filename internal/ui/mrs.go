@@ -261,32 +261,32 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	}
 
 	// The header is laid out the same way the rows are.
-	header := []field{{text: "", width: 2 + star, colour: colDim}}
+	header := []field{{text: "", width: 2 + star, colour: role("merge_requests.header")}}
 	if withServer {
-		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
+		header = append(header, field{text: "SERVER", width: serverW, colour: role("merge_requests.header")})
 	}
 	if !grouped {
-		header = append(header, field{text: "REPO", width: c.proj, colour: colDim})
+		header = append(header, field{text: "REPO", width: c.proj, colour: role("merge_requests.header")})
 	}
 	header = append(header,
-		field{text: "MR", width: c.iid, colour: colDim},
-		field{text: "TITLE", width: c.title, colour: colDim},
-		field{text: "AUTHOR", width: c.author, colour: colDim},
-		field{text: "BRANCH", width: c.branch, colour: colDim},
-		field{text: "COM", width: c.com, colour: colDim, right: true})
+		field{text: "MR", width: c.iid, colour: role("merge_requests.header")},
+		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
+		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")},
+		field{text: "BRANCH", width: c.branch, colour: role("merge_requests.header")},
+		field{text: "COM", width: c.com, colour: role("merge_requests.header"), right: true})
 	if c.pub > 0 {
-		header = append(header, field{text: "PUB", width: c.pub, colour: colDim, right: true})
+		header = append(header, field{text: "PUB", width: c.pub, colour: role("merge_requests.header"), right: true})
 	}
 	if c.fresh > 0 {
-		header = append(header, field{text: "NEW", width: c.fresh, colour: colDim, right: true})
+		header = append(header, field{text: "NEW", width: c.fresh, colour: role("merge_requests.header"), right: true})
 	}
 	if c.appr > 0 {
-		header = append(header, field{text: "APPR", width: c.appr, colour: colDim})
+		header = append(header, field{text: "APPR", width: c.appr, colour: role("merge_requests.header")})
 	}
 	if c.ci > 0 {
-		header = append(header, field{text: "CI", width: c.ci, colour: colDim})
+		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
 	}
-	header = append(header, field{text: "UPDATED", width: c.updated, colour: colDim})
+	header = append(header, field{text: "UPDATED", width: c.updated, colour: role("merge_requests.header")})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
 		SetSelectable(false).SetExpansion(1))
 
@@ -302,7 +302,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		mark = tag(mrMarkColor(disk)) + mark + tagEnd
 		mark = starred(star, favourite(idx), mark)
 		title := trunc(mr.Title, c.title)
-		titleField := field{text: title, width: c.title, colour: colText}
+		titleField := field{text: title, width: c.title, colour: role("merge_requests.title")}
 		if mr.Draft {
 			short := trunc(mr.Title, c.title-6)
 			pad := strings.Repeat(" ", max(0, c.title-len([]rune(short))-6))
@@ -316,24 +316,24 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 
 		fields := []field{{raw: mark}}
 		if withServer {
-			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: colAccent})
+			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: role("merge_requests.server")})
 		}
 		if !grouped {
-			fields = append(fields, field{text: path, width: c.proj, colour: colAccent})
+			fields = append(fields, field{text: path, width: c.proj, colour: role("merge_requests.repository")})
 		}
 		fields = append(fields,
-			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: colWarn},
+			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},
 			titleField,
-			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: colMuted},
-			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
+			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")},
+			field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")},
 			field{text: comments, width: c.com, colour: commentsColour, right: true})
 		if c.pub > 0 {
-			fields = append(fields, field{text: pending, width: c.pub, colour: colWarn, right: true})
+			fields = append(fields, field{text: pending, width: c.pub, colour: role("merge_requests.pending"), right: true})
 		}
 		ci, ciColour := ciMark(mr.Pipeline)
 		appr, apprColour := approvalWords(mr, a.me[mr.Instance])
 		if c.fresh > 0 {
-			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: colWarn, right: true})
+			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
 		}
 		if c.appr > 0 {
 			fields = append(fields, field{text: appr, width: c.appr, colour: apprColour})
@@ -341,7 +341,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if c.ci > 0 {
 			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
 		}
-		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: colMuted})
+		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: role("merge_requests.updated")})
 
 		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
 		if p.marks[idx] {

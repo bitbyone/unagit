@@ -103,3 +103,17 @@ func (a *App) repoSizeWords(key projectKey) string {
 	}
 	return humanBytes(n)
 }
+
+// repoSizeRange is the least and the most a measured repository takes.
+func (a *App) repoSizeRange() (least, most int64) {
+	for _, n := range a.repoSize {
+		if n <= 0 {
+			continue
+		}
+		if least == 0 || n < least {
+			least = n
+		}
+		most = max(most, n)
+	}
+	return least, most
+}

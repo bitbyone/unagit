@@ -461,34 +461,37 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	repoW = atLeast(max(min(repoW, room-cost()), 10), "REPOSITORY")
 
-	header := []field{{text: "", width: markW, colour: colDim}}
+	// The heat of a size is where it stands between the least and the most
+	// a worktree takes.
+	wtLeast, wtMost := a.worktreeSizeRange()
+	header := []field{{text: "", width: markW, colour: role("worktrees.header")}}
 	if withServer {
-		header = append(header, field{text: "SERVER", width: serverW, colour: colDim})
+		header = append(header, field{text: "SERVER", width: serverW, colour: role("worktrees.header")})
 	}
 	header = append(header,
-		field{text: "REPOSITORY", width: repoW, colour: colDim},
-		field{text: "REPOS", width: reposW, colour: colDim, right: true},
-		field{text: "BRANCH", width: branchW, colour: colDim},
-		field{text: "REMOTE", width: remoteW, colour: colDim})
+		field{text: "REPOSITORY", width: repoW, colour: role("worktrees.header")},
+		field{text: "REPOS", width: reposW, colour: role("worktrees.header"), right: true},
+		field{text: "BRANCH", width: branchW, colour: role("worktrees.header")},
+		field{text: "REMOTE", width: remoteW, colour: role("worktrees.header")})
 	if showEdits {
-		header = append(header, field{text: "EDITS", width: editsW, colour: colDim, right: true})
+		header = append(header, field{text: "EDITS", width: editsW, colour: role("worktrees.header"), right: true})
 	}
 	if showMR {
-		header = append(header, field{text: "MR", width: mrW, colour: colDim})
+		header = append(header, field{text: "MR", width: mrW, colour: role("worktrees.header")})
 	}
 	if showComments {
-		header = append(header, field{text: "COM", width: comW, colour: colDim, right: true})
+		header = append(header, field{text: "COM", width: comW, colour: role("worktrees.header"), right: true})
 	}
 	if showPath {
-		header = append(header, field{text: "PATH", width: pathW, colour: colDim})
+		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
 	}
 	if showSize {
-		header = append(header, field{text: "SIZE", width: sizeW, colour: colDim, right: true})
+		header = append(header, field{text: "SIZE", width: sizeW, colour: role("worktrees.header"), right: true})
 	}
 	if showCreated {
-		header = append(header, field{text: "CREATED", width: createdW, colour: colDim})
+		header = append(header, field{text: "CREATED", width: createdW, colour: role("worktrees.header")})
 	}
-	header = append(header, field{text: "ACTIVITY", width: actW, colour: colDim})
+	header = append(header, field{text: "ACTIVITY", width: actW, colour: role("worktrees.header")})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).SetSelectable(false).SetExpansion(1))
 
 	for row, idx := range filtered {
@@ -502,7 +505,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		cells := []field{{raw: mark}}
 		if withServer {
-			cells = append(cells, field{text: a.worktreeServer(r), width: serverW, colour: colAccent})
+			cells = append(cells, field{text: a.worktreeServer(r), width: serverW, colour: role("worktrees.server")})
 		}
 		plain, colour := a.worktreeRemoteWords(r)
 		remote := field{text: plain, width: remoteW, colour: colour}
@@ -511,30 +514,30 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			remote = field{raw: remoteCell(st, known, remoteW)}
 		}
 		cells = append(cells,
-			field{text: r.Path, width: repoW, colour: colText},
+			field{text: r.Path, width: repoW, colour: role("worktrees.repository")},
 			field{text: count, width: reposW, colour: countColour, right: true},
 			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour},
 			remote)
 		if showEdits {
-			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: colWarn, right: true})
+			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: role("worktrees.edits"), right: true})
 		}
 		if showMR {
-			cells = append(cells, field{text: mrs[idx], width: mrW, colour: colAccent})
+			cells = append(cells, field{text: mrs[idx], width: mrW, colour: role("worktrees.mr")})
 		}
 		if showComments {
 			com, colour := a.worktreeComments(r)
 			cells = append(cells, field{text: com, width: comW, colour: colour, right: true})
 		}
 		if showPath {
-			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: colMuted})
+			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path")})
 		}
 		if showSize {
-			cells = append(cells, field{text: a.worktreeSize(r), width: sizeW, colour: colMuted, right: true})
+			cells = append(cells, field{text: a.worktreeSize(r), width: sizeW, colour: heatColour(a.worktreeBytes(r), wtLeast, wtMost, role("worktrees.size")), right: true})
 		}
 		if showCreated {
-			cells = append(cells, field{text: humanAge(r.Created), width: createdW, colour: colMuted})
+			cells = append(cells, field{text: humanAge(r.Created), width: createdW, colour: role("worktrees.created")})
 		}
-		cells = append(cells, field{text: humanAge(r.Moved), width: actW, colour: colMuted})
+		cells = append(cells, field{text: humanAge(r.Moved), width: actW, colour: role("worktrees.activity")})
 		p.table.SetCell(row+1, 0, tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1))
 	}
 
@@ -1105,4 +1108,37 @@ func (a *App) worktreeSize(r worktreeRow) string {
 		total += n
 	}
 	return humanBytes(total)
+}
+
+// worktreeBytes is what a worktree takes, a group's summed; 0 while some of
+// it is not measured.
+func (a *App) worktreeBytes(r worktreeRow) int64 {
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	var total int64
+	for _, m := range members {
+		n, known := a.wtSize[m.Dir]
+		if !known {
+			return 0
+		}
+		total += n
+	}
+	return total
+}
+
+// worktreeSizeRange is the least and the most a measured worktree takes.
+func (a *App) worktreeSizeRange() (least, most int64) {
+	for _, r := range a.worktrees {
+		n := a.worktreeBytes(r)
+		if n <= 0 {
+			continue
+		}
+		if least == 0 || n < least {
+			least = n
+		}
+		most = max(most, n)
+	}
+	return least, most
 }
