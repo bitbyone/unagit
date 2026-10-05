@@ -279,10 +279,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if info.Cloned {
 			mark, markColour = " "+glyphDot, colOn
 		}
+		// A marked row is told by its band alone; its mark still says what is
+		// on disk.
 		nameColour := colText
-		if p.marks[idx] {
-			mark, markColour, nameColour = " "+glyphCheck, colAccent, colAccent
-		}
 		if grouped {
 			mark = " " + mark
 		}

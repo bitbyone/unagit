@@ -102,6 +102,7 @@ func (a *App) yankProject(pr forge.Project) {
 	items := []yankItem{
 		{"Link", pr.WebURL},
 		{"Link with text", linkWithText(pr.WebURL, pr.PathWithNamespace, trim(pr.Description, 60))},
+		{"Markdown link", markdownLink(pr.PathWithNamespace, pr.WebURL)},
 		{"Path", pr.PathWithNamespace},
 		{"Clone address", a.newManager(pr.Instance, pr.PathWithNamespace, nil).RemoteURL(pr)},
 	}
@@ -124,6 +125,18 @@ func (a *App) yankProjects(picked []forge.Project) {
 	}
 	a.showYank("Copy "+counted(len(picked), "repository", "repositories"), []yankItem{
 		{"Links", lines(func(pr forge.Project) string { return pr.WebURL })},
+		{"Named links", lines(func(pr forge.Project) string {
+			if pr.WebURL == "" {
+				return ""
+			}
+			return pr.PathWithNamespace + " - " + pr.WebURL
+		})},
+		{"Markdown links", lines(func(pr forge.Project) string {
+			if pr.WebURL == "" {
+				return ""
+			}
+			return fmt.Sprintf("[%s](%s)", pr.PathWithNamespace, pr.WebURL)
+		})},
 		{"Paths", lines(func(pr forge.Project) string { return pr.PathWithNamespace })},
 		{"Clone addresses", lines(func(pr forge.Project) string {
 			return a.newManager(pr.Instance, pr.PathWithNamespace, nil).RemoteURL(pr)
@@ -150,6 +163,12 @@ func (a *App) yankMRs(picked []forge.MergeRequest) {
 	}
 	a.showYank("Copy "+counted(len(picked), "merge request", "merge requests"), []yankItem{
 		{"Links", lines(func(mr forge.MergeRequest) string { return mr.WebURL })},
+		{"Named links", lines(func(mr forge.MergeRequest) string {
+			if mr.WebURL == "" {
+				return ""
+			}
+			return a.mrReference(mr) + " " + mr.Title + " - " + mr.WebURL
+		})},
 		{"References", lines(func(mr forge.MergeRequest) string { return a.mrReference(mr) })},
 		{"Source branches", lines(func(mr forge.MergeRequest) string { return mr.SourceBranch })},
 		{"Titles", lines(func(mr forge.MergeRequest) string { return mr.Title })},
@@ -184,6 +203,14 @@ func (a *App) yankWorktree(r worktreeRow) {
 // linkWithText is a line to paste into a chat: what it is, in words, then
 // the link, which the chat makes clickable. Empty words are left out, and
 // without a link there is nothing to paste.
+// markdownLink is a link in markdown, named; "" without an address.
+func markdownLink(name, url string) string {
+	if url == "" {
+		return ""
+	}
+	return fmt.Sprintf("[%s](%s)", name, url)
+}
+
 func linkWithText(url string, words ...string) string {
 	if url == "" {
 		return ""

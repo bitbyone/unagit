@@ -120,4 +120,15 @@ func TestMarkedRepositoriesAreCopiedOneALine(t *testing.T) {
 	if got := c.get(); got != "acme/gateway\nacme/billing" && got != "acme/billing\nacme/gateway" {
 		t.Errorf("clipboard = %q", got)
 	}
+	// Copying leaves the marks, so the markdown links are a y away.
+	waitFor(t, a, sc, "SELECT 2")
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Markdown links")
+	waitFor(t, a, sc, "Named links")
+	typeRunes(sc, "/markdown")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "copied markdown links")
+	if got := c.get(); !strings.Contains(got, "[acme/gateway](https://gl.test/acme/gateway)") {
+		t.Errorf("clipboard = %q", got)
+	}
 }

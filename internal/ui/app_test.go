@@ -484,8 +484,10 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 	id := inst.ID
 	now := time.Now()
 	projects := []forge.Project{
-		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: now, Instance: id},
-		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: now.Add(-time.Hour), Instance: id},
+		{ID: 1, Name: "gateway", PathWithNamespace: "acme/gateway", DefaultBranch: "main", LastActivityAt: now, Instance: id,
+			WebURL: "https://gl.test/acme/gateway"},
+		{ID: 2, Name: "billing", PathWithNamespace: "acme/billing", DefaultBranch: "main", LastActivityAt: now.Add(-time.Hour), Instance: id,
+			WebURL: "https://gl.test/acme/billing"},
 	}
 	mrs := []forge.MergeRequest{
 		{ID: 107, IID: 7, ProjectID: 1, ProjectPath: "acme/gateway", Title: "Rate limiting", SourceBranch: "feat/rate", TargetBranch: "main", UpdatedAt: now, Comments: 4, Instance: id},
