@@ -176,8 +176,8 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	title := fmt.Sprintf("Pipeline · %s · %s %s", target.label, mark, pipe.Status)
 	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", keys: []pickKey{
 		{keys: "R", hint: "retry", run: func(it pickItem) { a.retryJob(target, at(it)) }},
-		{keys: "w", hint: "browser", run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
-		{keys: "W", hint: "pipeline", run: func(it pickItem) { a.openWeb(pipe.WebURL) }},
+		{keys: "w", hint: "browser", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
+		{keys: "W", hint: "pipeline", stay: true, run: func(it pickItem) { a.openWeb(pipe.WebURL) }},
 	}}
 	a.showPickerWith(title, items, opts, func(it pickItem) { a.showJobLog(target, at(it), back(it)) })
 }

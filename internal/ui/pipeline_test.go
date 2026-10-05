@@ -4,8 +4,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 // TestAPipelineUpClose: J lists the jobs with the failed one under the
@@ -41,6 +43,52 @@ func TestAPipelineUpClose(t *testing.T) {
 	waitFor(t, a, sc, "unit tests runs again")
 	if srv.retried.Load() != 1 {
 		t.Errorf("retried %d time(s), want 1", srv.retried.Load())
+	}
+}
+
+// TestTheBrowserLeavesThePipelineOpen: w and W open the job and the
+// pipeline in the browser and the jobs stay on screen, the cursor where it
+// was. Serial: it swaps the browser.
+func TestTheBrowserLeavesThePipelineOpen(t *testing.T) {
+	opened := make(chan string, 4)
+	saved := openBrowser
+	openBrowser = func(url string) error { opened <- url; return nil }
+	t.Cleanup(func() { openBrowser = saved })
+
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
+	waitFor(t, a, sc, "unit tests")
+	list := onLoop(a, func() *tview.List { l, _ := a.tv.GetFocus().(*tview.List); return l })
+	if list == nil {
+		t.Fatal("the jobs are not a list in focus")
+	}
+	cursor := func() string {
+		return onLoop(a, func() string {
+			main, _ := list.GetItemText(list.GetCurrentItem())
+			return main
+		})
+	}
+	typeRunes(sc, "j")
+	before := cursor()
+	for _, key := range []string{"w", "W"} {
+		typeRunes(sc, key)
+		select {
+		case <-opened:
+		case <-time.After(patience):
+			t.Fatalf("%s opened nothing", key)
+		}
+		waitFor(t, a, sc, "opened ")
+		waitFor(t, a, sc, "Pipeline · acme/gateway !7")
+		if !onLoop(a, func() bool { return a.pages.HasPage(pagePicker) }) {
+			t.Fatalf("%s closed the jobs:\n%s", key, a.screenText(sc))
+		}
+		if got := cursor(); got != before {
+			t.Errorf("after %s the cursor is on %q, not %q", key, got, before)
+		}
 	}
 }
 

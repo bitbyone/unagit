@@ -640,7 +640,8 @@ func (a *App) mrProject(mr forge.MergeRequest) forge.Project {
 	return forge.Project{PathWithNamespace: path, Instance: mr.Instance}
 }
 
-func openBrowser(url string) error { return workspace.OpenBrowser(url) }
+// openBrowser hands an address to the system browser. Tests replace it.
+var openBrowser = workspace.OpenBrowser
 
 // ciMark is a pipeline's status as one glyph and its colour; "" for none.
 // GitLab's words and GitHub's are both here.

@@ -148,6 +148,9 @@ type pickKey struct {
 	keys string
 	hint string
 	run  func(pickItem)
+	// stay keeps the picker open, the cursor where it was: for a key whose
+	// work happens elsewhere, like opening the browser.
+	stay bool
 }
 
 func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) {
@@ -288,7 +291,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			if (uiAction{keys: k.keys}).matches(ev) {
 				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
 					it := shown[i]
-					dismiss()
+					if !k.stay {
+						dismiss()
+					}
 					k.run(it)
 				}
 				return nil
