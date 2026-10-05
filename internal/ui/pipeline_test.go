@@ -11,7 +11,7 @@ import (
 )
 
 // TestAPipelineUpClose: J lists the jobs with the failed one under the
-// cursor; Enter reads its log, cleaned of colours, and Esc comes back; R
+// cursor; Enter reads its log, in its colours, and Esc comes back; R
 // runs it again.
 func TestAPipelineUpClose(t *testing.T) {
 	t.Parallel()
@@ -26,6 +26,7 @@ func TestAPipelineUpClose(t *testing.T) {
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "--- FAIL: TestBucket")
+	assertLegible(t, a, sc, "a job's log in colour")
 	text := a.screenText(sc)
 	if strings.Contains(text, "section_start") || strings.Contains(text, "[0K") || strings.Contains(text, "progress 10%") {
 		t.Errorf("the log is not plain:\n%s", text)
@@ -147,11 +148,61 @@ func TestARefreshSaysWhereToLook(t *testing.T) {
 	waitFor(t, a, sc, "✗")
 }
 
-func TestCleanLog(t *testing.T) {
+// TestLogInColour: a job's log is drawn in its own colours, its brackets
+// as text, without underline or black ink, and of GitLab's section markers
+// and a progress bar's rewrites only the text that stays.
+func TestLogInColour(t *testing.T) {
 	t.Parallel()
-	got := cleanLog("\x1b[32;1mok\x1b[0;m\nsection_end:12:build\r\x1b[0Kdone\n1%\r50%\r100%")
-	if got != "ok\ndone\n100%" {
-		t.Errorf("cleanLog = %q", got)
+	raw := "\x1b[32;1mok\x1b[0;m [red] [x]\n" +
+		"section_end:12:build\r\x1b[0Kdone\n" +
+		"1%\r50%\r100%\n" +
+		"\x1b[4;31munder\x1b[0m \x1b[30mblack\n" +
+		"\x1b[38;5;208morange\x1b[0m plain"
+	sc := tcell.NewSimulationScreen("UTF-8")
+	must(t, sc.Init())
+	sc.SetSize(40, 8)
+	view := tview.NewTextView().SetDynamicColors(true).SetTextColor(colText)
+	view.SetText(logMarkup(raw))
+	view.SetRect(0, 0, 40, 8)
+	view.Draw(sc)
+	sc.Show()
+
+	cells, width, _ := sc.GetContents()
+	row := func(y int) string {
+		var b strings.Builder
+		for x := 0; x < width; x++ {
+			if r := cells[y*width+x].Runes; len(r) > 0 {
+				b.WriteRune(r[0])
+			}
+		}
+		return strings.TrimRight(b.String(), " ")
+	}
+	for y, want := range []string{"ok [red] [x]", "done", "100%", "under black", "orange plain"} {
+		if got := row(y); got != want {
+			t.Errorf("row %d = %q, want %q", y, got, want)
+		}
+	}
+	style := func(x, y int) (tcell.Color, tcell.AttrMask) {
+		fg, _, attr := cells[y*width+x].Style.Decompose()
+		return fg, attr
+	}
+	if fg, attr := style(0, 0); fg != tcell.ColorGreen || attr&tcell.AttrBold == 0 {
+		t.Errorf("ok is %v %v, want bold green", fg, attr)
+	}
+	if fg, _ := style(4, 0); fg != colText {
+		t.Errorf("after the reset the text is %v, want the view's own %v", fg, colText)
+	}
+	if fg, attr := style(0, 3); fg != tcell.ColorMaroon || attr&tcell.AttrUnderline != 0 {
+		t.Errorf("under is %v %v, want red and not underlined", fg, attr)
+	}
+	if fg, _ := style(6, 3); fg != tcell.ColorGray {
+		t.Errorf("black ink is %v, want grey", fg)
+	}
+	if fg, _ := style(0, 4); fg == colText {
+		t.Error("an extended colour was lost")
+	}
+	if fg, _ := style(7, 4); fg != colText {
+		t.Errorf("plain after an extended colour is %v", fg)
 	}
 }
 

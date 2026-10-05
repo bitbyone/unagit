@@ -209,24 +209,75 @@ func (a *App) retryJob(target ciTarget, job forge.Job) {
 // logTail is as much of a log as is shown: the end, where a job fails.
 const logTail = 400
 
-// ansi matches the escape sequences a CI log is coloured with, and GitLab's
-// section markers.
-var ansi = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|section_(start|end):[0-9]+:[A-Za-z0-9_.-]+(\[[^\]]*\])?`)
+// sgr matches the escape sequences a CI log is coloured with.
+var sgr = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// cleanLog makes a CI log plain text: no colours, and of a line rewritten in
-// place - a progress bar - only what it ended as.
-func cleanLog(raw string) string {
+// noise matches what a log carries that is not text and not colour: the
+// other escape sequences - clearing a line, hiding the cursor - and
+// GitLab's section markers.
+var noise = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-ln-z]|section_(start|end):[0-9]+:[A-Za-z0-9_.-]+(\[[^\]]*\])?`)
+
+// logMarkup turns a CI log into the markup a text view draws, in its
+// colours as the forge's own page shows them; of a line rewritten in place -
+// a progress bar - only what it ended as.
+func logMarkup(raw string) string {
 	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
 	for i, line := range lines {
 		if at := strings.LastIndex(strings.TrimRight(line, "\r"), "\r"); at >= 0 {
 			line = line[at+1:]
 		}
-		lines[i] = ansi.ReplaceAllString(line, "")
+		lines[i] = colourLine(noise.ReplaceAllString(line, ""))
 	}
 	if len(lines) > logTail {
 		lines = append([]string{fmt.Sprintf("… %d earlier lines; w opens the whole log", len(lines)-logTail)}, lines[len(lines)-logTail:]...)
 	}
-	return strings.Join(lines, "\n")
+	// Each line ends where it began, so a colour left on cannot run into the
+	// next, nor into the line about the earlier ones.
+	return strings.Join(lines, "[-:-:-]\n") + "[-:-:-]"
+}
+
+// colourLine turns one line's colour sequences into tview's tags. The text
+// between them is escaped first: a log is full of brackets, and "[red]" in
+// it is something a test printed, not a colour.
+func colourLine(line string) string {
+	var b strings.Builder
+	last := 0
+	for _, at := range sgr.FindAllStringIndex(line, -1) {
+		b.WriteString(tview.Escape(line[last:at[0]]))
+		b.WriteString(keptSGR(line[at[0]:at[1]]))
+		last = at[1]
+	}
+	b.WriteString(tview.Escape(line[last:]))
+	return tview.TranslateANSI(b.String())
+}
+
+// keptSGR is a colour sequence without what cannot be drawn well here:
+// underline and blink (an underline once set stays on in this tview), and
+// black ink, which is the background of most themes - it becomes grey, as
+// on GitLab's own page.
+func keptSGR(seq string) string {
+	params := strings.Split(strings.TrimSuffix(strings.TrimPrefix(seq, "\x1b["), "m"), ";")
+	kept := params[:0]
+	for i := 0; i < len(params); i++ {
+		switch p := params[i]; p {
+		case "4", "04", "5", "05", "24", "25":
+			continue
+		case "30":
+			kept = append(kept, "90")
+			continue
+		case "38", "48":
+			// An extended colour takes its arguments with it, untouched.
+			kept = append(kept, params[i:]...)
+			i = len(params)
+			continue
+		default:
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) == 0 && len(params) > 0 && params[0] != "" && params[0] != "0" {
+		return ""
+	}
+	return "\x1b[" + strings.Join(kept, ";") + "m"
 }
 
 // showJobLog reads a job's log and shows its end; Esc goes back.
@@ -237,10 +288,10 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		raw, err := client.JobLog(ctx, target.project, job)
-		text = cleanLog(raw)
+		text = logMarkup(raw)
 		return "", err
 	}, func(string) {
-		view := tview.NewTextView().SetWrap(true).SetScrollable(true).SetTextColor(colText)
+		view := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetScrollable(true).SetTextColor(colText)
 		view.SetText(text)
 		view.ScrollToEnd()
 		mark, _ := ciMark(job.Status)

@@ -155,8 +155,10 @@ all and live only there.
   cursor. The same `J` works on a repository (the clone's branch, or the
   default branch before it is cloned), on a worktree (its merge request's
   pipeline while one is open, else the branch's), and on a grouped worktree,
-  where it asks which repository first. `Enter` reads a job's log - its end, plain text - `R` runs it
-  again, `w` opens it, `W` the pipeline. On GitHub the jobs are the check
+  where it asks which repository first. `Enter` reads a job's log - its end,
+  in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
+  `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
+  the pipeline, and the jobs stay open behind the browser. On GitHub the jobs are the check
   runs, and the log is GitHub Actions'.
 - `v` in Merge requests narrows them to yours, to those you review or are
   assigned to, or both, and can leave the drafts out.
