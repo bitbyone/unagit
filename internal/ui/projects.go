@@ -279,6 +279,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			mark = " " + mark
 		}
 		branch, branchColour := info.Branch, role("repositories.branch")
+		if branch == pr.DefaultBranch {
+			branchColour = role("repositories.default_branch")
+		}
 		if !info.Cloned {
 			branch, branchColour = pr.DefaultBranch, colDim
 		}

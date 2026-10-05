@@ -496,7 +496,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 
 	for row, idx := range filtered {
 		r := a.worktrees[idx]
-		mark, count, countColour, branchColour := tag(colOn)+" "+glyphDot+tagEnd, "1", colDim, colBranch
+		branchColour := role("worktrees.branch")
+		if r.Branch != "" && r.Branch == a.worktreeProject(r).DefaultBranch {
+			branchColour = role("worktrees.default_branch")
+		}
+		mark, count, countColour := tag(colOn)+" "+glyphDot+tagEnd, "1", colDim
 		if r.grouped() {
 			mark, count, countColour = tag(colAccent)+" "+glyphGroup+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
 			if r.Branch == "" {

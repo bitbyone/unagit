@@ -58,6 +58,7 @@
     "heading_fill": "#c2985d"
   },
   "colours": {
+    "column.branch": "#8fb3c4",
     "column.mr": "#a5d0c0",
     "column.wt": "#d4ab6e",
     "column.age": "#8a8078"

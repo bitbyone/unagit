@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -86,5 +88,48 @@ func TestHeatSpreadsFromColdToHot(t *testing.T) {
 	heatScale = nil
 	if got := heatColour(1<<20, 1<<10, 1<<30, fallback); got != fallback {
 		t.Error("without heat the size lost its role's colour")
+	}
+}
+
+// TestTheDefaultBranchStandsApart: in Repositories the default branch is
+// drawn in its own colour and any other branch in another.
+func TestTheDefaultBranchStandsApart(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	if role("repositories.branch").Hex() == role("repositories.default_branch").Hex() {
+		t.Fatal("the default theme draws both branches alike")
+	}
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	typeRunes(sc, "j") // off the row, so its own colours show
+	branchColour := func(name string) int32 {
+		deadline := time.Now().Add(patience)
+		for {
+			text := a.screenText(sc)
+			row := lineOf(text, "acme/gateway")
+			line := strings.Split(text, "\n")[row]
+			if at := strings.Index(line, " "+name+" "); at >= 0 && lineOf(text, "acme/billing") > row {
+				_, style := cellAt(a, sc, len([]rune(line[:at]))+1, row)
+				fg, bg, _ := style.Decompose()
+				// Dim is a repository not cloned yet: the scan has not
+				// caught up.
+				if _, selected, _ := styleSelected.Decompose(); bg != selected && fg.Hex() != colDim.Hex() {
+					return fg.Hex()
+				}
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s is not on the row:\n%s", name, text)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	if got := branchColour("main"); got != role("repositories.default_branch").Hex() {
+		t.Errorf("the default branch is %06x", got)
+	}
+	gitIn(t, p.clone, "checkout", "-q", "-b", "feat/x")
+	p.rescan()
+	if got := branchColour("feat/x"); got != role("repositories.branch").Hex() {
+		t.Errorf("a branch of work is %06x", got)
 	}
 }

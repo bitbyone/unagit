@@ -76,6 +76,7 @@
     "sand": {"ink": "#e3d4c0", "fill": "#4d4232"}
   },
   "colours": {
+    "column.branch": "74",
     "column.mr": "110",
     "column.wt": "173",
     "column.age": "103"
