@@ -187,8 +187,8 @@ func helpRows() []helpLine {
 
 		section("Filters · shared by both lists", helpLists),
 		key("L", "only the repositories you have cloned"),
-		key("x", "hide or show the repository and its merge requests"),
-		key("X", "manage the hidden repositories"),
+		key("x", "hide or show the repository and its merge requests").in(helpRepoList),
+		key("X", "manage the hidden repositories").in(helpRepoList),
 		key("o", "order: by activity, or by name"),
 		key("Ctrl-G", "group: repositories by group, MRs by repository"),
 		key("Ctrl-F", glyphFavourite+" star; starred lead a flat list unless o says not"),
@@ -266,7 +266,7 @@ func helpRows() []helpLine {
 		key("J", "pipeline jobs: Enter log · R run, retry · w web"),
 		key("P", "in the jobs: earlier pipelines, ↺ attempts"),
 		key("H", "hide the author's merge requests (bots)"),
-		key("Alt-H", "hide the repository's MRs; refreshes skip them"),
+		key("x", "hide the repository's MRs; refreshes skip them"),
 		key("v", "view: mine · to review · drafts · hidden authors"),
 		blank(),
 

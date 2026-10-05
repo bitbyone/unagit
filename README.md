@@ -188,10 +188,10 @@ all and live only there.
   unpushed commits, your own edits in a review, comments not yet published.
   Those are kept, and named.
 - `H` on a merge request hides its author's merge requests - Renovate's, a
-  CI bot's - and the header counts the hidden authors. `Alt-H` does the same
-  for the repository's merge requests, the repository itself still listed in
-  Repositories (`H` there does it too); unlike `x`, which hides the
-  repository everywhere. `v` in Merge requests
+  CI bot's - and the header counts the hidden authors. `x` there does the
+  same for the repository's merge requests, the repository itself still
+  listed in Repositories (`H` there does it too); hiding the repository
+  everywhere is Repositories' own `x`. `v` in Merge requests
   turns the filter off for a while, or, space on an author, shows that one
   again for good.
 

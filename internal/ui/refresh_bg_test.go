@@ -9,7 +9,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// TestARepositorysMergeRequestsCanBeHidden: Alt-H keeps a repository's merge
+// TestARepositorysMergeRequestsCanBeHidden: x keeps a repository's merge
 // requests out of the list while the repository stays listed, View Options
 // names it, and space there lists them again.
 func TestARepositorysMergeRequestsCanBeHidden(t *testing.T) {
@@ -18,8 +18,7 @@ func TestARepositorysMergeRequestsCanBeHidden(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyRune, 'h', tcell.ModAlt)
+	typeRunes(sc, "gx")
 	waitGone(t, a, sc, "Rate limiting")
 	waitGone(t, a, sc, "Drop the old client")
 	waitFor(t, a, sc, "Invoice rounding")
@@ -277,4 +276,37 @@ func TestATaskSpinsTheStepUnderWay(t *testing.T) {
 	assertLegible(t, a, sc, "a task under way")
 	once.Do(func() { close(release) })
 	waitGone(t, a, sc, "second step")
+}
+
+// TestHidingKeepsTheCursorsPlace: x on a row in the middle of the list
+// takes the row away and leaves the cursor on the one that took its place,
+// so sorting through the list goes on from there, not from the top.
+func TestHidingKeepsTheCursorsPlace(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	selected := func() int {
+		return onLoop(a, func() int {
+			if i := a.mrsPane.selectedIndex(); i >= 0 {
+				return a.mrs[i].IID
+			}
+			return 0
+		})
+	}
+	typeRunes(sc, "j") // !9, between !7 and !8
+	waitFor(t, a, sc, "Invoice rounding")
+	deadline := time.Now().Add(patience)
+	for selected() != 9 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the cursor is on !%d, not !9", selected())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	typeRunes(sc, "x")
+	waitGone(t, a, sc, "Invoice rounding")
+	if got := selected(); got != 8 {
+		t.Errorf("after hiding !9's repository the cursor is on !%d, want !8, the next row", got)
+	}
 }

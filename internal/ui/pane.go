@@ -549,6 +549,14 @@ func (p *pane) selectRow(previous, first int) {
 		return
 	}
 	target, kept := first, false
+	isItem := func(row int) bool {
+		cell := p.table.GetCell(row, 0)
+		if cell == nil {
+			return false
+		}
+		_, ok := cell.GetReference().(int)
+		return ok
+	}
 	if previous >= 0 && p.query == p.lastQuery {
 		for row := 1; row < p.table.GetRowCount(); row++ {
 			cell := p.table.GetCell(row, 0)
@@ -558,6 +566,23 @@ func (p *pane) selectRow(previous, first int) {
 			if i, ok := cell.GetReference().(int); ok && i == previous {
 				target, kept = row, true
 				break
+			}
+		}
+		// The row went - hidden, filtered away - while the query stayed:
+		// the cursor takes the row that took its place, the next one, so a
+		// list being sorted through goes on from there; the last row's
+		// place is the one before it.
+		if !kept {
+			at, _ := p.table.GetSelection()
+			for row := max(at, 1); row < p.table.GetRowCount() && !kept; row++ {
+				if isItem(row) {
+					target, kept = row, true
+				}
+			}
+			for row := min(at, p.table.GetRowCount()-1); row >= 1 && !kept; row-- {
+				if isItem(row) {
+					target, kept = row, true
+				}
 			}
 		}
 	}

@@ -152,7 +152,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/repository/commits", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":"a1b2c3d000000000000000000000000000000000","short_id":"a1b2c3d","title":"Add rate limiting","author_name":"jane",
-			"committed_date":"2026-09-21T08:00:00Z"}]`)
+			"committed_date":"2026-09-21T08:00:00Z","web_url":"https://gl.test/acme/gateway/-/commit/a1b2c3d"}]`)
 	})
 	// What a commit changed, as GitLab's diff of it says.
 	mux.HandleFunc("/api/v4/projects/1/repository/commits/{sha}/diff", func(w http.ResponseWriter, r *http.Request) {

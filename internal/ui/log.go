@@ -99,7 +99,8 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 			c := at(it)
 			a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
 		}},
-		pickKey{keys: "w", hint: "browser", name: "Open in Browser", about: "The commit's page on the forge.", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
+		a.browserKey("w", "browser", "Open in Browser", "The commit's page on the forge; the log stays open.",
+			func(it pickItem) string { return a.commitURL(place, at(it)) }),
 		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference.", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
 
 	// Not packed: the rows are short, but the keys are many, and their hints

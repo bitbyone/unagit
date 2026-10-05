@@ -167,6 +167,15 @@ const widePct = 90
 // paragraph.
 const explainLines = 3
 
+// browserKey is a picker's key that opens a page in the browser. The
+// browser opens beside unagit, never instead of it, so the list stays open,
+// the cursor where it was, and what was opened is said in its edge. Every
+// key of a list that opens the browser is made here (TestBrowserKeysStay).
+func (a *App) browserKey(keys, hint, name, about string, url func(pickItem) string) pickKey {
+	return pickKey{keys: keys, hint: hint, name: name, about: about, stay: true,
+		run: func(it pickItem) { a.openWeb(url(it)) }}
+}
+
 // pickKey is a key of a picker that acts on the item under the cursor.
 type pickKey struct {
 	keys string

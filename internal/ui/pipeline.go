@@ -210,8 +210,10 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
 		keys: []pickKey{
 			{keys: "R", hint: "run", name: "Run Job", about: "Start a manual or delayed job, or run a finished one again.", run: func(it pickItem) { a.runJob(target, at(it)) }},
-			{keys: "w", hint: "browser", name: "Open Job in Browser", about: "The job's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
-			{keys: "W", hint: "pipeline", name: "Open Pipeline in Browser", about: "The whole pipeline's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(state.pipe.WebURL) }},
+			a.browserKey("w", "browser", "Open Job in Browser", "The job's page on the forge; the jobs stay open.",
+				func(it pickItem) string { return at(it).WebURL }),
+			a.browserKey("W", "pipeline", "Open Pipeline in Browser", "The whole pipeline's page on the forge; the jobs stay open.",
+				func(pickItem) string { return state.pipe.WebURL }),
 		}}
 	if target.pipelines != nil {
 		opts.keys = append(opts.keys, pickKey{keys: "P", hint: "pipelines", name: "Earlier Pipelines…",
@@ -731,8 +733,8 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "jobs", back: back,
 		enterName: "Show Jobs", enterAbout: "List the pipeline's jobs, earlier attempts with them.",
 		keys: []pickKey{
-			{keys: "w", hint: "browser", name: "Open Pipeline in Browser", about: "The pipeline's page on the forge; the list stays open.",
-				stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
+			a.browserKey("w", "browser", "Open Pipeline in Browser", "The pipeline's page on the forge; the list stays open.",
+				func(it pickItem) string { return at(it).WebURL }),
 		}}
 	a.showPickerWith("Pipelines · "+target.label, items, opts, func(it pickItem) {
 		a.showPipeline(target.ofPipeline(at(it), again(it)), 0)

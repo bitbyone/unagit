@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -478,4 +479,75 @@ func TestFilesInColour(t *testing.T) {
 		t.Error("deleted lines are not in the colour of bad")
 	}
 	assertLegible(t, a, sc, "a commit's files")
+}
+
+// TestBrowserKeysStay: a key of a list that opens the browser is made by
+// browserKey, which keeps the list open; a pickKey written by hand around
+// openWeb once closed the commit log behind the browser.
+func TestBrowserKeysStay(t *testing.T) {
+	t.Parallel()
+	files, err := filepath.Glob("*.go")
+	must(t, err)
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(file)
+		must(t, err)
+		src := string(data)
+		for at := strings.Index(src, "pickKey{"); at >= 0; {
+			// The literal, to its closing brace.
+			depth, end := 0, at+len("pickKey")
+			for i := end; i < len(src); i++ {
+				if src[i] == '{' {
+					depth++
+				} else if src[i] == '}' {
+					depth--
+					if depth == 0 {
+						end = i
+						break
+					}
+				}
+			}
+			// browserKey's own literal is the one place it may be.
+			inBrowserKey := strings.HasSuffix(src[:at], "return ") && strings.Contains(src[max(0, at-400):at], "func (a *App) browserKey(")
+			if lit := src[at:end]; !inBrowserKey && (strings.Contains(lit, "openWeb(") || strings.Contains(lit, "openBrowser(")) {
+				t.Errorf("%s: a list's key opens the browser by hand; make it with browserKey:\n%s", file, lit)
+			}
+			next := strings.Index(src[end:], "pickKey{")
+			if next < 0 {
+				break
+			}
+			at = end + next
+		}
+	}
+}
+
+// TestTheLogStaysBehindTheBrowser: w in a commit log opens the commit and
+// leaves the log open, what was opened said in its edge, not on the main
+// screen's status line. Serial: it swaps the browser.
+func TestTheLogStaysBehindTheBrowser(t *testing.T) {
+	opened := make(chan string, 2)
+	saved := openBrowser
+	openBrowser = func(url string) error { opened <- url; return nil }
+	t.Cleanup(func() { openBrowser = saved })
+
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Add rate limiting")
+	typeRunes(sc, "w")
+	select {
+	case <-opened:
+	case <-time.After(patience):
+		t.Fatal("w opened nothing")
+	}
+	waitFor(t, a, sc, "opened ")
+	if !onLoop(a, func() bool { return a.pages.HasPage(pagePicker) }) {
+		t.Fatalf("w closed the log:\n%s", a.screenText(sc))
+	}
+	if said := onLoop(a, func() string { return a.transient }); said != "" {
+		t.Errorf("the word went to the main screen's status line: %q", said)
+	}
 }

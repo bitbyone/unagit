@@ -46,7 +46,6 @@ func (a *App) filterActions() []uiAction {
 	return []uiAction{
 		{name: "Sort By…", about: "Sort the list by last activity or by name.", keys: "o", rank: 400, run: a.showSortPicker},
 		{name: "Toggle Cloned Only", about: "Show only the repositories on disk, or every one again.", keys: "L", rank: 410, run: a.toggleClonedOnly},
-		{name: "Hidden Repositories…", about: "See what x hid from the lists and bring any of it back.", keys: "X", rank: 480, run: a.showHiddenPicker},
 	}
 }
 
@@ -150,6 +149,9 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 		}},
 	}
 	acts = append(acts, a.filterActions()...)
+	// Which repositories are hidden is Repositories' to say; Merge requests
+	// hides only their merge requests (x there, View Options).
+	acts = append(acts, uiAction{name: "Hidden Repositories…", about: "See what x hid from the lists and bring any of it back.", keys: "X", rank: 480, run: a.showHiddenPicker})
 	return append(acts, a.listActions(p)...)
 }
 
@@ -194,9 +196,10 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		}},
 		{name: "Hide Author", about: "Keep this author's merge requests out of the list - a bot's, most often; View Options shows them again.", keys: "H", rank: 475,
 			when: func() bool { return mr.Author.Username != "" }, run: func() { a.hideAuthor(mr) }},
-		{name: "Hide Repository's Merge Requests", about: "Keep this repository's merge requests out of the list and out of refreshes, the repository still listed; View Options shows them again.", keys: "Alt-H", rank: 476,
+		// Hiding a whole repository belongs to Repositories; here x only
+		// keeps its merge requests out of this list.
+		{name: "Hide Repository's Merge Requests", about: "Keep this repository's merge requests out of the list and out of refreshes, the repository still listed in Repositories; View Options shows them again.", keys: "x", rank: 470,
 			run: func() { a.toggleMRsOf(mr.Instance, path) }},
-		a.hideAction(p),
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}

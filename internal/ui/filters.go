@@ -339,7 +339,7 @@ func (a *App) showMRViewOptions() {
 		},
 		status: func() string {
 			if len(f.HiddenAuthors)+len(f.HiddenMRs) == 0 {
-				return tag(colDim) + "nothing hidden · H hides an author, Alt-H a repository's merge requests" + tagEnd
+				return tag(colDim) + "nothing hidden · H hides an author, x a repository's merge requests" + tagEnd
 			}
 			return fmt.Sprintf("%s%d author(s), %d repo(s) hidden · space on one shows it again%s", tag(colDim), len(f.HiddenAuthors), len(f.HiddenMRs), tagEnd)
 		},
