@@ -594,3 +594,48 @@ func TestUserNameAsksByUsername(t *testing.T) {
 		t.Fatalf("name = %q, %v", name, err)
 	}
 }
+
+// TestPipelinesAndTheirAttempts: the pipelines of a merge request, a
+// branch and a commit come from their own places; a pipeline's jobs come
+// with the attempts run again since, marked, and a commit's files are
+// counted from its diff.
+func TestPipelinesAndTheirAttempts(t *testing.T) {
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		asked = append(asked, r.URL.Path+"?"+r.URL.Query().Get("ref")+r.URL.Query().Get("sha"))
+		switch r.URL.Path {
+		case "/api/v4/projects/3/merge_requests/7/pipelines", "/api/v4/projects/3/pipelines":
+			fmt.Fprint(w, `[{"id":90,"status":"failed"},{"id":80,"status":"success"}]`)
+		case "/api/v4/projects/3/pipelines/90/jobs":
+			if r.URL.Query().Get("include_retried") != "true" {
+				t.Error("the attempts run again were not asked for")
+			}
+			fmt.Fprint(w, `[{"id":5,"name":"test","stage":"check","status":"success"},
+				{"id":3,"name":"test","stage":"check","status":"failed"}]`)
+		case "/api/v4/projects/3/repository/commits/abc/diff":
+			fmt.Fprint(w, `[{"new_path":"a.go","diff":"@@ -1 +1,2 @@\n+x\n+y\n-z\n"}]`)
+		default:
+			fmt.Fprint(w, `[]`)
+		}
+	}))
+	defer srv.Close()
+	c, ctx, repo := New(srv.URL, "t"), context.Background(), forge.Project{ID: 3}
+	mr := forge.MergeRequest{IID: 7, ProjectID: 3}
+	for _, q := range []forge.PipelineQuery{{MR: &mr}, {Ref: "main"}, {SHA: "abc"}} {
+		if pipes, err := c.Pipelines(ctx, repo, q); err != nil || len(pipes) != 2 {
+			t.Fatalf("%+v: %v, %v", q, pipes, err)
+		}
+	}
+	if want := []string{"/api/v4/projects/3/merge_requests/7/pipelines?", "/api/v4/projects/3/pipelines?main", "/api/v4/projects/3/pipelines?abc"}; strings.Join(asked, " ") != strings.Join(want, " ") {
+		t.Errorf("asked %v", asked)
+	}
+	jobs, err := c.Jobs(ctx, repo, forge.Pipeline{ID: 90})
+	if err != nil || len(jobs) != 2 || jobs[0].ID != 3 || !jobs[0].Retried || jobs[1].Retried {
+		t.Fatalf("jobs %+v, %v; want the attempt of 3 first, marked", jobs, err)
+	}
+	files, err := c.CommitFiles(ctx, repo, "abc")
+	if err != nil || len(files) != 1 || files[0].Added != 2 || files[0].Deleted != 1 {
+		t.Errorf("files %+v, %v", files, err)
+	}
+}

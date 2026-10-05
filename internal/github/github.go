@@ -868,6 +868,9 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 	}
 	q := url.Values{}
 	q.Set("per_page", "100")
+	// Every attempt, not only the latest, so a check run again can be read
+	// as it failed before.
+	q.Set("filter", "all")
 	if _, err := c.get(ctx, "/repos/"+path+"/commits/"+url.PathEscape(ref)+"/check-runs", q, &raw); err != nil {
 		return nil, nil, err
 	}
@@ -876,17 +879,36 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 		return p, nil, err
 	}
 	jobs := make([]forge.Job, 0, len(raw.CheckRuns))
-	worst := "success"
-	rank := map[string]int{"success": 0, "skipped": 0, "manual": 1, "canceled": 2, "pending": 3, "running": 4, "failed": 5}
 	for _, r := range raw.CheckRuns {
 		job := forge.Job{ID: r.ID, Name: r.Name, Stage: r.App.Slug, Status: checkStatus(r.Status, r.Conclusion), WebURL: r.HTMLURL}
 		if r.StartedAt != nil && r.Completed != nil {
 			job.Duration = r.Completed.Sub(*r.StartedAt).Seconds()
 		}
-		if rank[job.Status] > rank[worst] {
+		jobs = append(jobs, job)
+	}
+	forge.MarkRetried(jobs)
+	// In the order GitHub gives them, a run's attempts together, the
+	// newest last.
+	first := map[string]int{}
+	for i, j := range jobs {
+		if _, ok := first[j.Stage+"\x00"+j.Name]; !ok {
+			first[j.Stage+"\x00"+j.Name] = i
+		}
+	}
+	sort.SliceStable(jobs, func(i, k int) bool {
+		if a, b := first[jobs[i].Stage+"\x00"+jobs[i].Name], first[jobs[k].Stage+"\x00"+jobs[k].Name]; a != b {
+			return a < b
+		}
+		return jobs[i].ID < jobs[k].ID
+	})
+	// What the commit stands at is its latest attempts; one that failed
+	// and passed when run again has passed.
+	worst := "success"
+	rank := map[string]int{"success": 0, "skipped": 0, "manual": 1, "canceled": 2, "pending": 3, "running": 4, "failed": 5}
+	for _, job := range jobs {
+		if !job.Retried && rank[job.Status] > rank[worst] {
 			worst = job.Status
 		}
-		jobs = append(jobs, job)
 	}
 	sha := ref
 	if ref == branch {
@@ -945,6 +967,60 @@ func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (st
 // RetryJob runs a GitHub Actions job again.
 func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
 	return c.post(ctx, "/repos/"+p.PathWithNamespace+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
+}
+
+// Pipelines is the one "pipeline" a commit has on GitHub: its check runs.
+// A pull request's and a branch's are those of its head.
+func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.PipelineQuery) ([]forge.Pipeline, error) {
+	path, ref, branch := p.PathWithNamespace, q.SHA, q.Ref
+	switch {
+	case q.MR != nil:
+		path, ref, branch = q.MR.ProjectPath, q.MR.SHA, q.MR.SourceBranch
+	case ref == "":
+		ref = q.Ref
+	}
+	if path == "" || ref == "" {
+		return nil, nil
+	}
+	pipe, _, err := c.checkRuns(ctx, path, ref, branch)
+	if err != nil || pipe == nil {
+		return nil, err
+	}
+	if pipe.SHA == "" && ref != branch {
+		pipe.SHA = ref
+	}
+	return []forge.Pipeline{*pipe}, nil
+}
+
+// Jobs is the check runs of the commit a pipeline stands for.
+func (c *Client) Jobs(ctx context.Context, p forge.Project, pipe forge.Pipeline) ([]forge.Job, error) {
+	ref := pipe.SHA
+	if ref == "" {
+		ref = pipe.Ref
+	}
+	_, jobs, err := c.checkRuns(ctx, p.PathWithNamespace, ref, pipe.Ref)
+	return jobs, err
+}
+
+// CommitFiles is what GitHub counts a commit changed, file by file.
+func (c *Client) CommitFiles(ctx context.Context, p forge.Project, sha string) ([]forge.FileChange, error) {
+	var raw struct {
+		Files []struct {
+			Filename  string `json:"filename"`
+			Additions int    `json:"additions"`
+			Deletions int    `json:"deletions"`
+			Patch     string `json:"patch"`
+		} `json:"files"`
+	}
+	if _, err := c.get(ctx, "/repos/"+p.PathWithNamespace+"/commits/"+url.PathEscape(sha), nil, &raw); err != nil {
+		return nil, err
+	}
+	files := make([]forge.FileChange, 0, len(raw.Files))
+	for _, f := range raw.Files {
+		files = append(files, forge.FileChange{Path: f.Filename, Added: f.Additions, Deleted: f.Deletions,
+			Binary: f.Patch == "" && f.Additions == 0 && f.Deletions == 0})
+	}
+	return files, nil
 }
 
 // PlayJob has nothing to start: GitHub has no manual jobs. A workflow run

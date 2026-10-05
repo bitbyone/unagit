@@ -169,7 +169,12 @@ all and live only there.
   pipeline it started and `Esc` comes back. `Enter` reads a job's log - its end,
   in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
   `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
-  the pipeline, and the jobs stay open behind the browser. While a pipeline
+  the pipeline, and the jobs stay open behind the browser. A job run again
+  keeps its earlier attempts under it (`↺`), whose logs can still be read,
+  and `P` lists the earlier pipelines of the same merge request or branch;
+  `J` in a commit log lists the pipelines of the commit under the cursor.
+  A commit's detail lists the files it changed with the lines gained and
+  lost, from git or, when the commit is not on disk, from the forge. While a pipeline
   runs, its jobs are read again every few seconds and change in place
   (the title says "following"), and a running job's log keeps growing at
   its end, as `tail -f` does, unless you have scrolled up; neither forge

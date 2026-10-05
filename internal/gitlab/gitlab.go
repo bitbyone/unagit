@@ -607,7 +607,11 @@ func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch
 // made them, and a job run again stays in its stage.
 func (c *Client) pipelineJobs(ctx context.Context, project string, pipeline int) ([]forge.Job, error) {
 	base := project + "/pipelines/" + strconv.Itoa(pipeline)
-	jobs, err := getAll[forge.Job](ctx, c, base+"/jobs", nil)
+	// The attempts of a job run again are listed too, so what an earlier
+	// one failed on can still be read.
+	all := url.Values{}
+	all.Set("include_retried", "true")
+	jobs, err := getAll[forge.Job](ctx, c, base+"/jobs", all)
 	if err != nil {
 		return nil, err
 	}
@@ -624,19 +628,82 @@ func (c *Client) pipelineJobs(ctx context.Context, project string, pipeline int)
 		bridges[i].Trigger = true
 	}
 	jobs = append(jobs, bridges...)
+	forge.MarkRetried(jobs)
 	first := map[string]int64{}
 	for _, j := range jobs {
 		if at, ok := first[j.Stage]; !ok || j.ID < at {
 			first[j.Stage] = j.ID
 		}
 	}
+	// In a stage, a job's attempts stand together, the newest last.
+	firstOf := map[string]int64{}
+	for _, j := range jobs {
+		if at, ok := firstOf[j.Name]; !ok || j.ID < at {
+			firstOf[j.Name] = j.ID
+		}
+	}
 	sort.SliceStable(jobs, func(i, k int) bool {
 		if a, b := first[jobs[i].Stage], first[jobs[k].Stage]; a != b {
+			return a < b
+		}
+		if a, b := firstOf[jobs[i].Name], firstOf[jobs[k].Name]; a != b {
 			return a < b
 		}
 		return jobs[i].ID < jobs[k].ID
 	})
 	return jobs, nil
+}
+
+// Pipelines lists a merge request's, a branch's or a commit's pipelines,
+// newest first.
+func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.PipelineQuery) ([]forge.Pipeline, error) {
+	v := url.Values{}
+	v.Set("per_page", "50")
+	var pipes []forge.Pipeline
+	var err error
+	if q.MR != nil {
+		_, err = c.get(ctx, mrPath(*q.MR)+"/pipelines", v, &pipes)
+		return pipes, err
+	}
+	if q.Ref != "" {
+		v.Set("ref", q.Ref)
+	}
+	if q.SHA != "" {
+		v.Set("sha", q.SHA)
+	}
+	_, err = c.get(ctx, projectPath(p)+"/pipelines", v, &pipes)
+	return pipes, err
+}
+
+// Jobs is the jobs of one pipeline.
+func (c *Client) Jobs(ctx context.Context, p forge.Project, pipe forge.Pipeline) ([]forge.Job, error) {
+	return c.pipelineJobs(ctx, projectPath(p), pipe.ID)
+}
+
+// CommitFiles counts the lines a commit added and deleted in each file,
+// from its diff.
+func (c *Client) CommitFiles(ctx context.Context, p forge.Project, sha string) ([]forge.FileChange, error) {
+	diffs, err := getAll[struct {
+		NewPath string `json:"new_path"`
+		Diff    string `json:"diff"`
+	}](ctx, c, projectPath(p)+"/repository/commits/"+url.PathEscape(sha)+"/diff", nil)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]forge.FileChange, 0, len(diffs))
+	for _, d := range diffs {
+		f := forge.FileChange{Path: d.NewPath, Binary: strings.HasPrefix(d.Diff, "Binary files")}
+		for _, line := range strings.Split(d.Diff, "\n") {
+			switch {
+			case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
+				f.Added++
+			case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
+				f.Deleted++
+			}
+		}
+		files = append(files, f)
+	}
+	return files, nil
 }
 
 // DownstreamJobs is the pipeline a trigger job started and its jobs.

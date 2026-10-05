@@ -168,3 +168,40 @@ func TestCommitsAheadListsSubjectsAndBodiesOldestFirst(t *testing.T) {
 		t.Error("an unknown base should be an error, so the caller can leave the defaults empty")
 	}
 }
+
+// TestCommitFilesCountsLines: a commit's files with the lines each gained
+// and lost, a binary one said to be so, a merge against its first parent.
+func TestCommitFilesCountsLines(t *testing.T) {
+	_, clone := repos(t)
+	if err := os.WriteFile(filepath.Join(clone, "a.txt"), []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "b.bin"), []byte{0, 1, 2, 0}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sh(t, clone, "add", ".")
+	sh(t, clone, "commit", "-q", "-m", "change")
+	files, err := New("", nil).CommitFiles(clone, sh(t, clone, "rev-parse", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]FileStat{}
+	for _, f := range files {
+		got[f.Path] = f
+	}
+	if a := got["a.txt"]; a.Added != 2 || a.Deleted != 1 || a.Binary {
+		t.Errorf("a.txt = %+v, want +2 -1", a)
+	}
+	if !got["b.bin"].Binary {
+		t.Errorf("b.bin = %+v, want binary", got["b.bin"])
+	}
+
+	sh(t, clone, "checkout", "-q", "-b", "side", "HEAD~1")
+	commit(t, clone, "c.txt", "side")
+	sh(t, clone, "checkout", "-q", "main")
+	sh(t, clone, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+	files, err = New("", nil).CommitFiles(clone, sh(t, clone, "rev-parse", "HEAD"))
+	if err != nil || len(files) != 1 || files[0].Path != "c.txt" {
+		t.Errorf("the merge brought %+v, %v; want c.txt", files, err)
+	}
+}

@@ -95,6 +95,10 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 			pickKey{keys: "Ctrl-W", hint: "worktree", name: "New Worktree Here…", about: "Start a branch at this commit in a worktree of its own.", run: func(it pickItem) { a.worktreeAtCommit(place, at(it), again(it)) }})
 	}
 	keys = append(keys,
+		pickKey{keys: "J", hint: "pipelines", name: "Show Pipelines…", about: "The pipelines that ran for this commit, and their jobs.", run: func(it pickItem) {
+			c := at(it)
+			a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
+		}},
 		pickKey{keys: "w", hint: "browser", name: "Open in Browser", about: "The commit's page on the forge.", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
 		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference.", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
 
@@ -297,19 +301,78 @@ func (a *App) showCommitDetail(place logPlace, c logCommit, back func()) {
 	})
 	a.pages.AddPage(pageCommit, modalPct(view, 70, 70), true, true)
 	a.tv.SetFocus(view)
-	// What it changed comes from git, off the event loop.
-	if a.onDisk(place, c) == "" {
-		dir := place.dir
-		go func() {
-			stat, err := gitx.New("", nil).ShowStat(dir, c.SHA)
-			if err != nil || stat == "" {
-				return
+	// What it changed comes from git when the commit is on disk, else from
+	// the forge, off the event loop either way.
+	view.SetText(d.String() + "\n" + tag(colWarn) + "[::b]FILES[::-]" + tagEnd + "\n" + tag(colDim) + "reading…" + tagEnd + "\n")
+	onDisk := a.onDisk(place, c) == ""
+	client := a.client(place.project.Instance)
+	dir, project := place.dir, place.project
+	go func() {
+		var files []forge.FileChange
+		var err error
+		switch {
+		case onDisk:
+			var stats []gitx.FileStat
+			stats, err = gitx.New("", nil).CommitFiles(dir, c.SHA)
+			for _, f := range stats {
+				files = append(files, forge.FileChange{Path: f.Path, Added: f.Added, Deleted: f.Deleted, Binary: f.Binary})
 			}
-			a.tv.QueueUpdateDraw(func() {
-				view.SetText(d.String() + "\n" + tag(colWarn) + "[::b]FILES[::-]" + tagEnd + "\n" + tag(colMuted) + esc(stat) + tagEnd + "\n")
-			})
-		}()
+		case client != nil:
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			files, err = client.CommitFiles(ctx, project, c.SHA)
+			cancel()
+		default:
+			err = fmt.Errorf("not on disk, and %s has no token", a.instanceLabel(project.Instance))
+		}
+		a.tv.QueueUpdateDraw(func() {
+			text := filesSection(files)
+			if err != nil {
+				text = tag(colWarn) + "[::b]FILES[::-]" + tagEnd + "\n" + tag(colBad) + esc(err.Error()) + tagEnd + "\n"
+			}
+			row, col := view.GetScrollOffset()
+			view.SetText(d.String() + "\n" + text)
+			view.ScrollTo(row, col)
+		})
+	}()
+}
+
+// filesBar is the widest a file's bar of added and deleted lines gets.
+const filesBar = 24
+
+// filesSection is what a commit changed, as the detail shows it: each file
+// with the lines it gained and lost, and a bar of them, + in the colour of
+// good and - in that of bad, the way a diffstat reads.
+func filesSection(files []forge.FileChange) string {
+	added, deleted, most, pathW := 0, 0, 0, 0
+	for _, f := range files {
+		added += f.Added
+		deleted += f.Deleted
+		most = max(most, f.Added+f.Deleted)
+		pathW = max(pathW, len([]rune(f.Path)))
 	}
+	pathW = min(pathW, 60)
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s[::b]FILES[::-]%s %s%d · %s+%d%s %s-%d%s\n", tag(colWarn), tagEnd, tag(colDim), len(files), tag(colOn), added, tagEnd, tag(colBad), deleted, tagEnd)
+	if len(files) == 0 {
+		b.WriteString(tag(colDim) + "nothing changed" + tagEnd + "\n")
+	}
+	for _, f := range files {
+		fmt.Fprintf(&b, "%s%-*s%s  ", tag(colText), pathW, esc(trim(f.Path, pathW)), tagEnd)
+		if f.Binary {
+			b.WriteString(tag(colDim) + "binary" + tagEnd + "\n")
+			continue
+		}
+		plus, minus := f.Added, f.Deleted
+		if most > filesBar {
+			// Scaled to the widest, but never to nothing: a line is a line.
+			plus = (f.Added*filesBar + most - 1) / most
+			minus = (f.Deleted*filesBar + most - 1) / most
+		}
+		fmt.Fprintf(&b, "%s%5s%s %s%5s%s  %s%s%s%s%s%s\n",
+			tag(colOn), fmt.Sprintf("+%d", f.Added), tagEnd, tag(colBad), fmt.Sprintf("-%d", f.Deleted), tagEnd,
+			tag(colOn), strings.Repeat("+", plus), tagEnd, tag(colBad), strings.Repeat("-", minus), tagEnd)
+	}
+	return b.String()
 }
 
 // checkoutCommit puts HEAD of the checkout on a commit. The list then shows

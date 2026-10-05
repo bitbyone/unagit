@@ -151,8 +151,13 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"license":{"name":"MIT"},"statistics":{"commit_count":1823,"repository_size":13107200}}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/repository/commits", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `[{"short_id":"a1b2c3d","title":"Add rate limiting","author_name":"jane",
+		json(w, `[{"id":"a1b2c3d000000000000000000000000000000000","short_id":"a1b2c3d","title":"Add rate limiting","author_name":"jane",
 			"committed_date":"2026-09-21T08:00:00Z"}]`)
+	})
+	// What a commit changed, as GitLab's diff of it says.
+	mux.HandleFunc("/api/v4/projects/1/repository/commits/{sha}/diff", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"new_path":"limit.go","diff":"@@ -1,2 +1,3 @@\n+bucket\n+refill\n-old\n context\n"},
+			{"new_path":"logo.png","diff":"Binary files a/logo.png and b/logo.png differ\n"}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/languages", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"Go":87.3,"Shell":12.7}`)
@@ -361,12 +366,23 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/pipelines", func(w http.ResponseWriter, r *http.Request) {
 		f.mr7Pipelines.Add(1)
-		json(w, `[{"id":90,"status":"failed","web_url":"https://gl.test/acme/gateway/-/pipelines/90"}]`)
+		json(w, `[{"id":90,"status":"failed","ref":"feat/rate","web_url":"https://gl.test/acme/gateway/-/pipelines/90"},
+			{"id":80,"status":"success","ref":"feat/rate","source":"push","web_url":"https://gl.test/acme/gateway/-/pipelines/80"}]`)
+	})
+	// An earlier pipeline of !7, which passed.
+	mux.HandleFunc("/api/v4/projects/1/pipelines/80/jobs", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":2,"name":"unit tests","stage":"test","status":"success","duration":70}]`)
+	})
+	// An earlier attempt of unit tests, run again since, and what it said.
+	mux.HandleFunc("/api/v4/projects/1/jobs/3/trace", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "--- FAIL: TestFlaky\n")
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines/90/jobs", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":10,"name":"deploy","stage":"deploy","status":"manual"},
-			{"id":4,"name":"lint","stage":"check","status":"success","duration":12,"web_url":"https://gl.test/j/4"},
-			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5"}]`)
+			{"id":1,"name":"lint","stage":"check","status":"success","duration":12,"web_url":"https://gl.test/j/1"},
+			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5"},
+			{"id":3,"name":"unit tests","stage":"test","status":"failed","duration":40}]`)
 	})
 	// A trigger job, and the child pipeline it started.
 	mux.HandleFunc("/api/v4/projects/1/pipelines/90/bridges", func(w http.ResponseWriter, r *http.Request) {

@@ -30,6 +30,9 @@ type ciTarget struct {
 	// back, when set, is where Esc on the jobs goes: a downstream pipeline
 	// goes back to the one that started it.
 	back func()
+	// pipelines, when set, lists the other pipelines of the same merge
+	// request, branch or commit, newest first, for P.
+	pipelines func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error)
 }
 
 // mrCI is a merge request's pipeline: the one its head ran.
@@ -41,6 +44,9 @@ func (a *App) mrCI(mr forge.MergeRequest) ciTarget {
 		label:    fmt.Sprintf("%s !%d", path, mr.IID),
 		load: func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error) {
 			return client.PipelineJobs(ctx, mr)
+		},
+		pipelines: func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error) {
+			return client.Pipelines(ctx, forge.Project{ID: mr.ProjectID, PathWithNamespace: path, Instance: mr.Instance}, forge.PipelineQuery{MR: &mr})
 		},
 	}
 }
@@ -61,7 +67,43 @@ func (a *App) branchCI(instance, projectPath, branch string) (ciTarget, error) {
 		load: func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error) {
 			return client.BranchPipelineJobs(ctx, pr, branch)
 		},
+		pipelines: func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error) {
+			return client.Pipelines(ctx, pr, forge.PipelineQuery{Ref: branch})
+		},
 	}, nil
+}
+
+// commitCI is the pipelines that ran for one commit, the newest first.
+func commitCI(instance string, project forge.Project, label, sha string) ciTarget {
+	list := func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error) {
+		return client.Pipelines(ctx, project, forge.PipelineQuery{SHA: sha})
+	}
+	return ciTarget{
+		instance: instance,
+		project:  project,
+		label:    label + " · " + shortSHA(sha),
+		load: func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error) {
+			pipes, err := list(ctx, client)
+			if err != nil || len(pipes) == 0 {
+				return nil, nil, err
+			}
+			jobs, err := client.Jobs(ctx, project, pipes[0])
+			return &pipes[0], jobs, err
+		},
+		pipelines: list,
+	}
+}
+
+// ofPipeline is a target narrowed to one of its pipelines: the jobs are
+// that pipeline's, and P still lists the others.
+func (t ciTarget) ofPipeline(pipe forge.Pipeline, back func()) ciTarget {
+	t.back = back
+	t.load = func(ctx context.Context, client forge.Provider) (*forge.Pipeline, []forge.Job, error) {
+		fresh := pipe
+		jobs, err := client.Jobs(ctx, t.project, pipe)
+		return &fresh, jobs, err
+	}
+	return t
 }
 
 // showMRPipeline shows a merge request's pipeline.
@@ -155,7 +197,7 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		switch {
 		case j.ID == focus && focus != 0:
 			start = i
-		case start < 0 && focus == 0 && j.Status == "failed":
+		case start < 0 && focus == 0 && j.Status == "failed" && !j.Retried:
 			start = i
 		}
 	}
@@ -171,6 +213,11 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 			{keys: "w", hint: "browser", name: "Open Job in Browser", about: "The job's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
 			{keys: "W", hint: "pipeline", name: "Open Pipeline in Browser", about: "The whole pipeline's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(state.pipe.WebURL) }},
 		}}
+	if target.pipelines != nil {
+		opts.keys = append(opts.keys, pickKey{keys: "P", hint: "pipelines", name: "Earlier Pipelines…",
+			about: "Every pipeline of the same merge request, branch or commit, the newest first.",
+			run:   func(it pickItem) { a.showPipelineList(target, state.pipe.ID, back(it)) }})
+	}
 	picker := a.showPickerWith(state.title(target), jobItems(jobs), opts, func(it pickItem) {
 		job := at(it)
 		if job.Trigger {
@@ -205,8 +252,11 @@ func (s *pipelineState) moving() bool {
 	return false
 }
 
-// jobMoving reports whether a job will change by itself.
-func jobMoving(j forge.Job) bool { return ciStateOf(j.Status) == ciRunning || j.Status == "scheduled" }
+// jobMoving reports whether a job will change by itself. An earlier
+// attempt never will, whatever it was left saying.
+func jobMoving(j forge.Job) bool {
+	return !j.Retried && (ciStateOf(j.Status) == ciRunning || j.Status == "scheduled")
+}
 
 // title is the jobs' title: whose pipeline, how it stands, and whether it
 // is being followed.
@@ -298,18 +348,25 @@ func jobMark(j forge.Job) string {
 	return glyphRing
 }
 
-// jobName is a job's name, a trigger job's marked as one.
+// jobName is a job's name, a trigger job's marked as one and an earlier
+// attempt's set in under the attempt that followed.
 func jobName(j forge.Job) string {
+	name := j.Name
 	if j.Trigger {
-		return glyphTrigger + " " + j.Name
+		name = glyphTrigger + " " + name
 	}
-	return j.Name
+	if j.Retried {
+		name = glyphRetried + " " + name
+	}
+	return name
 }
 
 // jobAbout is the sentence under the jobs about the one under the cursor.
 func jobAbout(j forge.Job) string {
 	parts := []string{j.Name, j.Status}
 	switch {
+	case j.Retried:
+		parts = append(parts, "an earlier attempt: the job was run again - Enter reads what this one said")
 	case j.Status == "manual":
 		parts = append(parts, "waits to be started - R starts it")
 	case j.Status == "scheduled":
@@ -576,4 +633,108 @@ func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show f
 			}
 		})
 	}
+}
+
+// showPipelineList lists the pipelines of a target's merge request, branch
+// or commit, the one shown marked; Enter lists a pipeline's jobs, and Esc
+// comes back to back.
+func (a *App) showPipelineList(target ciTarget, current int, back func()) {
+	client := a.client(target.instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		return
+	}
+	var pipes []forge.Pipeline
+	a.runTaskThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		var err error
+		pipes, err = target.pipelines(ctx, client)
+		return "", err
+	}, func(string) {
+		a.listPipelines(target, pipes, current, back)
+	})
+}
+
+// showCommitPipelines reads the pipelines of a commit: one goes straight to
+// its jobs, several are listed; back is where Esc comes to from either.
+func (a *App) showCommitPipelines(target ciTarget, back func()) {
+	client := a.client(target.instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		return
+	}
+	var pipes []forge.Pipeline
+	a.runTaskThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		var err error
+		pipes, err = target.pipelines(ctx, client)
+		return "", err
+	}, func(string) {
+		if len(pipes) == 1 {
+			a.showPipeline(target.ofPipeline(pipes[0], back), 0)
+			return
+		}
+		a.listPipelines(target, pipes, 0, back)
+	})
+}
+
+// listPipelines shows pipelines read for a target.
+func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int, back func()) {
+	if len(pipes) == 0 {
+		a.note(target.label + " has no pipeline")
+		if back != nil {
+			back()
+		}
+		return
+	}
+	refW := 0
+	for _, p := range pipes {
+		refW = max(refW, len([]rune(p.Ref)))
+	}
+	refW = min(refW, 32)
+	items := make([]pickItem, len(pipes))
+	start := 0
+	for i, p := range pipes {
+		mark, _ := ciMark(p.Status)
+		if mark == "" {
+			mark = glyphRing
+		}
+		on := " "
+		if p.ID == current && current != 0 {
+			on, start = glyphDot, i
+		}
+		when := p.CreatedAt
+		if when.IsZero() {
+			when = p.UpdatedAt
+		}
+		age := ""
+		if !when.IsZero() {
+			age = humanAge(when)
+		}
+		id := "#" + fmt.Sprint(p.ID)
+		if p.ID == 0 {
+			id = shortSHA(p.SHA)
+		}
+		items[i] = pickItem{
+			Label: esc(fmt.Sprintf("%s %s  %-8s  %-*s", on, mark, id, refW, trim(p.Ref, refW))),
+			Sub:   esc(strings.TrimSpace(p.Status + "  " + p.Source + "  " + age)),
+			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", id, p.Status, shortSHA(p.SHA), p.WebURL))),
+			Data:  p,
+		}
+	}
+	at := func(it pickItem) forge.Pipeline { return it.Data.(forge.Pipeline) }
+	again := func(it pickItem) func() {
+		return func() { a.listPipelines(target, pipes, at(it).ID, back) }
+	}
+	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "jobs", back: back,
+		enterName: "Show Jobs", enterAbout: "List the pipeline's jobs, earlier attempts with them.",
+		keys: []pickKey{
+			{keys: "w", hint: "browser", name: "Open Pipeline in Browser", about: "The pipeline's page on the forge; the list stays open.",
+				stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
+		}}
+	a.showPickerWith("Pipelines · "+target.label, items, opts, func(it pickItem) {
+		a.showPipeline(target.ofPipeline(at(it), again(it)), 0)
+	})
 }

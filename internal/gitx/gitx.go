@@ -839,9 +839,37 @@ func (g *Git) Unpushed(dir string) map[string]bool {
 	return set
 }
 
-// ShowStat is what a commit changed, file by file, as git show --stat says.
-func (g *Git) ShowStat(dir, sha string) (string, error) {
-	return g.out(dir, "show", "--stat", "--format=", sha)
+// FileStat is what a commit did to one file: lines added and deleted, or
+// a binary file, whose lines are not counted.
+type FileStat struct {
+	Path           string
+	Added, Deleted int
+	Binary         bool
+}
+
+// CommitFiles is what a commit changed, file by file; a merge against its
+// first parent, which is what it brought in.
+func (g *Git) CommitFiles(dir, sha string) ([]FileStat, error) {
+	out, err := g.out(dir, "show", "--numstat", "--format=", "--diff-merges=first-parent", sha)
+	if err != nil {
+		return nil, err
+	}
+	var files []FileStat
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		f := FileStat{Path: parts[2]}
+		if parts[0] == "-" {
+			f.Binary = true
+		} else {
+			f.Added, _ = strconv.Atoi(parts[0])
+			f.Deleted, _ = strconv.Atoi(parts[1])
+		}
+		files = append(files, f)
+	}
+	return files, nil
 }
 
 // LastBranch is the branch a working tree last had out before HEAD was

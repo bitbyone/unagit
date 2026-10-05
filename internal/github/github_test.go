@@ -780,3 +780,33 @@ func TestUserNameReadsTheProfile(t *testing.T) {
 		t.Fatalf("name = %q, %v", name, err)
 	}
 }
+
+// TestCheckRunsKeepTheirAttempts: every attempt of a check run is read, the
+// earlier ones marked, and the commit stands at its latest attempts; a
+// commit's files are GitHub's counts.
+func TestCheckRunsKeepTheirAttempts(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/repos/acme/api/commits/abc/check-runs", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("filter") != "all" {
+			t.Error("only the latest attempts were asked for")
+		}
+		fmt.Fprint(w, `{"check_runs":[{"id":2,"name":"test","status":"completed","conclusion":"success","app":{"slug":"actions"}},
+			{"id":1,"name":"test","status":"completed","conclusion":"failure","app":{"slug":"actions"}}]}`)
+	})
+	s.mux.HandleFunc("/repos/acme/api/commits/abc", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"files":[{"filename":"a.go","additions":3,"deletions":1,"patch":"@@"}]}`)
+	})
+	c, ctx, repo := s.client(), context.Background(), forge.Project{PathWithNamespace: "acme/api"}
+	pipes, err := c.Pipelines(ctx, repo, forge.PipelineQuery{SHA: "abc"})
+	if err != nil || len(pipes) != 1 || pipes[0].Status != "success" {
+		t.Fatalf("pipelines %+v, %v; want one, passed", pipes, err)
+	}
+	jobs, err := c.Jobs(ctx, repo, pipes[0])
+	if err != nil || len(jobs) != 2 || !jobs[0].Retried || jobs[0].Status != "failed" || jobs[1].Retried {
+		t.Fatalf("jobs %+v, %v", jobs, err)
+	}
+	files, err := c.CommitFiles(ctx, repo, "abc")
+	if err != nil || len(files) != 1 || files[0].Added != 3 || files[0].Deleted != 1 {
+		t.Errorf("files %+v, %v", files, err)
+	}
+}

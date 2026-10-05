@@ -220,6 +220,41 @@ type Pipeline struct {
 	SHA       string    `json:"sha"`
 	WebURL    string    `json:"web_url"`
 	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// Source is what started it: a push, a merge request, a schedule, by
+	// hand ("web"); "" where the forge does not say.
+	Source string `json:"source,omitempty"`
+}
+
+// PipelineQuery says whose pipelines to list: a merge request's, a
+// branch's, or one commit's.
+type PipelineQuery struct {
+	MR  *MergeRequest
+	Ref string
+	SHA string
+}
+
+// FileChange is what a commit did to one file: lines added and deleted.
+type FileChange struct {
+	Path    string
+	Added   int
+	Deleted int
+	// Binary is a file whose lines cannot be counted.
+	Binary bool
+}
+
+// MarkRetried marks the jobs that were run again since: of the jobs with
+// one name, all but the newest. The forges list the earlier attempts with
+// the rest when asked to, and do not always say which they are.
+func MarkRetried(jobs []Job) {
+	newest := map[string]int64{}
+	for _, j := range jobs {
+		key := j.Stage + "\x00" + j.Name
+		newest[key] = max(newest[key], j.ID)
+	}
+	for i, j := range jobs {
+		jobs[i].Retried = j.ID != newest[j.Stage+"\x00"+j.Name]
+	}
 }
 
 // Job is one step of a pipeline: a GitLab job, a GitHub check run. Status
@@ -238,6 +273,8 @@ type Job struct {
 	// Trigger is a job that starts another pipeline rather than running
 	// anything itself; it has no log.
 	Trigger bool `json:"trigger,omitempty"`
+	// Retried is an earlier attempt of a job that was run again.
+	Retried bool `json:"retried,omitempty"`
 }
 
 // Downstream is the pipeline a trigger job started, and whose it is.
@@ -342,6 +379,12 @@ type Provider interface {
 	PlayJob(ctx context.Context, p Project, job Job) error
 	// DownstreamJobs is the pipeline a trigger job started and its jobs.
 	DownstreamJobs(ctx context.Context, job Job) (*Pipeline, []Job, error)
+	// Pipelines lists the pipelines a query names, newest first.
+	Pipelines(ctx context.Context, p Project, q PipelineQuery) ([]Pipeline, error)
+	// Jobs is the jobs of one pipeline, earlier attempts included (Retried).
+	Jobs(ctx context.Context, p Project, pipe Pipeline) ([]Job, error)
+	// CommitFiles is what a commit changed, file by file.
+	CommitFiles(ctx context.Context, p Project, sha string) ([]FileChange, error)
 	// UnresolvedThreads counts the threads not resolved yet; known is false
 	// where the forge cannot say.
 	UnresolvedThreads(ctx context.Context, mr MergeRequest) (n int, known bool, err error)

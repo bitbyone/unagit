@@ -90,6 +90,7 @@
     "manual": "▶",
     "scheduled": "◷",
     "trigger": "↳",
+    "retried": "↺",
     "ahead": "↑",
     "behind": "↓",
     "external": "↗",

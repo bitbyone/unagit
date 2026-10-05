@@ -175,7 +175,7 @@ func TestTheBrowserLeavesThePipelineOpen(t *testing.T) {
 			return main
 		})
 	}
-	typeRunes(sc, "k") // off the failed job, onto lint
+	typeRunes(sc, "kk") // off the failed job and its earlier attempt, onto lint
 	waitFor(t, a, sc, "lint · success")
 	before := cursor()
 	for _, key := range []string{"w", "W"} {
@@ -388,4 +388,94 @@ func TestHalfPage(t *testing.T) {
 	if halfPage(view, tcell.NewEventKey(tcell.KeyRune, 'j', tcell.ModNone)) {
 		t.Error("j was taken for a half page")
 	}
+}
+
+// TestEarlierPipelinesAndAttempts: a job run again keeps its earlier
+// attempt under it, whose log can still be read; P lists the merge
+// request's earlier pipelines, Enter one's jobs, and Esc comes back the
+// way it went.
+func TestEarlierPipelinesAndAttempts(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, glyphRetried+" unit tests")
+	// The cursor is on the failure that counts, not on the attempt before.
+	waitFor(t, a, sc, "unit tests · failed · 1m15s")
+	text := a.screenText(sc)
+	if lineOf(text, glyphRetried+" unit tests") > lineOf(text, "✗  test    unit tests") {
+		t.Errorf("the earlier attempt is not above the one that followed:\n%s", text)
+	}
+	typeRunes(sc, "k")
+	waitFor(t, a, sc, "an earlier attempt")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "--- FAIL: TestFlaky")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "TestFlaky")
+
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "Pipelines · acme/gateway !7")
+	waitFor(t, a, sc, "#80")
+	assertLegible(t, a, sc, "the pipelines of a merge request")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "✓ success")
+	waitGone(t, a, sc, "deploy")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Pipelines · acme/gateway !7")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "deploy")
+}
+
+// TestACommitsPipelines: J in a commit log reads the pipelines of the
+// commit under the cursor; one goes straight to its jobs, and Esc comes
+// back to the log.
+func TestACommitsPipelines(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	commitIn(t, p.clone, "b.txt", "Count requests per client")
+	p.rescan()
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	typeRunes(sc, "J")
+	waitFor(t, a, sc, "Pipeline · acme/gateway · ")
+	waitFor(t, a, sc, "build")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+}
+
+// TestFilesInColour: a commit's detail lists the files it changed with the
+// lines gained in the colour of good and those lost in that of bad - from
+// the forge when the commit is not on disk.
+func TestFilesInColour(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Add rate limiting")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go")
+	text := a.screenText(sc)
+	line := lineAt(text, "limit.go")
+	if !strings.Contains(line, "+2") || !strings.Contains(line, "-1") || !strings.Contains(line, "++-") {
+		t.Errorf("the file's counts are not there: %q", line)
+	}
+	if !strings.Contains(lineAt(text, "logo.png"), "binary") {
+		t.Errorf("a binary file is not said to be one:\n%s", text)
+	}
+	row := lineOf(text, "limit.go")
+	col := len([]rune(line[:strings.Index(line, "++-")]))
+	if _, style := cellAt(a, sc, col, row); func() bool { fg, _, _ := style.Decompose(); return fg.Hex() != colOn.Hex() }() {
+		t.Error("added lines are not in the colour of good")
+	}
+	if _, style := cellAt(a, sc, col+2, row); func() bool { fg, _, _ := style.Decompose(); return fg.Hex() != colBad.Hex() }() {
+		t.Error("deleted lines are not in the colour of bad")
+	}
+	assertLegible(t, a, sc, "a commit's files")
 }
