@@ -142,6 +142,12 @@ all and live only there.
   refresh sums up what it found: new merge requests, ones with commits
   since your review, failed pipelines, worktrees tidied away. A column
   nothing has anything in stays out of the way.
+- `R` runs behind the list, not in a dialog: the header turns a spinner and
+  says how far it has got, and the lists stay there to move in and read.
+  The pipeline, approvals and threads are asked only of the merge requests
+  the list shows - a hidden author's, a hidden repository's, the drafts you
+  hide keep what was last known - so hiding what you never look at makes
+  the refresh faster.
 - `V` marks a merge request as reviewed without opening it - read in the
   browser, or in Hunk with `D` - so `NEW` and the commit log count only what
   is pushed after.
@@ -159,7 +165,10 @@ all and live only there.
   unpushed commits, your own edits in a review, comments not yet published.
   Those are kept, and named.
 - `H` on a merge request hides its author's merge requests - Renovate's, a
-  CI bot's - and the header counts the hidden authors. `v` in Merge requests
+  CI bot's - and the header counts the hidden authors. `Alt-H` does the same
+  for the repository's merge requests, the repository itself still listed in
+  Repositories (`H` there does it too); unlike `x`, which hides the
+  repository everywhere. `v` in Merge requests
   turns the filter off for a while, or, space on an author, shows that one
   again for good.
 

@@ -350,6 +350,9 @@ func (p *pane) updateHeader() {
 	if p.statusMessage != "" {
 		text += "   " + p.statusMessage
 	}
+	if jobs := p.app.jobLine(); jobs != "" {
+		text = jobs + "   " + text
+	}
 	p.header.SetText(" " + mode + "  " + text)
 }
 

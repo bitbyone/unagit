@@ -43,7 +43,7 @@ func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool) {
 			return
 		}
 		fresh := []forge.MergeRequest{withDetail(mr, det)}
-		mrExtras(ctx, fresh, map[string]forge.Provider{mr.Instance: client})
+		mrExtras(ctx, fresh, []int{0}, map[string]forge.Provider{mr.Instance: client}, nil)
 		a.tv.QueueUpdateDraw(func() { a.applyMRRefresh(fresh[0], say) })
 	}()
 }

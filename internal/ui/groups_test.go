@@ -81,8 +81,13 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 			t.Errorf("%s starts at %s, not at origin's main %s", name, got, want)
 		}
 	}
-	if onLoop(a, func() int { return len(a.projectsPane.marks) }) != 0 {
-		t.Error("the marks outlived the grouped worktree made of them")
+	// The group's file is written before the task ends and lets go of them.
+	deadline := time.Now().Add(patience)
+	for onLoop(a, func() int { return len(a.projectsPane.marks) }) != 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the marks outlived the grouped worktree made of them")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	// Nothing opens: Worktrees shows what was made.

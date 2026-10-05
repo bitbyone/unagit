@@ -219,9 +219,12 @@ type Filters struct {
 	// default they come first, set apart from the rest.
 	FavouritesInPlace bool `yaml:"favourites_in_place,omitempty" json:"favourites_in_place,omitempty"`
 	// HiddenAuthors keep their merge requests out of the list - bots, most
-	// often, whose merge requests would bury the rest. ShowHiddenAuthors
-	// turns that off for a while without forgetting who they are.
+	// often, whose merge requests would bury the rest. HiddenMRs do the same
+	// for repositories: their merge requests are kept out while the
+	// repository itself stays listed, unlike Hidden. ShowHiddenAuthors turns
+	// both off for a while without forgetting what they are.
 	HiddenAuthors     []HiddenAuthor `yaml:"hidden_authors,omitempty" json:"hidden_authors,omitempty"`
+	HiddenMRs         []Hidden       `yaml:"hidden_merge_requests,omitempty" json:"hidden_merge_requests,omitempty"`
 	ShowHiddenAuthors bool           `yaml:"show_hidden_authors,omitempty" json:"show_hidden_authors,omitempty"`
 	// OnlyMine and OnlyToReview narrow the merge requests to those you
 	// wrote, and those you are asked to review or are assigned; with both,
@@ -249,6 +252,35 @@ func (f *Filters) HidesAuthor(instance, username string) bool {
 		}
 	}
 	return false
+}
+
+// HidesMRsOf reports whether a repository's merge requests are kept out of
+// the list now.
+func (f *Filters) HidesMRsOf(instance, path string) bool {
+	if f.ShowHiddenAuthors {
+		return false
+	}
+	for _, h := range f.HiddenMRs {
+		if h.Instance == instance && h.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// ToggleMRsOf hides a repository's merge requests, or shows them again, and
+// reports whether they are now hidden. Like ToggleAuthor, hiding turns the
+// filter back on.
+func (f *Filters) ToggleMRsOf(instance, path string) bool {
+	for i, h := range f.HiddenMRs {
+		if h.Instance == instance && h.Path == path {
+			f.HiddenMRs = append(f.HiddenMRs[:i], f.HiddenMRs[i+1:]...)
+			return false
+		}
+	}
+	f.HiddenMRs = append(f.HiddenMRs, Hidden{Instance: instance, Path: path})
+	f.ShowHiddenAuthors = false
+	return true
 }
 
 // ToggleAuthor hides an author's merge requests, or shows them again, and

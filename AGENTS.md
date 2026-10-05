@@ -169,6 +169,13 @@ for and finished is `done`, not `note`. Say things through those four, never
 with `setStatus` directly, and say them after the dialog they belong to is
 drawn, or it covers them.
 
+**A long refresh runs behind the interface.** Refreshing a whole list is a
+job (`runInBackground`, `jobs.go`): no dialog, a spinner and its progress in
+every list's header, the lists usable meanwhile, and a second start refused.
+`runTask`'s log dialog is for work the user waits on - a clone, a push - not
+for a refresh. A refresh asks the forge only about what the list shows; what
+is hidden keeps what was last read (`keepExtras`).
+
 Main views expose shortcuts through `?`: help keeps actions for the opening
 context in normal text and dims the rest.
 

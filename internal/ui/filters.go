@@ -241,14 +241,33 @@ func (a *App) selectedProjectOf(p *pane) (instance, path string) {
 // how many are kept out, or that they are shown for now.
 func (a *App) authorSummary() string {
 	f := &a.cfg.Filters
-	switch n := len(f.HiddenAuthors); {
-	case n == 0:
+	var what []string
+	if n := len(f.HiddenAuthors); n > 0 {
+		what = append(what, fmt.Sprintf("%d author(s)", n))
+	}
+	if n := len(f.HiddenMRs); n > 0 {
+		what = append(what, fmt.Sprintf("%d repo(s)' MRs", n))
+	}
+	switch {
+	case len(what) == 0:
 		return ""
 	case f.ShowHiddenAuthors:
-		return fmt.Sprintf(" · %s%d hidden author(s) shown%s%s", tag(colDim), n, tagEnd, tag(colMuted))
+		return fmt.Sprintf(" · %s%s hidden, shown%s%s", tag(colDim), strings.Join(what, " · "), tagEnd, tag(colMuted))
 	default:
-		return fmt.Sprintf(" · %s%s %d author(s)%s%s", tag(colWarn), glyphHidden, n, tagEnd, tag(colMuted))
+		return fmt.Sprintf(" · %s%s %s%s%s", tag(colWarn), glyphHidden, strings.Join(what, " · "), tagEnd, tag(colMuted))
 	}
+}
+
+// toggleMRsOf hides a repository's merge requests, the repository itself
+// still listed, or shows them again.
+func (a *App) toggleMRsOf(instance, path string) {
+	if a.cfg.Filters.ToggleMRsOf(instance, path) {
+		a.applyFilters()
+		a.note(fmt.Sprintf("%s %s's merge requests hidden, and left out of refreshes · v shows them again", glyphHidden, path))
+		return
+	}
+	a.applyFilters()
+	a.note(fmt.Sprintf("%s's merge requests are listed again; R brings their pipelines and approvals", path))
 }
 
 // hideAuthor keeps an author's merge requests out of the list.
@@ -278,7 +297,7 @@ func (a *App) showMRViewOptions() {
 		{"only mine", func() bool { return f.OnlyMine }, func() { f.OnlyMine = !f.OnlyMine }},
 		{"only those I review or am assigned", func() bool { return f.OnlyToReview }, func() { f.OnlyToReview = !f.OnlyToReview }},
 		{"hide drafts", func() bool { return f.HideDrafts }, func() { f.HideDrafts = !f.HideDrafts }},
-		{"hide the authors below", func() bool { return !f.ShowHiddenAuthors }, func() { f.ShowHiddenAuthors = !f.ShowHiddenAuthors }},
+		{"hide the authors and repositories below", func() bool { return !f.ShowHiddenAuthors }, func() { f.ShowHiddenAuthors = !f.ShowHiddenAuthors }},
 	}
 	a.showToggles(toggles{
 		title: "View · Merge requests",
@@ -295,6 +314,13 @@ func (a *App) showMRViewOptions() {
 				}
 				items = append(items, toggleItem{Label: label, Search: h.Username, Data: h})
 			}
+			for _, h := range f.HiddenMRs {
+				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + esc(h.Path) + tag(colDim) + " · its merge requests" + tagEnd
+				if a.multiInstance() {
+					label += "   " + tag(colDim) + a.instanceLabel(h.Instance) + tagEnd
+				}
+				items = append(items, toggleItem{Label: label, Search: h.Path, Data: h})
+			}
 			return items
 		},
 		toggle: func(it toggleItem) {
@@ -303,14 +329,16 @@ func (a *App) showMRViewOptions() {
 				options[d].flip()
 			case config.HiddenAuthor:
 				f.ToggleAuthor(d.Instance, d.Username)
+			case config.Hidden:
+				f.ToggleMRsOf(d.Instance, d.Path)
 			}
 			a.applyFilters()
 		},
 		status: func() string {
-			if len(f.HiddenAuthors) == 0 {
-				return tag(colDim) + "no author hidden · H on a merge request hides its author" + tagEnd
+			if len(f.HiddenAuthors)+len(f.HiddenMRs) == 0 {
+				return tag(colDim) + "nothing hidden · H hides an author, Alt-H a repository's merge requests" + tagEnd
 			}
-			return fmt.Sprintf("%s%d author(s) hidden · space on one shows it again%s", tag(colDim), len(f.HiddenAuthors), tagEnd)
+			return fmt.Sprintf("%s%d author(s), %d repo(s) hidden · space on one shows it again%s", tag(colDim), len(f.HiddenAuthors), len(f.HiddenMRs), tagEnd)
 		},
 	})
 }
@@ -321,7 +349,8 @@ func (a *App) showMRViewOptions() {
 // then a server's merge requests are not narrowed by it.
 func (a *App) passesMRFilters(mr forge.MergeRequest) bool {
 	f := &a.cfg.Filters
-	if f.HidesAuthor(mr.Instance, mr.Author.Username) || f.HideDrafts && mr.Draft {
+	if f.HidesAuthor(mr.Instance, mr.Author.Username) || f.HideDrafts && mr.Draft ||
+		f.HidesMRsOf(mr.Instance, a.projectPathOfMR(mr)) {
 		return false
 	}
 	me := a.me[mr.Instance]
@@ -364,4 +393,13 @@ func (a *App) whoseSummary() string {
 		return ""
 	}
 	return " · " + tag(colOn) + strings.Join(parts, " · ") + tagEnd + tag(colMuted)
+}
+
+// mrsHiddenName names the action that hides a repository's merge requests,
+// or lists them again.
+func mrsHiddenName(hidden bool) string {
+	if hidden {
+		return "List Merge Requests Again"
+	}
+	return "Hide Merge Requests"
 }

@@ -203,6 +203,7 @@ func helpRows() []helpLine {
 		key("m", "show only this repository's merge requests"),
 		key("Ctrl-T", "tag the repository"),
 		key("J", "pipeline of the clone's branch: log · retry"),
+		key("H", "hide its merge requests; it stays listed"),
 		key("v", "view: tags · grouping · favourites first"),
 		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
@@ -259,6 +260,7 @@ func helpRows() []helpLine {
 		key("V", "mark as reviewed: NEW counts from the head now"),
 		key("J", "pipeline jobs: Enter log · R retry · w browser"),
 		key("H", "hide the author's merge requests (bots)"),
+		key("Alt-H", "hide the repository's MRs; refreshes skip them"),
 		key("v", "view: mine · to review · drafts · hidden authors"),
 		blank(),
 

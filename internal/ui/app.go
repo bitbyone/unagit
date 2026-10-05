@@ -141,6 +141,13 @@ type App struct {
 	wtSizing map[string]bool
 	// themes are the themes there are, built-in and the user's;
 	// themeProblem says why the chosen one is not on, until it is said.
+	// jobs are the jobs under way behind the interface (jobs.go), and
+	// spinFrame turns their spinner; refreshing guards each refresh against
+	// starting twice.
+	jobs                         []*bgJob
+	spinFrame                    int
+	refreshingMRs, refreshingPrj bool
+
 	themes       themeSet
 	themeProblem string
 	// themeFile is the file of the theme in use, "" for a built-in one;
@@ -765,18 +772,14 @@ func (a *App) refreshProjects() {
 		return
 	}
 	jobs := a.groupJobs(instances)
-	a.runTask("Refreshing projects", func(log func(string)) (string, error) {
+	var all []forge.Project
+	var idx index.Projects
+	a.runInBackground("refreshing repositories", &a.refreshingPrj, func(progress func(string)) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-
-		log(fmt.Sprintf("Asking %d group(s) on %d server(s), %d at a time …",
-			len(jobs), len(instances), refreshFanOut))
-		all, err := fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.Project, error) {
-			scope := "including subgroups"
-			if !job.group.IncludesSubgroups() {
-				scope = "this group only"
-			}
-			log(fmt.Sprintf("%s · %s (%s) …", job.inst.Label(), job.group.FullPath, scope))
+		var asked atomic.Int32
+		var err error
+		all, err = fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.Project, error) {
 			ps, err := job.client.GroupProjects(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
 			if err != nil {
 				return nil, err
@@ -784,31 +787,26 @@ func (a *App) refreshProjects() {
 			for i := range ps {
 				ps[i].Instance = job.inst.ID
 			}
-			log(fmt.Sprintf("%s · %s: %d project(s)", job.inst.Label(), job.group.FullPath, len(ps)))
+			progress(fmt.Sprintf("groups %d/%d", asked.Add(1), len(jobs)))
 			return ps, nil
 		})
 		if err != nil {
-			return "", err
+			return err
 		}
-
 		all = index.DedupeProjects(all)
-		idx := index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: all}
-		if err := index.Save(a.cfg.IndexPath("projects"), idx); err != nil {
-			return "", err
-		}
-		a.tv.QueueUpdateDraw(func() {
-			a.projects, a.projUpdated, a.staleProjects = all, idx.UpdatedAt, false
-			// The marks point into the old list.
-			a.projectsPane.marks = nil
-			a.reindexProjects()
-			a.refreshDisk()
-			a.loadRepoSync(true)
-			a.projectsPane.reload()
-			a.mrsPane.reload()
-			a.settings.reload()
-		})
-		log(fmt.Sprintf("Done: %d project(s) indexed.", len(all)))
-		return "", nil
+		idx = index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: all}
+		return index.Save(a.cfg.IndexPath("projects"), idx)
+	}, func() {
+		a.projects, a.projUpdated, a.staleProjects = all, idx.UpdatedAt, false
+		// The marks point into the old list.
+		a.projectsPane.marks = nil
+		a.reindexProjects()
+		a.refreshDisk()
+		a.loadRepoSync(true)
+		a.projectsPane.reload()
+		a.mrsPane.reload()
+		a.settings.reload()
+		a.done(fmt.Sprintf("%d repositories indexed", len(all)))
 	})
 }
 
@@ -829,14 +827,14 @@ func (a *App) refreshMRs() {
 		clients[j.inst.ID] = j.client
 	}
 	paths := a.snapshotProjectPaths()
-	a.runTask("Refreshing merge requests", func(log func(string)) (string, error) {
+	var all []forge.MergeRequest
+	var idx index.MergeRequests
+	a.runInBackground("refreshing merge requests", &a.refreshingMRs, func(progress func(string)) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-
-		log(fmt.Sprintf("Asking %d group(s) on %d server(s), %d at a time …",
-			len(jobs), len(instances), refreshFanOut))
-		all, err := fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.MergeRequest, error) {
-			log(fmt.Sprintf("%s · %s …", job.inst.Label(), job.group.FullPath))
+		var asked atomic.Int32
+		var err error
+		all, err = fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.MergeRequest, error) {
 			ms, err := job.client.GroupMergeRequests(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
 			if err != nil {
 				return nil, err
@@ -851,60 +849,108 @@ func (a *App) refreshMRs() {
 					kept = append(kept, mr)
 				}
 			}
-			log(fmt.Sprintf("%s · %s: %d open merge request(s)", job.inst.Label(), job.group.FullPath, len(kept)))
+			progress(fmt.Sprintf("groups %d/%d", asked.Add(1), len(jobs)))
 			return kept, nil
 		})
 		if err != nil {
-			return "", err
+			return err
 		}
-
 		all = index.DedupeMergeRequests(all)
-		log("Reading their pipelines, approvals and threads …")
-		mrExtras(ctx, all, clients)
+
+		// What the list does not show is not asked about: it keeps what the
+		// last refresh found, and the requests go to what is seen.
+		var shown map[mrKey]bool
+		var before map[mrKey]forge.MergeRequest
+		if !a.onLoopWait(ctx, func() {
+			shown, before = map[mrKey]bool{}, map[mrKey]forge.MergeRequest{}
+			for _, mr := range all {
+				shown[keyOfMR(mr)] = a.passesFilters(mr.Instance, mr.ProjectPath) && a.passesMRFilters(mr)
+			}
+			for _, mr := range a.mrs {
+				before[keyOfMR(mr)] = mr
+			}
+		}) {
+			return ctx.Err()
+		}
+		var ask []int
+		for i := range all {
+			if shown[keyOfMR(all[i])] {
+				ask = append(ask, i)
+				continue
+			}
+			if old, ok := before[keyOfMR(all[i])]; ok {
+				keepExtras(&all[i], old)
+			}
+		}
+		mrExtras(ctx, all, ask, clients, func(done int) {
+			progress(fmt.Sprintf("details %d/%d", done, len(ask)))
+		})
 		me := map[string]string{}
 		for id, client := range clients {
 			if u, err := client.CurrentUser(ctx); err == nil && u != nil {
 				me[id] = u.Username
 			}
 		}
-		idx := index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all, Me: me}
-		if err := index.Save(a.cfg.IndexPath("mrs"), idx); err != nil {
-			return "", err
+		idx = index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all, Me: me}
+		return index.Save(a.cfg.IndexPath("mrs"), idx)
+	}, func() {
+		a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, idx.Me
+		a.sortHold = nil
+		a.forgetClosedFavourites(instances, all)
+		asked := map[string]bool{}
+		for _, inst := range instances {
+			asked[inst.ID] = true
 		}
-		a.tv.QueueUpdateDraw(func() {
-			a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, me
-			a.sortHold = nil
-			a.forgetClosedFavourites(instances, all)
-			asked := map[string]bool{}
-			for _, inst := range instances {
-				asked[inst.ID] = true
-			}
-			a.pruneSeen(asked, all)
+		a.pruneSeen(asked, all)
+		a.refreshDisk()
+		a.cleanUpClosed(instances, all, func(removed, kept []string) {
+			// The count of NEW comes once the disk is looked at again;
+			// the summary waits for it.
+			a.afterFresh = func() { a.sayRefreshed(before, all, removed, kept) }
 			a.refreshDisk()
-			a.cleanUpClosed(instances, all, func(removed, kept []string) {
-				// The count of NEW comes once the disk is looked at again;
-				// the summary waits for it.
-				a.afterFresh = func() { a.sayRefreshed(before, all, removed, kept) }
-				a.refreshDisk()
-			})
-			a.mrsPane.reload()
-			a.worktreesPane.reload()
-			a.projectsPane.reload()
-			a.settings.reload()
 		})
-		log(fmt.Sprintf("Done: %d merge request(s) indexed.", len(all)))
-		return "", nil
+		a.mrsPane.reload()
+		a.worktreesPane.reload()
+		a.projectsPane.reload()
+		a.settings.reload()
 	})
 }
 
+// onLoopWait runs fn on the event loop and waits for it, for a job behind
+// the interface that needs to read what the interface holds. It reports
+// false when ctx ends first.
+func (a *App) onLoopWait(ctx context.Context, fn func()) bool {
+	done := make(chan struct{})
+	a.tv.QueueUpdate(func() {
+		fn()
+		close(done)
+	})
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// keepExtras carries over what a refresh did not ask again about a merge
+// request: its pipeline, approvals and threads as last read.
+func keepExtras(mr *forge.MergeRequest, old forge.MergeRequest) {
+	mr.Pipeline = old.Pipeline
+	mr.ApprovedBy, mr.ApprovalsRequired = old.ApprovedBy, old.ApprovalsRequired
+	mr.Unresolved, mr.UnresolvedKnown = old.Unresolved, old.UnresolvedKnown
+}
+
 // mrExtras fills in what the listings leave out - the pipeline, the
-// approvals, the threads not resolved - for every merge request, several at
-// a time. What cannot be read is left out: it is a mark in a column, not a
-// reason to fail the refresh. It runs off the event loop.
-func mrExtras(ctx context.Context, mrs []forge.MergeRequest, clients map[string]forge.Provider) {
-	sem := make(chan struct{}, refreshFanOut)
+// approvals, the threads not resolved - for the merge requests at those
+// indexes, several at a time and the three questions of each at once. What
+// cannot be read is left out: it is a mark in a column, not a reason to fail
+// the refresh. done hears how many are finished. It runs off the event loop.
+func mrExtras(ctx context.Context, mrs []forge.MergeRequest, which []int, clients map[string]forge.Provider, done func(int)) {
+	sem := make(chan struct{}, extrasFanOut)
 	var wg sync.WaitGroup
-	for i := range mrs {
+	var finished atomic.Int32
+	for _, i := range which {
 		client := clients[mrs[i].Instance]
 		if client == nil {
 			continue
@@ -912,20 +958,51 @@ func mrExtras(ctx context.Context, mrs []forge.MergeRequest, clients map[string]
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(mr *forge.MergeRequest) {
-			defer func() { <-sem; wg.Done() }()
-			if p, err := client.MergeRequestPipeline(ctx, *mr); err == nil && p != nil {
-				mr.Pipeline = p.Status
-			}
-			if ap, err := client.MergeRequestApprovals(ctx, *mr); err == nil && ap != nil {
-				mr.ApprovedBy, mr.ApprovalsRequired = ap.ApprovedBy, ap.Required
-			}
-			if n, known, err := client.UnresolvedThreads(ctx, *mr); err == nil {
-				mr.Unresolved, mr.UnresolvedKnown = n, known
-			}
+			defer func() {
+				<-sem
+				if done != nil {
+					done(int(finished.Add(1)))
+				}
+				wg.Done()
+			}()
+			// Each question gets the same copy, and the answers are written
+			// back once all three are in.
+			asked := *mr
+			var each sync.WaitGroup
+			each.Add(3)
+			pipeline := asked.Pipeline
+			go func() {
+				defer each.Done()
+				if p, err := client.MergeRequestPipeline(ctx, asked); err == nil && p != nil {
+					pipeline = p.Status
+				}
+			}()
+			approvedBy, required := asked.ApprovedBy, asked.ApprovalsRequired
+			go func() {
+				defer each.Done()
+				if ap, err := client.MergeRequestApprovals(ctx, asked); err == nil && ap != nil {
+					approvedBy, required = ap.ApprovedBy, ap.Required
+				}
+			}()
+			unresolved, known := asked.Unresolved, asked.UnresolvedKnown
+			go func() {
+				defer each.Done()
+				if n, k, err := client.UnresolvedThreads(ctx, asked); err == nil {
+					unresolved, known = n, k
+				}
+			}()
+			each.Wait()
+			mr.Pipeline = pipeline
+			mr.ApprovedBy, mr.ApprovalsRequired = approvedBy, required
+			mr.Unresolved, mr.UnresolvedKnown = unresolved, known
 		}(&mrs[i])
 	}
 	wg.Wait()
 }
+
+// extrasFanOut is how many merge requests are asked about at once, each with
+// three questions in flight.
+const extrasFanOut = 8
 
 // snapshotProjectPaths copies the project id to path mapping per instance, for
 // background use.

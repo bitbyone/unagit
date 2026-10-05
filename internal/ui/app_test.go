@@ -56,6 +56,11 @@ type fakeServer struct {
 	liveBranches atomic.Value // func(project int) []string
 	// pipelineRefs is the ref acme/gateway's pipelines were last asked for.
 	pipelineRefs atomic.Value
+	// mr7Pipelines counts the questions about !7's pipeline; holdMRList,
+	// when set, keeps the group's merge request listing waiting until it is
+	// closed.
+	mr7Pipelines atomic.Int64
+	holdMRList   atomic.Value // chan struct{}
 	// writes are the changes !7 was sent - a merge, a title, a state, its
 	// reviewers - each as "METHOD path body".
 	writesMu sync.Mutex
@@ -116,6 +121,9 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"default_branch":"main","last_activity_at":"2026-09-22T09:00:00Z"}]`)
 	})
 	mux.HandleFunc("/api/v4/groups/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		if hold, ok := f.holdMRList.Load().(chan struct{}); ok {
+			<-hold
+		}
 		// Distinct ids: the index dedupes by them, as GitLab always sends them.
 		json(w, `[{"id":107,"iid":7,"title":"Rate limiting","source_branch":"feat/rate","target_branch":"main",
 			"project_id":1,"user_notes_count":4,"author":{"username":"jane"},
@@ -341,6 +349,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"approvals_required":2,"approvals_left":1,"approved_by":[{"user":{"username":"john"}}]}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		f.mr7Pipelines.Add(1)
 		json(w, `[{"id":90,"status":"failed","web_url":"https://gl.test/acme/gateway/-/pipelines/90"}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines/90/jobs", func(w http.ResponseWriter, r *http.Request) {

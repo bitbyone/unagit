@@ -81,6 +81,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			a.showBranchManager(branchScope{project: pr, checkout: true})
 		}},
 		{name: "Refresh", about: "Fetch this clone from origin and see where it stands, leaving the rest of the list as it is.", keys: "r", rank: 57, run: func() { a.refreshProjectRow(pr) }},
+		{name: mrsHiddenName(a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace)), about: "Keep the repository's merge requests out of the list and out of refreshes, the repository still here; again lists them.", keys: "H", rank: 470,
+			run: func() { a.toggleMRsOf(pr.Instance, pr.PathWithNamespace) }},
 		{name: "Show Commit Log", about: "What is out in the clone, newest first, or the server's default branch before it is cloned: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
 		{name: "Show Pipeline…", about: "The jobs of the newest pipeline of the clone's branch, or of the default branch before it is cloned: read a log, retry, open it.", keys: "J", rank: 62, run: func() {
 			branch := pr.DefaultBranch
@@ -192,6 +194,8 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		}},
 		{name: "Hide Author", about: "Keep this author's merge requests out of the list - a bot's, most often; View Options shows them again.", keys: "H", rank: 475,
 			when: func() bool { return mr.Author.Username != "" }, run: func() { a.hideAuthor(mr) }},
+		{name: "Hide Repository's Merge Requests", about: "Keep this repository's merge requests out of the list and out of refreshes, the repository still listed; View Options shows them again.", keys: "Alt-H", rank: 476,
+			run: func() { a.toggleMRsOf(mr.Instance, path) }},
 		a.hideAction(p),
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},

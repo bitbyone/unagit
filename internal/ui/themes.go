@@ -187,6 +187,9 @@ type Glyphs struct {
 	Mask         string `json:"mask"`
 	Bar          string `json:"bar"`
 	TabSeparator string `json:"tab_separator"`
+	// Spinner is the frames of what turns while a job runs behind the
+	// interface, one character each, in order.
+	Spinner string `json:"spinner"`
 }
 
 // readTheme reads one theme file over a base: what the file does not say
@@ -436,6 +439,9 @@ func (t Theme) validate() error {
 		if utf8.RuneCountInString(value) != 1 {
 			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
 		}
+	}
+	if t.Glyphs.Spinner == "" {
+		problems = append(problems, "glyphs.spinner: it needs at least one frame")
 	}
 	if t.Backdrop.Dim < 0 || t.Backdrop.Dim > 1 {
 		problems = append(problems, fmt.Sprintf("backdrop.dim: %v is not between 0 and 1", t.Backdrop.Dim))
