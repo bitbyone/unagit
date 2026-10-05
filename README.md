@@ -162,6 +162,12 @@ all and live only there.
 - Repositories' `SIZE` is what a clone takes on disk with all its
   worktrees - its merge requests', reviews', branches', grouped ones' -
   measured behind the list at the start and again as the last step of `R`.
+- With a GitHub account, `:` in Repositories › View Starred Repositories…
+  lists what you starred, with its language and stars: `Enter` reads the
+  README, drawn from its markdown (`e` opens it in your editor), `w` the
+  page in the browser, `C` clones it. A repository cloned from there joins
+  Repositories, though none of your groups holds it, with a star badge
+  saying where it came from (`index-starred.json` keeps it there).
 - Authors and reviewers are shown by name. GitLab's lists carry the names;
   GitHub's carry only logins, so `R` asks for the names it does not know
   and keeps them in `index-users.json` for a month.

@@ -57,6 +57,12 @@ type Project struct {
 	Archived          bool      `json:"archived"`
 	LastActivityAt    time.Time `json:"last_activity_at"`
 	Instance          string    `json:"instance,omitempty"`
+	// Starred is a repository the user starred and cloned from the list of
+	// stars, not one of the groups they chose; Stars and Language describe
+	// it there.
+	Starred  bool   `json:"starred,omitempty"`
+	Stars    int    `json:"stars,omitempty"`
+	Language string `json:"language,omitempty"`
 }
 
 // ProjectDetail is everything worth showing about a repository.
@@ -344,6 +350,11 @@ type Provider interface {
 	GroupProjects(ctx context.Context, g Group, includeSubgroups bool) ([]Project, error)
 	// GroupMergeRequests lists the open merge requests of a group.
 	GroupMergeRequests(ctx context.Context, g Group, includeSubgroups bool) ([]MergeRequest, error)
+	// StarredProjects lists the repositories the user has starred.
+	StarredProjects(ctx context.Context) ([]Project, error)
+	// Readme is the README of a repository's default branch, as markdown,
+	// "" when it has none.
+	Readme(ctx context.Context, p Project) (string, error)
 	// ProjectMergeRequests lists the open merge requests of one repository,
 	// for a refresh that asks only about the repositories the list shows.
 	ProjectMergeRequests(ctx context.Context, p Project) ([]MergeRequest, error)

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"github.com/tobola/unagit/internal/forge"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -125,16 +126,24 @@ func (a *App) pills(names []string, room int, behind string) (string, int) {
 // chezmoi badge when the row is the repository chezmoi keeps. The pills come
 // back as well, to be drawn again over the selection band, at where they
 // start in the field. A marked row has a band of its own under both.
-func (a *App) tagsField(tags []string, width int, marked, managed bool) (string, keptMarkup) {
+func (a *App) tagsField(tags []string, width int, marked, managed bool, starred *forge.Project) (string, keptMarkup) {
 	behind, band := behindList, behindBand()
 	if marked {
 		_, bg, _ := styleMarkedSelected.Decompose()
 		behind, band = colMarked.String(), bg.String()
 	}
-	badge, bw := "", 0
-	if managed {
-		badge, bw = chezmoiBadge(width, a.cfg.Ends(), behind)
+	// A badge is the chezmoi one, or the star of a repository cloned from
+	// the stars; both say where the row comes from, not a tag of the user's.
+	badgeOn := func(room int, behind string) (string, int) {
+		switch {
+		case managed:
+			return chezmoiBadge(room, a.cfg.Ends(), behind)
+		case starred != nil:
+			return a.starredBadge(*starred, room, a.cfg.Ends(), behind)
+		}
+		return "", 0
 	}
+	badge, bw := badgeOn(width, behind)
 	room := width
 	if bw > 0 {
 		room -= bw + 1
@@ -152,7 +161,7 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool) (string,
 		if w > 0 {
 			gap, w = " ", w+1
 		}
-		banded, _ := chezmoiBadge(width, a.cfg.Ends(), band)
+		banded, _ := badgeOn(width, band)
 		markup = badge + gap + markup
 		kept.markup, kept.width = banded+gap+kept.markup, bw+w
 		if marked {

@@ -224,7 +224,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	for _, idx := range filtered {
 		pr := a.projects[idx]
 		longest = max(longest, len([]rune(name(pr))))
-		tagged = tagged || len(tagsOf(pr)) > 0 || managed(pr)
+		tagged = tagged || len(tagsOf(pr)) > 0 || managed(pr) || pr.Starred
 	}
 	longest = atLeast(longest, "REPOSITORY")
 	if tagged {
@@ -318,7 +318,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
 		if tagsW > 0 {
-			tags, pills := a.tagsField(tagsOf(pr), tagsW, p.marks[idx], managed(pr))
+			var starred *forge.Project
+			if pr.Starred {
+				starred = &pr
+			}
+			tags, pills := a.tagsField(tagsOf(pr), tagsW, p.marks[idx], managed(pr), starred)
 			pills.x += nameX + nameW + 1
 			p.kept.keep(row, pills)
 			fields = append(fields, field{raw: tags})

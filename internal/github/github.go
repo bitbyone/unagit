@@ -7,6 +7,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -492,6 +493,7 @@ type repo struct {
 	OpenIssues    int       `json:"open_issues_count"`
 	Topics        []string  `json:"topics"`
 	Size          int64     `json:"size"`
+	Language      string    `json:"language"`
 	CreatedAt     time.Time `json:"created_at"`
 	License       *struct {
 		Name string `json:"name"`
@@ -517,7 +519,48 @@ func (r repo) project() forge.Project {
 		WebURL:            r.HTMLURL,
 		Archived:          r.Archived,
 		LastActivityAt:    activity,
+		Stars:             r.Stars,
+		Language:          r.Language,
 	}
+}
+
+// StarredProjects is the repositories the account has starred, the most
+// recently starred first.
+func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
+	repos, err := getAll[repo](ctx, c, "/user/starred", nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.Project, 0, len(repos))
+	for _, r := range repos {
+		p := r.project()
+		p.Starred = true
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// Readme is a repository's README as markdown, "" when it has none.
+func (c *Client) Readme(ctx context.Context, p forge.Project) (string, error) {
+	var raw struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if _, err := c.get(ctx, "/repos/"+p.PathWithNamespace+"/readme", nil, &raw); err != nil {
+		var apiErr *apiError
+		if errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound {
+			return "", nil
+		}
+		return "", err
+	}
+	if raw.Encoding != "base64" {
+		return raw.Content, nil
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+	if err != nil {
+		return "", fmt.Errorf("read the README of %s: %w", p.PathWithNamespace, err)
+	}
+	return string(data), nil
 }
 
 // groupReposPath is where a group's repositories live: an organisation has

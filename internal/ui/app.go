@@ -180,6 +180,8 @@ type App struct {
 	repoSync    map[projectKey]remoteState
 	fetchFailed map[projectKey]string
 	fetching    int
+	// starred is the starred repositories that were cloned (starred.go).
+	starred []forge.Project
 	// repoSize is what each cloned repository takes on disk, its worktrees
 	// included, and repoSizing those being measured (reposize.go).
 	repoSize   map[projectKey]int64
@@ -628,6 +630,7 @@ func (a *App) loadIndexes() {
 	if u, err := index.Load[index.Users](a.cfg.IndexPath("users")); err == nil {
 		a.people = u
 	}
+	a.loadStarred()
 	a.adoptLegacyIndex()
 	a.reindexProjects()
 }
@@ -656,6 +659,7 @@ func (a *App) adoptLegacyIndex() {
 }
 
 func (a *App) reindexProjects() {
+	a.mergeStarred()
 	a.projByKey = make(map[projectKey]forge.Project, len(a.projects))
 	for _, p := range a.projects {
 		a.projByKey[projectKey{p.Instance, p.PathWithNamespace}] = p

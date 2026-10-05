@@ -45,6 +45,10 @@ var colourRoles = []colourRole{
 	{"column.size", "text.muted", "what it takes on disk, when the theme has no heat"},
 	{"column.age", "text.muted", "how long ago: activity, updated, created"},
 
+	// Badges in the tags column.
+	{"badge.starred.ink", "chezmoi.badge_ink", "the badge of a repository cloned from the stars"},
+	{"badge.starred.fill", "chezmoi.badge_fill", ""},
+
 	// Repositories.
 	{"repositories.header", "column.header", ""},
 	{"repositories.server", "column.server", ""},

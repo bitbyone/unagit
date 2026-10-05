@@ -496,6 +496,33 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 	return listedMRs(raw), nil
 }
 
+// StarredProjects is the projects the user has starred.
+func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
+	q := url.Values{}
+	q.Set("starred", "true")
+	q.Set("archived", "false")
+	projects, err := getAll[forge.Project](ctx, c, "/projects", q)
+	for i := range projects {
+		projects[i].Starred = true
+	}
+	return projects, err
+}
+
+// Readme is the README.md of a project's default branch, "" when it has
+// none.
+func (c *Client) Readme(ctx context.Context, p forge.Project) (string, error) {
+	ref := p.DefaultBranch
+	if ref == "" {
+		ref = "HEAD"
+	}
+	text, err := c.getText(ctx, projectPath(p)+"/repository/files/README.md/raw?ref="+url.QueryEscape(ref))
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound {
+		return "", nil
+	}
+	return text, err
+}
+
 // ProjectMergeRequests returns the open merge requests of one project.
 func (c *Client) ProjectMergeRequests(ctx context.Context, p forge.Project) ([]forge.MergeRequest, error) {
 	q := url.Values{}

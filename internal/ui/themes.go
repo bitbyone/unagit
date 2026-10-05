@@ -219,6 +219,8 @@ type Glyphs struct {
 	Trigger   string `json:"trigger"`
 	// Retried marks an earlier attempt of a job that was run again.
 	Retried string `json:"retried"`
+	// Starred marks a repository from the user's stars.
+	Starred string `json:"starred"`
 	// User marks a person among other things: a hidden author beside the
 	// hidden repositories.
 	User string `json:"user"`
@@ -472,7 +474,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
 		"glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
-		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User,
+		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User, "glyphs.starred": g.Starred,
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator,

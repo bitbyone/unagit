@@ -161,6 +161,11 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `[{"id":"a1b2c3d000000000000000000000000000000000","short_id":"a1b2c3d","title":"Add rate limiting","author_name":"jane",
 			"committed_date":"2026-09-21T08:00:00Z","web_url":"https://gl.test/acme/gateway/-/commit/a1b2c3d"}]`)
 	})
+	// A README, for the list of stars.
+	mux.HandleFunc("/api/v4/projects/1/repository/files/README.md/raw", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "# Gateway\n\nThe **edge** router.\n")
+	})
 	// What a commit changed, as GitLab's diff of it says.
 	mux.HandleFunc("/api/v4/projects/1/repository/commits/{sha}/diff", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"new_path":"limit.go","diff":"@@ -1,2 +1,3 @@\n+bucket\n+refill\n-old\n context\n"},

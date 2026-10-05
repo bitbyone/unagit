@@ -99,6 +99,7 @@
     "trigger": "↳",
     "retried": "↺",
     "user": "@",
+    "starred": "☆",
     "ahead": "↑",
     "behind": "↓",
     "external": "↗",
@@ -110,7 +111,8 @@
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
   },
   "nerd_glyphs": {
-    "user": "\uf007"
+    "user": "\uf007",
+    "starred": "\uf005"
   },
   "borders": {
     "horizontal": "─",

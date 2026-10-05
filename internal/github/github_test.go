@@ -810,3 +810,30 @@ func TestCheckRunsKeepTheirAttempts(t *testing.T) {
 		t.Errorf("files %+v, %v", files, err)
 	}
 }
+
+// TestStarredAndReadme: the account's starred repositories, and a README
+// decoded from GitHub's base64; a repository without one has "".
+func TestStarredAndReadme(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/user/starred", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[{"id":3,"name":"tview","full_name":"rivo/tview","language":"Go","stargazers_count":11000,"html_url":"https://github.com/rivo/tview"}]`)
+	})
+	s.mux.HandleFunc("/repos/rivo/tview/readme", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"encoding":"base64","content":"IyB0dmlldwoKVGVy\nbWluYWwgVUku\n"}`)
+	})
+	s.mux.HandleFunc("/repos/a/none/readme", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	c, ctx := s.client(), context.Background()
+	starred, err := c.StarredProjects(ctx)
+	if err != nil || len(starred) != 1 || !starred[0].Starred || starred[0].Language != "Go" || starred[0].Stars != 11000 {
+		t.Fatalf("starred %+v, %v", starred, err)
+	}
+	readme, err := c.Readme(ctx, starred[0])
+	if err != nil || readme != "# tview\n\nTerminal UI." {
+		t.Errorf("readme %q, %v", readme, err)
+	}
+	if readme, err := c.Readme(ctx, forge.Project{PathWithNamespace: "a/none"}); err != nil || readme != "" {
+		t.Errorf("a missing README: %q, %v", readme, err)
+	}
+}
