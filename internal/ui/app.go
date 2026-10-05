@@ -80,7 +80,10 @@ type App struct {
 	tabs     *tview.TextView
 	status   *tview.TextView
 	helpHint *tview.TextView
-	tab      string
+	// settingsJobs is what runs behind the interface, on Settings' status
+	// line.
+	settingsJobs *jobsCell
+	tab          string
 
 	cfg      *config.Config
 	sessions *session.Store
@@ -349,9 +352,12 @@ func (a *App) buildInterface() tview.Primitive {
 	a.tab = pageProjects
 	a.drawTabs()
 
+	statusRow := tview.NewFlex().AddItem(a.status, 0, 1, false)
+	a.settingsJobs = newJobsCell(statusRow)
+	statusRow.AddItem(a.helpHint, 8, 0, false)
 	settingsLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(a.settings.root, 0, 1, true).
-		AddItem(tview.NewFlex().AddItem(a.status, 0, 1, false).AddItem(a.helpHint, 8, 0, false), 1, 0, false)
+		AddItem(statusRow, 1, 0, false)
 	a.pages.AddPage(pageSettings, settingsLayout, true, false)
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).

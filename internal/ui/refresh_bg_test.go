@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,10 +55,16 @@ func TestRefreshAsksOnlyAboutWhatIsShown(t *testing.T) {
 		a.applyFilters()
 		return true
 	})
+	// Held, or the refresh can be over before the screen shows it.
+	hold := make(chan struct{})
+	srv.holdMRList.Store(hold)
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(hold) }) })
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "refreshing merge requests")
+	release.Do(func() { close(hold) })
 	waitGone(t, a, sc, "refreshing merge requests")
 	if n := srv.mr7Pipelines.Load(); n != 0 {
 		t.Errorf("a hidden merge request's pipeline was asked for %d time(s)", n)
@@ -94,6 +101,15 @@ func TestRefreshRunsBehindTheList(t *testing.T) {
 		t.Fatalf("the refresh opened a dialog:\n%s", a.screenText(sc))
 	}
 	first := lineOf(a.screenText(sc), "refreshing merge requests")
+	// The job sits at the right-hand end, after the list's summary and
+	// just before the help hint.
+	if lines := strings.Split(a.screenText(sc), "\n"); first >= 0 {
+		line := lines[first]
+		summary, job, help := strings.Index(line, "NORMAL"), strings.Index(line, "refreshing"), strings.Index(line, "? help")
+		if !(summary >= 0 && summary < job && job < help) || strings.Contains(line[job:help], "indexed") {
+			t.Errorf("the job is not at the right of the header, before the help:\n%s", line)
+		}
+	}
 	frame := func() string { return onLoop(a, func() string { return a.jobLine() }) }
 	turned := frame()
 	deadline := time.Now().Add(patience)

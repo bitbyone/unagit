@@ -28,8 +28,10 @@ type pane struct {
 	filter     *tview.InputField
 	header     *tview.TextView
 	headerRow  *tview.Flex
-	helpHint   *tview.TextView
-	detail     *tview.TextView
+	// jobs is the right-hand end of the header: what runs behind the list.
+	jobs     *jobsCell
+	helpHint *tview.TextView
+	detail   *tview.TextView
 	// fitDetail lays the detail out to the width it is drawn at, for content
 	// that is drawn as boxes; nil goes back to plain text.
 	fitDetail func(render func(width int) string)
@@ -84,7 +86,9 @@ func (a *App) newPane(title string) *pane {
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
-	p.headerRow = tview.NewFlex().AddItem(p.header, 0, 1, false).AddItem(p.helpHint, 8, 0, false)
+	p.headerRow = tview.NewFlex().AddItem(p.header, 0, 1, false)
+	p.jobs = newJobsCell(p.headerRow)
+	p.headerRow.AddItem(p.helpHint, 8, 0, false)
 
 	p.filter = filterField(tview.NewInputField())
 	p.filter.SetChangedFunc(func(text string) {
@@ -350,9 +354,7 @@ func (p *pane) updateHeader() {
 	if p.statusMessage != "" {
 		text += "   " + p.statusMessage
 	}
-	if jobs := p.app.jobLine(); jobs != "" {
-		text = jobs + "   " + text
-	}
+	p.jobs.set(p.app.jobLine())
 	p.header.SetText(" " + mode + "  " + text)
 }
 
