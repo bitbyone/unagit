@@ -206,7 +206,8 @@ func TestCommentsAndApprovalsRead(t *testing.T) {
 		{forge.MergeRequest{Comments: 6}, "6", ""},
 		{forge.MergeRequest{ApprovedBy: []string{"jane"}, ApprovalsRequired: 2}, "", "1/2"},
 		{forge.MergeRequest{ApprovedBy: []string{"me", "jane"}, ApprovalsRequired: 2}, "", glyphApproved + "2/2"},
-		{forge.MergeRequest{ApprovedBy: []string{"jane"}}, "", "1/0"},
+		{forge.MergeRequest{ApprovedBy: []string{"jane"}}, "", "1"},
+		{forge.MergeRequest{ApprovedBy: []string{"me"}}, "", glyphApproved + "1"},
 	} {
 		com, comW := commentWords(c.mr)
 		if got := plainText(com); got != c.com || comW != len([]rune(c.com)) {
@@ -217,4 +218,23 @@ func TestCommentsAndApprovalsRead(t *testing.T) {
 			t.Errorf("APPR of %+v = %q (%d cells), want %q", c.mr, got, aprW, c.apr)
 		}
 	}
+}
+
+// TestTheDetailSpellsTheCommentsOut: the detail says what COM says, in
+// words: the comments in all, the threads resolved and those open.
+func TestTheDetailSpellsTheCommentsOut(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		for i := range a.mrs {
+			if a.mrs[i].IID == 7 {
+				a.mrs[i].UnresolvedKnown, a.mrs[i].Resolved, a.mrs[i].Unresolved = true, 4, 5
+			}
+		}
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "in total · 4 resolved threads · 5 unresolved")
 }

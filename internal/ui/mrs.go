@@ -830,8 +830,9 @@ func commentWords(mr forge.MergeRequest) (string, int) {
 }
 
 // approvalWords is the APPR column: the approvals given of those asked
-// for, as 1/2 - amber while some are missing, green once all are in - and
-// a mark before it when one of them is yours. It comes back as markup and
+// for, as 1/2 - amber while some are missing, green once all are in - or,
+// where none is asked for, the approvals alone; and a mark before it when
+// one of them is yours. It comes back as markup and
 // the cells it takes.
 func approvalWords(mr forge.MergeRequest, me string) (string, int) {
 	n := len(mr.ApprovedBy)
@@ -843,6 +844,10 @@ func approvalWords(mr forge.MergeRequest, me string) (string, int) {
 		colour = role("approvals.done")
 	}
 	words := fmt.Sprintf("%d/%d", n, mr.ApprovalsRequired)
+	if mr.ApprovalsRequired == 0 {
+		// "1/0" read as an error, not as nothing asked for.
+		words = fmt.Sprint(n)
+	}
 	markup, width := tag(colour)+words+tagEnd, len(words)
 	for _, who := range mr.ApprovedBy {
 		if who == me && me != "" {

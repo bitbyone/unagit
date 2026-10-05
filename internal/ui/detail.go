@@ -548,7 +548,15 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 				tag(colWarn), det.DivergedCommitsCount, esc(det.TargetBranch), tagEnd)
 		}
 		d.kv("Size", size)
-		d.kv("Comments", fmt.Sprintf("%d", det.UserNotesCount))
+		// The same words as COM, spelled out, in its colours.
+		comments := tag(role("comments.all")) + fmt.Sprintf("%d in total", det.UserNotesCount) + tagEnd
+		if mr.UnresolvedKnown {
+			comments += tag(colDim) + " · " + tagEnd +
+				tag(role("comments.resolved")) + counted(mr.Resolved, "resolved thread", "resolved threads") + tagEnd +
+				tag(colDim) + " · " + tagEnd +
+				tag(role("comments.unresolved")) + fmt.Sprintf("%d unresolved", mr.Unresolved) + tagEnd
+		}
+		d.kv("Comments", comments)
 		if det.Upvotes+det.Downvotes > 0 {
 			d.kv("Votes", fmt.Sprintf("+%d / -%d", det.Upvotes, det.Downvotes))
 		}

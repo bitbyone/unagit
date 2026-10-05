@@ -264,7 +264,7 @@ func helpRows() []helpLine {
 		key("COM", "2/4/9: threads open · resolved · comments"),
 		key("PUB", "Incomm comments not yet published"),
 		key("NEW", glyphDot+"2: commits pushed since your last review"),
-		key("APPR", "1/2 approvals of those asked · "+glyphApproved+" one is yours"),
+		key("APPR", "1/2 of those asked, or 1 · "+glyphApproved+" one is yours"),
 		key("CI", glyphCIDone+" passed, failed by colour · "+ciFrame()+" running · "+glyphCIIdle+" skipped"),
 		key("V", "mark as reviewed: NEW counts from the head now"),
 		key("J", "pipeline jobs: Enter log · R run, retry · w web"),
