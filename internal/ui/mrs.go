@@ -38,7 +38,7 @@ func (a *App) newMRsPane() *pane {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
-			tag(colMuted), len(filtered), len(a.mrs), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.whoseSummary()+a.authorSummary(), tagEnd+scope)
+			tag(colMuted), len(filtered), a.mrsOfShownRepositories(), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.whoseSummary()+a.authorSummary(), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -277,8 +277,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	header = append(header,
 		field{text: "MR", width: c.iid, colour: role("merge_requests.header")},
 		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
-		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")},
-		field{text: "BRANCH", width: c.branch, colour: role("merge_requests.header")})
+		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")})
+	if c.ci > 0 {
+		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
+	}
+	header = append(header, field{text: "BRANCH", width: c.branch, colour: role("merge_requests.header")})
 	// NEW first: commits to look at come before what was said about them.
 	if c.fresh > 0 {
 		header = append(header, field{text: "NEW", width: c.fresh, colour: role("merge_requests.header"), right: true})
@@ -289,9 +292,6 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	}
 	if c.appr > 0 {
 		header = append(header, field{text: "APPR", width: c.appr, colour: role("merge_requests.header")})
-	}
-	if c.ci > 0 {
-		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
 	}
 	header = append(header, field{text: "UPDATED", width: c.updated, colour: role("merge_requests.header")})
 	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
@@ -331,8 +331,12 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},
 			titleField,
-			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")},
-			field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")})
+			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")})
+		if c.ci > 0 {
+			ci, ciColour := ciMark(mr.Pipeline)
+			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
+		}
+		fields = append(fields, field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")})
 		if c.fresh > 0 {
 			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
 		}
@@ -340,13 +344,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if c.pub > 0 {
 			fields = append(fields, field{text: pending, width: c.pub, colour: role("merge_requests.pending"), right: true})
 		}
-		ci, ciColour := ciMark(mr.Pipeline)
 		appr, apprW := approvalWords(mr, a.me[mr.Instance])
 		if c.appr > 0 {
 			fields = append(fields, field{raw: rightAligned(appr, apprW, c.appr)})
-		}
-		if c.ci > 0 {
-			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
 		}
 		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: role("merge_requests.updated")})
 
@@ -862,4 +862,20 @@ func approvalWords(mr forge.MergeRequest, me string) (string, int) {
 // rightAligned is markup of a width padded on the left to fill cells.
 func rightAligned(markup string, width, cells int) string {
 	return strings.Repeat(" ", max(0, cells-width)) + markup
+}
+
+// mrsOfShownRepositories is how many merge requests the repositories the
+// list shows have: what a refresh asks about. The index also carries the
+// merge requests of hidden repositories, as last read, so their worktrees
+// are not taken for closed; nothing asks about them again, and counted here
+// they would make a total that is neither current nor shown.
+func (a *App) mrsOfShownRepositories() int {
+	n := 0
+	for _, mr := range a.mrs {
+		path := a.projectPathOfMR(mr)
+		if a.passesFilters(mr.Instance, path) && !a.cfg.Filters.HidesMRsOf(mr.Instance, path) {
+			n++
+		}
+	}
+	return n
 }

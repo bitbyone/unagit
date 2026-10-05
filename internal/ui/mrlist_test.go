@@ -238,3 +238,20 @@ func TestTheDetailSpellsTheCommentsOut(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "in total · 4 resolved threads · 5 unresolved")
 }
+
+// TestTheTotalCountsOnlyShownRepositories: the merge requests of a
+// repository whose merge requests are hidden are carried in the index as
+// last read, and are not in the total of the header.
+func TestTheTotalCountsOnlyShownRepositories(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	waitFor(t, a, sc, "3/3 merge requests")
+	a.tv.QueueUpdateDraw(func() {
+		a.cfg.Filters.ToggleMRsOf(a.cfg.Instances[0].ID, "acme/billing")
+		a.mrsPane.reload()
+	})
+	waitFor(t, a, sc, "2/2 merge requests")
+}
