@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -198,4 +199,67 @@ func TestDiffInALogBringsTheCommit(t *testing.T) {
 	if got := gitIn(t, p.clone, "cat-file", "-t", head); got != "commit" {
 		t.Errorf("the clone does not have the commit: %s", got)
 	}
+}
+
+// TestTheLogSaysWhoWroteEachCommit: the log has an author column, and the
+// repository's .mailmap puts right a name a commit recorded badly.
+func TestTheLogSaysWhoWroteEachCommit(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(filepath.Join(p.clone, ".mailmap"), []byte("Tomáš Hurýn <test@example.com>\n"), 0o644))
+	commitIn(t, p.clone, "b.txt", "Count requests per client")
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	line := lineAt(a.screenText(sc), "Count requests per client")
+	if !strings.Contains(line, "Tomáš Hurýn") {
+		t.Errorf("the row does not name its author as the mailmap does: %q", line)
+	}
+	assertLegible(t, a, sc, "the log with its authors")
+}
+
+// TestADialogsListHasItsItemsActions: Alt-Enter on a list in a dialog lists
+// what can be done with the item under the cursor, over the dialog, which
+// stays; : there offers only what can be done from anywhere.
+func TestADialogsListHasItsItemsActions(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "unit tests")
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Run Job")
+	for _, want := range []string{"Show Log", "Open Job in Browser", "Open Pipeline in Browser"} {
+		waitFor(t, a, sc, want)
+	}
+	assertLegible(t, a, sc, "a job's actions")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Run Job")
+	if !onLoop(a, func() bool { return a.pages.HasPage(pagePicker) }) {
+		t.Fatal("closing the actions closed the jobs")
+	}
+
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Switch Theme…")
+	if text := a.screenText(sc); strings.Contains(text, "Refresh All") || strings.Contains(text, "Run Job") {
+		t.Errorf(": over a dialog offers more than the global actions:\n%s", text)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Switch Theme…")
+	waitFor(t, a, sc, "unit tests")
+
+	// Enter in the actions does what Enter in the list does.
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Run Job")
+	typeRunes(sc, "/")
+	typeRunes(sc, "show log")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "--- FAIL: TestBucket")
 }

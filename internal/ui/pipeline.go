@@ -164,11 +164,12 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		return func() { a.listJobs(target, state.pipe, state.jobs, at(it).ID) }
 	}
 	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", back: target.back,
+		enterName: "Show Log", enterAbout: "Read the job's log, or a trigger job's own pipeline.",
 		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
 		keys: []pickKey{
-			{keys: "R", hint: "run", run: func(it pickItem) { a.runJob(target, at(it)) }},
-			{keys: "w", hint: "browser", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
-			{keys: "W", hint: "pipeline", stay: true, run: func(it pickItem) { a.openWeb(state.pipe.WebURL) }},
+			{keys: "R", hint: "run", name: "Run Job", about: "Start a manual or delayed job, or run a finished one again.", run: func(it pickItem) { a.runJob(target, at(it)) }},
+			{keys: "w", hint: "browser", name: "Open Job in Browser", about: "The job's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(at(it).WebURL) }},
+			{keys: "W", hint: "pipeline", name: "Open Pipeline in Browser", about: "The whole pipeline's page on the forge; the jobs stay open.", stay: true, run: func(it pickItem) { a.openWeb(state.pipe.WebURL) }},
 		}}
 	picker := a.showPickerWith(state.title(target), jobItems(jobs), opts, func(it pickItem) {
 		job := at(it)

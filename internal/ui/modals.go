@@ -137,6 +137,12 @@ type pickerOptions struct {
 	// back, when set, is where Esc goes after closing the picker: a list
 	// opened from another goes back to it.
 	back func()
+	// page is the page the picker is put on; "" is the picker's own. An
+	// action picker over a dialog takes another, so the dialog stays.
+	page string
+	// enterName and enterAbout name what Enter does to an item, for the
+	// item's actions (Alt-Enter); unset, Enter is not offered there.
+	enterName, enterAbout string
 	// same tells whether two items are the same thing, for a picker whose
 	// items are put again while it is open: the cursor stays on it. Unset,
 	// the labels are compared.
@@ -165,7 +171,10 @@ const explainLines = 3
 type pickKey struct {
 	keys string
 	hint string
-	run  func(pickItem)
+	// name and about are what the key is called and does, as an action is
+	// (uiAction): the item's actions (Alt-Enter) list it by them.
+	name, about string
+	run         func(pickItem)
 	// stay keeps the picker open, the cursor where it was: for a key whose
 	// work happens elsewhere, like opening the browser.
 	stay bool
@@ -229,7 +238,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 	input.SetChangedFunc(rebuild)
 
-	dismiss := func() { a.closeModal(pagePicker) }
+	pageName := opts.page
+	if pageName == "" {
+		pageName = pagePicker
+	}
+	dismiss := func() { a.closeModal(pageName) }
 	choose := func() {
 		i := list.GetCurrentItem()
 		if i < 0 || i >= len(shown) || onSelect == nil {
@@ -305,6 +318,40 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	})
 
 	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		// What can be done with the item under the cursor, as a list of
+		// actions, the way every list of the main screens has it.
+		if opensSelectionActions(ev) {
+			i := list.GetCurrentItem()
+			if i < 0 || i >= len(shown) {
+				a.flash("nothing is selected")
+				return nil
+			}
+			it := shown[i]
+			var acts []uiAction
+			if onSelect != nil && opts.enterName != "" {
+				acts = append(acts, uiAction{name: opts.enterName, about: opts.enterAbout, keys: "Enter", rank: 1, run: func() {
+					dismiss()
+					onSelect(it)
+				}})
+			}
+			for n, k := range opts.keys {
+				if k.name == "" {
+					continue
+				}
+				acts = append(acts, uiAction{name: k.name, about: k.about, keys: k.keys, rank: 10 + n, run: func() {
+					if !k.stay {
+						dismiss()
+					}
+					k.run(it)
+				}})
+			}
+			if len(acts) == 0 {
+				a.flash("nothing can be done with it")
+				return nil
+			}
+			a.showActions(tview.Escape(plainText(it.Label)), acts)
+			return nil
+		}
 		for _, k := range opts.keys {
 			if (uiAction{keys: k.keys}).matches(ev) {
 				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
@@ -457,7 +504,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	} else {
 		page = modalPct(frame, 70, 70)
 	}
-	a.pages.AddPage(pagePicker, page, true, true)
+	a.pages.AddPage(pageName, page, true, true)
 	setMode(false)
 
 	same := opts.same
@@ -465,7 +512,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		same = func(a, b pickItem) bool { return a.Label == b.Label }
 	}
 	return &livePicker{
-		open: func() bool { return a.pages.GetPage(pagePicker) == page },
+		open: func() bool { return a.pages.GetPage(pageName) == page },
 		set: func(title string, next []pickItem) {
 			var current *pickItem
 			if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
@@ -687,4 +734,9 @@ func halfPage(view *tview.TextView, ev *tcell.EventKey) bool {
 		return false
 	}
 	return true
+}
+
+// plainText is markup as it reads on screen, without its tags, for a title.
+func plainText(markup string) string {
+	return strings.Join(strings.Fields(tview.NewTextView().SetDynamicColors(true).SetText(markup).GetText(true)), " ")
 }

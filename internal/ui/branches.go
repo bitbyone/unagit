@@ -225,15 +225,16 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		a.showBranchManager(next)
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
-		{keys: "n", hint: "new", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
-		{keys: "m", hint: "merge request", run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
-		{keys: "d", hint: "delete here", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
-		{keys: "D", hint: "everywhere", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
-		{keys: "Alt-D", hint: "on origin", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
+		{keys: "n", hint: "new", name: "New Branch…", about: "Start a branch of your own from this one.", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
+		{keys: "m", hint: "merge request", name: "New Merge Request…", about: "Propose this branch for merging, on the server.", run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
+		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone; origin keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
+		{keys: "D", hint: "everywhere", name: "Delete Everywhere…", about: "Delete the branch in the clone and on origin.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
+		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
 	}}
 	var onSelect func(pickItem)
 	if scope.checkout {
 		opts.enterHint = "check out in the main clone"
+		opts.enterName, opts.enterAbout = "Check Out", "Switch the main clone to this branch."
 		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name) }
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)

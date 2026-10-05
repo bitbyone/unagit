@@ -770,7 +770,7 @@ type LogEntry struct {
 
 // Commits lists the commits of to that from lacks, oldest first.
 func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
-	out, err := g.out(dir, "log", "--reverse", "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%s", from+".."+to)
+	out, err := g.out(dir, "log", "--reverse", "--format=%H%x1f%P%x1f%aN%x1f%ct%x1f%s", from+".."+to)
 	if err != nil {
 		return nil, err
 	}
@@ -795,7 +795,7 @@ func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
 // History lists the commits reachable from rev, newest first, at most limit, the
 // body of each message with them.
 func (g *Git) History(dir, rev string, limit int) ([]LogEntry, error) {
-	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%an%x1f%ct%x1f%D%x1f%s%x1f%b%x1e", rev, "--")
+	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%aN%x1f%ct%x1f%D%x1f%s%x1f%b%x1e", rev, "--")
 	if err != nil {
 		return nil, err
 	}

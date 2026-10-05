@@ -45,6 +45,9 @@ const (
 	pageToggles   = "toggles"
 	pageMessage   = "message"
 	pageCommit    = "commit"
+	// pageActions is an action picker over a dialog, on a page of its own
+	// so the dialog stays under it.
+	pageActions = "actions"
 )
 
 // mrDisk records which worktrees a merge request has on disk.
@@ -426,7 +429,37 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 		a.tv.Stop()
 		return nil
 	}
+	// : in a dialog lists what can be done from anywhere. A main screen
+	// answers : itself, its own actions first, and so does the worktree
+	// view; what only a main screen can do is not offered over a dialog.
+	if opensScreenActions(ev) && a.dialogTakesColon() {
+		a.showActions("Actions", a.globalActions())
+		return nil
+	}
 	return ev
+}
+
+// dialogTakesColon reports whether : over what is in front is the global
+// actions: a dialog is, nothing is being typed into, and it is not one that
+// answers : itself, holds the keys (a warning) or must be got through first
+// (the passphrase).
+func (a *App) dialogTakesColon() bool {
+	name, _ := a.pages.GetFrontPage()
+	switch {
+	case !isModalPage(name):
+		return false
+	case name == pageWorktree, name == pageActions, name == pageMessage, name == pageUnlock:
+		return false
+	}
+	switch a.tv.GetFocus().(type) {
+	case *tview.InputField, *tview.TextArea:
+		// A form in NORMAL types nothing; a filter or INSERT does.
+		if form, mode := a.focusedForm(); form != nil && !mode.insert {
+			return true
+		}
+		return false
+	}
+	return true
 }
 
 // closeModal removes a modal page and gives the keyboard back to whatever was
@@ -452,7 +485,7 @@ func (a *App) closeModal(page string) {
 // isModalPage reports whether a page name is one of the overlays.
 func isModalPage(name string) bool {
 	switch name {
-	case pageTask, pageConfirm, pageHelp, pagePicker, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree,
+	case pageTask, pageConfirm, pageHelp, pagePicker, pageActions, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree,
 		pageMessage, pageCommit:
 		return true
 	}

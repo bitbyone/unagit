@@ -74,33 +74,34 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
 
 	keys := []pickKey{
-		{keys: "D", hint: "diff", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), false) }},
-		{keys: "Alt-D", hint: "since", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
+		{keys: "D", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), false) }},
+		{keys: "Alt-D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
-		keys = append(keys, pickKey{keys: "C", hint: "checkout", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }})
+		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }})
 	}
 	if place.mr != nil {
 		mr := *place.mr
 		keys = append(keys,
-			pickKey{keys: "Ctrl-R", hint: "review from here", run: func(it pickItem) { a.openMRReviewFrom(mr, at(it).SHA, nil) }},
-			pickKey{keys: "Alt-R", hint: "…in an editor", run: func(it pickItem) {
+			pickKey{keys: "Ctrl-R", hint: "review from here", name: "Review From Here", about: "Narrow the review to this commit and the ones after it.", run: func(it pickItem) { a.openMRReviewFrom(mr, at(it).SHA, nil) }},
+			pickKey{keys: "Alt-R", hint: "…in an editor", name: "Review From Here In…", about: "The same, opened in an editor you choose.", run: func(it pickItem) {
 				sha := at(it).SHA
 				a.withEditor(true, func(ed *editors.Editor) { a.openMRReviewFrom(mr, sha, ed) })
 			}})
 	}
 	if place.branches {
 		keys = append(keys,
-			pickKey{keys: "n", hint: "branch", run: func(it pickItem) { a.branchAtCommit(place, at(it), again(it)) }},
-			pickKey{keys: "Ctrl-W", hint: "worktree", run: func(it pickItem) { a.worktreeAtCommit(place, at(it), again(it)) }})
+			pickKey{keys: "n", hint: "branch", name: "New Branch Here…", about: "Start a branch at this commit.", run: func(it pickItem) { a.branchAtCommit(place, at(it), again(it)) }},
+			pickKey{keys: "Ctrl-W", hint: "worktree", name: "New Worktree Here…", about: "Start a branch at this commit in a worktree of its own.", run: func(it pickItem) { a.worktreeAtCommit(place, at(it), again(it)) }})
 	}
 	keys = append(keys,
-		pickKey{keys: "w", hint: "browser", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
-		pickKey{keys: "y", hint: "copy", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
+		pickKey{keys: "w", hint: "browser", name: "Open in Browser", about: "The commit's page on the forge.", run: func(it pickItem) { a.openWeb(a.commitURL(place, at(it))) }},
+		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference.", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
 
 	// Not packed: the rows are short, but the keys are many, and their hints
 	// should fit on a line or two rather than wrap down the side.
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
+		enterName: "Show Details", enterAbout: "The whole commit: its message, refs and the files it changed.",
 		relabel: func(items []pickItem, width int) { labelLog(items, commits, width) }}
 	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
 }
@@ -144,9 +145,15 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 	for _, c := range commits {
 		refsW = max(refsW, len([]rune(logSub(c))))
 	}
-	// A row is a mark and the id (12), the subject, and after a gap (3)
-	// the age, the pipeline and the refs.
-	room := width - 12 - 3 - min(refsW, 44)
+	// Who wrote each, in a column of its own after the subject.
+	authorW := 0
+	for _, c := range commits {
+		authorW = max(authorW, len([]rune(c.Author)))
+	}
+	authorW = min(authorW, 18)
+	// A row is a mark and the id (12), the subject, the author after a gap
+	// (2), and after a gap (3) the age, the pipeline and the refs.
+	room := width - 12 - 2 - authorW - 3 - min(refsW, 44)
 	subjects := make([]string, len(commits))
 	subjectW := 0
 	for i, c := range commits {
@@ -167,7 +174,7 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		case c.Unpushed:
 			mark = glyphAhead + " "
 		}
-		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i]))
+		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i], authorW, trim(c.Author, authorW)))
 		items[i].Sub = esc(logSub(c))
 	}
 }

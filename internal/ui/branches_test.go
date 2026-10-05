@@ -130,9 +130,8 @@ func TestNewBranchFromTheManager(t *testing.T) {
 	if got := gitIn(t, p.clone, "config", "branch.feature/x.unagitbase"); got != "upstream-only" {
 		t.Errorf("the base recorded is %q", got)
 	}
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone) // closes the note
-	waitGone(t, a, sc, "created feature/x")
-	if lineOf(a.screenText(sc), "feature/x") < 0 {
+	// What was done is said in the list's edge; the list has the branch.
+	if lineOf(strings.Replace(a.screenText(sc), "created feature/x", "", 1), "feature/x") < 0 {
 		t.Fatalf("the new branch is not listed:\n%s", a.screenText(sc))
 	}
 	// Enter switches, opens no editor, closes the list and says nothing:

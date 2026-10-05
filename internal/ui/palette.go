@@ -128,7 +128,11 @@ func (a *App) showActions(title string, actions []uiAction) {
 		}
 		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, act.name), Sub: keys, About: act.about, Data: act}
 	}
-	a.showPickerWith(title, items, pickerOptions{pack: true, explain: true}, func(it pickItem) { it.Data.(uiAction).run() })
+	opts := pickerOptions{pack: true, explain: true}
+	if a.modalOpen() {
+		opts.page = pageActions
+	}
+	a.showPickerWith(title, items, opts, func(it pickItem) { it.Data.(uiAction).run() })
 }
 
 // actionKeys answers the keys of a screen: the two pickers, then the action
