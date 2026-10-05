@@ -55,3 +55,21 @@ func addCheckbox(form *tview.Form, label string, checked bool) *tview.Checkbox {
 	box := form.GetFormItemByLabel(label).(*tview.Checkbox)
 	return box.SetCheckedString(tview.Escape("[x]")).SetUncheckedString(tview.Escape("[ ]"))
 }
+
+// addPassword adds a masked field, for a passphrase or a token. width 0 fills
+// what the form has left.
+func addPassword(form *tview.Form, label string, width int) *tview.InputField {
+	form.AddPasswordField(label, "", width, glyphMask, nil)
+	return form.GetFormItemByLabel(label).(*tview.InputField)
+}
+
+// clearMasked empties a masked input field.
+//
+// tview v0.42's InputField.SetText leaves part of the old value behind when a
+// mask character is set, so the mask is lifted for the reset. Without this a
+// second attempt would start with leftovers from the first one.
+func clearMasked(input *tview.InputField) {
+	input.SetMaskCharacter(0)
+	input.SetText("")
+	input.SetMaskCharacter(glyphMask)
+}

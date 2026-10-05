@@ -28,7 +28,7 @@ func TestUnlockModalGatesTheInterface(t *testing.T) {
 	a, sc := newLockedTestApp(t, "hunter2")
 
 	waitFor(t, a, sc, "Passphrase")
-	waitFor(t, a, sc, "The GitLab tokens are encrypted")
+	waitFor(t, a, sc, "The tokens are encrypted")
 	if got := a.screenText(sc); contains(got, "acme/gateway") {
 		t.Fatal("the project list was visible before unlocking")
 	}

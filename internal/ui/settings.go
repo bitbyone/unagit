@@ -566,7 +566,7 @@ func (s *settingsView) showServerForm(kind string, inst *config.Instance) {
 		tokenLabel = "Token (stored)"
 	}
 	tokenAt := at()
-	form.AddPasswordField(tokenLabel, "", 44, glyphMask, nil)
+	addPassword(form, tokenLabel, 44)
 	if isGitHub {
 		form.AddTextView("", "Token: a personal access token, repo scope.\n"+
 			"github.com only; Enterprise is unsupported.\n"+
@@ -637,7 +637,7 @@ func (s *settingsView) showTokenForm(inst *config.Instance) {
 	}
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("Token", "", 46, glyphMask, nil)
+	addPassword(form, "Token", 46)
 	form.AddTextView("", "A personal access token with "+scope+".\n"+
 		"It is stored encrypted in the vault.", 46, 2, true, false)
 	form.AddButton("Save", func() {
@@ -1073,8 +1073,7 @@ func (s *settingsView) toggleKeychain() {
 	}
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("Passphrase", "", 0, glyphMask, nil)
-	field := form.GetFormItemByLabel("Passphrase").(*tview.InputField)
+	field := addPassword(form, "Passphrase", 0)
 	form.AddTextView("", "Kept in the macOS Keychain, where only unagit\n"+
 		"may read it; any other program has to ask you.", 0, 2, true, false)
 	busy := false
@@ -1147,8 +1146,8 @@ func (s *settingsView) showPassphraseForm() {
 	a := s.app
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddPasswordField("New passphrase", "", 40, glyphMask, nil)
-	form.AddPasswordField("Repeat", "", 40, glyphMask, nil)
+	addPassword(form, "New passphrase", 40)
+	addPassword(form, "Repeat", 40)
 	form.AddTextView("", "The vault is re-encrypted at once.\n"+
 		"There is no recovery if you forget it.", 40, 2, true, false)
 	form.AddButton("Change", func() {
@@ -1199,11 +1198,17 @@ func (a *App) showFormModal(title string, form *tview.Form, height int) {
 // The modal never grows past the terminal, so fields that should follow it have
 // to be given no width of their own.
 func (a *App) showFormModalSized(title string, form *tview.Form, width, height int) {
+	a.showFormOn(pageForm, title, form, width, height, func() { a.closeModal(pageForm) })
+}
+
+// showFormOn is showFormModalSized on a page of its own, with what Esc in
+// NORMAL does: the unlock dialog quits rather than closing.
+func (a *App) showFormOn(page, title string, form *tview.Form, width, height int, cancel func()) {
 	a.hintForm(form)
 	a.bindFormButtons(form)
 	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)
-	form.SetCancelFunc(func() { a.closeModal(pageForm) })
-	a.pages.AddPage(pageForm, modalFixed(form, width, height+2), true, true)
+	form.SetCancelFunc(cancel)
+	a.pages.AddPage(page, modalFixed(form, width, height+2), true, true)
 	a.tv.SetFocus(form)
 }
 

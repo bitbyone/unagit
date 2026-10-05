@@ -28,7 +28,7 @@ func TestSharedFieldsAreTheOnlyWayToMakeThem(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, banned := range []string{".AddDropDown(", "tview.NewDropDown(", ".AddCheckbox(", "tview.NewCheckbox("} {
+		for _, banned := range []string{".AddDropDown(", "tview.NewDropDown(", ".AddCheckbox(", "tview.NewCheckbox(", ".AddPasswordField("} {
 			if strings.Contains(string(data), banned) {
 				t.Errorf("%s builds a field with %s: use the shared constructor in fields.go (see AGENTS.md, repeated elements)", file, banned)
 			}

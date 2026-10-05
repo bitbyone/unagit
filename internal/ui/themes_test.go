@@ -112,6 +112,11 @@ func TestEveryThemeIsLegible(t *testing.T) {
 			walkSettings(t, b, sc2)
 			c, sc3 := newThemedApp(t, name)
 			walkDrawnByHand(t, c, sc3)
+			for _, firstRun := range []bool{false, true} {
+				d, sc4 := newLockedApp(t, name, firstRun)
+				waitFor(t, d, sc4, "Passphrase")
+				assertLegible(t, d, sc4, "the unlock dialog")
+			}
 		})
 	}
 }

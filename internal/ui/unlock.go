@@ -20,35 +20,42 @@ func (a *App) showUnlock() {
 	_, statErr := os.Stat(a.cfg.VaultPath())
 	creating := os.IsNotExist(statErr)
 
-	msg := tview.NewTextView().SetDynamicColors(true)
-	pass := passphraseField("Passphrase")
-	repeat := passphraseField("Repeat")
-
-	if creating {
-		msg.SetText(tag(colMuted) + "Welcome. Choose a passphrase; your GitLab tokens\nare encrypted with it and never stored in the open." + tagEnd)
-	} else {
-		msg.SetText(tag(colMuted) + "The GitLab tokens are encrypted." + tagEnd)
-	}
-
-	hint := tview.NewTextView().SetDynamicColors(true).
-		SetText(tag(colDim) + "Enter  unlock        Esc  quit" + tagEnd)
-
-	form := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(msg, 2, 0, false).
-		AddItem(pass, 1, 0, true)
+	// The dialog is a form like every other, so it wears the theme the same
+	// way: a field one can see, buttons with their letters lit.
+	form := tview.NewForm()
+	styleForm(form)
+	pass := addPassword(form, "Passphrase", 0)
+	repeat := pass
 	height := 9
 	if creating {
-		form.AddItem(repeat, 1, 0, false)
-		height++
+		repeat = addPassword(form, "Repeat", 0)
+		height += 2
 	}
-	form.AddItem(nil, 1, 0, false).AddItem(hint, 1, 0, false)
-	form.SetBorderPadding(1, 1, 3, 3)
-	box(form.Box, "unagit")
+	// What the dialog has to say goes under the fields, where every form
+	// keeps its note.
+	form.AddTextView("", "", 0, 2, true, false)
+	msg := form.GetFormItem(form.GetFormItemCount() - 1).(*tview.TextView)
+	say := func(text string) { msg.SetText(tag(colMuted) + text + tagEnd) }
+	if creating {
+		say("Welcome. Choose a passphrase; your tokens are\nencrypted with it and never stored in the open.")
+	} else {
+		say("The tokens are encrypted.")
+	}
+
+	// typeAgain puts the cursor back in the passphrase, typing: a field that
+	// was disabled while the key was derived lost the focus to the buttons.
+	typeAgain := func() {
+		form.SetFocus(0)
+		a.tv.SetFocus(form)
+		if mode := a.formModes[form]; mode != nil {
+			mode.insert = true
+		}
+	}
 
 	busy := false
 	fail := func(text string) {
 		msg.SetText(tag(colBad) + tview.Escape(text) + tagEnd + "\n" +
-			tag(colMuted) + "Try again, or press Esc to quit." + tagEnd)
+			tag(colMuted) + "Try again, or press q to quit." + tagEnd)
 	}
 
 	// attempt opens the vault with a passphrase, typed or remembered. A typed
@@ -60,9 +67,9 @@ func (a *App) showUnlock() {
 		pass.SetDisabled(true)
 		repeat.SetDisabled(true)
 		if remembered {
-			msg.SetText(tag(colMuted) + "Opening with the passphrase in the Keychain…" + tagEnd)
+			say("Opening with the passphrase in the Keychain…")
 		} else {
-			msg.SetText(tag(colMuted) + "Deriving the key…" + tagEnd)
+			say("Deriving the key…")
 		}
 		remember := a.cfg.RememberPassphrase && !remembered && passphraseStore.available()
 		go func() {
@@ -86,7 +93,7 @@ func (a *App) showUnlock() {
 				repeat.SetDisabled(false)
 				clearMasked(pass)
 				clearMasked(repeat)
-				a.tv.SetFocus(pass)
+				typeAgain()
 				if err != nil {
 					switch {
 					case err == secret.ErrWrongPassphrase && remembered:
@@ -108,6 +115,7 @@ func (a *App) showUnlock() {
 					}
 					a.rebuildClients()
 				}
+				a.forgetForm(form)
 				a.pages.RemovePage(pageUnlock)
 				a.start()
 				if imported {
@@ -131,7 +139,7 @@ func (a *App) showUnlock() {
 		if creating && pass.GetText() != repeat.GetText() {
 			clearMasked(pass)
 			clearMasked(repeat)
-			a.tv.SetFocus(pass)
+			typeAgain()
 			fail("The two entries do not match.")
 			return
 		}
@@ -140,43 +148,35 @@ func (a *App) showUnlock() {
 		attempt(entered, false)
 	}
 
-	pass.SetDoneFunc(func(key tcell.Key) {
-		switch key {
-		case tcell.KeyEsc:
-			a.tv.Stop()
-		case tcell.KeyEnter, tcell.KeyTab:
-			if creating {
-				a.tv.SetFocus(repeat)
-				return
+	form.AddButton("Unlock", submit)
+	form.AddButton("Quit", a.tv.Stop)
+	form.SetFocus(0)
+	a.showFormOn(pageUnlock, "unagit", form, 64, height, a.tv.Stop)
+	// Enter in the last field unlocks rather than moving on to the buttons,
+	// which is what the form does with it otherwise.
+	moving := form.GetInputCapture()
+	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyEnter && form.HasFocus() && repeat.HasFocus() {
+			if _, mode := a.focusedForm(); mode != nil && mode.insert {
+				submit()
+				return nil
 			}
-			submit()
 		}
+		return moving(ev)
 	})
-	repeat.SetDoneFunc(func(key tcell.Key) {
-		switch key {
-		case tcell.KeyEsc:
-			a.tv.Stop()
-		case tcell.KeyEnter:
-			submit()
-		case tcell.KeyBacktab:
-			a.tv.SetFocus(pass)
-		}
-	})
-
-	a.pages.AddPage(pageUnlock, modalFixed(form, 64, height), true, true)
-	a.tv.SetFocus(pass)
 
 	// A remembered passphrase is tried first; the dialog is there if it is
 	// missing, refused, or no longer the right one.
 	if !creating && a.cfg.RememberPassphrase && passphraseStore.available() {
 		busy = true
 		pass.SetDisabled(true)
-		msg.SetText(tag(colMuted) + "Asking the Keychain…" + tagEnd)
+		say("Asking the Keychain…")
 		go func() {
 			remembered, err := passphraseStore.get()
 			a.tv.QueueUpdateDraw(func() {
 				busy = false
 				pass.SetDisabled(false)
+				typeAgain()
 				if err != nil {
 					why := "it refused"
 					if errors.Is(err, keychain.ErrNotFound) {
@@ -208,27 +208,6 @@ var passphraseStore = struct {
 // keychainService names the item; the account is the vault's path, so two
 // configurations keep two passphrases.
 const keychainService = "unagit vault passphrase"
-
-// passphraseField is a masked input styled like the rest of the interface.
-func passphraseField(label string) *tview.InputField {
-	return tview.NewInputField().
-		SetLabel(pad(label, 12)).
-		SetMaskCharacter(glyphMask).
-		SetFieldBackgroundColor(colBackground).
-		SetFieldTextColor(colText).
-		SetLabelColor(colMuted)
-}
-
-// clearMasked empties a masked input field.
-//
-// tview v0.42's InputField.SetText leaves part of the old value behind when a
-// mask character is set, so the mask is lifted for the reset. Without this a
-// second attempt would start with leftovers from the first one.
-func clearMasked(input *tview.InputField) {
-	input.SetMaskCharacter(0)
-	input.SetText("")
-	input.SetMaskCharacter(glyphMask)
-}
 
 // pad right-pads a label so a column of fields lines up.
 func pad(s string, width int) string {
