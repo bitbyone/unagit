@@ -23,6 +23,7 @@ func TestProjectDirectoryOverride(t *testing.T) {
 	setField(t, a, form, 0, "relative/path")
 	pressButton(t, a, sc, form, "Save")
 	waitFor(t, a, sc, "enter an absolute repository directory")
+	closeMessage(t, a, sc)
 	setField(t, a, form, 0, dir)
 	pressButton(t, a, sc, form, "Save")
 	waitFor(t, a, sc, "Clone directory:")

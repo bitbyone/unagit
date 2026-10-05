@@ -123,7 +123,6 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 	if got := gitIn(t, p.clone, "rev-parse", "old-state"); got != first {
 		t.Errorf("old-state is at %s, want %s", got, first)
 	}
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "old-state") // the log, read again, shows the branch
 
 	typeRunes(sc, "j")

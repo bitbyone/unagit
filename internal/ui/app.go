@@ -80,6 +80,8 @@ type App struct {
 	tabs     *tview.TextView
 	status   *tview.TextView
 	helpHint *tview.TextView
+	// dialogSaid is the note or success last said over a dialog.
+	dialogSaid dialogWord
 	// transient is the note or success last said, at the right-hand end of
 	// the status line until something else is (say).
 	transient string
@@ -317,7 +319,10 @@ func (a *App) Run() error {
 		return false
 	})
 	// A form in NORMAL types nothing, so no cursor blinks in its field.
-	a.tv.SetAfterDrawFunc(a.markFocusedField)
+	a.tv.SetAfterDrawFunc(func(screen tcell.Screen) {
+		a.markFocusedField(screen)
+		a.drawDialogWord(screen)
+	})
 
 	if !a.screenGiven {
 		screen, err := tcell.NewScreen()
@@ -517,7 +522,7 @@ func (a *App) errorf(f string, v ...any) {
 }
 
 func (a *App) say(msg string, sev severity) {
-	if a.modalOpen() || sev == sevWarning || sev == sevError {
+	if sev == sevWarning || sev == sevError {
 		a.showMessage(msg, sev)
 		return
 	}
@@ -525,8 +530,45 @@ func (a *App) say(msg string, sev severity) {
 	if sev == sevInfo {
 		colour = colMuted
 	}
-	a.transient = tag(colour) + tview.Escape(msg) + tagEnd
+	said := tag(colour) + tview.Escape(msg) + tagEnd
+	if name, front := a.pages.GetFrontPage(); isModalPage(name) {
+		a.dialogSaid = dialogWord{on: front, text: said}
+		return
+	}
+	a.transient = said
 	a.showJobs()
+}
+
+// dialogWord is a note or a success said while a dialog was in front, and
+// the dialog: the word is drawn in that dialog's bottom edge, at its right,
+// as the main screens have it at the right of their status line - read in
+// passing, in nobody's way. It goes with the dialog.
+type dialogWord struct {
+	on   tview.Primitive
+	text string
+}
+
+// drawDialogWord draws the word last said in the bottom edge of the dialog
+// in front, when it was said there.
+func (a *App) drawDialogWord(screen tcell.Screen) {
+	name, front := a.pages.GetFrontPage()
+	if !isModalPage(name) || front == nil || front != a.dialogSaid.on || a.dialogSaid.text == "" {
+		return
+	}
+	box, ok := front.(*modalBox)
+	if !ok {
+		return
+	}
+	x, y, w, h := box.content.GetRect()
+	if w < 8 || h < 2 {
+		return
+	}
+	// On the edge's own background, so the word sits in the line as a
+	// title sits in the top one.
+	row, end := y+h-1, x+w-2
+	text := " " + a.dialogSaid.text + " "
+	width := min(tview.TaggedStringWidth(text), w-4)
+	tview.Print(screen, text, end-width, row, width, tview.AlignLeft, colMuted)
 }
 
 // ------------------------------------------------------------------- indexes

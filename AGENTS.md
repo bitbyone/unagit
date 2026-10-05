@@ -166,8 +166,8 @@ success is a passing word: on a main screen it goes to the right-hand end of
 the status line, beside the jobs under way, until something else is said
 (`a.transient`, cleared on a tab switch); while a dialog, a picker or the
 worktree view is in front the status line is under the dimmed screen where
-nobody looks, so there it is a box too, gone with the next key, which then
-does its work in the dialog. The left of the status line is for what stays
+nobody looks, so there it goes to the right of that dialog's bottom edge
+(`drawDialogWord`), and goes with the dialog - never a box of its own. The left of the status line is for what stays
 - mode, counts, filters, the order - never for a passing word. Something
 asked for and finished is `done`, not `note`; say it after the dialog it
 belongs to is drawn, or it covers them.

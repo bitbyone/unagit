@@ -117,9 +117,6 @@ func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {
 
 	// d takes the worktrees and the folder; the branches and clones stay. The
 	// update's log closes on its own; Esc is the view's once it is in front.
-	// What p did comes up over the view; Esc puts it away.
-	waitFocus(t, a, func() bool { name, _ := a.pages.GetFrontPage(); return name == pageMessage })
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFocus(t, a, func() bool { name, _ := a.pages.GetFrontPage(); return name == pageWorktree })
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "every repository")

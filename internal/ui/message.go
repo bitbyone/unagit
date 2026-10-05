@@ -42,13 +42,13 @@ func (s severity) heading() string {
 	return "i Info"
 }
 
-// showMessage puts a message over the dialog in front, in a small box of its
-// own, filled like a confirmation so it stands off what is under it. A
-// warning or an error stays until Esc (or Enter) closes it, back to the
-// dialog as it was, and holds every other key, so that nothing typed in the
-// meantime lands in the dialog unseen. A note or a success - what was done,
-// what is under way - asks for nothing: the next key closes it and still
-// does what it does in the dialog. A second message replaces the first.
+// showMessage puts a warning or an error over whatever is in front, in a
+// small box of its own, filled like a confirmation so it stands off what is
+// under it. It stays until Esc (or Enter) closes it, back to what was there,
+// and holds every other key, so that nothing typed in the meantime lands
+// anywhere unseen. A second message replaces the first. A note or a success
+// never comes here: it is a passing word at the right of the status line or
+// of the dialog's bottom edge (say).
 func (a *App) showMessage(msg string, sev severity) {
 	if a.pages.HasPage(pageMessage) {
 		a.pages.RemovePage(pageMessage)
@@ -57,12 +57,7 @@ func (a *App) showMessage(msg string, sev severity) {
 		SetText(tag(sev.colour()) + "[::b]" + sev.heading() + "[::-]" + tagEnd)
 	text := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetWordWrap(true)
 	text.SetText(tag(colText) + tview.Escape(msg) + tagEnd)
-	note := sev == sevInfo || sev == sevSuccess
-	closing := "Esc close"
-	if note {
-		closing = "any key closes"
-	}
-	footer := tview.NewTextView().SetTextColor(colMuted).SetText(closing)
+	footer := tview.NewTextView().SetTextColor(colMuted).SetText("Esc close")
 	for _, v := range []*tview.TextView{heading, text, footer} {
 		v.SetBackgroundColor(colSurface)
 	}
@@ -90,11 +85,6 @@ func (a *App) showMessage(msg string, sev severity) {
 			return ev
 		case ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter:
 			a.closeModal(pageMessage)
-		case note:
-			a.closeModal(pageMessage)
-			// In through the pages, as a key comes, so that the dialog's own
-			// handling - a form's modes - has it before the widget does.
-			a.pages.InputHandler()(ev, func(p tview.Primitive) { a.tv.SetFocus(p) })
 		}
 		return nil
 	})

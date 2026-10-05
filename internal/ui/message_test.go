@@ -34,10 +34,21 @@ func TestADialogsMessagesComeUpOverIt(t *testing.T) {
 		t.Errorf("keys pressed at the message reached the dialog: %q", got)
 	}
 
+	// A note is a passing word in the dialog's bottom edge, at its right,
+	// and asks for nothing: c still cancels the dialog.
 	changeOnLoop(a, func() { a.note("something was done") })
-	waitFor(t, a, sc, "any key closes")
-	typeRunes(sc, "c") // closes the note, and cancels the dialog
+	waitFor(t, a, sc, "something was done")
+	if onLoop(a, func() bool { return a.pages.HasPage(pageMessage) }) {
+		t.Error("a note over a dialog opened a box")
+	}
+	frame := onLoop(a, func() rect { x, y, w, h := form.GetRect(); return rect{x, y, w, h} })
+	if row := lineOf(a.screenText(sc), "something was done"); row != frame.y+frame.h-1 {
+		t.Errorf("the note is on row %d, not in the dialog's bottom edge (row %d):\n%s", row, frame.y+frame.h-1, a.screenText(sc))
+	}
+	assertLegible(t, a, sc, "a note in a dialog's edge")
+	typeRunes(sc, "c")
 	waitGone(t, a, sc, "Grouped worktree")
+	waitGone(t, a, sc, "something was done")
 	if onLoop(a, func() bool { return a.modalOpen() }) {
 		t.Error("a dialog or the note is still open")
 	}
@@ -137,8 +148,6 @@ func TestAMessageSaysWhatKindItIs(t *testing.T) {
 		closing  string
 		severity string
 	}{
-		{func() { a.done("deleted it") }, "✓ Success", colOn, "any key closes", "success"},
-		{func() { a.note("looking") }, "i Info", colAccent, "any key closes", "info"},
 		{func() { a.flash("not that way") }, "! Warning", colWarn, "Esc close", "warning"},
 		{func() { a.errorf("it broke") }, "✗ Error", colBad, "Esc close", "error"},
 	} {
