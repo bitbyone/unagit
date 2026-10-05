@@ -528,7 +528,8 @@ Everything unagit draws with is a theme: the colours of text, borders,
 fields, the selection and every state, the screen's background, and the
 glyphs that say what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `↑ ↓`, the
 borders). Settings › Theme lists them with a strip of their colours; `Enter`
-puts one on at once and remembers it.
+puts one on at once and remembers it. From any screen, `:` › Switch Theme…
+lists them too, the one on under the cursor.
 
 unagit comes with four: **unagit**, the muted default, which keeps the
 terminal's own background so it sits quietly beside an editor;

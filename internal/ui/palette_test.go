@@ -102,6 +102,7 @@ func actionLists(a *App) map[string][]uiAction {
 			lists["settings · "+name] = append(acts, screen...)
 		}
 		s.current = was
+		lists["global"] = a.globalActions()
 		return lists
 	})
 }

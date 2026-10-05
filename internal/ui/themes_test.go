@@ -197,6 +197,39 @@ func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
 	}
 }
 
+// TestSwitchThemeFromAnyScreen: : on a list offers Switch Theme…, which
+// lists the themes with the one on marked and the cursor on it; Enter on
+// another puts it on, and the list behind is drawn again in it.
+func TestSwitchThemeFromAnyScreen(t *testing.T) {
+	restoreDefaultTheme(t)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Switch Theme…")
+	typeRunes(sc, "/")
+	typeRunes(sc, "switch theme")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "catppuccin-mocha")
+	if line := lineAt(a.screenText(sc), glyphCheck+" "+defaultThemeName+" "); line == "" {
+		t.Errorf("the theme on is not marked:\n%s", a.screenText(sc))
+	}
+	assertLegible(t, a, sc, "the theme picker")
+	typeRunes(sc, "/")
+	typeRunes(sc, "catppuccin")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Theme: catppuccin-mocha")
+	if got := onLoop(a, func() string { return theme.Name }); got != "catppuccin-mocha" {
+		t.Errorf("the theme is %q", got)
+	}
+	waitFor(t, a, sc, "Rate limiting")
+	assertLegible(t, a, sc, "the merge requests in catppuccin")
+	if !strings.Contains(readConfigFile(t, a), "theme: catppuccin-mocha") {
+		t.Error("the choice was not saved")
+	}
+}
+
 // TestAForkIsAFileToTuneAndIsFollowed: f writes the theme under the cursor
 // out whole as the user's own and puts it on; a save of the file puts the
 // change on at once, and a save that breaks it keeps the last good one and

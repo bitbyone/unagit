@@ -145,7 +145,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 		return true
 	case opensScreenActions(ev) && screen != nil:
 		title, acts := screen()
-		a.showActions(title, acts)
+		a.showActions(title, append(acts, a.globalActions()...))
 		return true
 	}
 	if selection != nil {
@@ -154,9 +154,42 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 		}
 	}
 	if screen != nil {
-		if _, acts := screen(); runKey(acts, ev) {
+		if _, acts := screen(); runKey(append(acts, a.globalActions()...), ev) {
 			return true
 		}
 	}
 	return false
+}
+
+// globalActions can be done from any screen: the : picker lists them after
+// the screen's own.
+func (a *App) globalActions() []uiAction {
+	return []uiAction{
+		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
+			rank: 900, run: a.showThemePicker},
+	}
+}
+
+// showThemePicker lists the themes, each with its colours, the cursor on
+// the one that is on; Enter puts another on, as Settings › Theme does.
+func (a *App) showThemePicker() {
+	width := 0
+	for _, name := range a.themes.names {
+		width = max(width, len([]rune(name)))
+	}
+	items := make([]pickItem, len(a.themes.names))
+	start := 0
+	for i, name := range a.themes.names {
+		mark := " "
+		if name == theme.Name {
+			start, mark = i, glyphCheck
+		}
+		// Names padded alike, so the colours stand in a column.
+		items[i] = pickItem{Label: esc(fmt.Sprintf("%s %-*s", mark, width, name)), Sub: themeSwatch(a.themes.byName[name]), Data: name}
+	}
+	a.showPickerWith("Theme", items, pickerOptions{start: start, pack: true, enterHint: "put on"}, func(it pickItem) {
+		if name := it.Data.(string); name != theme.Name {
+			a.switchTheme(name)
+		}
+	})
 }
