@@ -121,10 +121,10 @@ all and live only there.
   made in your editor shows up without asking. `R` fetches every clone in the
   background first - `r` only the one under the cursor - and the header counts the fetches still running. A
   rebase or merge git stopped in the middle of shows there instead, in red.
-- `CI` is the newest pipeline of the branch in `BRANCH` - its merge
-  request's when one is open - drawn as in Merge requests. It is read on `R`
-  (`r` for one row) and kept for the next start; one still running is asked
-  about again until it ends.
+- `CI` is the newest pipeline of the clone's branch, drawn as in Merge
+  requests; a repository not cloned has none, and costs no request. It is
+  read on `R` (`r` for one row) and kept for the next start; one still
+  running is asked about again until it ends.
 - `EDITS` counts the files not committed in the clone, and `Enter` lists them
   with the clone's branch, HEAD and the commits origin does not have yet.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
@@ -339,9 +339,11 @@ That is the only force push unagit ever does.
 `EDITS` counts the files with uncommitted changes, so work in progress shows
 before it is committed; a grouped worktree adds up its repositories.
 
-`CI` is the newest pipeline of the worktree's branch, its merge request's
-when one is open, read on `R` and `r` as in Repositories. A grouped worktree
-has a branch in each repository and leaves it empty; `J` asks which one.
+`CI` is the newest pipeline of the worktree's branch itself, read on `R` and
+`r` as in Repositories, and `J` lists its jobs. A merge request open from the
+branch has its own pipeline in the merge request list, and `m` goes there,
+with the cursor on it. A grouped worktree has a branch in each repository and
+leaves `CI` empty; `J` and `m` ask which one.
 
 `Enter` opens a worktree as a view of its own, in blocks: a block for every
 repository - one for a worktree of its own - and, for a grouped one, a block

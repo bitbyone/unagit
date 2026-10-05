@@ -115,19 +115,27 @@ func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
 	}
 }
 
-// TestCIOfBranches: a refresh reads the newest pipeline of each repository's
-// branch and each worktree's into a CI column, keeps it for the next start,
-// and a grouped worktree leaves the column empty.
+// TestCIOfBranches: a refresh reads the newest pipeline of each clone's
+// branch and each worktree's into a CI column and keeps it for the next
+// start. A repository not cloned is not asked about, a worktree shows its
+// branch's pipeline and not its merge request's, which m goes to, and a
+// grouped worktree leaves the column empty.
 func TestCIOfBranches(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	// acme/gateway's main has passed, acme/billing has never been built.
+	instance := a.cfg.Instances[0].ID
+	cloneOnDisk(t, a, instance, "acme/gateway")
+
+	targets := onLoop(a, func() []branchKey { return a.repositoryCITargets() })
+	if len(targets) != 1 || targets[0] != (branchKey{instance, "acme/gateway", "main"}) {
+		t.Errorf("only the clone's branch is asked about, got %v", targets)
+	}
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, " CI ")
 	waitForRow(t, a, sc, "acme/gateway", glyphCIDone)
 	if row := rowWith(a, sc, "acme/billing"); containsField(row, glyphCIDone) {
-		t.Errorf("acme/billing has no pipeline, yet its row has one: %q", row)
+		t.Errorf("acme/billing is not cloned, yet its row has a pipeline: %q", row)
 	}
 	saved := onLoop(a, func() string {
 		b, _ := os.ReadFile(a.cfg.IndexPath("pipelines"))
@@ -137,19 +145,48 @@ func TestCIOfBranches(t *testing.T) {
 		t.Errorf("the pipelines are not kept for the next start:\n%s", saved)
 	}
 
-	makeWorktree(t, a, "acme/gateway", "wt-feat-x", "ref: refs/heads/feat/x", time.Now())
+	// feat/rate has !7 open, whose pipeline failed; the branch's passed.
+	makeWorktree(t, a, "acme/gateway", "wt-rate", "ref: refs/heads/feat/rate", time.Now())
 	a.tv.QueueUpdateDraw(func() {
 		a.refreshDisk()
 		a.askBranchCI(a.worktreeCITargets(), "")
 	})
 	typeRunes(sc, "3")
-	waitFor(t, a, sc, "feat/x")
-	waitForRow(t, a, sc, "feat/x", glyphCIDone)
+	waitFor(t, a, sc, "feat/rate")
+	waitForRow(t, a, sc, "feat/rate", glyphCIDone)
+	status := onLoop(a, func() string {
+		return a.worktreeCI(worktreeRow{Instance: instance, Path: "acme/gateway", Branch: "feat/rate"})
+	})
+	if status != "success" {
+		t.Errorf("the worktree shows %q, not its branch's pipeline", status)
+	}
+
+	typeRunes(sc, "m")
+	waitFor(t, a, sc, "Rate limiting")
+	deadline := time.Now().Add(patience)
+	for {
+		iid := onLoop(a, func() int {
+			if a.currentTab() != pageMRs {
+				return 0
+			}
+			if i := a.mrsPane.selectedIndex(); i >= 0 && i < len(a.mrs) {
+				return a.mrs[i].IID
+			}
+			return 0
+		})
+		if iid == 7 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("m did not bring the cursor to !7 (on !%d):\n%s", iid, a.screenText(sc))
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
 
 	// A group has a branch in each repository and no pipeline of its own.
 	group := onLoop(a, func() string {
-		member := worktreeRow{Instance: a.cfg.Instances[0].ID, Path: "acme/gateway", Branch: "feat/x", Dir: "/x"}
-		return a.worktreeCI(worktreeRow{Path: "g", Branch: "feat/x", Dir: "/g", Members: []worktreeRow{member}})
+		member := worktreeRow{Instance: instance, Path: "acme/gateway", Branch: "feat/rate", Dir: "/x"}
+		return a.worktreeCI(worktreeRow{Path: "g", Branch: "feat/rate", Dir: "/g", Members: []worktreeRow{member}})
 	})
 	if group != "" {
 		t.Errorf("a grouped worktree shows a pipeline: %q", group)

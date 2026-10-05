@@ -120,15 +120,11 @@ func (a *App) showBranchPipeline(instance, projectPath, branch string) {
 	a.showPipeline(target, 0)
 }
 
-// worktreePipeline shows the pipeline of a worktree's branch: its open merge
-// request's when there is one, as the merge request list shows it, else the
-// branch's own. A group asks which of its repositories first.
+// worktreePipeline shows the pipeline of a worktree's branch, as its CI
+// column does - the merge request's is J in the merge request list. A group
+// asks which of its repositories first.
 func (a *App) worktreePipeline(r worktreeRow) {
 	if !r.grouped() {
-		if mr, open := a.openMRFor(r); open {
-			a.showMRPipeline(mr, 0)
-			return
-		}
 		a.showBranchPipeline(r.Instance, r.Path, r.Branch)
 		return
 	}
@@ -138,10 +134,7 @@ func (a *App) worktreePipeline(r worktreeRow) {
 	}
 	items := make([]pickItem, len(r.Members))
 	for i, m := range r.Members {
-		mark, _ := ciMark("")
-		if mr, open := a.openMRFor(m); open {
-			mark, _ = ciMark(mr.Pipeline)
-		}
+		mark, _ := ciMark(a.worktreeCI(m))
 		items[i] = pickItem{Label: esc(strings.TrimSpace(mark + " " + m.Path)), Sub: esc(m.Branch), Data: i}
 	}
 	a.showPicker("Pipeline of which repository · "+r.Path, items, func(it pickItem) {

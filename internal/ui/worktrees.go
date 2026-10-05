@@ -384,9 +384,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
 	createdW, sizeW := len("CREATED"), len("SIZE")
 	mrs := map[int]string{}
-	// CI is the newest pipeline of the branch, its merge request's when it
-	// has one; a group has none of its own. It takes room only when some
-	// row has one.
+	// CI is the newest pipeline of the branch itself, not of its merge
+	// request, which the merge request list shows; a group has none of its
+	// own. It takes room only when some row has one.
 	ciW := 0
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
@@ -1163,4 +1163,63 @@ func (a *App) worktreeSizeRange() (least, most int64) {
 		most = max(most, n)
 	}
 	return least, most
+}
+
+// worktreeMRs is the open merge requests of a worktree's branch: one at
+// most, or one of each member's for a group.
+func (a *App) worktreeMRs(r worktreeRow) []forge.MergeRequest {
+	members := []worktreeRow{r}
+	if r.grouped() {
+		members = r.Members
+	}
+	var out []forge.MergeRequest
+	for _, m := range members {
+		if mr, ok := a.openMRFor(m); ok {
+			out = append(out, mr)
+		}
+	}
+	return out
+}
+
+// goToWorktreeMR moves to the merge request open from a worktree's branch,
+// asking which one when a group has several.
+func (a *App) goToWorktreeMR(r worktreeRow) {
+	mrs := a.worktreeMRs(r)
+	switch len(mrs) {
+	case 0:
+		a.flash("no merge request is open from " + r.Branch + " - n opens one")
+		return
+	case 1:
+		a.showMRAt(mrs[0])
+		return
+	}
+	items := make([]pickItem, len(mrs))
+	for i, mr := range mrs {
+		items[i] = pickItem{Label: esc(fmt.Sprintf("%s !%d", a.projectPathOfMR(mr), mr.IID)), Sub: esc(mr.Title), Data: i}
+	}
+	a.showPicker("Merge request of which repository · "+r.Path, items, func(it pickItem) {
+		a.showMRAt(mrs[it.Data.(int)])
+	})
+}
+
+// showMRAt switches to Merge requests with the cursor on mr. Whatever narrows
+// the list to other merge requests - the filter, a repository - is let go;
+// a view option that keeps it out is named rather than undone.
+func (a *App) showMRAt(mr forge.MergeRequest) {
+	if a.wtView != nil {
+		a.closeWorktreeView()
+	}
+	p := a.mrsPane
+	if p.query != "" {
+		p.clearFilter()
+	}
+	if s := a.mrProjectScope; s.Path != "" && s != (projectKey{mr.Instance, a.projectPathOfMR(mr)}) {
+		a.mrProjectScope = projectKey{}
+	}
+	a.switchTab(pageMRs)
+	p.reload()
+	p.selectWhere(func(i int) bool { return i < len(a.mrs) && keyOfMR(a.mrs[i]) == keyOfMR(mr) })
+	if i := p.selectedIndex(); i < 0 || i >= len(a.mrs) || keyOfMR(a.mrs[i]) != keyOfMR(mr) {
+		a.flash(fmt.Sprintf("!%d is hidden by the view options - v shows what they keep out", mr.IID))
+	}
 }

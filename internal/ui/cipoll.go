@@ -34,12 +34,13 @@ func (a *App) runningMRs() []forge.MergeRequest {
 	return out
 }
 
-// runningBranches is the branches without a merge request whose newest
-// pipeline was last seen running. It runs on the event loop.
+// runningBranches is the branches the lists show whose newest pipeline was
+// last seen running; one the index still holds from an earlier branch of a
+// clone is not followed. It runs on the event loop.
 func (a *App) runningBranches() []branchKey {
 	var out []branchKey
-	for k, status := range a.branchStatus {
-		if ciStateOf(status) == ciRunning {
+	for _, k := range append(a.repositoryCITargets(), a.worktreeCITargets()...) {
+		if ciStateOf(a.branchStatus[k]) == ciRunning {
 			out = append(out, k)
 		}
 	}

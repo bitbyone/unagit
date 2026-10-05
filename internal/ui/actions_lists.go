@@ -123,7 +123,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 // repositoriesActions are what Repositories itself can do.
 func (a *App) repositoriesActions(p *pane) []uiAction {
 	acts := []uiAction{
-		{name: "Refresh All", about: "Ask the servers for the repositories again, and the pipelines of their branches; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
+		{name: "Refresh All", about: "Ask the servers for the repositories again, and the pipelines of the clones' branches; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
 		{name: "Pull All Clones", about: "Fetch every clone and fast-forward those origin has moved past.", keys: "Alt-P", rank: 30, run: a.updateAllClones},
 		{name: "View Starred Repositories…", about: "The repositories you starred on GitHub: read a README, open one in the browser, or clone it.", rank: 35,
@@ -244,7 +244,9 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			a.diffSince(dir, targets)
 		}},
 		{name: "Rebase onto Base", about: "Rebase the branch onto its base even once pushed; P then force-pushes with a lease.", keys: "Ctrl-R", rank: 50, run: func() { a.rebaseWorktree(r) }},
-		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline - its merge request's while one is open; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},
+		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline, as CI shows it; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},
+		{name: "Go to Merge Request", about: "Switch to Merge requests with the cursor on the one open from this branch; in a group, the one you pick.", keys: "m", rank: 36,
+			when: func() bool { return len(a.worktreeMRs(r)) > 0 }, run: func() { a.goToWorktreeMR(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},
 		{name: "Copy…", about: "Copy the directory or the branch to the clipboard.", keys: "y", rank: 70, run: func() { a.yankWorktree(r) }},
 		{name: "Branches…", about: "See where the repository's branches stand against origin and delete those you are done with.", keys: "b", rank: 72, when: single, run: func() {

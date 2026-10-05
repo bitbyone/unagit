@@ -104,11 +104,11 @@ func (a *App) saveMRIndex() {
 // refreshProjectRow fetches one clone and reads again where it stands.
 func (a *App) refreshProjectRow(pr forge.Project) {
 	key := projectKey{pr.Instance, pr.PathWithNamespace}
-	a.askBranchCI([]branchKey{{pr.Instance, pr.PathWithNamespace, a.repositoryBranch(pr)}}, "")
 	if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
 		a.note(pr.PathWithNamespace + " is not cloned - nothing to fetch; R refreshes the list")
 		return
 	}
+	a.askBranchCI([]branchKey{{pr.Instance, pr.PathWithNamespace, a.repositoryBranch(pr)}}, "")
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
 	git := a.newManager(pr.Instance, pr.PathWithNamespace, nil).Git()
 	a.addFetching(1)

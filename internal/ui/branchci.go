@@ -13,11 +13,13 @@ import (
 )
 
 // The CI column of Repositories and Worktrees is the newest pipeline of the
-// branch the row shows. A branch with an open merge request answers with
-// that merge request's pipeline, which the merge request list keeps and
-// follows; any other branch's is asked for on a refresh and kept in an
-// index of its own, so the column is there at start as the lists are. A
-// grouped worktree holds several repositories and says nothing here.
+// branch the row shows - the branch's own, even when a merge request is open
+// from it: that one's pipeline is in the merge request list, and the two
+// columns say two things rather than one twice. It is asked for on a
+// refresh and kept in an index of its own, so the column is there at start
+// as the lists are. A repository not cloned has no branch of the user's and
+// is not asked about; a grouped worktree holds several repositories and
+// says nothing here.
 
 // branchKey names a branch of a repository on a server.
 type branchKey struct{ instance, path, branch string }
@@ -28,19 +30,15 @@ func (a *App) branchCIStatus(instance, path, branch string) string {
 	if branch == "" || branch == "(detached)" {
 		return ""
 	}
-	if mr, ok := a.openMRFor(worktreeRow{Instance: instance, Path: path, Branch: branch}); ok {
-		return mr.Pipeline
-	}
 	return a.branchStatus[branchKey{instance, path, branch}]
 }
 
-// repositoryBranch is the branch a repository's row shows: the clone's, or
-// the default one before it is cloned.
+// repositoryBranch is the clone's branch, "" before it is cloned.
 func (a *App) repositoryBranch(pr forge.Project) string {
 	if info := a.diskOf(pr.Instance, pr.PathWithNamespace); info.Cloned {
 		return info.Branch
 	}
-	return pr.DefaultBranch
+	return ""
 }
 
 // repositoryCI is the CI column of a repository's row.
@@ -56,12 +54,15 @@ func (a *App) worktreeCI(r worktreeRow) string {
 	return a.branchCIStatus(r.Instance, r.Path, r.Branch)
 }
 
-// repositoryCITargets is the branches the repository list shows.
+// repositoryCITargets is the branches of the clones the repository list
+// shows.
 func (a *App) repositoryCITargets() []branchKey {
 	var out []branchKey
 	for _, i := range a.filterProjects(a.projects, "") {
 		pr := a.projects[i]
-		out = append(out, branchKey{pr.Instance, pr.PathWithNamespace, a.repositoryBranch(pr)})
+		if branch := a.repositoryBranch(pr); branch != "" {
+			out = append(out, branchKey{pr.Instance, pr.PathWithNamespace, branch})
+		}
 	}
 	return out
 }
@@ -79,8 +80,8 @@ func (a *App) worktreeCITargets() []branchKey {
 }
 
 // askBranchCI reads the newest pipeline of those branches, in the
-// background, several at a time, and leaves out the ones a merge request
-// answers for or that are being asked about already. A non-empty title
+// background, several at a time, and leaves out the ones being asked about
+// already. A non-empty title
 // shows it as a job. What cannot be read keeps what was last read: it is a
 // mark in a column, not something to fail on.
 func (a *App) askBranchCI(keys []branchKey, title string) {
@@ -95,9 +96,6 @@ func (a *App) askBranchCI(keys []branchKey, title string) {
 	var qs []question
 	for _, k := range keys {
 		if k.branch == "" || k.branch == "(detached)" || a.ciAsking[k] {
-			continue
-		}
-		if _, ok := a.openMRFor(worktreeRow{Instance: k.instance, Path: k.path, Branch: k.branch}); ok {
 			continue
 		}
 		client := a.client(k.instance)

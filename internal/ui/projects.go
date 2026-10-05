@@ -145,7 +145,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// when the repository's merge requests are hidden (H here, x there).
 	mrW, hiddenW := 2, 0
 	sizeW := len("SIZE")
-	// CI is the newest pipeline of the branch shown, and takes room only
+	// CI is the newest pipeline of the clone's branch, and takes room only
 	// when some row has one.
 	ciW := 0
 	for _, idx := range filtered {
