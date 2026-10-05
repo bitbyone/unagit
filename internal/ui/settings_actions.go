@@ -67,6 +67,7 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 			a.keyIn(s.themes, "Fork Theme…", "Copy the theme into a file of your own, every colour spelled out, and put it on; unagit follows each save of it.", "f", 15,
 				func() bool { return s.selectedTheme() != "" }),
 			a.keyIn(s.themes, "Read Themes Again", "Read the themes in the configuration's themes folder again, after editing one.", "r", 20, nil),
+			a.keyIn(s.themes, "Nerd Font Icons", "Draw icons from a Nerd Font where a theme has them: told from the terminal, on, or off.", "n", 25, nil),
 		}
 	case sectionSecurity:
 		return sectionNames[s.current], []uiAction{

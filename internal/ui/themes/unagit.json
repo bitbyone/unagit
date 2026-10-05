@@ -102,6 +102,9 @@
     "tab_separator": "│",
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
   },
+  "nerd_glyphs": {
+    "user": "\uf007"
+  },
   "borders": {
     "horizontal": "─",
     "vertical": "│",

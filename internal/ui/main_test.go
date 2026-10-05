@@ -20,6 +20,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("UNAGIT_CONFIG_DIR", dir)
+	// Whether the terminal running the tests draws Nerd Font icons is
+	// nothing the tests should depend on.
+	nerdFontGuess = func() (bool, string) { return false, "tests" }
 	limitParallel()
 	code := m.Run()
 	os.RemoveAll(dir)

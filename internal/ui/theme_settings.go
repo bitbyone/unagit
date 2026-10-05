@@ -47,6 +47,8 @@ func (s *settingsView) newThemeTable() *tview.Table {
 				if name := s.selectedTheme(); name != "" {
 					s.showForkForm(name)
 				}
+			case 'n':
+				s.app.cycleNerdFont()
 			case 'j':
 				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
 			case 'k':
@@ -114,6 +116,7 @@ func (s *settingsView) fillThemes() {
 	for _, problem := range set.problems {
 		notes = append(notes, tag(colWarn)+"! "+tagEnd+tview.Escape(problem))
 	}
+	notes = append(notes, tag(colMuted)+"Nerd Font icons "+tagEnd+tview.Escape(s.app.nerdWhy)+tag(colDim)+" · n changes"+tagEnd)
 	notes = append(notes, tag(colDim)+"Your own themes go in "+tview.Escape(tildePath(s.app.cfg.ThemesDir()))+
 		"/*.json. A theme names only what it changes; \"extends\" names the theme the rest comes from."+tagEnd)
 	s.themeNotes.SetText(strings.Join(notes, "\n"))

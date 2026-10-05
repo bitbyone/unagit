@@ -349,7 +349,10 @@ written where it is drawn: it is a variable set by `setTheme` (`colMuted`,
 to draw gets a key of its own in `Theme` (themes.go), a value in
 `themes/unagit.json` - the default must name every key, which
 `TestTheDefaultThemeIsTodaysLook` checks - and a line in `colours()` or
-`glyphs()` so a wrong value is named. A cell drawn by hand uses `baseStyle()`,
+`glyphs()` so a wrong value is named. An icon from a Nerd Font goes under
+`nerd_glyphs`, with a plain character for the same key under `glyphs`: the
+icon is drawn only when the terminal can (`nerdfont.go` guesses, Settings ›
+Theme `n` overrides), so a glyph must read well both ways. A cell drawn by hand uses `baseStyle()`,
 never `tcell.StyleDefault`, or it leaves a hole in a theme with a background.
 Nothing computed from a colour may be a package-level value: it would be
 computed before any theme is on. A theme is the process's, like tview's

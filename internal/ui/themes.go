@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -136,6 +137,11 @@ type Theme struct {
 	Tags map[string]TagInk `json:"tags"`
 
 	Glyphs Glyphs `json:"glyphs"`
+	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
+	// Nerd Font (Settings › Theme): only the ones it names, the rest as
+	// Glyphs has them. A theme that wants an icon gives it here and a plain
+	// character in Glyphs, so it reads well either way.
+	NerdGlyphs Glyphs `json:"nerd_glyphs"`
 
 	Borders struct {
 		Horizontal  string `json:"horizontal"`
@@ -154,6 +160,30 @@ type Theme struct {
 type TagInk struct {
 	Ink  string `json:"ink"`
 	Fill string `json:"fill"`
+}
+
+// over is the glyphs with the ones n names put in their place.
+func (g Glyphs) over(n Glyphs) Glyphs {
+	out := reflect.ValueOf(&g).Elem()
+	in := reflect.ValueOf(n)
+	for i := range in.NumField() {
+		if v := in.Field(i).String(); v != "" {
+			out.Field(i).SetString(v)
+		}
+	}
+	return g
+}
+
+// named lists the glyphs n gives, by their names in the file.
+func (n Glyphs) named() map[string]string {
+	out := map[string]string{}
+	v, t := reflect.ValueOf(n), reflect.TypeOf(n)
+	for i := range v.NumField() {
+		if s := v.Field(i).String(); s != "" {
+			out["nerd_glyphs."+strings.Split(t.Field(i).Tag.Get("json"), ",")[0]] = s
+		}
+	}
+	return out
 }
 
 // Glyphs are the characters that say what something is.
@@ -447,6 +477,14 @@ func (t Theme) validate() error {
 		}
 	}
 	for key, value := range t.glyphs() {
+		if utf8.RuneCountInString(value) != 1 {
+			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
+		}
+	}
+	for key, value := range t.NerdGlyphs.named() {
+		if key == "nerd_glyphs.spinner" {
+			continue
+		}
 		if utf8.RuneCountInString(value) != 1 {
 			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
 		}

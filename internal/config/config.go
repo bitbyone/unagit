@@ -106,6 +106,13 @@ const (
 	KindGitHub = "github"
 )
 
+// What NerdFont can say besides nothing, which is to tell from the
+// terminal.
+const (
+	NerdFontOn  = "on"
+	NerdFontOff = "off"
+)
+
 // GitHubURL is the only address a GitHub instance can have: github.com is not
 // self hosted.
 const GitHubURL = "https://github.com"
@@ -443,6 +450,9 @@ type Config struct {
 	// Theme names the theme unagit draws with: one it comes with, or one of
 	// the user's in <config>/themes. Empty is the default one.
 	Theme string `yaml:"theme,omitempty"`
+	// NerdFont says whether the terminal's font draws Nerd Font icons:
+	// NerdFontOn, NerdFontOff, or empty to tell from the terminal.
+	NerdFont string `yaml:"nerd_font,omitempty"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.

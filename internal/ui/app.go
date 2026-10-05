@@ -156,6 +156,8 @@ type App struct {
 	wtSize   map[string]int64
 	wtSizing map[string]bool
 	// themes are the themes there are, built-in and the user's;
+	// nerdWhy says whether Nerd Font icons are drawn and how that is known.
+	nerdWhy string
 	// themeProblem says why the chosen one is not on, until it is said.
 	// jobs are the jobs under way behind the interface (jobs.go), and
 	// spinFrame turns their spinner; refreshing guards each refresh against

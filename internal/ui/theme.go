@@ -100,6 +100,10 @@ func applyTheme() {
 // PrimitiveBackgroundColor is the screen's background: the terminal default
 // unless the theme says otherwise, so panels can be transparent and sit on
 // whatever the editor around them looks like.
+// nerdFont is whether the terminal draws Nerd Font icons, so a theme's
+// nerd_glyphs are used (nerdfont.go). Like the theme it is the process's.
+var nerdFont bool
+
 func setTheme(t Theme) {
 	theme = t
 
@@ -135,6 +139,9 @@ func setTheme(t Theme) {
 	}
 
 	g := t.Glyphs
+	if nerdFont {
+		g = g.over(t.NerdGlyphs)
+	}
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphGroup, glyphHidden, glyphFavourite = g.Group, g.Hidden, g.Favourite
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring

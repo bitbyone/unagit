@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/tobola/unagit/internal/config"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -31,12 +32,36 @@ func (a *App) chooseTheme() {
 		a.themeProblem = fmt.Sprintf("there is no theme %q - see Settings › Theme; the default is on", want)
 		t = a.themes.byName[defaultThemeName]
 	}
+	on, why := useNerdFont(a.cfg.NerdFont)
+	a.nerdWhy = why
 	// The default is already on unless another application of this process
 	// put on another; putting it on again would only write what is there.
-	if t.Name != theme.Name || t.file != "" {
+	if t.Name != theme.Name || t.file != "" || on != nerdFont {
+		nerdFont = on
 		setTheme(t)
 	}
 	a.themeFile.Store(t.file)
+}
+
+// cycleNerdFont steps the Nerd Font icons from telling by the terminal, to
+// on, to off, and draws everything again with the glyphs that follow.
+func (a *App) cycleNerdFont() {
+	next := map[string]string{"": config.NerdFontOn, config.NerdFontOn: config.NerdFontOff, config.NerdFontOff: ""}[a.cfg.NerdFont]
+	a.cfg.NerdFont = next
+	if err := a.cfg.Save(); err != nil {
+		a.errorf("cannot save the config: %v", err)
+		return
+	}
+	on, why := useNerdFont(next)
+	a.nerdWhy = why
+	if on != nerdFont {
+		nerdFont = on
+		setTheme(theme)
+		a.rebuildInterface()
+	} else if a.settings != nil {
+		a.settings.fillThemes()
+	}
+	a.done("Nerd Font icons: " + why)
 }
 
 // switchTheme puts a theme on, remembers it, and draws everything again in

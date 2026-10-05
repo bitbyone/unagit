@@ -541,6 +541,13 @@ lists them too, the one on under the cursor - over a dialog as well, where
 `:` offers what can be done from anywhere and `Alt-Enter` on a list what
 can be done with its item.
 
+Some glyphs have an icon from a [Nerd Font](https://www.nerdfonts.com) as
+well - a theme gives them under `nerd_glyphs`, a plain character standing
+in under `glyphs` - and they are drawn when the terminal can: Ghostty,
+WezTerm and kitty bring the icons with them, and iTerm2 and Alacritty are
+asked for their font. `n` in Settings › Theme turns them on or off when
+that guess is wrong, and back to guessing.
+
 unagit comes with four: **unagit**, the muted default, which keeps the
 terminal's own background so it sits quietly beside an editor;
 **catppuccin-mocha**; **gruvbox-dark**; and **retro-block**, after the
