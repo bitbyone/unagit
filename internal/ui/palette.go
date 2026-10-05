@@ -107,9 +107,9 @@ func opensScreenActions(ev *tcell.EventKey) bool {
 	return ev.Key() == tcell.KeyRune && ev.Rune() == ':' && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0
 }
 
-// showActions opens a picker of actions: j/k move, Enter does one, / finds
-// one by name. The key of each is beside it, so the picker teaches the keys
-// as it is used.
+// showActions opens a picker of actions, typing into its filter: an action
+// is found by name, Enter does it, Esc goes to the list, where j/k move. The
+// key of each is beside it, so the picker teaches the keys as it is used.
 func (a *App) showActions(title string, actions []uiAction) {
 	acts := available(actions)
 	if len(acts) == 0 {
@@ -128,7 +128,7 @@ func (a *App) showActions(title string, actions []uiAction) {
 		}
 		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, act.name), Sub: keys, About: act.about, Data: act}
 	}
-	opts := pickerOptions{pack: true, explain: true}
+	opts := pickerOptions{pack: true, explain: true, filter: true}
 	if a.modalOpen() {
 		opts.page = pageActions
 	}

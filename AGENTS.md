@@ -98,7 +98,10 @@ select (`styleDropDown`), it just was not reused. The rules:
   not open one on the filter; typed letters then vanish into a search.
   `pack` sizes it to its rows instead of most of the screen; `explain` adds
   the pane at the bottom with the `About` of the item under the cursor. The
-  action pickers use both.
+  action pickers use both, and are the one exception to opening on the
+  list (the user asked for it): `filter` opens them typing, since an action
+  is looked for by name, and Esc on an empty filter closes them. Do not
+  give another picker `filter`.
 - A new kind of field that will be used twice goes into `fields.go` first, with
   a test, and the old call sites move to it in the same change.
 - **Look at what you built.** This is a terminal UI and it can be drawn: render

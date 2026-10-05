@@ -147,6 +147,10 @@ type pickerOptions struct {
 	// items are put again while it is open: the cursor stays on it. Unset,
 	// the labels are compared.
 	same func(a, b pickItem) bool
+	// filter opens the picker typing into its filter rather than on the
+	// list. Only the action pickers do: an action is looked for by name
+	// more often than walked to.
+	filter bool
 }
 
 // livePicker is a picker that is open, whose items can be put again while
@@ -245,7 +249,15 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	if start > 0 && start < list.GetItemCount() {
 		list.SetCurrentItem(start)
 	}
-	input.SetChangedFunc(rebuild)
+	// What Esc does in a picker that opened on its filter depends on
+	// whether anything is typed, and the hint follows it (filterHint).
+	var typed func()
+	input.SetChangedFunc(func(query string) {
+		rebuild(query)
+		if typed != nil {
+			typed()
+		}
+	})
 
 	pageName := opts.page
 	if pageName == "" {
@@ -284,11 +296,25 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		return " " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + " · Esc close" + tagEnd
 	}
+	filterHint := func() {
+		esc := "Esc to the list"
+		if opts.filter && input.GetText() == "" {
+			esc = "Esc close"
+		}
+		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
+			"   type to narrow · " + esc + " · Enter select" + tagEnd)
+	}
+	if opts.filter {
+		typed = func() {
+			if filtering {
+				filterHint()
+			}
+		}
+	}
 	setMode := func(filter bool) {
 		filtering = filter
 		if filtering {
-			footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
-				"   type to narrow · Esc to the list · Enter select" + tagEnd)
+			filterHint()
 			a.tv.SetFocus(input)
 			return
 		}
@@ -306,6 +332,15 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	input.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Key() {
 		case tcell.KeyEsc:
+			// A picker that opened on its filter closes on Esc while nothing
+			// is typed: there is no list it was taken from to go back to.
+			if opts.filter && input.GetText() == "" {
+				dismiss()
+				if opts.back != nil {
+					opts.back()
+				}
+				return nil
+			}
 			setMode(false)
 			return nil
 		case tcell.KeyEnter:
@@ -468,6 +503,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		input.SetChangedFunc(func(query string) {
 			rebuild(query)
 			explain(list.GetCurrentItem())
+			if typed != nil {
+				typed()
+			}
 		})
 		explain(list.GetCurrentItem())
 		lines := 1
@@ -514,7 +552,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		page = modalPct(frame, 70, 70)
 	}
 	a.pages.AddPage(pageName, page, true, true)
-	setMode(false)
+	setMode(opts.filter)
 
 	same := opts.same
 	if same == nil {

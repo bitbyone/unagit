@@ -160,7 +160,7 @@ func TestTheActionPickerFitsWhatItHolds(t *testing.T) {
 			}
 			assertLegible(t, a, sc, "the screen's actions")
 
-			typeRunes(sc, "G")
+			typeRunes(sc, "quit")
 			waitFor(t, a, sc, "Leave unagit")
 			text := a.screenText(sc)
 			about := lineOf(text, "Leave unagit")
@@ -196,8 +196,24 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "the actions picker")
 
-	typeRunes(sc, "/worktree")
+	// It opens typing into its filter: an action is found by name. Esc
+	// with something typed goes to the list, Esc on an empty filter closes.
 	waitFor(t, a, sc, "FILTER")
+	waitFor(t, a, sc, "Esc close")
+	typeRunes(sc, "pul")
+	waitFor(t, a, sc, "Esc to the list")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "NORMAL")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · acme/gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Esc close")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · acme/gateway")
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "FILTER")
+	typeRunes(sc, "worktree")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Worktree branch - acme/gateway")
 }
@@ -286,8 +302,8 @@ func openNewRepository(t *testing.T, a *App, sc tcell.SimulationScreen) *tview.F
 	t.Helper()
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "New Repository…")
-	typeRunes(sc, "/new repository")
 	waitFor(t, a, sc, "FILTER")
+	typeRunes(sc, "new repository")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, labelRepoVisibility)
 	return currentForm(a)
@@ -343,8 +359,8 @@ func TestSettingsHasActionsToo(t *testing.T) {
 
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "Go to Security")
-	typeRunes(sc, "/security")
 	waitFor(t, a, sc, "FILTER")
+	typeRunes(sc, "security")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "c change passphrase")
 }

@@ -208,7 +208,6 @@ func TestSwitchThemeFromAnyScreen(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "Switch Theme…")
-	typeRunes(sc, "/")
 	typeRunes(sc, "switch theme")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "catppuccin-mocha")

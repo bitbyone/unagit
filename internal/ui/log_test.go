@@ -258,7 +258,6 @@ func TestADialogsListHasItsItemsActions(t *testing.T) {
 	// Enter in the actions does what Enter in the list does.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Run Job")
-	typeRunes(sc, "/")
 	typeRunes(sc, "show log")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "--- FAIL: TestBucket")

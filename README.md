@@ -74,8 +74,9 @@ itself can do. Each action has its key beside it, so the list teaches the keys
 as it is used; what one usually comes for is at the top and what destroys
 something at the bottom. Actions are named in a word or two, and a pane at
 the bottom says in a sentence what the one under the cursor does. It opens
-on the list: `j`/`k` move, `Enter` does the action, `/` finds one by its
-name or, failing that, by what it does. Some actions are rare enough to have no key at
+typing into its filter, so an action is found by its name or, failing that,
+by what it does; `Enter` does it, the arrows move, and `Esc` goes to the list
+(`j`/`k`) - or, with nothing typed, closes it. Some actions are rare enough to have no key at
 all and live only there.
 
 - **Create a new repository** (`:` in Repositories) asks where - one of the

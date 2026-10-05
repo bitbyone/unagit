@@ -237,7 +237,6 @@ func TestCloseIsInThePickerAndAsks(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Close Merge Request…")
-	typeRunes(sc, "/")
 	typeRunes(sc, "Close Merge")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "without merging it?")
