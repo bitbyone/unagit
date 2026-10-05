@@ -88,3 +88,25 @@ func TestAuthorsByName(t *testing.T) {
 		t.Errorf("the second refresh asked for names again: %d in all", n)
 	}
 }
+
+// TestHiddenPeopleComeFirst: View Options lists the hidden authors, each
+// marked as a person, before the repositories whose merge requests are
+// hidden, whichever was hidden first.
+func TestHiddenPeopleComeFirst(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		a.cfg.Filters.ToggleMRsOf(a.cfg.Instances[0].ID, "acme/billing")
+		a.cfg.Filters.ToggleAuthor(a.cfg.Instances[0].ID, "renovate")
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, glyphUser+"renovate")
+	text := a.screenText(sc)
+	if lineOf(text, glyphUser+"renovate") > lineOf(text, "acme/billing · its merge requests") {
+		t.Errorf("the hidden author is not before the repositories:\n%s", text)
+	}
+	assertLegible(t, a, sc, "hidden people and repositories")
+}

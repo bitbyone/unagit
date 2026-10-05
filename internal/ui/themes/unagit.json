@@ -91,6 +91,7 @@
     "scheduled": "◷",
     "trigger": "↳",
     "retried": "↺",
+    "user": "@",
     "ahead": "↑",
     "behind": "↓",
     "external": "↗",

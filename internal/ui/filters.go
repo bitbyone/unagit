@@ -307,8 +307,9 @@ func (a *App) showMRViewOptions() {
 			for i, o := range options {
 				items = append(items, toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i})
 			}
+			// The people first, each marked as one, then the repositories.
 			for _, h := range f.HiddenAuthors {
-				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + esc(h.Username)
+				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + tag(colAccent) + glyphUser + tagEnd + esc(h.Username)
 				if name := a.people.Name(h.Instance, h.Username); name != "" && name != h.Username {
 					label += " " + tag(colDim) + esc(name) + tagEnd
 				}
