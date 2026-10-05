@@ -264,7 +264,8 @@ func jobMoving(j forge.Job) bool {
 // is being followed.
 func (s *pipelineState) title(target ciTarget) string {
 	mark, _ := ciMark(s.pipe.Status)
-	title := fmt.Sprintf("Pipeline · %s · %s %s", target.label, mark, s.pipe.Status)
+	mark, status := painted(mark, s.pipe.Status)
+	title := fmt.Sprintf("Pipeline · %s · %s %s", esc(target.label), mark, status)
 	if s.moving() {
 		title += " · following"
 	}
@@ -281,9 +282,10 @@ func jobItems(jobs []forge.Job) []pickItem {
 	nameW = min(nameW, 48)
 	items := make([]pickItem, len(jobs))
 	for i, j := range jobs {
+		mark, status := painted(jobMark(j), j.Status)
 		items[i] = pickItem{
-			Label: esc(fmt.Sprintf("%s  %-*s  %-*s", jobMark(j), stageW, j.Stage, nameW, trim(jobName(j), nameW))),
-			Sub:   esc(strings.TrimSpace(j.Status + "  " + duration(j.Duration))),
+			Label: mark + esc(fmt.Sprintf("  %-*s  %-*s", stageW, j.Stage, nameW, trim(jobName(j), nameW))),
+			Sub:   strings.TrimSpace(status + "  " + esc(duration(j.Duration))),
 			About: esc(jobAbout(j)),
 			Data:  j,
 		}
@@ -337,6 +339,19 @@ func waitsForAHand(j forge.Job) bool { return j.Status == "manual" || j.Status =
 
 // jobMark is a job's state as one glyph: a manual job's and a delayed one's
 // are told apart from those that merely wait their turn.
+// stateColour is the colour of a job's or a pipeline's state, as the CI
+// column has it.
+func stateColour(status string) tcell.Color {
+	_, c := ciMark(status)
+	return c
+}
+
+// painted is a state's mark and its word in the state's colour.
+func painted(mark, status string) (string, string) {
+	c := stateColour(status)
+	return tag(c) + esc(mark) + tagEnd, tag(c) + esc(status) + tagEnd
+}
+
 func jobMark(j forge.Job) string {
 	switch j.Status {
 	case "manual":
@@ -530,7 +545,8 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		view.SetText(text)
 		view.ScrollToEnd()
 		title := func(j forge.Job) string {
-			t := fmt.Sprintf("%s %s · %s", jobMark(j), j.Name, j.Status)
+			mark, status := painted(jobMark(j), j.Status)
+			t := fmt.Sprintf("%s %s · %s", mark, esc(j.Name), status)
 			if jobMoving(j) {
 				t += " · following"
 			}
@@ -719,9 +735,10 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 		if p.ID == 0 {
 			id = shortSHA(p.SHA)
 		}
+		paintedMark, status := painted(mark, p.Status)
 		items[i] = pickItem{
-			Label: esc(fmt.Sprintf("%s %s  %-8s  %-*s", on, mark, id, refW, trim(p.Ref, refW))),
-			Sub:   esc(strings.TrimSpace(p.Status + "  " + p.Source + "  " + age)),
+			Label: esc(on+" ") + paintedMark + esc(fmt.Sprintf("  %-8s  %-*s", id, refW, trim(p.Ref, refW))),
+			Sub:   strings.TrimSpace(status + "  " + esc(strings.TrimSpace(p.Source+"  "+age))),
 			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", id, p.Status, shortSHA(p.SHA), p.WebURL))),
 			Data:  p,
 		}

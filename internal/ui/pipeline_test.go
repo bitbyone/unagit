@@ -603,3 +603,28 @@ func TestARunningPipelineTurnsAndIsFollowed(t *testing.T) {
 		t.Errorf("!9's pipeline is %q after following it", got)
 	}
 }
+
+// TestJobStatesAreInTheirColours: a job's mark and its state are drawn in
+// the state's colour, as the CI column draws it.
+func TestJobStatesAreInTheirColours(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "lint")
+	// lint passed, and the cursor is on the failed unit tests, not on it.
+	text := a.screenText(sc)
+	row := lineOf(text, "check   lint")
+	line := strings.Split(text, "\n")[row]
+	markCol := len([]rune(line[:strings.Index(line, glyphCIDone)]))
+	wordCol := len([]rune(line[:strings.Index(line, "success")]))
+	for what, col := range map[string]int{"mark": markCol, "state": wordCol} {
+		_, style := cellAt(a, sc, col, row)
+		if fg, _, _ := style.Decompose(); fg.Hex() != role("ci.success").Hex() {
+			t.Errorf("the %s of a job that passed is %06x, not the colour of success", what, fg.Hex())
+		}
+	}
+	assertLegible(t, a, sc, "jobs in their colours")
+}
