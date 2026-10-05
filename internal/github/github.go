@@ -384,6 +384,15 @@ func (c *Client) CurrentUser(ctx context.Context) (*forge.User, error) {
 	return &forge.User{Username: u.Login, Name: u.Name}, nil
 }
 
+// UserName is the name an account has set in its profile.
+func (c *Client) UserName(ctx context.Context, login string) (string, error) {
+	var u user
+	if _, err := c.get(ctx, "/users/"+url.PathEscape(login), nil, &u); err != nil {
+		return "", err
+	}
+	return u.Name, nil
+}
+
 // whoami caches the login, which addresses the account's own repositories.
 func (c *Client) whoami(ctx context.Context) (string, error) {
 	c.once.Do(func() {

@@ -98,6 +98,8 @@ type App struct {
 	// me is who the token of each server belongs to, as the last refresh
 	// of the merge requests found out.
 	me map[string]string
+	// people is what the accounts of each server are called (people.go).
+	people index.Users
 	// mrFresh counts the commits pushed to a merge request since its review
 	// last checked out its head, -1 when there are some not yet on disk;
 	// freshGen numbers its loads.
@@ -547,6 +549,9 @@ func (a *App) loadIndexes() {
 	if g, err := index.Load[index.Groups](a.cfg.IndexPath("groups")); err == nil {
 		a.groups = g.Items
 	}
+	if u, err := index.Load[index.Users](a.cfg.IndexPath("users")); err == nil {
+		a.people = u
+	}
 	a.adoptLegacyIndex()
 	a.reindexProjects()
 }
@@ -835,6 +840,7 @@ func (a *App) refreshMRs() {
 	paths := a.snapshotProjectPaths()
 	var all []forge.MergeRequest
 	var idx index.MergeRequests
+	people := a.people.Clone()
 	a.runInBackground("refreshing merge requests", &a.refreshingMRs, func(progress func(string)) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -897,10 +903,17 @@ func (a *App) refreshMRs() {
 				me[id] = u.Username
 			}
 		}
+		learnNames(ctx, &people, all, clients, func(done, of int) {
+			progress(fmt.Sprintf("names %d/%d", done, of))
+		})
+		// The names are a convenience; one that could not be saved is
+		// asked for again next time.
+		_ = index.Save(a.cfg.IndexPath("users"), people)
 		idx = index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: all, Me: me}
 		return index.Save(a.cfg.IndexPath("mrs"), idx)
 	}, func() {
 		a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, idx.Me
+		a.people = people
 		a.sortHold = nil
 		a.forgetClosedFavourites(instances, all)
 		asked := map[string]bool{}

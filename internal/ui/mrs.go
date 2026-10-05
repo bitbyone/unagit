@@ -92,7 +92,7 @@ func (a *App) filterMRs(query string) []int {
 			continue
 		}
 		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
-			mr.Title, mr.Author.Username, mr.SourceBranch, mr.TargetBranch)
+			mr.Title, mr.Author.Username+" "+a.named(mr.Instance, mr.Author).Name, mr.SourceBranch, mr.TargetBranch)
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
 			continue
@@ -139,7 +139,7 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		mr := a.mrs[idx]
 		c.proj = max(c.proj, len(a.projectPathOfMR(mr)))
 		c.iid = max(c.iid, len(fmt.Sprintf("!%d", mr.IID)))
-		c.author = max(c.author, len(mr.Author.Username))
+		c.author = max(c.author, len([]rune(personName(a.named(mr.Instance, mr.Author)))))
 		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
 		c.updated = max(c.updated, len(humanAge(mr.UpdatedAt)))
 		if a.mrFresh[keyOfMR(mr)] != 0 {
@@ -153,7 +153,7 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 		}
 	}
 	c.proj = atLeast(min(c.proj, 34), "REPO")
-	c.author = atLeast(min(c.author, 14), "AUTHOR")
+	c.author = atLeast(min(c.author, 18), "AUTHOR")
 	c.branch = atLeast(min(c.branch, 26), "BRANCH")
 	c.updated = atLeast(c.updated, "UPDATED")
 
@@ -319,7 +319,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: colWarn},
 			titleField,
-			field{text: mr.Author.Username, width: c.author, colour: colMuted},
+			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: colMuted},
 			field{text: mr.SourceBranch, width: c.branch, colour: colBranch},
 			field{text: comments, width: c.com, colour: commentsColour, right: true})
 		if c.pub > 0 {

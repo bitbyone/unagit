@@ -554,3 +554,18 @@ func TestGitLabsPipelineObjectDoesNotBreakTheDecode(t *testing.T) {
 		t.Errorf("listed %+v", mrs)
 	}
 }
+
+func TestUserNameAsksByUsername(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v4/users" || r.URL.Query().Get("username") != "jane" {
+			t.Errorf("asked %s", r.URL)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"username":"jane","name":"Jane Doe"}]`)
+	}))
+	defer srv.Close()
+	name, err := New(srv.URL, "t").UserName(context.Background(), "jane")
+	if err != nil || name != "Jane Doe" {
+		t.Fatalf("name = %q, %v", name, err)
+	}
+}

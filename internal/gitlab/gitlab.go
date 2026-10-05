@@ -377,6 +377,22 @@ func (c *Client) CurrentUser(ctx context.Context) (*forge.User, error) {
 	return &forge.User{Username: u.Username, Name: u.Name}, nil
 }
 
+// UserName is the name of the account with that username.
+func (c *Client) UserName(ctx context.Context, username string) (string, error) {
+	var users []struct {
+		Name string `json:"name"`
+	}
+	q := url.Values{}
+	q.Set("username", username)
+	if _, err := c.get(ctx, "/users", q, &users); err != nil {
+		return "", err
+	}
+	if len(users) == 0 {
+		return "", nil
+	}
+	return users[0].Name, nil
+}
+
 // Groups returns every group and subgroup the user can see.
 func (c *Client) Groups(ctx context.Context) ([]forge.Group, error) {
 	q := url.Values{}

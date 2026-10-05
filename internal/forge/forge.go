@@ -282,6 +282,9 @@ type Provider interface {
 	Kind() string
 	// CurrentUser verifies the token.
 	CurrentUser(ctx context.Context) (*User, error)
+	// UserName is the name an account goes by, "" when it has given none.
+	// GitHub's lists carry only the login, and this fills the name in.
+	UserName(ctx context.Context, username string) (string, error)
 	// Groups lists everything the token can see: GitLab groups and subgroups,
 	// or GitHub organisations plus the account itself.
 	Groups(ctx context.Context) ([]Group, error)

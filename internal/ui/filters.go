@@ -278,7 +278,7 @@ func (a *App) hideAuthor(mr forge.MergeRequest) {
 	}
 	a.cfg.Filters.ToggleAuthor(mr.Instance, name)
 	a.applyFilters()
-	a.note(fmt.Sprintf("%s %s's merge requests hidden · v shows them again", glyphHidden, name))
+	a.note(fmt.Sprintf("%s %s's merge requests hidden · v shows them again", glyphHidden, personName(a.named(mr.Instance, mr.Author))))
 }
 
 // showMRViewOptions switches what the merge request list shows, and lists the
@@ -309,6 +309,9 @@ func (a *App) showMRViewOptions() {
 			}
 			for _, h := range f.HiddenAuthors {
 				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + esc(h.Username)
+				if name := a.people.Name(h.Instance, h.Username); name != "" && name != h.Username {
+					label += " " + tag(colDim) + esc(name) + tagEnd
+				}
 				if a.multiInstance() {
 					label += "   " + tag(colDim) + a.instanceLabel(h.Instance) + tagEnd
 				}

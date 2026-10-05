@@ -18,14 +18,14 @@ func TestDetailFollowsTheSelection(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Jane Doe")
+	waitFor(t, a, sc, "Jane Doe (jane)")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // back to the list
 	waitFor(t, a, sc, "NORMAL")
 
 	typeRunes(sc, "j")
 	waitFor(t, a, sc, "Bankers rounding everywhere")
-	waitFor(t, a, sc, "Bob Ross")
-	if strings.Contains(a.screenText(sc), "Jane Doe") {
+	waitFor(t, a, sc, "Bob Ross (bob)")
+	if strings.Contains(a.screenText(sc), "Jane Doe (jane)") {
 		t.Error("the detail column still shows the previous merge request")
 	}
 	// Moving the cursor must not drag the focus into the detail column.
@@ -35,7 +35,7 @@ func TestDetailFollowsTheSelection(t *testing.T) {
 	waitFor(t, a, sc, "NORMAL")
 
 	typeRunes(sc, "k")
-	waitFor(t, a, sc, "Jane Doe")
+	waitFor(t, a, sc, "Jane Doe (jane)")
 }
 
 // TestProjectDetailFollowsTheSelection is the same for the project list.
@@ -78,7 +78,7 @@ func TestDetailDebouncesRapidMovement(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Jane Doe")
+	waitFor(t, a, sc, "Jane Doe (jane)")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "NORMAL")
 
@@ -103,10 +103,10 @@ func TestDetailStopsFollowingWhenClosed(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Jane Doe")
+	waitFor(t, a, sc, "Jane Doe (jane)")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // to the list
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // close the column
-	waitGone(t, a, sc, "Jane Doe")
+	waitGone(t, a, sc, "Jane Doe (jane)")
 
 	before := srv.requests.Load()
 	typeRunes(sc, "jk")

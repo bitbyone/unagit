@@ -84,7 +84,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 					return
 				}
 				fit(func(width int) string {
-					text := renderConversation(notes, width)
+					text := renderConversation(a.namedNotes(mr.Instance, notes), width)
 					if local := renderLocalThreads(localThreads, width); local != "" {
 						text += "\n\n" + tag(colDim) + strings.Repeat(glyphBar, 40) + tagEnd + "\n\n" + local
 					}
@@ -158,7 +158,7 @@ func threadBubbles(thread []forge.Note, short bool) []bubble {
 		if short {
 			body = trimBody(body)
 		}
-		b := bubble{Name: n.Author.Username, Colour: colAccent, Meta: noteMeta(n, j > 0), Body: body}
+		b := bubble{Name: personName(n.Author), Colour: colAccent, Meta: noteMeta(n, j > 0), Body: body}
 		if j > 0 {
 			b.Indent = 2
 		} else if n.Path != "" {

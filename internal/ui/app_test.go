@@ -61,6 +61,8 @@ type fakeServer struct {
 	// closed.
 	mr7Pipelines atomic.Int64
 	holdMRList   atomic.Value // chan struct{}
+	// namesAsked counts the questions about an account's name.
+	namesAsked atomic.Int64
 	// writes are the changes !7 was sent - a merge, a title, a state, its
 	// reviewers - each as "METHOD path body".
 	writesMu sync.Mutex
@@ -322,11 +324,15 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			{"id":12,"username":"john","name":"John Roe","state":"active"},
 			{"id":13,"username":"mike","name":"Mike Moe","state":"active"}]`)
 	})
+	// The merge request list names authors by username alone, as GitHub's
+	// does; bob has a name to give, jane none.
 	mux.HandleFunc("/api/v4/users", func(w http.ResponseWriter, r *http.Request) {
-		ids := map[string]int{"jane": 11, "john": 12, "mike": 13}
+		f.namesAsked.Add(1)
+		ids := map[string]int{"jane": 11, "john": 12, "mike": 13, "bob": 14}
 		name := r.URL.Query().Get("username")
 		if id, ok := ids[name]; ok {
-			json(w, fmt.Sprintf(`[{"id":%d,"username":%q}]`, id, name))
+			full := map[string]string{"bob": "Bob Ross"}[name]
+			json(w, fmt.Sprintf(`[{"id":%d,"username":%q,"name":%q}]`, id, name, full))
 			return
 		}
 		json(w, `[]`)

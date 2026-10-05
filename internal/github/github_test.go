@@ -769,3 +769,14 @@ func TestChecksAreThePipeline(t *testing.T) {
 		t.Error("GitHub claims to know which threads are resolved")
 	}
 }
+
+func TestUserNameReadsTheProfile(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/users/octocat", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"login":"octocat","name":"The Octocat"}`)
+	})
+	name, err := s.client().UserName(context.Background(), "octocat")
+	if err != nil || name != "The Octocat" {
+		t.Fatalf("name = %q, %v", name, err)
+	}
+}

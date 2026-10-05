@@ -142,12 +142,16 @@ all and live only there.
   refresh sums up what it found: new merge requests, ones with commits
   since your review, failed pipelines, worktrees tidied away. A column
   nothing has anything in stays out of the way.
-- `R` runs behind the list, not in a dialog: the header turns a spinner and
-  says how far it has got, and the lists stay there to move in and read.
+- `R` runs behind the list, not in a dialog: the header turns a spinner,
+  and the lists stay there to move in and read.
   The pipeline, approvals and threads are asked only of the merge requests
   the list shows - a hidden author's, a hidden repository's, the drafts you
   hide keep what was last known - so hiding what you never look at makes
-  the refresh faster.
+  the refresh faster. The header's end, before `? help`, says how far it
+  has got.
+- Authors and reviewers are shown by name. GitLab's lists carry the names;
+  GitHub's carry only logins, so `R` asks for the names it does not know
+  and keeps them in `index-users.json` for a month.
 - `V` marks a merge request as reviewed without opening it - read in the
   browser, or in Hunk with `D` - so `NEW` and the commit log count only what
   is pushed after.
@@ -158,8 +162,8 @@ all and live only there.
   where it asks which repository first. `Enter` reads a job's log - its end,
   in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
   `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
-  the pipeline, and the jobs stay open behind the browser. On GitHub the jobs are the check
-  runs, and the log is GitHub Actions'.
+  the pipeline, and the jobs stay open behind the browser. On GitHub the
+  jobs are the check runs, and the log is GitHub Actions'.
 - `v` in Merge requests narrows them to yours, to those you review or are
   assigned to, or both, and can leave the drafts out.
 - When `R` finds a merge request merged or closed, its worktrees are removed

@@ -110,7 +110,7 @@ func users(list []forge.User) string {
 	}
 	names := make([]string, 0, len(list))
 	for _, u := range list {
-		names = append(names, u.Username)
+		names = append(names, personName(u))
 	}
 	return esc(strings.Join(names, ", "))
 }
@@ -359,7 +359,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 			d.raw(fmt.Sprintf("  %s!%-5d%s %s%s%s %s%s%s\n",
 				tag(colWarn), mr.IID, tagEnd,
 				tag(colText), esc(trim(mr.Title, 46)), tagEnd,
-				tag(colDim), esc(mr.Author.Username), tagEnd))
+				tag(colDim), esc(personName(a.named(mr.Instance, mr.Author))), tagEnd))
 		}
 	}
 
@@ -502,19 +502,20 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 	if a.multiInstance() {
 		d.kv("Server", esc(a.instanceLabel(mr.Instance)))
 	}
-	author := esc(mr.Author.Username)
-	if det != nil {
-		author = esc(det.Author.Username)
-		if det.Author.Name != "" {
-			author += tag(colDim) + " (" + esc(det.Author.Name) + ")" + tagEnd
-		}
+	who := a.named(mr.Instance, mr.Author)
+	if det != nil && det.Author.Username != "" {
+		who = a.named(mr.Instance, det.Author)
+	}
+	author := esc(personName(who))
+	if who.Name != "" && who.Name != who.Username {
+		author += tag(colDim) + " (" + esc(who.Username) + ")" + tagEnd
 	}
 	d.kv("Author", author)
 	if det != nil {
 		d.kv("Created", when(det.CreatedAt))
 		d.kv("Updated", when(det.UpdatedAt))
-		d.kv("Reviewers", users(det.Reviewers))
-		d.kv("Assignees", users(det.Assignees))
+		d.kv("Reviewers", users(a.namedAll(mr.Instance, det.Reviewers)))
+		d.kv("Assignees", users(a.namedAll(mr.Instance, det.Assignees)))
 		if len(det.Labels) > 0 {
 			d.kv("Labels", esc(strings.Join(det.Labels, ", ")))
 		}
@@ -588,7 +589,7 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 	// Only real comments; the system notes are bookkeeping noise. The detail
 	// column shows the three newest, the whole conversation lives behind c.
 	var human []forge.Note
-	for _, n := range notes {
+	for _, n := range a.namedNotes(mr.Instance, notes) {
 		if !n.System && strings.TrimSpace(n.Body) != "" {
 			human = append(human, n)
 		}
