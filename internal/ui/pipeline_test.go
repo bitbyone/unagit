@@ -102,3 +102,56 @@ func TestCleanLog(t *testing.T) {
 		t.Errorf("cleanLog = %q", got)
 	}
 }
+
+// TestJShowsABranchsPipelineEverywhere: J in Repositories reads the pipeline
+// of the clone's branch, in Worktrees the worktree's branch, and on a group
+// it asks which repository first.
+func TestJShowsABranchsPipelineEverywhere(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+
+	// Not cloned: the default branch.
+	typeRunes(sc, "g")
+	typeRunes(sc, "J")
+	waitFor(t, a, sc, "Pipeline · acme/gateway · main")
+	waitFor(t, a, sc, "build")
+	assertLegible(t, a, sc, "a branch's pipeline")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Pipeline · acme/gateway")
+
+	// A worktree: its own branch.
+	p := newRealProject(t, a, "acme/gateway")
+	p.worktree("feature/audit-log")
+	p.rescan()
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "feature/audit-log")
+	typeRunes(sc, "J")
+	waitFor(t, a, sc, "Pipeline · acme/gateway · feature/audit-log")
+	if got, _ := srv.pipelineRefs.Load().(string); got != "feature/audit-log" {
+		t.Errorf("the pipeline was asked for %q", got)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Pipeline · acme/gateway")
+}
+
+// TestJOnAGroupAsksWhichRepository: a group's pipelines are its
+// repositories'; J lists them, and the one picked shows its own.
+func TestJOnAGroupAsksWhichRepository(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/ci")
+	waitFor(t, a, sc, "feat-ci")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	typeRunes(sc, "J")
+	waitFor(t, a, sc, "Pipeline of which repository · feat-ci")
+	waitFor(t, a, sc, "acme/billing")
+	assertLegible(t, a, sc, "the group's repositories")
+	// The list is in the group's order; pick the gateway by name.
+	typeRunes(sc, "/")
+	typeRunes(sc, "gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Pipeline · acme/gateway · feat/ci")
+}

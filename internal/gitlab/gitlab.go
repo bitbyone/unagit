@@ -575,14 +575,24 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 	return p, jobs, err
 }
 
+// BranchPipelineJobs is the newest pipeline of a branch and its jobs.
+func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch string) (*forge.Pipeline, []forge.Job, error) {
+	pipe, err := c.LatestPipeline(ctx, p, branch)
+	if err != nil || pipe == nil {
+		return pipe, nil, err
+	}
+	jobs, err := getAll[forge.Job](ctx, c, projectPath(p)+"/pipelines/"+strconv.Itoa(pipe.ID)+"/jobs", nil)
+	return pipe, jobs, err
+}
+
 // JobLog is a job's trace.
-func (c *Client) JobLog(ctx context.Context, mr forge.MergeRequest, job forge.Job) (string, error) {
-	return c.getText(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/trace")
+func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (string, error) {
+	return c.getText(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/trace")
 }
 
 // RetryJob runs a job again.
-func (c *Client) RetryJob(ctx context.Context, mr forge.MergeRequest, job forge.Job) error {
-	return c.post(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/retry", struct{}{})
+func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/retry", struct{}{})
 }
 
 // UnresolvedThreads counts the discussions with a note still to resolve.

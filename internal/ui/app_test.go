@@ -54,6 +54,8 @@ type fakeServer struct {
 	// liveBranches, when set, lists a project's branches instead of the
 	// fixture: a test points it at the origin it made.
 	liveBranches atomic.Value // func(project int) []string
+	// pipelineRefs is the ref acme/gateway's pipelines were last asked for.
+	pipelineRefs atomic.Value
 	// writes are the changes !7 was sent - a merge, a title, a state, its
 	// reviewers - each as "METHOD path body".
 	writesMu sync.Mutex
@@ -141,7 +143,15 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"Go":87.3,"Shell":12.7}`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines", func(w http.ResponseWriter, r *http.Request) {
-		json(w, `[{"id":9,"status":"success","ref":"main","updated_at":"2026-09-21T09:00:00Z"}]`)
+		ref := r.URL.Query().Get("ref")
+		if ref == "" {
+			ref = "main"
+		}
+		f.pipelineRefs.Store(ref)
+		json(w, fmt.Sprintf(`[{"id":9,"status":"success","ref":%q,"updated_at":"2026-09-21T09:00:00Z"}]`, ref))
+	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines/9/jobs", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":7,"name":"build","stage":"build","status":"success","duration":30}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

@@ -146,7 +146,10 @@ all and live only there.
   browser, or in Hunk with `D` - so `NEW` and the commit log count only what
   is pushed after.
 - `J` shows the head's pipeline: its jobs, the first that failed under the
-  cursor. `Enter` reads a job's log - its end, plain text - `R` runs it
+  cursor. The same `J` works on a repository (the clone's branch, or the
+  default branch before it is cloned), on a worktree (its merge request's
+  pipeline while one is open, else the branch's), and on a grouped worktree,
+  where it asks which repository first. `Enter` reads a job's log - its end, plain text - `R` runs it
   again, `w` opens it, `W` the pipeline. On GitHub the jobs are the check
   runs, and the log is GitHub Actions'.
 - `v` in Merge requests narrows them to yours, to those you review or are

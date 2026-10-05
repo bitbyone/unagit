@@ -82,6 +82,13 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		}},
 		{name: "Refresh", about: "Fetch this clone from origin and see where it stands, leaving the rest of the list as it is.", keys: "r", rank: 57, run: func() { a.refreshProjectRow(pr) }},
 		{name: "Show Commit Log", about: "What is out in the clone, newest first, or the server's default branch before it is cloned: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
+		{name: "Show Pipeline…", about: "The jobs of the newest pipeline of the clone's branch, or of the default branch before it is cloned: read a log, retry, open it.", keys: "J", rank: 62, run: func() {
+			branch := pr.DefaultBranch
+			if d := a.diskOf(pr.Instance, pr.PathWithNamespace); d.Cloned {
+				branch = d.Branch
+			}
+			a.showBranchPipeline(pr.Instance, pr.PathWithNamespace, branch)
+		}},
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 59,
 			when: func() bool { return strings.HasPrefix(a.diskOf(pr.Instance, pr.PathWithNamespace).Branch, "@") },
 			run:  func() { a.backToBranch(pr, a.projectDir(pr.Instance, pr.PathWithNamespace)) }},
@@ -166,7 +173,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Show Commit Log", about: "The merge request's commits, those new since your last review marked: diff one, or review from it.", keys: "Ctrl-L", rank: 15, run: func() { a.mergeRequestLog(mr) }},
 		{name: "Refresh", about: "Ask the server about this merge request alone: its state, head, pipeline, approvals and threads.", keys: "r", rank: 16, run: func() { a.refreshMRRow(mr) }},
 		{name: "Mark as Reviewed", about: "Take the head as seen without opening the review - read in the browser, or in Hunk - so NEW counts only what is pushed after.", keys: "V", rank: 17, run: func() { a.markReviewed(mr) }},
-		{name: "Show Pipeline…", about: "The jobs of the head's pipeline, the first that failed under the cursor: read its log, retry it, open it.", keys: "J", rank: 37, run: func() { a.showPipeline(mr, 0) }},
+		{name: "Show Pipeline…", about: "The jobs of the head's pipeline, the first that failed under the cursor: read its log, retry it, open it.", keys: "J", rank: 37, run: func() { a.showMRPipeline(mr, 0) }},
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
 		{name: "Merge…", about: "Merge it on the server - now, or once its pipeline succeeds - after saying what stands in the way.", keys: "M", rank: 41, run: func() { a.mergeMR(mr) }},
 		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
@@ -237,6 +244,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			a.diffSince(dir, targets)
 		}},
 		{name: "Rebase onto Base", about: "Rebase the branch onto its base even once pushed; P then force-pushes with a lease.", keys: "Ctrl-R", rank: 50, run: func() { a.rebaseWorktree(r) }},
+		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline - its merge request's while one is open; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},
 		{name: "Copy…", about: "Copy the directory or the branch to the clipboard.", keys: "y", rank: 70, run: func() { a.yankWorktree(r) }},
 		{name: "Branches…", about: "See where the repository's branches stand against origin and delete those you are done with.", keys: "b", rank: 72, when: single, run: func() {

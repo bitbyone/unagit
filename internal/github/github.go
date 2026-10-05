@@ -824,6 +824,25 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 	if mr.SHA == "" || mr.ProjectPath == "" {
 		return nil, nil, nil
 	}
+	return c.checkRuns(ctx, mr.ProjectPath, mr.SHA, mr.SourceBranch)
+}
+
+// BranchPipelineJobs is the check runs of a branch's head, the way
+// PipelineJobs reads a pull request's.
+func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch string) (*forge.Pipeline, []forge.Job, error) {
+	if branch == "" {
+		branch = p.DefaultBranch
+	}
+	if branch == "" || p.PathWithNamespace == "" {
+		return nil, nil, nil
+	}
+	return c.checkRuns(ctx, p.PathWithNamespace, branch, branch)
+}
+
+// checkRuns reads the check runs of a commit - a SHA or a branch - as jobs,
+// and as a pipeline the worst of them, or the combined status when there
+// are none.
+func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forge.Pipeline, []forge.Job, error) {
 	var raw struct {
 		CheckRuns []struct {
 			ID         int64      `json:"id"`
@@ -840,11 +859,11 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 	}
 	q := url.Values{}
 	q.Set("per_page", "100")
-	if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/commits/"+url.PathEscape(mr.SHA)+"/check-runs", q, &raw); err != nil {
+	if _, err := c.get(ctx, "/repos/"+path+"/commits/"+url.PathEscape(ref)+"/check-runs", q, &raw); err != nil {
 		return nil, nil, err
 	}
 	if len(raw.CheckRuns) == 0 {
-		p, err := c.combinedStatus(ctx, mr.ProjectPath, mr.SHA)
+		p, err := c.combinedStatus(ctx, path, ref)
 		return p, nil, err
 	}
 	jobs := make([]forge.Job, 0, len(raw.CheckRuns))
@@ -860,7 +879,11 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 		}
 		jobs = append(jobs, job)
 	}
-	return &forge.Pipeline{Status: worst, SHA: mr.SHA, Ref: mr.SourceBranch}, jobs, nil
+	sha := ref
+	if ref == branch {
+		sha = ""
+	}
+	return &forge.Pipeline{Status: worst, SHA: sha, Ref: branch}, jobs, nil
 }
 
 // checkStatus puts a check run's state into GitLab's words.
@@ -885,11 +908,11 @@ func checkStatus(status, conclusion string) string {
 }
 
 // JobLog is a GitHub Actions job's log; other apps' check runs have none.
-func (c *Client) JobLog(ctx context.Context, mr forge.MergeRequest, job forge.Job) (string, error) {
+func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (string, error) {
 	if job.Stage != "" && job.Stage != "github-actions" {
 		return "", fmt.Errorf("%s reports through %s, whose log is on its own page - w opens it", job.Name, job.Stage)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/repos/"+mr.ProjectPath+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/logs", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/repos/"+p.PathWithNamespace+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/logs", nil)
 	if err != nil {
 		return "", err
 	}
@@ -911,8 +934,8 @@ func (c *Client) JobLog(ctx context.Context, mr forge.MergeRequest, job forge.Jo
 }
 
 // RetryJob runs a GitHub Actions job again.
-func (c *Client) RetryJob(ctx context.Context, mr forge.MergeRequest, job forge.Job) error {
-	return c.post(ctx, "/repos/"+mr.ProjectPath+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
+func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	return c.post(ctx, "/repos/"+p.PathWithNamespace+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
 }
 
 // UnresolvedThreads cannot be told through GitHub's REST API, which does not

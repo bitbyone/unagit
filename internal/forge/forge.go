@@ -311,10 +311,15 @@ type Provider interface {
 	MergeRequestPipeline(ctx context.Context, mr MergeRequest) (*Pipeline, error)
 	// PipelineJobs is that pipeline and its jobs - GitHub's check runs.
 	PipelineJobs(ctx context.Context, mr MergeRequest) (*Pipeline, []Job, error)
-	// JobLog is a job's output as plain text.
-	JobLog(ctx context.Context, mr MergeRequest, job Job) (string, error)
+	// BranchPipelineJobs is the newest pipeline of a branch of p and its
+	// jobs - GitHub's check runs on the branch's head; nil when there is
+	// none.
+	BranchPipelineJobs(ctx context.Context, p Project, branch string) (*Pipeline, []Job, error)
+	// JobLog is a job's output as plain text. Only the repository's ID and
+	// path are needed of p.
+	JobLog(ctx context.Context, p Project, job Job) (string, error)
 	// RetryJob runs a job again.
-	RetryJob(ctx context.Context, mr MergeRequest, job Job) error
+	RetryJob(ctx context.Context, p Project, job Job) error
 	// UnresolvedThreads counts the threads not resolved yet; known is false
 	// where the forge cannot say.
 	UnresolvedThreads(ctx context.Context, mr MergeRequest) (n int, known bool, err error)

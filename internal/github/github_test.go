@@ -758,6 +758,13 @@ func TestChecksAreThePipeline(t *testing.T) {
 	if p, _, err := c.PipelineJobs(ctx, forge.MergeRequest{ProjectPath: "acme/app", SHA: "def"}); err != nil || p == nil || p.Status != "success" {
 		t.Errorf("without check runs: %+v, %v", p, err)
 	}
+	// A branch reads the same way, by name; no branch is the default one.
+	s.handle("/repos/acme/app/commits/main/check-runs", `{"check_runs":[
+		{"id":4,"name":"build","status":"in_progress","app":{"slug":"github-actions"}}]}`)
+	bp, bjobs, err := c.BranchPipelineJobs(ctx, forge.Project{PathWithNamespace: "acme/app", DefaultBranch: "main"}, "")
+	if err != nil || bp == nil || bp.Status != "running" || bp.Ref != "main" || len(bjobs) != 1 {
+		t.Errorf("branch pipeline %+v, jobs %+v, err %v", bp, bjobs, err)
+	}
 	if _, known, _ := c.UnresolvedThreads(ctx, forge.MergeRequest{}); known {
 		t.Error("GitHub claims to know which threads are resolved")
 	}

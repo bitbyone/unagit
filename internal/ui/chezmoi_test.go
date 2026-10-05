@@ -141,6 +141,11 @@ func TestChezmoiInTheDetail(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "the chezmoi detail")
 	typeRunes(sc, "?")
+	waitFor(t, a, sc, "unagit · keys")
+	// The help is longer than the screen; scroll until the row comes.
+	for i := 0; i < 200 && !strings.Contains(a.screenText(sc), "↗ Chezmoi"); i++ {
+		typeRunes(sc, "j")
+	}
 	waitFor(t, a, sc, "↗ Chezmoi")
 }
 
