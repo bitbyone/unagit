@@ -47,7 +47,7 @@ func (a *App) loadRepoSync(fetch bool) {
 		return
 	}
 	if fetch {
-		a.fetching += len(jobs)
+		a.addFetching(len(jobs))
 		a.reloadProjectsHeader()
 	}
 	go func() {
@@ -80,7 +80,7 @@ func (a *App) loadRepoSync(fetch bool) {
 					}
 					a.repoSync[j.key] = st
 					if fetch {
-						a.fetching--
+						a.addFetching(-1)
 						if a.fetchFailed == nil {
 							a.fetchFailed = map[projectKey]string{}
 						}
@@ -392,7 +392,7 @@ func (a *App) fetchWorktrees() {
 	if len(dirs) == 0 {
 		return
 	}
-	a.fetching += len(dirs)
+	a.addFetching(len(dirs))
 	a.reloadWorktreesHeader()
 	go func() {
 		sem := make(chan struct{}, syncFanOut)
@@ -405,7 +405,7 @@ func (a *App) fetchWorktrees() {
 				defer func() { <-sem; wg.Done() }()
 				_ = git.Fetch(dir)
 				a.tv.QueueUpdateDraw(func() {
-					a.fetching--
+					a.addFetching(-1)
 					a.reloadWorktreesHeader()
 				})
 			}()
@@ -421,10 +421,9 @@ func (a *App) fetchWorktrees() {
 				}
 				// r is also when the merge requests' comments come in: by
 				// hand, never on opening.
-				a.syncingComments = true
-				a.reloadWorktreesHeader()
+				syncing := a.startJob("syncing comments")
 				a.syncWorktreeComments(a.worktrees, func() {
-					a.syncingComments = false
+					a.endJob(syncing)
 					a.loadWorktreeRemotes()
 					a.reloadWorktreesHeader()
 				})

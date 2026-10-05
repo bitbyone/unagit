@@ -39,8 +39,9 @@ func newStatusLine(text, help *tview.TextView) *statusLine {
 	return s
 }
 
-// setJobs says which jobs are under way; "" when none are.
-func (s *statusLine) setJobs(jobs string) {
+// setRight says what the right-hand end holds - the word last said and the
+// jobs under way - "" when nothing.
+func (s *statusLine) setRight(jobs string) {
 	s.jobs = jobs
 	s.inline.SetText(jobs)
 	s.above.SetText(jobs)

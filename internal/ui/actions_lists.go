@@ -292,7 +292,6 @@ func (a *App) worktreesActions(p *pane) []uiAction {
 			a.refreshDisk()
 			a.loadWorktreeSizes(true)
 			a.fetchWorktrees()
-			a.note("looking at the disk, and asking origin")
 		}},
 		{name: "Pull All Worktrees", about: "Bring every worktree up to origin.", keys: "Alt-P", rank: 20, run: a.updateAllWorktrees},
 	}

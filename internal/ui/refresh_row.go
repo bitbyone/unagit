@@ -23,28 +23,37 @@ func (a *App) refreshMRRow(mr forge.MergeRequest) {
 		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
 		return
 	}
-	a.note(fmt.Sprintf("asking about !%d …", mr.IID))
-	a.fetchMR(client, mr, true)
+	job := a.startJob(fmt.Sprintf("refreshing !%d", mr.IID))
+	a.fetchMR(client, mr, true, func() { a.endJob(job) })
 }
 
 // refetchMR is refreshMRRow without a word on screen, for an action that has
 // just said what it did and wants the row to follow.
-func (a *App) refetchMR(client forge.Provider, mr forge.MergeRequest) { a.fetchMR(client, mr, false) }
+func (a *App) refetchMR(client forge.Provider, mr forge.MergeRequest) {
+	a.fetchMR(client, mr, false, func() {})
+}
 
 // fetchMR asks about one merge request and puts the answer in the list; say
-// adds that it is up to date once that is known.
-func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool) {
+// adds that it is up to date once that is known. ended runs on the event
+// loop once the answer is in, or the question failed.
+func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool, ended func()) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		det, err := client.MergeRequestDetail(ctx, mr)
 		if err != nil {
-			a.tv.QueueUpdateDraw(func() { a.errorf("!%d: %v", mr.IID, err) })
+			a.tv.QueueUpdateDraw(func() {
+				ended()
+				a.errorf("!%d: %v", mr.IID, err)
+			})
 			return
 		}
 		fresh := []forge.MergeRequest{withDetail(mr, det)}
 		mrExtras(ctx, fresh, []int{0}, map[string]forge.Provider{mr.Instance: client}, nil)
-		a.tv.QueueUpdateDraw(func() { a.applyMRRefresh(fresh[0], say) })
+		a.tv.QueueUpdateDraw(func() {
+			ended()
+			a.applyMRRefresh(fresh[0], say)
+		})
 	}()
 }
 
@@ -99,12 +108,12 @@ func (a *App) refreshProjectRow(pr forge.Project) {
 	}
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
 	git := a.newManager(pr.Instance, pr.PathWithNamespace, nil).Git()
-	a.fetching++
+	a.addFetching(1)
 	a.reloadProjectsHeader()
 	go func() {
 		err := git.Fetch(dir)
 		a.tv.QueueUpdateDraw(func() {
-			a.fetching--
+			a.addFetching(-1)
 			if a.fetchFailed == nil {
 				a.fetchFailed = map[projectKey]string{}
 			}
@@ -137,7 +146,7 @@ func (a *App) refreshWorktreeRow(r worktreeRow) {
 	for _, m := range members {
 		fetches = append(fetches, fetch{m.Dir, m.Path, a.newManager(m.Instance, m.Path, nil).Git()})
 	}
-	a.fetching += len(fetches)
+	a.addFetching(len(fetches))
 	a.reloadWorktreesHeader()
 	go func() {
 		var failed []string
@@ -147,7 +156,7 @@ func (a *App) refreshWorktreeRow(r worktreeRow) {
 			}
 		}
 		a.tv.QueueUpdateDraw(func() {
-			a.fetching -= len(fetches)
+			a.addFetching(-len(fetches))
 			a.reloadWorktreesHeader()
 			finish := func() {
 				a.refreshDisk()

@@ -64,6 +64,7 @@ func TestDShowsTheChangesInHunk(t *testing.T) {
 	onLoop(a, func() bool { a.cfg.Integrations.Hunk = &off; return true })
 	typeRunes(sc, "D")
 	waitFor(t, a, sc, "enable it in Settings")
+	closeMessage(t, a, sc)
 	onLoop(a, func() bool { a.cfg.Integrations.Hunk = nil; return true })
 
 	typeRunes(sc, "D")

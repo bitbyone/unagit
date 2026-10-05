@@ -212,3 +212,69 @@ func lineAt(text, what string) string {
 	}
 	return ""
 }
+
+// TestRefreshingARowSaysSoAtTheRight: r on a merge request runs as a job
+// at the right of the status line, as R does, and what it found is said
+// there too, the summary on the left as it was.
+func TestRefreshingARowSaysSoAtTheRight(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	jobs := make(chan string, 1)
+	changeOnLoop(a, func() {
+		a.refreshMRRow(a.mrs[0])
+		jobs <- a.jobLine()
+	})
+	if got := <-jobs; !strings.Contains(got, "refreshing !") {
+		t.Errorf("r is not a job on the status line: %q", got)
+	}
+	waitFor(t, a, sc, "is up to date")
+	line := lineAt(a.screenText(sc), "is up to date")
+	if !strings.Contains(line, "? help") || strings.Index(line, "is up to date") < strings.Index(line, "merge requests") {
+		t.Errorf("the result is not at the right of the status line: %q", line)
+	}
+	if onLoop(a, a.modalOpen) {
+		t.Error("a passing word opened a box")
+	}
+}
+
+// TestATaskSpinsTheStepUnderWay: the line a task logged last turns a
+// spinner while it runs and is marked done when it ends.
+func TestATaskSpinsTheStepUnderWay(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	release := make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+	changeOnLoop(a, func() {
+		a.runTaskThen("Doing a thing", func(log func(string)) (string, error) {
+			log("first step")
+			log("second step")
+			<-release
+			return "", nil
+		}, func(string) {})
+	})
+	waitFor(t, a, sc, "second step")
+	frames := []rune(theme.Glyphs.Spinner)
+	step := func() string { return strings.TrimSpace(strings.Trim(lineAt(a.screenText(sc), "second step"), "│ ")) }
+	turned := step()
+	if !strings.ContainsRune(string(frames), []rune(turned)[0]) {
+		t.Fatalf("the step under way has no spinner: %q", turned)
+	}
+	if first := strings.TrimSpace(strings.Trim(lineAt(a.screenText(sc), "first step"), "│ ")); first != "first step" {
+		t.Errorf("a finished step still has a mark: %q", first)
+	}
+	deadline := time.Now().Add(patience)
+	for step() == turned {
+		if time.Now().After(deadline) {
+			t.Fatal("the spinner does not turn")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	assertLegible(t, a, sc, "a task under way")
+	once.Do(func() { close(release) })
+	waitGone(t, a, sc, "second step")
+}

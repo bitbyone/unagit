@@ -148,8 +148,11 @@ all and live only there.
   the list shows - a hidden author's, a hidden repository's, the drafts you
   hide keep what was last known - so hiding what you never look at makes
   the refresh faster. The header's end, before `? help`, says how far it
-  has got - or, when the terminal is too narrow for both, a line of its
-  own just above it.
+  has got, as it does for `r` on one row, for fetches and for whatever
+  else runs behind the lists, and what was just done is said there too;
+  a warning or an error comes up in a box of its own until `Esc`. When the
+  terminal is too narrow for both, that end takes a line of its own just
+  above the status line.
 - Authors and reviewers are shown by name. GitLab's lists carry the names;
   GitHub's carry only logins, so `R` asks for the names it does not know
   and keeps them in `index-users.json` for a month.

@@ -3,8 +3,10 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 // TestADialogsMessagesComeUpOverIt: a warning from a dialog is a box over the
@@ -16,7 +18,7 @@ func TestADialogsMessagesComeUpOverIt(t *testing.T) {
 	_, _, form := markBoth(t, a, sc)
 	pressButton(t, a, sc, form, "Create")
 	waitFor(t, a, sc, "enter the new branch")
-	if got := onLoop(a, func() string { return a.projectsPane.statusMessage }); strings.Contains(got, "new branch") {
+	if got := onLoop(a, func() string { return a.transient }); strings.Contains(got, "new branch") {
 		t.Errorf("the warning went to the status bar too: %q", got)
 	}
 	assertLegible(t, a, sc, "a message over a dialog")
@@ -40,12 +42,61 @@ func TestADialogsMessagesComeUpOverIt(t *testing.T) {
 		t.Error("a dialog or the note is still open")
 	}
 
-	// With nothing in front, a message is the status bar's.
-	changeOnLoop(a, func() { a.flash("on the main screen") })
+	// With nothing in front, a note is the status line's, at its right.
+	changeOnLoop(a, func() { a.note("on the main screen") })
 	waitFor(t, a, sc, "on the main screen")
 	if onLoop(a, func() bool { return a.modalOpen() }) {
-		t.Error("a message on the main screen opened a box")
+		t.Error("a note on the main screen opened a box")
 	}
+	if line := lineAt(a.screenText(sc), "on the main screen"); !strings.Contains(line, "? help") ||
+		strings.Index(line, "on the main screen") < strings.Index(line, "repositories") {
+		t.Errorf("the note is not at the right of the status line: %q", line)
+	}
+	// A warning asks for attention, there too: a box until Esc.
+	changeOnLoop(a, func() { a.flash("look here") })
+	waitFor(t, a, sc, "look here")
+	if !onLoop(a, func() bool { return a.modalOpen() }) {
+		t.Error("a warning on the main screen did not come up in a box")
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "look here")
+}
+
+// closeMessage closes the warning or error in front, which holds the keys
+// until Esc, and waits until it is gone.
+func closeMessage(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
+	open := func() bool { return onLoop(a, func() bool { return a.pages.HasPage(pageMessage) }) }
+	deadline := time.Now().Add(patience)
+	for !open() {
+		if time.Now().After(deadline) {
+			t.Fatalf("no message to close:\n%s", a.screenText(sc))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	for open() {
+		if time.Now().After(deadline) {
+			t.Fatalf("the message does not close:\n%s", a.screenText(sc))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// messageText is the text of the message box in front, "" without one.
+func messageText(a *App) string {
+	return onLoop(a, func() string {
+		box, ok := a.pages.GetPage(pageMessage).(*modalBox)
+		if !ok {
+			return ""
+		}
+		if flex, ok := box.content.(*tview.Flex); ok && flex.GetItemCount() > 1 {
+			if text, ok := flex.GetItem(1).(*tview.TextView); ok {
+				return text.GetText(true)
+			}
+		}
+		return ""
+	})
 }
 
 // TestAMessageOverADialogDimsNothingMore: the screen behind is dimmed once,

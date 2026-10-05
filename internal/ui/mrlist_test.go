@@ -38,7 +38,8 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 	// The summary runs past the status bar; it is read whole.
 	said := ""
 	for deadline := time.Now().Add(patience); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if said = onLoop(a, func() string { return a.mrsPane.statusMessage }); strings.Contains(said, "removed the worktrees") {
+		// Kept worktrees make it a warning, in a box of its own.
+		if said = messageText(a); strings.Contains(said, "removed the worktrees") {
 			break
 		}
 	}

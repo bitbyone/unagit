@@ -342,6 +342,7 @@ func TestStaleIndexSaysSo(t *testing.T) {
 
 	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "The cached index is from an older unagit")
+	closeMessage(t, a, sc)
 	if !onLoop(a, func() bool { return a.staleMRs }) {
 		t.Error("the merge request index was not noticed as stale")
 	}

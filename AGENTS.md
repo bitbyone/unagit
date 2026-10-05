@@ -157,17 +157,28 @@ pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
 guards the lists.
 
-**A message goes where the eye is.** The status line belongs to the main
-screens. While a dialog, a picker or the worktree view is in front it sits
-under the dimmed screen where nobody looks - validation errors once appeared
-there - so `flash` (warning), `note` (info), `done` (success) and `errorf`
-(`say`) put the message in a small box over whatever is in front
-(`message.go`), filled like a confirmation and headed by its severity in its
-colour. A warning or error holds the keys until Esc; a note or a success goes
-with the next key, which then does its work in the dialog. Something asked
-for and finished is `done`, not `note`. Say things through those four, never
-with `setStatus` directly, and say them after the dialog they belong to is
-drawn, or it covers them.
+**A message goes where the eye is, and weighs what it says.** `flash`
+(warning), `note` (info), `done` (success) and `errorf` (`say`) are the only
+way to say something. A warning or an error asks for attention: it always
+comes up in a small box over whatever is in front (`message.go`), headed by
+its severity in its colour, and holds the keys until Esc. A note or a
+success is a passing word: on a main screen it goes to the right-hand end of
+the status line, beside the jobs under way, until something else is said
+(`a.transient`, cleared on a tab switch); while a dialog, a picker or the
+worktree view is in front the status line is under the dimmed screen where
+nobody looks, so there it is a box too, gone with the next key, which then
+does its work in the dialog. The left of the status line is for what stays
+- mode, counts, filters, the order - never for a passing word. Something
+asked for and finished is `done`, not `note`; say it after the dialog it
+belongs to is drawn, or it covers them.
+
+**What is under way is a job.** Anything that runs without a dialog - a
+refresh of a list or of one row, fetches, the comments' sync, counting new
+commits, a lookup - is a job (`startJob`/`endJob`, `jobs.go`), shown with a
+spinner at the right of every status line, never as a count in the summary.
+A short read that a dialog waits for (a pipeline, a log, the commits) is not
+a job but the dialog's own wait: `runTask`'s log, whose last line turns a
+spinner while it runs.
 
 **A long refresh runs behind the interface.** Refreshing a whole list is a
 job (`runInBackground`, `jobs.go`): no dialog, a spinner and its progress in

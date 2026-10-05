@@ -80,6 +80,9 @@ type App struct {
 	tabs     *tview.TextView
 	status   *tview.TextView
 	helpHint *tview.TextView
+	// transient is the note or success last said, at the right-hand end of
+	// the status line until something else is (say).
+	transient string
 	// settingsLine is Settings' status line, which also says what runs
 	// behind the interface.
 	settingsLine *statusLine
@@ -170,9 +173,9 @@ type App struct {
 	repoSync    map[projectKey]remoteState
 	fetchFailed map[projectKey]string
 	fetching    int
-	// syncingComments is set while r brings merge request comments into the
-	// worktrees' Incomm stores.
-	syncingComments bool
+	// fetchJob is the fetches under way as one job on the status line, and
+	// freshJob the counting of new commits.
+	fetchJob, freshJob *bgJob
 
 	mrProjectScope projectKey // the project the merge request list is limited to
 
@@ -476,28 +479,14 @@ func (a *App) modalOpen() bool {
 
 // ---------------------------------------------------------------- status bar
 
-func (a *App) setStatus(msg string) {
-	if a.status == nil {
+// clearSaid takes the word last said off the status line: it belonged to
+// what was in front before.
+func (a *App) clearSaid() {
+	if a.transient == "" {
 		return
 	}
-	if a.currentTab() == pageSettings {
-		a.status.SetText(" " + msg)
-		return
-	}
-	a.status.SetText("")
-	var p *pane
-	switch a.currentTab() {
-	case pageMRs:
-		p = a.mrsPane
-	case pageWorktrees:
-		p = a.worktreesPane
-	default:
-		p = a.projectsPane
-	}
-	if p != nil {
-		p.statusMessage = msg
-		p.updateHeader()
-	}
+	a.transient = ""
+	a.showJobs()
 }
 
 // tildePath shortens a path under the home directory for display.
@@ -513,10 +502,13 @@ func tildePath(p string) string {
 }
 
 // flash, note, done and errorf tell the user something: a warning, a word on
-// what is under way or how the view changed, what was done, a failure. The status line is the main screens' own; while a
-// dialog or the worktree view is in front it is out of the eye's way, under
-// the dimmed screen, so there the message comes up over the dialog instead
-// (showMessage).
+// what is under way or how the view changed, what was done, a failure. A
+// warning and a failure ask for attention, so they come up in a box of their
+// own over whatever is in front (showMessage) and stay until Esc. A note and
+// a success are a passing word: on a main screen they go to the right-hand
+// end of the status line, beside the jobs under way, until something else is
+// said; while a dialog is in front the status line is out of the eye's way,
+// under the dimmed screen, so there they come up over the dialog too.
 func (a *App) flash(msg string) { a.say(msg, sevWarning) }
 func (a *App) note(msg string)  { a.say(msg, sevInfo) }
 func (a *App) done(msg string)  { a.say(msg, sevSuccess) }
@@ -525,7 +517,7 @@ func (a *App) errorf(f string, v ...any) {
 }
 
 func (a *App) say(msg string, sev severity) {
-	if a.modalOpen() {
+	if a.modalOpen() || sev == sevWarning || sev == sevError {
 		a.showMessage(msg, sev)
 		return
 	}
@@ -533,7 +525,8 @@ func (a *App) say(msg string, sev severity) {
 	if sev == sevInfo {
 		colour = colMuted
 	}
-	a.setStatus(tag(colour) + tview.Escape(msg) + tagEnd)
+	a.transient = tag(colour) + tview.Escape(msg) + tagEnd
+	a.showJobs()
 }
 
 // ------------------------------------------------------------------- indexes
@@ -1303,7 +1296,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 		}
 		if done && (ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter || ev.Rune() == 'q') {
 			a.closeModal(pageTask)
-			a.setStatus("")
+			a.clearSaid()
 			return nil
 		}
 		return ev
@@ -1315,20 +1308,75 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 	a.pages.AddPage(pageTask, modalPct(block, 80, 70), true, true)
 	a.tv.SetFocus(view)
 
+	// The line logged last is the step under way: it turns a spinner until
+	// the next line comes or the task ends, when it is marked done or
+	// failed, so a wait shows what it waits for and that it is alive.
+	// A task that logs nothing still has its title as the step under way.
+	lines := []string{title}
+	frame := 0
+	render := func(last string) {
+		var b strings.Builder
+		for i, line := range lines {
+			mark := "  "
+			if i == len(lines)-1 {
+				mark = last
+			}
+			b.WriteString(mark + tag(colMuted) + tview.Escape(line) + tagEnd + "\n")
+		}
+		view.SetText(b.String())
+		// Scrolled here, on the event loop, rather than from a changed
+		// handler: tview calls that from a goroutine of its own.
+		view.ScrollToEnd()
+	}
+	spinning := func() string {
+		frames := []rune(theme.Glyphs.Spinner)
+		if len(frames) == 0 {
+			frames = []rune(glyphDot)
+		}
+		return tag(colAccent) + string(frames[frame%len(frames)]) + tagEnd + " "
+	}
 	log := func(line string) {
 		a.tv.QueueUpdateDraw(func() {
-			fmt.Fprintln(view, tag(colMuted)+tview.Escape(line)+tagEnd)
-			// Scrolled here, on the event loop, rather than from a changed
-			// handler: tview calls that from a goroutine of its own.
-			view.ScrollToEnd()
+			lines = append(lines, line)
+			render(spinning())
 		})
 	}
+	render(spinning())
+	go func() {
+		ticker := time.NewTicker(spinInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			stop := make(chan bool, 1)
+			a.tv.QueueUpdateDraw(func() {
+				if !done && len(lines) > 0 {
+					frame++
+					render(spinning())
+				}
+				stop <- done
+			})
+			select {
+			case finished := <-stop:
+				if finished {
+					return
+				}
+			case <-time.After(5 * time.Second):
+				return
+			}
+		}
+	}()
 
 	go func() {
 		dir, err := fn(log)
 		a.tv.QueueUpdateDraw(func() {
 			done = true
 			footer.SetText("j/k scroll · g/G first/last · Ctrl-D/U half a page · Ctrl-F/B page · Enter/Esc/q close")
+			if len(lines) > 0 {
+				if err != nil {
+					render(tag(colBad) + glyphCross + tagEnd + " ")
+				} else {
+					render(tag(colOn) + glyphCheck + tagEnd + " ")
+				}
+			}
 			if err != nil {
 				fmt.Fprintf(view, "\n%s%s%s\n\n%sPress Esc to close.%s\n",
 					tag(colBad), tview.Escape(err.Error()), tagEnd, tag(colWarn), tagEnd)
@@ -1340,7 +1388,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 				a.refreshDisk()
 				a.projectsPane.reload()
 				a.mrsPane.reload()
-				a.setStatus("")
+				a.clearSaid()
 				if then != nil {
 					then(dir)
 				}

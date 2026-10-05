@@ -314,7 +314,6 @@ func (a *App) worktreeViewScreenActions() []uiAction {
 		{name: "Refresh All", about: "Look at the disk again, fetch origin for every worktree and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
 			a.fetchWorktrees()
-			a.note("looking at the disk, and asking origin")
 		}},
 		{name: "Back to List", about: "Close the view and return to the list.", keys: "Esc", rank: 900, run: a.closeWorktreeView},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},

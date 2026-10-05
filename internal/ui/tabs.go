@@ -71,7 +71,7 @@ func (a *App) switchTab(page string) {
 			a.helpHint.SetText("")
 		}
 	}
-	a.setStatus("")
+	a.clearSaid()
 }
 
 // tabKey switches tabs when the event is one of the tab shortcuts.

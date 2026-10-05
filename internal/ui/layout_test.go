@@ -36,7 +36,7 @@ func longMRs(t *testing.T, cfg *config.Config) {
 			SourceBranch: "renovate/golang-x-crypto-vulnerability",
 			Author:       author("ci"), UpdatedAt: time.Now().Add(-time.Hour)},
 	}
-	must(t, index.Save(cfg.IndexPath("mrs"), index.MergeRequests{UpdatedAt: time.Now(), Items: mrs}))
+	must(t, index.Save(cfg.IndexPath("mrs"), index.MergeRequests{Version: index.Version, UpdatedAt: time.Now(), Items: mrs}))
 }
 
 func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {

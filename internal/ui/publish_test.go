@@ -121,6 +121,7 @@ func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
 	// Off: it says so instead of looking.
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "Incomm is off")
+	closeMessage(t, a, sc)
 
 	onLoop(a, func() bool { a.cfg.Integrations.Incomm = true; return true })
 	refreshLists(a)

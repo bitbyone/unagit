@@ -101,10 +101,10 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 	// e cannot move it, and deleting it would delete only worktrees.
 	changeOnLoop(a, func() { a.showProjectDirectory(a.projects[0]) })
 	waitFor(t, a, sc, "chezmoi keeps this repository")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	closeMessage(t, a, sc)
 	changeOnLoop(a, func() { a.confirmDeleteProject(a.projects[0]) })
 	waitFor(t, a, sc, "no worktrees to delete")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	closeMessage(t, a, sc)
 	if !workspace.Exists(checkout) {
 		t.Fatal("chezmoi's checkout is gone")
 	}

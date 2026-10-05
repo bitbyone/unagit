@@ -43,6 +43,7 @@ func TestBranchesFromRepositories(t *testing.T) {
 	// main is first: the default is never deleted.
 	typeRunes(sc, "D")
 	waitFor(t, a, sc, "main is the default branch - it is not deleted")
+	closeMessage(t, a, sc)
 
 	pick := func(name string) {
 		t.Helper()

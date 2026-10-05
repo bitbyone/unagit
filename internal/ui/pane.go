@@ -47,7 +47,6 @@ type pane struct {
 	detailShown   bool
 	detailFocused bool
 	query         string
-	statusMessage string
 
 	onQuery  func(string)              // rebuild rows for a new query
 	onDetail func(idx int, focus bool) // fill the detail column for a row
@@ -348,10 +347,7 @@ func (p *pane) updateHeader() {
 	case len(p.marks) > 0:
 		mode = tag(colAccent) + fmt.Sprintf("SELECT %d", len(p.marks)) + tagEnd
 	}
-	if p.statusMessage != "" {
-		text += "   " + p.statusMessage
-	}
-	p.headerRow.setJobs(p.app.jobLine())
+	p.headerRow.setRight(p.app.rightLine())
 	p.header.SetText(" " + mode + "  " + text)
 }
 

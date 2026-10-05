@@ -284,15 +284,8 @@ func (a *App) newWorktreesPane() *pane {
 	var filtered []int
 
 	p.headline = func() string {
-		fetching := ""
-		if a.fetching > 0 {
-			fetching = fmt.Sprintf(" · fetching %d", a.fetching)
-		}
-		if a.syncingComments {
-			fetching += " · syncing comments"
-		}
-		return fmt.Sprintf("%s%d/%d worktrees · %s%s%s", tag(colMuted), len(filtered), len(a.worktrees),
-			sortLabel(a.cfg.Filters.Order()), fetching, tagEnd)
+		return fmt.Sprintf("%s%d/%d worktrees · %s%s", tag(colMuted), len(filtered), len(a.worktrees),
+			sortLabel(a.cfg.Filters.Order()), tagEnd)
 	}
 
 	render := func(query string) {

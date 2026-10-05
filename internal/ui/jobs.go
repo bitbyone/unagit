@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -95,7 +96,8 @@ func (a *App) jobLine() string {
 	return tag(colAccent) + string(frames[a.spinFrame%len(frames)]) + " " + esc(strings.Join(parts, "  ")) + tagEnd
 }
 
-// showJobs draws the job line again in every header.
+// showJobs draws the right-hand end of every status line again: the word
+// last said and the jobs under way.
 func (a *App) showJobs() {
 	for _, p := range []*pane{a.projectsPane, a.mrsPane, a.worktreesPane} {
 		if p != nil {
@@ -103,7 +105,41 @@ func (a *App) showJobs() {
 		}
 	}
 	if a.settingsLine != nil {
-		a.settingsLine.setJobs(a.jobLine())
+		a.settingsLine.setRight(a.rightLine())
+	}
+}
+
+// rightLine is what the right-hand end of a status line says: the note or
+// success last said, then the jobs under way. Both come and go; what stays
+// - counts, filters, the order - is the left's.
+func (a *App) rightLine() string {
+	parts := make([]string, 0, 2)
+	if a.transient != "" {
+		parts = append(parts, a.transient)
+	}
+	if jobs := a.jobLine(); jobs != "" {
+		parts = append(parts, jobs)
+	}
+	return strings.Join(parts, "   ")
+}
+
+// addFetching counts fetches that start (n > 0) or end (n < 0). While any
+// runs they are one job on the status line, with how many there are.
+func (a *App) addFetching(n int) {
+	a.fetching = max(0, a.fetching+n)
+	switch {
+	case a.fetching > 0 && a.fetchJob == nil:
+		a.fetchJob = a.startJob("fetching")
+	case a.fetching == 0 && a.fetchJob != nil:
+		a.endJob(a.fetchJob)
+		a.fetchJob = nil
+	}
+	if a.fetchJob != nil {
+		a.fetchJob.progress = fmt.Sprintf("%d repositories", a.fetching)
+		if a.fetching == 1 {
+			a.fetchJob.progress = "1 repository"
+		}
+		a.showJobs()
 	}
 }
 

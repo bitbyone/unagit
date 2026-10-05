@@ -36,9 +36,6 @@ func (a *App) newProjectsPane() *pane {
 		if !a.projUpdated.IsZero() {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
-		if a.fetching > 0 {
-			age += fmt.Sprintf(" · fetching %d", a.fetching)
-		}
 		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
 			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories)+a.tagSummary(), tagEnd)
 	}

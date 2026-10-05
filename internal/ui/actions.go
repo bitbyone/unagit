@@ -273,7 +273,7 @@ func (a *App) showProjectScopePicker() {
 	a.showPicker("Limit merge requests to a repository", items, func(it pickItem) {
 		a.mrProjectScope = it.Data.(projectKey)
 		a.mrsPane.reload()
-		a.setStatus("")
+		a.clearSaid()
 	})
 }
 

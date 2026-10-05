@@ -149,12 +149,13 @@ func (a *App) pursueGoal() {
 	}
 	// Not a task of its own: the task that opens the worktree shares its
 	// page, and the finishing lookup would close it.
-	a.note("Looking up " + g.Link.String() + " ...")
+	job := a.startJob("looking up " + g.Link.String())
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		det, err := client.MergeRequestDetail(ctx, stub)
 		a.tv.QueueUpdateDraw(func() {
+			a.endJob(job)
 			if err != nil {
 				a.errorf("%s: %v", g.Link, err)
 				return

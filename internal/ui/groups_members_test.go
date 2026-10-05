@@ -116,6 +116,7 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 	}
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "nothing to push from feat-push")
+	closeMessage(t, a, sc)
 	if onOrigin(gw) || onOrigin(bl) {
 		t.Fatal("an empty branch was pushed")
 	}
