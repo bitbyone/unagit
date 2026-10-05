@@ -503,14 +503,21 @@ glyphs that say what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `
 borders). Settings › Theme lists them with a strip of their colours; `Enter`
 puts one on at once and remembers it.
 
-unagit comes with three: **unagit**, the muted default, which keeps the
+unagit comes with four: **unagit**, the muted default, which keeps the
 terminal's own background so it sits quietly beside an editor;
-**catppuccin-mocha**; and **gruvbox-dark**. The last two paint a background
-of their own.
+**catppuccin-mocha**; **gruvbox-dark**; and **retro-block**, after the
+[Retro Block](https://github.com/bitbyone/retro-block-theme) IntelliJ theme.
+The last three paint a background of their own.
 
-Your own go in `~/.config/unagit/themes/*.json` (`r` in the section reads
-them again). A theme names only what it changes and takes the rest from the
-one it `extends` - the default when it says nothing:
+To tune one, `f` forks it: the theme under the cursor is written to
+`~/.config/unagit/themes/<name>.json` with every colour and glyph spelled
+out, and put on. Edit the file with unagit open beside it - each save puts
+the change on at once. A save that breaks the file keeps the last good
+version on and says which key is wrong; `r` reads the folder again by hand.
+
+Your own go in `~/.config/unagit/themes/*.json`. A theme names only what it
+changes and takes the rest from the one it `extends` - the default when it
+says nothing:
 
 ```json
 {

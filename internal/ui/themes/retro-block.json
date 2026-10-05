@@ -1,0 +1,60 @@
+{
+  "name": "retro-block",
+  "description": "Retro Block: warm gold and muted teal on charcoal, after the IntelliJ theme",
+  "background": "#282527",
+  "text": {
+    "normal": "#cbcbcb",
+    "muted": "#a0a0a0",
+    "dim": "#7a716a",
+    "accent": "#c2985d",
+    "branch": "#a5d0c0",
+    "key": "#d4ab6e"
+  },
+  "state": {
+    "good": "#848867",
+    "warning": "#bb9971",
+    "bad": "#e37575",
+    "force": "#b25151",
+    "favourite": "#ffc130"
+  },
+  "border": {
+    "normal": "#4e4e4e",
+    "focus": "#c2985d",
+    "title": "#cab6a1"
+  },
+  "tabs": {
+    "active": "#c2985d",
+    "inactive": "#a0a0a0",
+    "separator": "#4e4e4e"
+  },
+  "surface": {
+    "field": "#333333",
+    "raised": "#4e4e4e",
+    "field_focus": "#3a4460",
+    "field_typing": "#424d5b"
+  },
+  "selection": {
+    "background": "#3a4460",
+    "text": "#eaeaea",
+    "marked": "#2d373d",
+    "marked_cursor": "#424d5b"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#555353"
+  },
+  "markdown": {
+    "text": "#cbcbcb",
+    "heading": "#c2985d",
+    "code": "#a9915b",
+    "quote": "#a0a0a0",
+    "link": "#a5d0c0",
+    "muted": "#7a716a"
+  },
+  "chezmoi": {
+    "badge_ink": "#1d1b1c",
+    "badge_fill": "#7a716a",
+    "heading_ink": "#1d1b1c",
+    "heading_fill": "#c2985d"
+  }
+}

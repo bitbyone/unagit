@@ -1,7 +1,16 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/rivo/tview"
 )
 
 // The theme in use is chosen in Settings › Theme and kept in the
@@ -27,6 +36,7 @@ func (a *App) chooseTheme() {
 	if t.Name != theme.Name || t.file != "" {
 		setTheme(t)
 	}
+	a.themeFile.Store(t.file)
 }
 
 // switchTheme puts a theme on, remembers it, and draws everything again in
@@ -46,6 +56,7 @@ func (a *App) switchTheme(name string) {
 		return
 	}
 	setTheme(t)
+	a.themeFile.Store(t.file)
 	a.rebuildInterface()
 	a.done("Theme: " + name)
 }
@@ -70,4 +81,144 @@ func (a *App) rebuildInterface() {
 			a.settings.focusContent()
 		}
 	}
+}
+
+// themeWatchInterval is how often the file of the theme in use is looked at,
+// unless the App says otherwise (App.themeWatchEvery; tests make it shorter).
+const themeWatchInterval = 500 * time.Millisecond
+
+// watchTheme follows the file of the theme in use, when it is the user's: a
+// save in the editor puts it on again, so colours can be tuned by hand with
+// unagit open beside. It only looks at the file's time, until stop closes.
+func (a *App) watchTheme(stop <-chan struct{}) {
+	every := a.themeWatchEvery
+	if every == 0 {
+		every = themeWatchInterval
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	var path string
+	var seen time.Time
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
+		now, _ := a.themeFile.Load().(string)
+		if now == "" {
+			path = ""
+			continue
+		}
+		fi, err := os.Stat(now)
+		if err != nil {
+			continue
+		}
+		if now != path {
+			path, seen = now, fi.ModTime()
+			continue
+		}
+		if fi.ModTime().Equal(seen) {
+			continue
+		}
+		seen = fi.ModTime()
+		a.tv.QueueUpdateDraw(a.reloadThemes)
+	}
+}
+
+// reloadThemes reads the themes again - on r in Settings › Theme, or when the
+// file of the one in use was saved - and puts the one in use on again when
+// its file changed. A file that no longer reads keeps what was on and says
+// why; a dialog in front is not torn down, the theme waits until it is gone.
+func (a *App) reloadThemes() {
+	a.themes = loadThemes(a.cfg.ThemesDir())
+	if a.settings != nil {
+		a.settings.fillThemes()
+	}
+	t, ok := a.themes.byName[theme.Name]
+	if !ok {
+		// Say what is wrong with its own file, not with every other.
+		why := a.themes.problems
+		for _, p := range a.themes.problems {
+			if theme.file != "" && strings.HasPrefix(p, filepath.Base(theme.file)+":") {
+				why = []string{p}
+			}
+		}
+		a.flash(fmt.Sprintf("%s cannot be used as it is now, so the last of it stays on: %s",
+			theme.Name, strings.Join(why, "; ")))
+		return
+	}
+	if reflect.DeepEqual(t, theme) {
+		return
+	}
+	if a.modalOpen() {
+		time.AfterFunc(time.Second, func() { a.tv.QueueUpdateDraw(a.reloadThemes) })
+		return
+	}
+	setTheme(t)
+	a.themeFile.Store(t.file)
+	a.rebuildInterface()
+	a.note("Theme " + t.Name + " read again")
+}
+
+// themeFileName is what a forked theme may be called: it is a file name too.
+var themeFileName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+
+// forkTheme writes a theme out as a file of the user's, under a name of its
+// own, with every colour and glyph spelled out rather than extended - the
+// whole of it to tune - and puts it on.
+func (a *App) forkTheme(from, name string) error {
+	src, ok := a.themes.byName[from]
+	if !ok {
+		return fmt.Errorf("there is no theme %q", from)
+	}
+	if !themeFileName.MatchString(name) {
+		return fmt.Errorf("name it with small letters, digits, dots and dashes")
+	}
+	if _, taken := a.themes.byName[name]; taken {
+		return fmt.Errorf("there is a theme %s already - name the fork otherwise", name)
+	}
+	path := filepath.Join(a.cfg.ThemesDir(), name+".json")
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("%s exists already - name the fork otherwise", tildePath(path))
+	}
+	fork := src
+	fork.Name, fork.Extends = name, ""
+	fork.Description = "Fork of " + from
+	if src.Description != "" {
+		fork.Description += " - " + src.Description
+	}
+	data, err := json.MarshalIndent(fork, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(a.cfg.ThemesDir(), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		return err
+	}
+	a.themes = loadThemes(a.cfg.ThemesDir())
+	a.switchTheme(name)
+	a.done(fmt.Sprintf("Forked %s into %s - edit it, and unagit follows each save", from, tildePath(path)))
+	return nil
+}
+
+// showForkForm asks what to call a fork of a theme.
+func (s *settingsView) showForkForm(from string) {
+	a := s.app
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField("Name", from+"-mine", 0, nil, nil)
+	form.AddTextView("", "Written to "+tview.Escape(tildePath(a.cfg.ThemesDir()))+"/<name>.json with every colour and glyph in it, and put on.", 0, 2, true, false)
+	fork := func() {
+		name := strings.TrimSpace(form.GetFormItemByLabel("Name").(*tview.InputField).GetText())
+		a.closeModal(pageForm)
+		if err := a.forkTheme(from, name); err != nil {
+			a.flash(err.Error())
+		}
+	}
+	form.AddButton("Fork", fork)
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModal("Fork theme "+from, form, 9)
 }

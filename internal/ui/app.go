@@ -143,6 +143,12 @@ type App struct {
 	// themeProblem says why the chosen one is not on, until it is said.
 	themes       themeSet
 	themeProblem string
+	// themeFile is the file of the theme in use, "" for a built-in one;
+	// watchTheme reads it from its own goroutine.
+	themeFile atomic.Value
+	// themeWatchEvery is how often watchTheme looks; zero is
+	// themeWatchInterval.
+	themeWatchEvery time.Duration
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -307,7 +313,10 @@ func (a *App) Run() error {
 	} else {
 		a.start()
 	}
+	stopWatching := make(chan struct{})
+	go a.watchTheme(stopWatching)
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+	close(stopWatching)
 	// Window editors outlive unagit, but nothing vouches for them any more.
 	closeWindowSessions()
 	return err

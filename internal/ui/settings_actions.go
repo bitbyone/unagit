@@ -64,6 +64,8 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 		return sectionNames[s.current], []uiAction{
 			{name: "Use Theme", about: "Draw unagit in the theme under the cursor, from now on.", keys: "Enter", rank: 10,
 				when: func() bool { return s.selectedTheme() != "" }, run: func() { s.useSelectedTheme() }},
+			a.keyIn(s.themes, "Fork Theme…", "Copy the theme into a file of your own, every colour spelled out, and put it on; unagit follows each save of it.", "f", 15,
+				func() bool { return s.selectedTheme() != "" }),
 			a.keyIn(s.themes, "Read Themes Again", "Read the themes in the configuration's themes folder again, after editing one.", "r", 20, nil),
 		}
 	case sectionSecurity:

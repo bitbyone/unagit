@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -186,5 +189,95 @@ func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
 	waitFor(t, b, sc2, "acme/gateway")
 	if got := onLoop(b, func() string { return theme.Name }); got != "catppuccin-mocha" {
 		t.Errorf("a new start drew with %q", got)
+	}
+}
+
+// TestAForkIsAFileToTuneAndIsFollowed: f writes the theme under the cursor
+// out whole as the user's own and puts it on; a save of the file puts the
+// change on at once, and a save that breaks it keeps the last good one and
+// says what is wrong.
+func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
+	restoreDefaultTheme(t)
+	cfg := writeTestConfig(t, fakeGitLab(t).URL)
+	app := New(cfg, testVault(t, cfg))
+	app.themeWatchEvery = 30 * time.Millisecond
+	a, sc := startApp(t, app)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "retro-block")
+	typeRunes(sc, "f")
+	waitFor(t, a, sc, "Fork theme unagit")
+	assertLegible(t, a, sc, "the fork form")
+	pressButton(t, a, sc, currentForm(a), "Fork")
+	waitFor(t, a, sc, "Forked unagit")
+
+	path := filepath.Join(a.cfg.ThemesDir(), "unagit-mine.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the fork was not written: %v", err)
+	}
+	var written Theme
+	must(t, json.Unmarshal(data, &written))
+	for key, value := range written.colours() {
+		if value == "" {
+			t.Errorf("the fork leaves %s out; it should spell out everything", key)
+		}
+	}
+	if written.Extends != "" || written.Name != "unagit-mine" {
+		t.Errorf("the fork is named %q and extends %q", written.Name, written.Extends)
+	}
+	if got := onLoop(a, func() string { return theme.Name }); got != "unagit-mine" {
+		t.Fatalf("the fork is not on: %q", got)
+	}
+
+	// A save of the file shows at once.
+	edited := strings.Replace(string(data), `"accent": "109"`, `"accent": "#ff0000"`, 1)
+	if edited == string(data) {
+		t.Fatal("the fork has no text.accent to tune")
+	}
+	resave := func(body string) {
+		must(t, os.WriteFile(path, []byte(body), 0o644))
+		later := time.Now().Add(2 * time.Second)
+		must(t, os.Chtimes(path, later, later))
+	}
+	resave(edited)
+	accent := func() tcell.Color { return onLoop(a, func() tcell.Color { return colAccent }) }
+	deadline := time.Now().Add(patience)
+	for accent() != tcell.GetColor("#ff0000") {
+		if time.Now().After(deadline) {
+			t.Fatalf("the saved accent never came on: %v", accent())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// A save that breaks it keeps what was on.
+	resave(strings.Replace(edited, `"#ff0000"`, `"reddish"`, 1))
+	waitFor(t, a, sc, "cannot be used as it is now")
+	waitFor(t, a, sc, "text.accent")
+	if got := accent(); got != tcell.GetColor("#ff0000") {
+		t.Errorf("a broken save changed the accent to %v", got)
+	}
+}
+
+// TestTheForkFormFitsItsFrame draws the form down to a small terminal.
+func TestTheForkFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			a, sc := newTestApp(t)
+			waitFor(t, a, sc, "acme/gateway")
+			resize(sc, size.w, size.h)
+			openSection(t, a, sc, sectionTheme)
+			waitFor(t, a, sc, "retro-block")
+			typeRunes(sc, "f")
+			waitFor(t, a, sc, "Fork theme unagit")
+			assertFormInFrame(t, a, sc, currentForm(a))
+			text := a.screenText(sc)
+			for _, want := range []string{"Name", "unagit-mine", "every colour and glyph", "Fork", "Cancel"} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%q is not on screen:\n%s", want, text)
+				}
+			}
+		})
 	}
 }

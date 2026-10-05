@@ -10,9 +10,10 @@ import (
 
 // Settings › Theme lists the themes there are - unagit's own and the user's,
 // from <config>/themes - each with a strip of its colours, the one in use
-// marked. Enter puts the one under the cursor on at once; r reads the folder
-// again after a file was edited. A file that cannot be used is listed with
-// what is wrong with it.
+// marked. Enter puts the one under the cursor on at once; f forks it into a
+// file of the user's to tune, which is followed as it is saved; r reads the
+// folder again. A file that cannot be used is listed with what is wrong
+// with it.
 
 // newThemeTable makes the section: the table of themes, and under it a note
 // on where the user's own go and what could not be read, in one frame.
@@ -37,9 +38,15 @@ func (s *settingsView) newThemeTable() *tview.Table {
 			case ' ':
 				s.useSelectedTheme()
 			case 'r':
-				s.app.themes = loadThemes(s.app.cfg.ThemesDir())
-				s.fillThemes()
-				s.app.note(fmt.Sprintf("%d themes · yours in %s", len(s.app.themes.names), tildePath(s.app.cfg.ThemesDir())))
+				before := theme
+				s.app.reloadThemes()
+				if before.Name == theme.Name && s.app.themes.byName[theme.Name].file == before.file {
+					s.app.note(fmt.Sprintf("%d themes · yours in %s", len(s.app.themes.names), tildePath(s.app.cfg.ThemesDir())))
+				}
+			case 'f':
+				if name := s.selectedTheme(); name != "" {
+					s.showForkForm(name)
+				}
 			case 'j':
 				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
 			case 'k':

@@ -289,6 +289,7 @@ func helpRows() []helpLine {
 		blank(),
 		section("Settings · theme", helpTheme),
 		key("Enter", "draw unagit in the theme under the cursor"),
+		key("f", "fork into a file of yours; each save shows"),
 		key("r", "read <config>/themes/*.json again"),
 		key("Esc", "back to the sections"),
 		blank(),
