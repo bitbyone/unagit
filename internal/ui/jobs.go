@@ -3,8 +3,6 @@ package ui
 import (
 	"strings"
 	"time"
-
-	"github.com/rivo/tview"
 )
 
 // A long job - refreshing a whole list from the servers - runs behind the
@@ -104,39 +102,9 @@ func (a *App) showJobs() {
 			p.updateHeader()
 		}
 	}
-	if a.settingsJobs != nil {
-		a.settingsJobs.set(a.jobLine())
+	if a.settingsLine != nil {
+		a.settingsLine.setJobs(a.jobLine())
 	}
-}
-
-// jobsCell is the right-hand end of a status line, just before "? help":
-// the jobs under way. On the right the summary on the left stays where it
-// was while a job comes and goes, and the progress is where a glance at the
-// corner finds it.
-type jobsCell struct {
-	view *tview.TextView
-	row  *tview.Flex
-}
-
-// newJobsCell adds an empty cell to row; what follows it is added after.
-func newJobsCell(row *tview.Flex) *jobsCell {
-	c := &jobsCell{view: tview.NewTextView().SetDynamicColors(true), row: row}
-	row.AddItem(c.view, 0, 0, false)
-	return c
-}
-
-// set shows text in the cell, as wide as it is but never more than half the
-// row, so on a narrow terminal the progress gives way before the summary.
-func (c *jobsCell) set(text string) {
-	width := 0
-	if text != "" {
-		width = tview.TaggedStringWidth(text) + 2
-		if _, _, rowWidth, _ := c.row.GetRect(); rowWidth > 0 {
-			width = min(width, rowWidth/2)
-		}
-	}
-	c.view.SetText(text)
-	c.row.ResizeItem(c.view, width, 0)
 }
 
 // runInBackground runs a job behind the interface. busy guards against the

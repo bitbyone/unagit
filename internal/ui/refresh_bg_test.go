@@ -144,3 +144,61 @@ func waitSelectedNot(t *testing.T, a *App, was int) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// TestRefreshProgressWrapsRatherThanHides: on a terminal too narrow for the
+// summary and the progress side by side, the progress takes a line of its
+// own under the summary, whole, and the list above gives it the room.
+func TestRefreshProgressWrapsRatherThanHides(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	hold := make(chan struct{})
+	srv.holdMRList.Store(hold)
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(hold) }) })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "refreshing merge requests")
+
+	for _, width := range []int{80, 50, 24} {
+		resize(sc, width, 24)
+		// The spinner redraws the header; once it has, the job is a line
+		// of its own, without the summary.
+		deadline := time.Now().Add(patience)
+		for {
+			text := a.screenText(sc)
+			lines := strings.Split(text, "\n")
+			summary := lineOf(text, "NORMAL")
+			whole := strings.Join(lines[max(0, summary):], " ")
+			if summary >= 0 && !strings.Contains(lines[summary], "refreshing") &&
+				strings.Contains(strings.Join(strings.Fields(whole), " "), "refreshing merge requests") {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("at %d columns the progress is not whole under the summary:\n%s", width, text)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if width >= 50 && !strings.Contains(lineAt(a.screenText(sc), "NORMAL"), "? help") {
+			t.Errorf("at %d columns the help hint left the summary's line", width)
+		}
+	}
+	assertLegible(t, a, sc, "a wrapped progress line")
+	release.Do(func() { close(hold) })
+	waitGone(t, a, sc, "refreshing")
+	// With nothing running the line is one row again.
+	if text := a.screenText(sc); strings.TrimSpace(strings.Split(text, "\n")[23]) == "" {
+		t.Errorf("the status line kept its extra row:\n%s", text)
+	}
+}
+
+// lineAt is the line of text that holds what, or "".
+func lineAt(text, what string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, what) {
+			return line
+		}
+	}
+	return ""
+}
