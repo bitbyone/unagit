@@ -532,7 +532,9 @@ fields, the selection and every state, the screen's background, and the
 glyphs that say what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `↑ ↓`, the
 borders). Settings › Theme lists them with a strip of their colours; `Enter`
 puts one on at once and remembers it. From any screen, `:` › Switch Theme…
-lists them too, the one on under the cursor.
+lists them too, the one on under the cursor - over a dialog as well, where
+`:` offers what can be done from anywhere and `Alt-Enter` on a list what
+can be done with its item.
 
 unagit comes with four: **unagit**, the muted default, which keeps the
 terminal's own background so it sits quietly beside an editor;

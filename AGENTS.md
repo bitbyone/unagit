@@ -155,7 +155,12 @@ the picker alone (creating a repository does). A key whose action
 cannot be done now is still run, so that it says why; `when` only keeps the
 pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
-guards the lists.
+guards the lists. A list in a dialog is the same idea at a smaller scale:
+each of its keys (`pickKey`) has a name and an about as an action has, and
+so has its Enter (`enterName`); Alt-Enter on an item lists them over the
+dialog (`pageActions`, so the dialog stays). `:` over any dialog lists
+`globalActions` alone - what can be done from anywhere, like the theme -
+never a main screen's own.
 
 **A message goes where the eye is, and weighs what it says.** `flash`
 (warning), `note` (info), `done` (success) and `errorf` (`say`) are the only
