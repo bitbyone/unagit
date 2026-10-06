@@ -405,6 +405,9 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `[{"id":90,"status":"failed","ref":"feat/rate","web_url":"https://gl.test/acme/gateway/-/pipelines/90"},
 			{"id":80,"status":"success","ref":"feat/rate","source":"push","web_url":"https://gl.test/acme/gateway/-/pipelines/80"}]`)
 	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines/90", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{"id":90,"status":"failed","ref":"feat/rate","started_at":"2020-01-02T03:00:00Z","user":{"username":"jane"}}`)
+	})
 	// An earlier pipeline of !7, which passed.
 	mux.HandleFunc("/api/v4/projects/1/pipelines/80/jobs", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":2,"name":"unit tests","stage":"test","status":"success","duration":70}]`)
@@ -417,7 +420,8 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	mux.HandleFunc("/api/v4/projects/1/pipelines/90/jobs", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":10,"name":"deploy","stage":"deploy","status":"manual"},
 			{"id":1,"name":"lint","stage":"check","status":"success","duration":12,"web_url":"https://gl.test/j/1"},
-			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5"},
+			{"id":5,"name":"unit tests","stage":"test","status":"failed","duration":75,"web_url":"https://gl.test/j/5",
+				"started_at":"2020-01-02T03:04:05Z","user":{"username":"jane"}},
 			{"id":3,"name":"unit tests","stage":"test","status":"failed","duration":40}]`)
 	})
 	// A trigger job, and the child pipeline it started.

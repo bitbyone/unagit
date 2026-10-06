@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -599,17 +600,26 @@ func TestUserNameAsksByUsername(t *testing.T) {
 }
 
 // TestPipelinesAndTheirAttempts: the pipelines of a merge request, a
-// branch and a commit come from their own places; a pipeline's jobs come
-// with the attempts run again since, marked, and a commit's files are
-// counted from its diff.
+// branch and a commit come from their own places, with whom each was
+// started by from its own page; a pipeline's jobs come with the attempts
+// run again since, marked, and a commit's files are counted from its diff.
 func TestPipelinesAndTheirAttempts(t *testing.T) {
+	var mu sync.Mutex
 	var asked []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		asked = append(asked, r.URL.Path+"?"+r.URL.Query().Get("ref")+r.URL.Query().Get("sha"))
+		if !strings.Contains(r.URL.Path, "/pipelines/") {
+			mu.Lock()
+			asked = append(asked, r.URL.Path+"?"+r.URL.Query().Get("ref")+r.URL.Query().Get("sha"))
+			mu.Unlock()
+		}
 		switch r.URL.Path {
 		case "/api/v4/projects/3/merge_requests/7/pipelines", "/api/v4/projects/3/pipelines":
 			fmt.Fprint(w, `[{"id":90,"status":"failed"},{"id":80,"status":"success"}]`)
+		case "/api/v4/projects/3/pipelines/90":
+			fmt.Fprint(w, `{"id":90,"status":"failed","started_at":"2026-01-02T03:04:05Z","user":{"username":"jane"}}`)
+		case "/api/v4/projects/3/pipelines/80":
+			fmt.Fprint(w, `{"id":80,"status":"success"}`)
 		case "/api/v4/projects/3/pipelines/90/jobs":
 			if r.URL.Query().Get("include_retried") != "true" {
 				t.Error("the attempts run again were not asked for")
@@ -626,8 +636,12 @@ func TestPipelinesAndTheirAttempts(t *testing.T) {
 	c, ctx, repo := New(srv.URL, "t"), context.Background(), forge.Project{ID: 3}
 	mr := forge.MergeRequest{IID: 7, ProjectID: 3}
 	for _, q := range []forge.PipelineQuery{{MR: &mr}, {Ref: "main"}, {SHA: "abc"}} {
-		if pipes, err := c.Pipelines(ctx, repo, q); err != nil || len(pipes) != 2 {
+		pipes, err := c.Pipelines(ctx, repo, q)
+		if err != nil || len(pipes) != 2 {
 			t.Fatalf("%+v: %v, %v", q, pipes, err)
+		}
+		if pipes[0].User == nil || pipes[0].User.Username != "jane" || pipes[0].StartedAt.IsZero() || pipes[1].User != nil {
+			t.Errorf("%+v: whom and when not read from each pipeline: %+v", q, pipes)
 		}
 	}
 	if want := []string{"/api/v4/projects/3/merge_requests/7/pipelines?", "/api/v4/projects/3/pipelines?main", "/api/v4/projects/3/pipelines?abc"}; strings.Join(asked, " ") != strings.Join(want, " ") {

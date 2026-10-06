@@ -907,9 +907,13 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 			HTMLURL    string     `json:"html_url"`
 			StartedAt  *time.Time `json:"started_at"`
 			Completed  *time.Time `json:"completed_at"`
+			HeadSHA    string     `json:"head_sha"`
 			App        struct {
 				Slug string `json:"slug"`
 			} `json:"app"`
+			CheckSuite struct {
+				ID int64 `json:"id"`
+			} `json:"check_suite"`
 		} `json:"check_runs"`
 	}
 	q := url.Values{}
@@ -924,11 +928,16 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 		p, err := c.combinedStatus(ctx, path, ref)
 		return p, nil, err
 	}
+	starters := c.runStarters(ctx, path, raw.CheckRuns[0].HeadSHA)
 	jobs := make([]forge.Job, 0, len(raw.CheckRuns))
 	for _, r := range raw.CheckRuns {
-		job := forge.Job{ID: r.ID, Name: r.Name, Stage: r.App.Slug, Status: checkStatus(r.Status, r.Conclusion), WebURL: r.HTMLURL}
-		if r.StartedAt != nil && r.Completed != nil {
-			job.Duration = r.Completed.Sub(*r.StartedAt).Seconds()
+		job := forge.Job{ID: r.ID, Name: r.Name, Stage: r.App.Slug, Status: checkStatus(r.Status, r.Conclusion), WebURL: r.HTMLURL,
+			User: starters[r.CheckSuite.ID]}
+		if r.StartedAt != nil {
+			job.StartedAt = *r.StartedAt
+			if r.Completed != nil {
+				job.Duration = r.Completed.Sub(*r.StartedAt).Seconds()
+			}
 		}
 		jobs = append(jobs, job)
 	}
@@ -1036,6 +1045,37 @@ func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.Pipelin
 		pipe.SHA = ref
 	}
 	return []forge.Pipeline{*pipe}, nil
+}
+
+// runStarters says whom the workflow runs of a commit were started by -
+// who pushed, or who ran one again - by their check suite, which is how a
+// check run knows its run. A check run has no one of its own; one that is
+// not an Actions run, or a token that may not read Actions, has no one.
+func (c *Client) runStarters(ctx context.Context, path, sha string) map[int64]*forge.User {
+	if sha == "" {
+		return nil
+	}
+	var raw struct {
+		Runs []struct {
+			CheckSuiteID int64 `json:"check_suite_id"`
+			Actor        struct {
+				Login string `json:"login"`
+			} `json:"triggering_actor"`
+		} `json:"workflow_runs"`
+	}
+	q := url.Values{}
+	q.Set("head_sha", sha)
+	q.Set("per_page", "100")
+	if _, err := c.get(ctx, "/repos/"+path+"/actions/runs", q, &raw); err != nil {
+		return nil
+	}
+	out := make(map[int64]*forge.User, len(raw.Runs))
+	for _, r := range raw.Runs {
+		if r.Actor.Login != "" {
+			out[r.CheckSuiteID] = &forge.User{Username: r.Actor.Login}
+		}
+	}
+	return out
 }
 
 // Jobs is the check runs of the commit a pipeline stands for.

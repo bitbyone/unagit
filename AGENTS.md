@@ -103,6 +103,9 @@ select (`styleDropDown`), it just was not reused. The rules:
   list (the user asked for it): `filter` opens them typing, since an action
   is looked for by name, and Esc on an empty filter closes them. Do not
   give another picker `filter`.
+- A picker whose rows are a table - the jobs, the pipelines - lays them out
+  with `pickTable` and names its columns with `pickerOptions.header`; do not
+  pad columns by hand with `%-*s`. A column nobody's row fills is left out.
 - A new kind of field that will be used twice goes into `fields.go` first, with
   a test, and the old call sites move to it in the same change.
 - **Look at what you built.** This is a terminal UI and it can be drawn: render

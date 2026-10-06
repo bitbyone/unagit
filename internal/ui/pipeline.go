@@ -213,7 +213,9 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 			about: "Every pipeline of the same merge request, branch or commit, the newest first.",
 			run:   func(it pickItem) { a.showPipelineList(target, state.pipe.ID, back(it)) }})
 	}
-	picker := a.showPickerWith(state.title(target), jobItems(jobs), opts, func(it pickItem) {
+	header, items := jobItems(jobs)
+	opts.header = header
+	picker := a.showPickerWith(state.title(target), items, opts, func(it pickItem) {
 		job := at(it)
 		if job.Trigger {
 			a.showDownstream(target, job, back(it))
@@ -223,9 +225,7 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	})
 	if state.moving() {
 		go a.followPipeline(target, state, picker)
-		go a.turnWhile(picker.open, state.running, func() {
-			picker.set(state.title(target), jobItems(state.jobs))
-		})
+		go a.turnWhile(picker.open, state.running, func() { state.put(picker, target) })
 	}
 }
 
@@ -287,25 +287,46 @@ func (s *pipelineState) title(target ciTarget) string {
 	return title
 }
 
-// jobItems are the rows of the jobs, each carrying its job.
-func jobItems(jobs []forge.Job) []pickItem {
-	nameW, stageW := 0, 0
-	for _, j := range jobs {
-		nameW = max(nameW, len([]rune(jobName(j))))
-		stageW = max(stageW, len([]rune(j.Stage)))
-	}
-	nameW = min(nameW, 48)
-	items := make([]pickItem, len(jobs))
+// put draws the jobs as last read in the picker again: their columns, as
+// wide as they now need, the rows and the title.
+func (s *pipelineState) put(picker *livePicker, target ciTarget) {
+	header, items := jobItems(s.jobs)
+	picker.setHeader(header)
+	picker.set(s.title(target), items)
+}
+
+// jobItems are the rows of the jobs, each carrying its job, and the names
+// of their columns.
+func jobItems(jobs []forge.Job) (string, []pickItem) {
+	rows := make([][]string, len(jobs))
 	for i, j := range jobs {
 		mark, status := painted(jobMark(j), j.Status)
-		items[i] = pickItem{
-			Label: mark + esc(fmt.Sprintf("  %-*s  %-*s", stageW, j.Stage, nameW, trim(jobName(j), nameW))),
-			Sub:   strings.TrimSpace(status + "  " + esc(duration(j.Duration))),
-			About: esc(jobAbout(j)),
-			Data:  j,
-		}
+		rows[i] = []string{mark, esc(j.Stage), esc(trim(jobName(j), 48)), status,
+			tag(colMuted) + esc(duration(j.Duration)) + tagEnd, startedCell(j.StartedAt), userCell(j.User)}
 	}
-	return items
+	header, labels := pickTable([]string{"", "STAGE", "JOB", "STATUS", "TOOK", "STARTED", "BY"}, rows)
+	items := make([]pickItem, len(jobs))
+	for i, j := range jobs {
+		items[i] = pickItem{Label: labels[i], About: esc(jobAbout(j)), Data: j}
+	}
+	return header, items
+}
+
+// startedCell is when a job or a pipeline began, as long ago; nothing for
+// one that has not.
+func startedCell(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return tag(role("column.age")) + esc(humanAge(at)) + tagEnd
+}
+
+// userCell is whom it was started by.
+func userCell(u *forge.User) string {
+	if u == nil || u.Username == "" {
+		return ""
+	}
+	return tag(role("column.author")) + esc(u.Username) + tagEnd
 }
 
 // followEvery is how often a running pipeline is read again; a running
@@ -342,7 +363,7 @@ func (a *App) followPipeline(target ciTarget, state *pipelineState, picker *live
 			a.tv.QueueUpdateDraw(func() {
 				if picker.open() {
 					state.failed = firstLine(err.Error())
-					picker.set(state.title(target), jobItems(state.jobs))
+					state.put(picker, target)
 				}
 			})
 			continue
@@ -352,7 +373,7 @@ func (a *App) followPipeline(target ciTarget, state *pipelineState, picker *live
 				return
 			}
 			state.pipe, state.jobs, state.failed = pipe, jobs, ""
-			picker.set(state.title(target), jobItems(jobs))
+			state.put(picker, target)
 		})
 	}
 }
@@ -765,58 +786,18 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 		}
 		return
 	}
-	refW := 0
-	for _, p := range pipes {
-		refW = max(refW, len([]rune(p.Ref)))
-	}
-	refW = min(refW, 32)
-	items := make([]pickItem, len(pipes))
 	start := 0
-	label := func(p forge.Pipeline) (string, string) {
-		mark, _ := ciMark(p.Status)
-		if mark == "" {
-			mark = glyphRing
-		}
-		on := " "
-		if p.ID == current && current != 0 {
-			on = glyphDot
-		}
-		id := "#" + fmt.Sprint(p.ID)
-		if p.ID == 0 {
-			id = shortSHA(p.SHA)
-		}
-		paintedMark, status := painted(mark, p.Status)
-		return esc(on+" ") + paintedMark + esc(fmt.Sprintf("  %-8s  %-*s", id, refW, trim(p.Ref, refW))), status
-	}
 	for i, p := range pipes {
 		if p.ID == current && current != 0 {
 			start = i
 		}
-		when := p.CreatedAt
-		if when.IsZero() {
-			when = p.UpdatedAt
-		}
-		age := ""
-		if !when.IsZero() {
-			age = humanAge(when)
-		}
-		id := "#" + fmt.Sprint(p.ID)
-		if p.ID == 0 {
-			id = shortSHA(p.SHA)
-		}
-		row, status := label(p)
-		items[i] = pickItem{
-			Label: row,
-			Sub:   strings.TrimSpace(status + "  " + esc(strings.TrimSpace(p.Source+"  "+age))),
-			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", id, p.Status, shortSHA(p.SHA), p.WebURL))),
-			Data:  p,
-		}
 	}
+	items, header := pipelineItems(pipes, current)
 	at := func(it pickItem) forge.Pipeline { return it.Data.(forge.Pipeline) }
 	again := func(it pickItem) func() {
 		return func() { a.listPipelines(target, pipes, at(it).ID, back) }
 	}
-	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "jobs", back: back,
+	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "jobs", back: back, header: header,
 		enterName: "Show Jobs", enterAbout: "List the pipeline's jobs, earlier attempts with them.",
 		keys: []pickKey{
 			a.browserKey("w", "browser", "Open Pipeline in Browser", "The pipeline's page on the forge; the list stays open.",
@@ -835,10 +816,55 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 	}
 	if running() {
 		go a.turnWhile(picker.open, running, func() {
-			for i := range items {
-				items[i].Label, _ = label(at(items[i]))
-			}
+			items, header := pipelineItems(pipes, current)
+			picker.setHeader(header)
 			picker.set("Pipelines · "+target.label, items)
 		})
 	}
+}
+
+// pipelineItems are the rows of pipelines, the one shown marked, each
+// carrying its pipeline, and the names of their columns.
+func pipelineItems(pipes []forge.Pipeline, current int) ([]pickItem, string) {
+	rows := make([][]string, len(pipes))
+	for i, p := range pipes {
+		mark, _ := ciMark(p.Status)
+		if mark == "" {
+			mark = glyphRing
+		}
+		on := " "
+		if p.ID == current && current != 0 {
+			on = glyphDot
+		}
+		paintedMark, status := painted(mark, p.Status)
+		// When it began, or when it was made for one not begun.
+		when := p.StartedAt
+		if when.IsZero() {
+			when = p.CreatedAt
+		}
+		if when.IsZero() {
+			when = p.UpdatedAt
+		}
+		rows[i] = []string{esc(on+" ") + paintedMark, esc(pipelineID(p)), esc(trim(p.Ref, 32)), status,
+			tag(colMuted) + esc(p.Source) + tagEnd, startedCell(when), userCell(p.User)}
+	}
+	header, labels := pickTable([]string{"", "PIPELINE", "REF", "STATUS", "SOURCE", "STARTED", "BY"}, rows)
+	items := make([]pickItem, len(pipes))
+	for i, p := range pipes {
+		items[i] = pickItem{
+			Label: labels[i],
+			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", pipelineID(p), p.Status, shortSHA(p.SHA), p.WebURL))),
+			Data:  p,
+		}
+	}
+	return items, header
+}
+
+// pipelineID is how a pipeline is named: its number, or its commit where
+// it has none (GitHub's).
+func pipelineID(p forge.Pipeline) string {
+	if p.ID == 0 {
+		return shortSHA(p.SHA)
+	}
+	return "#" + fmt.Sprint(p.ID)
 }

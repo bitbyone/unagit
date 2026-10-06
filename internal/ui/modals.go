@@ -163,6 +163,48 @@ type pickerOptions struct {
 	// on a background of its own instead: for a picker whose items are
 	// tried on that screen.
 	bright bool
+	// header names the columns of a picker whose items are a table's rows
+	// (pickTable), on a line of its own over them.
+	header string
+}
+
+// pickTable lays rows out as columns under their names, for a picker whose
+// items are the rows of a table: each cell is markup already, as wide as
+// the widest of its column, two spaces between. A column with nothing in
+// any row is left out - a forge that does not say who started a job has no
+// column of nobody. It gives the header (pickerOptions.header) and each
+// row's label.
+func pickTable(heads []string, rows [][]string) (string, []string) {
+	widths := make([]int, len(heads))
+	used := make([]bool, len(heads))
+	for i, h := range heads {
+		widths[i] = len([]rune(h))
+		used[i] = h == ""
+	}
+	for _, r := range rows {
+		for i, c := range r {
+			widths[i] = max(widths[i], tview.TaggedStringWidth(c))
+			used[i] = used[i] || strings.TrimSpace(c) != ""
+		}
+	}
+	line := func(cells []string) string {
+		var parts []string
+		for i, c := range cells {
+			if used[i] {
+				parts = append(parts, c+strings.Repeat(" ", widths[i]-tview.TaggedStringWidth(c)))
+			}
+		}
+		return strings.TrimRight(strings.Join(parts, "  "), " ")
+	}
+	names := make([]string, len(heads))
+	for i, h := range heads {
+		names[i] = esc(h)
+	}
+	labels := make([]string, len(rows))
+	for i, r := range rows {
+		labels[i] = line(r)
+	}
+	return tag(role("column.header")) + line(names) + tagEnd, labels
 }
 
 // livePicker is a picker that is open, whose items can be put again while
@@ -174,6 +216,8 @@ type livePicker struct {
 	// set puts new items and a new title in, the cursor kept on the item
 	// it was on and the filter kept as typed.
 	set func(title string, items []pickItem)
+	// setHeader puts new column names in, for rows whose columns widened.
+	setHeader func(header string)
 }
 
 // widePct is how much of the screen across a wide picker takes.
@@ -506,8 +550,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(input, 1, 0, false).
-		AddItem(list, 0, 1, true)
+		AddItem(input, 1, 0, false)
+	header := tview.NewTextView().SetDynamicColors(true).SetWrap(false)
+	if opts.header != "" {
+		header.SetText(opts.header)
+		flex.AddItem(header, 1, 0, false)
+	}
+	flex.AddItem(list, 0, 1, true)
 
 	// The width a packed picker needs: its longest row, its title, and room
 	// for every explanation to fit in explainLines.
@@ -519,7 +568,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		inner = max(inner, tview.TaggedStringWidth(row)+1)
 	}
-	inner = max(inner, tview.TaggedStringWidth(title)+4, 40)
+	inner = max(inner, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(opts.header)+1, 40)
 	if opts.explain {
 		for _, it := range items {
 			for inner < 76 && len(tview.WordWrap(it.About, inner)) > explainLines {
@@ -530,6 +579,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	inner = min(inner, 76)
 
 	extra := 0
+	if opts.header != "" {
+		extra = 1
+	}
 	explain := func(int) {}
 	if opts.explain {
 		about := tview.NewTextView().SetWrap(true).SetWordWrap(true).SetTextColor(colMuted)
@@ -557,7 +609,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		// A rule above the explanation and one below it, so it reads as a
 		// pane of its own and not as the start of the key hints.
 		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false).AddItem(rule(), 1, 0, false)
-		extra = 2 + lines
+		extra += 2 + lines
 	}
 	if opts.preview != nil {
 		tried := ""
@@ -634,7 +686,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			// inner is the width the explanations were measured at, so the
 			// pane under the list is as tall as they need.
-			rows = max(rows, tview.TaggedStringWidth(title)+4, inner)
+			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(opts.header)+1, inner)
 			width := min(most, rows+2+2*pad)
 			footerLines := len(tview.WordWrap(normalHint(), width-2-2*pad))
 			return width, min(h*85/100, 2+1+len(items)+extra+footerLines)
@@ -679,6 +731,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			explain(list.GetCurrentItem())
 			box(flex.Box, title)
 		},
+		setHeader: func(text string) { header.SetText(text) },
 	}
 }
 

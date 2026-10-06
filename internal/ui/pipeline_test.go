@@ -423,6 +423,11 @@ func TestEarlierPipelinesAndAttempts(t *testing.T) {
 	// The cursor is on the failure that counts, not on the attempt before.
 	waitFor(t, a, sc, "unit tests · failed · 1m15s")
 	text := a.screenText(sc)
+	// The jobs are a table: named columns, when each began and by whom.
+	if head, row := lineAt(text, "STARTED"), lineAt(text, "1m15s"); !strings.Contains(head, "STAGE") || !strings.Contains(head, "BY") ||
+		!strings.Contains(row, "6y ago") || !strings.Contains(row, "jane") {
+		t.Errorf("the jobs do not say when and by whom:\n%s", text)
+	}
 	if lineOf(text, glyphRetried+" unit tests") > lineOf(text, glyphCIDone+"  test    unit tests") {
 		t.Errorf("the earlier attempt is not above the one that followed:\n%s", text)
 	}
@@ -436,6 +441,9 @@ func TestEarlierPipelinesAndAttempts(t *testing.T) {
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "Pipelines · acme/gateway !7")
 	waitFor(t, a, sc, "#80")
+	if text := a.screenText(sc); !strings.Contains(lineAt(text, "PIPELINE"), "BY") || !strings.Contains(lineAt(text, "#90"), "jane") {
+		t.Errorf("the pipelines do not say by whom:\n%s", text)
+	}
 	assertLegible(t, a, sc, "the pipelines of a merge request")
 	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)

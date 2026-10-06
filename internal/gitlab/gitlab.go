@@ -764,8 +764,11 @@ func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.Pipelin
 	var pipes []forge.Pipeline
 	var err error
 	if q.MR != nil {
-		_, err = c.get(ctx, mrPath(*q.MR)+"/pipelines", v, &pipes)
-		return pipes, err
+		if _, err = c.get(ctx, mrPath(*q.MR)+"/pipelines", v, &pipes); err != nil {
+			return nil, err
+		}
+		c.pipelineDetails(ctx, "/projects/"+strconv.Itoa(q.MR.ProjectID), pipes)
+		return pipes, nil
 	}
 	if q.Ref != "" {
 		v.Set("ref", q.Ref)
@@ -773,8 +776,38 @@ func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.Pipelin
 	if q.SHA != "" {
 		v.Set("sha", q.SHA)
 	}
-	_, err = c.get(ctx, projectPath(p)+"/pipelines", v, &pipes)
-	return pipes, err
+	if _, err = c.get(ctx, projectPath(p)+"/pipelines", v, &pipes); err != nil {
+		return nil, err
+	}
+	c.pipelineDetails(ctx, projectPath(p), pipes)
+	return pipes, nil
+}
+
+// pipelineDetails fills in whom each pipeline was started by and when it
+// began, which GitLab's list leaves out and each pipeline's own page has. A
+// page that cannot be read leaves its pipeline as the list had it: these
+// are details of a list already read.
+func (c *Client) pipelineDetails(ctx context.Context, project string, pipes []forge.Pipeline) {
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, 8)
+	for i := range pipes {
+		wg.Add(1)
+		go func(p *forge.Pipeline) {
+			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			// A merge request's pipeline may be its source project's.
+			at := project
+			if p.ProjectID != 0 {
+				at = "/projects/" + strconv.Itoa(p.ProjectID)
+			}
+			var detail forge.Pipeline
+			if _, err := c.get(ctx, at+"/pipelines/"+strconv.Itoa(p.ID), nil, &detail); err == nil {
+				p.User, p.StartedAt = detail.User, detail.StartedAt
+			}
+		}(&pipes[i])
+	}
+	wg.Wait()
 }
 
 // Jobs is the jobs of one pipeline.

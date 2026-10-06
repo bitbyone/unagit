@@ -223,6 +223,7 @@ type Commit struct {
 // Pipeline is a CI run: a GitLab pipeline or a GitHub combined status.
 type Pipeline struct {
 	ID        int       `json:"id"`
+	ProjectID int       `json:"project_id,omitempty"`
 	Status    string    `json:"status"`
 	Ref       string    `json:"ref"`
 	SHA       string    `json:"sha"`
@@ -232,6 +233,10 @@ type Pipeline struct {
 	// Source is what started it: a push, a merge request, a schedule, by
 	// hand ("web"); "" where the forge does not say.
 	Source string `json:"source,omitempty"`
+	// StartedAt is when it began to run, zero while it has not; User is
+	// whom it was started by, nil where the forge does not say.
+	StartedAt time.Time `json:"started_at"`
+	User      *User     `json:"user,omitempty"`
 }
 
 // PipelineQuery says whose pipelines to list: a merge request's, a
@@ -283,6 +288,11 @@ type Job struct {
 	Trigger bool `json:"trigger,omitempty"`
 	// Retried is an earlier attempt of a job that was run again.
 	Retried bool `json:"retried,omitempty"`
+	// StartedAt is when it began to run, zero while it has not; User is
+	// whom it was started by - who pushed, or who ran it again - nil where
+	// the forge does not say.
+	StartedAt time.Time `json:"started_at"`
+	User      *User     `json:"user,omitempty"`
 }
 
 // Downstream is the pipeline a trigger job started, and whose it is.
