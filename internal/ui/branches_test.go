@@ -229,7 +229,7 @@ func TestBranchesOutInAWorktree(t *testing.T) {
 	waitFor(t, a, sc, "Branches - acme/gateway")
 
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "and the worktree it is out")
+	waitFor(t, a, sc, "worktree it is out in?")
 	if text := a.screenText(sc); !strings.Contains(text, "origin keeps it") {
 		t.Errorf("the question does not say origin keeps the branch:\n%s", text)
 	}

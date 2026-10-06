@@ -653,7 +653,12 @@ func resize(sc tcell.SimulationScreen, w, h int) {
 // were already on the previous frame, or samples its cells by coordinates.
 func resizeApp(a *App, sc tcell.SimulationScreen, w, h int) {
 	resize(sc, w, h)
-	a.tv.QueueUpdateDraw(func() {})
+	// Drawn on the loop and waited for: a queued draw alone returns at once,
+	// and the next wait could still read the frame of the old size.
+	onLoop(a, func() bool {
+		a.tv.ForceDraw()
+		return true
+	})
 }
 
 func typeRunes(sc tcell.SimulationScreen, s string) {
