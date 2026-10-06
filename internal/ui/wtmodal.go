@@ -53,6 +53,13 @@ func (v *wtView) lit() worktreeRow {
 
 // showWorktreeView opens the view of a worktree.
 func (a *App) showWorktreeView(r worktreeRow) {
+	a.makeWorktreeView(r)
+	a.readWorktreeFacts()
+}
+
+// makeWorktreeView builds the view before its facts arrive. Keeping the
+// rendering separate lets a layout check supply the same facts git would.
+func (a *App) makeWorktreeView(r worktreeRow) {
 	v := &wtView{row: r, facts: map[string]wtFacts{}}
 	v.body = newBlockList()
 	v.body.waiting = "reading the worktree from git …"
@@ -85,7 +92,6 @@ func (a *App) showWorktreeView(r worktreeRow) {
 	a.pages.AddPage(pageWorktree, modalPct(frame, 92, 92), true, true)
 	a.tv.SetFocus(v.body)
 	a.renderWorktreeView()
-	a.readWorktreeFacts()
 }
 
 // closeWorktreeView leaves the view for the list.

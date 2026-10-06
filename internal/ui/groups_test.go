@@ -243,7 +243,7 @@ func TestGroupedWorktreeFormFitsItsFrame(t *testing.T) {
 	for _, size := range []struct{ w, h int }{{160, 44}, {120, 34}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := newTestAppSrv(t)
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			_, _, form := markBoth(t, a, sc)
 			frame := onLoop(a, func() rect {
 				x, y, w, h := form.GetRect()

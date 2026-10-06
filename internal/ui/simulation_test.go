@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -53,6 +54,59 @@ func newObservedScreen(t *testing.T) *observedScreen {
 	return &observedScreen{
 		SimulationScreen: tcell.NewSimulationScreen("UTF-8"),
 		t:                t, ready: make(chan struct{}), stopped: make(chan struct{}), next: make(chan struct{}),
+	}
+}
+
+// tview uses tcell's older rune API for every cell, even a blank one. Its
+// adapter allocates a string each time. Put reaches the same real buffer and
+// locks, with an immutable string reused for the common single-byte cells.
+func (s *observedScreen) SetContent(x, y int, main rune, combining []rune, style tcell.Style) {
+	if main >= 0 && main < rune(len(asciiCells)) && len(combining) == 0 {
+		s.SimulationScreen.Put(x, y, asciiCells[main], style)
+		return
+	}
+	s.SimulationScreen.SetContent(x, y, main, combining, style)
+}
+
+var asciiCells = func() [128]string {
+	var cells [128]string
+	for r := range cells {
+		cells[r] = string(rune(r))
+	}
+	return cells
+}()
+
+func TestObservedCellsMatchTheSimulationScreen(t *testing.T) {
+	t.Parallel()
+	actual := newObservedScreen(t)
+	reference := tcell.NewSimulationScreen("UTF-8")
+	for _, sc := range []tcell.SimulationScreen{actual, reference} {
+		must(t, sc.Init())
+		t.Cleanup(sc.Fini)
+		sc.SetSize(12, 4)
+	}
+	style := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlue).Bold(true)
+	for frame, writes := range [][]struct {
+		x, y int
+		r    rune
+		comb []rune
+	}{
+		{{0, 0, ' ', nil}, {1, 0, 'A', nil}, {2, 0, '0', nil}, {3, 0, 0, nil}, {4, 0, '\t', nil}},
+		{{0, 1, 'č', nil}, {1, 1, 'e', []rune{'\u0301'}}, {3, 1, '界', nil}, {5, 1, '\U0001f469', []rune{'\u200d', '\U0001f4bb'}}, {11, 1, '界', nil}},
+		{{3, 1, 'x', nil}, {5, 1, ' ', nil}, {-1, 0, 'a', nil}, {12, 0, 'b', nil}, {0, 4, 'c', nil}},
+	} {
+		for _, write := range writes {
+			actual.SetContent(write.x, write.y, write.r, write.comb, style)
+			reference.SetContent(write.x, write.y, write.r, write.comb, style)
+		}
+		actual.Show()
+		reference.Show()
+		got, w, h := actual.GetContents()
+		want, rw, rh := reference.GetContents()
+		if w != rw || h != rh || !reflect.DeepEqual(got, want) {
+			t.Fatalf("frame %d differs from tcell's simulation", frame)
+		}
+		style = tcell.StyleDefault.Foreground(tcell.ColorNone).Background(tcell.ColorGreen)
 	}
 }
 

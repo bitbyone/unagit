@@ -470,11 +470,15 @@ func newTestApp(t *testing.T) (*App, tcell.SimulationScreen) {
 }
 
 // newTestAppSrv also hands back the fake GitLab so a test can count requests.
-func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
+func newTestAppSrv(t *testing.T, prepare ...func(*App)) (*App, tcell.SimulationScreen, *fakeServer) {
 	t.Helper()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
-	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
+	app := newApp(cfg, testVault(t, cfg))
+	for _, setup := range prepare {
+		setup(app)
+	}
+	a, sc := startApp(t, app)
 	return a, sc, srv
 }
 
@@ -544,11 +548,20 @@ func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 
 func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan struct{}) {
 	t.Helper()
+	// Workflow assertions observe progress and completion, not the passing
+	// of spinner frames. Animation tests choose real or controlled ticks.
+	if a.newAnimationTicker == nil {
+		ticks := make(chan time.Time)
+		a.newAnimationTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
+		t.Cleanup(func() { close(ticks) })
+	}
 	// Attach the simulation screen from this goroutine: SetScreen initialises
 	// it, and the test reads its contents from here too.
 	sc := newObservedScreen(t)
 	a.SetScreen(sc)
-	sc.SetSize(160, 44)
+	// Workflow tests need room for the dialogs, not a large terminal's empty
+	// cells on every key. Layout tests choose their sizes explicitly.
+	sc.SetSize(120, 34)
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {
 		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }
@@ -636,6 +649,13 @@ func resize(sc tcell.SimulationScreen, w, h int) {
 	_ = sc.PostEvent(tcell.NewEventResize(w, h))
 }
 
+// resizeApp makes the chosen size visible before a test reads words that
+// were already on the previous frame, or samples its cells by coordinates.
+func resizeApp(a *App, sc tcell.SimulationScreen, w, h int) {
+	resize(sc, w, h)
+	a.tv.QueueUpdateDraw(func() {})
+}
+
 func typeRunes(sc tcell.SimulationScreen, s string) {
 	if observed, ok := sc.(*observedScreen); ok {
 		observed.typeKeys(s)
@@ -710,7 +730,7 @@ func TestProjectDetailPane(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// Wide enough for the detail to sit beside the list.
-	resize(sc, 200, 44)
+	resizeApp(a, sc, 200, 44)
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Edge router")
@@ -741,6 +761,7 @@ func TestProjectDetailPane(t *testing.T) {
 func TestMergeRequestDetailPane(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 
 	typeRunes(sc, "2")

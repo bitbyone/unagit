@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -123,7 +122,7 @@ func (v *integrationsView) check() {
 	v.editors = v.settings.app.detectEditors()
 	for _, card := range v.cards {
 		if card.command != "" {
-			card.binary, _ = exec.LookPath(card.command)
+			card.binary, _ = v.settings.app.executable(card.command)
 		}
 	}
 	v.paintFocus(v.active)
@@ -195,7 +194,7 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 				return nil
 			}
 			// Recheck before enabling so a removed executable cannot be enabled.
-			card.binary, _ = exec.LookPath(card.command)
+			card.binary, _ = v.settings.app.executable(card.command)
 			if card.binary != "" {
 				card.toggle()
 				v.settings.app.saveConfig()
@@ -204,7 +203,7 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case 'c':
 			card := v.cards[v.current]
-			card.binary, _ = exec.LookPath(card.command)
+			card.binary, _ = v.settings.app.executable(card.command)
 			v.paintFocus(true)
 			return nil
 		default:

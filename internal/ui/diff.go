@@ -18,10 +18,17 @@ import (
 // so their changes are put together into a single patch, each path under its
 // repository's folder.
 
+func (a *App) executable(name string) (string, error) {
+	if a.findExecutable != nil {
+		return a.findExecutable(name)
+	}
+	return exec.LookPath(name)
+}
+
 // hunkBinary is where Hunk is, once the integration is on; otherwise it says
 // why D does nothing.
 func (a *App) hunkBinary() (string, bool) {
-	bin, err := exec.LookPath("hunk")
+	bin, err := a.executable("hunk")
 	switch {
 	case err != nil:
 		a.flash("hunk is not on PATH - install it, see Settings › Integrations")
@@ -39,7 +46,7 @@ func (a *App) hunkOn() bool {
 	if on := a.cfg.Integrations.Hunk; on != nil {
 		return *on
 	}
-	_, err := exec.LookPath("hunk")
+	_, err := a.executable("hunk")
 	return err == nil
 }
 

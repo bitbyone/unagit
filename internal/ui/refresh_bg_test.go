@@ -110,7 +110,8 @@ func TestRefreshAsksOnlyAboutWhatIsShown(t *testing.T) {
 // and a second R does not start a second refresh.
 func TestRefreshRunsBehindTheList(t *testing.T) {
 	t.Parallel()
-	a, sc, srv := newTestAppSrv(t)
+	a, sc, srv := newTestAppSrv(t, func(a *App) { a.newAnimationTicker = realAnimationTicker })
+	resizeApp(a, sc, 160, 44)
 	hold := make(chan struct{})
 	srv.holdMRList.Store(hold)
 	var release sync.Once
@@ -186,9 +187,9 @@ func TestRefreshProgressWrapsRatherThanHides(t *testing.T) {
 	waitFor(t, a, sc, "refreshing merge requests")
 
 	for _, width := range []int{80, 50, 24} {
-		resize(sc, width, 24)
-		// The spinner redraws the header; once it has, the job is a line
-		// of its own above the summary, which is the last line.
+		resizeApp(a, sc, width, 24)
+		// The resize redraws the header: the job is a line of its own above
+		// the summary, which is the last line.
 		deadline := time.Now().Add(patience)
 		for {
 			text := a.screenText(sc)
@@ -267,7 +268,11 @@ func TestRefreshingARowSaysSoAtTheRight(t *testing.T) {
 // spinner while it runs and is marked done when it ends.
 func TestATaskSpinsTheStepUnderWay(t *testing.T) {
 	t.Parallel()
-	a, sc := newTestApp(t)
+	ticks := make(chan time.Time, 1)
+	t.Cleanup(func() { close(ticks) })
+	a, sc, _ := newTestAppSrv(t, func(a *App) {
+		a.newAnimationTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
+	})
 	waitFor(t, a, sc, "acme/gateway")
 	release := make(chan struct{})
 	var once sync.Once
@@ -290,6 +295,7 @@ func TestATaskSpinsTheStepUnderWay(t *testing.T) {
 	if first := strings.TrimSpace(strings.Trim(lineAt(a.screenText(sc), "first step"), "│ ")); first != "first step" {
 		t.Errorf("a finished step still has a mark: %q", first)
 	}
+	ticks <- time.Now()
 	deadline := time.Now().Add(patience)
 	for step() == turned {
 		if time.Now().After(deadline) {

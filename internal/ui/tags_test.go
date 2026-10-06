@@ -104,6 +104,7 @@ func TestTagsOnRepositories(t *testing.T) {
 func TestTagSettings(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
 	changeOnLoop(a, func() { a.cfg.ToggleTag(inst, "acme/gateway", "oss") })
@@ -172,7 +173,7 @@ func TestTagFormFitsItsFrame(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			openTagSettings(t, a, sc)
 			typeRunes(sc, "e")
 			waitFor(t, a, sc, "Tag · oss")
@@ -314,6 +315,7 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 func TestServerTagsReachEveryRepository(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Default root")

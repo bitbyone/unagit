@@ -89,7 +89,7 @@ func TestEditorsCardFits(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
 			useFavourite(a, "")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
 			typeRunes(sc, "j")
 			waitFor(t, a, sc, "f favourite")

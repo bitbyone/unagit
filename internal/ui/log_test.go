@@ -148,6 +148,7 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 func TestCopyACommit(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	commitIn(t, p.clone, "b.txt", "Count requests per client")
@@ -173,8 +174,9 @@ func TestCopyACommit(t *testing.T) {
 // repository is not on disk clones it, fetches the merge request, and shows
 // the commit in Hunk; the log comes back after.
 func TestDiffInALogBringsTheCommit(t *testing.T) {
-	hunk := fakeHunk(t)
-	a, sc, srv := newTestAppSrv(t)
+	t.Parallel()
+	hunk, prepare := fakeHunk(t)
+	a, sc, srv := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	head := mrOnOrigin(t, srv, p, "Add a token bucket")

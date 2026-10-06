@@ -400,6 +400,12 @@ server. Rules learned the hard way:
   `waitFor` and `waitGone` wait for frames, and reuse the text of a frame instead
   of reading the same cells every 20 ms. Direct `InjectKey` remains asynchronous;
   wait for the state the next key needs. `waitSelected` polls state on the loop.
+  `resizeApp` draws the new terminal size before a layout assertion reads it;
+  text already present in the old frame is not a resize acknowledgement.
+- Ordinary fixtures advance spinner frames only when a test asks for them.
+  `newAnimationTicker` is per app; the production default is real time. The
+  background-refresh test uses the real ticker, the task-log test sends a tick,
+  and data polling and input debounce keep their real clocks.
 - `Form.SetFocus` on a non-focusable `TextView` re-enters that item's own lock
   and deadlocks tview; the legibility test skips such items, and so should you.
 - Fixture merge requests need distinct `id`s (the dedupe is by id) and

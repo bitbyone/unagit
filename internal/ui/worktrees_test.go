@@ -108,7 +108,7 @@ func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
 		t.Errorf("the columns are not headed:\n%s", text)
 	}
 
-	resize(sc, 80, 20)
+	resizeApp(a, sc, 80, 20)
 	waitGone(t, a, sc, "CREATED")
 	if !strings.Contains(a.screenText(sc), "REMOTE") {
 		t.Errorf("REMOTE gave way before the new columns:\n%s", a.screenText(sc))

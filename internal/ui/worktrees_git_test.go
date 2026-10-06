@@ -76,10 +76,12 @@ var projectSeed = sync.OnceValues(func() (string, error) {
 		}
 		return nil
 	}
-	if err := run(base, "init", "-q", "--bare", "--initial-branch=main", origin); err != nil {
+	// Sample hooks are never run, but copying them into every fixture costs
+	// as many files as the actual history. An empty template leaves them out.
+	if err := run(base, "-c", "init.templateDir=", "init", "-q", "--bare", "--initial-branch=main", origin); err != nil {
 		return "", err
 	}
-	if err := run(base, "clone", "-q", origin, clone); err != nil {
+	if err := run(base, "-c", "init.templateDir=", "clone", "-q", origin, clone); err != nil {
 		return "", err
 	}
 	if err := os.WriteFile(filepath.Join(clone, "a.txt"), []byte("initial\n"), 0o644); err != nil {
@@ -212,6 +214,7 @@ func TestRemoteColumnIsQuestionMarkWhenTheCloneCannotBeRead(t *testing.T) {
 func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	p.worktree("feat/rate")
@@ -251,11 +254,11 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 		}
 	}
 	waitForHeader([]string{"REMOTE", "EDITS", "MR", "PATH"}, nil) // 160 wide: everything
-	resize(sc, 80, 30)
+	resizeApp(a, sc, 80, 30)
 	waitForHeader([]string{"REMOTE", "EDITS", "MR"}, []string{"PATH"}) // the directory goes first
-	resize(sc, 70, 30)
+	resizeApp(a, sc, 70, 30)
 	waitForHeader([]string{"REMOTE", "EDITS"}, []string{"PATH", " MR "}) // then the merge request
-	resize(sc, 50, 30)
+	resizeApp(a, sc, 50, 30)
 	waitForHeader([]string{"REMOTE"}, []string{"PATH", " MR ", "EDITS"}) // then the edits; REMOTE stays
 }
 
@@ -467,6 +470,7 @@ func TestNewMergeRequestNeedsATitle(t *testing.T) {
 func TestNewMergeRequestOffersToPushFirst(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	dir := p.worktree("feat/new-thing")

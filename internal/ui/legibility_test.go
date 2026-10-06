@@ -82,6 +82,42 @@ func onLoopCells(a *App, sc tcell.SimulationScreen) ([]tcell.SimCell, int, int) 
 	return s.cells, s.w, s.h
 }
 
+// Dimming must keep an entire grapheme, including combining marks and joiners,
+// and affect neither its width nor a cell outside the requested rectangle.
+func TestDimmingKeepsGraphemesAndAttributes(t *testing.T) {
+	t.Parallel()
+	sc := tcell.NewSimulationScreen("UTF-8")
+	must(t, sc.Init())
+	defer sc.Fini()
+	sc.SetSize(8, 2)
+	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlue).
+		Bold(true).Italic(true).Underline(true)
+	for _, cell := range []struct {
+		x    int
+		text string
+	}{{0, "e\u0301"}, {2, "界"}, {4, "\U0001f469\u200d\U0001f4bb"}} {
+		sc.Put(cell.x, 0, cell.text, style)
+	}
+	sc.Put(0, 1, "x", style)
+	dimArea(sc, 0, 0, 8, 1)
+	for _, cell := range []struct {
+		x, width int
+		text     string
+	}{{0, 1, "e\u0301"}, {2, 2, "界"}, {4, 2, "\U0001f469\u200d\U0001f4bb"}} {
+		text, dimmed, width := sc.Get(cell.x, 0)
+		if text != cell.text || width != cell.width {
+			t.Errorf("dimmed grapheme is %q, width %d; want %q, width %d", text, width, cell.text, cell.width)
+		}
+		fg, bg, attrs := dimmed.Decompose()
+		if fg == tcell.ColorWhite || bg == tcell.ColorBlue || attrs != tcell.AttrItalic|tcell.AttrUnderline {
+			t.Errorf("dimming lost the style: %v", dimmed)
+		}
+	}
+	if text, untouched, _ := sc.Get(0, 1); text != "x" || untouched != style {
+		t.Error("dimming changed a cell outside the rectangle")
+	}
+}
+
 // TestEveryDialogIsLegible walks the interface with the keyboard and checks
 // each screen. The focused state is the one that breaks, so each dialog is
 // looked at with the focus in it.

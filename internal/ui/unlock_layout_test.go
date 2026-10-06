@@ -2,6 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,13 +23,27 @@ func newLockedApp(t *testing.T, themeName string, firstRun bool) (*App, tcell.Si
 	cfg.Theme = themeName
 	must(t, cfg.Save())
 	if !firstRun {
-		v, err := secret.NewVault([]byte("hunter2"))
+		data, err := lockedLayoutVault()
 		must(t, err)
-		must(t, v.Save(cfg.VaultPath()))
+		must(t, os.WriteFile(cfg.VaultPath(), data, 0o600))
 	}
 	a, sc, _ := startLocked(t, cfg)
 	return a, sc
 }
+
+// The layout needs a valid existing vault to choose the ordinary dialog.
+// Each app gets its own copy; unlocking tests still derive and open real keys.
+var lockedLayoutVault = sync.OnceValues(func() ([]byte, error) {
+	v, err := secret.NewVault([]byte("hunter2"))
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(fixtureRoot, "layout-vault.enc")
+	if err := v.Save(path); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(path)
+})
 
 // startLocked is startApp for a locked app, with a channel closed when it
 // has stopped.
@@ -59,7 +76,7 @@ func TestUnlockFitsItsFrame(t *testing.T) {
 			t.Run(fmt.Sprintf("first=%v/%dx%d", firstRun, size.w, size.h), func(t *testing.T) {
 				t.Parallel()
 				a, sc := newLockedApp(t, defaultThemeName, firstRun)
-				resize(sc, size.w, size.h)
+				resizeApp(a, sc, size.w, size.h)
 				waitFor(t, a, sc, "Passphrase")
 				waitFor(t, a, sc, "Unlock")
 				waitFor(t, a, sc, "Quit")

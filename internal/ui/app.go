@@ -178,6 +178,12 @@ type App struct {
 	// save can follow its baseline rather than guessing when a tick ran.
 	// nil reads through os.Stat.
 	themeStat func(string) (os.FileInfo, error)
+	// newAnimationTicker lets a rendering test advance decoration without
+	// changing the clocks that load data or debounce input. Nil uses real time.
+	newAnimationTicker func(time.Duration) (<-chan time.Time, func())
+	// findExecutable keeps a fake integration local to its app instead of
+	// changing PATH for every app in the test process. Nil searches PATH.
+	findExecutable func(string) (string, error)
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -1572,9 +1578,9 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 	}
 	render(spinning())
 	go func() {
-		ticker := time.NewTicker(spinInterval)
-		defer ticker.Stop()
-		for range ticker.C {
+		ticks, stopTicker := a.animationTicker(spinInterval)
+		defer stopTicker()
+		for range ticks {
 			stop := make(chan bool, 1)
 			a.tv.QueueUpdateDraw(func() {
 				if !done && len(lines) > 0 {

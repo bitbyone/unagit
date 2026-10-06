@@ -175,6 +175,7 @@ func TestBranchesKnowTheirMergeRequests(t *testing.T) {
 func TestALogFollowsTheTerminal(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	long := "Count requests per client and tell them apart by the token they present, a very long subject indeed"
@@ -184,7 +185,7 @@ func TestALogFollowsTheTerminal(t *testing.T) {
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	waitFor(t, a, sc, long[:90])
-	resize(sc, 100, 30)
+	resizeApp(a, sc, 100, 30)
 	waitGone(t, a, sc, long[:60])
 	waitFor(t, a, sc, long[:40])
 	if line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), long[:40])]; !strings.Contains(line, "just now") {
@@ -225,6 +226,7 @@ func TestCommentsAndApprovalsRead(t *testing.T) {
 func TestTheDetailSpellsTheCommentsOut(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() {
 		for i := range a.mrs {

@@ -138,7 +138,7 @@ func TestTheActionPickerFitsWhatItHolds(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			typeRunes(sc, ":")
 			waitFor(t, a, sc, "Ask the servers for the repositories")
 			frame := onLoop(a, func() rect {
@@ -316,7 +316,7 @@ func TestTheNewRepositoryFormFitsItsFrame(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			form := openNewRepository(t, a, sc)
 			frame := onLoop(a, func() rect {
 				x, y, w, h := form.GetRect()

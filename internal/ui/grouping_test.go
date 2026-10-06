@@ -38,7 +38,7 @@ func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
 		t.Run(list, func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, 120, 16)
+			resizeApp(a, sc, 120, 16)
 			heading := "acme  ("
 			changeOnLoop(a, func() {
 				// Enough rows to scroll.
@@ -86,7 +86,7 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 				t.Run(fmt.Sprintf("%s from %s, %d rows", list, start, size.rows), func(t *testing.T) {
 					a, sc := newTestApp(t)
 					waitFor(t, a, sc, "acme/gateway")
-					resize(sc, 120, size.height)
+					resizeApp(a, sc, 120, size.height)
 					changeOnLoop(a, func() {
 						// Rows spread over many groups, so grouping moves them a lot.
 						for i := 0; i < size.rows; i++ {
@@ -187,7 +187,7 @@ func TestClearingTheFilterGoesToTheTop(t *testing.T) {
 		t.Run(fmt.Sprintf("grouped %v", grouped), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, 120, 16)
+			resizeApp(a, sc, 120, 16)
 			changeOnLoop(a, func() {
 				for i := 0; i < 30; i++ {
 					a.projects = append(a.projects, forge.Project{ID: 100 + i, Instance: a.projects[0].Instance,
@@ -240,7 +240,7 @@ func TestDetailStacksBelowItsListsWidth(t *testing.T) {
 			waitFor(t, a, sc, "acme/gateway")
 			typeRunes(sc, c.tab)
 			for _, width := range []int{c.limit - 1, c.limit} {
-				resize(sc, width, 40)
+				resizeApp(a, sc, width, 40)
 				waitFocus(t, a, func() bool {
 					_, _, w, _ := c.pane(a).body.GetRect()
 					return w == width

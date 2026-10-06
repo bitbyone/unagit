@@ -23,6 +23,7 @@ func openMRDetail(t *testing.T, a *App, sc tcell.SimulationScreen) {
 func TestDetailShowsOnlyTheNewestComments(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	openMRDetail(t, a, sc)
 
 	waitFor(t, a, sc, "COMMENTS (3 NEWEST OF 4)")
@@ -39,6 +40,7 @@ func TestDetailShowsOnlyTheNewestComments(t *testing.T) {
 func TestCommentsAreRenderedAsMarkdown(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	openMRDetail(t, a, sc)
 	waitFor(t, a, sc, "retry loop")
 
@@ -118,6 +120,7 @@ func TestComposerRefusesAnEmptyComment(t *testing.T) {
 func TestApproveAsksFirst(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
@@ -148,6 +151,7 @@ func TestApproveAsksFirst(t *testing.T) {
 func TestApproveFromTheCommentsModal(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	openMRDetail(t, a, sc)
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
@@ -222,6 +226,7 @@ func column(line, word string) int {
 func TestEnterOpensTheRowYouAreOn(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
@@ -258,7 +263,7 @@ func TestRedrawKeepsTheCursor(t *testing.T) {
 	before := 2
 	waitSelected(t, a, a.mrsPane, before)
 
-	resize(sc, 100, 30)
+	resizeApp(a, sc, 100, 30)
 	time.Sleep(150 * time.Millisecond)
 	if got := onLoop(a, a.mrsPane.selectedIndex); got != before {
 		t.Errorf("a resize moved the cursor from %d to %d", before, got)
@@ -297,7 +302,7 @@ func waitSelected(t *testing.T, a *App, p *pane, want int) {
 func TestCommentsOpenAtTheTop(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
-	resize(sc, 140, 16)
+	resizeApp(a, sc, 140, 16)
 	openMRDetail(t, a, sc)
 
 	typeRunes(sc, "c")

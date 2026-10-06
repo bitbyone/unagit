@@ -28,6 +28,7 @@ func newChezmoiApp(t *testing.T) (*App, tcell.SimulationScreen, string) {
 		return chezmoi.Checkout{Dir: checkout, Origin: srv.URL + "/acme/gateway.git"}, nil
 	}
 	a, sc := startApp(t, a)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "Managed by Chezmoi")
 	return a, sc, checkout
 }

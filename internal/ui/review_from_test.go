@@ -120,7 +120,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 			waitFor(t, a, sc, "acme/gateway")
 			p := newRealProject(t, a, "acme/gateway")
 			mrOnOrigin(t, srv, p, "Add a token bucket", "Count per client", "Answer the review")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			typeRunes(sc, "2")
 			waitFor(t, a, sc, "Rate limiting")
 			sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
@@ -176,8 +176,9 @@ func TestCMakesTheReviewWithoutOpeningIt(t *testing.T) {
 // TestDOnAMergeRequestNotOnDisk: D in the list makes the review - cloning
 // the repository first - and shows it in Hunk, rather than asking for C.
 func TestDOnAMergeRequestNotOnDisk(t *testing.T) {
-	hunk := fakeHunk(t)
-	a, sc, srv := newTestAppSrv(t)
+	t.Parallel()
+	hunk, prepare := fakeHunk(t)
+	a, sc, srv := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	mrOnOrigin(t, srv, p, "Add a token bucket")

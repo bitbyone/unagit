@@ -73,8 +73,7 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 	})
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
-			resize(sc, size.w, size.h)
-			a.tv.QueueUpdateDraw(func() {})
+			resizeApp(a, sc, size.w, size.h)
 			waitFor(t, a, sc, "billing message")
 			commitForm := onLoop(a, func() *tview.Form {
 				_, primitive := a.pages.GetFrontPage()

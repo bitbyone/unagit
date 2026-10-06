@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,16 +12,22 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// fakeHunk puts a hunk on PATH that writes down where it ran, with what, and
+// fakeHunk gives one app a hunk that writes down where it ran, with what, and
 // the patch it was handed.
-func fakeHunk(t *testing.T) (log string) {
+func fakeHunk(t *testing.T) (log string, prepare func(*App)) {
 	t.Helper()
 	dir := t.TempDir()
 	log = filepath.Join(dir, "log")
 	script := "#!/bin/sh\necho \"$PWD $*\" >> " + log + "\nif [ \"$1\" = patch ]; then cat \"$2\" >> " + log + "; fi\n"
 	must(t, os.WriteFile(filepath.Join(dir, "hunk"), []byte(script), 0o755))
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	return log
+	return log, func(a *App) {
+		a.findExecutable = func(name string) (string, error) {
+			if name == "hunk" {
+				return filepath.Join(dir, "hunk"), nil
+			}
+			return exec.LookPath(name)
+		}
+	}
 }
 
 func waitForLog(t *testing.T, log string, want ...string) string {
@@ -45,8 +52,9 @@ func waitForLog(t *testing.T, log string, want ...string) string {
 // TestDShowsTheChangesInHunk: D needs the integration; on, it runs hunk diff
 // in a clone, and a grouped worktree's repositories as one patch.
 func TestDShowsTheChangesInHunk(t *testing.T) {
-	log := fakeHunk(t)
-	a, sc, _ := newTestAppSrv(t)
+	t.Parallel()
+	log, prepare := fakeHunk(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
 	gw, _, form := markBoth(t, a, sc)
 
 	// The group first, made the usual way.
@@ -91,7 +99,7 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
 			typeRunes(sc, "jj") // Incomm, Editors, Hunk
 			// Hunk's own line: the keys may not have landed yet, and the
@@ -117,8 +125,9 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 // goes straight to the whole branch since its base, the commits and the
 // edits together, with no list to choose from.
 func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
-	log := fakeHunk(t)
-	a, sc, _ := newTestAppSrv(t)
+	t.Parallel()
+	log, prepare := fakeHunk(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	dir := p.worktree("feat/x")
