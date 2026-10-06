@@ -141,7 +141,9 @@ all and live only there.
 - The `NEW` column counts the commits pushed to a merge request since your
   review last checked out its head (`●` when they are not on disk to count),
   `APPR` its approvals - `✓` when you approved, `1/2` of those asked for -
-  and `CI` its pipeline: `✓` passed, `✗` failed, `●` running. `COM` counts
+  and `CI` its pipeline: a full circle green when it passed, red when it
+  failed, a turning one while it runs, an empty one in blue while it waits
+  its turn and grey when it was skipped. `COM` counts
   the threads still to resolve, in amber, where GitLab says; on GitHub it
   counts who has said something. All of it is read on `R`, and the
   refresh sums up what it found: new merge requests, ones with commits
