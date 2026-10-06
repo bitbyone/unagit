@@ -202,7 +202,7 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		enterName: "Show Log", enterAbout: "Read the job's log, or a trigger job's own pipeline.",
 		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
 		keys: []pickKey{
-			{keys: "R", hint: "run", name: "Run Job", about: "Start a manual or delayed job, or run a finished one again.", run: func(it pickItem) { a.runJob(target, at(it)) }},
+			{keys: "R", hint: "run", name: "Run Job", about: "Start a manual or delayed job, or run a finished one again.", stay: true, run: func(it pickItem) { a.runJob(target, at(it)) }},
 			a.browserKey("w", "browser", "Open Job in Browser", "The job's page on the forge; the jobs stay open.",
 				func(it pickItem) string { return at(it).WebURL }),
 			a.browserKey("W", "pipeline", "Open Pipeline in Browser", "The whole pipeline's page on the forge; the jobs stay open.",
@@ -459,22 +459,41 @@ func duration(seconds float64) string {
 }
 
 // runJob starts a job: one that waits for a hand is played, one that ran
-// is run again; then the pipeline comes back, the cursor on it.
+// is run again. The jobs stay on screen meanwhile, saying so in their
+// edge, and are then read again in place, the cursor on the job.
 func (a *App) runJob(target ciTarget, job forge.Job) {
 	client := a.client(target.instance)
-	title, said := "Retrying "+job.Name, job.Name+" runs again"
-	if waitsForAHand(job) {
-		title, said = "Starting "+job.Name, job.Name+" started"
+	if client == nil {
+		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		return
 	}
-	a.runTaskThen(title, func(log func(string)) (string, error) {
+	title, said := "Retrying "+job.Name+"…", job.Name+" runs again"
+	if waitsForAHand(job) {
+		title, said = "Starting "+job.Name+"…", job.Name+" started"
+	}
+	var pipe *forge.Pipeline
+	var jobs []forge.Job
+	a.waitInDialog(title, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
+		var err error
 		if waitsForAHand(job) {
-			return "", client.PlayJob(ctx, target.project, job)
+			err = client.PlayJob(ctx, target.project, job)
+		} else {
+			err = client.RetryJob(ctx, target.project, job)
 		}
-		return "", client.RetryJob(ctx, target.project, job)
-	}, func(string) {
-		a.showPipelineThen(target, job.ID, func() { a.done(said) })
+		if err != nil {
+			return fmt.Errorf("cannot start %s: %w", job.Name, err)
+		}
+		// Started is what was asked; a pipeline that cannot be read again
+		// now is read by the follower, or on the next J.
+		pipe, jobs, _ = target.load(ctx, client)
+		return nil
+	}, func(stillOpen bool) {
+		if stillOpen && pipe != nil && len(jobs) > 0 {
+			a.listJobs(target, pipe, jobs, job.ID)
+		}
+		a.done(said)
 	})
 }
 

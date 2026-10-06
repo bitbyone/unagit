@@ -13,7 +13,7 @@ import (
 
 // TestAPipelineUpClose: J lists the jobs with the failed one under the
 // cursor; Enter reads its log, in its colours, and Esc comes back; R
-// runs it again.
+// runs it again, the jobs staying on screen and saying so in their edge.
 func TestAPipelineUpClose(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
@@ -45,8 +45,16 @@ func TestAPipelineUpClose(t *testing.T) {
 	waitGone(t, a, sc, "--- FAIL: TestBucket")
 	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
 
+	gate := make(chan struct{})
+	srv.retryGate.Store(gate)
 	typeRunes(sc, "R")
+	waitFor(t, a, sc, "Retrying unit tests…")
+	if text := a.screenText(sc); !strings.Contains(text, "Pipeline · acme/gateway !7") || strings.Contains(text, "j/k scroll") {
+		t.Errorf("the jobs did not stay, or a log came over them:\n%s", text)
+	}
+	close(gate)
 	waitFor(t, a, sc, "unit tests runs again")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
 	if srv.retried.Load() != 1 {
 		t.Errorf("retried %d time(s), want 1", srv.retried.Load())
 	}

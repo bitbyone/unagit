@@ -37,9 +37,7 @@ func (a *App) animationTicker(every time.Duration) (<-chan time.Time, func()) {
 func (a *App) startJob(title string) *bgJob {
 	j := &bgJob{title: title}
 	a.jobs = append(a.jobs, j)
-	if len(a.jobs) == 1 {
-		go a.spin()
-	}
+	a.keepSpinning()
 	a.showJobs()
 	return j
 }
@@ -64,7 +62,16 @@ func (a *App) endJob(j *bgJob) {
 	a.showJobs()
 }
 
-// spin turns the spinner while any job is under way.
+// keepSpinning starts the spinner unless it turns already. It runs on the
+// event loop.
+func (a *App) keepSpinning() {
+	if !a.spinning {
+		a.spinning = true
+		go a.spin()
+	}
+}
+
+// spin turns the spinner while any job is under way, or a dialog waits.
 func (a *App) spin() {
 	ticks, stopTicker := a.animationTicker(spinInterval)
 	defer stopTicker()
@@ -73,7 +80,11 @@ func (a *App) spin() {
 		a.tv.QueueUpdateDraw(func() {
 			a.spinFrame++
 			a.showJobs()
-			stop <- len(a.jobs) == 0
+			idle := len(a.jobs) == 0 && a.waits == 0
+			if idle {
+				a.spinning = false
+			}
+			stop <- idle
 		})
 		select {
 		case done := <-stop:
@@ -93,10 +104,6 @@ func (a *App) jobLine() string {
 	if len(a.jobs) == 0 {
 		return ""
 	}
-	frames := []rune(theme.Glyphs.Spinner)
-	if len(frames) == 0 {
-		frames = []rune(glyphDot)
-	}
 	var parts []string
 	for _, j := range a.jobs {
 		part := j.title
@@ -105,7 +112,16 @@ func (a *App) jobLine() string {
 		}
 		parts = append(parts, part)
 	}
-	return tag(colAccent) + string(frames[a.spinFrame%len(frames)]) + " " + esc(strings.Join(parts, "  ")) + tagEnd
+	return tag(colAccent) + spinnerGlyph(a.spinFrame) + " " + esc(strings.Join(parts, "  ")) + tagEnd
+}
+
+// spinnerGlyph is the spinner at a frame.
+func spinnerGlyph(frame int) string {
+	frames := []rune(theme.Glyphs.Spinner)
+	if len(frames) == 0 {
+		frames = []rune(glyphDot)
+	}
+	return string(frames[frame%len(frames)])
 }
 
 // showJobs draws the right-hand end of every status line again: the word

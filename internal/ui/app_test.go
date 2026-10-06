@@ -31,6 +31,9 @@ type fakeServer struct {
 	// retried counts the jobs run again, played the manual ones started.
 	retried atomic.Int64
 	played  atomic.Int64
+	// retryGate, when it holds a channel, keeps a retry waiting until the
+	// channel is closed.
+	retryGate atomic.Value
 	// postedComment holds the body of the last comment posted.
 	postedComment atomic.Value
 	// postedMR holds the JSON body of the last merge request created.
@@ -450,6 +453,9 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		fmt.Fprint(w, "section_start:1:step_script\r\x1b[0K\x1b[32;1mRunning tests\x1b[0;m\n--- FAIL: TestBucket\nprogress 10%\rprogress 100%\n")
 	})
 	mux.HandleFunc("/api/v4/projects/1/jobs/5/retry", func(w http.ResponseWriter, r *http.Request) {
+		if gate, ok := f.retryGate.Load().(chan struct{}); ok {
+			<-gate
+		}
 		f.retried.Add(1)
 		json(w, `{}`)
 	})

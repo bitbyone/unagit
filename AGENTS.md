@@ -188,7 +188,10 @@ commits, a lookup - is a job (`startJob`/`endJob`, `jobs.go`), shown with a
 spinner at the right of every status line, never as a count in the summary.
 A short read that a dialog waits for (a pipeline, a log, the commits) is not
 a job but the dialog's own wait: `runTask`'s log, whose last line turns a
-spinner while it runs.
+spinner while it runs. A request made from a dialog that stays open -
+starting a job - is not even that: `waitInDialog` says what it waits for
+in the dialog's bottom edge, with the spinner, and a failure is a warning;
+a log that flashes up over the dialog and goes is noise.
 
 **A long refresh runs behind the interface.** Refreshing a whole list is a
 job (`runInBackground`, `jobs.go`): no dialog, a spinner and its progress in

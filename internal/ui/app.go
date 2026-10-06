@@ -162,8 +162,12 @@ type App struct {
 	// jobs are the jobs under way behind the interface (jobs.go), and
 	// spinFrame turns their spinner; refreshing guards each refresh against
 	// starting twice.
-	jobs                         []*bgJob
-	spinFrame                    int
+	jobs      []*bgJob
+	spinFrame int
+	// waits counts the dialogs waiting on a request (waitInDialog), which
+	// keep the spinner turning as jobs do; spinning is whether it turns.
+	waits                        int
+	spinning                     bool
 	refreshingMRs, refreshingPrj bool
 
 	themes       themeSet
@@ -626,6 +630,37 @@ func (a *App) say(msg string, sev severity) {
 type dialogWord struct {
 	on   tview.Primitive
 	text string
+	// waiting is a word of waitInDialog's: what the dialog waits for, with
+	// the spinner before it.
+	waiting bool
+}
+
+// waitInDialog runs fn off the event loop while the dialog in front says in
+// its bottom edge what it waits for, a spinner turning before it. A short
+// request made from a dialog - starting a job - needs no log over it that
+// flashes up and goes. then runs on the event loop once fn went through,
+// told whether that dialog is still the one in front; what went wrong is a
+// warning.
+func (a *App) waitInDialog(text string, fn func() error, then func(stillOpen bool)) {
+	_, front := a.pages.GetFrontPage()
+	a.dialogSaid = dialogWord{on: front, text: tag(colMuted) + esc(text) + tagEnd, waiting: true}
+	a.waits++
+	a.keepSpinning()
+	go func() {
+		err := fn()
+		a.tv.QueueUpdateDraw(func() {
+			a.waits--
+			if a.dialogSaid.waiting && a.dialogSaid.on == front {
+				a.dialogSaid = dialogWord{}
+			}
+			if err != nil {
+				a.errorf("%v", err)
+				return
+			}
+			_, now := a.pages.GetFrontPage()
+			then(now == front)
+		})
+	}()
 }
 
 // drawDialogWord draws the word last said in the bottom edge of the dialog
@@ -647,6 +682,9 @@ func (a *App) drawDialogWord(screen tcell.Screen) {
 	// title sits in the top one.
 	row, end := y+h-1, x+w-2
 	text := " " + a.dialogSaid.text + " "
+	if a.dialogSaid.waiting {
+		text = " " + tag(colAccent) + spinnerGlyph(a.spinFrame) + tagEnd + text
+	}
 	width := min(tview.TaggedStringWidth(text), w-4)
 	tview.Print(screen, text, end-width, row, width, tview.AlignLeft, colMuted)
 }
