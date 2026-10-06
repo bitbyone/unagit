@@ -131,97 +131,80 @@ func (a *App) filterMRs(query string) []int {
 	return out
 }
 
-// mrColumns works out how wide each column may be for the current table
-// width, the repository and the title no wider than the window allows
-// (capsFor).
-// The title takes whatever is left, and every cell is truncated to fit, so
-// the branch column never falls off the right edge.
-type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
+// mrColumns are the widths of the merge request list's columns: the
+// title reads the row, so it minds a cut the most; NEW, APPR and CI take
+// room only when a row has something in them, so a list nobody has
+// reviewed, approved or built keeps its titles whole.
+type mrColumns struct{ server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
 
-func (a *App) mrColumns(window, width int, rows []int) mrColumns {
-	// NEW: commits pushed since your last review; CI: the head's pipeline.
-	// NEW, APPR and CI take room only when a row has something in them:
-	// a list nobody has reviewed, approved or built keeps its titles whole.
-	c := mrColumns{iid: 3, updated: 8, com: len("COM")}
+// titleMeasure is the widest the title column grows: past it the author and
+// the branch would stand so far right of it that the eye loses the row on
+// the way. What it does not take is left at the end of the row.
+const titleMeasure = 100
+
+// mrColumns lays the list out in room for the rows shown. Grouped, the
+// project is in the headings and every row is indented one cell instead.
+func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped bool) mrColumns {
+	var servers, projs, titles, authors, branches []int
+	iid, com, updated, fresh, appr, ci, pub := 3, len("COM"), len("UPDATED"), 0, 0, 0, 0
 	if a.cfg.Integrations.Incomm {
-		c.pub = 3 // PUB: what waits to be published from Incomm
+		pub = 3 // PUB: what waits to be published from Incomm
 	}
 	for _, idx := range rows {
 		mr := a.mrs[idx]
-		c.proj = max(c.proj, iconWidth(a.forgeIcon(mr.Instance))+len([]rune(a.projectPathOfMR(mr))))
-		c.iid = max(c.iid, len(fmt.Sprintf("!%d", mr.IID)))
-		c.author = max(c.author, len([]rune(personName(a.named(mr.Instance, mr.Author)))))
-		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
-		c.updated = max(c.updated, len(humanAge(mr.UpdatedAt)))
+		if withServer {
+			servers = append(servers, len([]rune(a.instanceLabel(mr.Instance))))
+		}
+		projs = append(projs, iconWidth(a.forgeIcon(mr.Instance))+len([]rune(a.projectPathOfMR(mr))))
+		iid = max(iid, len(fmt.Sprintf("!%d", mr.IID)))
+		title := len([]rune(mr.Title))
+		if mr.Draft && glyphDraft != "" {
+			title = iconWidth(glyphDraft) + len([]rune(undrafted(mr.Title)))
+		} else if mr.Draft {
+			title += len("draft ")
+		}
+		titles = append(titles, title)
+		authors = append(authors, len([]rune(personName(a.named(mr.Instance, mr.Author)))))
+		branches = append(branches, len([]rune(mr.SourceBranch)))
+		updated = max(updated, len(humanAge(mr.UpdatedAt)))
 		if a.mrFresh[keyOfMR(mr)] != 0 {
-			c.fresh = 3
+			fresh = 3
 		}
 		_, comW := commentWords(mr)
-		c.com = max(c.com, comW)
+		com = max(com, comW)
 		if _, w := approvalWords(mr, a.me[mr.Instance]); w > 0 {
-			c.appr = max(c.appr, w, len("APPR"))
+			appr = max(appr, w, len("APPR"))
 		}
 		if mr.Pipeline != "" {
-			c.ci = 2
+			ci = 2
 		}
 	}
-	// What the three cut columns would take whole: room the title leaves
-	// gives it back to them.
-	projFull, authorFull, branchFull := c.proj, c.author, c.branch
-	caps := capsFor(window)
-	c.proj = atLeast(min(c.proj, caps.repo), "REPO")
-	c.author = atLeast(min(c.author, 18), "AUTHOR")
-	c.branch = atLeast(min(c.branch, 26), "BRANCH")
-	c.updated = atLeast(c.updated, "UPDATED")
-
-	const (
-		markW    = 2
-		minTitle = 24
-	)
-	gaps := 7
-	for _, w := range []int{c.fresh, c.appr, c.ci} {
+	title := flexColumn("TITLE", titles, 24, 2)
+	title.max = titleMeasure
+	cols := []*listColumn{fixedColumn(markW), fixedColumn(iid), title,
+		flexColumn("AUTHOR", authors, 8, 0.7), flexColumn("BRANCH", branches, 10, 0.8),
+		fixedColumn(com), fixedColumn(updated)}
+	server, proj := &listColumn{}, &listColumn{}
+	if withServer {
+		server = flexColumn("SERVER", servers, 6, 0.5)
+		cols = append(cols, server)
+	}
+	if grouped {
+		room-- // the indent
+	} else {
+		proj = flexColumn("REPO", projs, 16, 1)
+		cols = append(cols, proj)
+	}
+	for _, w := range []int{fresh, appr, ci, pub} {
 		if w > 0 {
-			gaps++
+			cols = append(cols, fixedColumn(w))
 		}
 	}
-	if c.pub > 0 {
-		gaps++ // its own gap
-	}
-	fixed := func() int {
-		return markW + c.proj + c.iid + c.author + c.branch + c.com + c.pub + c.fresh + c.appr + c.ci + c.updated + gaps
-	}
-	c.title = width - fixed()
-	// Give the title room by shrinking the least important columns first.
-	for _, shrink := range []struct {
-		col *int
-		min int
-	}{{&c.branch, 10}, {&c.proj, 16}, {&c.author, 8}} {
-		if c.title >= minTitle {
-			break
-		}
-		give := min(*shrink.col-shrink.min, minTitle-c.title)
-		if give > 0 {
-			*shrink.col -= give
-			c.title += give
-		}
-	}
-	// A title wider than the window allows hands what it does not take to
-	// the columns cut short, the repository first; what is still left
-	// stays at the end of the row.
-	if spare := c.title - caps.title; spare > 0 {
-		c.title = caps.title
-		for _, grow := range []struct {
-			col  *int
-			full int
-		}{{&c.proj, projFull}, {&c.branch, branchFull}, {&c.author, authorFull}} {
-			if give := min(spare, grow.full-*grow.col); give > 0 {
-				*grow.col += give
-				spare -= give
-			}
-		}
-	}
-	c.title = max(c.title, 10)
-	return c
+	// One cell stays free, so the last column does not touch the frame.
+	layoutColumns(room-1, cols...)
+	return mrColumns{server: server.width, proj: proj.width, iid: iid, title: title.width,
+		author: cols[3].width, branch: cols[4].width, com: com, pub: pub, fresh: fresh, appr: appr,
+		ci: ci, updated: updated}
 }
 
 // atLeast keeps a column wide enough for its own heading.
@@ -295,20 +278,8 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	}
 	star := starColumn(filtered, favourite)
 
-	serverW := 0
-	if withServer {
-		for _, idx := range filtered {
-			serverW = max(serverW, len([]rune(a.instanceLabel(a.mrs[idx].Instance))))
-		}
-		serverW = atLeast(min(serverW, 16), "SERVER")
-	}
-	c := a.mrColumns(p.contentWidth()+2, p.contentWidth()-serverW-star, filtered)
-	if grouped {
-		// The project moves into the heading, so its width goes to the title.
-		// The gap it leaves behind pays for the indent on every row.
-		c.title += c.proj
-		c.proj = 0
-	}
+	c := a.mrColumns(p.contentWidth(), filtered, 2+star, withServer, grouped)
+	serverW := c.server
 
 	// The header is laid out the same way the rows are.
 	header := []field{{text: "", width: 2 + star, colour: role("merge_requests.header")}}

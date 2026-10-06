@@ -380,7 +380,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	p.table.Clear()
 	withServer := a.multiInstance()
 
-	repoW, branchW, serverW, pathW, actW, remoteW, mrW := 10, 6, 0, 0, 8, len("REMOTE"), len("MR")
+	actW, mrW := len("ACTIVITY"), len("MR")
 	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
 	createdW, sizeW := len("CREATED"), len("SIZE")
 	mrs := map[int]string{}
@@ -388,119 +388,68 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// request, which the merge request list shows; a group has none of its
 	// own. It takes room only when some row has one.
 	ciW := 0
+	var repos, branches, servers, remotes []int
+	var paths []string
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
 		if a.worktreeCI(r) != "" {
 			ciW = 2
 		}
-		repoW = max(repoW, iconWidth(a.worktreeIcon(r))+len([]rune(r.Path)))
-		branchW = max(branchW, len([]rune(a.worktreeBranch(r))))
+		repos = append(repos, iconWidth(a.worktreeIcon(r))+len([]rune(r.Path)))
+		branches = append(branches, len([]rune(a.worktreeBranch(r))))
 		actW = max(actW, len(humanAge(r.Moved)))
 		createdW = max(createdW, len(humanAge(r.Created)))
 		sizeW = max(sizeW, len([]rune(a.worktreeSize(r))))
 		if withServer {
-			serverW = max(serverW, len([]rune(a.worktreeServer(r))))
+			servers = append(servers, len([]rune(a.worktreeServer(r))))
 		}
-		pathW = max(pathW, len([]rune(tildePath(r.Dir))))
+		paths = append(paths, tildePath(r.Dir))
 		plain, _ := a.worktreeRemoteWords(r)
-		remoteW = max(remoteW, len([]rune(plain)))
+		remotes = append(remotes, len([]rune(plain)))
 		if mr := a.worktreeMR(r); mr != "" {
 			mrs[idx] = mr
 			mrW = max(mrW, len([]rune(mr)))
 		}
 	}
-	// What the four long columns would take whole; the caps below are what
-	// they are sure of, and room left over gives them back the rest.
-	repoFull, branchFull, remoteFull, pathFull := repoW, branchW, remoteW, pathW
-	caps := capsFor(p.contentWidth() + 2)
-	repoW = atLeast(min(repoW, caps.repo), "REPOSITORY")
-	branchW = atLeast(min(branchW, 32), "BRANCH")
-	actW = atLeast(actW, "ACTIVITY")
-	remoteW = min(remoteW, 34)
-	if withServer {
-		serverW = atLeast(min(serverW, 16), "SERVER")
-	}
-	pathW = atLeast(min(pathW, caps.path), "PATH")
 
-	const (
-		markW   = 2
-		minRepo = 20
-	)
-	room := p.contentWidth()
-	// Everything but the repository and the optional columns; each column after
-	// the first costs a space in front of it.
-	fields := 5 // mark, repository, repos, branch, remote, activity: the count of gaps
-	fixed := markW + reposW + branchW + remoteW + actW
+	const markW = 2
+	// What gives way when the row is tight, in this order: the directory,
+	// once it is down to minPath, when it was made, its size, the merge
+	// request, the comments, then the edits. REMOTE stays. The comments are
+	// counted only with Incomm on.
+	repoCol := flexColumn("REPOSITORY", repos, 20, 2)
+	branchCol := flexColumn("BRANCH", branches, 10, 1)
+	remoteCol := flexColumn("REMOTE", remotes, 12, 1.2)
+	pathCol := gistColumn("PATH", paths, minPath, 0.8)
+	createdCol, sizeCol, mrCol := fixedColumn(createdW), fixedColumn(sizeW), fixedColumn(mrW)
+	comCol, editsCol := fixedColumn(comW), fixedColumn(editsW)
+	for i, c := range []*listColumn{pathCol, createdCol, sizeCol, mrCol, comCol, editsCol} {
+		c.drop = i + 1
+	}
+	cols := []*listColumn{fixedColumn(markW), repoCol, fixedColumn(reposW), branchCol, remoteCol, pathCol,
+		createdCol, sizeCol, mrCol, editsCol, fixedColumn(actW)}
+	if a.cfg.Integrations.Incomm {
+		cols = append(cols, comCol)
+	} else {
+		comCol.width = 0
+	}
+	serverCol := &listColumn{}
 	if withServer {
-		fixed += serverW
-		fields++
+		serverCol = flexColumn("SERVER", servers, 6, 0.5)
+		cols = append(cols, serverCol)
 	}
 	if ciW > 0 {
-		fixed += ciW
-		fields++
+		cols = append(cols, fixedColumn(ciW))
 	}
-	// What gives way when the row is tight, in this order: the directory,
-	// shortened down to minPath and then left out, when it was made, its
-	// size, the merge request, the comments, then the edits. REMOTE stays.
-	// The comments are counted only with Incomm on.
-	showPath, showCreated, showSize, showMR, showEdits := true, true, true, true, true
-	showComments := a.cfg.Integrations.Incomm
-	cost := func() int {
-		total, gaps := fixed, fields
-		for _, c := range []struct {
-			on bool
-			w  int
-		}{{showPath, pathW}, {showCreated, createdW}, {showSize, sizeW}, {showMR, mrW}, {showComments, comW}, {showEdits, editsW}} {
-			if c.on {
-				total += c.w
-				gaps++
-			}
-		}
-		return total + gaps
-	}
-	if short := minRepo - (room - cost()); short > 0 && pathW > minPath {
-		pathW -= min(short, pathW-minPath)
-	}
-	for room-cost() < minRepo && (showPath || showCreated || showSize || showMR || showComments || showEdits) {
-		switch {
-		case showPath:
-			showPath = false
-		case showCreated:
-			showCreated = false
-		case showSize:
-			showSize = false
-		case showMR:
-			showMR = false
-		case showComments:
-			showComments = false
-		default:
-			showEdits = false
-		}
-	}
-	repoW = atLeast(max(min(repoW, room-cost()), 10), "REPOSITORY")
-	// A wide terminal is not left empty at the right while a column is cut:
-	// what is left goes to REMOTE, BRANCH and REPOSITORY whole, then to the
-	// directory, and whatever remains after that is a gap behind PATH, so the
-	// columns after it stand at the right edge.
-	spare := room - cost() - repoW
-	grow := func(w *int, full int) {
-		if give := min(spare, full-*w); give > 0 {
-			*w += give
-			spare -= give
-		}
-	}
-	grow(&remoteW, remoteFull)
-	grow(&branchW, branchFull)
-	grow(&repoW, repoFull)
-	if showPath {
-		grow(&pathW, pathFull)
-	}
-	// The gap is a field of its own, and a field costs a space before it;
-	// one more stays free, so the last column does not touch the frame.
-	fillW := 0
-	if spare > 2 {
-		fillW = spare - 2
-	}
+	// One cell stays free, so the last column does not touch the frame.
+	spare := layoutColumns(p.contentWidth()-1, cols...)
+	repoW, branchW, remoteW, pathW, serverW := repoCol.width, branchCol.width, remoteCol.width, pathCol.width, serverCol.width
+	showPath, showCreated, showSize, showMR := pathCol.shown(), createdCol.shown(), sizeCol.shown(), mrCol.shown()
+	showComments, showEdits := comCol.shown(), editsCol.shown()
+	// What is left over is a gap behind PATH, so the columns after it stand
+	// at the right edge. The gap is a field of its own, and a field costs a
+	// space before it.
+	fillW := max(0, spare-1)
 
 	// The heat of a size is where it stands between the least and the most
 	// a worktree takes.

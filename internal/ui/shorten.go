@@ -1,35 +1,6 @@
 package ui
 
-import (
-	"math"
-	"strings"
-)
-
-// columnCaps are how wide the long columns of the main lists may grow, by
-// the width of the window: a narrow one keeps them short so the other
-// columns still fit, a very wide one holds back only the title. A list that
-// has room left over may still give it back to the repository and the
-// directory; a cap is what they are sure of, not a reason to cut a path
-// while blank cells sit beside it. The title is the exception: on a wide
-// window an unlimited one would push the author and the branch so far right
-// that the eye loses the row on the way, so the room it does not take is
-// left at the end instead.
-type columnCaps struct{ repo, path, title int }
-
-func capsFor(window int) columnCaps {
-	const none = math.MaxInt / 4
-	switch {
-	case window < 100:
-		return columnCaps{repo: 24, path: 24, title: 48}
-	case window < 150:
-		return columnCaps{repo: 32, path: 36, title: 64}
-	case window < 200:
-		return columnCaps{repo: 40, path: 44, title: 80}
-	case window <= 250:
-		return columnCaps{repo: 56, path: 64, title: 96}
-	}
-	return columnCaps{repo: none, path: none, title: 120}
-}
+import "strings"
 
 // minPath is the narrowest a directory column is let shrink to before it
 // is left out: enough for the start and most of the directory's own name.
@@ -204,4 +175,16 @@ func shortenPath(s string, n int) string {
 		return out
 	}
 	return lastResort(last, n)
+}
+
+// pathGist is how wide a directory is with only what says the most: where it
+// starts and its last two folders, ~/…/websites/tobolovi-com. A list gives a
+// directory column this much before the other columns' extras, and the rest
+// of the path only after them.
+func pathGist(s string) int {
+	parts := strings.Split(s, "/")
+	if len(parts) <= 4 {
+		return cells(s)
+	}
+	return cells(parts[0] + "/" + elided() + "/" + strings.Join(parts[len(parts)-2:], "/"))
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -108,11 +109,16 @@ func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
 		t.Errorf("the columns are not headed:\n%s", text)
 	}
 
-	resizeApp(a, sc, 80, 20)
-	waitGone(t, a, sc, "CREATED")
-	if !strings.Contains(a.screenText(sc), "REMOTE") {
-		t.Errorf("REMOTE gave way before the new columns:\n%s", a.screenText(sc))
+	for w := 80; w >= 40; w -= 2 {
+		h := worktreeHeaderAt(t, a, sc, w)
+		if !slices.Contains(h, "REMOTE") {
+			t.Fatalf("REMOTE gave way before the new columns at %d: %v", w, h)
+		}
+		if !slices.Contains(h, "CREATED") {
+			break
+		}
 	}
+	waitGone(t, a, sc, "CREATED")
 }
 
 // TestCIOfBranches: a refresh reads the newest pipeline of each clone's

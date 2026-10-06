@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -140,7 +141,36 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		return pr.PathWithNamespace
 	}
 
-	branchW, actW, serverW, pathW, syncW := 6, 8, 0, 0, len("REMOTE")
+	// The tags have a column of their own, right after the names. Hiding the
+	// tags keeps the chezmoi badge, which is not one.
+	showTags := !a.cfg.Filters.HideTags
+	tagsOf := func(pr forge.Project) []string {
+		if !showTags {
+			return nil
+		}
+		return a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)
+	}
+	managed := func(pr forge.Project) bool { return a.managedDir(pr.Instance, pr.PathWithNamespace) != "" }
+	// tagsWidth is what a row's tags take with every pill whole: the badge
+	// at its longest when badge has room for it, a space, the pills. With
+	// a badge as narrow as its glyph, it is what the tags need to say all
+	// they say; the badge's words are worth room only after that.
+	tagsWidth := func(pr forge.Project, badge int) int {
+		_, w := a.pills(tagsOf(pr), math.MaxInt, behindList)
+		bw := 0
+		switch {
+		case managed(pr):
+			_, bw = chezmoiBadge(badge, a.cfg.Ends(), behindList)
+		case pr.Starred:
+			_, bw = a.starredBadge(pr, badge, a.cfg.Ends(), behindList)
+		}
+		if bw > 0 && w > 0 {
+			w++
+		}
+		return w + bw
+	}
+
+	actW, syncW := len("ACTIVITY"), len("REMOTE")
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
 	mrW, hiddenW := 2, 0
@@ -148,6 +178,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// CI is the newest pipeline of the clone's branch, and takes room only
 	// when some row has one.
 	ciW := 0
+	var names, branches, servers, tagged, tagsShort []int
+	var paths []string
 	for _, idx := range filtered {
 		pr := a.projects[idx]
 		if a.repositoryCI(pr) != "" {
@@ -164,20 +196,17 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if branch == "" {
 			branch = pr.DefaultBranch
 		}
-		branchW = max(branchW, len([]rune(branch)))
+		branches = append(branches, len([]rune(branch)))
 		actW = max(actW, len(humanAge(pr.LastActivityAt)))
 		if withServer {
-			serverW = max(serverW, len([]rune(a.instanceLabel(pr.Instance))))
+			servers = append(servers, len([]rune(a.instanceLabel(pr.Instance))))
 		}
-		pathW = max(pathW, len([]rune(tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))))
-	}
-	branchW = atLeast(min(branchW, 24), "BRANCH")
-	actW = atLeast(actW, "ACTIVITY")
-	if withServer {
-		serverW = atLeast(min(serverW, 16), "SERVER")
-	}
-	if pathW > 0 {
-		pathW = atLeast(min(pathW, capsFor(p.contentWidth()+2).path), "PATH")
+		paths = append(paths, tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
+		names = append(names, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr))))
+		if w := tagsWidth(pr, math.MaxInt); w > 0 {
+			tagged = append(tagged, w)
+			tagsShort = append(tagsShort, tagsWidth(pr, 3))
+		}
 	}
 
 	// Grouped, every row is indented one step under its heading.
@@ -185,74 +214,52 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	if grouped {
 		markW++
 	}
-	const (
-		editsW  = len("EDITS")
-		wtW     = 2
-		gaps    = 6
-		minName = 20
-	)
-	fixed := markW + branchW + syncW + editsW + pathW + mrW + wtW + sizeW + 1 + actW + gaps + 2
+	// The name is what the row is, so it minds a cut the most, and the
+	// tags the user chose come next; the directory is said elsewhere too
+	// (the detail), so it gives way first and is the first left out when
+	// the row is tight, the tags after it.
+	nameCol := flexColumn("REPOSITORY", names, 20, 2)
+	branchCol := flexColumn("BRANCH", branches, 10, 1)
+	pathCol := gistColumn("PATH", paths, minPath, 0.8)
+	pathCol.drop = 1
+	cols := []*listColumn{fixedColumn(markW), nameCol, branchCol, pathCol,
+		fixedColumn(syncW), fixedColumn(len("EDITS")), fixedColumn(mrW), fixedColumn(2), fixedColumn(sizeW), fixedColumn(actW)}
+	serverCol, tagsCol := &listColumn{}, &listColumn{}
+	if withServer {
+		serverCol = flexColumn("SERVER", servers, 6, 0.5)
+		cols = append(cols, serverCol)
+	}
+	if len(tagged) > 0 {
+		// A row without tags takes none of the column.
+		for range len(filtered) - len(tagged) {
+			tagged, tagsShort = append(tagged, 0), append(tagsShort, 0)
+		}
+		tagsCol = flexColumn("TAGS", tagged, 4, 1.5)
+		_, short := spread(tagsShort)
+		tagsCol.ideal = max(tagsCol.floor, short)
+		tagsCol.drop = 2
+		cols = append(cols, tagsCol)
+	}
 	if hiddenW > 0 {
-		fixed += hiddenW + 1
+		cols = append(cols, fixedColumn(hiddenW))
 	}
 	if ciW > 0 {
-		fixed += ciW + 1
+		cols = append(cols, fixedColumn(ciW))
 	}
-	if withServer {
-		fixed += serverW + 1
+	// One cell stays free, so the last column does not touch the frame.
+	spare := layoutColumns(p.contentWidth()-1, cols...)
+	// What is left over keeps the columns after the names at the right
+	// edge: it widens the tags when there are any, the names when not.
+	if tagsCol.shown() {
+		tagsCol.width += spare
+	} else {
+		nameCol.width += spare
 	}
-	if pathW > 0 {
-		fixed++ // its own gap
-	}
-	nameW := p.contentWidth() - fixed
-	// When it is tight the path gives way first: shortened down to minPath,
-	// which still names the directory, and only then left out whole.
-	if short := minName - nameW; short > 0 && pathW > minPath {
-		give := min(short, pathW-minPath)
-		pathW -= give
-		nameW += give
-	}
-	// Left out, the repository column still says which row this is.
-	if nameW < minName && pathW > 0 {
-		nameW += pathW + 1
-		pathW = 0
-	}
-	if nameW < minName {
-		give := min(branchW-10, minName-nameW)
-		if give > 0 {
-			branchW -= give
-			nameW += give
-		}
-	}
-	nameW = atLeast(max(nameW, 10), "REPOSITORY")
-
-	// The tags have a column of their own, right after the longest name; the
-	// other columns keep their places at the end. Hiding the tags keeps the
-	// chezmoi badge, which is not one.
-	showTags := !a.cfg.Filters.HideTags
-	tagsOf := func(pr forge.Project) []string {
-		if !showTags {
-			return nil
-		}
-		return a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)
-	}
-	managed := func(pr forge.Project) bool { return a.managedDir(pr.Instance, pr.PathWithNamespace) != "" }
-	tagsW := 0
-	longest, tagged := 0, false
-	for _, idx := range filtered {
-		pr := a.projects[idx]
-		longest = max(longest, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr))))
-		tagged = tagged || len(tagsOf(pr)) > 0 || managed(pr) || pr.Starred
-	}
-	longest = atLeast(longest, "REPOSITORY")
-	if tagged {
-		// When it is tight the names keep two thirds of the room.
-		names := min(longest, max(nameW*2/3, 10))
-		if nameW-names-1 >= 4 {
-			tagsW = nameW - names - 1
-			nameW = names
-		}
-	}
+	nameW, branchW, pathW, serverW, tagsW := nameCol.width, branchCol.width, pathCol.width, serverCol.width, tagsCol.width
+	const (
+		editsW = len("EDITS")
+		wtW    = 2
+	)
 
 	// The heat of a size is where it stands between the least and the most
 	// a repository takes.

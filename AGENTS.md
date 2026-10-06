@@ -247,6 +247,17 @@ that an old cache cannot have, and the UI then says a refresh would bring
 something new instead of leaving a column quietly empty (that was the `COM`
 column bug).
 
+**Column widths are solved, not set.** The three main lists describe their
+columns to `layoutColumns` (`columns.go`) - the narrowest each says
+something at, what nine rows in ten take, what all take, a weight, when it
+may be left out - and it shares the room: minimums first, then the ideals,
+then the rest, a cell at a time to the narrowest column for its weight. No
+list keeps an order of its own for what shrinks, and there are no width
+breakpoints; a new column is a `listColumn`, not a constant in a sum. A
+repository or a directory too long for its width is shortened by what
+tells it apart (`shortenRepo`, `shortenPath`), never cut at its end. The
+title alone has a measure (`titleMeasure`), for reading, not for fit.
+
 **Refresh fans out** over groups (and, on GitHub, over repositories) with a
 bounded worker count and first-error cancellation - half an index is worse
 than none.

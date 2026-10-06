@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -221,45 +222,44 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 	p.rescan()
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "no upstream")
-	header := func() string {
-		for _, line := range strings.Split(a.screenText(sc), "\n") {
-			if strings.Contains(line, "REPOSITORY") {
-				return line
-			}
+	// The columns are narrowed down a step at a time; each must go in its
+	// turn, and REMOTE never.
+	order := []string{"PATH", "CREATED", "SIZE", "MR", "EDITS"}
+	goneAt := map[string]int{}
+	for w := 160; w >= 40; w -= 2 {
+		h := worktreeHeaderAt(t, a, sc, w)
+		if !slices.Contains(h, "REMOTE") {
+			t.Fatalf("REMOTE gave way at %d: %v", w, h)
 		}
-		return ""
-	}
-	waitForHeader := func(present, absent []string) {
-		t.Helper()
-		deadline := time.Now().Add(patience)
-		ok := func() bool {
-			h := header()
-			for _, w := range present {
-				if !strings.Contains(h, w) {
-					return false
-				}
+		for _, name := range order {
+			if _, gone := goneAt[name]; !gone && !slices.Contains(h, name) {
+				goneAt[name] = w
 			}
-			for _, w := range absent {
-				if strings.Contains(h, w) {
-					return false
-				}
-			}
-			return h != ""
-		}
-		for !ok() && time.Now().Before(deadline) {
-			time.Sleep(30 * time.Millisecond)
-		}
-		if !ok() {
-			t.Fatalf("header %q, want %v and not %v", header(), present, absent)
 		}
 	}
-	waitForHeader([]string{"REMOTE", "EDITS", "MR", "PATH"}, nil) // 160 wide: everything
-	resizeApp(a, sc, 80, 30)
-	waitForHeader([]string{"REMOTE", "EDITS", "MR"}, []string{"PATH"}) // the directory goes first
-	resizeApp(a, sc, 70, 30)
-	waitForHeader([]string{"REMOTE", "EDITS"}, []string{"PATH", " MR "}) // then the merge request
-	resizeApp(a, sc, 50, 30)
-	waitForHeader([]string{"REMOTE"}, []string{"PATH", " MR ", "EDITS"}) // then the edits; REMOTE stays
+	for i := 1; i < len(order); i++ {
+		before, after := order[i-1], order[i]
+		if at, ok := goneAt[after]; ok && at > goneAt[before] {
+			t.Errorf("%s went at %d, before %s at %d", after, at, before, goneAt[before])
+		}
+	}
+	if _, ok := goneAt["PATH"]; !ok {
+		t.Errorf("the directory never gave way: %v", goneAt)
+	}
+}
+
+// worktreeHeaderAt is the worktree list's headings on a terminal w wide,
+// once the list has been laid out again for it.
+func worktreeHeaderAt(t *testing.T, a *App, sc tcell.SimulationScreen, w int) []string {
+	t.Helper()
+	resizeApp(a, sc, w, 30)
+	changeOnLoop(a, func() { a.worktreesPane.reload() })
+	for _, line := range strings.Split(a.screenText(sc), "\n") {
+		if strings.Contains(line, "REPOSITORY") {
+			return strings.Fields(strings.Trim(line, "│ "))
+		}
+	}
+	return nil
 }
 
 func TestMergeRequestColumnNamesTheOpenRequestOfABranch(t *testing.T) {
