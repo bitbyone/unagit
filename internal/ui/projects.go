@@ -177,7 +177,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
 	if pathW > 0 {
-		pathW = atLeast(min(pathW, 44), "PATH")
+		_, pathCap := columnCaps(p.contentWidth() + 2)
+		pathW = atLeast(min(pathW, pathCap), "PATH")
 	}
 
 	// Grouped, every row is indented one step under its heading.
@@ -329,7 +330,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1
 		}
-		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), width: nameW, colour: nameColour})
+		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), width: nameW, colour: nameColour, shorten: shortenRepo})
 		if tagsW > 0 {
 			var starred *forge.Project
 			if pr.Starred {
@@ -350,7 +351,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			field{text: words, width: syncW, colour: wordsColour},
 			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: role("repositories.edits"), right: true})
 		if pathW > 0 {
-			fields = append(fields, field{text: path, width: pathW, colour: pathColour})
+			fields = append(fields, field{text: path, width: pathW, colour: pathColour, shorten: shortenPath})
 		}
 		if hiddenW > 0 {
 			fields = append(fields, field{text: hiddenMark, width: hiddenW, colour: role("repositories.hidden")})

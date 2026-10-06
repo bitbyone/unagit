@@ -132,11 +132,12 @@ func (a *App) filterMRs(query string) []int {
 }
 
 // mrColumns works out how wide each column may be for the current table
-// width. The title takes whatever is left, and every cell is truncated to
-// fit, so the branch column never falls off the right edge.
+// width, the repository's no wider than the window allows (columnCaps).
+// The title takes whatever is left, and every cell is truncated to fit, so
+// the branch column never falls off the right edge.
 type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
 
-func (a *App) mrColumns(width int, rows []int) mrColumns {
+func (a *App) mrColumns(window, width int, rows []int) mrColumns {
 	// NEW: commits pushed since your last review; CI: the head's pipeline.
 	// NEW, APPR and CI take room only when a row has something in them:
 	// a list nobody has reviewed, approved or built keeps its titles whole.
@@ -163,7 +164,8 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 			c.ci = 2
 		}
 	}
-	c.proj = atLeast(min(c.proj, 34), "REPO")
+	repoCap, _ := columnCaps(window)
+	c.proj = atLeast(min(c.proj, repoCap), "REPO")
 	c.author = atLeast(min(c.author, 18), "AUTHOR")
 	c.branch = atLeast(min(c.branch, 26), "BRANCH")
 	c.updated = atLeast(c.updated, "UPDATED")
@@ -219,6 +221,10 @@ type field struct {
 	// is and should not outshine it. Both count in the width, and the text
 	// is cut to what they leave.
 	icon, after string
+	// shorten fits the text into its width when it is too long; without
+	// one the end is cut. A path is shortened by shortenRepo or
+	// shortenPath, which keep what tells it apart.
+	shorten func(string, int) string
 }
 
 // rowText lays the fields out at their widths. The merge request table draws
@@ -243,7 +249,11 @@ func rowText(fields []field) string {
 			after = " " + tag(iconShade(f.colour)) + tview.Escape(f.after) + tagEnd
 			iconsW += len([]rune(f.after)) + 1
 		}
-		text := trunc(f.text, max(0, f.width-iconsW))
+		cut := trunc
+		if f.shorten != nil {
+			cut = f.shorten
+		}
+		text := cut(f.text, max(0, f.width-iconsW))
 		pad := strings.Repeat(" ", max(0, f.width-iconsW-len([]rune(text))))
 		body := before + tag(f.colour) + tview.Escape(text) + tagEnd + after
 		if f.right {
@@ -273,7 +283,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
-	c := a.mrColumns(p.contentWidth()-serverW-star, filtered)
+	c := a.mrColumns(p.contentWidth()+2, p.contentWidth()-serverW-star, filtered)
 	if grouped {
 		// The project moves into the heading, so its width goes to the title.
 		// The gap it leaves behind pays for the indent on every row.
@@ -346,7 +356,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: role("merge_requests.server")})
 		}
 		if !grouped {
-			fields = append(fields, field{icon: a.forgeIcon(mr.Instance), text: path, width: c.proj, colour: role("merge_requests.repository")})
+			fields = append(fields, field{icon: a.forgeIcon(mr.Instance), text: path, width: c.proj, colour: role("merge_requests.repository"), shorten: shortenRepo})
 		}
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},

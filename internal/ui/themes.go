@@ -260,6 +260,9 @@ type Glyphs struct {
 	Mask         string `json:"mask"`
 	Bar          string `json:"bar"`
 	TabSeparator string `json:"tab_separator"`
+	// Elided stands for the folders a path shortened to fit leaves out: not
+	// two dots, which on a file system mean the folder above.
+	Elided string `json:"elided"`
 	// Spinner is the frames of what turns while a job runs behind the
 	// interface, one character each, in order.
 	Spinner string `json:"spinner"`
@@ -539,7 +542,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
-		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator,
+		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,
 		"borders.top_left": t.Borders.TopLeft, "borders.top_right": t.Borders.TopRight,
 		"borders.bottom_left": t.Borders.BottomLeft, "borders.bottom_right": t.Borders.BottomRight,

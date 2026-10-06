@@ -412,14 +412,15 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// What the four long columns would take whole; the caps below are what
 	// they are sure of, and room left over gives them back the rest.
 	repoFull, branchFull, remoteFull, pathFull := repoW, branchW, remoteW, pathW
-	repoW = atLeast(min(repoW, 48), "REPOSITORY")
+	repoCap, pathCap := columnCaps(p.contentWidth() + 2)
+	repoW = atLeast(min(repoW, repoCap), "REPOSITORY")
 	branchW = atLeast(min(branchW, 32), "BRANCH")
 	actW = atLeast(actW, "ACTIVITY")
 	remoteW = min(remoteW, 34)
 	if withServer {
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
-	pathW = atLeast(min(pathW, 44), "PATH")
+	pathW = atLeast(min(pathW, pathCap), "PATH")
 
 	const (
 		markW   = 2
@@ -561,7 +562,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			remote = field{raw: remoteCell(st, known, remoteW)}
 		}
 		cells = append(cells,
-			field{icon: a.worktreeIcon(r), text: r.Path, width: repoW, colour: role("worktrees.repository")},
+			field{icon: a.worktreeIcon(r), text: r.Path, width: repoW, colour: role("worktrees.repository"), shorten: shortenRepo},
 			field{text: count, after: glyphRepos, width: reposW, colour: countColour, right: true},
 			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour})
 		if ciW > 0 {
@@ -570,7 +571,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		cells = append(cells, remote)
 		if showPath {
-			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path")})
+			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path"), shorten: shortenPath})
 		}
 		if fillW > 0 {
 			cells = append(cells, field{width: fillW})

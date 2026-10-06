@@ -113,6 +113,7 @@
     "mask": "•",
     "bar": "━",
     "tab_separator": "│",
+    "elided": "…",
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
     "ci_running": "◐◓◑◒",
     "ci_done": "●",
@@ -126,7 +127,8 @@
     "forge_gitlab": "\udb82\udfa0",
     "draft": "\uebd9",
     "user": "\uf007",
-    "starred": "\uf005"
+    "starred": "\uf005",
+    "elided": "\uea83"
   },
   "action_icons": {
       "Add Repository\u2026": "\uea60",
