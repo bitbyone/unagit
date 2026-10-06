@@ -68,14 +68,26 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 				}
 				continue
 			}
-			want := "Esc back"
+			// Each panel says what can be done in it; how to move and leave is
+			// not said, so Integrations, whose cards carry their own keys, has
+			// no hint of its own.
+			want := ""
 			switch section {
+			case sectionGeneral:
+				want = "s save"
+			case sectionTheme:
+				want = "f fork to edit"
+			case sectionSecurity:
+				want = "c change passphrase"
 			case sectionGitLab, sectionGitHub:
 				want = "d remove"
 			case sectionGroups:
 				want = "m refresh merge requests"
 			case sectionTags:
 				want = "s ends:"
+			}
+			if strings.Contains(line.String(), "Esc back") {
+				t.Errorf("section %d panel %d: the hint says how to leave: %q", section, i, line.String())
 			}
 			if !strings.Contains(line.String(), want) {
 				t.Errorf("section %d panel %d: bottom interior row %q lacks %q", section, i, line.String(), want)

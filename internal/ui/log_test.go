@@ -45,12 +45,11 @@ func TestCommitLogs(t *testing.T) {
 	typeRunes(sc, "j")
 	waitFor(t, a, sc, "Clients are told apart")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Esc back to the log")
 	waitFor(t, a, sc, "FILES")
 	waitFor(t, a, sc, "b.txt")
 	assertLegible(t, a, sc, "a commit's detail")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Esc back to the log")
+	waitGone(t, a, sc, "FILES")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	if got := a.screenText(sc); !strings.Contains(got, "Clients are told apart") {
 		t.Errorf("the log did not come back on the same commit:\n%s", got)

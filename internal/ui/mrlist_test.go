@@ -165,7 +165,7 @@ func TestBranchesKnowTheirMergeRequests(t *testing.T) {
 	typeRunes(sc, "/feat/rate")
 	waitFor(t, a, sc, "FILTER")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "NORMAL   j/k")
+	waitFor(t, a, sc, "NORMAL   ")
 	typeRunes(sc, "m")
 	waitFor(t, a, sc, "!7 is already open from feat/rate")
 }

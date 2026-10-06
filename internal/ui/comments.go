@@ -49,7 +49,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 
 	footer := tview.NewTextView().SetDynamicColors(true)
 	footer.SetText(" " + tag(colDim) +
-		"i  write a comment   ·   A  approve   ·   r  reload   ·   j k  scroll   ·   Esc  close" + tagEnd)
+		"i  write a comment   ·   A  approve   ·   r  reload" + tagEnd)
 
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(view, 0, 1, true).

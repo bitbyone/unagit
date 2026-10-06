@@ -199,15 +199,13 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	// It opens typing into its filter: an action is found by name. Esc
 	// with something typed goes to the list, Esc on an empty filter closes.
 	waitFor(t, a, sc, "FILTER")
-	waitFor(t, a, sc, "Esc close")
 	typeRunes(sc, "pul")
-	waitFor(t, a, sc, "Esc to the list")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "NORMAL")
+	waitFor(t, a, sc, "NORMAL   ")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Actions · acme/gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Esc close")
+	waitFor(t, a, sc, "FILTER")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Actions · acme/gateway")
 

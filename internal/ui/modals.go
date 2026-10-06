@@ -65,7 +65,7 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 		return ev
 	})
 
-	hint := fmt.Sprintf("c cancel · %c %s · Esc back", keys[1], strings.ToLower(accept))
+	hint := fmt.Sprintf("c cancel · %c %s", keys[1], strings.ToLower(accept))
 	a.pages.AddPage(pageConfirm, modalFull(&confirmationHint{Modal: modal, hint: hint}), true, true)
 	a.tv.SetFocus(modal)
 }
@@ -361,33 +361,35 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 
 	filtering := false
 	normalHint := func() string {
-		hint := "   j/k move · / filter · Enter select"
+		// Only what can be done: moving, filtering and closing are what
+		// every list does, and are not said.
+		var hints []string
 		switch {
 		case onSelect == nil:
-			hint = "   j/k move · / filter"
 		case opts.enterHint != "":
-			hint = "   j/k move · / filter · Enter " + opts.enterHint
+			hints = append(hints, "Enter "+opts.enterHint)
 		case opts.again != 0:
-			hint = fmt.Sprintf("   j/k move · / filter · Enter or %c select", opts.again)
+			hints = append(hints, fmt.Sprintf("Enter or %c select", opts.again))
+		default:
+			hints = append(hints, "Enter select")
 		}
 		for _, k := range opts.keys {
-			hint += " · " + k.keys + " " + k.hint
+			hints = append(hints, k.keys+" "+k.hint)
 		}
 		if onNew != nil {
-			hint += " · n new"
+			hints = append(hints, "n new")
 		}
 		if onDelete != nil {
-			hint += " · d delete"
+			hints = append(hints, "d delete")
 		}
-		return " " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + " · Esc close" + tagEnd
+		hint := ""
+		if len(hints) > 0 {
+			hint = "   " + strings.Join(hints, " · ")
+		}
+		return " " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + tagEnd
 	}
 	filterHint := func() {
-		esc := "Esc to the list"
-		if opts.filter && input.GetText() == "" {
-			esc = "Esc close"
-		}
-		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) +
-			"   type to narrow · " + esc + " · Enter select" + tagEnd)
+		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) + "   Enter select" + tagEnd)
 	}
 	if opts.filter {
 		typed = func() {
@@ -856,7 +858,7 @@ func (a *App) formButtonHint(form *tview.Form) string {
 		hints := append(direct, "Esc stop typing, then "+strings.Join(buttons, " · "))
 		return strings.Join(hints, " · ")
 	}
-	return strings.Join(append(append(buttons, direct...), "i type", "Esc back"), " · ")
+	return strings.Join(append(append(buttons, direct...), "i type"), " · ")
 }
 
 // A modal leaves one empty line beneath its buttons. Draw there after its

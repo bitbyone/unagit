@@ -156,7 +156,7 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 	waitFor(t, a, sc, "Sort both lists")
 	waitFor(t, a, sc, "by name")
 	// The picker opens on the list, so j moves the cursor straight away.
-	waitFor(t, a, sc, "j/k move")
+	waitFor(t, a, sc, "NORMAL")
 	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 

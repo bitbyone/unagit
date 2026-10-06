@@ -177,7 +177,7 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 		waitFor(t, a, sc, "unagit · keys · "+title)
 		onLoop(a, func() bool {
 			_, primitive := a.pages.GetFrontPage()
-			table := primitive.(*modalBox).content.(*tview.Flex).GetItem(0).(*tview.Table)
+			table := primitive.(*modalBox).content.(*tview.Table)
 			for _, group := range []struct {
 				keys   []string
 				colour tcell.Color

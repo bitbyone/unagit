@@ -874,9 +874,9 @@ func TestBranchPickerListsBranches(t *testing.T) {
 	waitFor(t, a, sc, "default")
 	waitFor(t, a, sc, "Token bucket")
 
-	// It opens on the list; / starts the filter. (Its own footer, not the
-	// status line, which says NORMAL too.)
-	waitFor(t, a, sc, "j/k move · / filter")
+	// It opens on the list; / starts the filter. (Its own footer, whose
+	// NORMAL is followed by three spaces, not the status line's two.)
+	waitFor(t, a, sc, "NORMAL   ")
 	typeRunes(sc, "/")
 	waitFor(t, a, sc, "FILTER")
 	typeRunes(sc, "feat")
@@ -885,7 +885,7 @@ func TestBranchPickerListsBranches(t *testing.T) {
 
 	// Esc leaves the filter for the list and keeps what it narrowed to.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "j/k move")
+	waitFor(t, a, sc, "NORMAL   ")
 	if strings.Contains(a.screenText(sc), "Add rate limiting") {
 		t.Error("leaving the input dropped the filter")
 	}
@@ -908,7 +908,7 @@ func TestPickerNavigatesWithJK(t *testing.T) {
 	waitFor(t, a, sc, "(all repositories)")
 
 	// It opens on the list: move down twice, pick the highlighted project.
-	waitFor(t, a, sc, "j/k move · / filter")
+	waitFor(t, a, sc, "NORMAL   ")
 	typeRunes(sc, "jj")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 

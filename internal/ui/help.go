@@ -482,9 +482,6 @@ func (a *App) showHelp() {
 		return ev
 	})
 
-	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Enter/Esc/?/q close")
-	block := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(table, 0, 1, true).AddItem(footer, 1, 0, false)
-	fitFooter(block, footer, 0)
-	a.pages.AddPage(pageHelp, modalPct(block, 82, 90), true, true)
+	a.pages.AddPage(pageHelp, modalPct(table, 82, 90), true, true)
 	a.tv.SetFocus(table)
 }

@@ -126,7 +126,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 			sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 			waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 			text := a.screenText(sc)
-			for _, want := range []string{"Add a token bucket", "Count per client", "/ filter"} {
+			for _, want := range []string{"Add a token bucket", "Count per client", "NORMAL"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}

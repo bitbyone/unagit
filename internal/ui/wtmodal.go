@@ -262,15 +262,15 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 // usual ones; Alt-Enter lists every action there is for it.
 func worktreeViewHint(r worktreeRow) string {
 	if r.grouped() {
-		return "j/k · Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
-			"Ctrl-R rebase · a add · r refresh · R all · Esc back"
+		return "Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
+			"Ctrl-R rebase · a add · r refresh · R all"
 	}
-	keys := "j/k · Alt-Enter actions · Ctrl-O open · w web · c comments · Ctrl-L log · b branches · p pull · " +
+	keys := "Alt-Enter actions · Ctrl-O open · w web · c comments · Ctrl-L log · b branches · p pull · " +
 		"P push · C commit · n MR · D diff · Ctrl-R rebase"
 	if r.Group != "" {
 		keys += " · x take out"
 	}
-	return keys + " · r refresh · R all · Esc back"
+	return keys + " · r refresh · R all"
 }
 
 // worktreeViewActions are what can be done with the block that is lit.

@@ -290,7 +290,6 @@ func (a *App) showCommitDetail(place logPlace, c logCommit, back func()) {
 	view := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetWordWrap(true).SetScrollable(true)
 	view.SetText(d.String())
 	box(view.Box, "Commit "+shortSHA(c.SHA))
-	hintPanel(view.Box, func() string { return "j/k scroll · Ctrl-D/U half a page · Esc back to the log" }, 0, 0, 1, 1)
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if halfPage(view, ev) {
 			return nil

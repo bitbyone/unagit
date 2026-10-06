@@ -60,10 +60,7 @@ func pickRecords(screen tcell.Screen, title string, records []session.Record) (s
 	frame := tview.NewFlex().SetDirection(tview.FlexRow)
 	box(frame.Box, title)
 	hintPanel(frame.Box, func() string {
-		if filtering {
-			return "type to search · ↑/↓ move · Enter go there · Esc list"
-		}
-		return "j/k move · Enter go there · / search · Esc cancel"
+		return "Enter go there"
 	}, 1, 0, 2, 2)
 
 	// Each entry is two lines fitted to the width: what it is, then where. A

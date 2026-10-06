@@ -59,17 +59,16 @@ func (a *App) showToggles(t toggles) {
 	footer := tview.NewTextView().SetDynamicColors(true)
 	filtering := false
 	updateFooter := func() {
-		keys := "j/k move · space/Enter " + t.verb
+		keys := "space/Enter " + t.verb
 		for _, k := range t.keys {
 			keys += fmt.Sprintf(" · %c %s", k.key, k.hint)
 		}
-		esc := "close"
+		// Esc is said only when it does more than close.
 		if t.escSays != "" {
-			esc = t.escSays
+			keys += " · Esc " + t.escSays
 		}
-		keys += " · / search · Esc " + esc
 		if filtering {
-			keys = "type to search · ↑/↓ move · Enter " + t.verb + " · Esc list"
+			keys = "Enter " + t.verb
 		}
 		status := ""
 		if t.status != nil {

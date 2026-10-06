@@ -628,7 +628,7 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		}
 		box(view.Box, title(job))
 		hintPanel(view.Box, func() string {
-			return "j/k scroll · Ctrl-D/U half a page · Ctrl-F/B page · g/G top/end · w browser · Esc back to the jobs"
+			return "w browser"
 		}, 0, 0, 1, 1)
 		// atEnd is whether the reader is at the end, where new lines are
 		// followed; scrolling up leaves it, G comes back to it.

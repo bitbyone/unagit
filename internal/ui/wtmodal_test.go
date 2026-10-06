@@ -153,7 +153,7 @@ func TestTheWorktreeViewFitsItsFrame(t *testing.T) {
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			resizeApp(a, sc, size.w, size.h)
-			waitFor(t, a, sc, "Esc back")
+			waitFor(t, a, sc, "R all")
 			lines := strings.Split(a.screenText(sc), "\n")
 			top := -1
 			for i, l := range lines {

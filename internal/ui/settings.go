@@ -101,14 +101,13 @@ func (a *App) newSettingsView() *settingsView {
 	hintPanel(s.tags.Box, func() string {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
 	}, 0, 0, 1, 1)
-	hintPanel(s.themePanel.Box, func() string { return "Enter use · f fork to edit · r read the themes again · Esc back" }, 0, 0, 1, 1)
+	hintPanel(s.themePanel.Box, func() string { return "Enter use · f fork to edit · r read the themes again" }, 0, 0, 1, 1)
 	hintPanel(s.security.Box, func() string {
 		if passphraseStore.available() {
-			return "c change passphrase · k keychain · Esc back"
+			return "c change passphrase · k keychain"
 		}
-		return "c change passphrase · Esc back"
+		return "c change passphrase"
 	}, 1, 1, 2, 2)
-	hintPanel(s.integrations.Box, func() string { return "Tab / j k move · Esc back" }, 1, 0, 1, 1)
 	s.root = tview.NewFlex().AddItem(s.list, 24, 0, true).AddItem(s.content, 0, 1, false)
 
 	s.show(sectionGeneral)

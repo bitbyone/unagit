@@ -1575,10 +1575,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 		return ev
 	})
 
-	footer := tview.NewTextView().SetTextColor(colDim).SetText("j/k scroll · g/G first/last · Ctrl-D/U half a page · Ctrl-F/B page")
-	block := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(view, 0, 1, true).AddItem(footer, 1, 0, false)
-	fitFooter(block, footer, 0)
-	a.pages.AddPage(pageTask, modalPct(block, 80, 70), true, true)
+	a.pages.AddPage(pageTask, modalPct(view, 80, 70), true, true)
 	a.tv.SetFocus(view)
 
 	// The line logged last is the step under way: it turns a spinner until
@@ -1642,7 +1639,6 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 		dir, err := fn(log)
 		a.tv.QueueUpdateDraw(func() {
 			done = true
-			footer.SetText("j/k scroll · g/G first/last · Ctrl-D/U half a page · Ctrl-F/B page · Enter/Esc/q close")
 			if len(lines) > 0 {
 				if err != nil {
 					render(tag(colBad) + glyphCross + tagEnd + " ")

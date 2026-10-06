@@ -218,7 +218,13 @@ line on the right - nothing else. A new feature adds its keys there and its
 explanation to the README. If something will not fit in one line, it is not
 help text. `TestHelpIsKeysNotProse` enforces it: no row without a key, a key at
 most 15 wide, a description at most 52 long; there is no `note()` any more, so
-do not bring it back. Open `?` on the tab you changed and look at it. Keep inline hints in modals and in
+do not bring it back. Open `?` on the tab you changed and look at it. An inline hint names what can be done, never how to move: no j/k, no
+scrolling or paging, no `/` filter, no plain Esc close - those are the
+same everywhere, and the room is for the actions (the user asked for it).
+Esc is named only where it does more than leave (Esc saves the
+reviewers), and `i type` stays, since NORMAL and INSERT are unagit's own.
+A message box keeps its `Esc close`: it holds every key until then.
+Keep inline hints in modals and in
 simple blocks with up to five actions, such as integrations. Dialog buttons
 use local action letters, lit in their labels (`markKey`; coloured, not
 bracketed - brackets widen the row past small dialogs). Every form has a

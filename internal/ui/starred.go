@@ -214,7 +214,7 @@ func (a *App) showReadme(pr forge.Project, back func()) {
 		view.SetText(md.RenderTheme(text, mdTheme))
 		box(view.Box, "README · "+esc(pr.PathWithNamespace))
 		hintPanel(view.Box, func() string {
-			return "j/k scroll · Ctrl-D/U half a page · O open in the editor · w browser · Esc back"
+			return "O open in the editor · w browser"
 		}, 0, 0, 1, 1)
 		view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 			if halfPage(view, ev) {
