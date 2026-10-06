@@ -30,28 +30,32 @@ func middleCut(s string, n int) string {
 }
 
 // joinSegments puts segments back together, a run of collapsed ones (nil
-// marks one) written as a single glyphElided - a folder in a Nerd Font, an
-// ellipsis without one, never two dots, which would read as the folder
-// above.
-func joinSegments(segs []*string) string {
+// marks one) written as a single mark: never two dots, which would read as
+// the folder above.
+func joinSegments(segs []*string, mark string) string {
 	var parts []string
 	for i, s := range segs {
 		switch {
 		case s != nil:
 			parts = append(parts, *s)
 		case i == 0 || segs[i-1] != nil:
-			parts = append(parts, elided())
+			parts = append(parts, mark)
 		}
 	}
 	return strings.Join(parts, "/")
 }
 
-// elided is glyphElided, or an ellipsis before any theme is on.
-func elided() string {
-	if glyphElided == "" {
+// elided is what stands for the folders a directory leaves out, and
+// elidedGroups for the groups in front of a repository's name: a folder
+// and a tree in a Nerd Font. Each is an ellipsis before any theme is on.
+func elided() string       { return orEllipsis(glyphElided) }
+func elidedGroups() string { return orEllipsis(glyphElidedGroup) }
+
+func orEllipsis(glyph string) string {
+	if glyph == "" {
 		return "…"
 	}
-	return glyphElided
+	return glyph
 }
 
 func cells(s string) int { return len([]rune(s)) }
@@ -62,7 +66,7 @@ func cells(s string) int { return len([]rune(s)) }
 // leaves something to read and collapsed into an ellipsis after that, so
 // my2n/ai-transformation/building-access-analysis becomes
 // ▸/ai-transformation/…, then ▸/ai-tra…mation/…, then ▸/building-access-
-// analysis (▸ being glyphElided), and only then is the name itself cut in
+// analysis (▸ being elidedGroups), and only then is the name itself cut in
 // the middle.
 func shortenRepo(s string, n int) string {
 	if n <= 0 {
@@ -78,29 +82,29 @@ func shortenRepo(s string, n int) string {
 		segs[i] = &parts[i]
 	}
 	for i := 0; i < len(parts)-1; i++ {
-		over := cells(joinSegments(segs)) - n
+		over := cells(joinSegments(segs, elidedGroups())) - n
 		if keep := cells(parts[i]) - over; keep >= minCut && keep < cells(parts[i]) {
 			cut := middleCut(parts[i], keep)
 			segs[i] = &cut
-			return joinSegments(segs)
+			return joinSegments(segs, elidedGroups())
 		}
 		segs[i] = nil
-		if out := joinSegments(segs); cells(out) <= n {
+		if out := joinSegments(segs, elidedGroups()); cells(out) <= n {
 			return out
 		}
 	}
-	return lastResort(name, n)
+	return lastResort(name, n, elidedGroups())
 }
 
 // lastResort is a path down to its last segment: an ellipsis in front of it
 // says there was more, and when even that does not fit, the segment is cut
 // in the middle.
-func lastResort(name string, n int) string {
+func lastResort(name string, n int, mark string) string {
 	if cells(name)+2 <= n {
-		return elided() + "/" + name
+		return mark + "/" + name
 	}
 	if cells(name)+1 <= n {
-		return elided() + name
+		return mark + name
 	}
 	return middleCut(name, n)
 }
@@ -142,7 +146,7 @@ func shortenPath(s string, n int) string {
 				cut := middleCut(between[i], widths[i])
 				segs = append(segs, &cut)
 			}
-			return joinSegments(append(segs, &last))
+			return joinSegments(append(segs, &last), elided())
 		}
 		out := render()
 		for spare := n - cells(out); spare > 0; {
@@ -174,7 +178,7 @@ func shortenPath(s string, n int) string {
 	if out := fit(0, 0); cells(out) <= n {
 		return out
 	}
-	return lastResort(last, n)
+	return lastResort(last, n, elided())
 }
 
 // pathGist is how wide a directory is with only what says the most: where it

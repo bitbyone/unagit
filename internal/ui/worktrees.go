@@ -381,7 +381,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	withServer := a.multiInstance()
 
 	actW, mrW := len("ACTIVITY"), len("MR")
-	reposW, editsW, comW := len("REPOS"), len("EDITS"), len("COM")
+	reposW, editsW, comW := len("REPOS"), cells(glyphEdits), len("COM")
 	createdW, sizeW := len("CREATED"), len("SIZE")
 	mrs := map[int]string{}
 	// CI is the newest pipeline of the branch itself, not of its merge
@@ -404,6 +404,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			servers = append(servers, len([]rune(a.worktreeServer(r))))
 		}
 		paths = append(paths, tildePath(r.Dir))
+		editsW = max(editsW, len(a.worktreeEdits(r)))
 		plain, _ := a.worktreeRemoteWords(r)
 		remotes = append(remotes, len([]rune(plain)))
 		if mr := a.worktreeMR(r); mr != "" {
@@ -414,16 +415,20 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 
 	const markW = 2
 	// What gives way when the row is tight, in this order: the directory,
-	// once it is down to minPath, when it was made, its size, the merge
-	// request, the comments, then the edits. REMOTE stays. The comments are
-	// counted only with Incomm on.
+	// once it is down to minPath, the server, when it was made, its size,
+	// the merge request, the comments, then the edits. RMT stays. The
+	// comments are counted only with Incomm on.
 	repoCol := flexColumn("REPOSITORY", repos, 20, 2)
 	branchCol := flexColumn("BRANCH", branches, 10, 1)
-	remoteCol := flexColumn("REMOTE", remotes, 12, 1.2)
+	remoteCol := flexColumn("RMT", remotes, 12, 1.2)
 	pathCol := gistColumn("PATH", paths, minPath, 0.8)
 	createdCol, sizeCol, mrCol := fixedColumn(createdW), fixedColumn(sizeW), fixedColumn(mrW)
 	comCol, editsCol := fixedColumn(comW), fixedColumn(editsW)
-	for i, c := range []*listColumn{pathCol, createdCol, sizeCol, mrCol, comCol, editsCol} {
+	serverCol := &listColumn{}
+	if withServer {
+		serverCol = flexColumn("SERVER", servers, 6, 0.5)
+	}
+	for i, c := range []*listColumn{pathCol, serverCol, createdCol, sizeCol, mrCol, comCol, editsCol} {
 		c.drop = i + 1
 	}
 	cols := []*listColumn{fixedColumn(markW), repoCol, fixedColumn(reposW), branchCol, remoteCol, pathCol,
@@ -433,9 +438,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	} else {
 		comCol.width = 0
 	}
-	serverCol := &listColumn{}
 	if withServer {
-		serverCol = flexColumn("SERVER", servers, 6, 0.5)
 		cols = append(cols, serverCol)
 	}
 	if ciW > 0 {
@@ -444,6 +447,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// One cell stays free, so the last column does not touch the frame.
 	spare := layoutColumns(p.contentWidth()-1, cols...)
 	repoW, branchW, remoteW, pathW, serverW := repoCol.width, branchCol.width, remoteCol.width, pathCol.width, serverCol.width
+	withServer = withServer && serverCol.shown()
 	showPath, showCreated, showSize, showMR := pathCol.shown(), createdCol.shown(), sizeCol.shown(), mrCol.shown()
 	showComments, showEdits := comCol.shown(), editsCol.shown()
 	// What is left over is a gap behind PATH, so the columns after it stand
@@ -465,7 +469,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	if ciW > 0 {
 		header = append(header, field{text: "CI", width: ciW, colour: role("worktrees.header")})
 	}
-	header = append(header, field{text: "REMOTE", width: remoteW, colour: role("worktrees.header")})
+	header = append(header, field{text: "RMT", width: remoteW, colour: role("worktrees.header")})
 	if showPath {
 		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
 	}
@@ -473,7 +477,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		header = append(header, field{width: fillW})
 	}
 	if showEdits {
-		header = append(header, field{text: "EDITS", width: editsW, colour: role("worktrees.header"), right: true})
+		header = append(header, field{text: glyphEdits, width: editsW, colour: role("worktrees.header"), right: true})
 	}
 	if showMR {
 		header = append(header, field{text: "MR", width: mrW, colour: role("worktrees.header")})

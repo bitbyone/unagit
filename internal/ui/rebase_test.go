@@ -29,7 +29,7 @@ func TestRebaseOntoBaseThenForcePush(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "3")
-	waitFor(t, a, sc, "EDITS")
+	waitFor(t, a, sc, "RMT")
 	waitFor(t, a, sc, "in sync")
 	if row := rowWith(a, sc, "feat/x"); !containsField(row, "2") {
 		t.Errorf("EDITS does not count the two files: %q", row)

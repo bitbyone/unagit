@@ -170,7 +170,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		return w + bw
 	}
 
-	actW, syncW := len("ACTIVITY"), len("REMOTE")
+	actW, syncW, editsW := len("ACTIVITY"), len("RMT"), cells(glyphEdits)
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
 	mrW, hiddenW := 2, 0
@@ -191,6 +191,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		words, _ := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		syncW = max(syncW, len([]rune(words)))
+		editsW = max(editsW, len(a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace})))
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 		branch := info.Branch
 		if branch == "" {
@@ -217,16 +218,17 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// The name is what the row is, so it minds a cut the most, and the
 	// tags the user chose come next; the directory is said elsewhere too
 	// (the detail), so it gives way first and is the first left out when
-	// the row is tight, the tags after it.
+	// the row is tight, the server after it, then the tags.
 	nameCol := flexColumn("REPOSITORY", names, 20, 2)
 	branchCol := flexColumn("BRANCH", branches, 10, 1)
 	pathCol := gistColumn("PATH", paths, minPath, 0.8)
 	pathCol.drop = 1
 	cols := []*listColumn{fixedColumn(markW), nameCol, branchCol, pathCol,
-		fixedColumn(syncW), fixedColumn(len("EDITS")), fixedColumn(mrW), fixedColumn(2), fixedColumn(sizeW), fixedColumn(actW)}
+		fixedColumn(syncW), fixedColumn(editsW), fixedColumn(mrW), fixedColumn(2), fixedColumn(sizeW), fixedColumn(actW)}
 	serverCol, tagsCol := &listColumn{}, &listColumn{}
 	if withServer {
 		serverCol = flexColumn("SERVER", servers, 6, 0.5)
+		serverCol.drop = 2
 		cols = append(cols, serverCol)
 	}
 	if len(tagged) > 0 {
@@ -237,7 +239,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		tagsCol = flexColumn("TAGS", tagged, 4, 1.5)
 		_, short := spread(tagsShort)
 		tagsCol.ideal = max(tagsCol.floor, short)
-		tagsCol.drop = 2
+		tagsCol.drop = 3
 		cols = append(cols, tagsCol)
 	}
 	if hiddenW > 0 {
@@ -256,10 +258,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		nameCol.width += spare
 	}
 	nameW, branchW, pathW, serverW, tagsW := nameCol.width, branchCol.width, pathCol.width, serverCol.width, tagsCol.width
-	const (
-		editsW = len("EDITS")
-		wtW    = 2
-	)
+	withServer = withServer && serverCol.shown()
+	const wtW = 2
 
 	// The heat of a size is where it stands between the least and the most
 	// a repository takes.
@@ -278,8 +278,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		header = append(header, field{text: "CI", width: ciW, colour: role("repositories.header")})
 	}
 	header = append(header,
-		field{text: "REMOTE", width: syncW, colour: role("repositories.header")},
-		field{text: "EDITS", width: editsW, colour: role("repositories.header"), right: true})
+		field{text: "RMT", width: syncW, colour: role("repositories.header")},
+		field{text: glyphEdits, width: editsW, colour: role("repositories.header"), right: true})
 	if pathW > 0 {
 		header = append(header, field{text: "PATH", width: pathW, colour: role("repositories.header")})
 	}

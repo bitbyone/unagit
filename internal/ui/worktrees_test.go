@@ -111,8 +111,8 @@ func TestWorktreesSayHowBigAndHowOld(t *testing.T) {
 
 	for w := 80; w >= 40; w -= 2 {
 		h := worktreeHeaderAt(t, a, sc, w)
-		if !slices.Contains(h, "REMOTE") {
-			t.Fatalf("REMOTE gave way before the new columns at %d: %v", w, h)
+		if !slices.Contains(h, "RMT") {
+			t.Fatalf("RMT gave way before the new columns at %d: %v", w, h)
 		}
 		if !slices.Contains(h, "CREATED") {
 			break

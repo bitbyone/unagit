@@ -10,7 +10,7 @@ import (
 // name is cut last, and nothing comes out wider than asked.
 func TestShortenRepo(t *testing.T) {
 	t.Parallel()
-	e := elided()
+	e := elidedGroups()
 	repo := "my2n/ai-transformation/building-access-analysis"
 	for n, want := range map[int]string{
 		60: repo,

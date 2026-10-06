@@ -261,8 +261,12 @@ type Glyphs struct {
 	Bar          string `json:"bar"`
 	TabSeparator string `json:"tab_separator"`
 	// Elided stands for the folders a path shortened to fit leaves out: not
-	// two dots, which on a file system mean the folder above.
-	Elided string `json:"elided"`
+	// two dots, which on a file system mean the folder above. ElidedGroup
+	// is the same for the groups in front of a repository's name.
+	Elided      string `json:"elided"`
+	ElidedGroup string `json:"elided_group"`
+	// Edits heads the column counting the files not committed.
+	Edits string `json:"edits"`
 	// Spinner is the frames of what turns while a job runs behind the
 	// interface, one character each, in order.
 	Spinner string `json:"spinner"`
@@ -543,6 +547,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
+		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,
 		"borders.top_left": t.Borders.TopLeft, "borders.top_right": t.Borders.TopRight,
 		"borders.bottom_left": t.Borders.BottomLeft, "borders.bottom_right": t.Borders.BottomRight,

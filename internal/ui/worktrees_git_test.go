@@ -181,7 +181,7 @@ func TestRemoteColumnShowsWhereEachBranchStands(t *testing.T) {
 
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "5/5 worktrees")
-	for _, want := range []string{"no upstream", "in sync", "origin/feat/sync", "↑1 unpushed", "↓1 behind", "upstream gone", "REMOTE"} {
+	for _, want := range []string{"no upstream", "in sync", "origin/feat/sync", "↑1 unpushed", "↓1 behind", "upstream gone", "RMT"} {
 		waitFor(t, a, sc, want)
 	}
 }
@@ -223,13 +223,13 @@ func TestColumnsGiveWayInOrderAndRemoteStays(t *testing.T) {
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "no upstream")
 	// The columns are narrowed down a step at a time; each must go in its
-	// turn, and REMOTE never.
-	order := []string{"PATH", "CREATED", "SIZE", "MR", "EDITS"}
+	// turn, and RMT never.
+	order := []string{"PATH", "CREATED", "SIZE", "MR", onLoop(a, func() string { return glyphEdits })}
 	goneAt := map[string]int{}
 	for w := 160; w >= 40; w -= 2 {
 		h := worktreeHeaderAt(t, a, sc, w)
-		if !slices.Contains(h, "REMOTE") {
-			t.Fatalf("REMOTE gave way at %d: %v", w, h)
+		if !slices.Contains(h, "RMT") {
+			t.Fatalf("RMT gave way at %d: %v", w, h)
 		}
 		for _, name := range order {
 			if _, gone := goneAt[name]; !gone && !slices.Contains(h, name) {
@@ -600,7 +600,8 @@ func TestWorktreesUseTheWholeWidth(t *testing.T) {
 	waitFor(t, a, sc, tildePath(dir))
 	text := a.screenText(sc)
 	header := lineAt(text, "REPOSITORY")
-	if strings.Index(header, "PATH") > strings.Index(header, "EDITS") {
+	edits := onLoop(a, func() string { return glyphEdits })
+	if strings.Index(header, "PATH") > strings.Index(header, edits) {
 		t.Errorf("PATH does not come before EDITS: %q", header)
 	}
 	for _, line := range []string{header, lineAt(text, branch)} {

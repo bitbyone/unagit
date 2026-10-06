@@ -65,7 +65,7 @@ func TestRepositoriesShowTheCloneItself(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(gw.clone, "a.txt"), []byte("edited\n"), 0o644))
 	must(t, os.WriteFile(filepath.Join(gw.clone, "new.txt"), []byte("new\n"), 0o644))
 	gw.rescan()
-	waitFor(t, a, sc, "EDITS")
+	waitFor(t, a, sc, "RMT")
 	waitFor(t, a, sc, "✓")
 	if row := rowWith(a, sc, "acme/gateway"); !containsField(row, "2") {
 		t.Errorf("EDITS does not count the two files: %q", row)

@@ -120,7 +120,7 @@ all and live only there.
   branch). A branch git will not check out again - out in the main clone or
   in another worktree - is listed last, dimmed, with where it is out. Nothing opens: unagit moves to Worktrees with the cursor on it, and
   `Ctrl-O` opens it when you want.
-- `REMOTE` says where the clone's branch stands against origin: `✓` up to
+- `RMT` (remote) says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
   from the refs on disk, so it costs nothing, and read again whenever you
   switch to a list or come back to the terminal from another window - an edit
@@ -131,7 +131,8 @@ all and live only there.
   requests; a repository not cloned has none, and costs no request. It is
   read on `R` (`r` for one row) and kept for the next start; one still
   running is asked about again until it ends.
-- `EDITS` counts the files not committed in the clone, and `Enter` lists them
+- the edits column, headed `✎` (a pencil with a Nerd Font), counts the
+  files not committed in the clone, and `Enter` lists them
   with the clone's branch, HEAD and the commits origin does not have yet.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
   rebase of your commits and uncommitted edits onto origin when there is. If
@@ -327,7 +328,7 @@ with `d`.
 A branch unagit makes - in a grouped worktree, or with `n` in the `Ctrl-W`
 picker - remembers the branch it was made from (`git config
 branch.<name>.unagitBase`). Until it is pushed, Worktrees measures it against
-origin's copy of that base: `REMOTE` says `↓2 behind main`, and `p` rebases it
+origin's copy of that base: `RMT` says `↓2 behind main`, and `p` rebases it
 onto it. Once pushed it has an upstream of its own and follows that instead,
 as a clone does in Repositories - a pushed branch is never rebased onto its
 base, since that would rewrite what origin has and need a force push, which
@@ -344,7 +345,7 @@ copy and its row says **force push required**: `P` asks, then pushes with
 commit someone pushed in the meantime makes git refuse instead of being lost.
 That is the only force push unagit ever does.
 
-`EDITS` counts the files with uncommitted changes, so work in progress shows
+The edits column (`✎`) counts the files with uncommitted changes, so work in progress shows
 before it is committed; a grouped worktree adds up its repositories.
 
 `CI` is the newest pipeline of the worktree's branch itself, read on `R` and
@@ -474,7 +475,7 @@ it changed - and `Esc` comes back to the list. `D` shows the commit in Hunk,
 brought first - the repository cloned, the merge request fetched - so a log
 can be paged through without stopping to clone. In a clone or a worktree `C`
 checks the commit out with a detached HEAD: the branch column then shows
-`@<commit>` and the REMOTE column how far behind the branch it left it is,
+`@<commit>` and the RMT column how far behind the branch it left it is,
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
 `w` opens the commit on the server, and `y` copies its id, its link, a

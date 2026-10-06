@@ -186,7 +186,9 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		fixedColumn(com), fixedColumn(updated)}
 	server, proj := &listColumn{}, &listColumn{}
 	if withServer {
+		// The server is the first left out when the row is tight.
 		server = flexColumn("SERVER", servers, 6, 0.5)
+		server.drop = 1
 		cols = append(cols, server)
 	}
 	if grouped {
@@ -280,6 +282,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 
 	c := a.mrColumns(p.contentWidth(), filtered, 2+star, withServer, grouped)
 	serverW := c.server
+	withServer = withServer && serverW > 0
 
 	// The header is laid out the same way the rows are.
 	header := []field{{text: "", width: 2 + star, colour: role("merge_requests.header")}}

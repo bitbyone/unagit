@@ -114,6 +114,8 @@
     "bar": "━",
     "tab_separator": "│",
     "elided": "…",
+    "elided_group": "…",
+    "edits": "✎",
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
     "ci_running": "◐◓◑◒",
     "ci_done": "●",
@@ -128,7 +130,9 @@
     "draft": "\uebd9",
     "user": "\uf007",
     "starred": "\uf005",
-    "elided": "\uea83"
+    "elided": "\uea83",
+    "elided_group": "\uef81",
+    "edits": "\uea73"
   },
   "action_icons": {
       "Add Repository\u2026": "\uea60",
