@@ -235,7 +235,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	longest, tagged := 0, false
 	for _, idx := range filtered {
 		pr := a.projects[idx]
-		longest = max(longest, len([]rune(name(pr))))
+		longest = max(longest, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr))))
 		tagged = tagged || len(tagsOf(pr)) > 0 || managed(pr) || pr.Starred
 	}
 	longest = atLeast(longest, "REPOSITORY")
@@ -329,7 +329,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1
 		}
-		fields = append(fields, field{text: name(pr), width: nameW, colour: nameColour})
+		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), width: nameW, colour: nameColour})
 		if tagsW > 0 {
 			var starred *forge.Project
 			if pr.Starred {
@@ -495,4 +495,22 @@ func (a *App) showProjectDirectory(pr forge.Project) {
 	form.AddButton("Inherit", func() { apply("") })
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	a.showFormModal("Clone directory · "+pr.PathWithNamespace, form, 12)
+}
+
+// forgeIcon is the icon of a repository's server, to go before its name in
+// a list - "" where the terminal draws no Nerd Font icons. It is only drawn:
+// what is copied, searched or sorted is the name alone.
+func (a *App) forgeIcon(instance string) string {
+	if inst := a.cfg.Instance(instance); inst != nil && inst.IsGitHub() {
+		return glyphForgeGitHub
+	}
+	return glyphForgeGitLab
+}
+
+// iconWidth is what an icon and its space take in a column.
+func iconWidth(icon string) int {
+	if icon == "" {
+		return 0
+	}
+	return len([]rune(icon)) + 1
 }

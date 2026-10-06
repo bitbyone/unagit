@@ -146,7 +146,7 @@ func (a *App) mrColumns(width int, rows []int) mrColumns {
 	}
 	for _, idx := range rows {
 		mr := a.mrs[idx]
-		c.proj = max(c.proj, len(a.projectPathOfMR(mr)))
+		c.proj = max(c.proj, iconWidth(a.forgeIcon(mr.Instance))+len([]rune(a.projectPathOfMR(mr))))
 		c.iid = max(c.iid, len(fmt.Sprintf("!%d", mr.IID)))
 		c.author = max(c.author, len([]rune(personName(a.named(mr.Instance, mr.Author)))))
 		c.branch = max(c.branch, len([]rune(mr.SourceBranch)))
@@ -214,6 +214,11 @@ type field struct {
 	right  bool
 	// raw is already marked up and its width already right.
 	raw string
+	// icon goes before the text and after one after it, each with a space
+	// between, in a shade of the text's colour: an icon says what the text
+	// is and should not outshine it. Both count in the width, and the text
+	// is cut to what they leave.
+	icon, after string
 }
 
 // rowText lays the fields out at their widths. The merge request table draws
@@ -229,13 +234,23 @@ func rowText(fields []field) string {
 			b.WriteString(f.raw)
 			continue
 		}
-		text := trunc(f.text, f.width)
-		pad := strings.Repeat(" ", max(0, f.width-len([]rune(text))))
+		before, after, iconsW := "", "", 0
+		if f.icon != "" {
+			before = tag(iconShade(f.colour)) + tview.Escape(f.icon) + tagEnd + " "
+			iconsW += len([]rune(f.icon)) + 1
+		}
+		if f.after != "" {
+			after = " " + tag(iconShade(f.colour)) + tview.Escape(f.after) + tagEnd
+			iconsW += len([]rune(f.after)) + 1
+		}
+		text := trunc(f.text, max(0, f.width-iconsW))
+		pad := strings.Repeat(" ", max(0, f.width-iconsW-len([]rune(text))))
+		body := before + tag(f.colour) + tview.Escape(text) + tagEnd + after
 		if f.right {
-			b.WriteString(pad + tag(f.colour) + tview.Escape(text) + tagEnd)
+			b.WriteString(pad + body)
 			continue
 		}
-		b.WriteString(tag(f.colour) + tview.Escape(text) + tagEnd + pad)
+		b.WriteString(body + pad)
 	}
 	return b.String()
 }
@@ -326,7 +341,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: role("merge_requests.server")})
 		}
 		if !grouped {
-			fields = append(fields, field{text: path, width: c.proj, colour: role("merge_requests.repository")})
+			fields = append(fields, field{icon: a.forgeIcon(mr.Instance), text: path, width: c.proj, colour: role("merge_requests.repository")})
 		}
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},

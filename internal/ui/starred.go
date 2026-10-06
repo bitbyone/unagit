@@ -135,7 +135,7 @@ func (a *App) listStarred(starred []forge.Project, start int) {
 func (a *App) labelStarred(items []pickItem, starred []forge.Project, width int) {
 	nameW, langW, starsW, ageW := 0, 0, 0, 0
 	for _, p := range starred {
-		nameW = max(nameW, len([]rune(p.PathWithNamespace)))
+		nameW = max(nameW, iconWidth(a.forgeIcon(p.Instance))+len([]rune(p.PathWithNamespace)))
 		langW = max(langW, len([]rune(p.Language)))
 		starsW = max(starsW, len(fmt.Sprint(p.Stars)))
 		ageW = max(ageW, len(humanAge(p.LastActivityAt)))
@@ -154,7 +154,7 @@ func (a *App) labelStarred(items []pickItem, starred []forge.Project, width int)
 			desc = trim(strings.Join(strings.Fields(p.Description), " "), descW)
 		}
 		items[i].Label = fmt.Sprintf("%s %s  %s  %s  %s%s %*d%s  %s",
-			esc(mark), esc(padTo(trim(p.PathWithNamespace, nameW), nameW)),
+			esc(mark), rowText([]field{{icon: a.forgeIcon(p.Instance), text: p.PathWithNamespace, width: nameW, colour: colText}}),
 			tag(role("starred.description"))+esc(padTo(desc, descW))+tagEnd,
 			tag(role("starred.language"))+esc(padTo(p.Language, langW))+tagEnd,
 			tag(role("starred.stars")), glyphStarred, starsW, p.Stars, tagEnd,

@@ -120,6 +120,9 @@
   "nerd_glyphs": {
     "worktree": "\uec7d",
     "group": "\ueea8",
+    "repos": "\udb83\udccf",
+    "forge_github": "\ue709",
+    "forge_gitlab": "\udb82\udfa0",
     "user": "\uf007",
     "starred": "\uf005"
   },

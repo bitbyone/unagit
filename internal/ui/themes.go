@@ -203,10 +203,18 @@ type Glyphs struct {
 	DiskBoth   string `json:"disk_both"`
 	// Worktree marks a worktree of one repository in Worktrees, Group a
 	// grouped one, Hidden a hidden repository, Favourite a starred one.
-	Worktree  string `json:"worktree"`
-	Group     string `json:"group"`
-	Hidden    string `json:"hidden"`
-	Favourite string `json:"favourite"`
+	Worktree string `json:"worktree"`
+	Group    string `json:"group"`
+	// Repos follows the count of repositories in a worktree's row, and
+	// ForgeGitHub and ForgeGitLab go before a repository's name, saying its
+	// server. They are icons and nothing else: they have no plain character,
+	// so they are given under nerd_glyphs alone and drawn only where the
+	// terminal can.
+	Repos       string `json:"repos"`
+	ForgeGitHub string `json:"forge_github"`
+	ForgeGitLab string `json:"forge_gitlab"`
+	Hidden      string `json:"hidden"`
+	Favourite   string `json:"favourite"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
 	Check string `json:"check"`
 	Cross string `json:"cross"`

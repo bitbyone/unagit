@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -104,4 +106,49 @@ func TestNerdFontNames(t *testing.T) {
 			t.Errorf("%q: %v, want %v", name, got, want)
 		}
 	}
+}
+
+// TestServerIconsGoBeforeRepositoryNames: with the icons on, a repository's
+// name in a list has its server's icon before it and a worktree's count of
+// repositories one after; with them off there is nothing in their place.
+// Serial: the glyphs are the process's.
+func TestServerIconsGoBeforeRepositoryNames(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	gitlab := "\U000F0BA0 acme/gateway"
+	if strings.Contains(a.screenText(sc), gitlab) {
+		t.Fatal("the server's icon is drawn without a Nerd Font")
+	}
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "auto: off - tests")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "on, as chosen")
+	typeRunes(sc, "1")
+	waitFor(t, a, sc, gitlab)
+	// The icon is the name's colour, a shade darker. The cursor's band is on
+	// the first row, so the second - drawn as it is - is the one looked at.
+	text := a.screenText(sc)
+	y := lineOf(text, "\U000F0BA0 acme/billing")
+	x := strings.Index(lineAt(text, "\U000F0BA0 acme/billing"), "\U000F0BA0")
+	x = len([]rune(lineAt(text, "\U000F0BA0 acme/billing")[:x]))
+	if r, style := cellAt(a, sc, x, y); r != '\U000F0BA0' {
+		t.Errorf("no icon at %d,%d: %q", x, y, r)
+	} else if _, name := cellAt(a, sc, x+2, y); fg(style) != iconShade(fg(name)) {
+		t.Errorf("the icon is %v, want a shade of the name's %v", fg(style), fg(name))
+	}
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "\U000F0BA0 acme/gateway")
+	makeWorktree(t, a, "acme/gateway", "wt-feat-x", "ref: refs/heads/feat/x", time.Now())
+	a.tv.QueueUpdateDraw(func() { a.refreshDisk() })
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "feat/x")
+	waitFor(t, a, sc, "\U000F0BA0 acme/gateway   1 \U000F0CCF feat/x")
+	assertLegible(t, a, sc, "the worktrees with icons")
+}
+
+func fg(s tcell.Style) tcell.Color {
+	c, _, _ := s.Decompose()
+	return c
 }

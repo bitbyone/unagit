@@ -393,7 +393,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		if a.worktreeCI(r) != "" {
 			ciW = 2
 		}
-		repoW = max(repoW, len([]rune(r.Path)))
+		repoW = max(repoW, iconWidth(a.worktreeIcon(r))+len([]rune(r.Path)))
 		branchW = max(branchW, len([]rune(a.worktreeBranch(r))))
 		actW = max(actW, len(humanAge(r.Moved)))
 		createdW = max(createdW, len(humanAge(r.Created)))
@@ -561,8 +561,8 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			remote = field{raw: remoteCell(st, known, remoteW)}
 		}
 		cells = append(cells,
-			field{text: r.Path, width: repoW, colour: role("worktrees.repository")},
-			field{text: count, width: reposW, colour: countColour, right: true},
+			field{icon: a.worktreeIcon(r), text: r.Path, width: repoW, colour: role("worktrees.repository")},
+			field{text: count, after: glyphRepos, width: reposW, colour: countColour, right: true},
 			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour})
 		if ciW > 0 {
 			ci, ciColour := ciMark(a.worktreeCI(r))
@@ -1254,4 +1254,13 @@ func (a *App) showMRAt(mr forge.MergeRequest) {
 	if i := p.selectedIndex(); i < 0 || i >= len(a.mrs) || keyOfMR(a.mrs[i]) != keyOfMR(mr) {
 		a.flash(fmt.Sprintf("!%d is hidden by the view options - v shows what they keep out", mr.IID))
 	}
+}
+
+// worktreeIcon is the icon before a worktree's name: its server's, or
+// none for a group, which may span servers.
+func (a *App) worktreeIcon(r worktreeRow) string {
+	if r.grouped() {
+		return ""
+	}
+	return a.forgeIcon(r.Instance)
 }

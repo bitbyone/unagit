@@ -48,6 +48,7 @@ var (
 var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
+	glyphRepos, glyphForgeGitHub, glyphForgeGitLab                 string
 	glyphCheck, glyphCross, glyphDot, glyphRing                    string
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried        string
 	glyphUser, glyphStarred                                        string
@@ -148,6 +149,7 @@ func setTheme(t Theme) {
 	}
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
+	glyphRepos, glyphForgeGitHub, glyphForgeGitLab = g.Repos, g.ForgeGitHub, g.ForgeGitLab
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried
 	glyphUser, glyphStarred = g.User, g.Starred
@@ -415,3 +417,17 @@ var (
 	colMarked           tcell.Color
 	styleMarkedSelected tcell.Style
 )
+
+// iconShade is the colour of an icon beside a text of colour c: the same
+// colour, a little darker, so the icon says what the text is without
+// outshining it. A colour that cannot be darkened - the terminal's own -
+// gives the muted one.
+func iconShade(c tcell.Color) tcell.Color {
+	if c == tcell.ColorDefault || !c.Valid() {
+		return colMuted
+	}
+	const shade = 0.75
+	hex := c.Hex()
+	scale := func(shift int32) int32 { return int32(float64((hex>>shift)&0xff) * shade) }
+	return tcell.NewRGBColor(scale(16), scale(8), scale(0))
+}
