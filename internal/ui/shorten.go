@@ -5,25 +5,35 @@ import (
 	"strings"
 )
 
-// columnCaps are how wide the repository and the directory columns of the
-// main lists may grow, by the width of the window: a narrow one keeps them
-// short so the other columns still fit, a very wide one does not hold them
-// back at all. A list that has room left over may still give it back to
-// them; a cap is what they are sure of, not a reason to cut a path while
-// blank cells sit beside it.
-func columnCaps(window int) (repo, path int) {
+// columnCaps are how wide the long columns of the main lists may grow, by
+// the width of the window: a narrow one keeps them short so the other
+// columns still fit, a very wide one holds back only the title. A list that
+// has room left over may still give it back to the repository and the
+// directory; a cap is what they are sure of, not a reason to cut a path
+// while blank cells sit beside it. The title is the exception: on a wide
+// window an unlimited one would push the author and the branch so far right
+// that the eye loses the row on the way, so the room it does not take is
+// left at the end instead.
+type columnCaps struct{ repo, path, title int }
+
+func capsFor(window int) columnCaps {
+	const none = math.MaxInt / 4
 	switch {
 	case window < 100:
-		return 24, 24
+		return columnCaps{repo: 24, path: 24, title: 48}
 	case window < 150:
-		return 32, 36
+		return columnCaps{repo: 32, path: 36, title: 64}
 	case window < 200:
-		return 40, 44
+		return columnCaps{repo: 40, path: 44, title: 80}
 	case window <= 250:
-		return 56, 64
+		return columnCaps{repo: 56, path: 64, title: 96}
 	}
-	return math.MaxInt / 4, math.MaxInt / 4
+	return columnCaps{repo: none, path: none, title: 120}
 }
+
+// minPath is the narrowest a directory column is let shrink to before it
+// is left out: enough for the start and most of the directory's own name.
+const minPath = 16
 
 // minCut is the fewest cells a segment cut in the middle keeps: two of its
 // start, the ellipsis and two of its end. Fewer than that says nothing a

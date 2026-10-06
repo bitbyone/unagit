@@ -72,3 +72,23 @@ func TestShortenPath(t *testing.T) {
 		t.Errorf("short folders: %q, want %q", got, want)
 	}
 }
+
+// TestTitleCap: on a wide window the title stops at its cap and what it
+// leaves goes to the columns cut short, not into blank title cells.
+func TestTitleCap(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	for window, want := range map[int]int{300: 120, 230: 96, 180: 80} {
+		c := onLoop(a, func() mrColumns {
+			rows := make([]int, len(a.mrs))
+			for i := range rows {
+				rows[i] = i
+			}
+			return a.mrColumns(window, window-2, rows)
+		})
+		if c.title != want {
+			t.Errorf("window %d: title %d, want %d", window, c.title, want)
+		}
+	}
+}

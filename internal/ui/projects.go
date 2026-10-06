@@ -177,8 +177,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
 	if pathW > 0 {
-		_, pathCap := columnCaps(p.contentWidth() + 2)
-		pathW = atLeast(min(pathW, pathCap), "PATH")
+		pathW = atLeast(min(pathW, capsFor(p.contentWidth()+2).path), "PATH")
 	}
 
 	// Grouped, every row is indented one step under its heading.
@@ -206,8 +205,14 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		fixed++ // its own gap
 	}
 	nameW := p.contentWidth() - fixed
-	// When it is tight the path goes first, whole: half a directory is worth
-	// nothing, and the repository column already says which row this is.
+	// When it is tight the path gives way first: shortened down to minPath,
+	// which still names the directory, and only then left out whole.
+	if short := minName - nameW; short > 0 && pathW > minPath {
+		give := min(short, pathW-minPath)
+		pathW -= give
+		nameW += give
+	}
+	// Left out, the repository column still says which row this is.
 	if nameW < minName && pathW > 0 {
 		nameW += pathW + 1
 		pathW = 0

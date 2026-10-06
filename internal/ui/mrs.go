@@ -132,7 +132,8 @@ func (a *App) filterMRs(query string) []int {
 }
 
 // mrColumns works out how wide each column may be for the current table
-// width, the repository's no wider than the window allows (columnCaps).
+// width, the repository and the title no wider than the window allows
+// (capsFor).
 // The title takes whatever is left, and every cell is truncated to fit, so
 // the branch column never falls off the right edge.
 type mrColumns struct{ proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
@@ -164,8 +165,11 @@ func (a *App) mrColumns(window, width int, rows []int) mrColumns {
 			c.ci = 2
 		}
 	}
-	repoCap, _ := columnCaps(window)
-	c.proj = atLeast(min(c.proj, repoCap), "REPO")
+	// What the three cut columns would take whole: room the title leaves
+	// gives it back to them.
+	projFull, authorFull, branchFull := c.proj, c.author, c.branch
+	caps := capsFor(window)
+	c.proj = atLeast(min(c.proj, caps.repo), "REPO")
 	c.author = atLeast(min(c.author, 18), "AUTHOR")
 	c.branch = atLeast(min(c.branch, 26), "BRANCH")
 	c.updated = atLeast(c.updated, "UPDATED")
@@ -199,6 +203,21 @@ func (a *App) mrColumns(window, width int, rows []int) mrColumns {
 		if give > 0 {
 			*shrink.col -= give
 			c.title += give
+		}
+	}
+	// A title wider than the window allows hands what it does not take to
+	// the columns cut short, the repository first; what is still left
+	// stays at the end of the row.
+	if spare := c.title - caps.title; spare > 0 {
+		c.title = caps.title
+		for _, grow := range []struct {
+			col  *int
+			full int
+		}{{&c.proj, projFull}, {&c.branch, branchFull}, {&c.author, authorFull}} {
+			if give := min(spare, grow.full-*grow.col); give > 0 {
+				*grow.col += give
+				spare -= give
+			}
 		}
 	}
 	c.title = max(c.title, 10)

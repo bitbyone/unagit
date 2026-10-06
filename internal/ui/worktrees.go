@@ -412,15 +412,15 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// What the four long columns would take whole; the caps below are what
 	// they are sure of, and room left over gives them back the rest.
 	repoFull, branchFull, remoteFull, pathFull := repoW, branchW, remoteW, pathW
-	repoCap, pathCap := columnCaps(p.contentWidth() + 2)
-	repoW = atLeast(min(repoW, repoCap), "REPOSITORY")
+	caps := capsFor(p.contentWidth() + 2)
+	repoW = atLeast(min(repoW, caps.repo), "REPOSITORY")
 	branchW = atLeast(min(branchW, 32), "BRANCH")
 	actW = atLeast(actW, "ACTIVITY")
 	remoteW = min(remoteW, 34)
 	if withServer {
 		serverW = atLeast(min(serverW, 16), "SERVER")
 	}
-	pathW = atLeast(min(pathW, pathCap), "PATH")
+	pathW = atLeast(min(pathW, caps.path), "PATH")
 
 	const (
 		markW   = 2
@@ -439,10 +439,10 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		fixed += ciW
 		fields++
 	}
-	// What gives way when the row is tight, in this order: the directory, whole
-	// (half a path says nothing), when it was made, its size, the merge
-	// request, the comments, then the edits. REMOTE stays. The comments are
-	// counted only with Incomm on.
+	// What gives way when the row is tight, in this order: the directory,
+	// shortened down to minPath and then left out, when it was made, its
+	// size, the merge request, the comments, then the edits. REMOTE stays.
+	// The comments are counted only with Incomm on.
 	showPath, showCreated, showSize, showMR, showEdits := true, true, true, true, true
 	showComments := a.cfg.Integrations.Incomm
 	cost := func() int {
@@ -457,6 +457,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			}
 		}
 		return total + gaps
+	}
+	if short := minRepo - (room - cost()); short > 0 && pathW > minPath {
+		pathW -= min(short, pathW-minPath)
 	}
 	for room-cost() < minRepo && (showPath || showCreated || showSize || showMR || showComments || showEdits) {
 		switch {
