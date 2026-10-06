@@ -1,0 +1,69 @@
+{
+  "name": "solarized-dark",
+  "description": "Solarized Dark: Ethan Schoonover's teal and blue on deep cyan",
+  "background": "#002b36",
+  "text": {
+    "normal": "#93a1a1",
+    "muted": "#839496",
+    "dim": "#586e75",
+    "accent": "#268bd2",
+    "branch": "#2aa198",
+    "key": "#cb4b16"
+  },
+  "state": {
+    "good": "#859900",
+    "warning": "#b58900",
+    "bad": "#dc322f",
+    "force": "#d33682",
+    "favourite": "#b58900"
+  },
+  "border": {
+    "normal": "#2c4a52",
+    "focus": "#268bd2",
+    "title": "#2aa198"
+  },
+  "tabs": {
+    "active": "#268bd2",
+    "inactive": "#657b83",
+    "separator": "#073642"
+  },
+  "surface": {
+    "field": "#073642",
+    "raised": "#0d4250",
+    "field_focus": "#0a3d55",
+    "field_typing": "#0f4a68"
+  },
+  "selection": {
+    "background": "#0d4250",
+    "text": "#eee8d5",
+    "marked": "#16402a",
+    "marked_cursor": "#1d5236"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#2c4a52"
+  },
+  "markdown": {
+    "text": "#93a1a1",
+    "heading": "#268bd2",
+    "code": "#cb4b16",
+    "quote": "#839496",
+    "link": "#2aa198",
+    "muted": "#586e75"
+  },
+  "chezmoi": {
+    "badge_ink": "#002b36",
+    "badge_fill": "#657b83",
+    "heading_ink": "#002b36",
+    "heading_fill": "#b58900"
+  },
+  "colours": {
+    "ci.running": "#2aa198",
+    "starred.stars": "#b58900",
+    "column.branch": "#2aa198",
+    "column.mr": "#268bd2",
+    "column.wt": "#cb4b16",
+    "column.age": "#657b83"
+  },
+  "heat": ["#1f6a8a", "#9a3a2a"]
+}

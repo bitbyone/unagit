@@ -1,0 +1,87 @@
+{
+  "name": "github-light",
+  "description": "GitHub Light: clean white, as on github.com",
+  "background": "#ffffff",
+  "text": {
+    "normal": "#1f2328",
+    "muted": "#59636e",
+    "dim": "#818b98",
+    "accent": "#0969da",
+    "branch": "#8250df",
+    "key": "#bc4c00"
+  },
+  "state": {
+    "good": "#1a7f37",
+    "warning": "#9a6700",
+    "bad": "#cf222e",
+    "force": "#bc4c00",
+    "favourite": "#bf8700"
+  },
+  "border": {
+    "normal": "#d1d9e0",
+    "focus": "#0969da",
+    "title": "#0550ae"
+  },
+  "tabs": {
+    "active": "#0969da",
+    "inactive": "#59636e",
+    "separator": "#d1d9e0"
+  },
+  "surface": {
+    "field": "#f6f8fa",
+    "raised": "#eaeef2",
+    "field_focus": "#ddf4ff",
+    "field_typing": "#b6e3ff"
+  },
+  "selection": {
+    "background": "#eaeef2",
+    "text": "#1f2328",
+    "marked": "#dafbe1",
+    "marked_cursor": "#aceebb"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#818b98"
+  },
+  "markdown": {
+    "text": "#1f2328",
+    "heading": "#0969da",
+    "code": "#bc4c00",
+    "quote": "#59636e",
+    "link": "#0969da",
+    "muted": "#818b98"
+  },
+  "chezmoi": {
+    "badge_ink": "#ffffff",
+    "badge_fill": "#59636e",
+    "heading_ink": "#ffffff",
+    "heading_fill": "#bf8700"
+  },
+  "tags": {
+    "rose": {"ink": "#8c2a44", "fill": "#f6d5dd"},
+    "coral": {"ink": "#8f3a28", "fill": "#f8d9d0"},
+    "peach": {"ink": "#8a4a1c", "fill": "#f8e0cc"},
+    "apricot": {"ink": "#7d5617", "fill": "#f6e6c6"},
+    "butter": {"ink": "#6b5d12", "fill": "#f2ebbe"},
+    "lime": {"ink": "#4b6116", "fill": "#e2efc6"},
+    "mint": {"ink": "#1f6643", "fill": "#cdeedb"},
+    "sage": {"ink": "#435a37", "fill": "#dde8d5"},
+    "teal": {"ink": "#1d625b", "fill": "#cceae6"},
+    "sky": {"ink": "#1d5878", "fill": "#cfe6f4"},
+    "azure": {"ink": "#264a86", "fill": "#d4e0f6"},
+    "periwinkle": {"ink": "#3b3b8c", "fill": "#dcdcf6"},
+    "lavender": {"ink": "#53348a", "fill": "#e4dbf6"},
+    "lilac": {"ink": "#6c3480", "fill": "#efdcf4"},
+    "pink": {"ink": "#8a2c5c", "fill": "#f6d9e8"},
+    "sand": {"ink": "#5f4e36", "fill": "#ebe2d4"}
+  },
+  "colours": {
+    "ci.running": "#0969da",
+    "starred.stars": "#bf8700",
+    "column.branch": "#0550ae",
+    "column.mr": "#0969da",
+    "column.wt": "#bc4c00",
+    "column.age": "#818b98"
+  },
+  "heat": ["#54aeff", "#ff8182"]
+}

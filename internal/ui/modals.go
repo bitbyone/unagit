@@ -151,6 +151,18 @@ type pickerOptions struct {
 	// list. Only the action pickers do: an action is looked for by name
 	// more often than walked to.
 	filter bool
+	// query is the filter as it opens, typed already: a picker opened again
+	// in place of itself keeps what was being looked for.
+	query string
+	// preview hears every item the cursor comes to, and cancel that the
+	// picker was closed without a choice - so an item can be tried on the
+	// screen behind and taken back.
+	preview func(it pickItem, query string)
+	cancel  func()
+	// bright leaves the screen behind undimmed and sets the picker apart
+	// on a background of its own instead: for a picker whose items are
+	// tried on that screen.
+	bright bool
 }
 
 // livePicker is a picker that is open, whose items can be put again while
@@ -205,7 +217,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	footer := tview.NewTextView().SetDynamicColors(true)
 
 	shown := make([]pickItem, 0, len(items))
+	// rebuilding is set while the list is filled again, whose every item
+	// added moves the cursor on the way to where it ends.
+	rebuilding := false
 	rebuild := func(query string) {
+		rebuilding = true
+		defer func() { rebuilding = false }()
 		list.Clear()
 		shown = shown[:0]
 		// What an item is called comes before what its explanation says:
@@ -245,15 +262,32 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			list.AddItem(label, "", 0, nil)
 		}
 	}
-	rebuild("")
+	rebuild(opts.query)
+	if opts.query != "" && start >= 0 && start < len(items) {
+		// start is an item's place among all of them; the filter has left
+		// fewer.
+		want, at := items[start].Label, 0
+		for i, it := range shown {
+			if it.Label == want {
+				at = i
+			}
+		}
+		start = at
+	}
 	if start > 0 && start < list.GetItemCount() {
 		list.SetCurrentItem(start)
+	}
+	if opts.query != "" {
+		input.SetText(opts.query)
 	}
 	// What Esc does in a picker that opened on its filter depends on
 	// whether anything is typed, and the hint follows it (filterHint).
 	var typed func()
+	// moved hears where the cursor came to, once it has settled.
+	moved := func(int) {}
 	input.SetChangedFunc(func(query string) {
 		rebuild(query)
+		moved(list.GetCurrentItem())
 		if typed != nil {
 			typed()
 		}
@@ -264,6 +298,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		pageName = pagePicker
 	}
 	dismiss := func() { a.closeModal(pageName) }
+	// giveUp closes the picker with nothing chosen.
+	giveUp := func() {
+		dismiss()
+		if opts.cancel != nil {
+			opts.cancel()
+		}
+	}
 	choose := func() {
 		i := list.GetCurrentItem()
 		if i < 0 || i >= len(shown) || onSelect == nil {
@@ -335,7 +376,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			// A picker that opened on its filter closes on Esc while nothing
 			// is typed: there is no list it was taken from to go back to.
 			if opts.filter && input.GetText() == "" {
-				dismiss()
+				giveUp()
 				if opts.back != nil {
 					opts.back()
 				}
@@ -410,7 +451,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		switch ev.Key() {
 		case tcell.KeyEsc:
-			dismiss()
+			giveUp()
 			if opts.back != nil {
 				opts.back()
 			}
@@ -440,7 +481,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				list.SetCurrentItem(list.GetItemCount() - 1)
 				return nil
 			case 'q':
-				dismiss()
+				giveUp()
 				return nil
 			case 'n':
 				if onNew != nil {
@@ -499,10 +540,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			about.SetText("")
 		}
-		list.SetChangedFunc(func(i int, _, _ string, _ rune) { explain(i) })
 		input.SetChangedFunc(func(query string) {
 			rebuild(query)
 			explain(list.GetCurrentItem())
+			moved(list.GetCurrentItem())
 			if typed != nil {
 				typed()
 			}
@@ -518,8 +559,34 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false).AddItem(rule(), 1, 0, false)
 		extra = 2 + lines
 	}
+	if opts.preview != nil {
+		tried := ""
+		if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+			tried = shown[i].Label
+		}
+		moved = func(i int) {
+			if i < 0 || i >= len(shown) || shown[i].Label == tried {
+				return
+			}
+			tried = shown[i].Label
+			opts.preview(shown[i], input.GetText())
+		}
+	}
+	list.SetChangedFunc(func(i int, _, _ string, _ rune) {
+		explain(i)
+		if !rebuilding {
+			moved(i)
+		}
+	})
 	flex.AddItem(footer, 1, 0, false)
 	box(flex.Box, title)
+	if opts.bright {
+		for _, b := range []interface{ SetBackgroundColor(tcell.Color) *tview.Box }{flex, list, footer, input} {
+			b.SetBackgroundColor(colPicker)
+		}
+		input.SetFieldBackgroundColor(colPicker)
+		list.SetMainTextStyle(tcell.StyleDefault.Foreground(colText).Background(colPicker))
+	}
 
 	pad := 0
 	if opts.pack || opts.explain {
@@ -574,8 +641,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	} else {
 		page = modalPct(frame, 70, 70)
 	}
+	if opts.bright {
+		if box, ok := page.(*modalBox); ok {
+			box.bright = true
+		}
+	}
 	a.pages.AddPage(pageName, page, true, true)
-	setMode(opts.filter)
+	setMode(opts.filter || opts.query != "")
 
 	same := opts.same
 	if same == nil {

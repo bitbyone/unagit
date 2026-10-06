@@ -1,0 +1,69 @@
+{
+  "name": "rose-pine",
+  "description": "Rose Pine: dusty rose and gold on deep violet",
+  "background": "#191724",
+  "text": {
+    "normal": "#e0def4",
+    "muted": "#908caa",
+    "dim": "#6e6a86",
+    "accent": "#c4a7e7",
+    "branch": "#ebbcba",
+    "key": "#f6c177"
+  },
+  "state": {
+    "good": "#9ccfd8",
+    "warning": "#f6c177",
+    "bad": "#eb6f92",
+    "force": "#eb6f92",
+    "favourite": "#f6c177"
+  },
+  "border": {
+    "normal": "#403d52",
+    "focus": "#c4a7e7",
+    "title": "#ebbcba"
+  },
+  "tabs": {
+    "active": "#c4a7e7",
+    "inactive": "#908caa",
+    "separator": "#26233a"
+  },
+  "surface": {
+    "field": "#1f1d2e",
+    "raised": "#26233a",
+    "field_focus": "#2a2740",
+    "field_typing": "#393552"
+  },
+  "selection": {
+    "background": "#403d52",
+    "text": "#e0def4",
+    "marked": "#1f3540",
+    "marked_cursor": "#2a4a55"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#524f67"
+  },
+  "markdown": {
+    "text": "#e0def4",
+    "heading": "#c4a7e7",
+    "code": "#f6c177",
+    "quote": "#908caa",
+    "link": "#9ccfd8",
+    "muted": "#6e6a86"
+  },
+  "chezmoi": {
+    "badge_ink": "#191724",
+    "badge_fill": "#6e6a86",
+    "heading_ink": "#191724",
+    "heading_fill": "#f6c177"
+  },
+  "colours": {
+    "ci.running": "#9ccfd8",
+    "starred.stars": "#f6c177",
+    "column.branch": "#9ccfd8",
+    "column.mr": "#c4a7e7",
+    "column.wt": "#ebbcba",
+    "column.age": "#908caa"
+  },
+  "heat": ["#31748f", "#b4637a"]
+}

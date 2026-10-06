@@ -1,0 +1,69 @@
+{
+  "name": "carbonfox",
+  "description": "Carbonfox: graphite after IBM Carbon, from nightfox.nvim",
+  "background": "#161616",
+  "text": {
+    "normal": "#f2f4f8",
+    "muted": "#b6b8bb",
+    "dim": "#6e6f70",
+    "accent": "#78a9ff",
+    "branch": "#be95ff",
+    "key": "#ff7eb6"
+  },
+  "state": {
+    "good": "#25be6a",
+    "warning": "#08bdba",
+    "bad": "#ee5396",
+    "force": "#ff7eb6",
+    "favourite": "#f0c674"
+  },
+  "border": {
+    "normal": "#353535",
+    "focus": "#78a9ff",
+    "title": "#33b1ff"
+  },
+  "tabs": {
+    "active": "#78a9ff",
+    "inactive": "#7b7c7e",
+    "separator": "#282828"
+  },
+  "surface": {
+    "field": "#252525",
+    "raised": "#353535",
+    "field_focus": "#1f2a3d",
+    "field_typing": "#26385a"
+  },
+  "selection": {
+    "background": "#2a2a2a",
+    "text": "#f2f4f8",
+    "marked": "#173a2a",
+    "marked_cursor": "#1f4d37"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#353535"
+  },
+  "markdown": {
+    "text": "#f2f4f8",
+    "heading": "#78a9ff",
+    "code": "#ff7eb6",
+    "quote": "#b6b8bb",
+    "link": "#33b1ff",
+    "muted": "#6e6f70"
+  },
+  "chezmoi": {
+    "badge_ink": "#161616",
+    "badge_fill": "#7b7c7e",
+    "heading_ink": "#161616",
+    "heading_fill": "#08bdba"
+  },
+  "colours": {
+    "ci.running": "#33b1ff",
+    "starred.stars": "#f0c674",
+    "column.branch": "#33b1ff",
+    "column.mr": "#78a9ff",
+    "column.wt": "#ff7eb6",
+    "column.age": "#7b7c7e"
+  },
+  "heat": ["#3a5f9a", "#9a3a64"]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "kanagawa-wave",
+  "description": "Kanagawa Wave: muted ink colours after Hokusai's wave",
+  "background": "#1f1f28",
+  "text": {
+    "normal": "#dcd7ba",
+    "muted": "#c8c093",
+    "dim": "#727169",
+    "accent": "#7e9cd8",
+    "branch": "#957fb8",
+    "key": "#ffa066"
+  },
+  "state": {
+    "good": "#98bb6c",
+    "warning": "#e6c384",
+    "bad": "#ff5d62",
+    "force": "#e46876",
+    "favourite": "#e6c384"
+  },
+  "border": {
+    "normal": "#54546d",
+    "focus": "#7e9cd8",
+    "title": "#7fb4ca"
+  },
+  "tabs": {
+    "active": "#e6c384",
+    "inactive": "#727169",
+    "separator": "#363646"
+  },
+  "surface": {
+    "field": "#2a2a37",
+    "raised": "#363646",
+    "field_focus": "#223249",
+    "field_typing": "#2d4f67"
+  },
+  "selection": {
+    "background": "#2d4f67",
+    "text": "#dcd7ba",
+    "marked": "#2b3328",
+    "marked_cursor": "#3a4a33"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#54546d"
+  },
+  "markdown": {
+    "text": "#dcd7ba",
+    "heading": "#7e9cd8",
+    "code": "#ffa066",
+    "quote": "#c8c093",
+    "link": "#7fb4ca",
+    "muted": "#727169"
+  },
+  "chezmoi": {
+    "badge_ink": "#1f1f28",
+    "badge_fill": "#727169",
+    "heading_ink": "#1f1f28",
+    "heading_fill": "#e6c384"
+  },
+  "colours": {
+    "ci.running": "#7fb4ca",
+    "starred.stars": "#e6c384",
+    "column.branch": "#7fb4ca",
+    "column.mr": "#7e9cd8",
+    "column.wt": "#ffa066",
+    "column.age": "#938aa9"
+  },
+  "heat": ["#4a5f80", "#8a4a52"]
+}

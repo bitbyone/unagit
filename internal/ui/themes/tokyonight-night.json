@@ -1,0 +1,69 @@
+{
+  "name": "tokyonight-night",
+  "description": "Tokyo Night: neon blue and violet on near-black, after folke's Neovim theme",
+  "background": "#1a1b26",
+  "text": {
+    "normal": "#c0caf5",
+    "muted": "#a9b1d6",
+    "dim": "#565f89",
+    "accent": "#7aa2f7",
+    "branch": "#bb9af7",
+    "key": "#ff9e64"
+  },
+  "state": {
+    "good": "#9ece6a",
+    "warning": "#e0af68",
+    "bad": "#f7768e",
+    "force": "#db4b4b",
+    "favourite": "#e0af68"
+  },
+  "border": {
+    "normal": "#3b4261",
+    "focus": "#7aa2f7",
+    "title": "#7dcfff"
+  },
+  "tabs": {
+    "active": "#7aa2f7",
+    "inactive": "#737aa2",
+    "separator": "#292e42"
+  },
+  "surface": {
+    "field": "#24283b",
+    "raised": "#292e42",
+    "field_focus": "#2a3454",
+    "field_typing": "#33467c"
+  },
+  "selection": {
+    "background": "#283457",
+    "text": "#c0caf5",
+    "marked": "#1f3a3d",
+    "marked_cursor": "#2a4f52"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#3b4261"
+  },
+  "markdown": {
+    "text": "#c0caf5",
+    "heading": "#7aa2f7",
+    "code": "#ff9e64",
+    "quote": "#a9b1d6",
+    "link": "#7dcfff",
+    "muted": "#565f89"
+  },
+  "chezmoi": {
+    "badge_ink": "#1a1b26",
+    "badge_fill": "#737aa2",
+    "heading_ink": "#1a1b26",
+    "heading_fill": "#e0af68"
+  },
+  "colours": {
+    "ci.running": "#7dcfff",
+    "starred.stars": "#e0af68",
+    "column.branch": "#7dcfff",
+    "column.mr": "#7aa2f7",
+    "column.wt": "#ff9e64",
+    "column.age": "#737aa2"
+  },
+  "heat": ["#3d59a1", "#914c54"]
+}

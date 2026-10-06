@@ -173,7 +173,7 @@ For a CPU profile of the two diagnostic scenarios:
 
 ```sh
 go test -race -count=1 \
-  -run '^(TestGroupingKeepsTheCursorInView|TestEveryThemeIsLegible)$' \
+  -run '^(TestGroupingKeepsTheCursorInView|TestAThemeOfEachKindIsLegible)$' \
   -cpuprofile /tmp/unagit-ui.cpu -o /tmp/unagit-ui.test ./internal/ui
 go tool pprof -top /tmp/unagit-ui.test /tmp/unagit-ui.cpu
 ```

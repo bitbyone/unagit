@@ -1,0 +1,69 @@
+{
+  "name": "nord",
+  "description": "Nord: cool arctic blues on polar grey",
+  "background": "#2e3440",
+  "text": {
+    "normal": "#d8dee9",
+    "muted": "#a3abb9",
+    "dim": "#616e88",
+    "accent": "#88c0d0",
+    "branch": "#81a1c1",
+    "key": "#d08770"
+  },
+  "state": {
+    "good": "#a3be8c",
+    "warning": "#ebcb8b",
+    "bad": "#bf616a",
+    "force": "#d08770",
+    "favourite": "#ebcb8b"
+  },
+  "border": {
+    "normal": "#4c566a",
+    "focus": "#88c0d0",
+    "title": "#8fbcbb"
+  },
+  "tabs": {
+    "active": "#88c0d0",
+    "inactive": "#7b88a1",
+    "separator": "#3b4252"
+  },
+  "surface": {
+    "field": "#3b4252",
+    "raised": "#434c5e",
+    "field_focus": "#384a5a",
+    "field_typing": "#3f5a6e"
+  },
+  "selection": {
+    "background": "#434c5e",
+    "text": "#eceff4",
+    "marked": "#36463f",
+    "marked_cursor": "#44594f"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#4c566a"
+  },
+  "markdown": {
+    "text": "#d8dee9",
+    "heading": "#88c0d0",
+    "code": "#d08770",
+    "quote": "#a3abb9",
+    "link": "#8fbcbb",
+    "muted": "#616e88"
+  },
+  "chezmoi": {
+    "badge_ink": "#2e3440",
+    "badge_fill": "#7b88a1",
+    "heading_ink": "#2e3440",
+    "heading_fill": "#ebcb8b"
+  },
+  "colours": {
+    "ci.running": "#8fbcbb",
+    "starred.stars": "#ebcb8b",
+    "column.branch": "#8fbcbb",
+    "column.mr": "#81a1c1",
+    "column.wt": "#d08770",
+    "column.age": "#7b88a1"
+  },
+  "heat": ["#5e81ac", "#a5545d"]
+}

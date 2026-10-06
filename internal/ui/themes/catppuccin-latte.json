@@ -1,0 +1,87 @@
+{
+  "name": "catppuccin-latte",
+  "description": "Catppuccin Latte: soft pastels on cream",
+  "background": "#eff1f5",
+  "text": {
+    "normal": "#4c4f69",
+    "muted": "#6c6f85",
+    "dim": "#9ca0b0",
+    "accent": "#1e66f5",
+    "branch": "#8839ef",
+    "key": "#fe640b"
+  },
+  "state": {
+    "good": "#40a02b",
+    "warning": "#df8e1d",
+    "bad": "#d20f39",
+    "force": "#e64553",
+    "favourite": "#df8e1d"
+  },
+  "border": {
+    "normal": "#bcc0cc",
+    "focus": "#1e66f5",
+    "title": "#7287fd"
+  },
+  "tabs": {
+    "active": "#1e66f5",
+    "inactive": "#7c7f93",
+    "separator": "#ccd0da"
+  },
+  "surface": {
+    "field": "#e6e9ef",
+    "raised": "#ccd0da",
+    "field_focus": "#dfe6f7",
+    "field_typing": "#cfdcf8"
+  },
+  "selection": {
+    "background": "#ccd0da",
+    "text": "#4c4f69",
+    "marked": "#d8eedd",
+    "marked_cursor": "#c4e4cc"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#9ca0b0"
+  },
+  "markdown": {
+    "text": "#4c4f69",
+    "heading": "#1e66f5",
+    "code": "#fe640b",
+    "quote": "#6c6f85",
+    "link": "#04a5e5",
+    "muted": "#8c8fa1"
+  },
+  "chezmoi": {
+    "badge_ink": "#eff1f5",
+    "badge_fill": "#7c7f93",
+    "heading_ink": "#eff1f5",
+    "heading_fill": "#df8e1d"
+  },
+  "tags": {
+    "rose": {"ink": "#8c2a44", "fill": "#f6d5dd"},
+    "coral": {"ink": "#8f3a28", "fill": "#f8d9d0"},
+    "peach": {"ink": "#8a4a1c", "fill": "#f8e0cc"},
+    "apricot": {"ink": "#7d5617", "fill": "#f6e6c6"},
+    "butter": {"ink": "#6b5d12", "fill": "#f2ebbe"},
+    "lime": {"ink": "#4b6116", "fill": "#e2efc6"},
+    "mint": {"ink": "#1f6643", "fill": "#cdeedb"},
+    "sage": {"ink": "#435a37", "fill": "#dde8d5"},
+    "teal": {"ink": "#1d625b", "fill": "#cceae6"},
+    "sky": {"ink": "#1d5878", "fill": "#cfe6f4"},
+    "azure": {"ink": "#264a86", "fill": "#d4e0f6"},
+    "periwinkle": {"ink": "#3b3b8c", "fill": "#dcdcf6"},
+    "lavender": {"ink": "#53348a", "fill": "#e4dbf6"},
+    "lilac": {"ink": "#6c3480", "fill": "#efdcf4"},
+    "pink": {"ink": "#8a2c5c", "fill": "#f6d9e8"},
+    "sand": {"ink": "#5f4e36", "fill": "#ebe2d4"}
+  },
+  "colours": {
+    "ci.running": "#04a5e5",
+    "starred.stars": "#df8e1d",
+    "column.branch": "#209fb5",
+    "column.mr": "#1e66f5",
+    "column.wt": "#fe640b",
+    "column.age": "#8c8fa1"
+  },
+  "heat": ["#7aa3e6", "#e07a8c"]
+}

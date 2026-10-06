@@ -66,6 +66,9 @@ var colourRoles = []colourRole{
 	{"starred.stars", "state.favourite", "how many stars it has"},
 	{"starred.activity", "column.age", "how long ago it moved"},
 
+	// A picker whose items are tried on the screen behind it, the themes.
+	{"picker.background", "surface.field", "its background on the terminal's own; on a theme's, that darkened"},
+
 	// Badges in the tags column.
 	{"badge.starred.ink", "chezmoi.badge_ink", "the badge of a repository cloned from the stars"},
 	{"badge.starred.fill", "chezmoi.badge_fill", ""},

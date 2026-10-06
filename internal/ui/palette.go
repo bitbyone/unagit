@@ -186,23 +186,56 @@ func (a *App) globalActions() []uiAction {
 
 // showThemePicker lists the themes, each with its colours, the cursor on
 // the one that is on; Enter puts another on, as Settings › Theme does.
+// Over a main screen the cursor tries each theme on that screen as it comes
+// to it, undimmed, and closing the list without Enter puts back the one
+// that was on. Over a dialog it does not: drawing the screen again would
+// take the dialog with it.
 func (a *App) showThemePicker() {
+	a.openThemePicker(theme.Name, "", "", !a.modalOpen())
+}
+
+// openThemePicker opens the theme list with on as the theme to come back
+// to, the cursor on at and the filter as typed - a preview opens it again,
+// in the colours tried.
+func (a *App) openThemePicker(on, at, query string, preview bool) {
 	width := 0
 	for _, name := range a.themes.names {
 		width = max(width, len([]rune(name)))
+	}
+	if at == "" {
+		at = on
 	}
 	items := make([]pickItem, len(a.themes.names))
 	start := 0
 	for i, name := range a.themes.names {
 		mark := " "
-		if name == theme.Name {
-			start, mark = i, glyphCheck
+		if name == on {
+			mark = glyphCheck
+		}
+		if name == at {
+			start = i
 		}
 		// Names padded alike, so the colours stand in a column.
-		items[i] = pickItem{Label: esc(fmt.Sprintf("%s %-*s", mark, width, name)), Sub: themeSwatch(a.themes.byName[name], false), Data: name}
+		items[i] = pickItem{Label: esc(fmt.Sprintf("%s %-*s", mark, width, name)), Sub: themeSwatch(a.themes.byName[name], name == at), Data: name}
 	}
-	a.showPickerWith("Theme", items, pickerOptions{start: start, pack: true, enterHint: "put on"}, func(it pickItem) {
-		if name := it.Data.(string); name != theme.Name {
+	opts := pickerOptions{start: start, pack: true, enterHint: "put on", query: query}
+	if preview {
+		opts.bright = true
+		opts.preview = func(it pickItem, query string) {
+			name := it.Data.(string)
+			setTheme(a.themes.byName[name])
+			a.repaintInterface()
+			a.openThemePicker(on, name, query, true)
+		}
+		opts.cancel = func() {
+			if theme.Name != on {
+				setTheme(a.themes.byName[on])
+				a.repaintInterface()
+			}
+		}
+	}
+	a.showPickerWith("Theme", items, opts, func(it pickItem) {
+		if name := it.Data.(string); name != on {
 			a.switchTheme(name)
 		}
 	})

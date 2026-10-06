@@ -42,6 +42,9 @@ var (
 	colFieldTyping tcell.Color
 	// colKey marks the letter that presses a button.
 	colKey tcell.Color
+	// colPicker is the background of a picker that leaves the screen behind
+	// undimmed (pickerOptions.bright), a step darker than the screen's.
+	colPicker tcell.Color
 )
 
 // The glyphs that say what something is, set from the theme.
@@ -144,6 +147,7 @@ func setTheme(t Theme) {
 	}
 
 	roleColours = resolveRoles(t)
+	colPicker = pickerBackground(colBackground)
 	heatScale = heatShades(t.Heat)
 
 	g := t.Glyphs
@@ -239,6 +243,9 @@ type modalBox struct {
 	// fit, when set, chooses the size for the area there is: content that
 	// knows how big it wants to be, up to a share of the screen.
 	fit func(w, h int) (int, int)
+	// bright leaves what is beneath as it is: the content tries something
+	// on it that must be seen in its own colours.
+	bright bool
 }
 
 // modalPct centres content at a percentage of the available area.
@@ -263,6 +270,10 @@ func modalFull(content tview.Primitive) *modalBox {
 
 func (m *modalBox) Draw(screen tcell.Screen) {
 	x, y, w, h := m.GetRect()
+	if m.bright {
+		m.drawContent(screen, x, y, w, h)
+		return
+	}
 	// The lowest modal dims the whole terminal, the tabs above the pages
 	// too, once a frame. One over it dims only the dialog it stands on: a
 	// second dimming of everything - a message over a dialog - took what we
@@ -282,6 +293,12 @@ func (m *modalBox) Draw(screen tcell.Screen) {
 		dimArea(screen, q.under.x, q.under.y, q.under.w, q.under.h)
 	}
 
+	m.drawContent(screen, x, y, w, h)
+}
+
+// drawContent places the content in the area and draws it.
+func (m *modalBox) drawContent(screen tcell.Screen, x, y, w, h int) {
+	q, quiet := screen.(*quietScreen)
 	cw, ch := w, h
 	switch {
 	case m.fit != nil:
@@ -333,6 +350,23 @@ func dimArea(screen tcell.Screen, x, y, w, h int) {
 				Attributes(attr&^tcell.AttrBold))
 		}
 	}
+}
+
+// pickerBackground is a step darker than the screen's background: on a
+// light theme a little, on a dark one more, since the eye tells dark
+// shades apart less well. The terminal's own background cannot be
+// darkened, so there it is the role picker.background.
+func pickerBackground(bg tcell.Color) tcell.Color {
+	if bg == tcell.ColorDefault || !bg.Valid() {
+		return role("picker.background")
+	}
+	r, g, b := bg.RGB()
+	factor := 0.6
+	if 0.299*float64(r)+0.587*float64(g)+0.114*float64(b) > 128 {
+		factor = 0.92
+	}
+	scale := func(v int32) int32 { return int32(float64(v) * factor) }
+	return tcell.NewRGBColor(scale(r), scale(g), scale(b))
 }
 
 // colDimmedText stands in for the terminal's own foreground, whose RGB we

@@ -364,8 +364,11 @@ Theme `n` overrides), so a glyph must read well both ways. A cell drawn by hand 
 never `tcell.StyleDefault`, or it leaves a hole in a theme with a background.
 Nothing computed from a colour may be a package-level value: it would be
 computed before any theme is on. A theme is the process's, like tview's
-styles, so a test that changes it is serial; `TestEveryThemeIsLegible` walks
-the dialogs in every built-in theme and catches what was missed.
+styles, so a test that changes it is serial; `TestAThemeOfEachKindIsLegible` walks
+the dialogs in the default, one dark and one light theme and catches what was
+missed. The other built-in themes are only loaded and validated
+(`TestEveryBuiltInThemeLoads`): walking each would add a minute to the run, so
+look at a new one on the simulation screen instead.
 
 **The theme is one pair of colours.** tview builds every interactive widget out
 of `PrimaryTextColor` / `ContrastBackgroundColor` used both ways round: at rest

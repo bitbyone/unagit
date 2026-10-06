@@ -1,0 +1,69 @@
+{
+  "name": "everforest-dark",
+  "description": "Everforest Dark: forest greens and warm beige, easy on the eyes",
+  "background": "#2d353b",
+  "text": {
+    "normal": "#d3c6aa",
+    "muted": "#9da9a0",
+    "dim": "#7a8478",
+    "accent": "#7fbbb3",
+    "branch": "#a7c080",
+    "key": "#e69875"
+  },
+  "state": {
+    "good": "#a7c080",
+    "warning": "#dbbc7f",
+    "bad": "#e67e80",
+    "force": "#e69875",
+    "favourite": "#dbbc7f"
+  },
+  "border": {
+    "normal": "#4f585e",
+    "focus": "#7fbbb3",
+    "title": "#83c092"
+  },
+  "tabs": {
+    "active": "#a7c080",
+    "inactive": "#859289",
+    "separator": "#3d484d"
+  },
+  "surface": {
+    "field": "#343f44",
+    "raised": "#3d484d",
+    "field_focus": "#34454a",
+    "field_typing": "#3a5156"
+  },
+  "selection": {
+    "background": "#475258",
+    "text": "#d3c6aa",
+    "marked": "#3c4841",
+    "marked_cursor": "#4b5b4e"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#4f585e"
+  },
+  "markdown": {
+    "text": "#d3c6aa",
+    "heading": "#a7c080",
+    "code": "#e69875",
+    "quote": "#9da9a0",
+    "link": "#7fbbb3",
+    "muted": "#7a8478"
+  },
+  "chezmoi": {
+    "badge_ink": "#2d353b",
+    "badge_fill": "#859289",
+    "heading_ink": "#2d353b",
+    "heading_fill": "#dbbc7f"
+  },
+  "colours": {
+    "ci.running": "#7fbbb3",
+    "starred.stars": "#dbbc7f",
+    "column.branch": "#83c092",
+    "column.mr": "#7fbbb3",
+    "column.wt": "#e69875",
+    "column.age": "#859289"
+  },
+  "heat": ["#5a7f7a", "#9a5a5a"]
+}

@@ -1,0 +1,87 @@
+{
+  "name": "gruvbox-light",
+  "description": "Gruvbox Light: the warm retro colours on parchment",
+  "background": "#fbf1c7",
+  "text": {
+    "normal": "#3c3836",
+    "muted": "#665c54",
+    "dim": "#928374",
+    "accent": "#076678",
+    "branch": "#427b58",
+    "key": "#af3a03"
+  },
+  "state": {
+    "good": "#79740e",
+    "warning": "#b57614",
+    "bad": "#9d0006",
+    "force": "#af3a03",
+    "favourite": "#b57614"
+  },
+  "border": {
+    "normal": "#d5c4a1",
+    "focus": "#076678",
+    "title": "#504945"
+  },
+  "tabs": {
+    "active": "#b57614",
+    "inactive": "#7c6f64",
+    "separator": "#d5c4a1"
+  },
+  "surface": {
+    "field": "#ebdbb2",
+    "raised": "#d5c4a1",
+    "field_focus": "#dfe3cf",
+    "field_typing": "#cfdcca"
+  },
+  "selection": {
+    "background": "#d5c4a1",
+    "text": "#282828",
+    "marked": "#e0e6c4",
+    "marked_cursor": "#cdd8ac"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#928374"
+  },
+  "markdown": {
+    "text": "#3c3836",
+    "heading": "#b57614",
+    "code": "#af3a03",
+    "quote": "#665c54",
+    "link": "#076678",
+    "muted": "#928374"
+  },
+  "chezmoi": {
+    "badge_ink": "#fbf1c7",
+    "badge_fill": "#7c6f64",
+    "heading_ink": "#fbf1c7",
+    "heading_fill": "#b57614"
+  },
+  "tags": {
+    "rose": {"ink": "#8c2a44", "fill": "#f6d5dd"},
+    "coral": {"ink": "#8f3a28", "fill": "#f8d9d0"},
+    "peach": {"ink": "#8a4a1c", "fill": "#f8e0cc"},
+    "apricot": {"ink": "#7d5617", "fill": "#f6e6c6"},
+    "butter": {"ink": "#6b5d12", "fill": "#f2ebbe"},
+    "lime": {"ink": "#4b6116", "fill": "#e2efc6"},
+    "mint": {"ink": "#1f6643", "fill": "#cdeedb"},
+    "sage": {"ink": "#435a37", "fill": "#dde8d5"},
+    "teal": {"ink": "#1d625b", "fill": "#cceae6"},
+    "sky": {"ink": "#1d5878", "fill": "#cfe6f4"},
+    "azure": {"ink": "#264a86", "fill": "#d4e0f6"},
+    "periwinkle": {"ink": "#3b3b8c", "fill": "#dcdcf6"},
+    "lavender": {"ink": "#53348a", "fill": "#e4dbf6"},
+    "lilac": {"ink": "#6c3480", "fill": "#efdcf4"},
+    "pink": {"ink": "#8a2c5c", "fill": "#f6d9e8"},
+    "sand": {"ink": "#5f4e36", "fill": "#ebe2d4"}
+  },
+  "colours": {
+    "ci.running": "#076678",
+    "starred.stars": "#b57614",
+    "column.branch": "#427b58",
+    "column.mr": "#076678",
+    "column.wt": "#af3a03",
+    "column.age": "#928374"
+  },
+  "heat": ["#689d6a", "#cc241d"]
+}

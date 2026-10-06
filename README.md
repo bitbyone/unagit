@@ -572,7 +572,10 @@ borders). Settings › Theme lists them with a strip of their colours; `Enter`
 puts one on at once and remembers it. From any screen, `:` › Switch Theme…
 lists them too, the one on under the cursor - over a dialog as well, where
 `:` offers what can be done from anywhere and `Alt-Enter` on a list what
-can be done with its item.
+can be done with its item. Over a main screen that list tries each theme as
+the cursor comes to it: the screen behind is drawn in it, undimmed, the list
+on a darker background of its own, and only `Enter` keeps it - `Esc` puts
+back the one that was on.
 
 Some glyphs have an icon from a [Nerd Font](https://www.nerdfonts.com) as
 well - a theme gives them under `nerd_glyphs`, a plain character standing
@@ -587,11 +590,16 @@ muted, before each action in the action pickers, where a theme gives one
 under `action_icons` by the action's name. They are drawn, never copied:
 `y` and `/` see the name alone.
 
-unagit comes with four: **unagit**, the muted default, which keeps the
-terminal's own background so it sits quietly beside an editor;
-**catppuccin-mocha**; **gruvbox-dark**; and **retro-block**, after the
-[Retro Block](https://github.com/bitbyone/retro-block-theme) IntelliJ theme.
-The last three paint a background of their own.
+unagit comes with **unagit**, the muted default, which keeps the terminal's
+own background so it sits quietly beside an editor, and seventeen that
+paint a background of their own: **retro-block**, after the
+[Retro Block](https://github.com/bitbyone/retro-block-theme) IntelliJ
+theme, and the popular editor colour schemes - dark **carbonfox**,
+**catppuccin-mocha**, **dracula**, **everforest-dark**, **gruvbox-dark**,
+**kanagawa-wave**, **monokai-pro**, **nord**, **onedark**, **rose-pine**,
+**solarized-dark** and **tokyonight-night**; light **catppuccin-latte**,
+**github-light**, **gruvbox-light**, **rose-pine-dawn** and
+**solarized-light**.
 
 To tune one, `f` forks it: the theme under the cursor is written to
 `~/.config/unagit/themes/<name>.json` with every colour and glyph spelled

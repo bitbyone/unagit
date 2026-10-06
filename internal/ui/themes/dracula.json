@@ -1,0 +1,69 @@
+{
+  "name": "dracula",
+  "description": "Dracula: vivid purple, pink and green on dark grey",
+  "background": "#282a36",
+  "text": {
+    "normal": "#f8f8f2",
+    "muted": "#bfbfbf",
+    "dim": "#6272a4",
+    "accent": "#bd93f9",
+    "branch": "#8be9fd",
+    "key": "#ffb86c"
+  },
+  "state": {
+    "good": "#50fa7b",
+    "warning": "#f1fa8c",
+    "bad": "#ff5555",
+    "force": "#ff79c6",
+    "favourite": "#f1fa8c"
+  },
+  "border": {
+    "normal": "#44475a",
+    "focus": "#bd93f9",
+    "title": "#ff79c6"
+  },
+  "tabs": {
+    "active": "#bd93f9",
+    "inactive": "#6272a4",
+    "separator": "#383a4a"
+  },
+  "surface": {
+    "field": "#343746",
+    "raised": "#44475a",
+    "field_focus": "#3b3656",
+    "field_typing": "#4b4370"
+  },
+  "selection": {
+    "background": "#44475a",
+    "text": "#f8f8f2",
+    "marked": "#26443a",
+    "marked_cursor": "#30574a"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#44475a"
+  },
+  "markdown": {
+    "text": "#f8f8f2",
+    "heading": "#bd93f9",
+    "code": "#ffb86c",
+    "quote": "#bfbfbf",
+    "link": "#8be9fd",
+    "muted": "#6272a4"
+  },
+  "chezmoi": {
+    "badge_ink": "#282a36",
+    "badge_fill": "#6272a4",
+    "heading_ink": "#282a36",
+    "heading_fill": "#f1fa8c"
+  },
+  "colours": {
+    "ci.running": "#8be9fd",
+    "starred.stars": "#f1fa8c",
+    "column.branch": "#8be9fd",
+    "column.mr": "#bd93f9",
+    "column.wt": "#ffb86c",
+    "column.age": "#6272a4"
+  },
+  "heat": ["#5a68a0", "#a04f6e"]
+}

@@ -1,0 +1,87 @@
+{
+  "name": "rose-pine-dawn",
+  "description": "Rose Pine Dawn: the light Rose Pine, warm paper and pine",
+  "background": "#faf4ed",
+  "text": {
+    "normal": "#575279",
+    "muted": "#797593",
+    "dim": "#9893a5",
+    "accent": "#286983",
+    "branch": "#907aa9",
+    "key": "#d7827e"
+  },
+  "state": {
+    "good": "#56949f",
+    "warning": "#ea9d34",
+    "bad": "#b4637a",
+    "force": "#b4637a",
+    "favourite": "#ea9d34"
+  },
+  "border": {
+    "normal": "#cecacd",
+    "focus": "#286983",
+    "title": "#907aa9"
+  },
+  "tabs": {
+    "active": "#286983",
+    "inactive": "#797593",
+    "separator": "#dfdad9"
+  },
+  "surface": {
+    "field": "#f2e9e1",
+    "raised": "#dfdad9",
+    "field_focus": "#e4ecef",
+    "field_typing": "#d6e4ea"
+  },
+  "selection": {
+    "background": "#dfdad9",
+    "text": "#575279",
+    "marked": "#e3eee9",
+    "marked_cursor": "#cfe3dc"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#9893a5"
+  },
+  "markdown": {
+    "text": "#575279",
+    "heading": "#286983",
+    "code": "#d7827e",
+    "quote": "#797593",
+    "link": "#56949f",
+    "muted": "#9893a5"
+  },
+  "chezmoi": {
+    "badge_ink": "#faf4ed",
+    "badge_fill": "#797593",
+    "heading_ink": "#faf4ed",
+    "heading_fill": "#ea9d34"
+  },
+  "tags": {
+    "rose": {"ink": "#8c2a44", "fill": "#f6d5dd"},
+    "coral": {"ink": "#8f3a28", "fill": "#f8d9d0"},
+    "peach": {"ink": "#8a4a1c", "fill": "#f8e0cc"},
+    "apricot": {"ink": "#7d5617", "fill": "#f6e6c6"},
+    "butter": {"ink": "#6b5d12", "fill": "#f2ebbe"},
+    "lime": {"ink": "#4b6116", "fill": "#e2efc6"},
+    "mint": {"ink": "#1f6643", "fill": "#cdeedb"},
+    "sage": {"ink": "#435a37", "fill": "#dde8d5"},
+    "teal": {"ink": "#1d625b", "fill": "#cceae6"},
+    "sky": {"ink": "#1d5878", "fill": "#cfe6f4"},
+    "azure": {"ink": "#264a86", "fill": "#d4e0f6"},
+    "periwinkle": {"ink": "#3b3b8c", "fill": "#dcdcf6"},
+    "lavender": {"ink": "#53348a", "fill": "#e4dbf6"},
+    "lilac": {"ink": "#6c3480", "fill": "#efdcf4"},
+    "pink": {"ink": "#8a2c5c", "fill": "#f6d9e8"},
+    "sand": {"ink": "#5f4e36", "fill": "#ebe2d4"}
+  },
+  "colours": {
+    "ci.running": "#56949f",
+    "starred.stars": "#ea9d34",
+    "column.branch": "#56949f",
+    "column.mr": "#286983",
+    "column.wt": "#d7827e",
+    "column.age": "#9893a5"
+  },
+  "heat": ["#56949f", "#b4637a"]
+}

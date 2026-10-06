@@ -88,14 +88,28 @@ func (a *App) switchTheme(name string) {
 
 // rebuildInterface makes the main screens again - after a theme was put on -
 // and comes back to the tab and the section that were in front.
-func (a *App) rebuildInterface() {
+func (a *App) rebuildInterface() { a.remakeInterface(a.refreshDisk) }
+
+// repaintInterface is rebuildInterface with what was last read from disk:
+// a theme tried for a moment, as the cursor passes it, need not read it
+// all again.
+func (a *App) repaintInterface() {
+	a.remakeInterface(func() {
+		a.reloadWorktreeView()
+		if a.worktreesPane != nil && a.worktreesPane.reload != nil {
+			a.worktreesPane.reload()
+		}
+	})
+}
+
+func (a *App) remakeInterface(disk func()) {
 	tab := a.currentTab()
 	section, inside := sectionGeneral, false
 	if a.settings != nil {
 		section, inside = a.settings.current, a.settings.contentFocused
 	}
 	a.tv.SetRoot(a.buildInterface(), true)
-	a.refreshDisk()
+	disk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()
 	a.settings.reload()

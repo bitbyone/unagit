@@ -98,13 +98,30 @@ func TestUserThemesExtendAndSayWhatIsWrong(t *testing.T) {
 	}
 }
 
-// TestEveryThemeIsLegible walks the dialogs and Settings in every theme unagit
-// comes with: nothing in its own background, nothing at the terminal's ink on
-// a chosen colour, and, in a theme with a background of its own, nothing left
+// TestEveryBuiltInThemeLoads: each file in themes/ is offered under its
+// name. Reading one validates it, so this is all the built-in themes get -
+// walking the dialogs in each of them would cost the run a minute.
+func TestEveryBuiltInThemeLoads(t *testing.T) {
+	t.Parallel()
+	set := loadThemes("")
+	for name := range builtinThemes() {
+		if _, ok := set.byName[name]; !ok {
+			t.Errorf("%s.json is not offered", name)
+		}
+	}
+}
+
+// legibleThemes are walked by TestAThemeOfEachKindIsLegible: the default, one
+// with a dark background of its own and one with a light one.
+var legibleThemes = []string{defaultThemeName, "catppuccin-mocha", "catppuccin-latte"}
+
+// TestAThemeOfEachKindIsLegible walks the dialogs and Settings in a theme of each
+// kind: nothing in its own background, nothing at the terminal's ink on a
+// chosen colour, and, in a theme with a background of its own, nothing left
 // on the terminal's.
-func TestEveryThemeIsLegible(t *testing.T) {
+func TestAThemeOfEachKindIsLegible(t *testing.T) {
 	restoreDefaultTheme(t)
-	for _, name := range loadThemes("").names {
+	for _, name := range legibleThemes {
 		t.Run(name, func(t *testing.T) {
 			a, sc := newThemedApp(t, name)
 			walkDialogs(t, a, sc)
@@ -220,8 +237,10 @@ func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
 }
 
 // TestSwitchThemeFromAnyScreen: : on a list offers Switch Theme…, which
-// lists the themes with the one on marked and the cursor on it; Enter on
-// another puts it on, and the list behind is drawn again in it.
+// lists the themes with the one on marked and the cursor on it. The cursor
+// tries each on the screen behind, undimmed, and Esc puts back the one that
+// was on; Enter on another puts it on, and the list behind is drawn again
+// in it.
 func TestSwitchThemeFromAnyScreen(t *testing.T) {
 	restoreDefaultTheme(t)
 	a, sc := newTestApp(t)
@@ -237,8 +256,34 @@ func TestSwitchThemeFromAnyScreen(t *testing.T) {
 		t.Errorf("the theme on is not marked:\n%s", a.screenText(sc))
 	}
 	assertLegible(t, a, sc, "the theme picker")
+	themeOn := func() string { return onLoop(a, func() string { return theme.Name }) }
+	tried := a.themes.names[1]
+	typeRunes(sc, "j")
+	waitFor(t, a, sc, glyphCheck+" "+defaultThemeName)
+	if got := themeOn(); got != tried {
+		t.Fatalf("the cursor on %s tried %q", tried, got)
+	}
+	// The tabs behind are in the theme tried, not dimmed.
+	if _, style := cellAt(a, sc, 0, 0); style != baseStyle() {
+		if _, bg, _ := style.Decompose(); bg.Hex() != colour(a.themes.byName[tried].Background).Hex() {
+			t.Errorf("the screen behind is drawn on %v, not on %s's background", bg, tried)
+		}
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, glyphCheck+" "+defaultThemeName)
+	if got := themeOn(); got != defaultThemeName {
+		t.Errorf("Esc left %q on", got)
+	}
+	if strings.Contains(readConfigFile(t, a), "theme:") {
+		t.Error("a theme only tried was saved")
+	}
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Switch Theme…")
+	typeRunes(sc, "switch theme")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "catppuccin-mocha")
 	typeRunes(sc, "/")
-	typeRunes(sc, "catppuccin")
+	typeRunes(sc, "mocha")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Theme: catppuccin-mocha")
 	if got := onLoop(a, func() string { return theme.Name }); got != "catppuccin-mocha" {
@@ -345,7 +390,7 @@ func TestTheForkFormFitsItsFrame(t *testing.T) {
 			waitFor(t, a, sc, "acme/gateway")
 			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionTheme)
-			waitFor(t, a, sc, "retro-block")
+			waitFor(t, a, sc, "carbonfox")
 			typeRunes(sc, "f")
 			waitFor(t, a, sc, "Fork theme unagit")
 			assertFormInFrame(t, a, sc, currentForm(a))

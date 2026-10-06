@@ -1,0 +1,69 @@
+{
+  "name": "onedark",
+  "description": "One Dark: Atom's balanced, quiet classic",
+  "background": "#282c34",
+  "text": {
+    "normal": "#abb2bf",
+    "muted": "#8b929e",
+    "dim": "#5c6370",
+    "accent": "#61afef",
+    "branch": "#c678dd",
+    "key": "#d19a66"
+  },
+  "state": {
+    "good": "#98c379",
+    "warning": "#e5c07b",
+    "bad": "#e06c75",
+    "force": "#be5046",
+    "favourite": "#e5c07b"
+  },
+  "border": {
+    "normal": "#3e4451",
+    "focus": "#61afef",
+    "title": "#56b6c2"
+  },
+  "tabs": {
+    "active": "#61afef",
+    "inactive": "#7f848e",
+    "separator": "#353b45"
+  },
+  "surface": {
+    "field": "#2c313a",
+    "raised": "#3e4451",
+    "field_focus": "#2b3a4d",
+    "field_typing": "#304a63"
+  },
+  "selection": {
+    "background": "#3e4451",
+    "text": "#d7dae0",
+    "marked": "#2b3d36",
+    "marked_cursor": "#365046"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#3e4451"
+  },
+  "markdown": {
+    "text": "#abb2bf",
+    "heading": "#61afef",
+    "code": "#d19a66",
+    "quote": "#8b929e",
+    "link": "#56b6c2",
+    "muted": "#5c6370"
+  },
+  "chezmoi": {
+    "badge_ink": "#282c34",
+    "badge_fill": "#5c6370",
+    "heading_ink": "#282c34",
+    "heading_fill": "#e5c07b"
+  },
+  "colours": {
+    "ci.running": "#56b6c2",
+    "starred.stars": "#e5c07b",
+    "column.branch": "#56b6c2",
+    "column.mr": "#61afef",
+    "column.wt": "#d19a66",
+    "column.age": "#7f848e"
+  },
+  "heat": ["#4a6f9a", "#9a5058"]
+}

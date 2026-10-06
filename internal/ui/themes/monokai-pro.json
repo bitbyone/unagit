@@ -1,0 +1,69 @@
+{
+  "name": "monokai-pro",
+  "description": "Monokai Pro: warm yellow, orange and pink on charcoal",
+  "background": "#2d2a2e",
+  "text": {
+    "normal": "#fcfcfa",
+    "muted": "#c1c0c0",
+    "dim": "#727072",
+    "accent": "#78dce8",
+    "branch": "#ab9df2",
+    "key": "#fc9867"
+  },
+  "state": {
+    "good": "#a9dc76",
+    "warning": "#ffd866",
+    "bad": "#ff6188",
+    "force": "#fc9867",
+    "favourite": "#ffd866"
+  },
+  "border": {
+    "normal": "#5b595c",
+    "focus": "#ffd866",
+    "title": "#78dce8"
+  },
+  "tabs": {
+    "active": "#ffd866",
+    "inactive": "#939293",
+    "separator": "#403e41"
+  },
+  "surface": {
+    "field": "#363337",
+    "raised": "#403e41",
+    "field_focus": "#2f3d42",
+    "field_typing": "#344a52"
+  },
+  "selection": {
+    "background": "#4a474b",
+    "text": "#fcfcfa",
+    "marked": "#33402e",
+    "marked_cursor": "#41523a"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#5b595c"
+  },
+  "markdown": {
+    "text": "#fcfcfa",
+    "heading": "#ffd866",
+    "code": "#fc9867",
+    "quote": "#c1c0c0",
+    "link": "#78dce8",
+    "muted": "#727072"
+  },
+  "chezmoi": {
+    "badge_ink": "#2d2a2e",
+    "badge_fill": "#727072",
+    "heading_ink": "#2d2a2e",
+    "heading_fill": "#ffd866"
+  },
+  "colours": {
+    "ci.running": "#78dce8",
+    "starred.stars": "#ffd866",
+    "column.branch": "#78dce8",
+    "column.mr": "#ab9df2",
+    "column.wt": "#fc9867",
+    "column.age": "#939293"
+  },
+  "heat": ["#4f8a92", "#a0485c"]
+}
