@@ -267,6 +267,10 @@ type Glyphs struct {
 	ElidedGroup string `json:"elided_group"`
 	// Edits heads the column counting the files not committed.
 	Edits string `json:"edits"`
+	// Shown and Hidden mark a column of a list as shown or left out, in
+	// View options: an eye and the eye struck through.
+	ColumnShown  string `json:"column_shown"`
+	ColumnHidden string `json:"column_hidden"`
 	// Spinner is the frames of what turns while a job runs behind the
 	// interface, one character each, in order.
 	Spinner string `json:"spinner"`
@@ -548,6 +552,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
+		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,
 		"borders.top_left": t.Borders.TopLeft, "borders.top_right": t.Borders.TopRight,
 		"borders.bottom_left": t.Borders.BottomLeft, "borders.bottom_right": t.Borders.BottomRight,

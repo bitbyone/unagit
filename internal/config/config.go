@@ -218,8 +218,13 @@ type Filters struct {
 	// Favourites are the starred repositories and merge requests.
 	Favourites []Favourite `yaml:"favourites,omitempty" json:"favourites,omitempty"`
 	// HideTags leaves the tags out of the repository list; they still
-	// filter and are still found by /.
+	// filter and are still found by /. It is what HiddenColumns says of
+	// the tags now, and is read for a configuration written before them.
 	HideTags bool `yaml:"hide_tags,omitempty" json:"hide_tags,omitempty"`
+	// HiddenColumns are the columns left out of each list, by the list
+	// (ListRepositories, ListMergeRequests, ListWorktrees) and the
+	// column's name.
+	HiddenColumns map[string][]string `yaml:"hidden_columns,omitempty" json:"hidden_columns,omitempty"`
 	// Tags narrow the repositories to those wearing any of them.
 	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	// FavouritesInPlace leaves the favourites among the other rows. By
@@ -311,6 +316,51 @@ type Favourite struct {
 	Instance string `yaml:"instance" json:"instance"`
 	Path     string `yaml:"path" json:"path"`
 	IID      int    `yaml:"iid,omitempty" json:"iid,omitempty"`
+}
+
+// The lists whose columns can be hidden, as HiddenColumns names them.
+const (
+	ListRepositories  = "repositories"
+	ListMergeRequests = "merge_requests"
+	ListWorktrees     = "worktrees"
+)
+
+// HidesColumn says whether a list leaves a column out.
+func (f *Filters) HidesColumn(list, column string) bool {
+	if list == ListRepositories && column == "tags" && f.HideTags {
+		return true
+	}
+	for _, c := range f.HiddenColumns[list] {
+		if c == column {
+			return true
+		}
+	}
+	return false
+}
+
+// ToggleColumn hides a column of a list, or shows it again.
+func (f *Filters) ToggleColumn(list, column string) {
+	if !f.HidesColumn(list, column) {
+		if f.HiddenColumns == nil {
+			f.HiddenColumns = map[string][]string{}
+		}
+		f.HiddenColumns[list] = append(f.HiddenColumns[list], column)
+		return
+	}
+	if list == ListRepositories && column == "tags" {
+		f.HideTags = false
+	}
+	var kept []string
+	for _, c := range f.HiddenColumns[list] {
+		if c != column {
+			kept = append(kept, c)
+		}
+	}
+	if len(kept) == 0 {
+		delete(f.HiddenColumns, list)
+		return
+	}
+	f.HiddenColumns[list] = kept
 }
 
 // FavouritesFirst reports whether the favourites lead the lists.

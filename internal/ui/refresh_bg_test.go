@@ -39,8 +39,9 @@ func TestARepositorysMergeRequestsCanBeHidden(t *testing.T) {
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "its merge requests")
 	assertLegible(t, a, sc, "the view options with a repository hidden")
-	// The hidden repository is the last row.
-	typeRunes(sc, "G ")
+	// The hidden repository is found by its path, and space shows it again.
+	typeRunes(sc, "/acme/gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "nothing hidden")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Rate limiting")

@@ -277,7 +277,8 @@ func (a *App) showServerTags(instance string) {
 		})
 }
 
-// showViewOptions switches what the repository list shows and how.
+// showViewOptions switches what the repository list shows and how, and
+// which of its columns.
 func (a *App) showViewOptions() {
 	f := &a.cfg.Filters
 	type option struct {
@@ -286,7 +287,6 @@ func (a *App) showViewOptions() {
 		flip  func()
 	}
 	options := []option{
-		{"tags after the names", func() bool { return !f.HideTags }, func() { f.HideTags = !f.HideTags }},
 		{"grouped by group (Ctrl-G)", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
 		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
 		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
@@ -299,9 +299,12 @@ func (a *App) showViewOptions() {
 			for i, o := range options {
 				items[i] = toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i}
 			}
-			return items
+			return append(items, a.columnItems(config.ListRepositories)...)
 		},
 		toggle: func(it toggleItem) {
+			if a.toggleColumnItem(it) {
+				return
+			}
 			options[it.Data.(int)].flip()
 			a.applyFilters()
 		},

@@ -128,7 +128,8 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	grouped := a.cfg.Filters.GroupRepositories
 	// Grouped, the server and the group move into the headings and each row
 	// names only the repository.
-	withServer := a.multiInstance() && !grouped
+	hide := func(id string) bool { return a.hidesColumn(config.ListRepositories, id) }
+	withServer := a.multiInstance() && !grouped && !hide("server")
 	favourite := func(idx int) bool {
 		pr := a.projects[idx]
 		return a.cfg.Filters.IsFavourite(pr.Instance, pr.PathWithNamespace, 0)
@@ -143,7 +144,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 
 	// The tags have a column of their own, right after the names. Hiding the
 	// tags keeps the chezmoi badge, which is not one.
-	showTags := !a.cfg.Filters.HideTags
+	showTags := !hide("tags")
 	tagsOf := func(pr forge.Project) []string {
 		if !showTags {
 			return nil
@@ -219,12 +220,31 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// tags the user chose come next; the directory is said elsewhere too
 	// (the detail), so it gives way first and is the first left out when
 	// the row is tight, the server after it, then the tags.
-	nameCol := flexColumn("REPOSITORY", names, 20, 2)
-	branchCol := flexColumn("BRANCH", branches, 10, 1)
+	// A column hidden in View options is never laid out: it keeps no width,
+	// and rowText leaves it out.
+	if hide("ci") {
+		ciW = 0
+	}
+	if hide("mr") {
+		hiddenW = 0
+	}
+	cols := []*listColumn{fixedColumn(markW)}
+	add := func(id string, c *listColumn) *listColumn {
+		if id != "" && hide(id) {
+			c.width = 0
+			return c
+		}
+		cols = append(cols, c)
+		return c
+	}
+	nameCol := add("", flexColumn("REPOSITORY", names, 20, 2))
+	branchCol := add("branch", flexColumn("BRANCH", branches, 10, 1))
 	pathCol := gistColumn("PATH", paths, minPath, 0.8)
 	pathCol.drop = 1
-	cols := []*listColumn{fixedColumn(markW), nameCol, branchCol, pathCol,
-		fixedColumn(syncW), fixedColumn(editsW), fixedColumn(mrW), fixedColumn(2), fixedColumn(sizeW), fixedColumn(actW)}
+	add("path", pathCol)
+	syncCol, editsCol := add("remote", fixedColumn(syncW)), add("edits", fixedColumn(editsW))
+	mrCol, wtCol := add("mr", fixedColumn(mrW)), add("wt", fixedColumn(2))
+	sizeCol, actCol := add("size", fixedColumn(sizeW)), add("activity", fixedColumn(actW))
 	serverCol, tagsCol := &listColumn{}, &listColumn{}
 	if withServer {
 		serverCol = flexColumn("SERVER", servers, 6, 0.5)
@@ -258,8 +278,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		nameCol.width += spare
 	}
 	nameW, branchW, pathW, serverW, tagsW := nameCol.width, branchCol.width, pathCol.width, serverCol.width, tagsCol.width
+	syncW, editsW, mrW, sizeW, actW = syncCol.width, editsCol.width, mrCol.width, sizeCol.width, actCol.width
+	wtW := wtCol.width
 	withServer = withServer && serverCol.shown()
-	const wtW = 2
 
 	// The heat of a size is where it stands between the least and the most
 	// a repository takes.

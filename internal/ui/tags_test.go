@@ -288,9 +288,13 @@ func TestViewOptionsHideTheTags(t *testing.T) {
 	})
 	waitFor(t, a, sc, "\ue0b6oss\ue0b4")
 
+	// The tags are a column like the others, under Columns.
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "View · Repositories")
-	typeRunes(sc, " ")
+	waitFor(t, a, sc, "Columns")
+	typeRunes(sc, "/TAGS")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "View · Repositories")
 	if strings.Contains(a.screenText(sc), "oss") {

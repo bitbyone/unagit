@@ -56,6 +56,9 @@ func (a *App) applyFilters() {
 	}
 	a.projectsPane.reload()
 	a.mrsPane.reload()
+	if a.worktreesPane != nil {
+		a.worktreesPane.reload()
+	}
 }
 
 // toggleClonedOnly narrows both lists to what is on disk, or widens them again.
@@ -325,9 +328,12 @@ func (a *App) showMRViewOptions() {
 				}
 				items = append(items, toggleItem{Label: label, Search: h.Path, Data: h})
 			}
-			return items
+			return append(items, a.columnItems(config.ListMergeRequests)...)
 		},
 		toggle: func(it toggleItem) {
+			if a.toggleColumnItem(it) {
+				return
+			}
 			switch d := it.Data.(type) {
 			case int:
 				options[d].flip()
@@ -406,4 +412,16 @@ func mrsHiddenName(hidden bool) string {
 		return "List Merge Requests Again"
 	}
 	return "Hide Merge Requests"
+}
+
+// showWorktreeViewOptions chooses the columns of the worktree list.
+func (a *App) showWorktreeViewOptions() {
+	a.showToggles(toggles{
+		title: "View · Worktrees",
+		verb:  "show/hide",
+		items: func() []toggleItem { return a.columnItems(config.ListWorktrees) },
+		toggle: func(it toggleItem) {
+			a.toggleColumnItem(it)
+		},
+	})
 }

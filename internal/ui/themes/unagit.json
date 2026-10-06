@@ -116,6 +116,8 @@
     "elided": "…",
     "elided_group": "…",
     "edits": "✎",
+    "column_shown": "◉",
+    "column_hidden": "◌",
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
     "ci_running": "◐◓◑◒",
     "ci_done": "●",
@@ -132,7 +134,9 @@
     "starred": "\uf005",
     "elided": "\uea83",
     "elided_group": "\uef81",
-    "edits": "\uea73"
+    "edits": "\uea73",
+    "column_shown": "\uea70",
+    "column_hidden": "\ueae7"
   },
   "action_icons": {
       "Add Repository\u2026": "\uea60",

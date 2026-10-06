@@ -62,6 +62,7 @@ var (
 	glyphAhead, glyphBehind                                 string
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator  string
 	glyphElided, glyphElidedGroup, glyphEdits               string
+	glyphColumnShown, glyphColumnHidden                     string
 	glyphMask                                               rune
 	// selectMarker ends a closed select, so it looks like something that
 	// opens.
@@ -169,6 +170,7 @@ func setTheme(t Theme) {
 	glyphAhead, glyphBehind = g.Ahead, g.Behind
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
 	glyphElided, glyphElidedGroup, glyphEdits = g.Elided, g.ElidedGroup, g.Edits
+	glyphColumnShown, glyphColumnHidden = g.ColumnShown, g.ColumnHidden
 	glyphMask = rune0(g.Mask)
 	selectMarker = " " + g.Select
 

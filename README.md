@@ -144,6 +144,10 @@ all and live only there.
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
 - `/` fuzzy-finds, `L` hides everything you have not cloned (also in `v`), `x` hides a
   repository you never want to see.
+- `v` also lists the columns in the order they stand, each with an eye: space
+  hides one or shows it again, in Merge requests and Worktrees too. What you
+  hide is kept in `config.yaml` under `filters.hidden_columns`; the column a
+  row is - the repository, a merge request's title - always stays.
 - The `NEW` column counts the commits pushed to a merge request since your
   review last checked out its head (`●` when they are not on disk to count),
   `APPR` its approvals - `✓` when you approved, `1/2` of those asked for -
@@ -734,7 +738,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `H` `v` | in Merge requests: hide the author's merge requests · view options, the hidden authors |
 | `Ctrl-F` | star or unstar a favourite |
 | `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
-| `v` | in Repositories: what the list shows - tags, grouping, favourites first |
+| `v` | what the list shows - grouping, favourites first, and in every list which columns |
 | `d` `w` | delete from disk · open in the browser |
 | `r` `R` | refresh the row under the cursor · the whole list |
 | `?` `q` | help · quit |

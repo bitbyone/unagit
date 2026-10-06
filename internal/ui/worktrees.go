@@ -431,22 +431,41 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	for i, c := range []*listColumn{pathCol, serverCol, createdCol, sizeCol, mrCol, comCol, editsCol} {
 		c.drop = i + 1
 	}
-	cols := []*listColumn{fixedColumn(markW), repoCol, fixedColumn(reposW), branchCol, remoteCol, pathCol,
-		createdCol, sizeCol, mrCol, editsCol, fixedColumn(actW)}
+	// A column hidden in View options is never laid out and keeps no width.
+	hide := func(id string) bool { return a.hidesColumn(config.ListWorktrees, id) }
+	cols := []*listColumn{fixedColumn(markW), repoCol}
+	add := func(id string, c *listColumn) *listColumn {
+		if hide(id) {
+			c.width = 0
+			return c
+		}
+		cols = append(cols, c)
+		return c
+	}
+	reposCol, actCol := add("repos", fixedColumn(reposW)), add("activity", fixedColumn(actW))
+	for _, c := range []struct {
+		id  string
+		col *listColumn
+	}{{"branch", branchCol}, {"remote", remoteCol}, {"path", pathCol}, {"created", createdCol},
+		{"size", sizeCol}, {"mr", mrCol}, {"edits", editsCol}} {
+		add(c.id, c.col)
+	}
 	if a.cfg.Integrations.Incomm {
-		cols = append(cols, comCol)
+		add("comments", comCol)
 	} else {
 		comCol.width = 0
 	}
 	if withServer {
-		cols = append(cols, serverCol)
+		add("server", serverCol)
 	}
+	ciCol := &listColumn{}
 	if ciW > 0 {
-		cols = append(cols, fixedColumn(ciW))
+		ciCol = add("ci", fixedColumn(ciW))
 	}
 	// One cell stays free, so the last column does not touch the frame.
 	spare := layoutColumns(p.contentWidth()-1, cols...)
 	repoW, branchW, remoteW, pathW, serverW := repoCol.width, branchCol.width, remoteCol.width, pathCol.width, serverCol.width
+	reposW, actW, ciW = reposCol.width, actCol.width, ciCol.width
 	withServer = withServer && serverCol.shown()
 	showPath, showCreated, showSize, showMR := pathCol.shown(), createdCol.shown(), sizeCol.shown(), mrCol.shown()
 	showComments, showEdits := comCol.shown(), editsCol.shown()
@@ -513,7 +532,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		plain, colour := a.worktreeRemoteWords(r)
 		remote := field{text: plain, width: remoteW, colour: colour}
-		if !r.grouped() {
+		if !r.grouped() && remoteW > 0 {
 			st, known := a.wtRemote[r.Dir]
 			remote = field{raw: remoteCell(st, known, remoteW)}
 		}

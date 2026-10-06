@@ -489,3 +489,26 @@ func TestHiddenAuthors(t *testing.T) {
 		t.Error("showing one author again touched the others")
 	}
 }
+
+// TestHiddenColumns: a column is hidden and shown again per list, a list
+// with nothing hidden leaves no entry behind, and the tags hidden before
+// there were columns count as their column hidden.
+func TestHiddenColumns(t *testing.T) {
+	var f Filters
+	f.ToggleColumn(ListRepositories, "path")
+	if !f.HidesColumn(ListRepositories, "path") || f.HidesColumn(ListWorktrees, "path") {
+		t.Fatalf("path hidden in the wrong list: %+v", f.HiddenColumns)
+	}
+	f.ToggleColumn(ListRepositories, "path")
+	if f.HidesColumn(ListRepositories, "path") || len(f.HiddenColumns) != 0 {
+		t.Fatalf("path not shown again: %+v", f.HiddenColumns)
+	}
+	f.HideTags = true
+	if !f.HidesColumn(ListRepositories, "tags") {
+		t.Fatal("the old hide_tags is not read as the tags column hidden")
+	}
+	f.ToggleColumn(ListRepositories, "tags")
+	if f.HidesColumn(ListRepositories, "tags") || f.HideTags {
+		t.Fatal("the tags did not come back")
+	}
+}

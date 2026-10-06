@@ -179,34 +179,47 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 			ci = 2
 		}
 	}
+	// A column hidden in View options is never laid out and keeps no width.
+	hide := func(id string) bool { return a.hidesColumn(config.ListMergeRequests, id) }
+	cols := []*listColumn{fixedColumn(markW)}
+	add := func(id string, c *listColumn) *listColumn {
+		if id != "" && hide(id) {
+			c.width = 0
+			return c
+		}
+		cols = append(cols, c)
+		return c
+	}
 	title := flexColumn("TITLE", titles, 24, 2)
 	title.max = titleMeasure
-	cols := []*listColumn{fixedColumn(markW), fixedColumn(iid), title,
-		flexColumn("AUTHOR", authors, 8, 0.7), flexColumn("BRANCH", branches, 10, 0.8),
-		fixedColumn(com), fixedColumn(updated)}
+	add("", title)
+	iidCol := add("iid", fixedColumn(iid))
+	author := add("author", flexColumn("AUTHOR", authors, 8, 0.7))
+	branch := add("branch", flexColumn("BRANCH", branches, 10, 0.8))
+	comCol, updatedCol := add("comments", fixedColumn(com)), add("updated", fixedColumn(updated))
 	server, proj := &listColumn{}, &listColumn{}
 	if withServer {
 		// The server is the first left out when the row is tight.
 		server = flexColumn("SERVER", servers, 6, 0.5)
 		server.drop = 1
-		cols = append(cols, server)
+		add("server", server)
 	}
 	if grouped {
 		room-- // the indent
 	} else {
-		proj = flexColumn("REPO", projs, 16, 1)
-		cols = append(cols, proj)
+		proj = add("repository", flexColumn("REPO", projs, 16, 1))
 	}
-	for _, w := range []int{fresh, appr, ci, pub} {
-		if w > 0 {
-			cols = append(cols, fixedColumn(w))
+	optional := map[string]*int{"new": &fresh, "approvals": &appr, "ci": &ci, "pub": &pub}
+	for _, id := range []string{"new", "approvals", "ci", "pub"} {
+		if w := optional[id]; *w > 0 {
+			*w = add(id, fixedColumn(*w)).width
 		}
 	}
 	// One cell stays free, so the last column does not touch the frame.
 	layoutColumns(room-1, cols...)
-	return mrColumns{server: server.width, proj: proj.width, iid: iid, title: title.width,
-		author: cols[3].width, branch: cols[4].width, com: com, pub: pub, fresh: fresh, appr: appr,
-		ci: ci, updated: updated}
+	return mrColumns{server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
+		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
+		ci: ci, updated: updatedCol.width}
 }
 
 // atLeast keeps a column wide enough for its own heading.
@@ -234,12 +247,20 @@ type field struct {
 // rowText lays the fields out at their widths. The merge request table draws
 // each row as a single cell, because tview cannot make a heading span the
 // columns and the widths are worked out here anyway.
+//
+// A field of no width is a column left out - hidden in View options, or
+// given no room - and takes no space, nor the space in front of it.
 func rowText(fields []field) string {
 	var b strings.Builder
-	for i, f := range fields {
-		if i > 0 {
+	written := 0
+	for _, f := range fields {
+		if f.raw == "" && f.width <= 0 {
+			continue
+		}
+		if written > 0 {
 			b.WriteByte(' ')
 		}
+		written++
 		if f.raw != "" {
 			b.WriteString(f.raw)
 			continue
