@@ -9,6 +9,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // TestAPipelineUpClose: J lists the jobs with the failed one under the
@@ -686,4 +688,27 @@ func TestTheLogOfABranchJobIsFollowed(t *testing.T) {
 	waitFor(t, a, sc, "compiling")
 	srv.mainLog.Store("linking\n")
 	waitFor(t, a, sc, "linking")
+}
+
+// TestJobsAreStartedByAName: BY names whoever started a job or a pipeline
+// as people are named elsewhere - by the name the server gave, else the one
+// the names index learnt, and by the username only when neither knows it.
+func TestJobsAreStartedByAName(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	inst := onLoop(a, func() string { return a.cfg.Instances[0].ID })
+	cell := func(u forge.User) string {
+		return onLoop(a, func() string { return a.userCell(inst, &u) })
+	}
+	if got := cell(forge.User{Username: "kanak"}); !strings.Contains(got, "kanak") {
+		t.Errorf("a stranger is not named by the username: %q", got)
+	}
+	if got := cell(forge.User{Username: "kanak", Name: "Kateřina Kanaková"}); !strings.Contains(got, "Kateřina Kanaková") {
+		t.Errorf("the name the server gave is not used: %q", got)
+	}
+	changeOnLoop(a, func() { a.people.Learn(inst, "kanak", "Kateřina Kanaková", time.Now()) })
+	if got := cell(forge.User{Username: "kanak"}); !strings.Contains(got, "Kateřina Kanaková") {
+		t.Errorf("the name the index learnt is not used: %q", got)
+	}
 }
