@@ -147,8 +147,10 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 		log(fmt.Sprintf("%d branch(es)", len(branches)))
 
 		// Git checks a branch out only once, so a branch out in the main
-		// clone or in someone else's worktree cannot have one of its own and
-		// is not offered. One whose worktree unagit already made is, since
+		// clone or in someone else's worktree cannot have one of its own: it
+		// is listed after the rest, dimmed, with where it is out - git says
+		// where, so nothing is looked for on disk - and picking it says why
+		// not. One whose worktree unagit already made is offered, since
 		// picking it shows that worktree.
 		var checkedOut map[string]string
 		var mgr *workspace.Manager
@@ -170,10 +172,21 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 
 		known := make(map[string]bool, len(branches))
 		items := make([]pickItem, 0, len(branches))
+		var taken []pickItem
+		block := func(name string) {
+			dir := checkedOut[name]
+			where := checkoutName(dir, mgr.ProjectDir(pr.PathWithNamespace))
+			taken = append(taken, pickItem{
+				Label: tag(colDim) + esc(name) + tagEnd,
+				Sub:   "out in " + esc(where) + "  " + esc(tildePath(dir)),
+				Data:  takenBranch{name: name, why: name + " is checked out in " + where + " (" + tildePath(dir) + ") - git checks a branch out only once"},
+			})
+		}
 		for _, b := range branches {
 			known[b.Name] = true
 			mark, ok := usable(b.Name)
 			if !ok {
+				block(b.Name)
 				continue
 			}
 			sub := strings.TrimSpace(humanAge(b.CommittedDate) + "  " + b.CommitTitle)
@@ -198,17 +211,35 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 				}
 				mark, ok := usable(name)
 				if !ok {
+					block(name)
 					continue
 				}
 				items = append(items, pickItem{Label: name, Sub: strings.TrimSpace(mark + "  local only"), Data: name})
 			}
 		}
+		items = append(items, taken...)
 
 		a.tv.QueueUpdateDraw(func() {
 			a.closeModal(pageTask)
-			onSelect := func(it pickItem) { a.createWorktree(pr, it.Data.(string), false) }
+			title := "Worktree branch - " + pr.PathWithNamespace
 			onNew := func() { a.promptNewWorktreeBranch(pr) }
-			a.showPickerActions("Worktree branch - "+pr.PathWithNamespace, items, onSelect, onNew, nil)
+			var show func(start int)
+			show = func(start int) {
+				a.showPickerWith(title, items, pickerOptions{start: start, onNew: onNew}, func(it pickItem) {
+					if t, ok := it.Data.(takenBranch); ok {
+						// Back on the list, the cursor where it was, with why.
+						for i := range items {
+							if items[i].Data == it.Data {
+								show(i)
+							}
+						}
+						a.flash(t.why)
+						return
+					}
+					a.createWorktree(pr, it.Data.(string), false)
+				})
+			}
+			show(0)
 		})
 		return "", nil
 	})
@@ -324,3 +355,7 @@ func plural(n int, one, many string) string {
 	}
 	return many
 }
+
+// takenBranch is a branch the worktree picker lists but cannot give a
+// worktree, and why.
+type takenBranch struct{ name, why string }

@@ -483,3 +483,35 @@ func TestMergeRequestDefaultsAndBranchNames(t *testing.T) {
 		t.Errorf("no commits, nothing proposed: %q %q", title, desc)
 	}
 }
+
+// TestTheWorktreePickerSaysWhereABranchIsOut: a branch git will not check
+// out again - out in the main clone, or in a worktree unagit did not make -
+// is listed after the rest, dimmed, with where it is out; picking it says
+// why and leaves the list open.
+func TestTheWorktreePickerSaysWhereABranchIsOut(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	away := filepath.Join(t.TempDir(), "away")
+	gitIn(t, p.clone, "worktree", "add", "-q", "-b", "feat/away", away)
+	srv.liveBranches.Store(func(int) []string { return []string{"main", "feat/free"} })
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlW, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Worktree branch - acme/gateway")
+	waitFor(t, a, sc, "out in the main clone")
+	waitFor(t, a, sc, "out in worktree away  ")
+	text := a.screenText(sc)
+	if free, main := lineOf(text, "feat/free"), lineOf(text, "out in the main clone"); free < 0 || free > main {
+		t.Errorf("the branches that can be taken do not come first:\n%s", text)
+	}
+	assertLegible(t, a, sc, "the branches that are out")
+
+	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "git checks a branch out only once")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Worktree branch - acme/gateway")
+}
