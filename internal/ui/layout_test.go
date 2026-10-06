@@ -43,7 +43,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	t.Parallel()
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
 	longMRs(t, cfg)
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "29747")

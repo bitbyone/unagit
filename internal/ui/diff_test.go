@@ -129,9 +129,13 @@ func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
 	p.rescan()
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/x")
+	// The row is visible before its base has been read from git. Alt-D needs
+	// that answer; the remote column says it is ready.
+	waitFor(t, a, sc, "no upstream")
 
 	typeRunes(sc, "D")
 	got := waitForLog(t, log, " diff")
+	waitFocus(t, a, func() bool { return !a.screen.(*quietScreen).suspended.Load() })
 	if strings.Contains(got, sha) {
 		t.Errorf("D went further than what is not committed: %s", got)
 	}

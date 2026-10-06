@@ -19,7 +19,6 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
-	"github.com/tobola/unagit/internal/secret"
 )
 
 // fakeServer counts what the interface asks for, so tests can check that a
@@ -475,7 +474,7 @@ func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
 	t.Helper()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
 	return a, sc, srv
 }
 
@@ -521,12 +520,9 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 }
 
 // testVault is an open vault holding a token for every configured server.
-func testVault(t *testing.T, cfg *config.Config) *secret.Vault {
+func testVault(t *testing.T, cfg *config.Config) tokenVault {
 	t.Helper()
-	v, err := secret.NewVault([]byte("test-passphrase"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	v := &memoryVault{tokens: map[string]string{}}
 	for _, inst := range cfg.Instances {
 		v.Set(inst.ID, "test-token")
 	}
@@ -542,9 +538,15 @@ func must(t *testing.T, err error) {
 
 func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 	t.Helper()
+	a, sc, _ := startAppWithStop(t, a)
+	return a, sc
+}
+
+func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan struct{}) {
+	t.Helper()
 	// Attach the simulation screen from this goroutine: SetScreen initialises
 	// it, and the test reads its contents from here too.
-	sc := tcell.NewSimulationScreen("UTF-8")
+	sc := newObservedScreen(t)
 	a.SetScreen(sc)
 	sc.SetSize(160, 44)
 	// The machine's own chezmoi is not the fixture's.
@@ -552,9 +554,18 @@ func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }
 	}
 
-	go func() { _ = a.Run() }()
-	t.Cleanup(func() { a.tv.Stop() })
-	return a, sc
+	stopped := make(chan struct{})
+	go func() { defer close(stopped); _ = a.Run() }()
+	t.Cleanup(func() {
+		a.tv.Stop()
+		select {
+		case <-stopped:
+		case <-time.After(patience):
+			t.Error("application did not stop")
+		}
+	})
+	sc.observeKeys(a)
+	return a, sc, stopped
 }
 
 // onLoop reads a value from the interface's own goroutine. Everything the
@@ -577,7 +588,13 @@ func onLoop[T any](a *App, read func() T) T {
 // synchronise GetContents against its own drawing.
 func (a *App) screenText(sc tcell.SimulationScreen) string {
 	done := make(chan string, 1)
-	a.tv.QueueUpdate(func() { done <- dumpScreen(sc) })
+	a.tv.QueueUpdate(func() {
+		if s, ok := sc.(*observedScreen); ok {
+			done <- s.frame().text
+		} else {
+			done <- dumpScreen(sc)
+		}
+	})
 	select {
 	case s := <-done:
 		return s
@@ -601,29 +618,15 @@ func dumpScreen(sc tcell.SimulationScreen) string {
 	return b.String()
 }
 
-// waitFor polls the screen until it contains want.
+// waitFor waits for a rendered frame containing want.
 func waitFor(t *testing.T, a *App, sc tcell.SimulationScreen, want string) {
 	t.Helper()
-	deadline := time.Now().Add(patience)
-	for time.Now().Before(deadline) {
-		if strings.Contains(a.screenText(sc), want) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("screen never contained %q:\n%s", want, a.screenText(sc))
+	waitScreenText(t, a, sc, want, true)
 }
 
 func waitGone(t *testing.T, a *App, sc tcell.SimulationScreen, gone string) {
 	t.Helper()
-	deadline := time.Now().Add(patience)
-	for time.Now().Before(deadline) {
-		if !strings.Contains(a.screenText(sc), gone) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("screen still contained %q:\n%s", gone, a.screenText(sc))
+	waitScreenText(t, a, sc, gone, false)
 }
 
 // resize changes the terminal size. tcell's simulation screen resizes its
@@ -634,6 +637,10 @@ func resize(sc tcell.SimulationScreen, w, h int) {
 }
 
 func typeRunes(sc tcell.SimulationScreen, s string) {
+	if observed, ok := sc.(*observedScreen); ok {
+		observed.typeKeys(s)
+		return
+	}
 	for _, r := range s {
 		sc.InjectKey(tcell.KeyRune, r, tcell.ModNone)
 		time.Sleep(10 * time.Millisecond)

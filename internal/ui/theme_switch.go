@@ -116,6 +116,10 @@ const themeWatchInterval = 500 * time.Millisecond
 // save in the editor puts it on again, so colours can be tuned by hand with
 // unagit open beside. It only looks at the file's time, until stop closes.
 func (a *App) watchTheme(stop <-chan struct{}) {
+	stat := a.themeStat
+	if stat == nil {
+		stat = os.Stat
+	}
 	every := a.themeWatchEvery
 	if every == 0 {
 		every = themeWatchInterval
@@ -135,7 +139,7 @@ func (a *App) watchTheme(stop <-chan struct{}) {
 			path = ""
 			continue
 		}
-		fi, err := os.Stat(now)
+		fi, err := stat(now)
 		if err != nil {
 			continue
 		}

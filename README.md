@@ -728,6 +728,7 @@ both, `⊘` hidden.
 ```
 
 Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.
+The test commands and measured costs are in [docs/testing.md](docs/testing.md).
 
 Press `?` in a main view for contextual help: relevant shortcuts appear first
 in normal text, and shortcuts for other contexts remain dimmed. Modals and

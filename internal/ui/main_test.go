@@ -20,6 +20,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("UNAGIT_CONFIG_DIR", dir)
+	fixtureRoot = dir
 	// Whether the terminal running the tests draws Nerd Font icons is
 	// nothing the tests should depend on.
 	nerdFontGuess = func() (bool, string) { return false, "tests" }
@@ -30,10 +31,9 @@ func TestMain(m *testing.M) {
 }
 
 // parallelTests is how many tests run at once unless -parallel says
-// otherwise. Under the race detector, which make test always uses, its
-// runtime takes a lock for much of what the applications do, and past four
-// at once the run gets slower rather than faster: measured on 18 cores, 4
-// took 127 s, 8 took 170 s and one per core 215 s, against 263 s serial.
+// otherwise. More simulation screens together have not shown a clear gain
+// under race, even after removing repeated key derivation and polling. See
+// docs/testing.md for the measurements; -parallel still overrides this.
 const parallelTests = 4
 
 // limitParallel applies parallelTests when the command line did not choose.

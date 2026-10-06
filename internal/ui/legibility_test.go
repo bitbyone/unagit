@@ -178,6 +178,8 @@ func walkSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 		onLoop(a, func() bool {
 			form.SetFocus(i)
 			a.tv.SetFocus(form)
+			// SetFocus alone leaves the previous field's frame on screen.
+			a.tv.ForceDraw()
 			return true
 		})
 		assertLegible(t, a, sc, fmt.Sprintf("the server form, item %d focused", i))
@@ -186,6 +188,7 @@ func walkSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 		onLoop(a, func() bool {
 			form.SetFocus(items + buttonIndex(form, label))
 			a.tv.SetFocus(form)
+			a.tv.ForceDraw()
 			return true
 		})
 		assertLegible(t, a, sc, "the server form, "+label+" focused")

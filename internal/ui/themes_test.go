@@ -153,7 +153,7 @@ func newThemedApp(t *testing.T, name string) (*App, tcell.SimulationScreen) {
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
 	cfg.Theme = name
 	must(t, cfg.Save())
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
 	if got := onLoop(a, func() string { return theme.Name }); got != name {
 		t.Fatalf("the app drew with %q, not %q", got, name)
 	}
@@ -189,7 +189,7 @@ func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
 	}
 
 	setTheme(loadThemes("").byName[defaultThemeName])
-	again := New(a.cfg, testVault(t, a.cfg))
+	again := newApp(a.cfg, testVault(t, a.cfg))
 	b, sc2 := startApp(t, again)
 	waitFor(t, b, sc2, "acme/gateway")
 	if got := onLoop(b, func() string { return theme.Name }); got != "catppuccin-mocha" {
@@ -236,8 +236,19 @@ func TestSwitchThemeFromAnyScreen(t *testing.T) {
 func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
 	restoreDefaultTheme(t)
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	app := New(cfg, testVault(t, cfg))
+	app := newApp(cfg, testVault(t, cfg))
 	app.themeWatchEvery = 30 * time.Millisecond
+	observed := make(chan struct{}, 1)
+	app.themeStat = func(path string) (os.FileInfo, error) {
+		info, err := os.Stat(path)
+		if err == nil {
+			select {
+			case observed <- struct{}{}:
+			default:
+			}
+		}
+		return info, err
+	}
 	a, sc := startApp(t, app)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionTheme)
@@ -265,6 +276,13 @@ func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
 	}
 	if got := onLoop(a, func() string { return theme.Name }); got != "unagit-mine" {
 		t.Fatalf("the fork is not on: %q", got)
+	}
+	// A file saved before the watcher first reads it becomes its baseline;
+	// that is not an edit it could have detected.
+	select {
+	case <-observed:
+	case <-time.After(patience):
+		t.Fatal("the theme watcher never read the fork")
 	}
 
 	// A save of the file shows at once.

@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,14 +23,18 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
-		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+	cmd.Env = gitTestEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func gitTestEnv() []string {
+	return append(os.Environ(),
+		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
 }
 
 func commitIn(t *testing.T, dir, file, message string, more ...string) {
@@ -50,21 +56,77 @@ type realProject struct {
 	clone  string
 }
 
-// newRealProject makes acme/gateway a real clone of a bare origin, where the
-// app expects to find it.
+var fixtureRoot string
+
+// Only the initial history is shared. CopyFS gives each test its own objects,
+// refs and index, so its pushes and worktrees cannot alter another fixture.
+var projectSeed = sync.OnceValues(func() (string, error) {
+	base, err := os.MkdirTemp(fixtureRoot, "project-seed-")
+	if err != nil {
+		return "", err
+	}
+	origin, clone := filepath.Join(base, "origin.git"), filepath.Join(base, "clone")
+	run := func(dir string, args ...string) error {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = gitTestEnv()
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, out)
+		}
+		return nil
+	}
+	if err := run(base, "init", "-q", "--bare", "--initial-branch=main", origin); err != nil {
+		return "", err
+	}
+	if err := run(base, "clone", "-q", origin, clone); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(clone, "a.txt"), []byte("initial\n"), 0o644); err != nil {
+		return "", err
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-q", "-m", "initial"}, {"branch", "-M", "main"}, {"push", "-q", "-u", "origin", "main"}} {
+		if err := run(clone, args...); err != nil {
+			return "", err
+		}
+	}
+	return base, nil
+})
+
+// newRealProject makes a real clone and a private bare origin where the app
+// expects to find them, without rebuilding the same history for every test.
 func newRealProject(t *testing.T, a *App, path string) *realProject {
 	t.Helper()
 	instance := a.cfg.Instances[0].ID
 	clone := a.projectDir(instance, path)
 	base := t.TempDir()
 	origin := filepath.Join(base, "origin.git")
-	gitIn(t, base, "init", "-q", "--bare", "--initial-branch=main", origin)
-	must(t, os.MkdirAll(filepath.Dir(clone), 0o755))
-	gitIn(t, base, "clone", "-q", origin, clone)
-	commitIn(t, clone, "a.txt", "initial")
-	gitIn(t, clone, "branch", "-M", "main")
-	gitIn(t, clone, "push", "-q", "-u", "origin", "main")
+	seed, err := projectSeed()
+	must(t, err)
+	must(t, os.CopyFS(origin, os.DirFS(filepath.Join(seed, "origin.git"))))
+	must(t, os.CopyFS(clone, os.DirFS(filepath.Join(seed, "clone"))))
+	gitIn(t, clone, "remote", "set-url", "origin", origin)
 	return &realProject{t: t, a: a, path: path, origin: origin, clone: clone}
+}
+
+func TestRealProjectFixturesKeepTheirOwnHistory(t *testing.T) {
+	t.Parallel()
+	a, _ := newTestApp(t)
+	gw := newRealProject(t, a, "acme/gateway")
+	bl := newRealProject(t, a, "acme/billing")
+	initial := gitIn(t, bl.origin, "rev-parse", "main")
+	commitIn(t, gw.clone, "a.txt", "only gateway changes")
+	gitIn(t, gw.clone, "push", "-q", "origin", "main")
+	for _, dir := range []string{bl.clone, bl.origin} {
+		if got := gitIn(t, dir, "rev-parse", "main"); got != initial {
+			t.Errorf("billing's history changed in %s: %s", dir, got)
+		}
+	}
+	contents, err := os.ReadFile(filepath.Join(bl.clone, "a.txt"))
+	must(t, err)
+	if string(contents) != "initial\n" {
+		t.Errorf("billing's working tree changed: %q", contents)
+	}
 }
 
 // worktree adds a branch worktree, where Ctrl-W would have put it.

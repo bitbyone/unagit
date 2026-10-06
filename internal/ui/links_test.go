@@ -77,7 +77,7 @@ func TestGoalOpensAMergeRequestOutsideTheIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)).WithGoal(Goal{Link: link}))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)).WithGoal(Goal{Link: link}))
 	waitFor(t, a, sc, "Opening acme/other !5")
 	// It then tries to clone from the stub, which fails; wait so git is done
 	// before the temporary directories go.
@@ -94,7 +94,7 @@ func TestGoalReviewsAMergeRequestFromTheList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)).WithGoal(Goal{Link: link, Review: true}))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)).WithGoal(Goal{Link: link, Review: true}))
 	waitFor(t, a, sc, "Opening acme/gateway !8 for review")
 	waitFor(t, a, sc, "Press Esc to close")
 	if got := onLoop(a, func() int {

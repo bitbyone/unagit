@@ -120,11 +120,12 @@ func TestAWorktreeOfItsOwnIsAViewToo(t *testing.T) {
 // TestTheWorktreeViewFitsItsFrame draws the view at several sizes.
 func TestTheWorktreeViewFitsItsFrame(t *testing.T) {
 	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	lookGroup(t, a, sc)
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
-			a, sc, _ := newTestAppSrv(t)
 			resize(sc, size.w, size.h)
-			lookGroup(t, a, sc)
+			a.tv.QueueUpdateDraw(func() {})
 			waitFor(t, a, sc, "Esc back")
 			lines := strings.Split(a.screenText(sc), "\n")
 			top := -1

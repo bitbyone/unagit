@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -9,7 +8,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"github.com/tobola/unagit/internal/chezmoi"
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/secret"
 )
@@ -34,15 +32,7 @@ func newLockedApp(t *testing.T, themeName string, firstRun bool) (*App, tcell.Si
 // has stopped.
 func startLocked(t *testing.T, cfg *config.Config) (*App, tcell.SimulationScreen, chan struct{}) {
 	t.Helper()
-	a := NewLocked(cfg)
-	sc := tcell.NewSimulationScreen("UTF-8")
-	a.SetScreen(sc)
-	sc.SetSize(160, 44)
-	a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }
-	stopped := make(chan struct{})
-	go func() { _ = a.Run(); close(stopped) }()
-	t.Cleanup(func() { a.tv.Stop() })
-	return a, sc, stopped
+	return startAppWithStop(t, NewLocked(cfg))
 }
 
 // unlockForm is the unlock dialog's form, once it is in front.

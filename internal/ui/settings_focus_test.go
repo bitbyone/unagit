@@ -105,7 +105,7 @@ func TestANewRootReachesGroupsAndClones(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, bsc := startApp(t, New(saved, testVault(t, saved)))
+	b, bsc := startApp(t, newApp(saved, testVault(t, saved)))
 	waitFor(t, b, bsc, "acme/gateway")
 	check(b, bsc, "after a restart")
 }

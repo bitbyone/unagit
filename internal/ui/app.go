@@ -95,7 +95,7 @@ type App struct {
 
 	cfg      *config.Config
 	sessions *session.Store
-	vault    *secret.Vault
+	vault    tokenVault
 	clients  map[string]forge.Provider
 	// logins maps an instance to the account its token belongs to, filled in
 	// when a token is verified.
@@ -174,6 +174,10 @@ type App struct {
 	// themeWatchEvery is how often watchTheme looks; zero is
 	// themeWatchInterval.
 	themeWatchEvery time.Duration
+	// themeStat lets the watcher announce a real file read in tests, so a
+	// save can follow its baseline rather than guessing when a tick ran.
+	// nil reads through os.Stat.
+	themeStat func(string) (os.FileInfo, error)
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -247,6 +251,25 @@ func (a *App) mrSortTime(mr forge.MergeRequest) time.Time {
 // New builds the application with an already open vault, for tests and for
 // callers that unlocked it themselves.
 func New(cfg *config.Config, vault *secret.Vault) *App {
+	if vault == nil {
+		return newApp(cfg, nil)
+	}
+	return newApp(cfg, vault)
+}
+
+// tokenVault keeps the interface independent of how an already unlocked
+// vault is held. Unlocking still goes through secret.OpenOrCreate.
+type tokenVault interface {
+	Token(string) string
+	Has(string) bool
+	Set(string, string)
+	Remove(string)
+	IDs() []string
+	Save(string) error
+	Rekey([]byte) error
+}
+
+func newApp(cfg *config.Config, vault tokenVault) *App {
 	// tview's widgets copy its styles when they are made, so the theme comes
 	// first - and once per process, which also orders it before the widgets
 	// of every other application made in parallel.
@@ -258,7 +281,8 @@ func New(cfg *config.Config, vault *secret.Vault) *App {
 		sessions: session.New(cfg.Dir()),
 		disk:     map[projectKey]diskInfo{},
 	}
-	a.setVault(vault)
+	a.vault = vault
+	a.rebuildClients()
 	return a
 }
 
