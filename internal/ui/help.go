@@ -201,6 +201,8 @@ func helpRows() []helpLine {
 		key("n", "in b: a new branch from the one under the cursor"),
 		key("m", "in b: a merge request from the branch"),
 		key("d  D  Alt-D", "in b: delete in the clone · everywhere · on origin"),
+		key("d  D", "in b: a branch out in a worktree goes with it"),
+		key("Ctrl-W", "in b: a worktree for the branch"),
 		key("p", "pull; rebases your work; refuses on a conflict"),
 		key("Alt-P", "the same for every clone origin has moved past"),
 		key("Ctrl-W", "a worktree for a branch; n for a new one"),

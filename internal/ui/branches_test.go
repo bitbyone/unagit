@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -189,4 +191,64 @@ func TestTheNewBranchFormFitsItsFrame(t *testing.T) {
 			assertLegible(t, a, sc, "the new branch form")
 		})
 	}
+}
+
+// TestBranchesOutInAWorktree: d on a branch out in a worktree another tool
+// made deletes that worktree with the branch, once asked, and origin keeps
+// it; Ctrl-W on a branch out somewhere says why it cannot have a worktree,
+// and on one out nowhere makes it.
+func TestBranchesOutInAWorktree(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	srv.liveBranches.Store(func(int) []string {
+		return strings.Fields(gitIn(t, p.origin, "for-each-ref", "--format=%(refname:short)", "refs/heads"))
+	})
+	away := filepath.Join(t.TempDir(), "away")
+	gitIn(t, p.clone, "worktree", "add", "-q", "-b", "away", away)
+	gitIn(t, away, "push", "-q", "-u", "origin", "away")
+	gitIn(t, p.clone, "branch", "free")
+	p.rescan()
+
+	pick := func(name string) {
+		t.Helper()
+		typeRunes(sc, "b")
+		waitFor(t, a, sc, "Branches - acme/gateway")
+		typeRunes(sc, "/"+name)
+		waitFor(t, a, sc, "FILTER")
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+		waitFor(t, a, sc, "NORMAL   j/k")
+	}
+	typeRunes(sc, "g")
+	pick("away")
+	sc.InjectKey(tcell.KeyCtrlW, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "branch out only once")
+	closeMessage(t, a, sc)
+	waitFor(t, a, sc, "Branches - acme/gateway")
+
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "and the worktree it is out")
+	if text := a.screenText(sc); !strings.Contains(text, "origin keeps it") {
+		t.Errorf("the question does not say origin keeps the branch:\n%s", text)
+	}
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "deleted away in the clone, with its worktree")
+	if _, err := os.Stat(away); !os.IsNotExist(err) {
+		t.Errorf("the worktree is still on disk: %v", err)
+	}
+	if strings.Contains(gitIn(t, p.clone, "branch", "--list", "away"), "away") {
+		t.Error("away is still in the clone")
+	}
+	if !strings.Contains(gitIn(t, p.origin, "branch"), "away") {
+		t.Error("origin lost away")
+	}
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	pick("free")
+	sc.InjectKey(tcell.KeyCtrlW, 0, tcell.ModCtrl)
+	dir := onLoop(a, func() string {
+		return a.pathManager(a.projects[0].Instance, "acme/gateway").WorktreeDir("acme/gateway", "free")
+	})
+	waitForPath(t, a, sc, dir, true)
 }

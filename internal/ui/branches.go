@@ -22,18 +22,25 @@ import (
 // a new branch from the one under the cursor; it comes back into the list,
 // and switching to it is the next step, and the user's.
 //
-// The default branch and a protected one are never deleted, a branch checked
-// out somewhere cannot be deleted here (git refuses), and one with an open
-// merge request is not deleted on origin, since that would close or break the
-// merge request.
+// The default branch and a protected one are never deleted, and one with an
+// open merge request is not deleted on origin, since that would close or
+// break the merge request. Git will not delete a branch that is checked out:
+// one out in the main clone is refused, one out in a worktree of its own is
+// deleted with that worktree, once what would be lost there is said - the
+// directory is the one git lists, whoever made it. A grouped worktree's
+// member is taken out of its group in Worktrees instead, or the group would
+// be left listing it. Ctrl-W gives a branch that is out nowhere a worktree.
 
 // branchInfo is one branch as the manager shows it.
 type branchInfo struct {
 	name          string
 	local, remote bool
 	// where is the checkout that has it: "the main clone", a worktree's
-	// folder, or "" when it is out nowhere.
+	// folder, or "" when it is out nowhere; dir is that checkout's directory
+	// and inMain tells the main clone.
 	where     string
+	dir       string
+	inMain    bool
 	upstream  gitx.Upstream
 	onlyHere  int // commits of the local branch that no branch of origin has
 	isDefault bool
@@ -50,8 +57,9 @@ type branchScope struct {
 	checkout bool
 	// focus is the branch the cursor starts on.
 	focus string
-	// done is what was just done, said once the list is back over it.
-	done string
+	// done is what was just done, and warn what could not be, said once the
+	// list is back over it.
+	done, warn string
 }
 
 // showBranchManager loads the branches of a repository and lists them.
@@ -116,7 +124,7 @@ func (a *App) readBranches(pr forge.Project, remote []forge.Branch, cloned bool)
 		}
 		for name, dir := range git.CheckedOut(mainDir) {
 			if b, ok := byName[name]; ok {
-				b.where = checkoutName(dir, mainDir)
+				b.where, b.dir, b.inMain = checkoutName(dir, mainDir), dir, sameDir(dir, mainDir)
 			}
 		}
 	}
@@ -221,14 +229,21 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	}
 	again := func(focus, done string) {
 		next := scope
-		next.focus, next.done = focus, done
+		next.focus, next.done, next.warn = focus, done, ""
 		a.showBranchManager(next)
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
 		{keys: "n", hint: "new", name: "New Branch…", about: "Start a branch of your own from this one.", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
+		{keys: "Ctrl-W", hint: "worktree", name: "New Worktree", about: "Check the branch out in a directory of its own beside the clone; one out somewhere already cannot be.", run: func(it pickItem) {
+			a.branchWorktree(pr, it.Data.(branchInfo), func(why string) {
+				next := scope
+				next.focus, next.done, next.warn = it.Data.(branchInfo).name, "", why
+				a.showBranchManager(next)
+			})
+		}},
 		{keys: "m", hint: "merge request", name: "New Merge Request…", about: "Propose this branch for merging, on the server.", run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
-		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone; origin keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
-		{keys: "D", hint: "everywhere", name: "Delete Everywhere…", about: "Delete the branch in the clone and on origin.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
+		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone, and the worktree it is out in; origin keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
+		{keys: "D", hint: "everywhere", name: "Delete Everywhere…", about: "Delete the branch in the clone, the worktree it is out in, and on origin.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
 		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
 	}}
 	var onSelect func(pickItem)
@@ -240,6 +255,9 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
 	if scope.done != "" {
 		a.done(scope.done)
+	}
+	if scope.warn != "" {
+		a.flash(scope.warn)
 	}
 }
 
@@ -342,9 +360,17 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 	case there && !b.remote:
 		a.flash(b.name + " is not on origin")
 		return
-	case here && b.where != "":
-		a.flash(b.name + " is checked out in " + b.where + " - git will not delete it")
+	case here && b.inMain:
+		a.flash(b.name + " is checked out in the main clone - switch it to another branch first")
 		return
+	case here && strings.HasPrefix(b.where, "group "):
+		a.flash(b.name + " is checked out in " + b.where + " - take it out of the group in Worktrees (x), then delete it")
+		return
+	}
+	// A branch out in a worktree goes with that worktree.
+	worktree := ""
+	if here && b.where != "" {
+		worktree = b.dir
 	}
 	if there {
 		if mr, ok := a.openMROn(pr, b.name); ok {
@@ -353,6 +379,9 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 		}
 	}
 	var where, warnings []string
+	if worktree != "" {
+		warnings = append(warnings, a.newManager(pr.Instance, pr.PathWithNamespace, nil).InspectDir(worktree).Warnings...)
+	}
 	if here {
 		where = append(where, "in the clone")
 		if b.onlyHere > 0 {
@@ -366,6 +395,10 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 		}
 	}
 	body := fmt.Sprintf("Delete [::b]%s[::-] %s?", esc(b.name), strings.Join(where, " and "))
+	if worktree != "" {
+		body = fmt.Sprintf("Delete [::b]%s[::-] %s, and the worktree it is out in?\n\n%s",
+			esc(b.name), strings.Join(where, " and "), esc(tildePath(worktree)))
+	}
 	switch {
 	case here && !there && b.remote:
 		body += "\n\norigin keeps it."
@@ -378,6 +411,12 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 		a.runTaskThen("Deleting "+b.name, func(log func(string)) (string, error) {
 			mgr := a.newManager(pr.Instance, pr.PathWithNamespace, log)
 			mainDir := mgr.ProjectDir(pr.PathWithNamespace)
+			if worktree != "" {
+				if err := mgr.RemoveWorktreeDir(pr.PathWithNamespace, worktree); err != nil {
+					return "", err
+				}
+				log("deleted the worktree")
+			}
 			if there {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				defer cancel()
@@ -398,7 +437,11 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 			return "", nil
 		}, func(string) {
 			a.refreshDisk()
-			again(b.name, fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and ")))
+			done := fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and "))
+			if worktree != "" {
+				done += ", with its worktree"
+			}
+			again(b.name, done)
 		})
 	})
 }
@@ -437,4 +480,15 @@ func (a *App) branchMergeRequest(pr forge.Project, b branchInfo) {
 		return
 	}
 	a.prepareMergeRequest(r, pr, client, false, false)
+}
+
+// branchWorktree gives a branch a worktree of its own, as Ctrl-W does in
+// Repositories, or says why it cannot have one: git checks a branch out
+// only once. One whose worktree unagit made already is shown there.
+func (a *App) branchWorktree(pr forge.Project, b branchInfo, refused func(why string)) {
+	if b.dir != "" && !sameDir(b.dir, a.pathManager(pr.Instance, pr.PathWithNamespace).WorktreeDir(pr.PathWithNamespace, b.name)) {
+		refused(b.name + " is checked out in " + b.where + " (" + tildePath(b.dir) + ") - git checks a branch out only once")
+		return
+	}
+	a.createWorktree(pr, b.name, false)
 }

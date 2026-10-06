@@ -106,14 +106,19 @@ all and live only there.
   request open says `!12 open`; `m` on one without opens a merge request
   from it, pushing it first if origin lacks it. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer
-  tracking). The default branch and protected ones are never deleted, one
-  checked out somewhere cannot be deleted in the clone, and one with an open
-  merge request is not deleted on origin. Commits that would be lost are
-  counted in the question first. In a worktree's view, `b` on a repository's
+  tracking). The default branch and protected ones are never deleted, and
+  one with an open merge request is not deleted on origin. One out in the
+  main clone cannot be deleted there; one out in a worktree - unagit's or
+  another tool's, at the directory git lists - is deleted with that worktree
+  (a grouped one's member is taken out of its group in Worktrees). What
+  would be lost - commits, uncommitted edits - is counted in the question
+  first. `Ctrl-W` gives the branch under the cursor a worktree, as in the
+  list; one out somewhere already says where. In a worktree's view, `b` on a repository's
   block opens the same list, without `Enter`: a worktree's branch is not
   switched there.
 - `Ctrl-W` gives a branch a worktree of its own instead (`n` for a new
-  branch). Nothing opens: unagit moves to Worktrees with the cursor on it, and
+  branch). A branch git will not check out again - out in the main clone or
+  in another worktree - is listed last, dimmed, with where it is out. Nothing opens: unagit moves to Worktrees with the cursor on it, and
   `Ctrl-O` opens it when you want.
 - `REMOTE` says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
