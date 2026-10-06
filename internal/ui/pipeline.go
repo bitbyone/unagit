@@ -156,7 +156,7 @@ func (a *App) showPipelineThen(target ciTarget, focus int64, then func()) {
 	}
 	var pipe *forge.Pipeline
 	var jobs []forge.Job
-	a.runTaskThen("Reading the pipeline of "+target.label, func(log func(string)) (string, error) {
+	a.loadThen("Reading the pipeline of "+target.label, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error
@@ -598,7 +598,7 @@ func keptSGR(seq string) string {
 func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 	client := a.client(target.instance)
 	var text string
-	a.runTaskThen("Reading the log of "+job.Name, func(log func(string)) (string, error) {
+	a.loadThen("Reading the log of "+job.Name, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error
@@ -742,7 +742,7 @@ func (a *App) showPipelineList(target ciTarget, current int, back func()) {
 		return
 	}
 	var pipes []forge.Pipeline
-	a.runTaskThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
+	a.loadThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error
@@ -762,7 +762,7 @@ func (a *App) showCommitPipelines(target ciTarget, back func()) {
 		return
 	}
 	var pipes []forge.Pipeline
-	a.runTaskThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
+	a.loadThen("Reading the pipelines of "+target.label, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error

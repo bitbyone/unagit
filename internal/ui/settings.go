@@ -672,7 +672,7 @@ func (s *settingsView) verifyInstance(inst config.Instance) {
 		a.errorf("%s has no token yet - press t", inst.Label())
 		return
 	}
-	a.runTask("Verifying "+inst.Label(), func(log func(string)) (string, error) {
+	a.load("Verifying "+inst.Label(), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		log("Asking " + inst.URL + " who the token belongs to …")

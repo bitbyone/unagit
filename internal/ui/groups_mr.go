@@ -64,7 +64,7 @@ func (a *App) groupMergeRequests(r worktreeRow) {
 			bases[i] = m.member.Base
 		}
 	}
-	a.runTask("Preparing merge requests for "+r.Path, func(log func(string)) (string, error) {
+	a.load("Preparing merge requests for "+r.Path, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		var commits []gitx.CommitMsg

@@ -1338,7 +1338,7 @@ func (a *App) refreshGroups() {
 		a.errorf("no server with a token yet - add one in Settings")
 		return
 	}
-	a.runTask("Refreshing groups", func(log func(string)) (string, error) {
+	a.load("Refreshing groups", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 

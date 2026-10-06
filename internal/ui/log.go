@@ -518,7 +518,7 @@ func (a *App) repositoryLog(pr forge.Project) {
 	place := logPlace{title: fmt.Sprintf("Commit Log · %s (%s on the server)", pr.PathWithNamespace, pr.DefaultBranch),
 		project: pr, branch: pr.DefaultBranch}
 	var commits []logCommit
-	a.runTaskThen("Reading the commits of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.loadThen("Reading the commits of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		listed, err := client.ProjectCommits(ctx, pr, pr.DefaultBranch, 100)
@@ -591,7 +591,7 @@ func (a *App) mergeRequestLog(mr forge.MergeRequest) {
 		dir = a.projectDir(mr.Instance, path)
 	}
 	var commits []workspace.MRCommit
-	a.runTaskThen(fmt.Sprintf("Reading the commits of %s !%d", path, mr.IID), func(log func(string)) (string, error) {
+	a.loadThen(fmt.Sprintf("Reading the commits of %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		mr := a.refreshMR(client, mr, log)

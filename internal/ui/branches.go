@@ -71,7 +71,7 @@ func (a *App) showBranchManager(scope branchScope) {
 		return
 	}
 	cloned := a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned
-	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.load("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		remote, err := client.ProjectBranches(ctx, pr)

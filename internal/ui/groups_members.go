@@ -70,7 +70,7 @@ func (a *App) prepareGroupMember(r worktreeRow, pr forge.Project) {
 		taken[i] = m.Dir
 	}
 	name := workspace.NewMemberDirName(taken, pr.PathWithNamespace)
-	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.load("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		choice, err := a.groupChoiceFor(ctx, pr, name)

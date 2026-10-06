@@ -146,7 +146,7 @@ func (a *App) startGroupWorktree(projects []forge.Project) {
 	}
 	dirs := workspace.MemberDirNames(paths)
 
-	a.runTask(fmt.Sprintf("Loading branches of %d repositories", len(projects)), func(log func(string)) (string, error) {
+	a.load(fmt.Sprintf("Loading branches of %d repositories", len(projects)), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		choices := make([]groupChoice, len(projects))

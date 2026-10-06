@@ -80,7 +80,7 @@ func (a *App) showStarred() {
 		return
 	}
 	var starred []forge.Project
-	a.runTaskThen("Reading your starred repositories", func(log func(string)) (string, error) {
+	a.loadThen("Reading your starred repositories", func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		for _, inst := range a.cfg.Instances {
@@ -198,7 +198,7 @@ func (a *App) showReadme(pr forge.Project, back func()) {
 		return
 	}
 	var text string
-	a.runTaskThen("Reading the README of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.loadThen("Reading the README of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error

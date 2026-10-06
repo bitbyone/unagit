@@ -106,7 +106,7 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 	}
 	path := a.projectPathOfMR(mr)
 	places := a.mrPlaces(mr)
-	a.runTask(fmt.Sprintf("Preparing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
+	a.load(fmt.Sprintf("Preparing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		threads := incomm.ThreadsAt(places...)

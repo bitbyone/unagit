@@ -137,7 +137,7 @@ func (a *App) showWorktreePicker(pr forge.Project) {
 		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
 		return
 	}
-	a.runTask("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+	a.load("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		branches, err := client.ProjectBranches(ctx, pr)

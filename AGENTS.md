@@ -189,9 +189,13 @@ belongs to is drawn, or it covers them.
 refresh of a list or of one row, fetches, the comments' sync, counting new
 commits, a lookup - is a job (`startJob`/`endJob`, `jobs.go`), shown with a
 spinner at the right of every status line, never as a count in the summary.
-A short read that a dialog waits for (a pipeline, a log, the commits) is not
-a job but the dialog's own wait: `runTask`'s log, whose last line turns a
-spinner while it runs. A request made from a dialog that stays open -
+A read from a server that a dialog waits for (a pipeline, a log, the
+commits, the branches for a form) is not a job but the dialog's own wait:
+`load`/`loadThen` (`loading.go`), a small box in front with a spinner and
+the step under way, and the dialog opens once it has its data. A log of
+`runTask` is for work whose log is worth reading - a clone, a push, a
+commit, a review being set up - never for a read, where it only flashes up
+and goes. A request made from a dialog that stays open -
 starting a job - is not even that: `waitInDialog` says what it waits for
 in the dialog's bottom edge, with the spinner, and a failure is a warning;
 a log that flashes up over the dialog and goes is noise.
