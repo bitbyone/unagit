@@ -325,7 +325,12 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		mark = starred(star, favourite(idx), mark)
 		title := trunc(mr.Title, c.title)
 		titleField := field{text: title, width: c.title, colour: role("merge_requests.title")}
-		if mr.Draft {
+		switch {
+		case mr.Draft && glyphDraft != "":
+			// The icon says draft, so the title's own "Draft:" would say it
+			// twice.
+			titleField = field{icon: glyphDraft, text: undrafted(mr.Title), width: c.title, colour: role("merge_requests.title")}
+		case mr.Draft:
 			short := trunc(mr.Title, c.title-6)
 			pad := strings.Repeat(" ", max(0, c.title-len([]rune(short))-6))
 			titleField = field{raw: "[::d]draft[::-] " + tag(colText) + tview.Escape(short) + tagEnd + pad}
@@ -898,4 +903,19 @@ func (a *App) mrsOfShownRepositories() int {
 		}
 	}
 	return n
+}
+
+// undrafted is a draft's title without the word GitLab and GitHub users put
+// before it - "Draft:", "[Draft]", "(Draft)", "WIP:" - for where an icon
+// says it instead. Only what is drawn loses it.
+func undrafted(title string) string {
+	lower := strings.ToLower(title)
+	for _, prefix := range []string{"draft:", "[draft]", "(draft)", "draft -", "wip:", "[wip]"} {
+		if strings.HasPrefix(lower, prefix) {
+			if rest := strings.TrimSpace(title[len(prefix):]); rest != "" {
+				return rest
+			}
+		}
+	}
+	return title
 }

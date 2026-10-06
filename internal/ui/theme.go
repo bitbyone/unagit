@@ -48,14 +48,17 @@ var (
 var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
-	glyphRepos, glyphForgeGitHub, glyphForgeGitLab                 string
-	glyphCheck, glyphCross, glyphDot, glyphRing                    string
-	glyphManual, glyphScheduled, glyphTrigger, glyphRetried        string
-	glyphUser, glyphStarred                                        string
-	glyphCIDone, glyphCIIdle, glyphApproved                        string
-	glyphAhead, glyphBehind                                        string
-	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator         string
-	glyphMask                                                      rune
+	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft     string
+	// actionIcons are the theme's icons of the actions, nil without a
+	// Nerd Font.
+	actionIcons                                             map[string]string
+	glyphCheck, glyphCross, glyphDot, glyphRing             string
+	glyphManual, glyphScheduled, glyphTrigger, glyphRetried string
+	glyphUser, glyphStarred                                 string
+	glyphCIDone, glyphCIIdle, glyphApproved                 string
+	glyphAhead, glyphBehind                                 string
+	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator  string
+	glyphMask                                               rune
 	// selectMarker ends a closed select, so it looks like something that
 	// opens.
 	selectMarker string
@@ -149,7 +152,11 @@ func setTheme(t Theme) {
 	}
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
-	glyphRepos, glyphForgeGitHub, glyphForgeGitLab = g.Repos, g.ForgeGitHub, g.ForgeGitLab
+	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft = g.Repos, g.ForgeGitHub, g.ForgeGitLab, g.Draft
+	actionIcons = nil
+	if nerdFont {
+		actionIcons = t.ActionIcons
+	}
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried
 	glyphUser, glyphStarred = g.User, g.Starred

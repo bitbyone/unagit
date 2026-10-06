@@ -148,7 +148,7 @@ func shortSHA(sha string) string { return sha[:min(8, len(sha))] }
 func labelLog(items []pickItem, commits []logCommit, width int) {
 	refsW := 0
 	for _, c := range commits {
-		refsW = max(refsW, len([]rune(logSub(c))))
+		refsW = max(refsW, tview.TaggedStringWidth(logSub(c)))
 	}
 	// Who wrote each, in a column of its own after the subject.
 	authorW := 0
@@ -180,19 +180,21 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 			mark = glyphAhead + " "
 		}
 		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i], authorW, trim(c.Author, authorW)))
-		items[i].Sub = esc(logSub(c))
+		items[i].Sub = logSub(c)
 	}
 }
 
-// logSub is what follows a subject: the age in a column of its own, then the
-// pipeline and what points at the commit, where a varying length disturbs
-// nothing.
+// logSub is what follows a subject, as markup: the age in a column of its
+// own, then the pipeline - its mark and its word in its colour, as every
+// list draws a pipeline - and what points at the commit, where a varying
+// length disturbs nothing.
 func logSub(c logCommit) string {
-	rest := refWords(c.Refs)
+	rest := esc(refWords(c.Refs))
 	if ci, _ := ciMark(c.CI); ci != "" {
-		rest = strings.TrimSpace(ci + " " + c.CI + " " + rest)
+		mark, status := painted(ci, c.CI)
+		rest = strings.TrimSpace(mark + " " + status + " " + rest)
 	}
-	return strings.TrimSpace(fmt.Sprintf("%-8s  %s", humanAge(c.When), rest))
+	return strings.TrimSpace(esc(fmt.Sprintf("%-8s", humanAge(c.When))) + "  " + rest)
 }
 
 // logRowWidth is how wide a row of the log is on a screen so wide: the wide

@@ -264,3 +264,28 @@ func TestADialogsListHasItsItemsActions(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "--- FAIL: TestBucket")
 }
+
+// TestALogsPipelineIsInItsColours: a commit's pipeline in the log is drawn
+// as every list draws one, its mark and its word in the state's colour.
+func TestALogsPipelineIsInItsColours(t *testing.T) {
+	t.Parallel()
+	for _, status := range []string{"success", "failed"} {
+		_, colour := ciMark(status)
+		sub := logSub(logCommit{CI: status})
+		if !strings.Contains(sub, tag(colour)+esc(status)) {
+			t.Errorf("%s is not in its colour: %q", status, sub)
+		}
+	}
+}
+
+func TestUndraftedTitles(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"Draft: Rate limiting": "Rate limiting", "[Draft] Fix": "Fix", "WIP: x": "x",
+		"Drafting rules": "Drafting rules", "Draft:": "Draft:",
+	} {
+		if got := undrafted(in); got != want {
+			t.Errorf("undrafted(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -581,8 +581,11 @@ WezTerm and kitty bring the icons with them, and iTerm2 and Alacritty are
 asked for their font. `n` in Settings › Theme turns them on or off when
 that guess is wrong, and back to guessing. A few are icons only, with nothing in their
 place without a Nerd Font: the server's before a repository's name in the
-lists, and the one after a worktree's count of repositories. They are drawn,
-never copied: `y` and `/` see the name alone.
+lists, and the one after a worktree's count of repositories, a draft's icon in place
+of the word - and of the "Draft:" its title starts with - and an icon,
+muted, before each action in the action pickers, where a theme gives one
+under `action_icons` by the action's name. They are drawn, never copied:
+`y` and `/` see the name alone.
 
 unagit comes with four: **unagit**, the muted default, which keeps the
 terminal's own background so it sits quietly beside an editor;

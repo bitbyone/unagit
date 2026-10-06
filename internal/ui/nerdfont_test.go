@@ -152,3 +152,64 @@ func fg(s tcell.Style) tcell.Color {
 	c, _, _ := s.Decompose()
 	return c
 }
+
+// TestActionIconsKeepTheNamesInLine: with the icons on, every action in a
+// picker has a muted icon before it, or a blank where it has none, so the
+// names start in one column. Serial: the glyphs are the process's.
+func TestActionIconsKeepTheNamesInLine(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "auto: off - tests")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "on, as chosen")
+	typeRunes(sc, "1")
+	waitFor(t, a, sc, "acme/gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · acme/gateway")
+	icon := onLoop(a, func() string { return actionIcons["Open in Editor"] })
+	if icon == "" {
+		t.Fatal("Open in Editor has no icon in the default theme")
+	}
+	waitFor(t, a, sc, icon+" Open in Editor")
+	text := a.screenText(sc)
+	start := -1
+	for _, name := range []string{"Open in Editor", "New Worktree…", "Show Details", "Copy…"} {
+		line := lineAt(text, name)
+		if line == "" {
+			t.Fatalf("%s is not listed:\n%s", name, text)
+		}
+		col := len([]rune(line[:strings.Index(line, name)]))
+		if start >= 0 && col != start {
+			t.Errorf("%s starts at %d, the others at %d:\n%s", name, col, start, text)
+		}
+		start = col
+	}
+	assertLegible(t, a, sc, "the actions with icons")
+}
+
+// TestADraftsIconStandsForItsWord: with the icons on, a draft merge request
+// has the draft icon before its title and its own "Draft:" is not drawn.
+func TestADraftsIconStandsForItsWord(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		a.mrs[0].Draft, a.mrs[0].Title = true, "Draft: Rate limiting"
+		a.mrsPane.reload()
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "draft Draft: Rate limiting")
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "auto: off - tests")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "on, as chosen")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "\uebd9 Rate limiting")
+	if strings.Contains(a.screenText(sc), "Draft:") {
+		t.Errorf("the title still says Draft:\n%s", a.screenText(sc))
+	}
+}

@@ -126,7 +126,17 @@ func (a *App) showActions(title string, actions []uiAction) {
 		if keys == "" {
 			keys = "·"
 		}
-		items[i] = pickItem{Label: fmt.Sprintf("%-*s", width, act.name), Sub: keys, About: act.about, Data: act}
+		label := fmt.Sprintf("%-*s", width, act.name)
+		// With icons, every row has the column, empty where an action has
+		// none, so the names stay in line.
+		if len(actionIcons) > 0 {
+			icon := " "
+			if ic := actionIcons[act.name]; ic != "" {
+				icon = ic
+			}
+			label = tag(colMuted) + esc(icon) + tagEnd + " " + esc(label)
+		}
+		items[i] = pickItem{Label: label, Sub: keys, About: act.about, Data: act}
 	}
 	opts := pickerOptions{pack: true, explain: true, filter: true}
 	if a.modalOpen() {

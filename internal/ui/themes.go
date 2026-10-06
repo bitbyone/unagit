@@ -145,6 +145,11 @@ type Theme struct {
 	Heat []string `json:"heat,omitempty"`
 
 	Glyphs Glyphs `json:"glyphs"`
+	// ActionIcons go before the actions in the action pickers, by the
+	// action's name, muted. They are Nerd Font icons and nothing else: drawn
+	// only where the terminal can, and an action without one keeps its place
+	// in the column.
+	ActionIcons map[string]string `json:"action_icons,omitempty"`
 	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
 	// Nerd Font (Settings › Theme): only the ones it names, the rest as
 	// Glyphs has them. A theme that wants an icon gives it here and a plain
@@ -205,12 +210,14 @@ type Glyphs struct {
 	// grouped one, Hidden a hidden repository, Favourite a starred one.
 	Worktree string `json:"worktree"`
 	Group    string `json:"group"`
-	// Repos follows the count of repositories in a worktree's row, and
+	// Repos follows the count of repositories in a worktree's row, Draft
+	// stands for the word before a draft merge request's title, and
 	// ForgeGitHub and ForgeGitLab go before a repository's name, saying its
 	// server. They are icons and nothing else: they have no plain character,
 	// so they are given under nerd_glyphs alone and drawn only where the
 	// terminal can.
 	Repos       string `json:"repos"`
+	Draft       string `json:"draft"`
 	ForgeGitHub string `json:"forge_github"`
 	ForgeGitLab string `json:"forge_gitlab"`
 	Hidden      string `json:"hidden"`
@@ -272,6 +279,10 @@ func readTheme(data []byte, base Theme) (Theme, error) {
 	t.Roles = map[string]string{}
 	for key, value := range base.Roles {
 		t.Roles[key] = value
+	}
+	t.ActionIcons = map[string]string{}
+	for name, icon := range base.ActionIcons {
+		t.ActionIcons[name] = icon
 	}
 	// A copy too: decoding into the base's own slice wrote every theme's
 	// heat over the one before it.
@@ -533,6 +544,11 @@ func (t Theme) validate() error {
 		}
 		if utf8.RuneCountInString(value) != 1 {
 			problems = append(problems, fmt.Sprintf("%s: %q is not one character", key, value))
+		}
+	}
+	for name, icon := range t.ActionIcons {
+		if utf8.RuneCountInString(icon) > 1 {
+			problems = append(problems, fmt.Sprintf("action_icons.%s: %q is not one character", name, icon))
 		}
 	}
 	if t.Glyphs.CIRunning == "" {
