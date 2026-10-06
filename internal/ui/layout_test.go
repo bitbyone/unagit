@@ -54,7 +54,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	if !strings.Contains(wide, "fix the footer") {
 		t.Errorf("the full title should fit at 160 columns:\n%s", wide)
 	}
-	if !strings.Contains(wide, "feature/MY2N-29747-wrap-r") {
+	if !strings.Contains(wide, "/MY2N-29747-wrap-rendered") {
 		t.Errorf("branch column missing at 160 columns:\n%s", wide)
 	}
 
@@ -64,7 +64,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	var narrow string
 	for time.Now().Before(deadline) {
 		narrow = a.screenText(sc)
-		if strings.Contains(narrow, "renovate/") && !strings.Contains(narrow, "fix the footer") {
+		if strings.Contains(narrow, "r/golang") && !strings.Contains(narrow, "fix the footer") {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -72,9 +72,9 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	if strings.Contains(narrow, "fix the footer") {
 		t.Errorf("the title was not truncated at 84 columns:\n%s", narrow)
 	}
-	// The column is narrower now that the comment count has its own, so only
-	// the start of the branch survives.
-	if !strings.Contains(narrow, "renovate/") {
+	// The column is narrower now that the comment count has its own, so the
+	// kind shrinks to a letter and the start of the name survives.
+	if !strings.Contains(narrow, "r/golang") {
 		t.Errorf("the branch column was pushed off the screen at 84 columns:\n%s", narrow)
 	}
 	for _, line := range strings.Split(narrow, "\n") {

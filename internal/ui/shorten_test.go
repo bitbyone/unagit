@@ -72,3 +72,36 @@ func TestShortenPath(t *testing.T) {
 		t.Errorf("short folders: %q, want %q", got, want)
 	}
 }
+
+// TestShortenBranch: the kind before the first slash gives way before the
+// name after it, and the name keeps its start, which it is looked for by.
+func TestShortenBranch(t *testing.T) {
+	t.Parallel()
+	branch := "feature/this-is-super-feature-long"
+	for n, want := range map[int]string{
+		40: branch,
+		34: branch,
+		33: "fea…re/this-is-super-feature-long",
+		32: "fe…re/this-is-super-feature-long",
+		31: "fe…re/this-is-super-featur…long",
+		24: "fe…re/this-is-super…long",
+		12: "f/this-i…ong",
+		9:  "f/this-i…",
+		0:  "",
+	} {
+		if got := shortenBranch(branch, n); got != want {
+			t.Errorf("shortenBranch(%d) = %q, want %q", n, got, want)
+		}
+	}
+	for n := 0; n <= 40; n++ {
+		if got := shortenBranch(branch, n); cells(got) > n {
+			t.Errorf("shortenBranch(%d) = %q is %d wide", n, got, cells(got))
+		}
+	}
+	if got := shortenBranch("fix/x-y", 6); got != "f/x-y" && cells(got) > 6 {
+		t.Errorf("a short kind: %q", got)
+	}
+	if got := shortenBranch("main-but-very-long-indeed", 12); got != "main-but…eed" {
+		t.Errorf("a branch without a kind keeps its start: %q", got)
+	}
+}

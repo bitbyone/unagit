@@ -226,8 +226,8 @@ type field struct {
 	// is cut to what they leave.
 	icon, after string
 	// shorten fits the text into its width when it is too long; without
-	// one the end is cut. A path is shortened by shortenRepo or
-	// shortenPath, which keep what tells it apart.
+	// one the end is cut. A path or a branch is shortened by shortenRepo,
+	// shortenPath or shortenBranch, which keep what tells it apart.
 	shorten func(string, int) string
 }
 
@@ -359,7 +359,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			ci, ciColour := ciMark(mr.Pipeline)
 			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
 		}
-		fields = append(fields, field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch")})
+		fields = append(fields, field{text: mr.SourceBranch, width: c.branch, colour: role("merge_requests.branch"), shorten: shortenBranch})
 		if c.fresh > 0 {
 			fields = append(fields, field{text: freshWords(a.mrFresh[keyOfMR(mr)]), width: c.fresh, colour: role("merge_requests.new"), right: true})
 		}

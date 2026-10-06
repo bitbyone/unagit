@@ -192,3 +192,57 @@ func pathGist(s string) int {
 	}
 	return cells(parts[0] + "/" + elided() + "/" + strings.Join(parts[len(parts)-2:], "/"))
 }
+
+// minBranchRest is the fewest cells the part of a branch after its kind is
+// cut to before the kind gives way further: enough to find it by.
+const minBranchRest = 8
+
+// shortenBranch fits a branch into n cells. A branch is mostly a kind and a
+// name, feature/this-is-super-feature-long, and the name is what it is
+// found by: the kind is cut in the middle first, then the name keeps its
+// start and a little of its end - fe…re/this-is-supe…long - and only then
+// does the kind shrink to its first letter.
+func shortenBranch(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if cells(s) <= n {
+		return s
+	}
+	kind, name, ok := strings.Cut(s, "/")
+	if !ok || kind == "" || name == "" {
+		return headCut(s, n)
+	}
+	least := min(minCut, cells(kind))
+	for k := cells(kind); k >= least; k-- {
+		if out := middleCut(kind, k) + "/" + name; cells(out) <= n {
+			return out
+		}
+	}
+	short := middleCut(kind, least)
+	if room := n - cells(short) - 1; room >= minBranchRest {
+		return short + "/" + headCut(name, room)
+	}
+	if n >= 3 {
+		return string([]rune(kind)[:1]) + "/" + headCut(name, n-2)
+	}
+	return headCut(name, n)
+}
+
+// headCut shortens s to n cells keeping most of its start, where a name is
+// read from, and a few cells of its end, which tell its neighbours apart -
+// when there are ten cells or more: in fewer, the start is worth more.
+func headCut(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n <= 1 {
+		return middleCut(s, n)
+	}
+	tail := 0
+	if n >= 10 {
+		tail = min(4, (n-1)/3)
+	}
+	return string(r[:n-1-tail]) + "…" + string(r[len(r)-tail:])
+}

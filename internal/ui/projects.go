@@ -354,7 +354,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{raw: tags})
 		}
 		words, wordsColour := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
-		fields = append(fields, field{text: branch, width: branchW, colour: branchColour})
+		fields = append(fields, field{text: branch, width: branchW, colour: branchColour, shorten: shortenBranch})
 		if ciW > 0 {
 			ci, ciColour := ciMark(a.repositoryCI(pr))
 			fields = append(fields, field{text: ci, width: ciW, colour: ciColour})

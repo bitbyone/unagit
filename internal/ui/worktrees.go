@@ -520,7 +520,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		cells = append(cells,
 			field{icon: a.worktreeIcon(r), text: r.Path, width: repoW, colour: role("worktrees.repository"), shorten: shortenRepo},
 			field{text: count, after: glyphRepos, width: reposW, colour: countColour, right: true},
-			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour})
+			field{text: a.worktreeBranch(r), width: branchW, colour: branchColour, shorten: shortenBranch})
 		if ciW > 0 {
 			ci, ciColour := ciMark(a.worktreeCI(r))
 			cells = append(cells, field{text: ci, width: ciW, colour: ciColour})

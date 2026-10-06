@@ -254,8 +254,9 @@ may be left out - and it shares the room: minimums first, then the ideals,
 then the rest, a cell at a time to the narrowest column for its weight. No
 list keeps an order of its own for what shrinks, and there are no width
 breakpoints; a new column is a `listColumn`, not a constant in a sum. A
-repository or a directory too long for its width is shortened by what
-tells it apart (`shortenRepo`, `shortenPath`), never cut at its end. The
+repository, a directory or a branch too long for its width is shortened by
+what tells it apart (`shortenRepo`, `shortenPath`, `shortenBranch`), never
+cut at its end. The
 title alone has a measure (`titleMeasure`), for reading, not for fit.
 
 **Refresh fans out** over groups (and, on GitHub, over repositories) with a
