@@ -88,13 +88,27 @@ func (m *Manager) prepareMR(mr forge.MergeRequest, project forge.Project) (strin
 }
 
 // resolveBase picks the commit the merge request should be diffed against:
-// GitLab's own base when we have it, the local merge base otherwise.
-func (m *Manager) resolveBase(mainDir string, mr forge.MergeRequest, rev Review, head string) string {
+// GitLab's own base when we have it - fetched by itself when the clone lacks
+// it - and the local merge base otherwise. A target branch deleted on origin
+// (merged into another one, say) leaves no merge base to work out; the
+// repository's default branch then stands in for it, and the log says so,
+// since the diff is not quite the one the forge shows.
+func (m *Manager) resolveBase(mainDir string, mr forge.MergeRequest, project forge.Project, rev Review, head string) string {
 	if m.git.CommitExists(mainDir, rev.BaseSHA) {
+		return rev.BaseSHA
+	}
+	if rev.BaseSHA != "" && m.git.FetchRefspec(mainDir, rev.BaseSHA) == nil && m.git.CommitExists(mainDir, rev.BaseSHA) {
 		return rev.BaseSHA
 	}
 	if mr.TargetBranch != "" {
 		if base, err := m.git.MergeBase(mainDir, "origin/"+mr.TargetBranch, head); err == nil && base != "" {
+			return base
+		}
+	}
+	if def := project.DefaultBranch; def != "" && def != mr.TargetBranch {
+		_ = m.git.FetchRefspec(mainDir, def)
+		if base, err := m.git.MergeBase(mainDir, "origin/"+def, head); err == nil && base != "" {
+			m.log("! %s is not on origin; the diff is against %s instead", mr.TargetBranch, def)
 			return base
 		}
 	}
@@ -115,7 +129,7 @@ func (m *Manager) EnsureMRReview(mr forge.MergeRequest, project forge.Project, r
 	if m.git.CommitExists(mainDir, rev.HeadSHA) {
 		head = rev.HeadSHA
 	}
-	base := m.resolveBase(mainDir, mr, rev, head)
+	base := m.resolveBase(mainDir, mr, project, rev, head)
 	if base == "" {
 		return "", fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
 	}
@@ -219,7 +233,7 @@ func (m *Manager) MRCommits(mr forge.MergeRequest, project forge.Project, rev Re
 	if m.git.CommitExists(mainDir, rev.HeadSHA) {
 		head = rev.HeadSHA
 	}
-	base := m.resolveBase(mainDir, mr, rev, head)
+	base := m.resolveBase(mainDir, mr, project, rev, head)
 	if base == "" {
 		return nil, fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
 	}
@@ -265,7 +279,7 @@ func (m *Manager) MarkUnseen(mr forge.MergeRequest, project forge.Project, rev R
 		if m.git.CommitExists(mainDir, rev.HeadSHA) {
 			head = rev.HeadSHA
 		}
-		if base = m.resolveBase(mainDir, mr, rev, head); base == "" {
+		if base = m.resolveBase(mainDir, mr, project, rev, head); base == "" {
 			return fmt.Errorf("cannot work out what !%d branched from - is %s on origin?", mr.IID, mr.TargetBranch)
 		}
 	}

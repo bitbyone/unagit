@@ -295,6 +295,24 @@ func TestReviewFallsBackToTheLocalMergeBase(t *testing.T) {
 	}
 }
 
+// TestReviewOfAMergeRequestWhoseTargetIsGone: a target branch deleted on
+// origin leaves no merge base to work out; the default branch stands in.
+func TestReviewOfAMergeRequestWhoseTargetIsGone(t *testing.T) {
+	t.Parallel()
+	origin, base, _ := newDivergedOrigin(t)
+	m, p := newReviewManager(t, origin)
+	mr := reviewMR()
+	mr.TargetBranch = "feature/merged-and-deleted"
+
+	dir, err := m.EnsureMRReview(mr, p, Review{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, dir, "rev-parse", "HEAD"); got != base {
+		t.Errorf("HEAD = %s, want the merge base with main %s", got, base)
+	}
+}
+
 // TestRemoveMRRemovesBothWorktrees
 func TestRemoveMRRemovesBothWorktrees(t *testing.T) {
 	t.Parallel()
