@@ -1,0 +1,69 @@
+{
+  "name": "nightfly",
+  "description": "Nightfly: deep sea blue, after bluz71's theme",
+  "background": "#011627",
+  "text": {
+    "normal": "#bdc1c6",
+    "muted": "#acb4c2",
+    "dim": "#7c8f8f",
+    "accent": "#82aaff",
+    "branch": "#c792ea",
+    "key": "#f78c6c"
+  },
+  "state": {
+    "good": "#a1cd5e",
+    "warning": "#e3d18a",
+    "bad": "#fc514e",
+    "force": "#ff5874",
+    "favourite": "#e3d18a"
+  },
+  "border": {
+    "normal": "#2c3043",
+    "focus": "#82aaff",
+    "title": "#7fdbca"
+  },
+  "tabs": {
+    "active": "#82aaff",
+    "inactive": "#7c8f8f",
+    "separator": "#1d3b53"
+  },
+  "surface": {
+    "field": "#092236",
+    "raised": "#1d3b53",
+    "field_focus": "#0e293f",
+    "field_typing": "#1d3b53"
+  },
+  "selection": {
+    "background": "#1d3b53",
+    "text": "#d6deeb",
+    "marked": "#0f3a35",
+    "marked_cursor": "#164b44"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#2c3043"
+  },
+  "markdown": {
+    "text": "#bdc1c6",
+    "heading": "#82aaff",
+    "code": "#f78c6c",
+    "quote": "#acb4c2",
+    "link": "#7fdbca",
+    "muted": "#7c8f8f"
+  },
+  "chezmoi": {
+    "badge_ink": "#011627",
+    "badge_fill": "#4b6479",
+    "heading_ink": "#011627",
+    "heading_fill": "#e3d18a"
+  },
+  "colours": {
+    "ci.running": "#7fdbca",
+    "starred.stars": "#e3d18a",
+    "column.branch": "#7fdbca",
+    "column.mr": "#82aaff",
+    "column.wt": "#f78c6c",
+    "column.age": "#7c8f8f"
+  },
+  "heat": ["#3e6a9a", "#a0444a"]
+}

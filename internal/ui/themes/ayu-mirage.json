@@ -1,0 +1,69 @@
+{
+  "name": "ayu-mirage",
+  "description": "Ayu Mirage: warm gold and sky on slate",
+  "background": "#1f2430",
+  "text": {
+    "normal": "#cccac2",
+    "muted": "#a6a8a6",
+    "dim": "#707a8c",
+    "accent": "#73d0ff",
+    "branch": "#dfbfff",
+    "key": "#ffad66"
+  },
+  "state": {
+    "good": "#87d96c",
+    "warning": "#ffcc66",
+    "bad": "#ff6666",
+    "force": "#f28779",
+    "favourite": "#ffcc66"
+  },
+  "border": {
+    "normal": "#3a4152",
+    "focus": "#ffcc66",
+    "title": "#5ccfe6"
+  },
+  "tabs": {
+    "active": "#ffcc66",
+    "inactive": "#707a8c",
+    "separator": "#2a3040"
+  },
+  "surface": {
+    "field": "#1c212b",
+    "raised": "#2a3040",
+    "field_focus": "#253348",
+    "field_typing": "#2c3e5a"
+  },
+  "selection": {
+    "background": "#33415e",
+    "text": "#e6e4dd",
+    "marked": "#253a2c",
+    "marked_cursor": "#2f4b38"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#3a4152"
+  },
+  "markdown": {
+    "text": "#cccac2",
+    "heading": "#ffcc66",
+    "code": "#ffad66",
+    "quote": "#a6a8a6",
+    "link": "#73d0ff",
+    "muted": "#707a8c"
+  },
+  "chezmoi": {
+    "badge_ink": "#1f2430",
+    "badge_fill": "#707a8c",
+    "heading_ink": "#1f2430",
+    "heading_fill": "#ffcc66"
+  },
+  "colours": {
+    "ci.running": "#73d0ff",
+    "starred.stars": "#ffcc66",
+    "column.branch": "#5ccfe6",
+    "column.mr": "#73d0ff",
+    "column.wt": "#ffad66",
+    "column.age": "#707a8c"
+  },
+  "heat": ["#4a7a99", "#a05050"]
+}

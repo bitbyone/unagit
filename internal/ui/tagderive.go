@@ -28,8 +28,14 @@ var tagHues = map[string]tagHue{
 }
 
 // tagContrast is how far apart a pill's ink and fill must be, as WCAG
-// counts it: what body text needs.
-const tagContrast = 4.5
+// counts it: a little short of what body text needs, so a pill reads
+// without standing out of the background - a tag is a word, not a line.
+const tagContrast = 4.0
+
+// tagQuiet is how much a pill's ink is held back from the theme's own
+// accents: its colour and its distance from the fill both go by this
+// much, so the pills sit in the background rather than on it.
+const tagQuiet = 0.9
 
 // deriveTags works out every tag colour for a theme with a background of
 // its own.
@@ -59,7 +65,8 @@ func deriveTags(t Theme) map[string]TagInk {
 	if !dark {
 		fillL, fillC, inkL = bg.l-0.07, clamp(meanC*0.35, 0.03, 0.07), min(meanL, bg.l-0.45)
 	}
-	inkC := clamp(meanC*0.75, 0.05, 0.14)
+	inkL = fillL + (inkL-fillL)*tagQuiet
+	inkC := clamp(meanC*0.75*tagQuiet, 0.045, 0.13)
 
 	out := make(map[string]TagInk, len(tagHues))
 	for name, h := range tagHues {

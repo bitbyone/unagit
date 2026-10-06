@@ -142,10 +142,15 @@ func (s *settingsView) fillThemes() {
 // themeSwatch shows a theme by its colours, each a block in the theme's own
 // colour: its background, text, accent, the three states, its border and its
 // selection band. onBand is for the row under the cursor, whose band shows
-// through: a block of the band's own colour would vanish into it, so there it
-// is a shaded block in the text's colour - the band itself is that colour.
+// through. A block of the colour it is drawn on - the band, or the screen of
+// the theme on, which another theme can share - would vanish into it, so
+// there it is a shaded block in the text's colour: what is under it is that
+// colour.
 func themeSwatch(t Theme, onBand bool) string {
-	_, band, _ := styleSelected.Decompose()
+	_, under, _ := styleSelected.Decompose()
+	if !onBand {
+		under = colBackground
+	}
 	var b strings.Builder
 	for _, c := range []string{t.Background, t.Text.Normal, t.Text.Muted, t.Text.Accent,
 		t.State.Good, t.State.Warning, t.State.Bad, t.Border.Normal, t.Selection.Background} {
@@ -154,7 +159,7 @@ func themeSwatch(t Theme, onBand bool) string {
 		case col == tcell.ColorDefault:
 			// The terminal's own background has no colour to show.
 			b.WriteString(tag(colDim) + "░░" + tagEnd)
-		case onBand && col.Hex() == band.Hex():
+		case under != tcell.ColorDefault && col.Hex() == under.Hex():
 			b.WriteString(tag(colText) + "░░" + tagEnd)
 		default:
 			b.WriteString(tag(col) + "██" + tagEnd)

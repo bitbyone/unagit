@@ -1,0 +1,69 @@
+{
+  "name": "tokyonight-day",
+  "description": "Tokyo Night Day: the light Tokyo Night, blue ink on pale grey",
+  "background": "#e1e2e7",
+  "text": {
+    "normal": "#3760bf",
+    "muted": "#6172b0",
+    "dim": "#848cb5",
+    "accent": "#2e7de9",
+    "branch": "#9854f1",
+    "key": "#b15c00"
+  },
+  "state": {
+    "good": "#587539",
+    "warning": "#8c6c3e",
+    "bad": "#f52a65",
+    "force": "#c64343",
+    "favourite": "#8c6c3e"
+  },
+  "border": {
+    "normal": "#b4b5b9",
+    "focus": "#2e7de9",
+    "title": "#007197"
+  },
+  "tabs": {
+    "active": "#2e7de9",
+    "inactive": "#6172b0",
+    "separator": "#c4c8da"
+  },
+  "surface": {
+    "field": "#d0d5e3",
+    "raised": "#c4c8da",
+    "field_focus": "#cfd8f0",
+    "field_typing": "#b7c1e3"
+  },
+  "selection": {
+    "background": "#b7c1e3",
+    "text": "#3760bf",
+    "marked": "#cfe3d4",
+    "marked_cursor": "#bad6c2"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#848cb5"
+  },
+  "markdown": {
+    "text": "#3760bf",
+    "heading": "#2e7de9",
+    "code": "#b15c00",
+    "quote": "#6172b0",
+    "link": "#007197",
+    "muted": "#848cb5"
+  },
+  "chezmoi": {
+    "badge_ink": "#e1e2e7",
+    "badge_fill": "#6172b0",
+    "heading_ink": "#e1e2e7",
+    "heading_fill": "#8c6c3e"
+  },
+  "colours": {
+    "ci.running": "#007197",
+    "starred.stars": "#8c6c3e",
+    "column.branch": "#007197",
+    "column.mr": "#2e7de9",
+    "column.wt": "#b15c00",
+    "column.age": "#848cb5"
+  },
+  "heat": ["#7fa6e6", "#e88aa4"]
+}

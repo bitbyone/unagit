@@ -591,21 +591,25 @@ under `action_icons` by the action's name. They are drawn, never copied:
 `y` and `/` see the name alone.
 
 unagit comes with **unagit**, the muted default, which keeps the terminal's
-own background so it sits quietly beside an editor, and seventeen that
+own background so it sits quietly beside an editor, and twenty-eight that
 paint a background of their own: **retro-block**, after the
 [Retro Block](https://github.com/bitbyone/retro-block-theme) IntelliJ
-theme, and the popular editor colour schemes - dark **carbonfox**,
-**catppuccin-mocha**, **dracula**, **everforest-dark**, **gruvbox-dark**,
-**kanagawa-wave**, **monokai-pro**, **nord**, **onedark**, **rose-pine**,
-**solarized-dark** and **tokyonight-night**; light **catppuccin-latte**,
-**github-light**, **gruvbox-light**, **rose-pine-dawn** and
-**solarized-light**.
+theme, and the popular editor colour schemes - dark **ayu-mirage**,
+**carbonfox**, **catppuccin-mocha**, **cyberdream**, **dracula**,
+**everforest-dark**, **github-dark-dimmed**, **gruvbox-dark**,
+**gruvbox-material-dark**, **kanagawa-dragon**, **kanagawa-wave**,
+**monokai-pro**, **moonfly**, **nightfly**, **nord**, **onedark**,
+**rose-pine**, **solarized-dark**, **sonokai** and **tokyonight-night**;
+light **catppuccin-latte**, **everforest-light**, **github-light**,
+**gruvbox-light**, **rose-pine-dawn**, **solarized-light** and
+**tokyonight-day**.
 
 A theme with a background of its own does not have to colour the tags'
 pills: those it leaves out under `tags` are worked out of its colours -
 the fill a step off its background and tinted by it, the ink as
-colourful and as light as its accents, and far enough apart to read
-(4.5:1) - so all sixteen look alike in weight and belong to the theme.
+colourful and as light as its accents, held back a little so the pills sit
+in the background rather than on it, and far enough apart to read (4:1) -
+so all sixteen look alike in weight and belong to the theme.
 
 To tune one, `f` forks it: the theme under the cursor is written to
 `~/.config/unagit/themes/<name>.json` with every colour and glyph spelled

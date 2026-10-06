@@ -1,0 +1,69 @@
+{
+  "name": "gruvbox-material-dark",
+  "description": "Gruvbox Material: gruvbox's warmth, softened, after sainnhe",
+  "background": "#282828",
+  "text": {
+    "normal": "#d4be98",
+    "muted": "#a89984",
+    "dim": "#7c6f64",
+    "accent": "#7daea3",
+    "branch": "#89b482",
+    "key": "#e78a4e"
+  },
+  "state": {
+    "good": "#a9b665",
+    "warning": "#d8a657",
+    "bad": "#ea6962",
+    "force": "#e78a4e",
+    "favourite": "#d8a657"
+  },
+  "border": {
+    "normal": "#5a524c",
+    "focus": "#7daea3",
+    "title": "#d3869b"
+  },
+  "tabs": {
+    "active": "#d8a657",
+    "inactive": "#928374",
+    "separator": "#3c3836"
+  },
+  "surface": {
+    "field": "#32302f",
+    "raised": "#45403d",
+    "field_focus": "#2f3a3a",
+    "field_typing": "#374141"
+  },
+  "selection": {
+    "background": "#45403d",
+    "text": "#d4be98",
+    "marked": "#333e34",
+    "marked_cursor": "#3f4c3f"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#5a524c"
+  },
+  "markdown": {
+    "text": "#d4be98",
+    "heading": "#d8a657",
+    "code": "#e78a4e",
+    "quote": "#a89984",
+    "link": "#7daea3",
+    "muted": "#928374"
+  },
+  "chezmoi": {
+    "badge_ink": "#282828",
+    "badge_fill": "#928374",
+    "heading_ink": "#282828",
+    "heading_fill": "#d8a657"
+  },
+  "colours": {
+    "ci.running": "#7daea3",
+    "starred.stars": "#d8a657",
+    "column.branch": "#89b482",
+    "column.mr": "#7daea3",
+    "column.wt": "#e78a4e",
+    "column.age": "#928374"
+  },
+  "heat": ["#4f6b67", "#9a524e"]
+}

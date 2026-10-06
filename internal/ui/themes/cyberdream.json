@@ -1,0 +1,69 @@
+{
+  "name": "cyberdream",
+  "description": "Cyberdream: neon on near-black, futuristic and loud",
+  "background": "#16181a",
+  "text": {
+    "normal": "#ffffff",
+    "muted": "#b0b6c2",
+    "dim": "#7b8496",
+    "accent": "#5ea1ff",
+    "branch": "#bd5eff",
+    "key": "#ffbd5e"
+  },
+  "state": {
+    "good": "#5eff6c",
+    "warning": "#f1ff5e",
+    "bad": "#ff6e5e",
+    "force": "#ff5ea0",
+    "favourite": "#ffbd5e"
+  },
+  "border": {
+    "normal": "#3c4048",
+    "focus": "#5ef1ff",
+    "title": "#5ea1ff"
+  },
+  "tabs": {
+    "active": "#5ef1ff",
+    "inactive": "#7b8496",
+    "separator": "#1e2124"
+  },
+  "surface": {
+    "field": "#1e2124",
+    "raised": "#3c4048",
+    "field_focus": "#1c2a3d",
+    "field_typing": "#21365a"
+  },
+  "selection": {
+    "background": "#3c4048",
+    "text": "#ffffff",
+    "marked": "#183a22",
+    "marked_cursor": "#1f4d2c"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#3c4048"
+  },
+  "markdown": {
+    "text": "#ffffff",
+    "heading": "#5ea1ff",
+    "code": "#ffbd5e",
+    "quote": "#b0b6c2",
+    "link": "#5ef1ff",
+    "muted": "#7b8496"
+  },
+  "chezmoi": {
+    "badge_ink": "#16181a",
+    "badge_fill": "#7b8496",
+    "heading_ink": "#16181a",
+    "heading_fill": "#f1ff5e"
+  },
+  "colours": {
+    "ci.running": "#5ef1ff",
+    "starred.stars": "#ffbd5e",
+    "column.branch": "#5ef1ff",
+    "column.mr": "#5ea1ff",
+    "column.wt": "#ffbd5e",
+    "column.age": "#7b8496"
+  },
+  "heat": ["#3a6bb0", "#b0405a"]
+}

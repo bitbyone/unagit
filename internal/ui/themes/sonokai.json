@@ -1,0 +1,69 @@
+{
+  "name": "sonokai",
+  "description": "Sonokai: Monokai's colours, calmer, on blue-grey",
+  "background": "#2c2e34",
+  "text": {
+    "normal": "#e2e2e3",
+    "muted": "#a7aab0",
+    "dim": "#7f8490",
+    "accent": "#76cce0",
+    "branch": "#b39df3",
+    "key": "#f39660"
+  },
+  "state": {
+    "good": "#9ed072",
+    "warning": "#e7c664",
+    "bad": "#fc5d7c",
+    "force": "#f39660",
+    "favourite": "#e7c664"
+  },
+  "border": {
+    "normal": "#595f6f",
+    "focus": "#76cce0",
+    "title": "#b39df3"
+  },
+  "tabs": {
+    "active": "#76cce0",
+    "inactive": "#7f8490",
+    "separator": "#3b3e48"
+  },
+  "surface": {
+    "field": "#33353f",
+    "raised": "#3b3e48",
+    "field_focus": "#2c3a45",
+    "field_typing": "#354b58"
+  },
+  "selection": {
+    "background": "#414550",
+    "text": "#e2e2e3",
+    "marked": "#33402f",
+    "marked_cursor": "#3f523a"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#595f6f"
+  },
+  "markdown": {
+    "text": "#e2e2e3",
+    "heading": "#76cce0",
+    "code": "#f39660",
+    "quote": "#a7aab0",
+    "link": "#76cce0",
+    "muted": "#7f8490"
+  },
+  "chezmoi": {
+    "badge_ink": "#2c2e34",
+    "badge_fill": "#7f8490",
+    "heading_ink": "#2c2e34",
+    "heading_fill": "#e7c664"
+  },
+  "colours": {
+    "ci.running": "#76cce0",
+    "starred.stars": "#e7c664",
+    "column.branch": "#76cce0",
+    "column.mr": "#b39df3",
+    "column.wt": "#f39660",
+    "column.age": "#7f8490"
+  },
+  "heat": ["#4e7f8c", "#a04c60"]
+}

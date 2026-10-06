@@ -1,0 +1,69 @@
+{
+  "name": "everforest-light",
+  "description": "Everforest Light: the forest colours on warm paper",
+  "background": "#fdf6e3",
+  "text": {
+    "normal": "#5c6a72",
+    "muted": "#829181",
+    "dim": "#a6b0a0",
+    "accent": "#3a94c5",
+    "branch": "#df69ba",
+    "key": "#f57d26"
+  },
+  "state": {
+    "good": "#8da101",
+    "warning": "#dfa000",
+    "bad": "#f85552",
+    "force": "#f57d26",
+    "favourite": "#dfa000"
+  },
+  "border": {
+    "normal": "#bdc3af",
+    "focus": "#3a94c5",
+    "title": "#35a77c"
+  },
+  "tabs": {
+    "active": "#8da101",
+    "inactive": "#829181",
+    "separator": "#e6e2cc"
+  },
+  "surface": {
+    "field": "#f4f0d9",
+    "raised": "#e6e2cc",
+    "field_focus": "#e6eef0",
+    "field_typing": "#d8e6ea"
+  },
+  "selection": {
+    "background": "#e6e2cc",
+    "text": "#5c6a72",
+    "marked": "#eaedc8",
+    "marked_cursor": "#dce3b4"
+  },
+  "backdrop": {
+    "dim": 0.8,
+    "text": "#a6b0a0"
+  },
+  "markdown": {
+    "text": "#5c6a72",
+    "heading": "#3a94c5",
+    "code": "#f57d26",
+    "quote": "#829181",
+    "link": "#35a77c",
+    "muted": "#a6b0a0"
+  },
+  "chezmoi": {
+    "badge_ink": "#fdf6e3",
+    "badge_fill": "#829181",
+    "heading_ink": "#fdf6e3",
+    "heading_fill": "#dfa000"
+  },
+  "colours": {
+    "ci.running": "#35a77c",
+    "starred.stars": "#dfa000",
+    "column.branch": "#35a77c",
+    "column.mr": "#3a94c5",
+    "column.wt": "#f57d26",
+    "column.age": "#a6b0a0"
+  },
+  "heat": ["#9cc2d6", "#f0a8a0"]
+}

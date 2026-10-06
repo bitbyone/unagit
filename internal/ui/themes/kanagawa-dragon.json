@@ -1,0 +1,69 @@
+{
+  "name": "kanagawa-dragon",
+  "description": "Kanagawa Dragon: the ink colours, darker and earthier",
+  "background": "#181616",
+  "text": {
+    "normal": "#c5c9c5",
+    "muted": "#a6a69c",
+    "dim": "#737c73",
+    "accent": "#8ba4b0",
+    "branch": "#8992a7",
+    "key": "#b6927b"
+  },
+  "state": {
+    "good": "#87a987",
+    "warning": "#c4b28a",
+    "bad": "#c4746e",
+    "force": "#e46876",
+    "favourite": "#c4b28a"
+  },
+  "border": {
+    "normal": "#393836",
+    "focus": "#8ba4b0",
+    "title": "#949fb5"
+  },
+  "tabs": {
+    "active": "#c4b28a",
+    "inactive": "#7a8382",
+    "separator": "#282727"
+  },
+  "surface": {
+    "field": "#201d1d",
+    "raised": "#282727",
+    "field_focus": "#223249",
+    "field_typing": "#2d4f67"
+  },
+  "selection": {
+    "background": "#2d4f67",
+    "text": "#c5c9c5",
+    "marked": "#26302a",
+    "marked_cursor": "#323e35"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#393836"
+  },
+  "markdown": {
+    "text": "#c5c9c5",
+    "heading": "#8ba4b0",
+    "code": "#b6927b",
+    "quote": "#a6a69c",
+    "link": "#8ea4a2",
+    "muted": "#737c73"
+  },
+  "chezmoi": {
+    "badge_ink": "#181616",
+    "badge_fill": "#737c73",
+    "heading_ink": "#181616",
+    "heading_fill": "#c4b28a"
+  },
+  "colours": {
+    "ci.running": "#8ea4a2",
+    "starred.stars": "#c4b28a",
+    "column.branch": "#8ea4a2",
+    "column.mr": "#8ba4b0",
+    "column.wt": "#b6927b",
+    "column.age": "#9e9b93"
+  },
+  "heat": ["#4f6a76", "#8a4f4c"]
+}

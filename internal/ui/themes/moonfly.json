@@ -1,0 +1,69 @@
+{
+  "name": "moonfly",
+  "description": "Moonfly: bright colours on pure dark, after bluz71's theme",
+  "background": "#080808",
+  "text": {
+    "normal": "#bdbdbd",
+    "muted": "#949494",
+    "dim": "#808080",
+    "accent": "#80a0ff",
+    "branch": "#ae81ff",
+    "key": "#de935f"
+  },
+  "state": {
+    "good": "#8cc85f",
+    "warning": "#e3c78a",
+    "bad": "#ff5454",
+    "force": "#ff5189",
+    "favourite": "#e3c78a"
+  },
+  "border": {
+    "normal": "#323437",
+    "focus": "#80a0ff",
+    "title": "#79dac8"
+  },
+  "tabs": {
+    "active": "#80a0ff",
+    "inactive": "#808080",
+    "separator": "#262626"
+  },
+  "surface": {
+    "field": "#1c1c1c",
+    "raised": "#262626",
+    "field_focus": "#16203a",
+    "field_typing": "#1d2b52"
+  },
+  "selection": {
+    "background": "#303030",
+    "text": "#eeeeee",
+    "marked": "#16301a",
+    "marked_cursor": "#1d4024"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#323437"
+  },
+  "markdown": {
+    "text": "#bdbdbd",
+    "heading": "#80a0ff",
+    "code": "#de935f",
+    "quote": "#949494",
+    "link": "#79dac8",
+    "muted": "#808080"
+  },
+  "chezmoi": {
+    "badge_ink": "#080808",
+    "badge_fill": "#808080",
+    "heading_ink": "#080808",
+    "heading_fill": "#e3c78a"
+  },
+  "colours": {
+    "ci.running": "#79dac8",
+    "starred.stars": "#e3c78a",
+    "column.branch": "#79dac8",
+    "column.mr": "#80a0ff",
+    "column.wt": "#de935f",
+    "column.age": "#808080"
+  },
+  "heat": ["#4a64a8", "#a83a3a"]
+}

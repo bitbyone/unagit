@@ -1,0 +1,69 @@
+{
+  "name": "github-dark-dimmed",
+  "description": "GitHub Dark Dimmed: GitHub's soft dark, as on github.com",
+  "background": "#22272e",
+  "text": {
+    "normal": "#adbac7",
+    "muted": "#909dab",
+    "dim": "#768390",
+    "accent": "#539bf5",
+    "branch": "#dcbdfb",
+    "key": "#f69d50"
+  },
+  "state": {
+    "good": "#57ab5a",
+    "warning": "#c69026",
+    "bad": "#e5534b",
+    "force": "#cc6b2c",
+    "favourite": "#daaa3f"
+  },
+  "border": {
+    "normal": "#444c56",
+    "focus": "#539bf5",
+    "title": "#6cb6ff"
+  },
+  "tabs": {
+    "active": "#539bf5",
+    "inactive": "#768390",
+    "separator": "#373e47"
+  },
+  "surface": {
+    "field": "#2d333b",
+    "raised": "#373e47",
+    "field_focus": "#253447",
+    "field_typing": "#28405e"
+  },
+  "selection": {
+    "background": "#373e47",
+    "text": "#cdd9e5",
+    "marked": "#253a2c",
+    "marked_cursor": "#2c4a35"
+  },
+  "backdrop": {
+    "dim": 0.42,
+    "text": "#444c56"
+  },
+  "markdown": {
+    "text": "#adbac7",
+    "heading": "#539bf5",
+    "code": "#f69d50",
+    "quote": "#909dab",
+    "link": "#6cb6ff",
+    "muted": "#768390"
+  },
+  "chezmoi": {
+    "badge_ink": "#22272e",
+    "badge_fill": "#768390",
+    "heading_ink": "#22272e",
+    "heading_fill": "#daaa3f"
+  },
+  "colours": {
+    "ci.running": "#6cb6ff",
+    "starred.stars": "#daaa3f",
+    "column.branch": "#6cb6ff",
+    "column.mr": "#539bf5",
+    "column.wt": "#f69d50",
+    "column.age": "#768390"
+  },
+  "heat": ["#3f6aa8", "#a04440"]
+}
