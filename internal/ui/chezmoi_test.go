@@ -166,6 +166,52 @@ func TestChezmoiBadgeNarrows(t *testing.T) {
 	}
 }
 
+// TestChezmoiBadgeGivesWayToTags: in a tight column the badge shortens so
+// every tag still fits beside it, and only at its shortest are tags counted
+// away; the detail names them all.
+func TestChezmoiBadgeGivesWayToTags(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newChezmoiApp(t)
+	inst := onLoop(a, func() string { return a.projects[0].Instance })
+	changeOnLoop(a, func() {
+		a.cfg.ToggleTag(inst, "acme/gateway", "oss")
+		a.cfg.ToggleTag(inst, "acme/gateway", "work")
+		a.applyFilters()
+	})
+	field := func(width int) string {
+		return onLoop(a, func() string {
+			markup, _ := a.tagsField([]string{"oss", "work"}, width, false, true, nil)
+			return stripTags(markup)
+		})
+	}
+	full := onLoop(a, func() int { _, w := chezmoiBadge(100, a.cfg.Ends(), behindList); return w })
+	short := onLoop(a, func() int { _, w := chezmoiBadge(full-1, a.cfg.Ends(), behindList); return w })
+	tags := onLoop(a, func() int { _, w := a.pills([]string{"oss", "work"}, 100, behindList); return w })
+
+	if got := field(full + 1 + tags); !strings.Contains(got, "Managed by Chezmoi") || !strings.Contains(got, "work") {
+		t.Errorf("with room for everything: %q", got)
+	}
+	if got := field(short + 1 + tags); strings.Contains(got, "Managed") || !strings.Contains(got, "Chezmoi") ||
+		!strings.Contains(got, "oss") || !strings.Contains(got, "work") || strings.Contains(got, "+") {
+		t.Errorf("the badge did not shorten for the tags: %q", got)
+	}
+	if got := field(12); strings.Contains(got, "Chezmoi") || !strings.Contains(got, "+") {
+		t.Errorf("at its shortest the badge should be the glyph and the tags counted: %q", got)
+	}
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Checkout")
+	screen := a.screenText(sc)
+	lines := strings.Split(screen, "\n")
+	found := false
+	for _, line := range lines[max(0, lineOf(screen, "Checkout")-4):lineOf(screen, "Checkout")] {
+		found = found || strings.Contains(line, "oss") && strings.Contains(line, "work")
+	}
+	if !found {
+		t.Errorf("the detail does not name every tag above the badge:\n%s", screen)
+	}
+}
+
 func stripTags(markup string) string {
 	var b strings.Builder
 	in := false

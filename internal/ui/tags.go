@@ -2,13 +2,14 @@ package ui
 
 import (
 	"fmt"
-	"github.com/tobola/unagit/internal/forge"
+	"math"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // tagColour is one colour of the palette tags choose from: a deep fill and
@@ -143,12 +144,30 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool, starred 
 		}
 		return "", 0
 	}
-	badge, bw := badgeOn(width, behind)
-	room := width
-	if bw > 0 {
-		room -= bw + 1
+	roomBeside := func(bw int) int {
+		if bw > 0 {
+			return width - bw - 1
+		}
+		return width
 	}
-	markup, w := a.pills(tags, room, behind)
+	// The badge gives way to the tags: it shortens, step by step, until
+	// every tag fits beside it, and only at its shortest are tags counted
+	// away.
+	badge, bw := badgeOn(width, behind)
+	markup, w := a.pills(tags, roomBeside(bw), behind)
+	if _, all := a.pills(tags, math.MaxInt, behind); w < all {
+		for bw > 1 {
+			shorter, sw := badgeOn(bw-1, behind)
+			if sw == 0 {
+				break
+			}
+			badge, bw = shorter, sw
+			if markup, w = a.pills(tags, roomBeside(bw), behind); w == all {
+				break
+			}
+		}
+	}
+	room := roomBeside(bw)
 	var kept keptMarkup
 	if w > 0 {
 		kept.markup, kept.width = a.pills(tags, room, band)
@@ -161,7 +180,7 @@ func (a *App) tagsField(tags []string, width int, marked, managed bool, starred 
 		if w > 0 {
 			gap, w = " ", w+1
 		}
-		banded, _ := badgeOn(width, band)
+		banded, _ := badgeOn(bw, band)
 		markup = badge + gap + markup
 		kept.markup, kept.width = banded+gap+kept.markup, bw+w
 		if marked {
@@ -522,4 +541,13 @@ func (s *settingsView) cycleTagEnds() {
 	a.applyFilters()
 	s.fillTags()
 	a.note("Tags end " + tagEndsLabel(a.cfg.Ends()))
+}
+
+// tagsLine puts every tag of a repository under its name in the detail,
+// where there is room for the ones the list had to count away.
+func (a *App) tagsLine(d *detailBuf, pr forge.Project) {
+	tags := a.cfg.TagsOf(pr.Instance, pr.PathWithNamespace)
+	if markup, w := a.pills(tags, math.MaxInt, behindList); w > 0 {
+		d.raw(markup + "\n")
+	}
 }
