@@ -17,9 +17,9 @@ func TestARoleFallsBackUntilAThemeNamesIt(t *testing.T) {
 	th.Roles = map[string]string{"column.mr": "#123456", "repositories.size": "#654321"}
 	got := resolveRoles(th)
 	for key, want := range map[string]string{
-		"repositories.mr":     "#123456", // through column.mr
-		"merge_requests.iid":  "#123456", // the same
-		"repositories.size":   "#654321", // its own
+		"repositories.mr":     "#123456",      // through column.mr
+		"merge_requests.iid":  th.Text.Accent, // through column.server, not column.mr
+		"repositories.size":   "#654321",      // its own
 		"worktrees.size":      th.Text.Muted,
 		"repositories.hidden": th.Text.Dim, // through column.hidden
 		"repositories.wt":     th.State.Warning,

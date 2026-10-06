@@ -87,8 +87,8 @@ var colourRoles = []colourRole{
 	// Merge requests.
 	{"merge_requests.header", "column.header", ""},
 	{"merge_requests.server", "column.server", ""},
-	{"merge_requests.repository", "column.server", ""},
-	{"merge_requests.iid", "column.mr", "the !number"},
+	{"merge_requests.repository", "column.name", "named as Repositories names it"},
+	{"merge_requests.iid", "column.server", "the !number, in the server's colour, so server, repository and number stand apart"},
 	{"merge_requests.title", "column.name", ""},
 	{"merge_requests.author", "column.author", ""},
 	{"merge_requests.branch", "column.branch", ""},

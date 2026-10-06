@@ -293,7 +293,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		// A marked row is told by its band alone; its mark still says what is
 		// on disk.
-		nameColour := colText
+		nameColour := role("repositories.name")
 		if grouped {
 			mark = " " + mark
 		}
