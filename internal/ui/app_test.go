@@ -66,6 +66,10 @@ type fakeServer struct {
 	groupListed atomic.Int64
 	// namesAsked counts the questions about an account's name.
 	namesAsked atomic.Int64
+	// mainRunning keeps acme/gateway's branch pipeline and its build job
+	// running, and mainLog is what the job has written after its first line.
+	mainRunning atomic.Bool
+	mainLog     atomic.Value
 	// e2eDone ends the child pipeline's job, and e2eLog is what it has
 	// written after its first line.
 	e2eDone atomic.Bool
@@ -180,10 +184,23 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			ref = "main"
 		}
 		f.pipelineRefs.Store(ref)
-		json(w, fmt.Sprintf(`[{"id":9,"status":"success","ref":%q,"updated_at":"2026-09-21T09:00:00Z"}]`, ref))
+		status := "success"
+		if f.mainRunning.Load() {
+			status = "running"
+		}
+		json(w, fmt.Sprintf(`[{"id":9,"status":%q,"ref":%q,"updated_at":"2026-09-21T09:00:00Z"}]`, status, ref))
 	})
 	mux.HandleFunc("/api/v4/projects/1/pipelines/9/jobs", func(w http.ResponseWriter, r *http.Request) {
+		if f.mainRunning.Load() {
+			json(w, `[{"id":7,"name":"build","stage":"build","status":"running","duration":30}]`)
+			return
+		}
 		json(w, `[{"id":7,"name":"build","stage":"build","status":"success","duration":30}]`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/jobs/7/trace", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		log, _ := f.mainLog.Load().(string)
+		fmt.Fprint(w, "compiling\n"+log)
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

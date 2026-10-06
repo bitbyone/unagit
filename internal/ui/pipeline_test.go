@@ -654,3 +654,20 @@ func TestOnlyWhatRunsTurns(t *testing.T) {
 		}
 	}
 }
+
+// TestTheLogOfABranchJobIsFollowed: the log of a running job of a
+// repository's own pipeline - not a child pipeline's - takes the lines the
+// job writes while it is open.
+func TestTheLogOfABranchJobIsFollowed(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	srv.mainRunning.Store(true)
+	changeOnLoop(a, func() { a.ciEvery = 50 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "running · following")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "compiling")
+	srv.mainLog.Store("linking\n")
+	waitFor(t, a, sc, "linking")
+}

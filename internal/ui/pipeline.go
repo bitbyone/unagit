@@ -569,13 +569,16 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		view.SetText(text)
 		view.ScrollToEnd()
 		// failed is why the last reading of a followed log did not get
-		// through.
+		// through, and read when the last one that did came back: the
+		// title says both, so a log that stopped moving can be told from
+		// one whose job has nothing new to say.
 		failed := ""
+		read := time.Now()
 		title := func(j forge.Job) string {
 			mark, status := painted(jobMark(j), j.Status)
 			t := fmt.Sprintf("%s %s · %s", mark, esc(j.Name), status)
 			if jobMoving(j) {
-				t += " · following"
+				t += " · following · read " + read.Format("15:04:05")
 				if failed != "" {
 					t += " · " + tag(colWarn) + "reading failed: " + esc(failed) + tagEnd
 				}
@@ -631,7 +634,7 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 					box(view.Box, title(j))
 					return
 				}
-				failed = ""
+				failed, read = "", time.Now()
 				row, col := view.GetScrollOffset()
 				view.SetText(text)
 				if atEnd {
