@@ -236,6 +236,9 @@ type modalBox struct {
 	wPct, hPct int
 	// Fixed size, used when non-zero.
 	w, h int
+	// fit, when set, chooses the size for the area there is: content that
+	// knows how big it wants to be, up to a share of the screen.
+	fit func(w, h int) (int, int)
 }
 
 // modalPct centres content at a percentage of the available area.
@@ -246,6 +249,11 @@ func modalPct(content tview.Primitive, wPct, hPct int) *modalBox {
 // modalFixed centres content at a fixed size.
 func modalFixed(content tview.Primitive, w, h int) *modalBox {
 	return &modalBox{Box: tview.NewBox(), content: content, w: w, h: h}
+}
+
+// modalFit centres content at the size fit chooses for the area.
+func modalFit(content tview.Primitive, fit func(w, h int) (int, int)) *modalBox {
+	return &modalBox{Box: tview.NewBox(), content: content, fit: fit}
 }
 
 // modalFull dims the background and lets the content place itself.
@@ -276,6 +284,9 @@ func (m *modalBox) Draw(screen tcell.Screen) {
 
 	cw, ch := w, h
 	switch {
+	case m.fit != nil:
+		cw, ch = m.fit(w, h)
+		cw, ch = min(cw, w), min(ch, h)
 	case m.w > 0 || m.h > 0:
 		cw, ch = min(m.w, w), min(m.h, h)
 	case m.wPct > 0 || m.hPct > 0:

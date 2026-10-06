@@ -547,7 +547,30 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		footerLines := len(tview.WordWrap(normalHint(), inner))
 		page = modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines)
 	} else if opts.wide {
-		page = modalPct(frame, widePct, 75)
+		// As wide as its longest row and as tall as its rows, up to most of
+		// the screen: a log of two commits is not a screenful of nothing
+		// with the commits in a corner. A list whose rows follow the width
+		// is laid out at the widest first, to see what it would take.
+		page = modalFit(frame, func(w, h int) (int, int) {
+			most := w * widePct / 100
+			if opts.relabel != nil {
+				opts.relabel(items, most-4)
+			}
+			rows := 0
+			for _, it := range items {
+				row := it.Label
+				if it.Sub != "" {
+					row += "   " + it.Sub
+				}
+				rows = max(rows, tview.TaggedStringWidth(row)+1)
+			}
+			// inner is the width the explanations were measured at, so the
+			// pane under the list is as tall as they need.
+			rows = max(rows, tview.TaggedStringWidth(title)+4, inner)
+			width := min(most, rows+2+2*pad)
+			footerLines := len(tview.WordWrap(normalHint(), width-2-2*pad))
+			return width, min(h*85/100, 2+1+len(items)+extra+footerLines)
+		})
 	} else {
 		page = modalPct(frame, 70, 70)
 	}

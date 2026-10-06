@@ -72,7 +72,7 @@ func TestJobsStillToRun(t *testing.T) {
 	assertLegible(t, a, sc, "jobs still to run")
 
 	typeRunes(sc, "G") // e2e, the last
-	waitFor(t, a, sc, "Enter lists its jobs")
+	waitFor(t, a, sc, "lists its jobs")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "browser tests")
 	waitFor(t, a, sc, glyphTrigger+" e2e · ")
@@ -102,7 +102,7 @@ func TestARunningPipelineIsFollowed(t *testing.T) {
 	typeRunes(sc, "gJ")
 	waitFor(t, a, sc, glyphTrigger+" e2e")
 	typeRunes(sc, "G")
-	waitFor(t, a, sc, "Enter lists its jobs")
+	waitFor(t, a, sc, "lists its jobs")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "browser tests")
 	waitFor(t, a, sc, "running · following")
