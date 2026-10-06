@@ -340,7 +340,7 @@ func TestStaleIndexSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
 	waitFor(t, a, sc, "The cached index is from an older unagit")
 	closeMessage(t, a, sc)
 	if !onLoop(a, func() bool { return a.staleMRs }) {

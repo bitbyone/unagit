@@ -43,7 +43,8 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	t.Parallel()
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
 	longMRs(t, cfg)
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "29747")
@@ -58,7 +59,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	}
 
 	// Narrow: the title gives way, the branch must not fall off the edge.
-	resize(sc, 84, 20)
+	resizeApp(a, sc, 84, 20)
 	deadline := time.Now().Add(patience)
 	var narrow string
 	for time.Now().Before(deadline) {
@@ -88,6 +89,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 func TestSelectedRowIsABand(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 
 	row := rowOf(t, a, sc, "acme/gateway")

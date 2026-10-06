@@ -133,7 +133,7 @@ func TestTheMergeFormFitsItsFrame(t *testing.T) {
 				a.mrsPane.reload()
 				return true
 			})
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			form := openMergeForm(t, a, sc)
 			waitFor(t, a, sc, "3 thread(s) not resolved")
 			assertFormInFrame(t, a, sc, form)
@@ -231,6 +231,7 @@ func TestReviewersAreChosenAndSavedOnEsc(t *testing.T) {
 func TestCloseIsInThePickerAndAsks(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")

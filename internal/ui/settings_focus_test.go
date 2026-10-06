@@ -82,6 +82,7 @@ func waitFocus(t *testing.T, a *App, ok func() bool) {
 func TestANewRootReachesGroupsAndClones(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionGeneral)
 	waitFor(t, a, sc, "Default root")
@@ -92,6 +93,7 @@ func TestANewRootReachesGroupsAndClones(t *testing.T) {
 
 	check := func(a *App, sc tcell.SimulationScreen, when string) {
 		t.Helper()
+		resizeApp(a, sc, 160, 44)
 		openSection(t, a, sc, sectionGroups)
 		waitFor(t, a, sc, "→ "+tildePath(root))
 		inst := onLoop(a, func() string { return a.cfg.Instances[0].ID })
@@ -105,7 +107,7 @@ func TestANewRootReachesGroupsAndClones(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, bsc := startApp(t, New(saved, testVault(t, saved)))
+	b, bsc := startApp(t, newApp(saved, testVault(t, saved)))
 	waitFor(t, b, bsc, "acme/gateway")
 	check(b, bsc, "after a restart")
 }

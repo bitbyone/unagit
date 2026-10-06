@@ -157,7 +157,7 @@ func TestRememberFormFits(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionSecurity)
 			typeRunes(sc, "k")
 			waitFor(t, a, sc, "Remember the passphrase")

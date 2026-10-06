@@ -20,6 +20,18 @@ type bgJob struct {
 // spinInterval is how often the spinner turns.
 const spinInterval = 120 * time.Millisecond
 
+func realAnimationTicker(every time.Duration) (<-chan time.Time, func()) {
+	ticker := time.NewTicker(every)
+	return ticker.C, ticker.Stop
+}
+
+func (a *App) animationTicker(every time.Duration) (<-chan time.Time, func()) {
+	if a.newAnimationTicker != nil {
+		return a.newAnimationTicker(every)
+	}
+	return realAnimationTicker(every)
+}
+
 // startJob notes a job as under way and starts the spinner. It runs on the
 // event loop; the job's own goroutine reports through jobProgress.
 func (a *App) startJob(title string) *bgJob {
@@ -54,9 +66,9 @@ func (a *App) endJob(j *bgJob) {
 
 // spin turns the spinner while any job is under way.
 func (a *App) spin() {
-	ticker := time.NewTicker(spinInterval)
-	defer ticker.Stop()
-	for range ticker.C {
+	ticks, stopTicker := a.animationTicker(spinInterval)
+	defer stopTicker()
+	for range ticks {
 		stop := make(chan bool, 1)
 		a.tv.QueueUpdateDraw(func() {
 			a.spinFrame++

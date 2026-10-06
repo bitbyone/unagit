@@ -16,6 +16,7 @@ import (
 func TestBranchesFromRepositories(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	srv.liveBranches.Store(func(int) []string {
@@ -165,7 +166,7 @@ func TestTheNewBranchFormFitsItsFrame(t *testing.T) {
 				return strings.Fields(gitIn(t, p.origin, "for-each-ref", "--format=%(refname:short)", "refs/heads"))
 			})
 			p.rescan()
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			typeRunes(sc, "g")
 			typeRunes(sc, "b")
 			waitFor(t, a, sc, "NORMAL   j/k")
@@ -228,7 +229,7 @@ func TestBranchesOutInAWorktree(t *testing.T) {
 	waitFor(t, a, sc, "Branches - acme/gateway")
 
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "and the worktree it is out")
+	waitFor(t, a, sc, "worktree it is out in?")
 	if text := a.screenText(sc); !strings.Contains(text, "origin keeps it") {
 		t.Errorf("the question does not say origin keeps the branch:\n%s", text)
 	}

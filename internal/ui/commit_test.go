@@ -63,20 +63,17 @@ func TestCommitEverythingInAGroup(t *testing.T) {
 // TestCommitFormFitsItsFrame draws the commit form of a group at several sizes.
 func TestCommitFormFitsItsFrame(t *testing.T) {
 	t.Parallel()
+	a, sc := newTestApp(t)
+	// Committing the group is exercised above. Here the form only needs the
+	// rows and counts it is given, and each size must draw that same form.
+	a.tv.QueueUpdateDraw(func() {
+		a.showCommitForm(worktreeRow{Path: "feat-c", Members: []worktreeRow{}}, []commitTarget{
+			{name: "gateway", edits: 1}, {name: "billing", edits: 1},
+		})
+	})
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
-			a, sc, _ := newTestAppSrv(t)
-			_, _, form := markBoth(t, a, sc)
-			typeRunes(sc, "feat/c")
-			waitFor(t, a, sc, "feat-c")
-			pressButton(t, a, sc, form, "Create")
-			waitFor(t, a, sc, "created ")
-			dir := filepath.Join(workspace.GroupsRoot(a.cfg.Root()), "feat-c")
-			for _, name := range []string{"gateway", "billing"} {
-				must(t, os.WriteFile(filepath.Join(dir, name, "a.txt"), []byte("changed\n"), 0o644))
-			}
-			resize(sc, size.w, size.h)
-			typeRunes(sc, "c")
+			resizeApp(a, sc, size.w, size.h)
 			waitFor(t, a, sc, "billing message")
 			commitForm := onLoop(a, func() *tview.Form {
 				_, primitive := a.pages.GetFrontPage()

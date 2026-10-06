@@ -108,16 +108,29 @@ func TestEveryThemeIsLegible(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a, sc := newThemedApp(t, name)
 			walkDialogs(t, a, sc)
-			b, sc2 := newThemedApp(t, name)
-			walkSettings(t, b, sc2)
-			c, sc3 := newThemedApp(t, name)
-			walkDrawnByHand(t, c, sc3)
+			leaveThemeDialogs(t, a, sc)
+			walkSettings(t, a, sc)
+			leaveThemeDialogs(t, a, sc)
+			typeRunes(sc, "1")
+			walkDrawnByHand(t, a, sc)
 			for _, firstRun := range []bool{false, true} {
 				d, sc4 := newLockedApp(t, name, firstRun)
 				waitFor(t, d, sc4, "Passphrase")
 				assertLegible(t, d, sc4, "the unlock dialog")
 			}
 		})
+	}
+}
+
+// Each theme needs fresh widgets, but its walks can use the same app once the
+// previous dialog has given the keyboard back. Esc also leaves INSERT mode.
+func leaveThemeDialogs(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
+	for n := 0; onLoop(a, a.modalOpen); n++ {
+		if n == 8 {
+			t.Fatalf("the previous theme dialog did not close:\n%s", a.screenText(sc))
+		}
+		sc.(*observedScreen).sendKeys(tcell.NewEventKey(tcell.KeyEsc, 0, tcell.ModNone))
 	}
 }
 
@@ -142,8 +155,16 @@ func walkDrawnByHand(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	waitGone(t, a, sc, "Mike Moe")
 	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/billing")
-	lookGroup(t, a, sc)
+	drawGroup(t, a, sc)
 	assertLegible(t, a, sc, "a grouped worktree's view")
+	for _, name := range []string{"acme/gateway", "acme/billing"} {
+		typeRunes(sc, "j")
+		waitFor(t, a, sc, name)
+		if name == "acme/gateway" {
+			waitFor(t, a, sc, "Count requests per client")
+		}
+		assertLegible(t, a, sc, "the block of "+name)
+	}
 }
 
 // newThemedApp is newTestApp with the theme chosen in its configuration, the
@@ -153,7 +174,8 @@ func newThemedApp(t *testing.T, name string) (*App, tcell.SimulationScreen) {
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
 	cfg.Theme = name
 	must(t, cfg.Save())
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	a, sc := startApp(t, newApp(cfg, testVault(t, cfg)))
+	resizeApp(a, sc, 160, 44)
 	if got := onLoop(a, func() string { return theme.Name }); got != name {
 		t.Fatalf("the app drew with %q, not %q", got, name)
 	}
@@ -189,7 +211,7 @@ func TestChoosingAThemePutsItOnAndKeepsIt(t *testing.T) {
 	}
 
 	setTheme(loadThemes("").byName[defaultThemeName])
-	again := New(a.cfg, testVault(t, a.cfg))
+	again := newApp(a.cfg, testVault(t, a.cfg))
 	b, sc2 := startApp(t, again)
 	waitFor(t, b, sc2, "acme/gateway")
 	if got := onLoop(b, func() string { return theme.Name }); got != "catppuccin-mocha" {
@@ -236,8 +258,19 @@ func TestSwitchThemeFromAnyScreen(t *testing.T) {
 func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
 	restoreDefaultTheme(t)
 	cfg := writeTestConfig(t, fakeGitLab(t).URL)
-	app := New(cfg, testVault(t, cfg))
+	app := newApp(cfg, testVault(t, cfg))
 	app.themeWatchEvery = 30 * time.Millisecond
+	observed := make(chan struct{}, 1)
+	app.themeStat = func(path string) (os.FileInfo, error) {
+		info, err := os.Stat(path)
+		if err == nil {
+			select {
+			case observed <- struct{}{}:
+			default:
+			}
+		}
+		return info, err
+	}
 	a, sc := startApp(t, app)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionTheme)
@@ -265,6 +298,13 @@ func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
 	}
 	if got := onLoop(a, func() string { return theme.Name }); got != "unagit-mine" {
 		t.Fatalf("the fork is not on: %q", got)
+	}
+	// A file saved before the watcher first reads it becomes its baseline;
+	// that is not an edit it could have detected.
+	select {
+	case <-observed:
+	case <-time.After(patience):
+		t.Fatal("the theme watcher never read the fork")
 	}
 
 	// A save of the file shows at once.
@@ -303,7 +343,7 @@ func TestTheForkFormFitsItsFrame(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc := newTestApp(t)
 			waitFor(t, a, sc, "acme/gateway")
-			resize(sc, size.w, size.h)
+			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionTheme)
 			waitFor(t, a, sc, "retro-block")
 			typeRunes(sc, "f")

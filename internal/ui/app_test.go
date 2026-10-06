@@ -19,7 +19,6 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
-	"github.com/tobola/unagit/internal/secret"
 )
 
 // fakeServer counts what the interface asks for, so tests can check that a
@@ -471,11 +470,15 @@ func newTestApp(t *testing.T) (*App, tcell.SimulationScreen) {
 }
 
 // newTestAppSrv also hands back the fake GitLab so a test can count requests.
-func newTestAppSrv(t *testing.T) (*App, tcell.SimulationScreen, *fakeServer) {
+func newTestAppSrv(t *testing.T, prepare ...func(*App)) (*App, tcell.SimulationScreen, *fakeServer) {
 	t.Helper()
 	srv := fakeGitLab(t)
 	cfg := writeTestConfig(t, srv.URL)
-	a, sc := startApp(t, New(cfg, testVault(t, cfg)))
+	app := newApp(cfg, testVault(t, cfg))
+	for _, setup := range prepare {
+		setup(app)
+	}
+	a, sc := startApp(t, app)
 	return a, sc, srv
 }
 
@@ -521,12 +524,9 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 }
 
 // testVault is an open vault holding a token for every configured server.
-func testVault(t *testing.T, cfg *config.Config) *secret.Vault {
+func testVault(t *testing.T, cfg *config.Config) tokenVault {
 	t.Helper()
-	v, err := secret.NewVault([]byte("test-passphrase"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	v := &memoryVault{tokens: map[string]string{}}
 	for _, inst := range cfg.Instances {
 		v.Set(inst.ID, "test-token")
 	}
@@ -542,19 +542,43 @@ func must(t *testing.T, err error) {
 
 func startApp(t *testing.T, a *App) (*App, tcell.SimulationScreen) {
 	t.Helper()
+	a, sc, _ := startAppWithStop(t, a)
+	return a, sc
+}
+
+func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan struct{}) {
+	t.Helper()
+	// Workflow assertions observe progress and completion, not the passing
+	// of spinner frames. Animation tests choose real or controlled ticks.
+	if a.newAnimationTicker == nil {
+		ticks := make(chan time.Time)
+		a.newAnimationTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
+		t.Cleanup(func() { close(ticks) })
+	}
 	// Attach the simulation screen from this goroutine: SetScreen initialises
 	// it, and the test reads its contents from here too.
-	sc := tcell.NewSimulationScreen("UTF-8")
+	sc := newObservedScreen(t)
 	a.SetScreen(sc)
-	sc.SetSize(160, 44)
+	// Workflow tests need room for the dialogs, not a large terminal's empty
+	// cells on every key. Layout tests choose their sizes explicitly.
+	sc.SetSize(120, 34)
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {
 		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }
 	}
 
-	go func() { _ = a.Run() }()
-	t.Cleanup(func() { a.tv.Stop() })
-	return a, sc
+	stopped := make(chan struct{})
+	go func() { defer close(stopped); _ = a.Run() }()
+	t.Cleanup(func() {
+		a.tv.Stop()
+		select {
+		case <-stopped:
+		case <-time.After(patience):
+			t.Error("application did not stop")
+		}
+	})
+	sc.observeKeys(a)
+	return a, sc, stopped
 }
 
 // onLoop reads a value from the interface's own goroutine. Everything the
@@ -577,7 +601,13 @@ func onLoop[T any](a *App, read func() T) T {
 // synchronise GetContents against its own drawing.
 func (a *App) screenText(sc tcell.SimulationScreen) string {
 	done := make(chan string, 1)
-	a.tv.QueueUpdate(func() { done <- dumpScreen(sc) })
+	a.tv.QueueUpdate(func() {
+		if s, ok := sc.(*observedScreen); ok {
+			done <- s.frame().text
+		} else {
+			done <- dumpScreen(sc)
+		}
+	})
 	select {
 	case s := <-done:
 		return s
@@ -601,29 +631,15 @@ func dumpScreen(sc tcell.SimulationScreen) string {
 	return b.String()
 }
 
-// waitFor polls the screen until it contains want.
+// waitFor waits for a rendered frame containing want.
 func waitFor(t *testing.T, a *App, sc tcell.SimulationScreen, want string) {
 	t.Helper()
-	deadline := time.Now().Add(patience)
-	for time.Now().Before(deadline) {
-		if strings.Contains(a.screenText(sc), want) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("screen never contained %q:\n%s", want, a.screenText(sc))
+	waitScreenText(t, a, sc, want, true)
 }
 
 func waitGone(t *testing.T, a *App, sc tcell.SimulationScreen, gone string) {
 	t.Helper()
-	deadline := time.Now().Add(patience)
-	for time.Now().Before(deadline) {
-		if !strings.Contains(a.screenText(sc), gone) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("screen still contained %q:\n%s", gone, a.screenText(sc))
+	waitScreenText(t, a, sc, gone, false)
 }
 
 // resize changes the terminal size. tcell's simulation screen resizes its
@@ -633,7 +649,23 @@ func resize(sc tcell.SimulationScreen, w, h int) {
 	_ = sc.PostEvent(tcell.NewEventResize(w, h))
 }
 
+// resizeApp makes the chosen size visible before a test reads words that
+// were already on the previous frame, or samples its cells by coordinates.
+func resizeApp(a *App, sc tcell.SimulationScreen, w, h int) {
+	resize(sc, w, h)
+	// Drawn on the loop and waited for: a queued draw alone returns at once,
+	// and the next wait could still read the frame of the old size.
+	onLoop(a, func() bool {
+		a.tv.ForceDraw()
+		return true
+	})
+}
+
 func typeRunes(sc tcell.SimulationScreen, s string) {
+	if observed, ok := sc.(*observedScreen); ok {
+		observed.typeKeys(s)
+		return
+	}
 	for _, r := range s {
 		sc.InjectKey(tcell.KeyRune, r, tcell.ModNone)
 		time.Sleep(10 * time.Millisecond)
@@ -703,7 +735,7 @@ func TestProjectDetailPane(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	// Wide enough for the detail to sit beside the list.
-	resize(sc, 200, 44)
+	resizeApp(a, sc, 200, 44)
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Edge router")
@@ -734,6 +766,7 @@ func TestProjectDetailPane(t *testing.T) {
 func TestMergeRequestDetailPane(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 
 	typeRunes(sc, "2")

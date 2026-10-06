@@ -13,6 +13,7 @@ import (
 // up without taking the focus away.
 func TestDetailFollowsTheSelection(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")

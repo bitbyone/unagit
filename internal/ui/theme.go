@@ -305,9 +305,9 @@ var dimFactor float64
 func dimArea(screen tcell.Screen, x, y, w, h int) {
 	for i := 0; i < w; i++ {
 		for j := 0; j < h; j++ {
-			r, combc, style, _ := screen.GetContent(x+i, y+j)
+			text, style, _ := screen.Get(x+i, y+j)
 			fg, bg, attr := style.Decompose()
-			screen.SetContent(x+i, y+j, r, combc, tcell.StyleDefault.
+			screen.Put(x+i, y+j, text, tcell.StyleDefault.
 				Foreground(darken(fg, colDimmedText)).
 				Background(darken(bg, tcell.ColorDefault)).
 				Attributes(attr&^tcell.AttrBold))

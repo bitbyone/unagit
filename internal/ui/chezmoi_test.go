@@ -23,11 +23,12 @@ func newChezmoiApp(t *testing.T) (*App, tcell.SimulationScreen, string) {
 	checkout := filepath.Join(t.TempDir(), "chezmoi")
 	must(t, os.MkdirAll(checkout, 0o755))
 	gitIn(t, checkout, "init", "-q", "--initial-branch=main")
-	a := New(cfg, testVault(t, cfg))
+	a := newApp(cfg, testVault(t, cfg))
 	a.findChezmoi = func() (chezmoi.Checkout, error) {
 		return chezmoi.Checkout{Dir: checkout, Origin: srv.URL + "/acme/gateway.git"}, nil
 	}
 	a, sc := startApp(t, a)
+	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "Managed by Chezmoi")
 	return a, sc, checkout
 }

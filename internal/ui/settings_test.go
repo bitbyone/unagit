@@ -68,6 +68,10 @@ func pressButton(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Fo
 		close(done)
 	})
 	<-done
+	if observed, ok := sc.(*observedScreen); ok {
+		observed.sendKeys(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone))
+		return
+	}
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	time.Sleep(100 * time.Millisecond)
 }

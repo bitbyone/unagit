@@ -39,14 +39,15 @@ keychain, with an item of its own.
 ```sh
 make build            # go build -o unagit ./cmd/unagit
 make test             # go test -race ./...
+make test-fast        # go test ./... while iterating; race still before commit
 gofmt -l . && go vet ./...
 ```
 
 Everything must be gofmt-clean, vet-clean and race-clean before a commit. The
-UI package's tests run a real tview application against a simulation screen and
-take about two minutes under the race detector; that is normal. They run in
-parallel, four at a time (`parallelTests` in `ui/main_test.go`, measured: more
-is slower under the race detector).
+UI package's tests run a real tview application against a simulation screen.
+They run in parallel, four at a time (`parallelTests` in `ui/main_test.go`).
+Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
+measure an uncached run before changing the parallel limit.
 
 Commit and push every finished change, in every repository you touched (unagit
 and `../incomm`), without waiting to be asked: the user wants nothing left
@@ -394,7 +395,17 @@ server. Rules learned the hard way:
 - Read app or widget state only through `onLoop`, which hops onto tview's event
   loop; touching it directly is a race.
 - `QueueUpdate` can overtake a key event that has not been handled yet, so
-  assertions poll (`waitFor`, `waitSelected`) instead of assuming.
+  use `typeRunes` and `pressButton` when the next step needs their keys handled:
+  the observed simulation screen acknowledges them after the last key's draw.
+  `waitFor` and `waitGone` wait for frames, and reuse the text of a frame instead
+  of reading the same cells every 20 ms. Direct `InjectKey` remains asynchronous;
+  wait for the state the next key needs. `waitSelected` polls state on the loop.
+  `resizeApp` draws the new terminal size before a layout assertion reads it;
+  text already present in the old frame is not a resize acknowledgement.
+- Ordinary fixtures advance spinner frames only when a test asks for them.
+  `newAnimationTicker` is per app; the production default is real time. The
+  background-refresh test uses the real ticker, the task-log test sends a tick,
+  and data polling and input debounce keep their real clocks.
 - `Form.SetFocus` on a non-focusable `TextView` re-enters that item's own lock
   and deadlocks tview; the legibility test skips such items, and so should you.
 - Fixture merge requests need distinct `id`s (the dedupe is by id) and
@@ -411,7 +422,7 @@ server. Rules learned the hard way:
   (a fake binary on `PATH`), a package variable it swaps (`passphraseStore`,
   `copyToClipboard`, `pickerStarted`), or it measures time (the debounce).
   Those stay serial and run before the parallel ones.
-- Under parallel load a screen can take seconds to catch up. Waits poll up to
+- Under parallel load a screen can take seconds to catch up. Waits allow up to
   `patience` and end the moment their condition holds; never `time.Sleep`
   and then assert. And wait for the state the next key depends on, not for
   text that was already there before it - a title still showing under a

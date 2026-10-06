@@ -157,7 +157,7 @@ func TestSimpleDialogsKeepInlineHints(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	waitGone(t, a, sc, "e directory")
-	resize(sc, 90, 44)
+	resizeApp(a, sc, 90, 44)
 	typeRunes(sc, "e")
 	assertMutedHint(t, a, sc, "s save")
 	assertMutedHint(t, a, sc, "c cancel")

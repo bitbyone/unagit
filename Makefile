@@ -1,13 +1,16 @@
 BIN := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test install clean fmt
+.PHONY: build test test-fast install clean fmt
 
 build:
 	go build -o $(BIN) ./cmd/unagit
 
 test:
 	go test -race ./...
+
+test-fast:
+	go test ./...
 
 fmt:
 	gofmt -w .

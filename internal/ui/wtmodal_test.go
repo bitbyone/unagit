@@ -29,11 +29,39 @@ func lookGroup(t *testing.T, a *App, sc tcell.SimulationScreen) string {
 	return dir
 }
 
+// drawGroup gives the production view a group's rows and git facts. Workflow
+// tests above and below still make real worktrees; a palette or border check
+// need not create them again for every theme and terminal size.
+func drawGroup(t *testing.T, a *App, sc tcell.SimulationScreen) {
+	t.Helper()
+	dir := filepath.Join(a.cfg.Root(), ".unagit", "groups", "feat-view")
+	instance := a.cfg.Instances[0].ID
+	members := []worktreeRow{
+		{Instance: instance, Path: "acme/gateway", Branch: "feat/view", Dir: filepath.Join(dir, "gateway"), Group: dir},
+		{Instance: instance, Path: "acme/billing", Branch: "feat/view", Dir: filepath.Join(dir, "billing"), Group: dir},
+	}
+	a.tv.QueueUpdateDraw(func() {
+		a.wtRemote = map[string]remoteState{
+			members[0].Dir: {Base: "main", Onto: "origin/main", Own: 1},
+			members[1].Dir: {Base: "main", Onto: "origin/main"},
+		}
+		a.makeWorktreeView(worktreeRow{Path: "feat-view", Branch: "feat/view", Dir: dir, Members: members})
+		a.wtView.loaded = true
+		a.wtView.facts = map[string]wtFacts{
+			members[0].Dir: {loaded: true, onto: "origin/main", ownCount: 1, own: []string{"abc123  Count requests per client (jane, just now)"}},
+			members[1].Dir: {loaded: true, onto: "origin/main"},
+		}
+		a.renderWorktreeView()
+	})
+	waitFor(t, a, sc, "every repository")
+}
+
 // TestAWorktreeIsAViewOfBlocks: Enter opens the view, the group first; j lights
 // a repository and the keys turn to it; l lists its commits; Esc goes back.
 func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
 	lookGroup(t, a, sc)
 	waitFor(t, a, sc, "1 commit(s) of its own")
 	waitFor(t, a, sc, "a add · r refresh") // the group's keys
@@ -120,11 +148,11 @@ func TestAWorktreeOfItsOwnIsAViewToo(t *testing.T) {
 // TestTheWorktreeViewFitsItsFrame draws the view at several sizes.
 func TestTheWorktreeViewFitsItsFrame(t *testing.T) {
 	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	drawGroup(t, a, sc)
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
-			a, sc, _ := newTestAppSrv(t)
-			resize(sc, size.w, size.h)
-			lookGroup(t, a, sc)
+			resizeApp(a, sc, size.w, size.h)
 			waitFor(t, a, sc, "Esc back")
 			lines := strings.Split(a.screenText(sc), "\n")
 			top := -1
