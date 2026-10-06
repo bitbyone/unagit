@@ -47,7 +47,7 @@ var (
 // The glyphs that say what something is, set from the theme.
 var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
-	glyphGroup, glyphHidden, glyphFavourite                        string
+	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
 	glyphCheck, glyphCross, glyphDot, glyphRing                    string
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried        string
 	glyphUser, glyphStarred                                        string
@@ -147,7 +147,7 @@ func setTheme(t Theme) {
 		g = g.over(t.NerdGlyphs)
 	}
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
-	glyphGroup, glyphHidden, glyphFavourite = g.Group, g.Hidden, g.Favourite
+	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried
 	glyphUser, glyphStarred = g.User, g.Starred

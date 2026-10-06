@@ -235,6 +235,7 @@ func helpRows() []helpLine {
 		key("m", "go to the branch's merge request"),
 		key("REMOTE", "no upstream · in sync · "+glyphAhead+" unpushed · "+glyphBehind+" behind · gone"),
 		key("MR", "the open merge request of the branch"),
+		key(glyphWorktree, "a worktree of one repository"),
 		key(glyphGroup, "grouped: several repositories in one folder"),
 		key("REPOS", "how many repositories the worktree holds"),
 		key("EDITS", "files not committed; Repositories too"),

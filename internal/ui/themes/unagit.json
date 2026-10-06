@@ -89,6 +89,7 @@
     "disk_branch": "●",
     "disk_review": "◐",
     "disk_both": "◉",
+    "worktree": "●",
     "group": "◆",
     "hidden": "⊘",
     "favourite": "★",
@@ -117,6 +118,8 @@
     "ci_idle": "○"
   },
   "nerd_glyphs": {
+    "worktree": "\uec7d",
+    "group": "\ueea8",
     "user": "\uf007",
     "starred": "\uf005"
   },

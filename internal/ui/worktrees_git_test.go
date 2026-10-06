@@ -581,3 +581,32 @@ func TestTheWorktreePickerSaysWhereABranchIsOut(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Worktree branch - acme/gateway")
 }
+
+// TestWorktreesUseTheWholeWidth: on a wide terminal nothing is cut while
+// room is left - the branch and the directory are whole - PATH comes before
+// EDITS, and what remains is a gap behind PATH, so the last column ends at
+// the frame's right edge on every row.
+func TestWorktreesUseTheWholeWidth(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	branch := "feature/a-rather-long-branch-name-to-see-it-whole"
+	dir := p.worktree(branch)
+	p.rescan()
+	resizeApp(a, sc, 320, 30)
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, branch)
+	waitFor(t, a, sc, tildePath(dir))
+	text := a.screenText(sc)
+	header := lineAt(text, "REPOSITORY")
+	if strings.Index(header, "PATH") > strings.Index(header, "EDITS") {
+		t.Errorf("PATH does not come before EDITS: %q", header)
+	}
+	for _, line := range []string{header, lineAt(text, branch)} {
+		trimmed := strings.TrimRight(strings.TrimSuffix(strings.TrimRight(line, " "), "│"), " ")
+		if gap := len([]rune(line)) - len([]rune(trimmed)); gap > 4 {
+			t.Errorf("the row ends %d cells short of the frame: %q", gap, line)
+		}
+	}
+}

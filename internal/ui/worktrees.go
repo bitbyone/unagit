@@ -409,6 +409,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			mrW = max(mrW, len([]rune(mr)))
 		}
 	}
+	// What the four long columns would take whole; the caps below are what
+	// they are sure of, and room left over gives them back the rest.
+	repoFull, branchFull, remoteFull, pathFull := repoW, branchW, remoteW, pathW
 	repoW = atLeast(min(repoW, 48), "REPOSITORY")
 	branchW = atLeast(min(branchW, 32), "BRANCH")
 	actW = atLeast(actW, "ACTIVITY")
@@ -471,6 +474,29 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 	}
 	repoW = atLeast(max(min(repoW, room-cost()), 10), "REPOSITORY")
+	// A wide terminal is not left empty at the right while a column is cut:
+	// what is left goes to REMOTE, BRANCH and REPOSITORY whole, then to the
+	// directory, and whatever remains after that is a gap behind PATH, so the
+	// columns after it stand at the right edge.
+	spare := room - cost() - repoW
+	grow := func(w *int, full int) {
+		if give := min(spare, full-*w); give > 0 {
+			*w += give
+			spare -= give
+		}
+	}
+	grow(&remoteW, remoteFull)
+	grow(&branchW, branchFull)
+	grow(&repoW, repoFull)
+	if showPath {
+		grow(&pathW, pathFull)
+	}
+	// The gap is a field of its own, and a field costs a space before it;
+	// one more stays free, so the last column does not touch the frame.
+	fillW := 0
+	if spare > 2 {
+		fillW = spare - 2
+	}
 
 	// The heat of a size is where it stands between the least and the most
 	// a worktree takes.
@@ -487,6 +513,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		header = append(header, field{text: "CI", width: ciW, colour: role("worktrees.header")})
 	}
 	header = append(header, field{text: "REMOTE", width: remoteW, colour: role("worktrees.header")})
+	if showPath {
+		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
+	}
+	if fillW > 0 {
+		header = append(header, field{width: fillW})
+	}
 	if showEdits {
 		header = append(header, field{text: "EDITS", width: editsW, colour: role("worktrees.header"), right: true})
 	}
@@ -495,9 +527,6 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	if showComments {
 		header = append(header, field{text: "COM", width: comW, colour: role("worktrees.header"), right: true})
-	}
-	if showPath {
-		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
 	}
 	if showSize {
 		header = append(header, field{text: "SIZE", width: sizeW, colour: role("worktrees.header"), right: true})
@@ -514,7 +543,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		if r.Branch != "" && r.Branch == a.worktreeProject(r).DefaultBranch {
 			branchColour = role("worktrees.default_branch")
 		}
-		mark, count, countColour := tag(colOn)+" "+glyphDot+tagEnd, "1", colDim
+		mark, count, countColour := tag(colOn)+" "+glyphWorktree+tagEnd, "1", colDim
 		if r.grouped() {
 			mark, count, countColour = tag(colAccent)+" "+glyphGroup+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
 			if r.Branch == "" {
@@ -540,6 +569,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			cells = append(cells, field{text: ci, width: ciW, colour: ciColour})
 		}
 		cells = append(cells, remote)
+		if showPath {
+			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path")})
+		}
+		if fillW > 0 {
+			cells = append(cells, field{width: fillW})
+		}
 		if showEdits {
 			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: role("worktrees.edits"), right: true})
 		}
@@ -549,9 +584,6 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		if showComments {
 			com, colour := a.worktreeComments(r)
 			cells = append(cells, field{text: com, width: comW, colour: colour, right: true})
-		}
-		if showPath {
-			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path")})
 		}
 		if showSize {
 			cells = append(cells, field{text: a.worktreeSize(r), width: sizeW, colour: heatColour(a.worktreeBytes(r), wtLeast, wtMost, role("worktrees.size")), right: true})

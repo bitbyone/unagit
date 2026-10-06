@@ -201,8 +201,9 @@ type Glyphs struct {
 	DiskBranch string `json:"disk_branch"`
 	DiskReview string `json:"disk_review"`
 	DiskBoth   string `json:"disk_both"`
-	// Group marks a grouped worktree, Hidden a hidden repository, Favourite
-	// a starred one.
+	// Worktree marks a worktree of one repository in Worktrees, Group a
+	// grouped one, Hidden a hidden repository, Favourite a starred one.
+	Worktree  string `json:"worktree"`
 	Group     string `json:"group"`
 	Hidden    string `json:"hidden"`
 	Favourite string `json:"favourite"`
@@ -480,7 +481,7 @@ func (t Theme) glyphs() map[string]string {
 	return map[string]string{
 		"glyphs.disk_none": g.DiskNone, "glyphs.disk_branch": g.DiskBranch,
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
-		"glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
+		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
 		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User, "glyphs.starred": g.Starred, "glyphs.approved": g.Approved,
 		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,
