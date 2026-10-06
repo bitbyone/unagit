@@ -21,8 +21,11 @@ func (s *settingsView) newThemeTable() *tview.Table {
 	t := tview.NewTable().SetSelectable(true, false).SetFixed(1, 0).SetSeparator(' ')
 	t.SetSelectedStyle(styleSelected)
 	s.themeNotes = tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetWordWrap(true)
+	// The swatches are blocks of colour drawn as ink, which the selection
+	// band would turn into its own; they are drawn again over it.
+	s.themesKept = newKeptTable(t, 1)
 	s.themePanel = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(t, 0, 1, true).
+		AddItem(s.themesKept, 0, 1, true).
 		AddItem(s.themeNotes, 3, 0, false)
 	box(s.themePanel.Box, "Theme").SetBorderPadding(0, 0, 1, 1)
 	t.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -83,11 +86,19 @@ func (s *settingsView) fillThemes() {
 	t := s.themes
 	keep := s.selectedTheme()
 	t.Clear()
+	s.themesKept.reset()
 	for c, h := range []string{"", "THEME", "COLOURS", "", "FROM"} {
 		t.SetCell(0, c, tview.NewTableCell(h).SetTextColor(colDim).SetSelectable(false))
 	}
 	t.SetCell(0, 5, tview.NewTableCell("").SetSelectable(false).SetExpansion(1))
 	set := s.app.themes
+	// Where the swatches start in a row: after the mark and the names, each
+	// column followed by the table's one-cell separator.
+	nameW := len("THEME")
+	for _, name := range set.names {
+		nameW = max(nameW, tview.TaggedStringWidth(tview.Escape(name)))
+	}
+	swatchX := 1 + 1 + nameW + 1
 	row, at := 1, 1
 	for _, name := range set.names {
 		th := set.byName[name]
@@ -101,7 +112,10 @@ func (s *settingsView) fillThemes() {
 		}
 		t.SetCell(row, 0, tview.NewTableCell(mark).SetReference(name))
 		t.SetCell(row, 1, tview.NewTableCell(tview.Escape(name)).SetTextColor(colText))
-		t.SetCell(row, 2, tview.NewTableCell(themeSwatch(th)))
+		swatch := themeSwatch(th, false)
+		t.SetCell(row, 2, tview.NewTableCell(swatch))
+		on := themeSwatch(th, true)
+		s.themesKept.keep(row, keptMarkup{x: swatchX, markup: on, width: tview.TaggedStringWidth(on)})
 		t.SetCell(row, 3, tview.NewTableCell(tview.Escape(th.Description)).SetTextColor(colDim).SetMaxWidth(48))
 		t.SetCell(row, 4, tview.NewTableCell(from).SetTextColor(colMuted))
 		t.SetCell(row, 5, tview.NewTableCell("").SetExpansion(1))
@@ -127,18 +141,24 @@ func (s *settingsView) fillThemes() {
 
 // themeSwatch shows a theme by its colours, each a block in the theme's own
 // colour: its background, text, accent, the three states, its border and its
-// selection band.
-func themeSwatch(t Theme) string {
+// selection band. onBand is for the row under the cursor, whose band shows
+// through: a block of the band's own colour would vanish into it, so there it
+// is a shaded block in the text's colour - the band itself is that colour.
+func themeSwatch(t Theme, onBand bool) string {
+	_, band, _ := styleSelected.Decompose()
 	var b strings.Builder
 	for _, c := range []string{t.Background, t.Text.Normal, t.Text.Muted, t.Text.Accent,
 		t.State.Good, t.State.Warning, t.State.Bad, t.Border.Normal, t.Selection.Background} {
 		col := colour(c)
-		if col == tcell.ColorDefault {
+		switch {
+		case col == tcell.ColorDefault:
 			// The terminal's own background has no colour to show.
 			b.WriteString(tag(colDim) + "░░" + tagEnd)
-			continue
+		case onBand && col.Hex() == band.Hex():
+			b.WriteString(tag(colText) + "░░" + tagEnd)
+		default:
+			b.WriteString(tag(col) + "██" + tagEnd)
 		}
-		b.WriteString(tag(col) + "██" + tagEnd)
 	}
 	return b.String()
 }

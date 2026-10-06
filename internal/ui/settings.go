@@ -45,6 +45,7 @@ type settingsView struct {
 	tree         *tview.TreeView
 	tags         *tview.Table
 	tagsKept     *keptTable
+	themesKept   *keptTable
 	themes       *tview.Table
 	themePanel   *tview.Flex
 	themeNotes   *tview.TextView

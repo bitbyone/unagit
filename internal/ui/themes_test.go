@@ -358,3 +358,29 @@ func TestTheForkFormFitsItsFrame(t *testing.T) {
 		})
 	}
 }
+
+// TestSwatchesKeepTheirColoursUnderTheCursor: the theme under the cursor
+// shows its colours as the others do, not as the selection band's ink.
+func TestSwatchesKeepTheirColoursUnderTheCursor(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "retro-block")
+	text := a.screenText(sc)
+	selected := onLoop(a, func() string { return a.settings.selectedTheme() })
+	line := lineAt(text, " "+selected+" ")
+	y := lineOf(text, " "+selected+" ")
+	// The swatches start with the background: ░░ for the terminal's own.
+	start := strings.Index(line, "░░")
+	if start < 0 {
+		start = strings.Index(line, "██")
+	}
+	x := len([]rune(line[:start]))
+	want := onLoop(a, func() tcell.Color { return colour(a.themes.byName[selected].Text.Accent) })
+	// The accent is the fourth block, two cells each.
+	r, style := cellAt(a, sc, x+6, y)
+	if got, _, _ := style.Decompose(); r != '█' || got.Hex() != want.Hex() {
+		t.Errorf("the selected theme's accent is %q in %v, want █ in %v:\n%s", r, got, want, text)
+	}
+}

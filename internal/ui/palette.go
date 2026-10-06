@@ -199,7 +199,7 @@ func (a *App) showThemePicker() {
 			start, mark = i, glyphCheck
 		}
 		// Names padded alike, so the colours stand in a column.
-		items[i] = pickItem{Label: esc(fmt.Sprintf("%s %-*s", mark, width, name)), Sub: themeSwatch(a.themes.byName[name]), Data: name}
+		items[i] = pickItem{Label: esc(fmt.Sprintf("%s %-*s", mark, width, name)), Sub: themeSwatch(a.themes.byName[name], false), Data: name}
 	}
 	a.showPickerWith("Theme", items, pickerOptions{start: start, pack: true, enterHint: "put on"}, func(it pickItem) {
 		if name := it.Data.(string); name != theme.Name {
