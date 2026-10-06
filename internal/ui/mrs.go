@@ -677,22 +677,27 @@ func ciMark(status string) (string, tcell.Color) {
 	case ciFailed:
 		return glyphCIDone, role("ci.failed")
 	case ciRunning:
-		return ciFrame(), role("ci.running")
+		// Only what runs turns; what waits its turn is the empty circle in
+		// the colour of what runs, standing still.
+		if status == "running" {
+			return ciFrame(), role("ci.running")
+		}
+		return glyphCIIdle, role("ci.running")
 	}
 	return glyphCIIdle, role("ci.idle")
 }
 
-// ciTurn is how far the mark of a pipeline under way has turned; the
-// watcher of running pipelines turns it (cipoll.go).
-var ciTurn int
-
 // ciFrame is the mark of a pipeline under way, as far as it has turned.
+// The turn is the clock's, not a count kept by whoever draws: every list
+// and dialog that draws a running mark shows the same frame, and none turns
+// it faster by drawing more often. What turns it on screen is a redraw
+// (cipoll.go, turnWhile).
 func ciFrame() string {
 	frames := []rune(theme.Glyphs.CIRunning)
 	if len(frames) == 0 {
 		return glyphDot
 	}
-	return string(frames[ciTurn%len(frames)])
+	return string(frames[int(time.Now().UnixMilli()/ciTurnEvery.Milliseconds())%len(frames)])
 }
 
 // ciState is what a pipeline's status comes to, whichever forge's words it

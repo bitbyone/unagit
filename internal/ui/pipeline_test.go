@@ -106,6 +106,15 @@ func TestARunningPipelineIsFollowed(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "browser tests")
 	waitFor(t, a, sc, "running · following")
+	// The mark of the running job turns while the list is open.
+	first := rowWith(a, sc, "browser tests")
+	deadline := time.Now().Add(patience)
+	for rowWith(a, sc, "browser tests") == first {
+		if time.Now().After(deadline) {
+			t.Fatalf("the running job's mark does not turn: %q", first)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "step one")
@@ -627,4 +636,21 @@ func TestJobStatesAreInTheirColours(t *testing.T) {
 		}
 	}
 	assertLegible(t, a, sc, "jobs in their colours")
+}
+
+// TestOnlyWhatRunsTurns: a running pipeline's mark is a frame of the
+// turning circle; one that waits its turn is the empty circle, standing
+// still, in the same colour.
+func TestOnlyWhatRunsTurns(t *testing.T) {
+	t.Parallel()
+	running, runColour := ciMark("running")
+	if !strings.Contains(theme.Glyphs.CIRunning, running) {
+		t.Errorf("running is drawn %q, not a frame of %q", running, theme.Glyphs.CIRunning)
+	}
+	for _, status := range []string{"created", "pending", "waiting_for_resource", "preparing"} {
+		mark, colour := ciMark(status)
+		if mark != glyphCIIdle || colour != runColour {
+			t.Errorf("%s is drawn %q, want a still %q in the running colour", status, mark, glyphCIIdle)
+		}
+	}
 }

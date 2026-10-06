@@ -76,7 +76,6 @@ func (a *App) followCI() {
 				a.ciWatching = false
 				return
 			}
-			ciTurn++
 			if p := a.ciPane(); p != nil && p.reload != nil {
 				p.reload()
 			}
@@ -124,4 +123,32 @@ func (a *App) ciPane() *pane {
 		return a.worktreesPane
 	}
 	return nil
+}
+
+// turnWhile draws again, every turn of a running mark, what has one: a
+// dialog listing jobs or pipelines, a running job's log. It stops when the
+// dialog is gone, and while nothing shown runs it draws nothing. open,
+// running and redraw run on the event loop.
+func (a *App) turnWhile(open, running func() bool, redraw func()) {
+	ticker := time.NewTicker(ciTurnEvery)
+	defer ticker.Stop()
+	for range ticker.C {
+		state := make(chan [2]bool, 1)
+		a.tv.QueueUpdate(func() { state <- [2]bool{open(), open() && running()} })
+		select {
+		case s := <-state:
+			if !s[0] {
+				return
+			}
+			if s[1] {
+				a.tv.QueueUpdateDraw(func() {
+					if open() {
+						redraw()
+					}
+				})
+			}
+		case <-time.After(5 * time.Second):
+			return
+		}
+	}
 }

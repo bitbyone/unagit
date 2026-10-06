@@ -223,6 +223,9 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	})
 	if state.moving() {
 		go a.followPipeline(target, state, picker)
+		go a.turnWhile(picker.open, state.running, func() {
+			picker.set(state.title(target), jobItems(state.jobs))
+		})
 	}
 }
 
@@ -230,6 +233,9 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 type pipelineState struct {
 	pipe *forge.Pipeline
 	jobs []forge.Job
+	// failed is why the last reading did not get through, "" when it did:
+	// a list that stopped following quietly looks like one with nothing new.
+	failed string
 }
 
 // moving reports whether the pipeline will change by itself: it, or a job
@@ -241,6 +247,19 @@ func (s *pipelineState) moving() bool {
 	}
 	for _, j := range s.jobs {
 		if jobMoving(j) {
+			return true
+		}
+	}
+	return false
+}
+
+// running reports whether a mark shown turns: the pipeline's, or a job's.
+func (s *pipelineState) running() bool {
+	if s.pipe.Status == "running" {
+		return true
+	}
+	for _, j := range s.jobs {
+		if !j.Retried && j.Status == "running" {
 			return true
 		}
 	}
@@ -261,6 +280,9 @@ func (s *pipelineState) title(target ciTarget) string {
 	title := fmt.Sprintf("Pipeline · %s · %s %s", esc(target.label), mark, status)
 	if s.moving() {
 		title += " · following"
+		if s.failed != "" {
+			title += " · " + tag(colWarn) + "reading failed: " + esc(s.failed) + tagEnd
+		}
 	}
 	return title
 }
@@ -313,14 +335,23 @@ func (a *App) followPipeline(target ciTarget, state *pipelineState, picker *live
 		}
 		pipe, jobs, err := target.load(ctx, client)
 		cancel()
-		if err != nil || pipe == nil {
+		if err == nil && pipe == nil {
+			err = fmt.Errorf("the pipeline is no longer there")
+		}
+		if err != nil {
+			a.tv.QueueUpdateDraw(func() {
+				if picker.open() {
+					state.failed = firstLine(err.Error())
+					picker.set(state.title(target), jobItems(state.jobs))
+				}
+			})
 			continue
 		}
 		a.tv.QueueUpdateDraw(func() {
 			if !picker.open() {
 				return
 			}
-			state.pipe, state.jobs = pipe, jobs
+			state.pipe, state.jobs, state.failed = pipe, jobs, ""
 			picker.set(state.title(target), jobItems(jobs))
 		})
 	}
@@ -537,11 +568,17 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		view := tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetScrollable(true).SetTextColor(colText)
 		view.SetText(text)
 		view.ScrollToEnd()
+		// failed is why the last reading of a followed log did not get
+		// through.
+		failed := ""
 		title := func(j forge.Job) string {
 			mark, status := painted(jobMark(j), j.Status)
 			t := fmt.Sprintf("%s %s · %s", mark, esc(j.Name), status)
 			if jobMoving(j) {
 				t += " · following"
+				if failed != "" {
+					t += " · " + tag(colWarn) + "reading failed: " + esc(failed) + tagEnd
+				}
 			}
 			return t
 		}
@@ -585,7 +622,16 @@ func (a *App) showJobLog(target ciTarget, job forge.Job, back func()) {
 		a.tv.SetFocus(view)
 		if jobMoving(job) {
 			open := func() bool { return a.pages.GetPage(pageCommit) == page }
-			go a.followLog(target, job, open, func(j forge.Job, text string) {
+			shown := job
+			go a.turnWhile(open, func() bool { return shown.Status == "running" }, func() { box(view.Box, title(shown)) })
+			go a.followLog(target, job, open, func(j forge.Job, text string, err error) {
+				shown = j
+				if err != nil {
+					failed = firstLine(err.Error())
+					box(view.Box, title(j))
+					return
+				}
+				failed = ""
 				row, col := view.GetScrollOffset()
 				view.SetText(text)
 				if atEnd {
@@ -612,7 +658,7 @@ func readJobLog(ctx context.Context, client forge.Provider, target ciTarget, job
 // followLog reads a running job and its log again every so often and hands
 // both to show, until the log is closed or the job is done - read once
 // more then, so its last lines are there.
-func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show func(forge.Job, string)) {
+func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show func(forge.Job, string, error)) {
 	client := a.client(target.instance)
 	if client == nil {
 		return
@@ -634,13 +680,10 @@ func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show f
 		}
 		text, err := readJobLog(ctx, client, target, job)
 		cancel()
-		if err != nil {
-			continue
-		}
 		current := job
 		a.tv.QueueUpdateDraw(func() {
 			if open() {
-				show(current, text)
+				show(current, text, err)
 			}
 		})
 	}
@@ -707,14 +750,25 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 	refW = min(refW, 32)
 	items := make([]pickItem, len(pipes))
 	start := 0
-	for i, p := range pipes {
+	label := func(p forge.Pipeline) (string, string) {
 		mark, _ := ciMark(p.Status)
 		if mark == "" {
 			mark = glyphRing
 		}
 		on := " "
 		if p.ID == current && current != 0 {
-			on, start = glyphDot, i
+			on = glyphDot
+		}
+		id := "#" + fmt.Sprint(p.ID)
+		if p.ID == 0 {
+			id = shortSHA(p.SHA)
+		}
+		paintedMark, status := painted(mark, p.Status)
+		return esc(on+" ") + paintedMark + esc(fmt.Sprintf("  %-8s  %-*s", id, refW, trim(p.Ref, refW))), status
+	}
+	for i, p := range pipes {
+		if p.ID == current && current != 0 {
+			start = i
 		}
 		when := p.CreatedAt
 		if when.IsZero() {
@@ -728,9 +782,9 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 		if p.ID == 0 {
 			id = shortSHA(p.SHA)
 		}
-		paintedMark, status := painted(mark, p.Status)
+		row, status := label(p)
 		items[i] = pickItem{
-			Label: esc(on+" ") + paintedMark + esc(fmt.Sprintf("  %-8s  %-*s", id, refW, trim(p.Ref, refW))),
+			Label: row,
 			Sub:   strings.TrimSpace(status + "  " + esc(strings.TrimSpace(p.Source+"  "+age))),
 			About: esc(strings.TrimSpace(fmt.Sprintf("%s · %s · %s %s", id, p.Status, shortSHA(p.SHA), p.WebURL))),
 			Data:  p,
@@ -746,7 +800,23 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 			a.browserKey("w", "browser", "Open Pipeline in Browser", "The pipeline's page on the forge; the list stays open.",
 				func(it pickItem) string { return at(it).WebURL }),
 		}}
-	a.showPickerWith("Pipelines · "+target.label, items, opts, func(it pickItem) {
+	picker := a.showPickerWith("Pipelines · "+target.label, items, opts, func(it pickItem) {
 		a.showPipeline(target.ofPipeline(at(it), again(it)), 0)
 	})
+	running := func() bool {
+		for _, p := range pipes {
+			if p.Status == "running" {
+				return true
+			}
+		}
+		return false
+	}
+	if running() {
+		go a.turnWhile(picker.open, running, func() {
+			for i := range items {
+				items[i].Label, _ = label(at(items[i]))
+			}
+			picker.set("Pipelines · "+target.label, items)
+		})
+	}
 }
