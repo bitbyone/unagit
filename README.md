@@ -601,6 +601,12 @@ theme, and the popular editor colour schemes - dark **carbonfox**,
 **github-light**, **gruvbox-light**, **rose-pine-dawn** and
 **solarized-light**.
 
+A theme with a background of its own does not have to colour the tags'
+pills: those it leaves out under `tags` are worked out of its colours -
+the fill a step off its background and tinted by it, the ink as
+colourful and as light as its accents, and far enough apart to read
+(4.5:1) - so all sixteen look alike in weight and belong to the theme.
+
 To tune one, `f` forks it: the theme under the cursor is written to
 `~/.config/unagit/themes/<name>.json` with every colour and glyph spelled
 out, and put on. Edit the file with unagit open beside it - each save puts

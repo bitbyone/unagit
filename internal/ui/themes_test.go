@@ -99,14 +99,23 @@ func TestUserThemesExtendAndSayWhatIsWrong(t *testing.T) {
 }
 
 // TestEveryBuiltInThemeLoads: each file in themes/ is offered under its
-// name. Reading one validates it, so this is all the built-in themes get -
-// walking the dialogs in each of them would cost the run a minute.
+// name, and its tags read. Reading one validates it, so this is all the
+// built-in themes get - walking the dialogs in each of them would cost the
+// run a minute.
 func TestEveryBuiltInThemeLoads(t *testing.T) {
 	t.Parallel()
 	set := loadThemes("")
 	for name := range builtinThemes() {
-		if _, ok := set.byName[name]; !ok {
+		th, ok := set.byName[name]
+		if !ok {
 			t.Errorf("%s.json is not offered", name)
+			continue
+		}
+		for _, c := range tagPalette {
+			ink := th.Tags[c.name]
+			if got := contrast(colour(ink.Ink), colour(ink.Fill)); got < tagContrast {
+				t.Errorf("%s: the %s tag reads at %.1f:1, %s on %s", name, c.name, got, ink.Ink, ink.Fill)
+			}
 		}
 	}
 }

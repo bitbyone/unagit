@@ -131,10 +131,15 @@ type Theme struct {
 		HeadingFill string `json:"heading_fill"`
 	} `json:"chezmoi"`
 
-	// Tags are the colours a tag can be given, by name: light ink on a deep
-	// fill. A theme can repaint any of them; the names stay, since tags are
-	// saved by them.
+	// Tags are the colours a tag can be given, by name: ink on a fill of
+	// the same hue. A theme can repaint any of them; the names stay, since
+	// tags are saved by them. Those a theme with a background of its own
+	// leaves out are worked out of its colours (deriveTags).
 	Tags map[string]TagInk `json:"tags"`
+	// tagsNamed are the tags this theme, or one it extends short of the
+	// default, names itself; the rest are worked out of its colours when it
+	// paints a background of its own (deriveTags).
+	tagsNamed map[string]bool
 
 	// Roles colour what the theme wants set apart, by the role's name
 	// (themeroles.go); every role it leaves out falls back on another, down
@@ -294,6 +299,31 @@ func readTheme(data []byte, base Theme) (Theme, error) {
 	return t, nil
 }
 
+// nameTags records which tags a theme names, its own and those of what it
+// extends, and works out the rest when it paints a background of its own:
+// the default's pills are made for a dark terminal.
+func nameTags(t *Theme, base Theme, data []byte) {
+	var own struct {
+		Tags map[string]json.RawMessage `json:"tags"`
+	}
+	_ = json.Unmarshal(data, &own)
+	t.tagsNamed = map[string]bool{}
+	for name := range base.tagsNamed {
+		t.tagsNamed[name] = true
+	}
+	for name := range own.Tags {
+		t.tagsNamed[name] = true
+	}
+	if colour(t.Background) == tcell.ColorDefault {
+		return
+	}
+	for name, ink := range deriveTags(*t) {
+		if !t.tagsNamed[name] {
+			t.Tags[name] = ink
+		}
+	}
+}
+
 // themeSet is every theme there is: the built-in ones and the user's, by
 // name, with what went wrong reading the user's.
 type themeSet struct {
@@ -392,6 +422,9 @@ func loadThemes(dir string) themeSet {
 		t.Name, t.file = name, files[name]
 		if err := t.validate(); err != nil {
 			return Theme{}, err
+		}
+		if name != defaultThemeName {
+			nameTags(&t, base, data)
 		}
 		set.byName[name] = t
 		return t, nil

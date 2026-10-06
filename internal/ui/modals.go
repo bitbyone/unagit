@@ -585,6 +585,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			b.SetBackgroundColor(colPicker)
 		}
 		input.SetFieldBackgroundColor(colPicker)
+		input.SetLabelStyle(tcell.StyleDefault.Foreground(colAccent).Background(colPicker))
 		list.SetMainTextStyle(tcell.StyleDefault.Foreground(colText).Background(colPicker))
 	}
 
@@ -844,12 +845,13 @@ func fitFooter(block *tview.Flex, footer *tview.TextView, inset int) {
 func fitFooterPadded(block *tview.Flex, footer *tview.TextView, inset, pad int) {
 	block.SetDrawFunc(func(screen tcell.Screen, x, y, w, h int) (int, int, int, int) {
 		side := inset + pad
-		// The padding is the block's own; what is under the modal must not
-		// show through it.
+		// The padding is the block's own, in its background; what is under
+		// the modal must not show through it.
+		style := tcell.StyleDefault.Background(block.GetBackgroundColor())
 		for row := y + inset; row < y+h-inset; row++ {
 			for i := range pad {
-				screen.SetContent(x+inset+i, row, ' ', nil, baseStyle())
-				screen.SetContent(x+w-1-inset-i, row, ' ', nil, baseStyle())
+				screen.SetContent(x+inset+i, row, ' ', nil, style)
+				screen.SetContent(x+w-1-inset-i, row, ' ', nil, style)
 			}
 		}
 		width := max(1, w-2*side)
