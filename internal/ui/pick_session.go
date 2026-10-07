@@ -195,7 +195,7 @@ func matchRecords(records []session.Record, query string) []session.Record {
 // recordSearch is what a search is matched against: the repository, the
 // merge request, its title or branch, the kind of place and its folder.
 func recordSearch(r session.Record) string {
-	text := r.Project + " " + r.Mode + " " + r.Title + " " + filepath.Base(r.Dir)
+	text := r.Project + " " + r.Mode + " " + r.Title + " " + r.Branch + " " + r.Dir + " " + filepath.Base(r.Dir)
 	if r.IID > 0 {
 		text += fmt.Sprintf(" !%d", r.IID)
 	}

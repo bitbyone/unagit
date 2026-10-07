@@ -162,7 +162,7 @@ func helpRows() []helpLine {
 		key("j k  Tab", "a form: from field to field, over the buttons"),
 		key("i  Enter", "type into the field; Esc stops typing"),
 		key("Alt-Enter", "a list: what can be done with the item"),
-		key(":", "what can be done from anywhere: the theme"),
+		key(":", "what can be done from anywhere: theme · editors"),
 		key("Ctrl-D Ctrl-U", "a log or a commit: half a page down · up"),
 		key("Ctrl-F Ctrl-B", "a log or a commit: a page down · up"),
 		blank(),
@@ -183,6 +183,9 @@ func helpRows() []helpLine {
 		key("yy", "copy the link"),
 		key("r", "refresh the row: fetch it, ask the server about it"),
 		key("R", "refresh the whole list from the servers"),
+		key("E", "running editors: Enter attach · x close"),
+		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
+		key(glyphEditor, "this directory is open in Neovim"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),

@@ -3,6 +3,7 @@ module github.com/tobola/unagit
 go 1.26.0
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/rivo/tview v0.42.0
 	github.com/spf13/cobra v1.10.2

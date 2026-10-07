@@ -23,6 +23,7 @@ func columnChoices(list string) []columnChoice {
 	switch list {
 	case config.ListRepositories:
 		return []columnChoice{
+			{id: "marks", heading: "MARKS"},
 			{id: "server", heading: "SERVER", offered: multiServer},
 			{id: "repository", heading: "REPOSITORY", always: true},
 			{id: "tags", heading: "TAGS"},
@@ -38,6 +39,7 @@ func columnChoices(list string) []columnChoice {
 		}
 	case config.ListMergeRequests:
 		return []columnChoice{
+			{id: "marks", heading: "MARKS"},
 			{id: "server", heading: "SERVER", offered: multiServer},
 			{id: "repository", heading: "REPO"},
 			{id: "iid", heading: "MR"},
@@ -53,6 +55,7 @@ func columnChoices(list string) []columnChoice {
 		}
 	case config.ListWorktrees:
 		return []columnChoice{
+			{id: "marks", heading: "MARKS"},
 			{id: "server", heading: "SERVER", offered: multiServer},
 			{id: "repository", heading: "REPOSITORY", always: true},
 			{id: "repos", heading: "REPOS"},

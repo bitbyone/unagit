@@ -159,7 +159,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 		return true
 	case opensScreenActions(ev) && screen != nil:
 		title, acts := screen()
-		a.showActions(title, append(acts, a.globalActions()...))
+		a.showActions(title, joinActions(acts, a.globalActions()))
 		return true
 	}
 	if selection != nil {
@@ -168,7 +168,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 		}
 	}
 	if screen != nil {
-		if _, acts := screen(); runKey(append(acts, a.globalActions()...), ev) {
+		if _, acts := screen(); runKey(joinActions(acts, a.globalActions()), ev) {
 			return true
 		}
 	}
@@ -179,6 +179,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 // the screen's own.
 func (a *App) globalActions() []uiAction {
 	return []uiAction{
+		a.runningEditorsAction(""),
 		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
 			rank: 900, run: a.showThemePicker},
 	}
@@ -239,4 +240,20 @@ func (a *App) openThemePicker(on, at, query string, preview bool) {
 			a.switchTheme(name)
 		}
 	})
+}
+
+// The main screens name global actions too when they give them a shortcut.
+// Their entry wins, so the picker shows the action once with that shortcut.
+func joinActions(local, global []uiAction) []uiAction {
+	out := append([]uiAction(nil), local...)
+	seen := map[string]bool{}
+	for _, act := range local {
+		seen[act.name] = true
+	}
+	for _, act := range global {
+		if !seen[act.name] {
+			out = append(out, act)
+		}
+	}
+	return out
 }

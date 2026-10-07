@@ -93,10 +93,13 @@ type App struct {
 	settingsLine *statusLine
 	tab          string
 
-	cfg      *config.Config
-	sessions *session.Store
-	vault    tokenVault
-	clients  map[string]forge.Provider
+	cfg         *config.Config
+	sessions    *session.Store
+	editorMu    sync.Mutex
+	openDirs    map[string]session.Record
+	openReading bool
+	vault       tokenVault
+	clients     map[string]forge.Provider
 	// logins maps an instance to the account its token belongs to, filled in
 	// when a token is verified.
 	logins map[string]string
@@ -392,6 +395,7 @@ func (a *App) Run() error {
 	}
 	stopWatching := make(chan struct{})
 	go a.watchTheme(stopWatching)
+	go a.watchEditors(stopWatching)
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 	close(stopWatching)
 	// Window editors outlive unagit, but nothing vouches for them any more.
@@ -1403,6 +1407,7 @@ func (a *App) refreshGroups() {
 // It reads .git/HEAD directly instead of shelling out to git, so it stays fast
 // even with hundreds of projects.
 func (a *App) refreshDisk() {
+	a.refreshOpenEditors()
 	// Counting what waits to be published reads a small file per worktree, and
 	// only means something when Incomm is in use.
 	a.disk, a.worktrees = a.scanDisk(a.cfg.Integrations.Incomm)

@@ -1,8 +1,8 @@
 # Editors that keep running in the background
 
-A plan, not yet built. Today a terminal editor takes the terminal and unagit
-waits for it to exit (`openEditor` in `internal/ui/editors.go`: `tv.Suspend`,
-then `cmd.Run`). One editor at a time, and closing it is the only way back.
+Implemented for Neovim 0.12 and newer. Before this change a terminal editor
+took the terminal and unagit waited for it to exit (`openEditor` in
+`internal/ui/editors.go`: `tv.Suspend`, then `cmd.Run`). One editor at a time, and closing it was the only way back.
 The aim: put Neovim aside without closing it, open another, and move between
 them from a list in unagit.
 
@@ -106,7 +106,7 @@ These are follow-ups, not part of the first change.
 | `internal/editors` | tell that an editor is Neovim 0.12 or newer (`:detach` exists from 0.12), once per process; the command to start with `--listen` and the mapping, the one to attach, and a check whether a socket answers. Older Neovim, Vim and custom terminal editors keep today's behaviour. |
 | `internal/session` | `Record` gains the socket. A record with a socket is alive while the socket answers, not while the pid that wrote it does; the sweep checks the socket and removes a dead one with its record. A record without a socket keeps today's rule. |
 | `internal/ui/editors.go` | after the terminal comes back, aside or closed; an opening action attaches when the directory has a running editor. |
-| `internal/ui` | "Running Editors…" with `E` in the list actions of the three main screens and in `globalActions`; the mark in the lists; `:checktime` after a reset. Help rows for `E` and the mark; a paragraph in the README. |
+| `internal/ui` | "Running Editors…" with `E` in the list actions of the three main screens and in `globalActions`; the mark in the lists. Help rows for `E` and the mark; a paragraph in the README. |
 | `cmd/unagit` | `unagit attach`. |
 
 ## Tests
@@ -129,7 +129,8 @@ These are follow-ups, not part of the first change.
 
 - How to ask the socket: `nvim --server <socket> --remote-expr` costs a
   process per question; a direct msgpack-RPC connection is faster but a
-  dependency. A process is enough for the first version - the questions
-  are few and come after a key.
+  dependency. The first version uses a process for these few requests after
+  a key, and a direct Unix socket connection to check liveness. A busy editor must
+  not lose its record just because it cannot handle an RPC request yet.
 - A Neovim left aside for days holds its LSP servers. The picker shows how
   long each has run; nothing closes one on its own.

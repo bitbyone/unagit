@@ -683,10 +683,28 @@ macOS, the application in `/Applications` - and `f` picks the favourite, or
 none. Without a favourite that is installed, every open asks, the way Alt
 does. A command of your own goes in Settings › General as the custom editor.
 
-Neovim takes the terminal: unagit steps aside until you quit it. The others
-open a window of their own and unagit carries on; `unagit cd` knows about them
-until unagit exits. On macOS, Alt needs the terminal to send Option as Meta
-(iTerm2: Profiles › Keys › Left Option key › Esc+).
+Neovim takes the terminal. With Neovim 0.12 or newer, **Ctrl-Z** (or
+`:detach`) puts it aside and returns to unagit, keeping the buffers and
+unsaved changes. **E** on a main list, or **Running Editors…** in `:`, lists
+these editors: Enter attaches, `x` closes. With unsaved changes, closing
+attaches first and asks about saving in Neovim. The list shows the repository,
+branch or merge request, directory, age and unsaved changes (`?` when the
+editor is too busy to answer). `▣` beside a row marks its directory open in
+Neovim; Nerd Fonts use an icon, and `v` can hide the marks column.
+Opening the same directory in Neovim again attaches to it. Alt-O still lets
+you choose a different editor.
+
+Quitting unagit leaves the editors aside running. The next instance finds
+them, and `unagit attach [query]` returns to one from a shell without opening
+the main interface. `unagit sessions` and `unagit cd` include them too. Nothing
+closes an editor because of its age. The sessions directory is private
+(0700), since its sockets give access to the editor. A very long config path
+needs a shorter `UNAGIT_CONFIG_DIR` to fit macOS's Unix socket limit.
+
+Older Neovim and custom terminal editors keep the terminal until they quit.
+Window editors open their own window and unagit carries on; `unagit cd` knows
+about them until unagit exits. On macOS, Alt needs the terminal to send Option
+as Meta (iTerm2: Profiles › Keys › Left Option key › Esc+).
 
 ## Follow it into another terminal
 
@@ -696,7 +714,8 @@ long as something is open it knows where. Another window can go there:
 ```sh
 unagit cd            # asks which, when more than one is open
 unagit cd calling    # a search narrows it; one match needs no asking
-unagit sessions      # what is open, for scripts
+unagit sessions      # what is open, including editors left aside
+unagit attach calling # return to a Neovim left aside
 ```
 
 `unagit cd` starts a shell in that directory and leaving it puts you back,
@@ -731,6 +750,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `C` | clone without opening the editor; a merge request's review worktree |
 | `Ctrl-O` | open the editor as it is on disk; clones only what is missing |
+| `E` | running Neovims: Enter attaches, x closes |
+| `Ctrl-Z` in Neovim | put it aside and return to unagit (0.12+) |
 | `p` | update: a fast-forward, or a rebase of your work; never a conflict |
 | `Alt-O` `Alt-R` … | the same, in an editor you choose |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |

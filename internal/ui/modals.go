@@ -688,7 +688,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			// inner is the width the explanations were measured at, so the
 			// pane under the list is as tall as they need.
-			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(opts.header)+1, inner)
+			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(header.GetText(false))+1, inner)
 			width := min(most, rows+2+2*pad)
 			footerLines := len(tview.WordWrap(normalHint(), width-2-2*pad))
 			return width, min(h*85/100, 2+1+len(items)+extra+footerLines)

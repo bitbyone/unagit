@@ -86,6 +86,7 @@
   },
   "heat": ["#5a7f8c", "#8f5a5a"],
   "glyphs": {
+    "editor": "▣",
     "disk_none": "○",
     "disk_branch": "●",
     "disk_review": "◐",
@@ -124,6 +125,7 @@
     "ci_idle": "○"
   },
   "nerd_glyphs": {
+    "editor": "",
     "worktree": "\uec7d",
     "group": "\ueea8",
     "repos": "\udb83\udccf",

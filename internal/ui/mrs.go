@@ -125,7 +125,7 @@ func (a *App) filterMRs(query string) []int {
 // title reads the row, so it minds a cut the most; NEW, APPR and CI take
 // room only when a row has something in them, so a list nobody has
 // reviewed, approved or built keeps its titles whole.
-type mrColumns struct{ server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
+type mrColumns struct{ marks, server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
 
 // titleMeasure is the widest the title column grows: past it the author and
 // the branch would stand so far right of it that the eye loses the row on
@@ -180,6 +180,13 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		cols = append(cols, c)
 		return c
 	}
+	marksCol := editorColumn(rows, hide("marks"), func(idx int) string {
+		mr := a.mrs[idx]
+		return a.mrEditorMark(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
+	})
+	if marksCol.shown() {
+		cols = append(cols, marksCol)
+	}
 	title := flexColumn("TITLE", titles, 24, 2)
 	title.max = titleMeasure
 	add("", title)
@@ -207,7 +214,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	}
 	// One cell stays free, so the last column does not touch the frame.
 	layoutColumns(room-1, cols...)
-	return mrColumns{server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
+	return mrColumns{marks: marksCol.width, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
 		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
 		ci: ci, updated: updatedCol.width}
 }
@@ -283,6 +290,7 @@ func rowText(fields []field) string {
 func (a *App) drawMRs(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
+	p.kept.reset()
 	grouped := a.cfg.Filters.GroupByProject
 	withServer := a.multiInstance() && !grouped
 	favourite := func(idx int) bool {
@@ -297,6 +305,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 
 	// The header is laid out the same way the rows are.
 	header := []field{{text: "", width: 2 + star, colour: role("merge_requests.header")}}
+	if c.marks > 0 {
+		header = append(header, field{width: c.marks})
+	}
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("merge_requests.header")})
 	}
@@ -356,6 +367,14 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 
 		fields := []field{{raw: mark}}
+		if c.marks > 0 {
+			fields = append(fields, editorField(a.mrEditorMark(disk), c.marks))
+			x := 3 + star
+			if grouped {
+				x++
+			}
+			keepEditorMark(p, row, x, a.mrEditorMark(disk), p.marks[idx])
+		}
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: role("merge_requests.server")})
 		}

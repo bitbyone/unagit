@@ -1,17 +1,15 @@
 // Package session records what unagit currently has open in an editor, so
 // another terminal can find its way there.
 //
-// Opening an editor does not end unagit: it suspends the interface and waits
-// for the editor to exit. While that lasts, the running process knows which
-// directory it handed over, and writes it down here. An editor that opens a
-// window of its own does not keep unagit waiting; its record stays until
-// unagit exits, since that is as long as anyone can vouch for it. Files are
-// named after the process that wrote them, so two unagit windows never write
-// to the same place and no locking is needed; a file whose process is gone is
-// simply stale and gets swept up on the next read.
+// A terminal editor's record lasts until it closes. A Neovim with a socket
+// lives independently of the unagit that opened it, so its record follows
+// the listener instead of the writer's pid. Window editors keep the pid rule:
+// nothing tells unagit when their windows close. Each opening gets a file of
+// its own, and readers sweep away those whose editor is gone.
 package session
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,6 +18,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/tobola/unagit/internal/editors"
 )
 
 // Modes a directory can be open in.
@@ -42,6 +42,10 @@ type Record struct {
 	Title    string    `json:"title,omitempty"`
 	Mode     string    `json:"mode"`
 	Since    time.Time `json:"since"`
+	Editor   string    `json:"editor,omitempty"`
+	Launcher string    `json:"launcher,omitempty"`
+	Socket   string    `json:"socket,omitempty"`
+	Branch   string    `json:"branch,omitempty"`
 }
 
 // Label is how the record reads in a list.
@@ -62,21 +66,88 @@ func New(dir string) *Store { return &Store{dir: filepath.Join(dir, "sessions")}
 // A failure to write is not worth failing the open for: the editor still
 // works, only another terminal cannot find it.
 func (s *Store) Open(r Record) func() {
+	close, _ := s.Add(r)
+	return close
+}
+
+// Add reports failures for a background editor: losing its record would
+// leave a running server that the next unagit cannot find.
+func (s *Store) Add(r Record) (func(), error) {
+	noop := func() {}
 	r.PID = os.Getpid()
-	r.Since = time.Now()
+	if r.Since.IsZero() {
+		r.Since = time.Now()
+	}
 	path := s.path(r.PID, opened.Add(1))
 
-	if err := os.MkdirAll(s.dir, 0o700); err != nil {
-		return func() {}
+	if err := s.secureDirectory(); err != nil {
+		return noop, err
 	}
 	b, err := json.Marshal(r)
 	if err != nil {
-		return func() {}
+		return noop, err
 	}
-	if err := os.WriteFile(path, b, 0o600); err != nil {
-		return func() {}
+	f, err := os.CreateTemp(s.dir, ".record-")
+	if err != nil {
+		return noop, err
 	}
-	return func() { os.Remove(path) }
+	defer os.Remove(f.Name())
+	_, err = f.Write(b)
+	closeErr := f.Close()
+	if err != nil {
+		return noop, err
+	}
+	if closeErr != nil {
+		return noop, closeErr
+	}
+	if err := os.Rename(f.Name(), path); err != nil {
+		return noop, err
+	}
+	return func() { os.Remove(path) }, nil
+}
+
+func (s *Store) secureDirectory() error {
+	if err := os.MkdirAll(s.dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(s.dir, 0o700)
+}
+
+// NewSocket keeps the name independent of repository names and short enough
+// for macOS, where even a normal temporary directory can be too long.
+func (s *Store) NewSocket() (string, error) {
+	if err := s.secureDirectory(); err != nil {
+		return "", err
+	}
+	var id [6]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", err
+	}
+	path := filepath.Join(s.dir, fmt.Sprintf("%x.sock", id))
+	if len(path) > 103 {
+		return "", fmt.Errorf("editor socket path is too long; use a shorter UNAGIT_CONFIG_DIR")
+	}
+	return path, nil
+}
+
+// Remove takes back a closed server's record, even when another unagit
+// created it. Only sockets in this store are ours to remove.
+func (s *Store) Remove(r Record) {
+	entries, _ := os.ReadDir(s.dir)
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(s.dir, e.Name())
+		b, err := os.ReadFile(path)
+		var saved Record
+		if err == nil && json.Unmarshal(b, &saved) == nil && saved.Socket == r.Socket && r.Socket != "" {
+			os.Remove(path)
+		}
+	}
+	if filepath.Dir(r.Socket) == s.dir && !editors.SocketAlive(r.Socket) {
+		os.Remove(r.Socket)
+	}
 }
 
 // opened numbers the records of this process: several window editors can be
@@ -88,10 +159,32 @@ func (s *Store) path(pid int, n int64) string {
 }
 
 // List returns what is open, newest first, after sweeping up the records of
-// processes that are no longer running. A directory is listed once, however
+// editors that are no longer running. A directory is listed once, however
 // many records it has - two unagit windows, or one opening it twice - because
 // what the list is for is going there.
 func (s *Store) List() []Record {
+	return unique(s.records(false))
+}
+
+// Running excludes PID-only records before deduplication, so opening a
+// window editor beside Neovim does not hide a server that can be attached.
+func (s *Store) Running() []Record {
+	return unique(s.records(true))
+}
+
+// InEditor filters before deduplication: a newer window editor beside
+// Neovim does not take away the mark of the Neovim still running there.
+func (s *Store) InEditor(id string) []Record {
+	var out []Record
+	for _, r := range s.records(false) {
+		if r.Editor == id {
+			out = append(out, r)
+		}
+	}
+	return unique(out)
+}
+
+func (s *Store) records(backgroundOnly bool) []Record {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil
@@ -111,8 +204,23 @@ func (s *Store) List() []Record {
 			os.Remove(path)
 			continue
 		}
-		if !alive(r.PID) {
+		live := alive(r.PID)
+		if r.Socket != "" {
+			live = editors.SocketAlive(r.Socket)
+			// The record is written before the first UI starts listening.
+			// Another unagit must not sweep it in that short interval.
+			if !live && alive(r.PID) && time.Since(r.Since) < 5*time.Second {
+				continue
+			}
+		}
+		if !live {
 			os.Remove(path)
+			if r.Socket != "" && filepath.Dir(r.Socket) == s.dir {
+				os.Remove(r.Socket)
+			}
+			continue
+		}
+		if backgroundOnly && r.Socket == "" {
 			continue
 		}
 		if _, err := os.Stat(r.Dir); err != nil {
@@ -122,6 +230,10 @@ func (s *Store) List() []Record {
 		out = append(out, r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Since.After(out[j].Since) })
+	return out
+}
+
+func unique(out []Record) []Record {
 	seen := map[string]bool{}
 	unique := out[:0]
 	for _, r := range out {

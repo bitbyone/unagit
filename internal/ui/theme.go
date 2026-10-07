@@ -50,6 +50,7 @@ var (
 // The glyphs that say what something is, set from the theme.
 var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
+	glyphEditor                                                    string
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft     string
 	// actionIcons are the theme's icons of the actions, nil without a
@@ -166,6 +167,7 @@ func setTheme(t Theme) {
 	if nerdFont {
 		g = g.over(t.NerdGlyphs)
 	}
+	glyphEditor = g.Editor
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft = g.Repos, g.ForgeGitHub, g.ForgeGitLab, g.Draft

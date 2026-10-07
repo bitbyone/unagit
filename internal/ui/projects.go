@@ -231,6 +231,13 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		cols = append(cols, c)
 		return c
 	}
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string {
+		pr := a.projects[idx]
+		return a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
+	})
+	if marksCol.shown() {
+		cols = append(cols, marksCol)
+	}
 	nameCol := add("", flexColumn("REPOSITORY", names, 20, 2))
 	branchCol := add("branch", flexColumn("BRANCH", branches, 10, 1))
 	pathCol := gistColumn("PATH", paths, minPath, 0.8)
@@ -280,6 +287,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// a repository takes.
 	least, most := a.repoSizeRange()
 	header := []field{{text: "", width: markW, colour: role("repositories.header")}}
+	if marksCol.shown() {
+		header = append(header, field{width: marksCol.width})
+	}
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("repositories.header")})
 	}
@@ -353,6 +363,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 
 		fields := []field{{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)}}
 		nameX := markW + 1
+		if marksCol.shown() {
+			fields = append(fields, editorField(a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace)), marksCol.width))
+			keepEditorMark(p, row, markW+1, a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace)), p.marks[idx])
+			nameX += marksCol.width + 1
+		}
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1

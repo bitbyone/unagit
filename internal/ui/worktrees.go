@@ -368,6 +368,7 @@ func (a *App) filterWorktrees(query string) []int {
 func (a *App) drawWorktrees(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
+	p.kept.reset()
 	withServer := a.multiInstance()
 
 	actW, mrW := len("ACTIVITY"), len("MR")
@@ -423,7 +424,12 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	// A column hidden in View options is never laid out and keeps no width.
 	hide := func(id string) bool { return a.hidesColumn(config.ListWorktrees, id) }
-	cols := []*listColumn{fixedColumn(markW), repoCol}
+	cols := []*listColumn{fixedColumn(markW)}
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string { return a.editorMark(a.worktrees[idx].Dir) })
+	if marksCol.shown() {
+		cols = append(cols, marksCol)
+	}
+	cols = append(cols, repoCol)
 	add := func(id string, c *listColumn) *listColumn {
 		if hide(id) {
 			c.width = 0
@@ -468,6 +474,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// a worktree takes.
 	wtLeast, wtMost := a.worktreeSizeRange()
 	header := []field{{text: "", width: markW, colour: role("worktrees.header")}}
+	if marksCol.shown() {
+		header = append(header, field{width: marksCol.width})
+	}
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("worktrees.header")})
 	}
@@ -517,6 +526,10 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			}
 		}
 		cells := []field{{raw: mark}}
+		if marksCol.shown() {
+			cells = append(cells, editorField(a.editorMark(r.Dir), marksCol.width))
+			keepEditorMark(p, row+1, markW+1, a.editorMark(r.Dir), false)
+		}
 		if withServer {
 			cells = append(cells, field{text: a.worktreeServer(r), width: serverW, colour: role("worktrees.server")})
 		}

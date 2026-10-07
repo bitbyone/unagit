@@ -206,6 +206,7 @@ func (n Glyphs) named() map[string]string {
 
 // Glyphs are the characters that say what something is.
 type Glyphs struct {
+	Editor string `json:"editor"`
 	// On disk: nothing, a branch worktree, a review worktree, both.
 	DiskNone   string `json:"disk_none"`
 	DiskBranch string `json:"disk_branch"`
@@ -542,6 +543,7 @@ func (t Theme) colours() map[string]string {
 func (t Theme) glyphs() map[string]string {
 	g := t.Glyphs
 	return map[string]string{
+		"glyphs.editor":    g.Editor,
 		"glyphs.disk_none": g.DiskNone, "glyphs.disk_branch": g.DiskBranch,
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
 		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,

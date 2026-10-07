@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/session"
 )
 
 // assertLegible walks the whole screen and fails on any character drawn in
@@ -155,6 +158,20 @@ func walkDialogs(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	waitFor(t, a, sc, "Hidden repositories")
 	assertLegible(t, a, sc, "the hidden repositories modal")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Hidden repositories")
+
+	a.tv.QueueUpdateDraw(func() {
+		a.drawRunningEditors([]session.Record{{Project: "acme/gateway", Branch: "main", Dir: a.cfg.Root(), Since: time.Now()}}, []string{"modified"})
+	})
+	waitFor(t, a, sc, "Running Editors")
+	assertLegible(t, a, sc, "the running editors")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Attach to Editor")
+	assertLegible(t, a, sc, "the running editor's actions")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Attach to Editor")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Running Editors")
 
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")

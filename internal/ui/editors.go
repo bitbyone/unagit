@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/workspace"
 )
 
 // detectEditors lists the editors unagit knows and which of them are here.
@@ -73,17 +76,14 @@ func (a *App) openNow(dir string, what session.Record, ed *editors.Editor) {
 	go a.openEditor(dir, what, ed)
 }
 
-// openEditor opens dir in the editor. A terminal editor gets the terminal:
-// the TUI is suspended until it exits, and its directory is on record for
-// exactly that long, so another terminal can find its way there. A window
-// editor is only started - its launcher returns while the editor runs on - so
-// its record stays until unagit exits, the longest anyone can vouch for it.
+// openEditor gives a terminal editor the terminal. Neovim's record follows
+// its server, so detaching its UI does not lose the directory or the buffers.
 func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
+	a.editorMu.Lock()
+	defer a.editorMu.Unlock()
 	if ed == nil {
 		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
 		if !ok {
-			// The favourite went away while the task ran, or a task that was
-			// not expected to open anything did: ask now, then carry on.
 			a.tv.QueueUpdateDraw(func() {
 				a.closeModal(pageTask)
 				a.withEditor(true, func(chosen *editors.Editor) { go a.openEditor(dir, what, chosen) })
@@ -93,20 +93,95 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 		ed = &fav
 	}
 	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
-	what.Dir = dir
+	what.Dir, what.Editor = dir, ed.ID
+	what.Branch, _ = workspace.WorktreeHead(dir)
 	if !ed.Terminal {
 		a.openWindowEditor(dir, what, *ed)
 		return
 	}
-	defer a.sessions.Open(what)()
-	a.tv.Suspend(func() {
-		// Nothing is printed on the way: it would pile up in the terminal's
-		// scrollback and be all there is to see once unagit quits. Where
-		// things are open is what unagit sessions and unagit cd are for.
-		cmd, err := ed.Command(dir)
+	if ed.ID == editors.Nvim {
+		for _, running := range a.sessions.Running() {
+			if sameDirectory(running.Dir, dir) {
+				a.attachEditorLocked(running, false)
+				return
+			}
+		}
+	}
+	var cmd *exec.Cmd
+	var err error
+	if ed.CanDetach() {
+		what.Launcher = ed.Where
+		what.Socket, err = a.sessions.NewSocket()
 		if err == nil {
-			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-			err = cmd.Run()
+			cmd, err = ed.BackgroundCommand(dir, what.Socket)
+		}
+	} else {
+		cmd, err = ed.Command(dir)
+	}
+	if err != nil {
+		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
+		return
+	}
+	close, err := a.sessions.Add(what)
+	if err != nil && what.Socket != "" {
+		a.tv.QueueUpdateDraw(func() { a.errorf("cannot record the editor: %v", err) })
+		return
+	}
+	a.runTerminalEditor(cmd, *ed)
+	if what.Socket == "" {
+		close()
+	}
+	a.editorReturned(what)
+}
+
+func sameDirectory(left, right string) bool {
+	// A symlink to the clone is still the same place, and must not get a
+	// second Neovim fighting over its swap files.
+	if real, err := filepath.EvalSymlinks(left); err == nil {
+		left = real
+	}
+	if real, err := filepath.EvalSymlinks(right); err == nil {
+		right = real
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
+}
+
+func (a *App) attachEditor(r session.Record) {
+	go func() {
+		a.editorMu.Lock()
+		defer a.editorMu.Unlock()
+		a.attachEditorLocked(r, false)
+	}()
+}
+
+func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
+	if !editors.SocketAlive(r.Socket) {
+		a.sessions.Remove(r)
+		a.tv.QueueUpdateDraw(func() { a.refreshOpenEditors(); a.flash("editor has closed; open the directory again") })
+		return
+	}
+	cmd := editors.AttachCommand(r.Launcher, r.Socket, r.Dir)
+	if confirmClose {
+		a.runTerminalEditorConfirm(cmd, r)
+	} else {
+		a.runTerminalEditor(cmd, editors.Editor{Name: "Neovim"})
+	}
+	a.editorReturned(r)
+}
+
+func (a *App) runTerminalEditor(cmd *exec.Cmd, ed editors.Editor) {
+	a.runTerminalEditorWith(cmd, ed, nil)
+}
+
+func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started func()) {
+	a.tv.Suspend(func() {
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		err := cmd.Start()
+		if err == nil {
+			if started != nil {
+				started()
+			}
+			err = cmd.Wait()
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s failed: %v\n", ed.Name, err)
@@ -115,11 +190,22 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 			fmt.Scanln(&s)
 		}
 	})
+}
+
+func (a *App) editorReturned(r session.Record) {
+	aside := editors.SocketAlive(r.Socket)
+	if r.Socket != "" && !aside {
+		a.sessions.Remove(r)
+	}
 	a.tv.QueueUpdateDraw(func() {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
-		a.done("opened " + dir)
+		if aside {
+			a.note("nvim aside: " + r.Label() + " · E lists the running editors")
+		} else {
+			a.done("opened " + r.Dir)
+		}
 	})
 }
 
@@ -172,4 +258,21 @@ func closeWindowSessions() {
 		close()
 	}
 	windowSessions.close = nil
+}
+
+func (a *App) attachEditorToClose(r session.Record) {
+	go func() {
+		a.editorMu.Lock()
+		defer a.editorMu.Unlock()
+		a.attachEditorLocked(r, true)
+	}()
+}
+
+func (a *App) runTerminalEditorConfirm(cmd *exec.Cmd, r session.Record) {
+	count, _ := editors.RemoteExpr(r.Launcher, r.Socket, "len(nvim_list_uis())")
+	finished := make(chan struct{})
+	defer close(finished)
+	a.runTerminalEditorWith(cmd, editors.Editor{Name: "Neovim"}, func() {
+		go editors.ConfirmCloseOnAttach(r.Launcher, r.Socket, count, finished)
+	})
 }

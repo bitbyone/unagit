@@ -27,6 +27,7 @@ type colourRole struct {
 
 // colourRoles is every role, the general before the particular.
 var colourRoles = []colourRole{
+	{"mark.editor", "state.good", "a directory open in Neovim"},
 	// What every list's column of the kind is.
 	{"column.header", "text.dim", "the column names over a list"},
 	{"column.server", "text.accent", "which server a row is on"},
