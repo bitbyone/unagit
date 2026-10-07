@@ -102,6 +102,21 @@ func toOklab(c tcell.Color) oklab {
 	}
 }
 
+// tagSaturation is how much of its colourfulness a pill keeps, fill and
+// ink alike, whether a theme names it or it is worked out: a tenth less, so
+// a row of pills does not outshine the names it follows.
+const tagSaturation = 0.9
+
+// quieter is c with tagSaturation of its chroma, its lightness and hue
+// kept, so the ink still reads on the fill as it did.
+func quieter(c tcell.Color) tcell.Color {
+	if c == tcell.ColorDefault || !c.Valid() {
+		return c
+	}
+	lab := toOklab(c)
+	return fromOklch(lab.l, math.Hypot(lab.a, lab.b)*tagSaturation, math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
+}
+
 // fromOklch is the colour of a lightness, chroma and hue, shifted by da
 // and db, with the chroma taken down until it can be shown.
 func fromOklch(l, chroma, hue, da, db float64) tcell.Color {

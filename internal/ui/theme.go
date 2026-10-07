@@ -144,7 +144,7 @@ func setTheme(t Theme) {
 	chezmoiHeading = "[" + colour(t.Chezmoi.HeadingInk).String() + ":" + colour(t.Chezmoi.HeadingFill).String() + ":b]"
 	for i, c := range tagPalette {
 		if ink, ok := t.Tags[c.name]; ok {
-			tagPalette[i].ink, tagPalette[i].fill = colour(ink.Ink).String(), colour(ink.Fill).String()
+			tagPalette[i].ink, tagPalette[i].fill = quieter(colour(ink.Ink)).String(), quieter(colour(ink.Fill)).String()
 		}
 	}
 
