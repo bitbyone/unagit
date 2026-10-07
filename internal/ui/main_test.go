@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -20,6 +21,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("UNAGIT_CONFIG_DIR", dir)
+	os.Setenv("_ZO_DATA_DIR", filepath.Join(dir, "zoxide"))
 	fixtureRoot = dir
 	// Whether the terminal running the tests draws Nerd Font icons is
 	// nothing the tests should depend on.

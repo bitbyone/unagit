@@ -96,6 +96,7 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 	what.Dir, what.Editor = dir, ed.ID
 	what.Branch, _ = workspace.WorktreeHead(dir)
 	if !ed.Terminal {
+		a.zoxideAdd(dir)
 		a.openWindowEditor(dir, what, *ed)
 		return
 	}
@@ -127,6 +128,7 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 		a.tv.QueueUpdateDraw(func() { a.errorf("cannot record the editor: %v", err) })
 		return
 	}
+	a.zoxideAdd(dir)
 	a.runTerminalEditor(cmd, *ed)
 	if what.Socket == "" {
 		close()
@@ -159,6 +161,9 @@ func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
 		a.sessions.Remove(r)
 		a.tv.QueueUpdateDraw(func() { a.refreshOpenEditors(); a.flash("editor has closed; open the directory again") })
 		return
+	}
+	if !confirmClose {
+		a.zoxideAdd(r.Dir)
 	}
 	cmd := editors.AttachCommand(r.Launcher, r.Socket, r.Dir)
 	if confirmClose {

@@ -23,7 +23,7 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 		t.Fatalf("building the command: %v\n%s", err, out)
 	}
 	cmd := exec.Command(binary, "cd", "--print", "calling")
-	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home)
+	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "_ZO_DATA_DIR="+filepath.Join(home, "zoxide"))
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("unagit cd --print: %v", err)
@@ -41,7 +41,7 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 	// A search that matches nothing fails rather than printing something
 	// unexpected into a cd.
 	cmd = exec.Command(binary, "cd", "--print", "nonsense")
-	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home)
+	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "_ZO_DATA_DIR="+filepath.Join(home, "zoxide"))
 	if out, err := cmd.Output(); err == nil {
 		t.Errorf("a search matching nothing printed %q", out)
 	}
@@ -49,7 +49,7 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 	// Without --print it is the shell itself that ends up there, which is the
 	// whole point: feed one a command and see where it thinks it is.
 	cmd = exec.Command(binary, "cd", "calling")
-	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "SHELL=/bin/sh")
+	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "_ZO_DATA_DIR="+filepath.Join(home, "zoxide"), "SHELL=/bin/sh")
 	cmd.Stdin = strings.NewReader("pwd; echo \"$UNAGIT_CD\"\n")
 	out, err = cmd.Output()
 	if err != nil {

@@ -39,7 +39,7 @@ func TestAttachFindsAServerLeftByAnotherProcess(t *testing.T) {
 	}
 	run := func(args ...string) ([]byte, error) {
 		cmd := exec.Command(command, args...)
-		cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home)
+		cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "_ZO_DATA_DIR="+filepath.Join(home, "zoxide"))
 		return cmd.CombinedOutput()
 	}
 	out, err := run("sessions")

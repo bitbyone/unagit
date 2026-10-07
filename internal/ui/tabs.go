@@ -50,6 +50,7 @@ func (a *App) currentTab() string {
 func (a *App) switchTab(page string) {
 	a.tab = page
 	a.pages.SwitchToPage(page)
+	a.refreshZoxide()
 	switch page {
 	case pageProjects:
 		a.tv.SetFocus(a.projectsPane.focusTarget())

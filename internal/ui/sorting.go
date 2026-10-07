@@ -7,11 +7,14 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/zoxide"
 )
 
 // sortLabel is how an order is named in a list's header and its picker.
 func sortLabel(order string) string {
 	switch order {
+	case config.SortFrecency:
+		return "by frecency"
 	case config.SortName:
 		return "by name"
 	case config.SortEdits:
@@ -31,6 +34,8 @@ func sortLabel(order string) string {
 // sortAbout says what comes first in an order, under it in the picker.
 func sortAbout(list, order string) string {
 	switch order {
+	case config.SortFrecency:
+		return "frequent and recent visits first, then activity"
 	case config.SortName:
 		if list == config.ListMergeRequests {
 			return "by repository, then by number"
@@ -86,6 +91,8 @@ func (a *App) sortProjects(hits []scored, projects []forge.Project) {
 	}
 	newest := func(idx int) time.Time { return projects[idx].LastActivityAt }
 	switch a.order(config.ListRepositories) {
+	case config.SortFrecency:
+		byVisits(hits, func(idx int) (float64, bool) { return a.repositoryScore(keyOf(idx)) }, newest)
 	case config.SortName:
 		sort.SliceStable(hits, func(i, j int) bool {
 			return projects[hits[i].idx].PathWithNamespace < projects[hits[j].idx].PathWithNamespace
@@ -182,6 +189,11 @@ func (a *App) sortMRs(hits []scored) {
 func (a *App) sortWorktrees(hits []scored) {
 	newest := func(idx int) time.Time { return a.worktrees[idx].Moved }
 	switch a.order(config.ListWorktrees) {
+	case config.SortFrecency:
+		byVisits(hits, func(idx int) (float64, bool) {
+			n, ok := a.zoxideScores[zoxide.Path(a.worktrees[idx].Dir)]
+			return n, ok
+		}, newest)
 	case config.SortName:
 		sort.SliceStable(hits, func(i, j int) bool {
 			l, r := a.worktrees[hits[i].idx], a.worktrees[hits[j].idx]

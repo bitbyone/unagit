@@ -65,6 +65,16 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.detectChezmoi()
 		},
 		found: s.app.chezmoiFound,
+	}, {
+		name: "Zoxide", command: "zoxide",
+		description: "Remember directories opened in an editor or a shell. Sort repositories and worktrees by frequent and recent visits.",
+		enabled:     s.app.zoxideOn,
+		toggle: func() {
+			on := !s.app.zoxideOn()
+			s.app.cfg.Integrations.Zoxide = &on
+			s.app.refreshZoxide()
+		},
+		found: s.app.zoxideFound,
 	}}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
@@ -122,7 +132,7 @@ func (v *integrationsView) check() {
 	v.editors = v.settings.app.detectEditors()
 	for _, card := range v.cards {
 		if card.command != "" {
-			card.binary, _ = v.settings.app.executable(card.command)
+			card.binary = v.integrationBinary(card.command)
 		}
 	}
 	v.paintFocus(v.active)
@@ -194,7 +204,10 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 				return nil
 			}
 			// Recheck before enabling so a removed executable cannot be enabled.
-			card.binary, _ = v.settings.app.executable(card.command)
+			if card.command == "zoxide" {
+				v.settings.app.checkZoxide()
+			}
+			card.binary = v.integrationBinary(card.command)
 			if card.binary != "" {
 				card.toggle()
 				v.settings.app.saveConfig()
@@ -203,7 +216,10 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case 'c':
 			card := v.cards[v.current]
-			card.binary, _ = v.settings.app.executable(card.command)
+			if card.command == "zoxide" {
+				v.settings.app.checkZoxide()
+			}
+			card.binary = v.integrationBinary(card.command)
 			v.paintFocus(true)
 			return nil
 		default:
@@ -312,4 +328,12 @@ func shortPath(path string, n int) string {
 		return "…" + string(r[len(r)-n+1:])
 	}
 	return path
+}
+
+func (v *integrationsView) integrationBinary(command string) string {
+	if command == "zoxide" {
+		return v.settings.app.zoxideTool().Binary()
+	}
+	bin, _ := v.settings.app.executable(command)
+	return bin
 }

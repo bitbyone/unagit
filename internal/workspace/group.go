@@ -256,6 +256,7 @@ func (m *Manager) RemoveGroupMember(projectPath, dir string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
+	m.removed(dir)
 	if Exists(mainDir) {
 		m.git.WorktreePrune(mainDir)
 	}

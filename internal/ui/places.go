@@ -7,6 +7,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/zoxide"
 )
 
 // Places lists everything unagit has on disk - clones, the worktrees of merge
@@ -80,6 +81,19 @@ func Places(cfg *config.Config) []session.Record {
 		}
 		return x.Dir < y.Dir
 	})
+	tool := zoxide.New()
+	if tool.Enabled(cfg.Integrations.Zoxide) {
+		if scores, err := tool.Scores(); err == nil {
+			sort.SliceStable(out, func(i, j int) bool {
+				left, lok := scores[zoxide.Path(out[i].Dir)]
+				right, rok := scores[zoxide.Path(out[j].Dir)]
+				if lok != rok {
+					return lok
+				}
+				return left > right
+			})
+		}
+	}
 	return out
 }
 

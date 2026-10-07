@@ -8,6 +8,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/ui"
+	"github.com/tobola/unagit/internal/zoxide"
 )
 
 func goCmd() *cobra.Command {
@@ -57,6 +58,9 @@ func goCmd() *cobra.Command {
 					return fmt.Errorf("nothing chosen")
 				}
 				chosen = picked
+			}
+			if tool := zoxide.New(); tool.Enabled(cfg.Integrations.Zoxide) {
+				_ = tool.Add(chosen.Dir)
 			}
 			if print {
 				fmt.Println(chosen.Dir)

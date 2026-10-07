@@ -1,6 +1,6 @@
 # Zoxide
 
-A plan, not yet built. [zoxide](https://github.com/ajeetdsouza/zoxide)
+Implemented. [zoxide](https://github.com/ajeetdsouza/zoxide)
 remembers the directories a shell goes to and ranks them by frecency, so
 `z gateway` lands in the one meant. unagit opens directories all day - clones,
 review worktrees, branch worktrees, groups - but it starts the editor in them
@@ -32,12 +32,14 @@ where the user goes.
 
 **Adding.** `openEditor` (`internal/ui/editors.go`) is where every opening
 action ends, terminal and window editors alike, and it already knows the
-directory (`what.Dir`). It calls `a.zoxideAdd(dir)` before handing over -
-a `zoxide add <dir>` started and not waited on beyond a short timeout, its
+directory (`what.Dir`). It calls `a.zoxideAdd(dir)` before handing over,
+including when returning to an editor already running. `zoxide add <dir>`
+is waited on for at most two seconds, its
 failure ignored: a visit not recorded is no reason to stop an editor
 opening. The same call goes into the Yazi and multiplexer paths when they
 exist, and into `unagit go` and `unagit cd` (`cmd/unagit`), which take a
-shell to a directory exactly the way `z` would.
+shell to a directory exactly the way `z` would. `--print` records the visit
+too, and `unagit attach` records returning to its editor.
 
 **Removing.** Directories leave the disk in several places - `RemoveProject`,
 `RemoveMR`, `RemoveWorktreeDir`, `RemoveGroupMember`, a group deleted whole,
@@ -48,12 +50,13 @@ the integration is on. The workspace package still knows nothing about
 zoxide.
 
 **Reading frecency back.** `zoxide query --list --score` prints a score and
-a path per line. Read once when a list is drawn after a switch of tab (it
-is a local file, a few milliseconds) and kept until the next switch:
+a path per line. Read in a background job after a switch of tab, with a
+short timeout, and kept until the next switch. A failed read keeps the last
+snapshot:
 
 - **Sort by frecency** - a new order for Repositories (a clone's score is the
-  highest of its directory and every worktree under its `.unagit/`) and for
-  Worktrees, beside the orders each list already has (`sorting.go`). Rows
+  highest of its directory and every worktree, including the older layout
+  and grouped members) and for Worktrees, beside the orders each list already has (`sorting.go`). Rows
   zoxide does not know come after, by activity, as ties do now.
 - **`unagit go`** lists by frecency when zoxide is on, so the directory one
   goes to most is where the cursor starts.
@@ -62,13 +65,13 @@ is a local file, a few milliseconds) and kept until the next switch:
 
 | Place | Change |
 | --- | --- |
-| `internal/zoxide` (new) | `Add`, `Remove`, `Scores() (map[string]float64, error)`, each a short-lived `zoxide` process; the binary looked up once. |
+| `internal/zoxide` (new) | `Add`, `Remove`, `Scores() (map[string]float64, error)`, each a short-lived `zoxide` process; the binary cached until an explicit installation check. |
 | `internal/config` | `Integrations.Zoxide *bool`. |
 | `internal/workspace` | `Options.OnRemoved`, called after every removal of a directory. |
 | `internal/ui/editors.go` | `zoxideAdd` before an editor starts. |
 | `internal/ui/integrations.go` | the card, with `found` saying how many directories zoxide knows under the roots. |
 | `internal/ui/sorting.go` | "frecency" in Repositories and Worktrees. |
-| `cmd/unagit` | `go` and `cd` add the directory; `go` sorts by score. |
+| `cmd/unagit` | `go`, `cd` and `attach` add the directory; `go` sorts by score. |
 | README | a paragraph under Integrations; help rows for the new order if it gets a key. |
 
 ## Tests
@@ -83,9 +86,8 @@ is a local file, a few milliseconds) and kept until the next switch:
 - `internal/zoxide`: parsing of `--score` output, including paths with
   spaces and a missing binary.
 
-## Open details
+## Deferred
 
-- Whether to offer a one-off "Add Every Clone to Zoxide" in `:` for a fresh
-  machine, with a low score each (`zoxide add` has no score argument; it
-  would need `zoxide import`, which takes another tool's database). Probably
-  not worth it: a week of use fills zoxide anyway.
+Yazi and multiplexer visits will use the same hook when those integrations
+exist. There is no bulk import of clones: actual use fills the database
+without making a newly cloned directory look visited.

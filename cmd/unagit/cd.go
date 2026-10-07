@@ -13,6 +13,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/ui"
+	"github.com/tobola/unagit/internal/zoxide"
 )
 
 func cdCmd() *cobra.Command {
@@ -36,7 +37,11 @@ func cdCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			open := session.New(config.Dir()).List()
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			open := session.New(cfg.Dir()).List()
 			if len(open) == 0 {
 				return fmt.Errorf("nothing is open in an editor right now")
 			}
@@ -56,6 +61,9 @@ func cdCmd() *cobra.Command {
 					return fmt.Errorf("nothing chosen")
 				}
 				chosen = picked
+			}
+			if tool := zoxide.New(); tool.Enabled(cfg.Integrations.Zoxide) {
+				_ = tool.Add(chosen.Dir)
 			}
 			if print {
 				fmt.Println(chosen.Dir)

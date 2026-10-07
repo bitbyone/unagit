@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -572,6 +573,18 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 	// Workflow tests need room for the dialogs, not a large terminal's empty
 	// cells on every key. Layout tests choose their sizes explicitly.
 	sc.SetSize(120, 34)
+	// Each app uses its own fake tool or no zoxide, never the machine's
+	// directory history. Tests exercising it supply findExecutable.
+	lookup := a.findExecutable
+	a.findExecutable = func(name string) (string, error) {
+		if lookup != nil {
+			return lookup(name)
+		}
+		if name == "zoxide" {
+			return "", exec.ErrNotFound
+		}
+		return exec.LookPath(name)
+	}
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {
 		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }

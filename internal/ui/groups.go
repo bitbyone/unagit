@@ -360,7 +360,7 @@ func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []f
 					_, _ = mgrs[i].Git().Run(mgrs[i].ProjectDir(pr.PathWithNamespace), "branch", "-D", plan.Branch)
 				}
 			}
-			_ = os.RemoveAll(dir)
+			_ = a.pathManager("", "").RemoveDirectory(dir)
 		}
 		for i, pr := range projects {
 			m := plan.Members[i]
@@ -428,7 +428,7 @@ func (a *App) confirmDeleteGroup(r worktreeRow) {
 				}
 			}
 			log("Removing " + r.Dir)
-			if err := os.RemoveAll(r.Dir); err != nil {
+			if err := a.pathManager("", "").RemoveDirectory(r.Dir); err != nil {
 				return "", err
 			}
 			// The groups directory goes too once it is empty; Remove refuses otherwise.

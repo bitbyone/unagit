@@ -431,6 +431,25 @@ worktrees, switching a server's clone protocol leaves its remote alone, and
 `e` cannot move it. Turn the integration off with `e` in its card to clone
 the repository like any other.
 
+### [zoxide](https://github.com/ajeetdsouza/zoxide)
+
+With `zoxide` on PATH the integration is on automatically; `e` in its card
+turns it off. Opening an editor, returning to a running editor, or entering
+a directory with `unagit go` or `unagit cd` records a visit, including with
+`--print`; `unagit attach` records a return to its editor too. Making a clone or worktree alone records nothing. Removing one
+forgets its directory, and deleting a group forgets its members and folder.
+Zoxide's own `_ZO_EXCLUDE_DIRS` rules apply. A missing or failing zoxide never
+prevents an editor or shell from opening.
+
+Choose **by frecency** in `o`, the sort picker, in Repositories or Worktrees
+for frequent and recent visits first. A repository takes the highest score
+of its clone and worktrees, including the older layout and grouped members.
+Unknown directories follow known ones; equal scores and unknown rows use
+activity. The lists read scores on each tab switch and keep that snapshot
+until the next switch. `unagit go` offers the most visited directories first
+when the integration is on. The card shows how many directories zoxide
+knows under your configured roots; `c` checks installation and reads it again.
+
 ## Reviewing merge requests
 
 Press `Ctrl-R` on a merge request and unagit builds a worktree where
@@ -547,7 +566,8 @@ now has.
   other clone out of step with it (diverged, unpushed, no upstream, a failed
   fetch), then the rest by activity; Merge requests by new commits since your
   last review, or by comments - open threads first, then all of them;
-  Worktrees by edits. Rows that tie stay in the order of their activity.
+  Worktrees by edits. Repositories and Worktrees also by frecency, using
+  zoxide visits. Rows that tie stay in the order of their activity.
 - **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`,
   `private`, `fork`, `hobby` and `tooling` to start with - each a light ink on
   a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on

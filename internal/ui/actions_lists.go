@@ -51,7 +51,7 @@ func (a *App) filterActions() []uiAction {
 
 // sortAction chooses the order of the list on screen.
 func (a *App) sortAction() uiAction {
-	return uiAction{name: "Sort By…", about: "Sort the list by last activity, by name, or by what only it has - edits, size, remote, new commits, comments.", keys: "o", rank: 400, run: a.showSortPicker}
+	return uiAction{name: "Sort By…", about: "Choose an order for this list, including directory visits in Repositories and Worktrees.", keys: "o", rank: 400, run: a.showSortPicker}
 }
 
 // hideAction hides the repository of the row, or shows it again.

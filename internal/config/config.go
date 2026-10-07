@@ -190,6 +190,8 @@ func (i *Instance) CycleGroup(g Group) string {
 const (
 	// SortActivity puts what moved most recently first.
 	SortActivity = "activity"
+	// SortFrecency puts frequently and recently visited directories first.
+	SortFrecency = "frecency"
 	// SortName sorts by path, and merge requests by project then number.
 	SortName = "name"
 	// SortEdits puts the most files with uncommitted changes first:
@@ -211,11 +213,11 @@ const (
 func SortsOf(list string) []string {
 	switch list {
 	case ListRepositories:
-		return []string{SortActivity, SortName, SortEdits, SortSize, SortRemote}
+		return []string{SortActivity, SortName, SortEdits, SortSize, SortRemote, SortFrecency}
 	case ListMergeRequests:
 		return []string{SortActivity, SortName, SortNew, SortComments}
 	case ListWorktrees:
-		return []string{SortActivity, SortName, SortEdits}
+		return []string{SortActivity, SortName, SortEdits, SortFrecency}
 	}
 	return []string{SortActivity, SortName}
 }
@@ -496,7 +498,10 @@ func (f *Filters) ShowAll() int {
 func (f *Filters) Active() bool { return f.ClonedOnly || len(f.Hidden) > 0 }
 
 type Integrations struct {
-	Incomm bool `yaml:"incomm,omitempty"`
+	// Zoxide remembers opened directories and ranks them by visits. Unset,
+	// it is on whenever zoxide is installed.
+	Zoxide *bool `yaml:"zoxide,omitempty"`
+	Incomm bool  `yaml:"incomm,omitempty"`
 	// Hunk shows the changes of a clone, a worktree or a review with D. Unset,
 	// it is on whenever hunk is installed; set, it is what the user chose.
 	Hunk *bool `yaml:"hunk,omitempty"`

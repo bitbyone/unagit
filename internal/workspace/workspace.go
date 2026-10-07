@@ -38,7 +38,10 @@ const (
 )
 
 type Options struct {
-	Root string
+	// OnRemoved lets the caller forget a directory in its navigation history
+	// only after the directory has actually gone.
+	OnRemoved func(dir string)
+	Root      string
 	// ProjectDirectory is the exact clone destination, resolved by the caller.
 	ProjectDirectory string
 	// ManagedDirectory is a checkout another tool keeps - chezmoi's - which is
@@ -646,10 +649,17 @@ func (m *Manager) RemoveProject(projectPath string) error {
 		if _, err := os.Stat(root); err != nil {
 			continue
 		}
+		entries, _ := os.ReadDir(root)
 		m.log("Removing %s", root)
 		if err := os.RemoveAll(root); err != nil {
 			return err
 		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				m.removed(filepath.Join(root, entry.Name()))
+			}
+		}
+		m.removed(root)
 		m.pruneEmptyParents(filepath.Dir(root))
 	}
 	if m.Managed() {
@@ -659,10 +669,29 @@ func (m *Manager) RemoveProject(projectPath string) error {
 		return nil
 	}
 	m.log("Removing %s", dir)
-	if err := os.RemoveAll(dir); err != nil {
+	if err := m.RemoveDirectory(dir); err != nil {
 		return err
 	}
 	m.pruneEmptyParents(filepath.Dir(dir))
+	return nil
+}
+
+func (m *Manager) removed(dir string) {
+	if m.opts.OnRemoved != nil {
+		m.opts.OnRemoved(dir)
+	}
+}
+
+// RemoveDirectory deletes a folder such as a group's container after its
+// worktrees have been detached, and notifies the caller like other removals.
+func (m *Manager) RemoveDirectory(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	m.removed(dir)
 	return nil
 }
 
@@ -759,6 +788,7 @@ func (m *Manager) RemoveWorktreeDir(projectPath, dir string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
+	m.removed(dir)
 	m.pruneEmptyParents(filepath.Dir(dir))
 	if Exists(mainDir) {
 		m.git.WorktreePrune(mainDir)
@@ -877,6 +907,7 @@ func (m *Manager) pruneEmptyParents(dir string) {
 		if os.Remove(dir) != nil {
 			return
 		}
+		m.removed(dir)
 		dir = filepath.Dir(dir)
 	}
 }

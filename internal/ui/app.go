@@ -27,6 +27,7 @@ import (
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
+	"github.com/tobola/unagit/internal/zoxide"
 )
 
 // page names
@@ -93,13 +94,20 @@ type App struct {
 	settingsLine *statusLine
 	tab          string
 
-	cfg         *config.Config
-	sessions    *session.Store
-	editorMu    sync.Mutex
-	openDirs    map[string]session.Record
-	openReading bool
-	vault       tokenVault
-	clients     map[string]forge.Provider
+	cfg      *config.Config
+	sessions *session.Store
+	editorMu sync.Mutex
+	// Visits are recorded by editor and removal workers; their switch and
+	// cached client are shared, while score snapshots belong to the loop.
+	zoxideOnce    sync.Once
+	zoxideClient  atomic.Pointer[zoxide.Client]
+	zoxideEnabled atomic.Bool
+	zoxideScores  map[string]float64
+	zoxideGen     int
+	openDirs      map[string]session.Record
+	openReading   bool
+	vault         tokenVault
+	clients       map[string]forge.Provider
 	// logins maps an instance to the account its token belongs to, filled in
 	// when a token is verified.
 	logins map[string]string
@@ -817,7 +825,7 @@ func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) 
 // Path lookups do not need credentials or an API client.
 func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 	return workspace.New(workspace.Options{Root: a.rootFor(instanceID, projectPath),
-		ProjectDirectory: a.cloneDir(instanceID, projectPath), ManagedDirectory: a.managedDir(instanceID, projectPath)}, nil)
+		ProjectDirectory: a.cloneDir(instanceID, projectPath), ManagedDirectory: a.managedDir(instanceID, projectPath), OnRemoved: a.zoxideRemove}, nil)
 }
 
 // newManager builds a workspace manager for one project, with that project's
@@ -826,6 +834,7 @@ func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
 	opts := workspace.Options{
 		Root:             a.rootFor(instanceID, projectPath),
+		OnRemoved:        a.zoxideRemove,
 		ManagedDirectory: a.managedDir(instanceID, projectPath),
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
