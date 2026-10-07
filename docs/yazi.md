@@ -25,8 +25,8 @@ a terminal editor and get `Alt-O` and the sessions for free, but it would
 then be a candidate favourite editor, which it is not. It is an action of
 its own, "Browse Files", on a repository, a merge request (its worktree,
 review first when there is one), a worktree and a block of the worktree
-view. Proposed key `Ctrl-Y`, free on every list. Too rare for a key? Then
-`keys: ""` and it lives in the pickers alone.
+view. It has no key (`keys: ""`) and lives in the action pickers alone -
+`Alt-Enter` on the row.
 
 **Running it** reuses what `openEditor` does for a terminal editor -
 `sessions.Open`, `tv.Suspend`, run, refresh the disk afterwards - so that
@@ -103,7 +103,7 @@ need Yazi's fetcher caching; not part of the first change.
 | `internal/ui/actions_lists.go`, `wtmodal.go` | "Browse Files" in the four places. |
 | `internal/ui/integrations.go` | the card. |
 | `contrib/yazi/unagit.yazi` | the plugin and its README. |
-| README, `help.go` | the key and the plugin. |
+| README | the action and the plugin. No help rows: the action has no key. |
 
 ## Tests
 

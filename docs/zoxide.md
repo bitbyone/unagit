@@ -14,7 +14,7 @@ where the user goes.
   `Alt-P` over forty clones, or `C` down a list of merge requests, would
   otherwise put a crowd of directories into zoxide with the same score, and
   frecency would stop meaning anything. What is opened in an editor, in Yazi
-  (see [yazi.md](yazi.md)) or in a multiplexer window
+  (see [yazi.md](yazi.md)) or in a multiplexer's tab or split
   ([multiplexers.md](multiplexers.md)) is a visit; a clone is not.
 - **A directory unagit deletes is taken out of zoxide.** zoxide drops a
   missing directory by itself, but only lazily, and review worktrees come and

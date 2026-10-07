@@ -6,9 +6,9 @@ running (`cipoll.go`), and an open jobs dialog follows its own
 (`followPipeline`). Nothing says "it failed" once the user has looked away,
 and nothing follows a pipeline a filter hides. The aim: the user *watches*
 something - a merge request, a branch of a repository, a worktree - and
-unagit follows it in the background for as long as it runs, lists it on a
-screen of its own, and says when it changes, with a desktop notification
-when the terminal is not in front.
+unagit follows it in the background, lists it on a screen of its own, and
+says when it changes, with a desktop notification when the terminal is not
+in front.
 
 Pipelines are the first thing watched. The screen and the machinery are
 general, so that other kinds - a merge request's activity, reviews asked of
@@ -16,102 +16,161 @@ the user - become new sections later rather than new screens.
 
 ## Decisions
 
-- **One screen, "Watched", in sections.** A tab of its own, with a section
-  per kind of watch; the first and for now only section is Pipelines.
-  Proposed: `[4] Watched`, Settings moving to `[5]` - Settings is the screen
-  visited least, and the lists stay where muscle memory has them.
+- **One screen, `[4] Watched`, in sections.** Settings moves to `[5]`. The
+  first and for now only section is Pipelines.
+- **"Watch Pipelines" is an action without a key.** It is in the action
+  pickers (`Alt-Enter`) of a repository, a merge request, a worktree, a
+  repository's block in the worktree view, and of the jobs dialog; on
+  something watched it is "Stop Watching Pipelines". `keys: ""`.
 - **A watch is on a thing, not on one pipeline.** Watching a merge request
   follows the pipeline of whatever its head is: a push starts a new pipeline
   and the watch moves to it. Watching a branch follows its newest pipeline.
-- **Two lengths.** *Until it ends* (the default): the watch notifies once the
-  current or next pipeline finishes, then stays on the screen marked ended
-  until dismissed or for a day. *Always*: it keeps following every pipeline
-  until removed, or until its merge request is merged or closed, or its
-  branch is gone from origin. The common case is "tell me when this is
-  done", and it should not leave a list of stale watches behind.
+  A worktree is watched as its branch; a grouped worktree asks which
+  repository, as `J` does.
+- **A watch lasts until it is stopped**, or until what it watches is gone:
+  its merge request merged or closed, its branch deleted on origin.
+- **The watches are state, not configuration.** `config.yaml` is what one
+  keeps in chezmoi and carries between machines; what one happens to be
+  waiting for on this machine does not belong there. They go to a file of
+  their own (below), and the next start carries on with them.
+- **Only while a unagit runs.** Following a pipeline needs the token, and the
+  token is only ever in the memory of a running, unlocked unagit (AGENTS.md:
+  no cache daemon). There is no background service; the README says so.
+- **Several unagits, one poller.** Each instance a user starts would
+  otherwise ask the servers about every watch - twice the requests, and
+  every notification twice. One instance follows the watches and the others
+  read what it found (below).
 - **A background change is a passing word, not a box.** AGENTS.md says a
   warning comes up in a box that holds the keys until Esc. A failure the user
   is not looking at must not take the keyboard from whatever they are typing
   into, so a watch's news is a `note` on the status line (`done` for a
-  success), the Watched tab's title gains a count of unseen changes
-  (`[4] Watched 2`), and the row stays lit until the screen has been opened.
-  This is a deliberate exception and the place it is written down.
-- **A desktop notification when the user is elsewhere.** unagit already
-  knows whether its terminal has focus (`screen.go` enables tcell's focus
-  events). With focus, the status line is enough. Without it, or while an
-  editor has the terminal, a notification goes out.
-- **Only while unagit runs.** Following a pipeline needs the token, and the
-  token is only ever in the memory of a running unagit (AGENTS.md: no cache
-  daemon). There is no background service, and the README says so. The
-  watches themselves are kept, so the next start carries on.
+  success), the tab's title gains a count of unseen changes
+  (`[4] Watched 2`), and the row stays marked until the screen has been
+  opened. This is a deliberate exception, and this is where it is written
+  down.
 
-## The model
+## Where the watches live
+
+```
+<config dir>/watch/watches.json    what is watched - written by any instance
+<config dir>/watch/state.json      what was last seen - written by the poller
+<config dir>/watch/poller.lock     held by the instance that polls
+<config dir>/watch/present/<pid>   each running instance: is its terminal focused
+```
+
+Under the configuration directory because everything unagit reads goes
+through `cfg.Dir()`, which is what keeps tests away from the user's files
+(AGENTS.md). chezmoi manages only the files it is told to, so
+`config.yaml` can be in it while `watch/` is not. Moving every
+machine-local file - the indexes, the sessions, the watches - to
+`$XDG_STATE_HOME` is a separate change, for all of them at once.
 
 ```go
-// internal/config
+// internal/watch
 type Watch struct {
-	Kind     string    // "pipeline" for now
-	Instance string
-	Project  string
-	IID      int       // a merge request's, 0 for a branch
-	Branch   string    // a branch's, "" for a merge request
-	Always   bool      // false: until the current or next pipeline ends
-	Since    time.Time
+	Kind     string    `json:"kind"` // "pipeline" for now
+	Instance string    `json:"instance"`
+	Project  string    `json:"project"`
+	IID      int       `json:"iid,omitempty"`    // a merge request's
+	Branch   string    `json:"branch,omitempty"` // a branch's
+	Since    time.Time `json:"since"`
 }
 ```
 
-kept in `config.yaml` under `watches`, beside the favourites and like them
-portable - it names things on servers, never a path on this machine. A
-worktree is watched as its branch; a grouped worktree asks which repository,
-as `J` does.
+`state.json` holds, per watch, the pipeline id, its status, the head, the
+first failed job, when it last changed and whether the change has been seen;
+and a sequence number that goes up with every write, so a reader can tell
+what it has not shown yet.
 
-What was last seen of each watch - the pipeline id, its status, the head,
-when it last changed, whether it ended, whether the user has seen it - is
-cache, in `index-watched.json`.
+Every file is written whole to a temporary file and renamed over the old
+one, so a reader never sees half of it. `watches.json` is changed under a
+short `flock` of its own (read, change, write, unlock), since any instance
+may add or remove a watch at the same moment as another.
 
-Each kind is one implementation of
+## One poller among several instances
+
+- **Who polls.** After the passphrase - an instance still waiting at the
+  dialog has no token - each instance starts a goroutine that takes an
+  exclusive `flock` on `poller.lock`, blocking. One gets it and polls; the
+  others wait in that call. When the poller exits, or dies, the kernel
+  releases the lock and one of the waiting instances gets it and carries on
+  from `state.json`. No election, no heartbeat, nothing to clean up after a
+  crash.
+- **How the others learn.** They look at `state.json`'s modification time
+  every second - one `stat`, no new dependency (there is no file watching in
+  the code today) - and read it when it changed. Events are the difference
+  between the sequence numbers they last showed and the new one, so every
+  instance shows each change once on its own status line.
+- **New watches.** The poller looks at `watches.json` the same way and asks
+  about a new watch at once, rather than at its next turn.
+- **Seen.** Opening the Watched screen in any instance marks what it shows
+  as seen in `state.json` - through the poller, which alone writes that
+  file: the instance writes the sequence number it has seen into its
+  `present/<pid>` file, and the poller folds it in.
+- **Notifications are sent once, by the poller**, unless any instance says
+  in its `present/<pid>` file that its terminal has focus and it is not
+  suspended for an editor - then the user is looking at a unagit and the
+  status line is enough. A `present` file whose pid is gone is ignored and
+  removed, as a stale session is.
+
+`unagit go`, `cd` and `sessions` never poll; only the TUI does.
+
+## Asking the forges
+
+No forge pushes pipeline changes to a client like this one:
+
+- GitLab's own web UI gets some updates over ActionCable and GraphQL
+  subscriptions, but that is undocumented and built for the browser's
+  session, not for a token. Not relied on.
+- GitHub sends webhooks, which need an address on the internet that
+  GitHub can reach. Not for a program on a laptop.
+
+So it is polling, made cheap:
+
+- a watch whose pipeline runs is asked every 15 s (`ciAskEvery`); one that
+  waits, every 2 minutes, to notice a push that starts a new pipeline;
+- one request per watch and turn - `MergeRequestPipeline` or
+  `LatestPipeline`, no jobs. The jobs are read only when a pipeline has just
+  failed, to name the first failed job, and when the user opens it;
+- on GitHub with `If-None-Match`: an unchanged answer is `304`, which does
+  not count against the rate limit, so a hundred idle watches cost nothing;
+- later, **one GraphQL request per server and turn** for all its watches
+  (aliases in one query: GitLab's `project { mergeRequest { headPipeline {
+  status } } }`, GitHub's `pullRequest { commits(last: 1) { ... 
+  statusCheckRollup { state } } }`). That is a `forge.Provider` method,
+  `PipelineStates(ctx, []PipelineRef)`, with a REST fallback in each
+  provider - nothing above `forge` learns that GraphQL exists. Not in the
+  first change: REST is enough until there are dozens of watches;
+- requests run with the bounded fan-out the refresh uses, and a server that
+  fails or says it is rate limited is backed off by its headers;
+- the periodic reads are not jobs with a spinner - the status line would
+  never be still. The Watched header says when the watches were last read;
+  `r` / `R` on the screen read now, as a job;
+- when the lists' own following (`watchCI`) reads a pipeline that is also
+  watched, the poller takes that reading instead of asking again. Only in
+  the polling instance; the others' lists read as they do today.
+
+Events for a pipeline: started, succeeded, failed (with the first failed
+job), cancelled, waiting for a manual job, and for a merge request a new
+head with a new pipeline. The first reading after a start is never news -
+only a change from what `state.json` last held.
+
+Each kind of watch is one implementation of
 
 ```go
 type watchKind interface {
-	// read asks the forge about one watch, cheaply.
-	read(ctx context.Context, client forge.Provider, w config.Watch) (watchState, error)
-	// changes says what happened between two readings, nothing on the first.
-	changes(before, after watchState) []watchEvent
-	// running says whether to ask again soon.
-	running(s watchState) bool
+	read(ctx context.Context, client forge.Provider, w Watch) (State, error)
+	changes(before, after State) []Event // nothing on the first reading
+	running(s State) bool               // ask again soon
 }
 ```
 
 so a new section is a kind, its row and its actions, and the poller is
 shared.
 
-## The poller
-
-It grows out of `cipoll.go`, which already follows what is running and
-stops when nothing is. One goroutine for all watches:
-
-- a watch whose pipeline runs is asked every 15 s (`ciAskEvery`); one that
-  waits is asked every 2 minutes, to notice a push that starts a new
-  pipeline; an ended "until it ends" watch is not asked at all;
-- a read is `MergeRequestPipeline` or `LatestPipeline` - one request, no
-  jobs. The jobs are read only when a pipeline has just failed, to name the
-  first failed job in the notification, and when the user opens it;
-- requests run with the bounded fan-out the refresh uses, and a server that
-  fails is backed off rather than asked every 15 s;
-- the periodic reads are not jobs with a spinner - the status line would
-  never be still. The Watched header says when the watches were last read;
-  a read the user asks for (`r` on the screen) is a job as usual;
-- when the lists' own following (`watchCI`) reads a pipeline that is also
-  watched, the watch takes that reading instead of asking again.
-
-Events for a pipeline: started, succeeded, failed (with the first failed
-job), cancelled, waiting for a manual job, and for a merge request a new
-head with a new pipeline. The first reading after a start is never news -
-only a change from what was last seen is.
-
 ## Notifications
 
-`internal/notify`, given a title, a line and the terminal state:
+`internal/notify`, given a title, a line and whether the terminal is free:
 
 - **In the terminal.** OSC 777 (`ESC ] 777 ; notify ; title ; body BEL`) for
   Ghostty, WezTerm and foot; OSC 9 for iTerm2; OSC 99 for kitty; chosen by
@@ -119,106 +178,99 @@ only a change from what was last seen is.
   Inside tmux the sequence is wrapped for passthrough (`ESC P tmux; ... ESC
   \`), which needs `allow-passthrough on`; the card's `found` line says
   whether tmux has it.
-- **From the system** when the terminal cannot, or when an editor has the
+- **From the system** when the terminal cannot, or while an editor has the
   terminal: an escape sequence written then would land in the middle of
   Neovim's output. On macOS `osascript -e 'display notification ...'`, on
   Linux `notify-send`.
 - Settings › Integrations › Notifications: automatic (as above), terminal
-  only, system only, or off; and a "send a test" key.
+  only, system only, or off; and a key that sends a test.
 
 A notification says what and how it ended - "api-gateway !42 · pipeline
-failed · test:unit" - and nothing more. Clicking it brings the terminal
-forward at best; opening the pipeline from it is a later step
-(`terminal-notifier -open <url>` could, but it is another dependency).
+failed · test:unit" - and nothing more.
 
 ## The screen
 
-A `pane` like the other three lists, with a header per section (the
-grouping the lists already have). A row of Pipelines:
+A `pane` like the other lists, with a header per section (the grouping the
+lists already have). A row of Pipelines:
 
 ```
   WHAT                       CI   PIPELINE     BY      CHANGED
 ● acme/api-gateway !42       ✗    failed 4m    jane    2m ago
   acme/billing · main        ◐    running 1m   ci      now
-  acme/web !17          ended ✓   passed 12m   john    1h ago
+  acme/web !17               ✓    passed 12m   john    1h ago
 ```
 
-`●` marks a change not seen yet. Columns go through `layoutColumns` like
-every list. Its actions, as `uiAction`s:
+`●` marks a change not seen yet. The columns go through `layoutColumns` like
+every list's. Its actions, as `uiAction`s:
 
 - `Enter` - the pipeline, in the jobs dialog that exists (`showPipeline`
   with the watch's `ciTarget`);
-- `x` - stop watching; `a` - switch between "until it ends" and "always";
+- `x` - stop watching;
 - `w` - the pipeline in the browser; `m` - go to the merge request or the
   repository in its list;
-- `r` / `R` - read one / every watch now;
-- `:` › Clear Ended Watches.
+- `r` / `R` - read one / every watch now.
 
-## Watching
+The header also says which instance polls, when it is another one ("followed
+by unagit 41231"), so a user with several open knows why `r` here asks
+that one rather than the server.
 
-"Watch Pipeline" on a repository (its clone's branch, or the default branch
-before it is cloned), a merge request, a worktree and a repository's block in
-the worktree view, and as a `pickKey` in the jobs dialog - one is most often
-in front of a running pipeline when it occurs to them to wait for it. The
-same key stops watching. A watched row in the lists wears a mark (a new
-glyph, `glyphWatched`, with a theme key and a plain fallback).
-
-Key: `W` is free on every list, though in the jobs dialog it opens the
-pipeline in the browser; there the watch would need another key. `Ctrl-N`
-("notify") is free everywhere. To decide before building.
+A watched row in the other lists wears a mark: a new glyph, `glyphWatched`,
+with a theme key and a plain fallback.
 
 ## Later sections
 
 Each a `watchKind`, its row and its actions:
 
 - **Merge request activity** - new commits, new threads or replies,
-  approvals, merged or closed. Most of it the refresh reads already (`NEW`,
-  `COM`, `APPR`); a watch asks for it about one merge request often instead
-  of every merge request on `R`.
+  approvals, merged or closed.
 - **Asked to review** - a watch on a query rather than a thing: a merge
   request where the user becomes a reviewer.
-- **A branch behind its base** - a worktree's base moved on by more than N
-  commits; read from the disk after a fetch, no request.
+- **A branch behind its base** - read from the disk after a fetch, no
+  request.
 - **Releases or tags** of a repository.
 
 ## Where the code changes
 
 | Place | Change |
 | --- | --- |
-| `internal/config` | `Watch`, `Config.Watches`, add/remove/find. |
-| `internal/index` | `index-watched.json`: the last state of each watch. |
+| `internal/watch` (new) | `Watch`, `State`, `Event`; the files under `watch/`, written by rename, `watches.json` under its own lock; the poller lock; the `present` files. No UI, no forge calls. |
+| `internal/config` | `WatchDir()` beside `IndexPath`, from `Dir()`. |
 | `internal/notify` (new) | the escape sequences, the tmux wrapping, the system notifiers, the choice between them. |
-| `internal/ui/watch.go` (new) | the kinds, the poller, the events; folds in what `cipoll.go` can share. |
+| `internal/forge`, providers | `If-None-Match` on GitHub; later `PipelineStates`. |
+| `internal/ui/watch.go` (new) | the kinds, the poller, following `state.json` in the others; folds in what `cipoll.go` can share. |
 | `internal/ui/watched.go` (new) | the screen, its columns, its actions. |
-| `internal/ui/tabs.go`, `app.go` | the new tab, its page, the unseen count in its title. |
-| `internal/ui/actions_lists.go`, `wtmodal.go`, `pipeline.go` | "Watch Pipeline" in the four places and the jobs dialog. |
+| `internal/ui/tabs.go`, `app.go` | `[4] Watched`, Settings on `[5]`, the unseen count in the title. |
+| `internal/ui/actions_lists.go`, `wtmodal.go`, `pipeline.go` | "Watch Pipelines" in the four places and the jobs dialog. |
 | `internal/ui/integrations.go` | the Notifications card. |
-| `internal/ui/screen.go` | whether the terminal has focus, readable by the notifier. |
-| themes | `glyphWatched`, the unseen mark, colours for an ended row. |
-| README, `help.go` | the screen, the keys. |
+| `internal/ui/screen.go` | focus and suspension, for the `present` file. |
+| themes | `glyphWatched`, the unseen mark. |
+| README, `help.go` | the screen, the tab number, the screen's keys. |
 
 ## Tests
 
-- The poller against the fake API server, with a short `ciAskEvery`: a
-  pipeline going running → failed gives one event and one notification;
-  a first reading gives none; an "until it ends" watch stops being asked
-  after it ends; a merge request merged by `R` drops its "always" watch.
-- A new head on a watched merge request moves the watch to its pipeline.
+- `internal/watch`: two goroutines with their own handles on one lock file -
+  one polls, the other takes over when the first releases; `watches.json`
+  changed by two writers at once loses neither change; a reader never sees
+  half a file.
+- Two Apps on one configuration directory against the fake API server, with
+  a short `ciAskEvery`: only one asks the server; a pipeline going running →
+  failed is shown once in each and notified once; stopping the polling App
+  makes the other poll and carry on without a second notification of the
+  same change.
+- A first reading gives no event; a merged merge request drops its watch; a
+  new head moves the watch to its pipeline.
 - `internal/notify`: the exact bytes for each terminal, the tmux wrapping;
-  a fake `osascript` / `notify-send` on `PATH` (serial) while the terminal
-  is unfocused or suspended.
+  a fake `osascript` / `notify-send` on `PATH` (serial) while no instance
+  has focus or one is suspended; nothing while one has focus.
 - A background failure never opens a message box and never takes a key.
 - The screen: a layout test at several sizes, `assertLegible`, the help
-  rows, `TestNoTwoActionsShareAKey` with the new key.
+  rows, and the tests that move with the tab numbers.
 
 ## Open details
 
-- The tab number. `[4] Watched` with Settings on `[5]` is proposed; the
-  other way keeps Settings where it is and puts Watched on `5`.
-- How many watches before the polling matters. Twenty running pipelines at
-  15 s are under 5,000 requests an hour - GitHub's limit for a token - but
-  the lists' own refresh shares it. The backoff should read the rate-limit
-  headers rather than guess.
-- Whether a watch should go with a merge request automatically - for
-  example "always watch the pipelines of my own merge requests". A rule like
-  that is a later section, not a setting on this one.
+- The second-long `stat` loop costs nothing measurable, but a test that
+  waits on it waits up to a second; the interval is a field of the App like
+  `ciAskEvery`, short in tests.
+- Twenty running pipelines at 15 s are under 5,000 requests an hour -
+  GitHub's limit for a token - but the lists' own refresh shares it.
+  GraphQL batching is what removes the ceiling.
