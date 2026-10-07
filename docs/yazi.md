@@ -1,115 +1,79 @@
 # Yazi
 
-A plan, not yet built. [Yazi](https://yazi-rs.github.io) is a terminal file
-manager. Two halves: unagit opens a directory in Yazi the way it opens one
-in Neovim, and Yazi gets a plugin that jumps to anything unagit has on disk.
+Implemented in unagit and `contrib/yazi/unagit.yazi`. The first half opens
+Yazi on a directory from unagit; the second lets Yazi jump to a directory
+unagit knows. Verified with Yazi 26.9.1.
 
-## Does Yazi feed zoxide by itself?
+## Yazi from unagit
 
-Not by default. Yazi's built-in `zoxide` plugin is for jumping *from* zoxide;
-adding the directories Yazi visits is its `update_db` option
-(`require("zoxide"):setup { update_db = true }` in `init.lua`), off unless the
-user sets it. To be checked against the installed Yazi before building -
-the option has moved between releases.
+**Browse Files** has no key and lives in the selection action picker
+(`Alt-Enter` or `Ctrl-A`). Repositories use their clone, cloning first if
+needed. Merge requests prefer an existing review, then a branch worktree,
+and prepare a review if neither exists. Worktrees and the lit block of the
+worktree view use their directory; a group uses its folder.
 
-So unagit does its own part regardless (see [zoxide.md](zoxide.md)): the
-directory it opens Yazi in is added like any other opened directory, and so
-is the directory Yazi ends in, which unagit learns from `--cwd-file`. What
-the user walks through in between is Yazi's to record, and the README points
-at `update_db` for it.
+Yazi is an integration, not a favourite editor. Its Settings › Integrations
+card is on when the binary is found, with `e` to toggle and `c` to check.
 
-## Part one: Yazi from unagit
+`runInTerminal` shares the terminal lifecycle with terminal editors: record
+the original directory in sessions, add a zoxide visit, suspend the UI,
+run the child, remove its temporary session and refresh the disk. Neovim's
+persistent server records survive detachment as before.
 
-**An action, not an editor.** Yazi could be listed in `internal/editors` as
-a terminal editor and get `Alt-O` and the sessions for free, but it would
-then be a candidate favourite editor, which it is not. It is an action of
-its own, "Browse Files", on a repository, a merge request (its worktree,
-review first when there is one), a worktree and a block of the worktree
-view. It has no key (`keys: ""`) and lives in the action pickers alone -
-`Alt-Enter` on the row.
-
-**Running it** reuses what `openEditor` does for a terminal editor -
-`sessions.Open`, `tv.Suspend`, run, refresh the disk afterwards - so that
-part of `openEditor` is pulled out into `runInTerminal(dir, what, cmd)` and
-both call it. The command:
+The command is:
 
 ```
 yazi --cwd-file <tmp>/cwd --chooser-file <tmp>/chosen <dir>
 ```
 
-the two files in a fresh 0700 temporary directory, removed afterwards.
+Both result files live in a fresh 0700 temporary directory that is removed
+on return, including on failure. A different final cwd records another
+zoxide visit when that integration is enabled. Choosing a file opens the
+favourite editor with the original directory as its working directory and
+review context. Without a usable favourite, the shared editor picker asks.
+Quitting without a file returns to unagit. Multiple selections open the
+first file.
 
-**After it exits:**
+`Editor.CommandAt` supplies the file to Neovim and custom editors, the
+folder and file to VS Code and Zed, and the folder plus `--line 1` and file
+to IDEA. A macOS application without a launcher gets folder and file through
+`open -a`. An already running Neovim opens the file through RPC in a new tab
+before attaching, keeping unsaved buffers.
 
-- `cwd`: the directory Yazi was in last. When it differs from `<dir>`, it
-  goes to zoxide (when on).
-- `chosen`: Enter on a file in Yazi, with `--chooser-file`, writes the path
-  and quits instead of opening it. unagit then opens the favourite editor
-  **on that file** in the same directory - so Yazi becomes the way to start
-  a review on one particular file. This needs `editors.Editor.CommandAt(dir,
-  file)`: `nvim <file>` with the directory as working directory, `code
-  <dir> <file>`, `zed <dir> <file>`, `idea <dir> --line 1 <file>` (to be
-  checked for each). Without a chosen file nothing more happens.
-- The session record is the directory Yazi was opened in, for as long as
-  it runs, as for Neovim.
+Yazi's built-in zoxide plugin only records intermediate visits when
+`require("zoxide"):setup { update_db = true }` is in `init.lua`; this remains
+opt-in in Yazi 26.9.1. The card searches that file for a hint, without running
+Lua. It follows `YAZI_CONFIG_HOME`, then `XDG_CONFIG_HOME/yazi`, then
+`~/.config/yazi`. It does not edit the configuration.
 
-**Card.** Settings › Integrations › Yazi, on when found, `e` off. Its
-`found` line says whether the zoxide plugin's `update_db` is set - read
-from `~/.config/yazi/init.lua` by a plain search, a hint and nothing more.
+## unagit from Yazi
 
-## Part two: unagit from Yazi
+The plugin hides Yazi, runs `unagit go --print` with inherited terminal
+input and stderr and captured stdout, restores Yazi, then emits a literal
+`cd` to the chosen path. `plugin unagit -- sessions` uses `unagit cd --print`.
+Canceling leaves the directory alone. Only the final newline is stripped,
+so spaces remain part of the path.
 
-A plugin, `unagit.yazi`, kept in `contrib/yazi/unagit.yazi/` and installable
-with `ya pkg add` from the repository. It does what Yazi's own `z` does for
-zoxide: hide Yazi, let unagit's picker choose, go there.
+Install with `ya pkg add bitbyone/unagit:unagit`; file links in the root
+`unagit.yazi` expose the sources to Yazi's package manager. The plugin's
+[README](../contrib/yazi/unagit.yazi/README.md) gives installation and keymaps.
 
-```lua
--- main.lua, sketch; the API names follow Yazi 25.x and need checking.
-return {
-  entry = function()
-    local permit = ui.hide()
-    local out, err = Command("unagit"):arg({ "go", "--print" })
-      :stdout(Command.PIPED):stderr(Command.INHERIT):output()
-    permit:drop()
-    if not out or not out.status.success then return end
-    local dir = out.stdout:gsub("%s+$", "")
-    if dir ~= "" then ya.emit("cd", { dir }) end
-  end,
-}
-```
+## Validation
 
-`unagit go --print` already draws its picker on `/dev/tty` and prints only
-the path, so nothing in unagit changes for this. A second entry,
-`unagit.yazi sessions`, does the same with `unagit cd --print` - only what is
-open in an editor right now.
+Fake-tool tests cover file handoff, zoxide visits, private temporary files,
+session lifetime, cancellation, disabling, cloning and review preparation,
+review/branch preference and reuse of a running Neovim. Editor tests cover
+every launcher and macOS application command. The Yazi card is rendered at
+several terminal sizes and checked for legibility. Real Neovim verifies that
+opening a file with spaces and quotes keeps previous unsaved edits.
 
-The README gives the keymap line (`{ on = ["g", "u"], run = "plugin unagit" }`).
+The plugin and Yazi's chooser are exercised manually in a real Yazi with
+isolated configuration, including both pickers, cancellation and a directory
+whose name ends in a space. Yazi is not needed by the automated test suite.
 
-### Later
+## Later
 
-A Yazi linemode or fetcher that marks a directory unagit made - `◐ !42` for a
-review worktree, read from `git config --worktree unagit.mr.iid` and
-`unagit.mr.mode`. It costs a git process per directory shown, so it would
-need Yazi's fetcher caching; not part of the first change.
-
-## Where the code changes
-
-| Place | Change |
-| --- | --- |
-| `internal/ui/editors.go` | `runInTerminal`, shared by terminal editors and Yazi. |
-| `internal/ui/yazi.go` (new) | the action, the temporary files, what happens after. |
-| `internal/editors` | `CommandAt(dir, file)` for each known editor and the custom one (the custom editor gets the file as a last argument). |
-| `internal/config` | `Integrations.Yazi *bool`. |
-| `internal/ui/actions_lists.go`, `wtmodal.go` | "Browse Files" in the four places. |
-| `internal/ui/integrations.go` | the card. |
-| `contrib/yazi/unagit.yazi` | the plugin and its README. |
-| README | the action and the plugin. No help rows: the action has no key. |
-
-## Tests
-
-- A fake `yazi` on `PATH` (serial) that writes given paths into its
-  `--cwd-file` and `--chooser-file` and exits: a chosen file opens the
-  favourite (a fake terminal editor) on that file; a different cwd reaches
-  the fake zoxide; nothing chosen opens nothing.
-- `CommandAt` for each editor.
-- The plugin is checked by hand; there is no Yazi in the test run.
+A linemode or fetcher could mark a directory unagit made with its review
+metadata, read from `git config --worktree unagit.mr.iid` and
+`unagit.mr.mode`. It costs a git process per directory shown and would need
+Yazi's fetcher caching; it is outside this integration.

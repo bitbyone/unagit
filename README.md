@@ -431,6 +431,35 @@ worktrees, switching a server's clone protocol leaves its remote alone, and
 `e` cannot move it. Turn the integration off with `e` in its card to clone
 the repository like any other.
 
+### [Yazi](https://yazi-rs.github.io)
+
+With `yazi` on PATH, **Browse Files** appears in the selection action picker
+(`Alt-Enter` or `Ctrl-A`) on repositories, merge requests, worktrees and the
+lit block of the worktree view. Settings › Integrations › Yazi `e` turns it
+off. A repository is cloned if needed; a merge request opens its review
+worktree first, its branch worktree otherwise, or prepares a review when
+neither exists. Groups open their folder.
+
+Yazi gets the terminal until you leave. Choosing a file opens it in the
+favourite editor with the original repository as its working directory;
+without a usable favourite, unagit asks which editor to use. An existing
+Neovim server opens the file in a new tab, keeping unsaved buffers. Quitting
+without choosing a file returns to unagit. While browsing, the directory is
+listed by `unagit sessions` and `unagit cd`.
+
+With unagit's zoxide integration on, both the starting directory and a
+different final directory count as visits. Intermediate visits are Yazi's:
+put `require("zoxide"):setup { update_db = true }` in Yazi's `init.lua` to
+record them. The Yazi card shows a hint from that file, without running Lua
+or changing your configuration.
+
+The [unagit.yazi plugin](contrib/yazi/unagit.yazi/README.md) goes the other
+way: jump from Yazi to any unagit directory, or only to open sessions.
+Install with `ya pkg add bitbyone/unagit:unagit`, then add
+`{ on = ["g", "u"], run = "plugin unagit" }` to `mgr.prepend_keymap` in
+`keymap.toml`. `plugin unagit -- sessions` chooses from open sessions.
+The plugin requires Yazi 26.9.1 or newer.
+
 ### [zoxide](https://github.com/ajeetdsouza/zoxide)
 
 With `zoxide` on PATH the integration is on automatically; `e` in its card

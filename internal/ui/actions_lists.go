@@ -68,6 +68,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 	cloned := func() bool { return a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned }
 	notCloned := func() bool { return !cloned() }
 	acts := []uiAction{
+		a.browseFilesAction(func() { a.browseProject(pr) }),
 		{name: "Open in Editor", about: "Open the clone in your favourite editor, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
 		{name: "Open in Editor…", about: "Choose the editor, then open the clone.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
@@ -166,6 +167,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		return d.Branch || d.Review
 	}
 	return []uiAction{
+		a.browseFilesAction(func() { a.browseMR(mr) }),
 		{name: "Review", about: "Open a review worktree: the whole change as unstaged edits on the merge base, so the editor's gutter shows it.", keys: "Ctrl-R", rank: 10, run: func() { a.openMRReview(mr, nil) }},
 		{name: "Open Branch in Editor", about: "Open a worktree of the source branch, for committing to it.", keys: "Ctrl-O", rank: 20, run: func() { p.onOpen(false) }},
 		{name: "Show Conversation", about: "Read the merge request's threads and write a comment.", keys: "c", rank: 25, run: func() { a.showComments(mr) }},
@@ -230,6 +232,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 	grouped := func() bool { return r.grouped() }
 	single := func() bool { return !r.grouped() }
 	acts := []uiAction{
+		a.browseFilesAction(func() { a.browseWorktree(r) }),
 		{name: "Open in Editor", about: "Open the worktree in your favourite editor.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
 		{name: "Open in Editor…", about: "Choose the editor, then open the worktree.", keys: "Alt-O", rank: 15, run: func() { open(true) }},
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -580,10 +581,13 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 		if lookup != nil {
 			return lookup(name)
 		}
-		if name == "zoxide" {
+		if name == "zoxide" || name == "yazi" {
 			return "", exec.ErrNotFound
 		}
 		return exec.LookPath(name)
+	}
+	if a.yaziInitPath == nil {
+		a.yaziInitPath = func() string { return filepath.Join(a.cfg.Dir(), "yazi", "init.lua") }
 	}
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {

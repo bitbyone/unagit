@@ -199,6 +199,8 @@ type App struct {
 	// findExecutable keeps a fake integration local to its app instead of
 	// changing PATH for every app in the test process. Nil searches PATH.
 	findExecutable func(string) (string, error)
+	// yaziInitPath lets tests inspect an isolated Yazi configuration.
+	yaziInitPath func() string
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.

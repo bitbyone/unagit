@@ -2,6 +2,7 @@ package editors
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os/exec"
@@ -38,7 +39,11 @@ func (e Editor) CanDetach() bool {
 
 // BackgroundCommand changes only this invocation, never the user's config.
 func (e Editor) BackgroundCommand(dir, socket string) (*exec.Cmd, error) {
-	cmd, err := e.Command(dir)
+	return e.BackgroundCommandAt(dir, socket, "")
+}
+
+func (e Editor) BackgroundCommandAt(dir, socket, file string) (*exec.Cmd, error) {
+	cmd, err := e.CommandAt(dir, file)
 	if err != nil {
 		return nil, err
 	}
@@ -128,4 +133,16 @@ func ConfirmCloseOnAttach(launcher, socket, before string, finished <-chan struc
 			}
 		}
 	}
+}
+
+// OpenFile keeps unsaved buffers in their own tab instead of replacing them
+// when the file browser hands a file to an already running editor.
+func OpenFile(launcher, socket, file string) error {
+	encoded, err := json.Marshal(file)
+	if err != nil {
+		return err
+	}
+	literal := strings.ReplaceAll(string(encoded), "'", "''")
+	_, err = RemoteExpr(launcher, socket, "execute('tabedit ' . fnameescape(json_decode('"+literal+"')))")
+	return err
 }

@@ -79,6 +79,23 @@ func TestNeovimDetachesAndKeepsItsBuffers(t *testing.T) {
 	if err != nil || value != "draft.txt:still here" {
 		t.Fatalf("buffer after attaching = %q, %v", value, err)
 	}
+	file := filepath.Join(dir, "a file's | name.txt")
+	if err := os.WriteFile(file, []byte("chosen\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := OpenFile(bin, socket, file); err != nil {
+		t.Fatal(err)
+	}
+	value, err = RemoteExpr(bin, socket, "expand('%:p') . ':' . getline(1)")
+	if err != nil || value != file+":chosen" {
+		t.Fatalf("chosen buffer = %q, %v", value, err)
+	}
+	if dirty, err := Modified(bin, socket); err != nil || !dirty {
+		t.Fatalf("chosen file discarded previous edits: %v, %v", dirty, err)
+	}
+	if _, err := RemoteExpr(bin, socket, "execute('tabclose')"); err != nil {
+		t.Fatal(err)
+	}
 	finished := make(chan struct{})
 	go ConfirmCloseOnAttach(bin, socket, "0", finished)
 	waitEditor(t, func() bool { return strings.Contains(output.String(), "Save changes") })

@@ -498,6 +498,9 @@ func (f *Filters) ShowAll() int {
 func (f *Filters) Active() bool { return f.ClonedOnly || len(f.Hidden) > 0 }
 
 type Integrations struct {
+	// Yazi browses directories and hands chosen files to the favourite editor.
+	// Unset, it is on whenever yazi is installed.
+	Yazi *bool `yaml:"yazi,omitempty"`
 	// Zoxide remembers opened directories and ranks them by visits. Unset,
 	// it is on whenever zoxide is installed.
 	Zoxide *bool `yaml:"zoxide,omitempty"`

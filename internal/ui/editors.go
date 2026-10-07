@@ -79,6 +79,10 @@ func (a *App) openNow(dir string, what session.Record, ed *editors.Editor) {
 // openEditor gives a terminal editor the terminal. Neovim's record follows
 // its server, so detaching its UI does not lose the directory or the buffers.
 func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
+	a.openEditorAt(dir, what, ed, "")
+}
+
+func (a *App) openEditorAt(dir string, what session.Record, ed *editors.Editor, file string) {
 	a.editorMu.Lock()
 	defer a.editorMu.Unlock()
 	if ed == nil {
@@ -86,7 +90,7 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 		if !ok {
 			a.tv.QueueUpdateDraw(func() {
 				a.closeModal(pageTask)
-				a.withEditor(true, func(chosen *editors.Editor) { go a.openEditor(dir, what, chosen) })
+				a.withEditor(true, func(chosen *editors.Editor) { go a.openEditorAt(dir, what, chosen, file) })
 			})
 			return
 		}
@@ -97,12 +101,18 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 	what.Branch, _ = workspace.WorktreeHead(dir)
 	if !ed.Terminal {
 		a.zoxideAdd(dir)
-		a.openWindowEditor(dir, what, *ed)
+		a.openWindowEditorAt(dir, what, *ed, file)
 		return
 	}
 	if ed.ID == editors.Nvim {
 		for _, running := range a.sessions.Running() {
 			if sameDirectory(running.Dir, dir) {
+				if file != "" {
+					if err := editors.OpenFile(running.Launcher, running.Socket, file); err != nil {
+						a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
+						return
+					}
+				}
 				a.attachEditorLocked(running, false)
 				return
 			}
@@ -114,26 +124,37 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 		what.Launcher = ed.Where
 		what.Socket, err = a.sessions.NewSocket()
 		if err == nil {
-			cmd, err = ed.BackgroundCommand(dir, what.Socket)
+			cmd, err = ed.BackgroundCommandAt(dir, what.Socket, file)
 		}
 	} else {
-		cmd, err = ed.Command(dir)
+		cmd, err = ed.CommandAt(dir, file)
 	}
 	if err != nil {
 		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
-	close, err := a.sessions.Add(what)
-	if err != nil && what.Socket != "" {
-		a.tv.QueueUpdateDraw(func() { a.errorf("cannot record the editor: %v", err) })
+	if err := a.runInTerminal(dir, what, cmd); err != nil {
+		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
+	a.editorReturned(what)
+}
+
+// runInTerminal records the original directory for shell jumps while a
+// program owns the terminal. A detachable editor keeps its own record.
+func (a *App) runInTerminal(dir string, what session.Record, cmd *exec.Cmd) error {
+	what.Dir = dir
+	close, err := a.sessions.Add(what)
+	if err != nil && what.Socket != "" {
+		return fmt.Errorf("cannot record the editor: %w", err)
+	}
 	a.zoxideAdd(dir)
-	a.runTerminalEditor(cmd, *ed)
+	err = a.runTerminalEditor(cmd, editors.Editor{Name: what.Editor})
 	if what.Socket == "" {
 		close()
 	}
-	a.editorReturned(what)
+	a.refreshAfterTerminal(what)
+	return err
 }
 
 func sameDirectory(left, right string) bool {
@@ -171,14 +192,16 @@ func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
 	} else {
 		a.runTerminalEditor(cmd, editors.Editor{Name: "Neovim"})
 	}
+	a.refreshAfterTerminal(r)
 	a.editorReturned(r)
 }
 
-func (a *App) runTerminalEditor(cmd *exec.Cmd, ed editors.Editor) {
-	a.runTerminalEditorWith(cmd, ed, nil)
+func (a *App) runTerminalEditor(cmd *exec.Cmd, ed editors.Editor) error {
+	return a.runTerminalEditorWith(cmd, ed, nil)
 }
 
-func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started func()) {
+func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started func()) error {
+	var runErr error
 	a.tv.Suspend(func() {
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 		err := cmd.Start()
@@ -188,6 +211,7 @@ func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started fu
 			}
 			err = cmd.Wait()
 		}
+		runErr = err
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s failed: %v\n", ed.Name, err)
 			fmt.Fprintln(os.Stderr, "press enter to return to unagit")
@@ -195,17 +219,23 @@ func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started fu
 			fmt.Scanln(&s)
 		}
 	})
+	return runErr
 }
 
-func (a *App) editorReturned(r session.Record) {
-	aside := editors.SocketAlive(r.Socket)
-	if r.Socket != "" && !aside {
+func (a *App) refreshAfterTerminal(r session.Record) {
+	if r.Socket != "" && !editors.SocketAlive(r.Socket) {
 		a.sessions.Remove(r)
 	}
 	a.tv.QueueUpdateDraw(func() {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
+	})
+}
+
+func (a *App) editorReturned(r session.Record) {
+	aside := editors.SocketAlive(r.Socket)
+	a.tv.QueueUpdateDraw(func() {
 		if aside {
 			a.note("nvim aside: " + r.Label() + " · E lists the running editors")
 		} else {
@@ -215,7 +245,11 @@ func (a *App) editorReturned(r session.Record) {
 }
 
 func (a *App) openWindowEditor(dir string, what session.Record, ed editors.Editor) {
-	cmd, err := ed.Command(dir)
+	a.openWindowEditorAt(dir, what, ed, "")
+}
+
+func (a *App) openWindowEditorAt(dir string, what session.Record, ed editors.Editor, file string) {
+	cmd, err := ed.CommandAt(dir, file)
 	var out bytes.Buffer
 	if err == nil {
 		cmd.Stdout, cmd.Stderr = &out, &out

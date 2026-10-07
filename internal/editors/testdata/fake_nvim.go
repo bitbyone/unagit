@@ -132,6 +132,9 @@ func serve(socket string) {
 			} else {
 				fmt.Fprintln(c, "0")
 			}
+		case strings.Contains(expr, "tabedit"):
+			log("file", strings.TrimSpace(expr))
+			fmt.Fprintln(c, "0")
 		case strings.Contains(expr, "nvim_list_uis"):
 			fmt.Fprintln(c, "0")
 		default:

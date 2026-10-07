@@ -19,6 +19,7 @@ type integrationCard struct {
 	// found, when set, is a line under the description saying what the
 	// integration found on this machine.
 	found func() string
+	check func()
 	// render and onKey replace the enable/disable card with one of its own
 	// making; onKey reports whether it took the letter.
 	render func(focused bool) string
@@ -76,6 +77,15 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		},
 		found: s.app.zoxideFound,
 	}}
+	hint := ""
+	v.cards = append(v.cards, &integrationCard{
+		name: "Yazi", command: "yazi",
+		description: "Browse Files opens the selected directory in Yazi. Choose a file to open it in your favourite editor.",
+		enabled:     s.app.yaziOn,
+		toggle:      func() { on := !s.app.yaziOn(); s.app.cfg.Integrations.Yazi = &on },
+		found:       func() string { return hint },
+		check:       func() { hint = s.app.yaziFound() },
+	})
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
 		box(card.view.Box, card.name).SetBorderPadding(0, 0, 2, 2)
@@ -133,6 +143,9 @@ func (v *integrationsView) check() {
 	for _, card := range v.cards {
 		if card.command != "" {
 			card.binary = v.integrationBinary(card.command)
+			if card.check != nil && card.binary != "" {
+				card.check()
+			}
 		}
 	}
 	v.paintFocus(v.active)
@@ -208,6 +221,9 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 				v.settings.app.checkZoxide()
 			}
 			card.binary = v.integrationBinary(card.command)
+			if card.check != nil && card.binary != "" {
+				card.check()
+			}
 			if card.binary != "" {
 				card.toggle()
 				v.settings.app.saveConfig()
@@ -220,6 +236,9 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 				v.settings.app.checkZoxide()
 			}
 			card.binary = v.integrationBinary(card.command)
+			if card.check != nil && card.binary != "" {
+				card.check()
+			}
 			v.paintFocus(true)
 			return nil
 		default:

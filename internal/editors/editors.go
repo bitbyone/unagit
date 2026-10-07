@@ -194,3 +194,33 @@ func (e Editor) Command(dir string) (*exec.Cmd, error) {
 	cmd.Dir = dir
 	return cmd, nil
 }
+
+// CommandAt opens a chosen file while keeping the repository as the editor's
+// working directory. Window editors also get the folder as their project.
+func (e Editor) CommandAt(dir, file string) (*exec.Cmd, error) {
+	if file == "" {
+		return e.Command(dir)
+	}
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(dir, file)
+	}
+	cmd, err := e.Command(dir)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case e.appPath != "":
+		cmd.Args = append(cmd.Args, file)
+	case e.ID == Nvim:
+		args := append([]string(nil), e.argv[1:]...)
+		if len(args) > 0 && args[len(args)-1] == "." {
+			args = args[:len(args)-1]
+		}
+		cmd.Args = append([]string{e.argv[0]}, append(args, file)...)
+	case e.ID == Idea:
+		cmd.Args = append(cmd.Args, "--line", "1", file)
+	default:
+		cmd.Args = append(cmd.Args, file)
+	}
+	return cmd, nil
+}

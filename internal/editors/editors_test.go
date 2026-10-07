@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -126,5 +127,46 @@ func TestCommandOfAMissingEditorIsRefused(t *testing.T) {
 	e, _ := Pick(Detect(CustomSpec{}), Zed)
 	if cmd, err := e.Command(t.TempDir()); err == nil || cmd != nil {
 		t.Errorf("an editor that is not installed has a command: %v", cmd)
+	}
+}
+
+func TestCommandAtKeepsTheProjectAndOpensTheFile(t *testing.T) {
+	fakeMachine(t, map[string]string{"nvim": "/bin/nvim", "idea": "/bin/idea", "code": "/bin/code", "zed": "/bin/zed", "hx": "/bin/hx"})
+	all := Detect(CustomSpec{Command: "hx", Args: []string{"--clean"}, Terminal: true})
+	dir, file := "/work/app", "/work/app/a file's.go"
+	for id, want := range map[string][]string{
+		Nvim:   {"/bin/nvim", file},
+		Idea:   {"/bin/idea", dir, "--line", "1", file},
+		Code:   {"/bin/code", dir, file},
+		Zed:    {"/bin/zed", dir, file},
+		Custom: {"/bin/hx", "--clean", file},
+	} {
+		e, _ := Pick(all, id)
+		cmd, err := e.CommandAt(dir, "a file's.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(cmd.Args, want) || cmd.Dir != dir {
+			t.Errorf("%s: %v in %s, want %v in %s", id, cmd.Args, cmd.Dir, want, dir)
+		}
+	}
+	missing := Editor{Name: "missing"}
+	if cmd, err := missing.CommandAt(dir, file); err == nil || cmd != nil {
+		t.Fatal("missing editor can open a file")
+	}
+}
+
+func TestCommandAtUsesTheMacApplication(t *testing.T) {
+	fakeMachine(t, nil, "IntelliJ IDEA.app", "Visual Studio Code.app", "Zed.app")
+	for _, id := range []string{Idea, Code, Zed} {
+		e, _ := Pick(Detect(CustomSpec{}), id)
+		cmd, err := e.CommandAt("/work/app", "/work/app/a.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"open", "-a", e.appPath, "/work/app", "/work/app/a.go"}
+		if !reflect.DeepEqual(cmd.Args, want) {
+			t.Errorf("%s: %v, want %v", id, cmd.Args, want)
+		}
 	}
 }
