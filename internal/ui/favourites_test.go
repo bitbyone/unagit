@@ -59,7 +59,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 	// Favourites first, turned off in the order picker.
 	typeRunes(sc, "o")
 	waitFor(t, a, sc, "favourites first: on")
-	typeRunes(sc, "jj")
+	typeRunes(sc, strings.Repeat("j", len(config.SortsOf(config.ListRepositories))))
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Favourites in order with the rest")
 	screen = a.screenText(sc)

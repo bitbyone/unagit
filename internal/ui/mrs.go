@@ -38,7 +38,7 @@ func (a *App) newMRsPane() *pane {
 			scope = tag(colWarn) + a.mrProjectScope.Path + tagEnd
 		}
 		return fmt.Sprintf("%s%d/%d merge requests · %s%s · scope %s",
-			tag(colMuted), len(filtered), a.mrsOfShownRepositories(), age, a.filterSummary(a.cfg.Filters.GroupByProject)+a.whoseSummary()+a.authorSummary(), tagEnd+scope)
+			tag(colMuted), len(filtered), a.mrsOfShownRepositories(), age, a.filterSummary(config.ListMergeRequests, a.cfg.Filters.GroupByProject)+a.whoseSummary()+a.authorSummary(), tagEnd+scope)
 	}
 
 	render := func(query string) {
@@ -111,18 +111,8 @@ func (a *App) filterMRs(query string) []int {
 	// A query ranks by how well it matched; without one the shared order wins.
 	if strings.TrimSpace(query) != "" {
 		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-	} else if a.cfg.Filters.Order() == config.SortName {
-		sort.SliceStable(hits, func(i, j int) bool {
-			left, right := a.mrs[hits[i].idx], a.mrs[hits[j].idx]
-			if lp, rp := a.projectPathOfMR(left), a.projectPathOfMR(right); lp != rp {
-				return lp < rp
-			}
-			return left.IID < right.IID
-		})
 	} else {
-		sort.SliceStable(hits, func(i, j int) bool {
-			return a.mrSortTime(a.mrs[hits[i].idx]).After(a.mrSortTime(a.mrs[hits[j].idx]))
-		})
+		a.sortMRs(hits)
 	}
 	out := make([]int, len(hits))
 	for i, h := range hits {

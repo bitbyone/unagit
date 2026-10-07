@@ -285,7 +285,7 @@ func (a *App) newWorktreesPane() *pane {
 
 	p.headline = func() string {
 		return fmt.Sprintf("%s%d/%d worktrees · %s%s", tag(colMuted), len(filtered), len(a.worktrees),
-			sortLabel(a.cfg.Filters.Order()), tagEnd)
+			sortLabel(a.order(config.ListWorktrees)), tagEnd)
 	}
 
 	render := func(query string) {
@@ -352,21 +352,11 @@ func (a *App) filterWorktrees(query string) []int {
 		}
 		hits = append(hits, scored{idx: i, score: score})
 	}
-	switch {
-	case strings.TrimSpace(query) != "":
+	// A query ranks by how well it matched; without one the list's order wins.
+	if strings.TrimSpace(query) != "" {
 		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-	case a.cfg.Filters.Order() == config.SortName:
-		sort.SliceStable(hits, func(i, j int) bool {
-			l, r := a.worktrees[hits[i].idx], a.worktrees[hits[j].idx]
-			if l.Path != r.Path {
-				return l.Path < r.Path
-			}
-			return l.Branch < r.Branch
-		})
-	default:
-		sort.SliceStable(hits, func(i, j int) bool {
-			return a.worktrees[hits[i].idx].Moved.After(a.worktrees[hits[j].idx].Moved)
-		})
+	} else {
+		a.sortWorktrees(hits)
 	}
 	out := make([]int, len(hits))
 	for i, h := range hits {
@@ -603,6 +593,15 @@ func (a *App) worktreeComments(r worktreeRow) (string, tcell.Color) {
 // worktreeEdits is the EDITS column: how many files have uncommitted changes,
 // across every member of a grouped worktree; nothing when there are none.
 func (a *App) worktreeEdits(r worktreeRow) string {
+	if total := a.worktreeEditCount(r); total > 0 {
+		return fmt.Sprintf("%d", total)
+	}
+	return ""
+}
+
+// worktreeEditCount is the files with uncommitted changes in a worktree, in
+// every member of a grouped one.
+func (a *App) worktreeEditCount(r worktreeRow) int {
 	members := []worktreeRow{r}
 	if r.grouped() {
 		members = r.Members
@@ -611,10 +610,7 @@ func (a *App) worktreeEdits(r worktreeRow) string {
 	for _, m := range members {
 		total += a.wtRemote[m.Dir].Edits
 	}
-	if total == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%d", total)
+	return total
 }
 
 // worktreeBranch is what the BRANCH column says: the branch, or for a grouped

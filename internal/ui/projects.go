@@ -38,7 +38,7 @@ func (a *App) newProjectsPane() *pane {
 			age = "indexed " + humanAge(a.projUpdated)
 		}
 		return fmt.Sprintf("%s%d/%d repositories · %s%s%s",
-			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(a.cfg.Filters.GroupRepositories)+a.tagSummary(), tagEnd)
+			tag(colMuted), len(filtered), len(a.projects), age, a.filterSummary(config.ListRepositories, a.cfg.Filters.GroupRepositories)+a.tagSummary(), tagEnd)
 	}
 
 	render := func(query string) {
@@ -105,14 +105,8 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 	// A query ranks by how well it matched; without one the shared order wins.
 	if strings.TrimSpace(query) != "" {
 		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-	} else if a.cfg.Filters.Order() == config.SortName {
-		sort.SliceStable(hits, func(i, j int) bool {
-			return projects[hits[i].idx].PathWithNamespace < projects[hits[j].idx].PathWithNamespace
-		})
 	} else {
-		sort.SliceStable(hits, func(i, j int) bool {
-			return projects[hits[i].idx].LastActivityAt.After(projects[hits[j].idx].LastActivityAt)
-		})
+		a.sortProjects(hits, projects)
 	}
 	out := make([]int, len(hits))
 	for i, h := range hits {

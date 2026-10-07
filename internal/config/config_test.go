@@ -330,7 +330,7 @@ func TestGitHubGroupOwnsItsRepos(t *testing.T) {
 
 func TestFiltersHideAndShow(t *testing.T) {
 	var f Filters
-	if f.Active() || f.Order() != SortActivity {
+	if f.Active() || f.Order(ListRepositories) != SortActivity {
 		t.Fatalf("a fresh filter set is %+v", f)
 	}
 	if hidden := f.ToggleHidden("work", "acme/api"); !hidden || !f.IsHidden("work", "acme/api") {
@@ -362,16 +362,16 @@ func TestFiltersShowAll(t *testing.T) {
 
 func TestFiltersOrderDefaults(t *testing.T) {
 	var f Filters
-	if f.Order() != SortActivity {
-		t.Errorf("empty order = %q", f.Order())
+	if f.Order(ListRepositories) != SortActivity {
+		t.Errorf("empty order = %q", f.Order(ListRepositories))
 	}
 	f.Sort = SortName
-	if f.Order() != SortName {
-		t.Errorf("order = %q", f.Order())
+	if f.Order(ListRepositories) != SortName {
+		t.Errorf("order = %q", f.Order(ListRepositories))
 	}
 	f.Sort = "nonsense"
-	if f.Order() != SortActivity {
-		t.Errorf("an unknown order should fall back to activity, got %q", f.Order())
+	if f.Order(ListRepositories) != SortActivity {
+		t.Errorf("an unknown order should fall back to activity, got %q", f.Order(ListRepositories))
 	}
 }
 
@@ -383,6 +383,7 @@ func TestFiltersSurviveTheFile(t *testing.T) {
 	cfg := Default()
 	cfg.Filters.ClonedOnly = true
 	cfg.Filters.Sort = SortName
+	cfg.Filters.SetOrder(ListRepositories, SortSize)
 	cfg.Filters.ToggleHidden("work", "acme/api")
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
@@ -392,8 +393,11 @@ func TestFiltersSurviveTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Filters.ClonedOnly || got.Filters.Order() != SortName {
+	if !got.Filters.ClonedOnly || got.Filters.Order(ListMergeRequests) != SortName {
 		t.Fatalf("filters = %+v", got.Filters)
+	}
+	if got.Filters.Order(ListRepositories) != SortSize {
+		t.Fatalf("the repositories' own order = %q", got.Filters.Order(ListRepositories))
 	}
 	if !got.Filters.IsHidden("work", "acme/api") {
 		t.Fatalf("hidden = %+v", got.Filters.Hidden)
@@ -510,5 +514,25 @@ func TestHiddenColumns(t *testing.T) {
 	f.ToggleColumn(ListRepositories, "tags")
 	if f.HidesColumn(ListRepositories, "tags") || f.HideTags {
 		t.Fatal("the tags did not come back")
+	}
+}
+
+// TestAnOrderAListCannotHaveFallsBack: a size is no merge request's, so a
+// configuration that says so is read as the shared order.
+func TestAnOrderAListCannotHaveFallsBack(t *testing.T) {
+	f := Filters{Sort: SortName}
+	if got := f.Order(ListWorktrees); got != SortName {
+		t.Errorf("without one of its own = %q", got)
+	}
+	f.SetOrder(ListMergeRequests, SortSize)
+	if got := f.Order(ListMergeRequests); got != SortName {
+		t.Errorf("an order the list cannot have = %q", got)
+	}
+	f.SetOrder(ListMergeRequests, SortComments)
+	if got := f.Order(ListMergeRequests); got != SortComments {
+		t.Errorf("its own = %q", got)
+	}
+	if got := f.Order(ListRepositories); got != SortName {
+		t.Errorf("another list's order leaked: %q", got)
 	}
 }

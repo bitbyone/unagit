@@ -24,11 +24,12 @@ func (a *App) passesFilters(instance, path string) bool {
 }
 
 // filterSummary is the part of a list's header that says what is being left
-// out, so a narrowed list never looks like an empty one. grouped is whether
-// that list is drawn under headings, which each list decides for itself.
-func (a *App) filterSummary(grouped bool) string {
+// out, so a narrowed list never looks like an empty one, and the order it is
+// in. grouped is whether that list is drawn under headings, which each list
+// decides for itself.
+func (a *App) filterSummary(list string, grouped bool) string {
 	f := &a.cfg.Filters
-	parts := []string{sortLabel(f.Order())}
+	parts := []string{sortLabel(a.order(list))}
 	if f.ClonedOnly {
 		parts = append(parts, tag(colOn)+"cloned only"+tagEnd+tag(colMuted))
 	}
@@ -39,13 +40,6 @@ func (a *App) filterSummary(grouped bool) string {
 		parts = append(parts, tag(colOn)+"grouped"+tagEnd+tag(colMuted))
 	}
 	return " · " + strings.Join(parts, " · ")
-}
-
-func sortLabel(order string) string {
-	if order == config.SortName {
-		return "by name"
-	}
-	return "by activity"
 }
 
 // applyFilters saves the shared settings and redraws both lists with them.
@@ -93,7 +87,7 @@ func (a *App) toggleGrouping() {
 	a.cfg.Filters.GroupByProject = !a.cfg.Filters.GroupByProject
 	a.applyFilters()
 	if a.cfg.Filters.GroupByProject {
-		a.note("Merge requests grouped by project, sorted " + sortLabel(a.cfg.Filters.Order()) + " inside each")
+		a.note("Merge requests grouped by project, sorted " + sortLabel(a.order(config.ListMergeRequests)) + " inside each")
 		return
 	}
 	a.note("Merge requests listed flat again")
@@ -105,7 +99,7 @@ func (a *App) toggleRepositoryGrouping() {
 	a.cfg.Filters.GroupRepositories = !a.cfg.Filters.GroupRepositories
 	a.applyFilters()
 	if a.cfg.Filters.GroupRepositories {
-		a.note("Repositories grouped by group, sorted " + sortLabel(a.cfg.Filters.Order()) + " inside each")
+		a.note("Repositories grouped by group, sorted " + sortLabel(a.order(config.ListRepositories)) + " inside each")
 		return
 	}
 	a.note("Repositories listed flat again")
@@ -115,19 +109,33 @@ func (a *App) toggleRepositoryGrouping() {
 // holds whichever sort is chosen.
 const favouritesFirst = "favourites"
 
-// showSortPicker chooses the order both lists are drawn in.
+// showSortPicker chooses the order the list on screen is drawn in. Each list
+// keeps its own, since some orders - by size, by comments - are one list's.
 func (a *App) showSortPicker() {
 	f := &a.cfg.Filters
-	favourites := pickItem{Label: glyphFavourite + " favourites first: on", Sub: "Enter: in order with the rest", Data: favouritesFirst}
-	if !f.FavouritesFirst() {
-		favourites.Label, favourites.Sub = glyphFavourite+" favourites first: off", "Enter: ahead of the rest"
+	list := listOfTab(a.currentTab())
+	var items []pickItem
+	for _, order := range config.SortsOf(list) {
+		label := sortLabel(order)
+		if order == a.order(list) {
+			label += " " + glyphCheck
+		}
+		items = append(items, pickItem{Label: label, Sub: sortAbout(list, order), Data: order})
 	}
-	items := []pickItem{
-		{Label: sortLabel(config.SortActivity), Sub: "what moved most recently, first", Data: config.SortActivity},
-		{Label: sortLabel(config.SortName), Sub: "by path, merge requests by number", Data: config.SortName},
-		favourites,
+	// Worktrees have no favourites to put first.
+	if list != config.ListWorktrees {
+		favourites := pickItem{Label: glyphFavourite + " favourites first: on", Sub: "Enter: in order with the rest", Data: favouritesFirst}
+		if !f.FavouritesFirst() {
+			favourites.Label, favourites.Sub = glyphFavourite+" favourites first: off", "Enter: ahead of the rest"
+		}
+		items = append(items, favourites)
 	}
-	a.showPicker("Sort both lists", items, func(it pickItem) {
+	title := map[string]string{
+		config.ListRepositories:  "Sort repositories",
+		config.ListMergeRequests: "Sort merge requests",
+		config.ListWorktrees:     "Sort worktrees",
+	}[list]
+	a.showPicker(title, items, func(it pickItem) {
 		if it.Data == favouritesFirst {
 			f.FavouritesInPlace = !f.FavouritesInPlace
 			a.applyFilters()
@@ -138,9 +146,9 @@ func (a *App) showSortPicker() {
 			}
 			return
 		}
-		f.Sort = it.Data.(string)
+		f.SetOrder(list, it.Data.(string))
 		a.applyFilters()
-		a.note("Sorted " + sortLabel(f.Order()))
+		a.note("Sorted " + sortLabel(a.order(list)))
 	})
 }
 

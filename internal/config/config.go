@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -191,7 +192,33 @@ const (
 	SortActivity = "activity"
 	// SortName sorts by path, and merge requests by project then number.
 	SortName = "name"
+	// SortEdits puts the most files with uncommitted changes first:
+	// repositories and worktrees.
+	SortEdits = "edits"
+	// SortSize puts the repositories that take the most disk first.
+	SortSize = "size"
+	// SortRemote puts the repositories furthest behind origin first, then
+	// any other that is not in step with it.
+	SortRemote = "remote"
+	// SortNew puts the merge requests with the most commits since their
+	// last review first.
+	SortNew = "new"
+	// SortComments puts the merge requests with the most open threads first.
+	SortComments = "comments"
 )
+
+// SortsOf are the orders a list can be drawn in, the shared two first.
+func SortsOf(list string) []string {
+	switch list {
+	case ListRepositories:
+		return []string{SortActivity, SortName, SortEdits, SortSize, SortRemote}
+	case ListMergeRequests:
+		return []string{SortActivity, SortName, SortNew, SortComments}
+	case ListWorktrees:
+		return []string{SortActivity, SortName, SortEdits}
+	}
+	return []string{SortActivity, SortName}
+}
 
 // Hidden is one project kept out of the lists.
 type Hidden struct {
@@ -205,8 +232,14 @@ type Hidden struct {
 type Filters struct {
 	// ClonedOnly narrows both lists to projects that are on disk.
 	ClonedOnly bool `yaml:"cloned_only,omitempty" json:"cloned_only,omitempty"`
-	// Sort is SortActivity or SortName; empty means activity.
+	// Sort is SortActivity or SortName; empty means activity. It is the
+	// order of a list that has none of its own in Sorts, and all a
+	// configuration written before Sorts says.
 	Sort string `yaml:"sort,omitempty" json:"sort,omitempty"`
+	// Sorts is each list's own order, by the list (ListRepositories,
+	// ListMergeRequests, ListWorktrees): the lists can be sorted by what
+	// only one of them has, the size of a clone or the comments.
+	Sorts map[string]string `yaml:"sorts,omitempty" json:"sorts,omitempty"`
 	// Hidden are the projects kept out of both lists.
 	Hidden []Hidden `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 	// GroupByProject gathers the merge requests under the project they
@@ -410,12 +443,24 @@ func (f *Filters) ToggleFavourite(instance, path string, iid int) bool {
 	return true
 }
 
-// Order is the sort to apply, normalised.
-func (f *Filters) Order() string {
+// Order is the sort to apply to a list, normalised: its own when it has
+// one that it can be sorted by, the shared one otherwise.
+func (f *Filters) Order(list string) string {
+	if own, ok := f.Sorts[list]; ok && slices.Contains(SortsOf(list), own) {
+		return own
+	}
 	if f.Sort == SortName {
 		return SortName
 	}
 	return SortActivity
+}
+
+// SetOrder gives a list an order of its own.
+func (f *Filters) SetOrder(list, order string) {
+	if f.Sorts == nil {
+		f.Sorts = map[string]string{}
+	}
+	f.Sorts[list] = order
 }
 
 // IsHidden reports whether a project is kept out of the lists.

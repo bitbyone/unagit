@@ -541,6 +541,13 @@ now has.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
+- **An order for each list.** `o` sorts the list on screen, and each list
+  keeps its own: every one by activity or by name; Repositories also by
+  edits, by size, or by remote - the furthest behind origin first, then any
+  other clone out of step with it (diverged, unpushed, no upstream, a failed
+  fetch), then the rest by activity; Merge requests by new commits since your
+  last review, or by comments - open threads first, then all of them;
+  Worktrees by edits. Rows that tie stay in the order of their activity.
 - **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`,
   `private`, `fork`, `hobby` and `tooling` to start with - each a light ink on
   a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on

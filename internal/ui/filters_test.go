@@ -141,8 +141,9 @@ func TestHiddenPickerShowsAll(t *testing.T) {
 	}
 }
 
-// TestSortOrderIsSharedAndRemembered
-func TestSortOrderIsSharedAndRemembered(t *testing.T) {
+// TestSortOrderIsPerListAndRemembered: each list keeps an order of its own,
+// since some orders are one list's alone.
+func TestSortOrderIsPerListAndRemembered(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
@@ -153,8 +154,14 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 	waitFor(t, a, sc, "by activity")
 
 	typeRunes(sc, "o")
-	waitFor(t, a, sc, "Sort both lists")
-	waitFor(t, a, sc, "by name")
+	waitFor(t, a, sc, "Sort repositories")
+	// The orders of Repositories alone are offered here.
+	for _, want := range []string{"by name", "by edits", "by size", "by remote"} {
+		waitFor(t, a, sc, want)
+	}
+	if strings.Contains(a.screenText(sc), "by comments") {
+		t.Error("a merge request's order is offered for the repositories")
+	}
 	// The picker opens on the list, so j moves the cursor straight away.
 	waitFor(t, a, sc, "NORMAL")
 	typeRunes(sc, "j")
@@ -165,19 +172,26 @@ func TestSortOrderIsSharedAndRemembered(t *testing.T) {
 		t.Fatalf("first row by name = %q", got)
 	}
 
-	// The merge request list follows the same setting.
+	// The merge request list keeps its own.
 	typeRunes(sc, "2")
-	waitFor(t, a, sc, "by name")
-	if got := firstRow(t, a, sc); !strings.Contains(got, "acme/billing") {
-		t.Fatalf("first merge request row by name = %q", got)
-	}
+	waitFor(t, a, sc, "merge requests")
+	waitFor(t, a, sc, "by activity")
+	typeRunes(sc, "o")
+	waitFor(t, a, sc, "Sort merge requests")
+	waitFor(t, a, sc, "by new commits")
+	waitFor(t, a, sc, "by comments")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Sort merge requests")
 
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Filters.Order() != config.SortName {
-		t.Errorf("saved order = %q", saved.Filters.Order())
+	if got := saved.Filters.Order(config.ListRepositories); got != config.SortName {
+		t.Errorf("saved order = %q", got)
+	}
+	if got := saved.Filters.Order(config.ListMergeRequests); got != config.SortActivity {
+		t.Errorf("the merge requests' order = %q", got)
 	}
 }
 

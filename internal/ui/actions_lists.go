@@ -44,9 +44,14 @@ func (a *App) openWeb(url string) {
 // filterActions are the filters Repositories and Merge requests share.
 func (a *App) filterActions() []uiAction {
 	return []uiAction{
-		{name: "Sort By…", about: "Sort the list by last activity or by name.", keys: "o", rank: 400, run: a.showSortPicker},
+		a.sortAction(),
 		{name: "Toggle Cloned Only", about: "Show only the repositories on disk, or every one again.", keys: "L", rank: 410, run: a.toggleClonedOnly},
 	}
+}
+
+// sortAction chooses the order of the list on screen.
+func (a *App) sortAction() uiAction {
+	return uiAction{name: "Sort By…", about: "Sort the list by last activity, by name, or by what only it has - edits, size, remote, new commits, comments.", keys: "o", rank: 400, run: a.showSortPicker}
 }
 
 // hideAction hides the repository of the row, or shows it again.
@@ -295,6 +300,7 @@ func (a *App) worktreesActions(p *pane) []uiAction {
 		}},
 		{name: "Pull All Worktrees", about: "Bring every worktree up to origin.", keys: "Alt-P", rank: 20, run: a.updateAllWorktrees},
 		{name: "View Options…", about: "Which columns the list shows.", keys: "v", rank: 410, run: a.showWorktreeViewOptions},
+		a.sortAction(),
 	}
 	return append(acts, a.listActions(p)...)
 }
