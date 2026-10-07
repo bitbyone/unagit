@@ -217,6 +217,38 @@ func heatShades(anchors []string) []tcell.Color {
 	return out
 }
 
+// legibleOn makes every colour read on a theme's background at least as
+// well as the theme's muted text does - between 3 and 4.5 as WCAG counts
+// it - by taking its lightness away from the background a step at a time
+// in OKLab, its hue and chroma kept. The heat walks through green and
+// yellow, which at the lightness of its two ends are nearly the colour of
+// a light background. A theme on the terminal's own background is left as
+// it is, since that background is not known.
+func legibleOn(cols []tcell.Color, bg, muted tcell.Color) []tcell.Color {
+	if bg == tcell.ColorDefault || !bg.Valid() || len(cols) == 0 {
+		return cols
+	}
+	want := 4.5
+	if muted != tcell.ColorDefault && muted.Valid() {
+		want = clamp(contrast(muted, bg), 3, 4.5)
+	}
+	step := 0.01
+	if toOklab(bg).l >= 0.6 {
+		step = -0.01
+	}
+	out := make([]tcell.Color, len(cols))
+	for i, c := range cols {
+		lab := toOklab(c)
+		chroma, hue := math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi
+		for l := lab.l; contrast(c, bg) < want && l > 0 && l < 1; {
+			l += step
+			c = fromOklch(l, chroma, hue, 0, 0)
+		}
+		out[i] = c
+	}
+	return out
+}
+
 // hsl is a colour as hue (degrees), saturation and lightness (0 to 1).
 type hsl struct{ h, s, l float64 }
 

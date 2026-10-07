@@ -150,7 +150,7 @@ func setTheme(t Theme) {
 
 	roleColours = resolveRoles(t)
 	colPicker = pickerBackground(colBackground)
-	heatScale = heatShades(t.Heat)
+	heatScale = legibleOn(heatShades(t.Heat), colour(t.Background), colour(t.Text.Muted))
 
 	g := t.Glyphs
 	if nerdFont {
