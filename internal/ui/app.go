@@ -24,6 +24,7 @@ import (
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
@@ -201,6 +202,9 @@ type App struct {
 	findExecutable func(string) (string, error)
 	// yaziInitPath lets tests inspect an isolated Yazi configuration.
 	yaziInitPath func() string
+	// findMux keeps each fixture independent of the terminal running its tests.
+	findMux     func() *mux.Client
+	multiplexer *mux.Client
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -376,6 +380,11 @@ func forgeGroup(g config.Group) forge.Group {
 
 // Run builds the interface and starts the event loop.
 func (a *App) Run() error {
+	if a.findMux != nil {
+		a.multiplexer = a.findMux()
+	} else {
+		a.multiplexer = mux.Detect(os.Getenv, a.executable)
+	}
 	applyTheme()
 	a.chooseTheme()
 	layout := a.buildInterface()

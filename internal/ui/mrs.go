@@ -443,15 +443,19 @@ func mrMarkColor(d mrDisk) tcell.Color {
 // openMR opens the editor in the merge request's branch worktree as it is on
 // disk, and makes the worktree first only when there is none yet.
 func (a *App) openMR(mr forge.MergeRequest, ed *editors.Editor) {
+	a.openMRIn(mr, ed, editorPlace{})
+}
+
+func (a *App) openMRIn(mr forge.MergeRequest, ed *editors.Editor, place editorPlace) {
 	project := a.mrProject(mr)
 	if dir := a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch); workspace.Exists(dir) {
-		a.openNow(dir, a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed)
+		a.openNowIn(dir, a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed, place)
 		return
 	}
 	client := a.client(mr.Instance)
 	integrate := a.cfg.Integrations.Incomm
-	a.runTaskOpening(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
-		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed,
+	a.runTaskOpeningIn(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
+		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed, place,
 		func(log func(string)) (string, error) {
 			mr := a.refreshMR(client, mr, log)
 			dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)

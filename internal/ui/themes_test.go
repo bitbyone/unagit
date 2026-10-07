@@ -278,8 +278,9 @@ func TestSwitchThemeFromAnyScreen(t *testing.T) {
 			t.Errorf("the screen behind is drawn on %v, not on %s's background", bg, tried)
 		}
 	}
+	checkedDefault := onLoop(a, func() string { return glyphCheck + " " + defaultThemeName })
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, glyphCheck+" "+defaultThemeName)
+	waitGone(t, a, sc, checkedDefault)
 	if got := themeOn(); got != defaultThemeName {
 		t.Errorf("Esc left %q on", got)
 	}

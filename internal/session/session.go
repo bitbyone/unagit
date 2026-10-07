@@ -3,7 +3,8 @@
 //
 // A terminal editor's record lasts until it closes. A Neovim with a socket
 // lives independently of the unagit that opened it, so its record follows
-// the listener instead of the writer's pid. Window editors keep the pid rule:
+// the listener instead of the writer's pid. Multiplexer records follow their
+// pane in its original session. Window editors keep the pid rule:
 // nothing tells unagit when their windows close. Each opening gets a file of
 // its own, and readers sweep away those whose editor is gone.
 package session
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/mux"
 )
 
 // Modes a directory can be open in.
@@ -33,19 +35,23 @@ const (
 
 // Record is one directory currently open in an editor.
 type Record struct {
-	PID      int       `json:"pid"`
-	Dir      string    `json:"dir"`
-	Instance string    `json:"instance"`
-	Server   string    `json:"server"`
-	Project  string    `json:"project"`
-	IID      int       `json:"iid,omitempty"`
-	Title    string    `json:"title,omitempty"`
-	Mode     string    `json:"mode"`
-	Since    time.Time `json:"since"`
-	Editor   string    `json:"editor,omitempty"`
-	Launcher string    `json:"launcher,omitempty"`
-	Socket   string    `json:"socket,omitempty"`
-	Branch   string    `json:"branch,omitempty"`
+	PID         int       `json:"pid"`
+	Dir         string    `json:"dir"`
+	Instance    string    `json:"instance"`
+	Server      string    `json:"server"`
+	Project     string    `json:"project"`
+	IID         int       `json:"iid,omitempty"`
+	Title       string    `json:"title,omitempty"`
+	Mode        string    `json:"mode"`
+	Since       time.Time `json:"since"`
+	Editor      string    `json:"editor,omitempty"`
+	Launcher    string    `json:"launcher,omitempty"`
+	Socket      string    `json:"socket,omitempty"`
+	Branch      string    `json:"branch,omitempty"`
+	Mux         string    `json:"mux,omitempty"`
+	Pane        string    `json:"pane,omitempty"`
+	MuxSession  string    `json:"mux_session,omitempty"`
+	MuxLauncher string    `json:"mux_launcher,omitempty"`
 }
 
 // Label is how the record reads in a list.
@@ -189,6 +195,11 @@ func (s *Store) records(backgroundOnly bool) []Record {
 	if err != nil {
 		return nil
 	}
+	type paneRead struct {
+		live map[string]bool
+		err  error
+	}
+	panes := map[mux.Connection]paneRead{}
 	var out []Record
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
@@ -205,7 +216,18 @@ func (s *Store) records(backgroundOnly bool) []Record {
 			continue
 		}
 		live := alive(r.PID)
-		if r.Socket != "" {
+		if r.Pane != "" {
+			connection := mux.Connection{Kind: r.Mux, Binary: r.MuxLauncher, Session: r.MuxSession}
+			read, ok := panes[connection]
+			if !ok {
+				read.live, read.err = connection.Panes()
+				panes[connection] = read
+			}
+			if read.err != nil {
+				continue
+			}
+			live = read.live[r.Pane]
+		} else if r.Socket != "" {
 			live = editors.SocketAlive(r.Socket)
 			// The record is written before the first UI starts listening.
 			// Another unagit must not sweep it in that short interval.

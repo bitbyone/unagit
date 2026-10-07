@@ -123,7 +123,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
-	return acts
+	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) })...)
 }
 
 // repositoriesActions are what Repositories itself can do.
@@ -166,7 +166,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		d := a.diskOf(mr.Instance, path).MRs[mr.IID]
 		return d.Branch || d.Review
 	}
-	return []uiAction{
+	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseMR(mr) }),
 		{name: "Review", about: "Open a review worktree: the whole change as unstaged edits on the merge base, so the editor's gutter shows it.", keys: "Ctrl-R", rank: 10, run: func() { a.openMRReview(mr, nil) }},
 		{name: "Open Branch in Editor", about: "Open a worktree of the source branch, for committing to it.", keys: "Ctrl-O", rank: 20, run: func() { p.onOpen(false) }},
@@ -204,6 +204,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
+	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) })...)
 }
 
 // mergeRequestsActions are what Merge requests itself can do.
@@ -267,7 +268,13 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			a.showBranchManager(branchScope{project: a.worktreeProject(r), focus: r.Branch})
 		}},
 	}
-	return acts
+	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) {
+		if r.grouped() {
+			a.openGroupIn(r, ed, place)
+		} else {
+			a.openWorktreeIn(r, ed, place)
+		}
+	})...)
 }
 
 // worktreeListActions are worktreeActions as the list has them: taking a

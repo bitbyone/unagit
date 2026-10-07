@@ -763,13 +763,17 @@ func (a *App) showWorktreeAt(dir string) {
 
 // openWorktree opens the editor in a worktree as it is on disk.
 func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
-	a.openNow(r.Dir, session.Record{
+	a.openWorktreeIn(r, ed, editorPlace{})
+}
+
+func (a *App) openWorktreeIn(r worktreeRow, ed *editors.Editor, place editorPlace) {
+	a.openNowIn(r.Dir, session.Record{
 		Instance: r.Instance,
 		Server:   a.instanceLabel(r.Instance),
 		Project:  r.Path,
 		Title:    r.Branch,
 		Mode:     session.ModeBranch,
-	}, ed)
+	}, ed, place)
 }
 
 // remoteSentence is remoteWords for the detail column, where there is room to

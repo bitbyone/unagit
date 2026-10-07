@@ -390,13 +390,17 @@ func (a *App) createGroupWorktree(dir string, plan workspace.Group, projects []f
 
 // openGroup opens the editor on the folder holding every member, as it is.
 func (a *App) openGroup(r worktreeRow, ed *editors.Editor) {
-	a.openNow(r.Dir, session.Record{
+	a.openGroupIn(r, ed, editorPlace{})
+}
+
+func (a *App) openGroupIn(r worktreeRow, ed *editors.Editor, place editorPlace) {
+	a.openNowIn(r.Dir, session.Record{
 		Instance: r.Instance,
 		Server:   a.instanceLabel(r.Instance),
 		Project:  r.Path,
 		Title:    r.Branch,
 		Mode:     session.ModeGroup,
-	}, ed)
+	}, ed, place)
 }
 
 // confirmDeleteGroup asks before removing a grouped worktree: every member,

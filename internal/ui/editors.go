@@ -29,7 +29,20 @@ func (a *App) detectEditors() []editors.Editor {
 // usable favourite - one is chosen first from the editors this machine has,
 // the favourite on top. There is no quiet fallback to some other editor.
 func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
+	a.withEditorKind(ask, false, then)
+}
+
+func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Editor)) {
 	all := a.detectEditors()
+	if terminalOnly {
+		filtered := make([]editors.Editor, 0, len(all))
+		for _, ed := range all {
+			if ed.Terminal {
+				filtered = append(filtered, ed)
+			}
+		}
+		all = filtered
+	}
 	fav, hasFav := editors.Favourite(all, a.cfg.FavouriteEditor)
 	if !ask && hasFav {
 		then(nil)
@@ -45,11 +58,17 @@ func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
 		}
 	}
 	if len(items) == 0 {
-		a.errorf("no editor found - install one, or set a custom editor in Settings › General")
+		kind := "editor"
+		if terminalOnly {
+			kind = "terminal editor"
+		}
+		a.errorf("no %s found - install one, or set a custom editor in Settings › General", kind)
 		return
 	}
 	title := "Open with"
 	switch chosen := a.cfg.FavouriteEditor; {
+	case terminalOnly:
+		title += " · terminal editors"
 	case hasFav, chosen == askEveryTime:
 	case chosen == "":
 		title += " · no favourite yet: f in Settings › Integrations › Editors"
@@ -83,14 +102,18 @@ func (a *App) openEditor(dir string, what session.Record, ed *editors.Editor) {
 }
 
 func (a *App) openEditorAt(dir string, what session.Record, ed *editors.Editor, file string) {
+	a.openEditorIn(dir, what, ed, file, editorPlace{})
+}
+
+func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, file string, place editorPlace) {
 	a.editorMu.Lock()
 	defer a.editorMu.Unlock()
 	if ed == nil {
 		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
-		if !ok {
+		if !ok || place.client != nil && !fav.Terminal {
 			a.tv.QueueUpdateDraw(func() {
 				a.closeModal(pageTask)
-				a.withEditor(true, func(chosen *editors.Editor) { go a.openEditorAt(dir, what, chosen, file) })
+				a.withEditorKind(true, place.client != nil, func(chosen *editors.Editor) { go a.openEditorIn(dir, what, chosen, file, place) })
 			})
 			return
 		}
@@ -99,6 +122,10 @@ func (a *App) openEditorAt(dir string, what session.Record, ed *editors.Editor, 
 	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
 	what.Dir, what.Editor = dir, ed.ID
 	what.Branch, _ = workspace.WorktreeHead(dir)
+	if place.client != nil {
+		a.openMuxEditor(dir, what, *ed, place)
+		return
+	}
 	if !ed.Terminal {
 		a.zoxideAdd(dir)
 		a.openWindowEditorAt(dir, what, *ed, file)

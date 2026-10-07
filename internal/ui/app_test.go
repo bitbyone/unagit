@@ -21,6 +21,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/mux"
 )
 
 // fakeServer counts what the interface asks for, so tests can check that a
@@ -588,6 +589,9 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 	}
 	if a.yaziInitPath == nil {
 		a.yaziInitPath = func() string { return filepath.Join(a.cfg.Dir(), "yazi", "init.lua") }
+	}
+	if a.findMux == nil {
+		a.findMux = func() *mux.Client { return nil }
 	}
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {

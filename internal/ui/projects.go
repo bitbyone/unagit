@@ -450,6 +450,10 @@ func repositoryName(path string) string {
 // openProject opens the editor in the main clone as it is on disk, cloning it
 // first only when there is nothing to open yet.
 func (a *App) openProject(pr forge.Project, ed *editors.Editor) {
+	a.openProjectIn(pr, ed, editorPlace{})
+}
+
+func (a *App) openProjectIn(pr forge.Project, ed *editors.Editor, place editorPlace) {
 	what := session.Record{
 		Instance: pr.Instance,
 		Server:   a.instanceLabel(pr.Instance),
@@ -457,10 +461,10 @@ func (a *App) openProject(pr forge.Project, ed *editors.Editor) {
 		Mode:     session.ModeRepository,
 	}
 	if dir := a.projectDir(pr.Instance, pr.PathWithNamespace); workspace.Exists(dir) {
-		a.openNow(dir, what, ed)
+		a.openNowIn(dir, what, ed, place)
 		return
 	}
-	a.runTaskOpening("Cloning "+pr.PathWithNamespace, what, ed, func(log func(string)) (string, error) {
+	a.runTaskOpeningIn("Cloning "+pr.PathWithNamespace, what, ed, place, func(log func(string)) (string, error) {
 		return a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
 	})
 }

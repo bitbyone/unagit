@@ -431,6 +431,30 @@ worktrees, switching a server's clone protocol leaves its remote alone, and
 `e` cannot move it. Turn the integration off with `e` in its card to clone
 the repository like any other.
 
+### [Zellij](https://zellij.dev)
+
+Inside Zellij, the selection action picker (`Alt-Enter` or `Ctrl-A`) offers
+**Open in New Tab**, **Open in Vertical Split** (beside unagit), and
+**Open in Horizontal Split** (below it). They use the favourite terminal
+editor, or ask among terminal editors when the favourite opens a window.
+Existing opening keys keep using unagit's own terminal.
+
+A repository is cloned if needed; a merge request gets its branch worktree,
+as with `Ctrl-O`. A worktree or the lit block of its view opens its own
+directory, and a group opens its folder. Tabs are named after the repository,
+merge request, branch or group. Unagit stays usable while the editor runs.
+The pane closes when its editor exits.
+
+`unagit sessions` and `unagit cd` include these panes, and Neovim wears the
+usual open-editor marker. Records follow the pane in its original Zellij
+session, including after unagit exits; a later instance finds them again.
+Use Zellij to switch to or close its panes. `E` and `unagit attach` list
+Neovim servers with RPC sockets. Each opening also records a zoxide visit
+when that integration is enabled.
+
+Requires Zellij 0.45.1 or newer. No setting is needed; the actions appear
+only inside Zellij. tmux is not implemented yet.
+
 ### [Yazi](https://yazi-rs.github.io)
 
 With `yazi` on PATH, **Browse Files** appears in the selection action picker

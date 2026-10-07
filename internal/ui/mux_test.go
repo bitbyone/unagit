@@ -1,0 +1,315 @@
+package ui
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/editortest"
+	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/muxtest"
+	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/workspace"
+)
+
+func fakeMux(t *testing.T) (muxtest.Tool, func(*App)) {
+	t.Helper()
+	tool := muxtest.New(t)
+	return tool, func(a *App) { a.findMux = tool.Client }
+}
+
+func terminalFavourite(a *App) {
+	changeOnLoop(a, func() {
+		a.cfg.Editor = "/usr/bin/true"
+		a.cfg.EditorArgs = []string{"--test"}
+		a.cfg.EditorWindow = false
+		a.cfg.FavouriteEditor = editors.Custom
+	})
+}
+
+func pickMuxAction(t *testing.T, a *App, sc tcell.SimulationScreen, name string) {
+	t.Helper()
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, name)
+	typeRunes(sc, name)
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+}
+
+func waitMuxOpened(t *testing.T, a *App, label string) {
+	t.Helper()
+	waitEditorState(t, a, func() bool {
+		return strings.Contains(a.transient, "opened in Zellij: "+label) || strings.Contains(a.dialogSaid.text, "opened in Zellij: "+label)
+	})
+	waitEditorIdle(t, a)
+}
+
+func TestZellijOpensACloneAndSplitsWithoutSuspendingUnagit(t *testing.T) {
+	// The fake Neovim changes PATH; Zellij itself is local to this app.
+	editortest.Install(t)
+	tool, prepare := fakeMux(t)
+	visits, _, zprepare := fakeZoxide(t)
+	a, sc, _ := newTestAppSrv(t, prepare, zprepare)
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.RemoveAll(p.clone))
+	changeOnLoop(a, func() {
+		for i := range a.projects {
+			if a.projects[i].PathWithNamespace == p.path {
+				a.projects[i].HTTPURLToRepo = p.origin
+			}
+		}
+		a.reindexProjects()
+	})
+	for _, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
+		changeOnLoop(a, a.clearSaid)
+		pickMuxAction(t, a, sc, name)
+		waitMuxOpened(t, a, p.path)
+		if suspended := onLoop(a, func() bool { return a.screen.(*quietScreen).suspended.Load() }); suspended {
+			t.Fatal("multiplexer suspended unagit")
+		}
+		if !workspace.Exists(p.clone) {
+			t.Fatal("missing clone was not prepared")
+		}
+		rows := a.sessions.List()
+		if len(rows) != 1 || rows[0].Mux != mux.Zellij || rows[0].MuxSession != "test-session" || rows[0].Mode != session.ModeRepository || rows[0].Editor != editors.Nvim || rows[0].Pane == "" {
+			t.Fatalf("multiplexer session: %+v", rows)
+		}
+	}
+	if calls := visitCalls(t, visits, "add", p.clone); calls != 3 {
+		t.Fatalf("opened panes recorded %d visits", calls)
+	}
+	var starts []muxtest.Call
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-pane" || call.Args[3] == "new-tab" {
+			starts = append(starts, call)
+		}
+	}
+	if len(starts) != 3 {
+		t.Fatalf("opened %d panes", len(starts))
+	}
+	if !strings.Contains(starts[0].Args[9], `args "."`) || starts[0].Args[7] != "gateway" {
+		t.Fatalf("tab command: %v", starts[0].Args)
+	}
+	for i, direction := range []string{"right", "down"} {
+		if starts[i+1].Args[5] != direction || starts[i+1].Args[7] != p.clone {
+			t.Fatalf("split: %v", starts[i+1].Args)
+		}
+	}
+	waitEditorState(t, a, func() bool { return a.editorMark(p.clone) != "" })
+	waitFor(t, a, sc, glyphEditor)
+	assertEditorColour(t, a, sc)
+	assertLegible(t, a, sc, "Neovim in a Zellij pane")
+	tool.SetPanes(t, nil)
+	waitEditorState(t, a, func() bool { return a.editorMark(p.clone) == "" })
+}
+
+func TestZellijMakesTheMergeRequestBranchInsteadOfAReview(t *testing.T) {
+	t.Parallel()
+	tool, prepare := fakeMux(t)
+	a, sc, srv := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	terminalFavourite(a)
+	p := newRealProject(t, a, "acme/gateway")
+	mrOnOrigin(t, srv, p, "Add a token bucket")
+	var mr forge.MergeRequest
+	changeOnLoop(a, func() {
+		for _, item := range a.mrs {
+			if item.IID == 7 {
+				mr = item
+				break
+			}
+		}
+	})
+	typeRunes(sc, "2g")
+	waitFor(t, a, sc, "Rate limiting")
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitMuxOpened(t, a, p.path+" !7")
+	branch := onLoop(a, func() string { return a.mrDir(mr.Instance, p.path, mr.IID, mr.SourceBranch) })
+	review := onLoop(a, func() string { return a.reviewDir(mr.Instance, p.path, mr.IID, mr.SourceBranch) })
+	if !workspace.Exists(branch) || workspace.Exists(review) {
+		t.Fatal("multiplexer opening did not follow Ctrl-O's branch preparation")
+	}
+	rows := a.sessions.List()
+	if len(rows) != 1 || rows[0].IID != 7 || rows[0].Mode != session.ModeBranch || !sameDirectory(rows[0].Dir, branch) {
+		t.Fatalf("MR context: %+v", rows)
+	}
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-tab" && call.Args[7] != "gateway !7" {
+			t.Fatalf("tab name: %v", call.Args)
+		}
+	}
+}
+
+func TestZellijUsesTheLitBlockOfAGroupedWorktree(t *testing.T) {
+	t.Parallel()
+	tool, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	terminalFavourite(a)
+	_, _, form := markBoth(t, a, sc)
+	typeRunes(sc, "feat/browse")
+	waitFor(t, a, sc, "feat-browse")
+	pressButton(t, a, sc, form, "Create")
+	waitFor(t, a, sc, "created ")
+	waitFor(t, a, sc, "feat-browse")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "feat-browse · 2 repositories")
+	waitFor(t, a, sc, "clean")
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitMuxOpened(t, a, "feat-browse")
+	rows := a.sessions.List()
+	if len(rows) != 1 || rows[0].Mode != session.ModeGroup {
+		t.Fatalf("group context: %+v", rows)
+	}
+	group := rows[0].Dir
+	typeRunes(sc, "j")
+	waitEditorState(t, a, func() bool { return a.wtView != nil && a.wtView.at == 1 })
+	lit := onLoop(a, func() worktreeRow { return a.wtView.lit() })
+	changeOnLoop(a, a.clearSaid)
+	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	waitMuxOpened(t, a, lit.Path)
+	rows = a.sessions.List()
+	if len(rows) != 2 || rows[0].Mode != session.ModeBranch || !sameDirectory(rows[0].Dir, lit.Dir) || rows[0].Dir == group {
+		t.Fatalf("lit block context: %+v", rows)
+	}
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-tab" && call.Args[7] != "feat-browse" {
+			t.Fatalf("group tab name: %v", call.Args)
+		}
+	}
+}
+
+func TestZellijAsksForATerminalEditorAndItsPickerFits(t *testing.T) {
+	tool, prepare := fakeMux(t)
+	fakeEditors(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	useFavourite(a, editors.Zed)
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
+		resizeApp(a, sc, size.w, size.h)
+		pickMuxAction(t, a, sc, "Open in New Tab")
+		waitFor(t, a, sc, "Open with · terminal editors")
+		text := a.screenText(sc)
+		if !strings.Contains(text, "Neovim") || strings.Contains(text, "Zed") || strings.Contains(text, "VS Code") {
+			t.Fatalf("window editors offered:\n%s", text)
+		}
+		t.Logf("Terminal editor picker at %dx%d:\n%s", size.w, size.h, text)
+		frame := onLoop(a, func() rect {
+			_, prim := a.pages.GetFrontPage()
+			x, y, w, h := prim.(*modalBox).content.GetRect()
+			return rect{x, y, w, h}
+		})
+		for y := frame.y + 1; y < frame.y+frame.h-1; y++ {
+			if r, _ := cellAt(a, sc, frame.x+frame.w-1, y); r != '│' {
+				t.Fatalf("border drawn over on row %d:\n%s", y, text)
+			}
+		}
+		assertLegible(t, a, sc, "terminal editor chooser")
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+		waitGone(t, a, sc, "Open with · terminal editors")
+	}
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitFor(t, a, sc, "Open with · terminal editors")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitMuxOpened(t, a, p.path)
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-tab" && !strings.Contains(call.Args[9], "nvim") {
+			t.Fatal("chosen terminal editor was lost")
+		}
+	}
+}
+
+func TestZellijActionsStayHiddenOutsideZellij(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Open in Editor")
+	text := a.screenText(sc)
+	for _, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
+		if strings.Contains(text, name) {
+			t.Fatalf("%s offered outside Zellij", name)
+		}
+	}
+}
+
+func TestZellijFailureDoesNotRecordAnOpening(t *testing.T) {
+	t.Parallel()
+	tool, prepare := fakeMux(t)
+	visits, _, zprepare := fakeZoxide(t)
+	a, sc, _ := newTestAppSrv(t, prepare, zprepare)
+	waitFor(t, a, sc, "acme/gateway")
+	terminalFavourite(a)
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(tool.Failure, []byte("cannot create pane"), 0600))
+	pickMuxAction(t, a, sc, "Open in Horizontal Split")
+	waitFor(t, a, sc, "zellij request failed")
+	waitEditorIdle(t, a)
+	if rows := a.sessions.List(); len(rows) != 0 {
+		t.Fatalf("failed opening recorded: %+v", rows)
+	}
+	if count := visitCalls(t, visits, "add", p.clone); count != 0 {
+		t.Fatal("failed opening counted as a visit")
+	}
+	if running := onLoop(a, func() bool {
+		for _, job := range a.jobs {
+			if job.title == "Opening editor in Zellij" {
+				return true
+			}
+		}
+		return false
+	}); running {
+		t.Fatal("failed opening left its job running")
+	}
+}
+
+func TestZellijPaneIsMarkedByTheNextUnagit(t *testing.T) {
+	tool := muxtest.New(t)
+	fakeEditors(t)
+	cfg := writeTestConfig(t, fakeGitLab(t).URL)
+	app := newApp(cfg, testVault(t, cfg))
+	app.findMux = tool.Client
+	a, sc, stopped := startAppWithStop(t, app)
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitMuxOpened(t, a, p.path)
+	a.tv.Stop()
+	select {
+	case <-stopped:
+	case <-time.After(patience):
+		t.Fatal("first unagit did not stop")
+	}
+	b, screen := startApp(t, newApp(cfg, testVault(t, cfg)))
+	waitFor(t, b, screen, "acme/gateway")
+	waitEditorState(t, b, func() bool { return b.editorMark(p.clone) != "" })
+	waitFor(t, b, screen, glyphEditor)
+	assertEditorColour(t, b, screen)
+	tool.SetPanes(t, nil)
+	waitEditorState(t, b, func() bool { return b.editorMark(p.clone) == "" })
+	if rows := b.sessions.List(); len(rows) != 0 {
+		t.Fatal("closed pane session survived its marker")
+	}
+}
+
+func TestZellijFocusFailureKeepsTheEditorSession(t *testing.T) {
+	t.Parallel()
+	tool, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	terminalFavourite(a)
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(tool.Failure, []byte("focus"), 0600))
+	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	waitFor(t, a, sc, "could not focus its pane")
+	waitEditorIdle(t, a)
+	if rows := a.sessions.List(); len(rows) != 1 || !sameDirectory(rows[0].Dir, p.clone) {
+		t.Fatalf("unfocused editor was lost: %+v", rows)
+	}
+}

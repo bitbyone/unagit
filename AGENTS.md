@@ -132,6 +132,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/gitx` | the git command line, credentials, error hints |
 | `internal/session` | what is open in an editor, files named by pid |
 | `internal/editors` | which editors are installed, and the command that opens one |
+| `internal/mux` | Zellij tabs and splits, pane IDs and liveness in their original session |
 | `internal/chezmoi` | where chezmoi keeps the dotfiles repository, and its origin |
 | `internal/fuzzy` | the subsequence matcher behind `/` |
 | `internal/md` | markdown → tview markup |
