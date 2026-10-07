@@ -74,9 +74,8 @@ of starting a second one: two Neovims on one directory fight over swap
 files and over the review worktree. Alt-O still chooses an editor, and
 choosing another (IDEA, Zed) is allowed.
 
-**The lists** mark a row whose directory has a running editor - a new glyph
-with a key in `Theme`, a value in `themes/unagit.json` and a plain
-fallback under `glyphs` if a Nerd Font icon is used.
+**The lists** mark a row whose directory has a running editor, aside or
+not, with the "open in Neovim" mark of [markers.md](markers.md).
 
 **Quitting unagit** does nothing to them: the servers are not children of
 the terminal once detached, and their records do not depend on unagit's

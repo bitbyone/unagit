@@ -205,7 +205,8 @@ every list's. Its actions, as `uiAction`s:
 
 - `Enter` - the pipeline, in the jobs dialog that exists (`showPipeline`
   with the watch's `ciTarget`);
-- `x` - stop watching;
+- `x` - stop watching; space marks rows, and `x` then stops every
+  marked one (see [markers.md](markers.md));
 - `w` - the pipeline in the browser; `m` - go to the merge request or the
   repository in its list;
 - `r` / `R` - read one / every watch now.
@@ -214,8 +215,8 @@ The header also says which instance polls, when it is another one ("followed
 by unagit 41231"), so a user with several open knows why `r` here asks
 that one rather than the server.
 
-A watched row in the other lists wears a mark: a new glyph, `glyphWatched`,
-with a theme key and a plain fallback.
+A watched row in the other lists wears the coloured "watched" mark of
+[markers.md](markers.md).
 
 ## Later sections
 
@@ -243,7 +244,7 @@ Each a `watchKind`, its row and its actions:
 | `internal/ui/actions_lists.go`, `wtmodal.go`, `pipeline.go` | "Watch Pipelines" in the four places and the jobs dialog. |
 | `internal/ui/integrations.go` | the Notifications card. |
 | `internal/ui/screen.go` | focus and suspension, for the `present` file. |
-| themes | `glyphWatched`, the unseen mark. |
+| themes | the unseen mark; the watched mark is markers.md's. |
 | README, `help.go` | the screen, the tab number, the screen's keys. |
 
 ## Tests
