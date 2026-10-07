@@ -313,6 +313,7 @@ func helpRows() []helpLine {
 		key("Enter", "draw unagit in the theme under the cursor"),
 		key("f", "fork into a file of yours; each save shows"),
 		key("n", "Nerd Font icons: from the terminal · on · off"),
+		key("b", "background: the theme's · the terminal's own"),
 		key("r", "read <config>/themes/*.json again"),
 		key("Esc", "back to the sections"),
 		blank(),

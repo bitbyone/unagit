@@ -36,8 +36,8 @@ func (a *App) chooseTheme() {
 	a.nerdWhy = why
 	// The default is already on unless another application of this process
 	// put on another; putting it on again would only write what is there.
-	if t.Name != theme.Name || t.file != "" || on != nerdFont {
-		nerdFont = on
+	if t.Name != theme.Name || t.file != "" || on != nerdFont || a.cfg.TerminalBackground != terminalBackground {
+		nerdFont, terminalBackground = on, a.cfg.TerminalBackground
 		setTheme(t)
 	}
 	a.themeFile.Store(t.file)
@@ -62,6 +62,33 @@ func (a *App) cycleNerdFont() {
 		a.settings.fillThemes()
 	}
 	a.done("Nerd Font icons: " + why)
+}
+
+// toggleTerminalBackground leaves the terminal's own background under every
+// theme, or gives the theme its background back, and draws everything
+// again.
+func (a *App) toggleTerminalBackground() {
+	a.cfg.TerminalBackground = !a.cfg.TerminalBackground
+	if err := a.cfg.Save(); err != nil {
+		a.errorf("cannot save the config: %v", err)
+		return
+	}
+	terminalBackground = a.cfg.TerminalBackground
+	setTheme(theme)
+	a.rebuildInterface()
+	if terminalBackground {
+		a.done("Background: the terminal's own, the theme's colours on it")
+		return
+	}
+	a.done("Background: the theme's")
+}
+
+// backgroundWords says whose background is under unagit.
+func backgroundWords(terminal bool) string {
+	if terminal {
+		return "the terminal's own"
+	}
+	return "the theme's"
 }
 
 // switchTheme puts a theme on, remembers it, and draws everything again in

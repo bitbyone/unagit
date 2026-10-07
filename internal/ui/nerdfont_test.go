@@ -213,3 +213,41 @@ func TestADraftsIconStandsForItsWord(t *testing.T) {
 		t.Errorf("the title still says Draft:\n%s", a.screenText(sc))
 	}
 }
+
+// TestTheTerminalsBackgroundCanStayUnderATheme: b in Settings › Theme
+// leaves the terminal's own background under a theme that paints one, the
+// rest of its colours kept, remembers it, and gives the theme its
+// background back. Serial: the theme is the process's.
+func TestTheTerminalsBackgroundCanStayUnderATheme(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { terminalBackground = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() { a.switchTheme("catppuccin-latte") })
+	painted := onLoop(a, func() tcell.Color { return colBackground })
+	text := onLoop(a, func() tcell.Color { return colText })
+	if painted == tcell.ColorDefault {
+		t.Fatal("the theme paints no background to begin with")
+	}
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "Background the theme's")
+	sc.InjectKey(tcell.KeyRune, 'b', tcell.ModNone)
+	waitFor(t, a, sc, "Background the terminal's own")
+	if got := onLoop(a, func() tcell.Color { return colBackground }); got != tcell.ColorDefault {
+		t.Errorf("the theme's background is still painted: %v", got)
+	}
+	if got := onLoop(a, func() tcell.Color { return colText }); got != text {
+		t.Errorf("the text lost the theme's colour: %v, was %v", got, text)
+	}
+	saved, err := config.LoadFrom(a.cfg.Dir())
+	must(t, err)
+	if !saved.TerminalBackground {
+		t.Error("the choice was not saved")
+	}
+	assertLegible(t, a, sc, "Settings › Theme on the terminal's background")
+	sc.InjectKey(tcell.KeyRune, 'b', tcell.ModNone)
+	waitFor(t, a, sc, "Background the theme's")
+	if got := onLoop(a, func() tcell.Color { return colBackground }); got != painted {
+		t.Errorf("the theme's background did not come back: %v", got)
+	}
+}

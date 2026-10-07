@@ -52,6 +52,8 @@ func (s *settingsView) newThemeTable() *tview.Table {
 				}
 			case 'n':
 				s.app.cycleNerdFont()
+			case 'b':
+				s.app.toggleTerminalBackground()
 			case 'j':
 				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
 			case 'k':
@@ -130,7 +132,10 @@ func (s *settingsView) fillThemes() {
 	for _, problem := range set.problems {
 		notes = append(notes, tag(colWarn)+"! "+tagEnd+tview.Escape(problem))
 	}
-	notes = append(notes, tag(colMuted)+"Nerd Font icons "+tagEnd+tview.Escape(s.app.nerdWhy)+tag(colDim)+" · n changes"+tagEnd)
+	// The two choices of how the theme is drawn share a line, so the table
+	// keeps its rows.
+	notes = append(notes, tag(colMuted)+"Nerd Font icons "+tagEnd+tview.Escape(s.app.nerdWhy)+tag(colDim)+" · n changes"+tagEnd+
+		"   "+tag(colMuted)+"Background "+tagEnd+tview.Escape(backgroundWords(terminalBackground))+tag(colDim)+" · b changes"+tagEnd)
 	notes = append(notes, tag(colDim)+"Your own themes go in "+tview.Escape(tildePath(s.app.cfg.ThemesDir()))+
 		"/*.json. A theme names only what it changes; \"extends\" names the theme the rest comes from."+tagEnd)
 	s.themeNotes.SetText(strings.Join(notes, "\n"))

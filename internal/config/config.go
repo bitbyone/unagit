@@ -503,6 +503,10 @@ type Config struct {
 	// NerdFont says whether the terminal's font draws Nerd Font icons:
 	// NerdFontOn, NerdFontOff, or empty to tell from the terminal.
 	NerdFont string `yaml:"nerd_font,omitempty"`
+	// TerminalBackground leaves the terminal's own background under unagit
+	// whatever the theme paints, so a translucent or blurred terminal shows
+	// through; every other colour still comes from the theme.
+	TerminalBackground bool `yaml:"terminal_background,omitempty"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.

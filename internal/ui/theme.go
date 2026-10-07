@@ -114,10 +114,20 @@ func applyTheme() {
 // nerd_glyphs are used (nerdfont.go). Like the theme it is the process's.
 var nerdFont bool
 
+// terminalBackground leaves the screen on the terminal's own background
+// whatever the theme paints (Settings › Theme b), so a translucent or
+// blurred terminal shows through. What is worked out of the background -
+// the tags' colours, the heat - still goes by the theme's, which is what
+// its palette was made for. Like the theme it is the process's.
+var terminalBackground bool
+
 func setTheme(t Theme) {
 	theme = t
 
 	colBackground = colour(t.Background)
+	if terminalBackground {
+		colBackground = tcell.ColorDefault
+	}
 	colText, colMuted, colDim = colour(t.Text.Normal), colour(t.Text.Muted), colour(t.Text.Dim)
 	colAccent, colBranch, colKey = colour(t.Text.Accent), colour(t.Text.Branch), colour(t.Text.Key)
 	colOn, colWarn, colBad = colour(t.State.Good), colour(t.State.Warning), colour(t.State.Bad)

@@ -68,6 +68,7 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 				func() bool { return s.selectedTheme() != "" }),
 			a.keyIn(s.themes, "Read Themes Again", "Read the themes in the configuration's themes folder again, after editing one.", "r", 20, nil),
 			a.keyIn(s.themes, "Nerd Font Icons", "Draw icons from a Nerd Font where a theme has them: told from the terminal, on, or off.", "n", 25, nil),
+			a.keyIn(s.themes, "Terminal Background", "Leave the terminal's own background under every theme, so a translucent or blurred terminal shows through; the rest of the colours stay the theme's.", "b", 27, nil),
 		}
 	case sectionSecurity:
 		return sectionNames[s.current], []uiAction{

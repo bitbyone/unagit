@@ -582,6 +582,12 @@ the cursor comes to it: the screen behind is drawn in it, undimmed, the list
 on a darker background of its own, and only `Enter` keeps it - `Esc` puts
 back the one that was on.
 
+`b` in Settings › Theme leaves the terminal's own background under every
+theme, so a translucent or blurred terminal shows through; every other
+colour - text, borders, fields, the selection - still comes from the theme,
+which then reads best on a terminal background close to its own. It is kept
+in `config.yaml` as `terminal_background`.
+
 Some glyphs have an icon from a [Nerd Font](https://www.nerdfonts.com) as
 well - a theme gives them under `nerd_glyphs`, a plain character standing
 in under `glyphs` - and they are drawn when the terminal can: Ghostty,
