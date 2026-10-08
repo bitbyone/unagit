@@ -16,6 +16,8 @@ func TestARepositorysMergeRequestsCanBeHidden(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	// Tall enough for the rows to show above the view options.
+	resizeApp(a, sc, 120, 44)
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "gx")

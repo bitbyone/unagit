@@ -40,7 +40,29 @@ const tagQuiet = 0.9
 // deriveTags works out every tag colour for a theme with a background of
 // its own.
 func deriveTags(t Theme) map[string]TagInk {
-	bg := toOklab(colour(t.Background))
+	m := newPillMaker(t)
+	out := make(map[string]TagInk, len(tagHues))
+	for name, h := range tagHues {
+		ink, fill := m.pill(h.hue, h.chroma)
+		out[name] = TagInk{Ink: fmt.Sprintf("#%06x", ink.Hex()), Fill: fmt.Sprintf("#%06x", fill.Hex())}
+	}
+	return out
+}
+
+// pillMaker is how a theme's pills are worked out, whatever their hue: a
+// tag's from its name, a forge label's from the colour the forge gave it.
+type pillMaker struct {
+	bg                       oklab
+	dark                     bool
+	fillL, fillC, inkL, inkC float64
+}
+
+func newPillMaker(t Theme) pillMaker {
+	bgColour := colour(t.Background)
+	bg := oklab{l: 0.2}
+	if bgColour != tcell.ColorDefault && bgColour.Valid() {
+		bg = toOklab(bgColour)
+	}
 	// The theme's accents say how colourful and how light its ink is.
 	var sumC, sumL float64
 	n := 0
@@ -59,32 +81,32 @@ func deriveTags(t Theme) map[string]TagInk {
 	if n > 0 {
 		meanC, meanL = sumC/float64(n), sumL/float64(n)
 	}
-	dark := bg.l < 0.6
-
-	fillL, fillC, inkL := bg.l+0.09, clamp(meanC*0.4, 0.03, 0.08), max(meanL, bg.l+0.45)
-	if !dark {
-		fillL, fillC, inkL = bg.l-0.07, clamp(meanC*0.35, 0.03, 0.07), min(meanL, bg.l-0.45)
+	m := pillMaker{bg: bg, dark: bg.l < 0.6}
+	m.fillL, m.fillC, m.inkL = bg.l+0.09, clamp(meanC*0.4, 0.03, 0.08), max(meanL, bg.l+0.45)
+	if !m.dark {
+		m.fillL, m.fillC, m.inkL = bg.l-0.07, clamp(meanC*0.35, 0.03, 0.07), min(meanL, bg.l-0.45)
 	}
-	inkL = fillL + (inkL-fillL)*tagQuiet
-	inkC := clamp(meanC*0.75*tagQuiet, 0.045, 0.13)
+	m.inkL = m.fillL + (m.inkL-m.fillL)*tagQuiet
+	m.inkC = clamp(meanC*0.75*tagQuiet, 0.045, 0.13)
+	return m
+}
 
-	out := make(map[string]TagInk, len(tagHues))
-	for name, h := range tagHues {
-		// The background's own tint is kept in the fill.
-		fill := fromOklch(fillL, fillC*h.chroma, h.hue, bg.a*0.6, bg.b*0.6)
-		ink := fromOklch(inkL, inkC*h.chroma, h.hue, 0, 0)
-		// Moved away from the fill until it reads, a step at a time.
-		step := 0.01
-		if !dark {
-			step = -0.01
-		}
-		for l := inkL; contrast(ink, fill) < tagContrast && l > 0 && l < 1; {
-			l += step
-			ink = fromOklch(l, inkC*h.chroma, h.hue, 0, 0)
-		}
-		out[name] = TagInk{Ink: fmt.Sprintf("#%06x", ink.Hex()), Fill: fmt.Sprintf("#%06x", fill.Hex())}
+// pill is the ink and the fill of a pill of a hue, taking that share of
+// the theme's colourfulness (1 for a full colour, less for a greyish one).
+func (m pillMaker) pill(hue, chroma float64) (ink, fill tcell.Color) {
+	// The background's own tint is kept in the fill.
+	fill = fromOklch(m.fillL, m.fillC*chroma, hue, m.bg.a*0.6, m.bg.b*0.6)
+	ink = fromOklch(m.inkL, m.inkC*chroma, hue, 0, 0)
+	// Moved away from the fill until it reads, a step at a time.
+	step := 0.01
+	if !m.dark {
+		step = -0.01
 	}
-	return out
+	for l := m.inkL; contrast(ink, fill) < tagContrast && l > 0 && l < 1; {
+		l += step
+		ink = fromOklch(l, m.inkC*chroma, hue, 0, 0)
+	}
+	return ink, fill
 }
 
 type oklab struct{ l, a, b float64 }

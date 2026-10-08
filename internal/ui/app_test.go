@@ -326,7 +326,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			"source_branch":"feat/rate","target_branch":"main","project_id":1,
 			"author":{"username":"jane","name":"Jane Doe"},
 			"reviewers":[{"username":"john"}],"assignees":[{"username":"jane"}],
-			"labels":["backend"],"detailed_merge_status":"mergeable",
+			"labels":[{"name":"backend","color":"#428bca"}],"detailed_merge_status":"mergeable",
 			"blocking_discussions_resolved":true,"changes_count":"12","user_notes_count":2,
 			"created_at":"2026-09-18T10:00:00Z","updated_at":"2026-09-21T07:00:00Z",
 			"diverged_commits_count":3,
@@ -367,6 +367,10 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/merge", func(w http.ResponseWriter, r *http.Request) {
 		f.record(r)
 		json(w, `{"state":"merged"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/labels", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"name":"bug","color":"#d9534f"},{"name":"ux","color":"#5cb85c"},
+			{"name":"group::backend","color":"#428bca","description":"Owned by the backend team"}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1/members/all", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":11,"username":"jane","name":"Jane Doe","state":"active"},

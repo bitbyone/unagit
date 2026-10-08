@@ -191,3 +191,25 @@ func ghMessage(body string) string {
 	}
 	return "no reason given"
 }
+
+// LabelChoices lists the repository's labels.
+func (c *Client) LabelChoices(ctx context.Context, mr forge.MergeRequest) ([]forge.Label, error) {
+	raw, err := getAll[label](ctx, c, "/repos/"+mr.ProjectPath+"/labels", nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.Label, len(raw))
+	for i, l := range raw {
+		out[i] = l.label()
+	}
+	return out, nil
+}
+
+// SetLabels replaces the pull request's labels; GitHub keeps them on the
+// issue every pull request also is.
+func (c *Client) SetLabels(ctx context.Context, mr forge.MergeRequest, names []string) error {
+	if names == nil {
+		names = []string{}
+	}
+	return c.send(ctx, http.MethodPut, fmt.Sprintf("/repos/%s/issues/%d/labels", mr.ProjectPath, mr.IID), map[string]any{"labels": names}, nil)
+}

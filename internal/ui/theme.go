@@ -163,6 +163,7 @@ func setTheme(t Theme) {
 		}
 	}
 
+	labelPillMaker, labelColours = newPillMaker(t), map[string]tagColour{}
 	roleColours = resolveRoles(t)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)

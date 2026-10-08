@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -160,5 +161,42 @@ func TestReviewersAddAndWithdrawOnlyTheDifference(t *testing.T) {
 	}
 	if sent[1]["_method"] != http.MethodPost || fmt.Sprint(sent[1]["reviewers"]) != "[new]" {
 		t.Errorf("asked = %+v", sent[1])
+	}
+}
+
+// TestLabelsComeWithTheirColourAndAreSetOnTheIssue: a pull request's labels
+// carry their colour as "#rrggbb", the choices are the repository's, and
+// setting them replaces those of the issue the pull request also is - an
+// empty list included.
+func TestLabelsComeWithTheirColourAndAreSetOnTheIssue(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/labels", `[{"name":"bug","color":"d73a4a","description":"Something broke"},{"name":"docs","color":"0075ca"}]`)
+	var sent []map[string]any
+	s.mux.HandleFunc("/repos/acme/api/issues/7/labels", capture(&sent, func(w http.ResponseWriter) { fmt.Fprint(w, `[]`) }))
+	c := s.client()
+
+	labels, err := c.LabelChoices(context.Background(), mergePR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labels) != 2 || labels[0] != (forge.Label{Name: "bug", Color: "#d73a4a", Description: "Something broke"}) {
+		t.Errorf("choices = %+v", labels)
+	}
+	var p pull
+	if err := json.Unmarshal([]byte(`{"number":7,"labels":[{"name":"bug","color":"d73a4a"}]}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.mergeRequest("acme/api").Labels; len(got) != 1 || got[0].Color != "#d73a4a" {
+		t.Errorf("a pull request's labels = %+v", got)
+	}
+
+	if err := c.SetLabels(context.Background(), mergePR, []string{"bug"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetLabels(context.Background(), mergePR, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 2 || sent[0]["_method"] != http.MethodPut || fmt.Sprint(sent[0]["labels"]) != "[bug]" || fmt.Sprint(sent[1]["labels"]) != "[]" {
+		t.Errorf("sent = %+v", sent)
 	}
 }

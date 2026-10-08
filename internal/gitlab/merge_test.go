@@ -179,3 +179,50 @@ func TestReviewersAreMembersAndAreSetByID(t *testing.T) {
 		t.Errorf("an unknown user: err = %v", err)
 	}
 }
+
+// TestLabelsAreTheProjectsAndTheGroupsAndAreSetByName: the choices include
+// the groups' labels, and the labels go back as one comma-separated
+// string, an empty one clearing them.
+func TestLabelsAreTheProjectsAndTheGroupsAndAreSetByName(t *testing.T) {
+	var sent []recorded
+	srv := mergeServer(t, &sent, map[string]string{
+		"/api/v4/projects/42/labels?include_ancestor_groups=true&page=1&per_page=100": `[{"name":"bug","color":"#d9534f","description":"Something broke"},
+			{"name":"group::backend","color":"#428bca"}]`,
+	}, nil)
+	c := New(srv.URL, "t")
+	labels, err := c.LabelChoices(context.Background(), mergeMR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labels) != 2 || labels[0] != (forge.Label{Name: "bug", Color: "#d9534f", Description: "Something broke"}) || labels[1].Name != "group::backend" {
+		t.Errorf("choices = %+v", labels)
+	}
+	if err := c.SetLabels(context.Background(), mergeMR, []string{"bug", "group::backend"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetLabels(context.Background(), mergeMR, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 2 || sent[0].path != "/api/v4/projects/42/merge_requests/7" ||
+		sent[0].body["labels"] != "bug,group::backend" || sent[1].body["labels"] != "" {
+		t.Errorf("sent = %+v", sent)
+	}
+}
+
+// TestALabelIsReadAsAnObjectOrAName: GitLab sends a label's details only
+// when asked, its bare name otherwise; a merge request decodes either way.
+func TestALabelIsReadAsAnObjectOrAName(t *testing.T) {
+	var mr forge.MergeRequest
+	if err := json.Unmarshal([]byte(`{"iid":7,"labels":["bug","ux"]}`), &mr); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(forge.LabelNames(mr.Labels)) != "[bug ux]" {
+		t.Errorf("names = %+v", mr.Labels)
+	}
+	if err := json.Unmarshal([]byte(`{"iid":7,"labels":[{"name":"bug","color":"#d9534f"}]}`), &mr); err != nil {
+		t.Fatal(err)
+	}
+	if len(mr.Labels) != 1 || mr.Labels[0].Color != "#d9534f" {
+		t.Errorf("details = %+v", mr.Labels)
+	}
+}

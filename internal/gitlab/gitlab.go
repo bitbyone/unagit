@@ -489,6 +489,7 @@ func (c *Client) GroupMergeRequests(ctx context.Context, g forge.Group, includeS
 	q.Set("include_subgroups", "true")
 	q.Set("order_by", "updated_at")
 	q.Set("scope", "all")
+	q.Set("with_labels_details", "true")
 	raw, err := getAll[mergeRequest](ctx, c, groupPath(g)+"/merge_requests", q)
 	if err != nil {
 		return nil, err
@@ -528,6 +529,7 @@ func (c *Client) ProjectMergeRequests(ctx context.Context, p forge.Project) ([]f
 	q := url.Values{}
 	q.Set("state", "opened")
 	q.Set("order_by", "updated_at")
+	q.Set("with_labels_details", "true")
 	raw, err := getAll[mergeRequest](ctx, c, projectPath(p)+"/merge_requests", q)
 	if err != nil {
 		return nil, err
@@ -953,13 +955,13 @@ func (c *Client) ProjectBranches(ctx context.Context, p forge.Project) ([]forge.
 func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) (*forge.MergeRequestDetail, error) {
 	q := url.Values{}
 	q.Set("include_diverged_commits_count", "true")
+	q.Set("with_labels_details", "true")
 	var raw struct {
 		forge.MergeRequest
 		// See mergeRequest: GitLab's pipeline is an object.
 		Pipeline                    json.RawMessage `json:"pipeline"`
 		Description                 string          `json:"description"`
 		CreatedAt                   string          `json:"created_at"`
-		Labels                      []string        `json:"labels"`
 		MergeStatus                 string          `json:"merge_status"`
 		DetailedMergeStatus         string          `json:"detailed_merge_status"`
 		HasConflicts                bool            `json:"has_conflicts"`
@@ -998,7 +1000,6 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 	d := &forge.MergeRequestDetail{
 		MergeRequest:                raw.MergeRequest,
 		Description:                 raw.Description,
-		Labels:                      raw.Labels,
 		MergeStatus:                 raw.DetailedMergeStatus,
 		HasConflicts:                raw.HasConflicts,
 		BlockingDiscussionsResolved: raw.BlockingDiscussionsResolved,

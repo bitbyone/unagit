@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -100,8 +102,9 @@ func (a *App) filterMRs(query string) []int {
 		if !a.passesFilters(mr.Instance, path) || !a.passesMRFilters(mr) {
 			continue
 		}
-		hay := fmt.Sprintf("%s %s !%d %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
-			mr.Title, mr.Author.Username+" "+a.named(mr.Instance, mr.Author).Name, mr.SourceBranch, mr.TargetBranch)
+		hay := fmt.Sprintf("%s %s !%d %s %s %s %s %s", a.instanceLabel(mr.Instance), path, mr.IID,
+			mr.Title, mr.Author.Username+" "+a.named(mr.Instance, mr.Author).Name, mr.SourceBranch, mr.TargetBranch,
+			strings.Join(forge.LabelNames(mr.Labels), " "))
 		score, ok := fuzzy.Match(query, hay)
 		if !ok {
 			continue
@@ -127,7 +130,7 @@ func (a *App) filterMRs(query string) []int {
 // reviewed, approved or built keeps its titles whole.
 // fill is what no column takes, a gap after the title so the rest stands
 // at the right edge.
-type mrColumns struct{ marks, mark, server, proj, iid, title, fill, author, branch, com, pub, fresh, appr, ci, updated int }
+type mrColumns struct{ marks, mark, server, proj, iid, title, labels, fill, author, branch, com, pub, fresh, appr, ci, updated int }
 
 // titleMeasure is the widest the title column grows: past it the author and
 // the branch would stand so far right of it that the eye loses the row on
@@ -137,7 +140,7 @@ const titleMeasure = 100
 // mrColumns lays the list out in room for the rows shown. Grouped, the
 // project is in the headings and every row is indented one cell instead.
 func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped bool) mrColumns {
-	var servers, projs, titles, authors, branches []int
+	var servers, projs, titles, authors, branches, labelled, labelsShort []int
 	iid, com, updated, fresh, appr, ci, pub := 3, len("COM"), len("UPDATED"), 0, 0, 0, 0
 	if a.cfg.Integrations.Incomm {
 		pub = 3 // PUB: what waits to be published from Incomm
@@ -170,6 +173,14 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		if mr.Pipeline != "" {
 			ci = 2
 		}
+		if len(mr.Labels) > 0 {
+			_, all := a.labelPills(mr.Labels, math.MaxInt, behindList)
+			_, first := a.labelPills(mr.Labels[:1], math.MaxInt, behindList)
+			if len(mr.Labels) > 1 {
+				first += len(fmt.Sprintf(" +%d", len(mr.Labels)-1))
+			}
+			labelled, labelsShort = append(labelled, all), append(labelsShort, first)
+		}
 	}
 	// A column hidden in View options is never laid out and keeps no width.
 	hide := func(id string) bool { return a.hidesColumn(config.ListMergeRequests, id) }
@@ -200,6 +211,18 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	title := flexColumn("TITLE", titles, 24, 2)
 	title.max = titleMeasure
 	add("", title)
+	labels := &listColumn{}
+	if len(labelled) > 0 && !hide("labels") {
+		// A row without labels takes none of the column.
+		for range len(rows) - len(labelled) {
+			labelled, labelsShort = append(labelled, 0), append(labelsShort, 0)
+		}
+		labels = flexColumn("LABELS", labelled, 4, 1.2)
+		_, short := spread(labelsShort)
+		labels.ideal = max(labels.floor, short)
+		labels.drop = 3
+		cols = append(cols, labels)
+	}
 	iidCol := add("iid", fixedColumn(iid))
 	author := add("author", flexColumn("AUTHOR", authors, 8, 0.7))
 	branch := add("branch", flexColumn("BRANCH", branches, 10, 0.8))
@@ -224,7 +247,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	}
 	// One cell stays free, so the last column does not touch the frame.
 	spare := layoutColumns(room-1, cols...)
-	return mrColumns{marks: marksCol.width, mark: markW, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
+	return mrColumns{marks: marksCol.width, mark: markW, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width, labels: labels.width,
 		// The gap is a field of its own, and a field costs a space before it.
 		fill:   max(0, spare-1),
 		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
@@ -330,6 +353,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	header = append(header,
 		field{text: "MR", width: c.iid, colour: role("merge_requests.header")},
 		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
+		field{text: "LABELS", width: c.labels, colour: role("merge_requests.header")},
 		field{width: c.fill},
 		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")})
 	if c.ci > 0 {
@@ -406,7 +430,15 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},
-			titleField,
+			titleField)
+		if c.labels > 0 {
+			x := tview.TaggedStringWidth(rowText(fields)) + 1
+			labels, pills := a.labelsField(mr.Labels, c.labels, band)
+			pills.x += x
+			p.kept.keep(row, pills)
+			fields = append(fields, field{raw: labels})
+		}
+		fields = append(fields,
 			field{width: c.fill},
 			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")})
 		if c.ci > 0 {
@@ -536,6 +568,7 @@ func withDetail(mr forge.MergeRequest, det *forge.MergeRequestDetail) forge.Merg
 		mr.SHA = det.SHA
 	}
 	mr.Reviewers, mr.Assignees = det.Reviewers, det.Assignees
+	mr.Labels = det.Labels
 	if det.WebURL != "" {
 		mr.WebURL = det.WebURL
 	}
@@ -551,7 +584,7 @@ func sameRow(a, b forge.MergeRequest) bool {
 	return a.Title == b.Title && a.Draft == b.Draft && a.State == b.State &&
 		a.SourceBranch == b.SourceBranch && a.TargetBranch == b.TargetBranch &&
 		a.WebURL == b.WebURL && a.Comments == b.Comments && a.UpdatedAt.Equal(b.UpdatedAt) &&
-		a.Author == b.Author
+		a.Author == b.Author && slices.Equal(a.Labels, b.Labels)
 }
 
 // applyMRUpdate replaces one row of the index and redraws it, without touching

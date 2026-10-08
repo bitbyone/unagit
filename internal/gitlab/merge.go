@@ -164,3 +164,17 @@ func apiMessage(body string) string {
 	}
 	return "no reason given"
 }
+
+// LabelChoices lists the labels of the merge request's project and of the
+// groups above it, which GitLab lets be put on it as well.
+func (c *Client) LabelChoices(ctx context.Context, mr forge.MergeRequest) ([]forge.Label, error) {
+	q := url.Values{}
+	q.Set("include_ancestor_groups", "true")
+	return getAll[forge.Label](ctx, c, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/labels", q)
+}
+
+// SetLabels replaces the labels; GitLab takes them as one comma-separated
+// string, and an empty one clears them.
+func (c *Client) SetLabels(ctx context.Context, mr forge.MergeRequest, names []string) error {
+	return c.send(ctx, http.MethodPut, mrPath(mr), map[string]any{"labels": strings.Join(names, ",")}, nil)
+}

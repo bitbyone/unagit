@@ -44,6 +44,7 @@ func columnChoices(list string) []columnChoice {
 			{id: "repository", heading: "REPO"},
 			{id: "iid", heading: "MR"},
 			{id: "title", heading: "TITLE", always: true},
+			{id: "labels", heading: "LABELS"},
 			{id: "author", heading: "AUTHOR"},
 			{id: "ci", heading: "CI"},
 			{id: "branch", heading: "BRANCH"},

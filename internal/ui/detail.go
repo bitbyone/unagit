@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -519,7 +520,8 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 		d.kv("Reviewers", users(a.namedAll(mr.Instance, det.Reviewers)))
 		d.kv("Assignees", users(a.namedAll(mr.Instance, det.Assignees)))
 		if len(det.Labels) > 0 {
-			d.kv("Labels", esc(strings.Join(det.Labels, ", ")))
+			pills, _ := a.labelPills(det.Labels, math.MaxInt, behindList)
+			d.kv("Labels", pills)
 		}
 		d.kv("Milestone", esc(det.Milestone))
 		status := det.MergeStatus

@@ -7,6 +7,7 @@ package forge
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -116,9 +117,41 @@ type MergeRequest struct {
 	// the listing; GitHub only on a single merge request, so there it stays
 	// zero until the detail is opened.
 	Comments int `json:"comments,omitempty"`
+	// Labels are the forge's own labels on it - GitLab's, GitHub's - with
+	// the colours the forge gives them.
+	Labels []Label `json:"labels,omitempty"`
 	// ProjectPath and Instance are filled in by unagit, not by the server.
 	ProjectPath string `json:"project_path,omitempty"`
 	Instance    string `json:"instance,omitempty"`
+}
+
+// Label is a label of the forge's, put on merge requests: its name, its
+// colour as "#rrggbb" ("" when the forge gave none), and what it is for.
+type Label struct {
+	Name        string `json:"name"`
+	Color       string `json:"color,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// UnmarshalJSON takes a label as an object or as its bare name: GitLab
+// sends names alone unless asked for the details, and a merge request
+// decoded from any of its answers must not fail on that.
+func (l *Label) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		*l = Label{}
+		return json.Unmarshal(data, &l.Name)
+	}
+	type plain Label
+	return json.Unmarshal(data, (*plain)(l))
+}
+
+// LabelNames is the names of labels, in their order.
+func LabelNames(ls []Label) []string {
+	out := make([]string, len(ls))
+	for i, l := range ls {
+		out[i] = l.Name
+	}
+	return out
 }
 
 // NewMergeRequest is what a merge request is created from.
@@ -180,7 +213,6 @@ type MergeRequestDetail struct {
 	Description                 string     `json:"description"`
 	CreatedAt                   time.Time  `json:"created_at"`
 	MergedAt                    *time.Time `json:"merged_at"`
-	Labels                      []string   `json:"labels"`
 	MergeStatus                 string     `json:"merge_status"`
 	HasConflicts                bool       `json:"has_conflicts"`
 	BlockingDiscussionsResolved bool       `json:"blocking_discussions_resolved"`
@@ -468,6 +500,12 @@ type Provider interface {
 	// SetReviewers makes these user names the reviewers asked, adding and
 	// removing as needed.
 	SetReviewers(ctx context.Context, mr MergeRequest, usernames []string) error
+	// LabelChoices lists the labels that can be put on a merge request: its
+	// repository's, and on GitLab those of the groups above it.
+	LabelChoices(ctx context.Context, mr MergeRequest) ([]Label, error)
+	// SetLabels makes these the merge request's labels, adding and removing
+	// as needed.
+	SetLabels(ctx context.Context, mr MergeRequest, names []string) error
 	// UpdateMergeRequestDescription replaces the description of a merge
 	// request - to point merge requests made together at one another, once
 	// each one's address is known.

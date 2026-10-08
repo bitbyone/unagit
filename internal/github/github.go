@@ -628,14 +628,12 @@ type pull struct {
 		SHA  string `json:"sha"`
 		Repo *repo  `json:"repo"`
 	} `json:"base"`
-	UpdatedAt time.Time `json:"updated_at"`
-	CreatedAt time.Time `json:"created_at"`
-	Body      string    `json:"body"`
-	Labels    []struct {
-		Name string `json:"name"`
-	} `json:"labels"`
-	Assignees          []user `json:"assignees"`
-	RequestedReviewers []user `json:"requested_reviewers"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	CreatedAt          time.Time `json:"created_at"`
+	Body               string    `json:"body"`
+	Labels             []label   `json:"labels"`
+	Assignees          []user    `json:"assignees"`
+	RequestedReviewers []user    `json:"requested_reviewers"`
 	Milestone          *struct {
 		Title string `json:"title"`
 	} `json:"milestone"`
@@ -678,9 +676,27 @@ func (p pull) mergeRequest(projectPath string) forge.MergeRequest {
 	if p.Head.Repo != nil {
 		mr.SourceProjectID = p.Head.Repo.ID
 	}
+	for _, l := range p.Labels {
+		mr.Labels = append(mr.Labels, l.label())
+	}
 	// The listing carries no counts; a single pull request does.
 	mr.Comments = p.Comments + p.ReviewComments
 	return mr
+}
+
+// label is GitHub's label shape; its colour comes without the #.
+type label struct {
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
+}
+
+func (l label) label() forge.Label {
+	out := forge.Label{Name: l.Name, Description: l.Description}
+	if l.Color != "" {
+		out.Color = "#" + strings.TrimPrefix(l.Color, "#")
+	}
+	return out
 }
 
 // GroupMergeRequests asks every repository of a group for its open pull
@@ -1217,9 +1233,6 @@ func (c *Client) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) 
 	d.Instance = mr.Instance
 	if p.Mergeable != nil && !*p.Mergeable {
 		d.HasConflicts = p.MergeableState == "dirty"
-	}
-	for _, l := range p.Labels {
-		d.Labels = append(d.Labels, l.Name)
 	}
 	for _, u := range p.Assignees {
 		d.Assignees = append(d.Assignees, forge.User{Username: u.Login, Name: u.Name})

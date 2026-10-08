@@ -16,6 +16,8 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	// Tall enough for the rows to show above the view options.
+	resizeApp(a, sc, 120, 44)
 	changeOnLoop(a, func() {
 		for i := range a.mrs {
 			a.mrs[i].Author.Username = map[int]string{7: "renovate", 8: "renovate", 9: "jane"}[a.mrs[i].IID]
