@@ -105,7 +105,7 @@ func TestAnAgentOpensWhereItIsAsked(t *testing.T) {
 	if len(rows) != 1 || rows[0].Editor != "claude" || rows[0].Mux != mux.Zellij {
 		t.Fatalf("recorded: %+v", rows)
 	}
-	if got := onLoop(a, func() string { return a.cfg.Integrations.AgentPlace }); got != "zellij-right" {
+	if got := onLoop(a, func() string { return a.cfg.State.AgentPlace }); got != "zellij-right" {
 		t.Fatalf("remembered place %q", got)
 	}
 	// The next agent starts on the place used last: Enter alone goes there.

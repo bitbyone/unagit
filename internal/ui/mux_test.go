@@ -514,7 +514,7 @@ func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 	if n, _ := splits(); n != 2 {
 		t.Fatalf("a Enter did not go to the split again: %d splits", n)
 	}
-	if got := onLoop(a, func() int { return a.cfg.Integrations.PlaceUses[placeOfAttach]["zellij-right"] }); got != 2 {
+	if got := onLoop(a, func() int { return a.cfg.State.PlaceUses[placeOfAttach]["zellij-right"] }); got != 2 {
 		t.Fatalf("the split counted %d times", got)
 	}
 	if n := countIn(log, "attach|"); n != 0 {

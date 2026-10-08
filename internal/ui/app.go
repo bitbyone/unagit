@@ -1784,6 +1784,14 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 
 // saveConfig writes the configuration and refreshes everything that depends
 // on it.
+// saveState writes what using unagit taught it, beside the indexes and
+// never into config.yaml (config.State); failing to is no reason to stop.
+func (a *App) saveState() {
+	if err := a.cfg.SaveState(); err != nil {
+		a.flash("cannot save what unagit learnt: " + err.Error())
+	}
+}
+
 func (a *App) saveConfig() {
 	if err := a.cfg.Save(); err != nil {
 		a.errorf("cannot save the config: %v", err)

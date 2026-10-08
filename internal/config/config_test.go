@@ -564,3 +564,69 @@ func TestSomeColumnsWaitToBeShown(t *testing.T) {
 		t.Fatal("tags hidden the old way do not show again")
 	}
 }
+
+// TestWhatUseTeachesIsNotConfiguration: where things were opened, the last
+// Open…, whom merge requests went to are kept in state.json, never in
+// config.yaml - which is portable and versioned, and must not change
+// because unagit was used. What an older version wrote into config.yaml
+// moves out on load.
+func TestWhatUseTeachesIsNotConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	legacy := `root_dir: /src
+instances:
+  - id: gl
+    name: GitLab
+    url: https://gitlab.example.com
+    people_uses:
+      assignee: {mike: 2}
+integrations:
+  agent_place: zellij-right
+  place_uses:
+    agent: {zellij-right: 3}
+  open_form:
+    repository: {with: "agent:claude", where: zellij-right}
+`
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.State
+	if s.AgentPlace != "zellij-right" || s.PlaceUses["agent"]["zellij-right"] != 3 ||
+		s.OpenForm["repository"].With != "agent:claude" || s.PersonUses("gl", RoleAssignee)["mike"] != 2 {
+		t.Fatalf("the state did not move: %+v", s)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "config.yaml"))
+	for _, key := range []string{"people_uses", "agent_place", "place_uses", "open_form"} {
+		if strings.Contains(string(raw), key) {
+			t.Errorf("config.yaml still has %s:\n%s", key, raw)
+		}
+	}
+	if !strings.Contains(string(raw), "/src") {
+		t.Errorf("the configuration itself was lost:\n%s", raw)
+	}
+
+	// Used and saved again, only state.json changes.
+	before, _ := os.ReadFile(filepath.Join(dir, "config.yaml"))
+	cfg.State.UsePerson("gl", RoleAssignee, "mike")
+	cfg.State.UsePlace("agent", "ghostty-tab")
+	if err := cfg.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(filepath.Join(dir, "config.yaml"))
+	if string(before) != string(after) {
+		t.Errorf("config.yaml changed with use:\n%s\n---\n%s", before, after)
+	}
+	again, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.State.PersonUses("gl", RoleAssignee)["mike"] != 3 || again.State.PlaceUses["agent"]["ghostty-tab"] != 1 {
+		t.Errorf("state.json was not read back: %+v", again.State)
+	}
+}

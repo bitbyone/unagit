@@ -281,10 +281,7 @@ func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, pa
 	// Below the line, whom the user gives merge requests to most often,
 	// then who is about the merge requests the list now shows, then the
 	// rest by name.
-	uses := map[string]int{}
-	if inst := a.cfg.Instance(mr.Instance); inst != nil {
-		uses = inst.PeopleUses[role.use]
-	}
+	uses := a.cfg.State.PersonUses(mr.Instance, role.use)
 	about := a.peopleAbout(mr.Instance)
 	sort.SliceStable(rest, func(i, j int) bool {
 		x, y := rest[i], rest[j]
@@ -363,14 +360,12 @@ func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, pa
 				return
 			}
 			// Who was newly given it counts towards the order next time.
-			if inst := a.cfg.Instance(mr.Instance); inst != nil {
-				for _, name := range after {
-					if !slices.Contains(before, name) {
-						inst.UsePerson(role.use, name)
-					}
+			for _, name := range after {
+				if !slices.Contains(before, name) {
+					a.cfg.State.UsePerson(mr.Instance, role.use, name)
 				}
-				a.saveConfig()
 			}
+			a.saveState()
 			a.savePeople(client, mr, path, after, role)
 		},
 	})

@@ -274,6 +274,16 @@ merge request. If a forge lacks something (GitHub has no subgroups, no group
 wide merge request listing, no merge base), the provider makes it up out of
 what the API does have - it does not leak the difference upwards.
 
+**config.yaml is the user's choices, nothing else.** It is versioned in a
+dotfiles repository (chezmoi) and carried between machines, so it must not
+change because unagit was used. What use teaches - where things were
+opened, the last Open…, whom merge requests went to - is `config.State`,
+kept in `state.json` beside the indexes; the indexes, the sessions and the
+watches are files of their own for the same reason. A new field of
+`config.Config` is a choice the user made in Settings, or it belongs
+elsewhere. (People counts once went into config.yaml, and the user's
+dotfiles repository changed with every merge request assigned.)
+
 **Explicit indexes.** The lists are JSON caches refreshed only on `r`/`p`/`m`,
 so startup is instant. `index.Version` goes up whenever a new field is added
 that an old cache cannot have, and the UI then says a refresh would bring

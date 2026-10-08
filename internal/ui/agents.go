@@ -186,10 +186,10 @@ const (
 // first - on a tie the one chosen last, so a first choice is offered again
 // at once - and the rest in their own order.
 func (a *App) orderPlaces(what string, items []pickItem) []pickItem {
-	uses := a.cfg.Integrations.PlaceUses[what]
+	uses := a.cfg.State.PlaceUses[what]
 	last := ""
 	if what == placeOfAgent {
-		last = a.cfg.Integrations.AgentPlace
+		last = a.cfg.State.AgentPlace
 	}
 	out := append([]pickItem(nil), items...)
 	weight := func(it pickItem) (int, bool) {
@@ -212,11 +212,11 @@ func (a *App) orderPlaces(what string, items []pickItem) []pickItem {
 func (a *App) pickPlace(what, title string, items []pickItem, then func(editorPlace)) {
 	a.showPickerWith(title, a.orderPlaces(what, items), pickerOptions{pack: true, explain: true}, func(it pickItem) {
 		place := it.Data.(editorPlace)
-		a.cfg.Integrations.UsePlace(what, placeKeyOf(place))
+		a.cfg.State.UsePlace(what, placeKeyOf(place))
 		if what == placeOfAgent {
-			a.cfg.Integrations.AgentPlace = placeKeyOf(place)
+			a.cfg.State.AgentPlace = placeKeyOf(place)
 		}
-		a.saveConfig()
+		a.saveState()
 		then(place)
 	})
 }

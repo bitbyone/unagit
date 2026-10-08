@@ -150,9 +150,9 @@ func (a *App) openingActions(targets ...openTarget) []uiAction {
 					rank:  700, icon: agentIcons[ag.ID], filterOnly: true, prefer: placePrefer(place.where),
 					aliases: append(append([]string{}, aliases...), placeAliases(place.where)...),
 					run: func() {
-						a.cfg.Integrations.UsePlace(placeOfAgent, placeKeyOf(place))
-						a.cfg.Integrations.AgentPlace = placeKeyOf(place)
-						a.saveConfig()
+						a.cfg.State.UsePlace(placeOfAgent, placeKeyOf(place))
+						a.cfg.State.AgentPlace = placeKeyOf(place)
+						a.saveState()
 						place.agent = &ag
 						t.open(nil, place)
 					},
@@ -246,7 +246,7 @@ func (a *App) showOpenForm(kind, label string, targets []openTarget) {
 		a.flash("no editor or agent is installed and on - see Settings › Integrations")
 		return
 	}
-	last := a.cfg.Integrations.OpenForm[kind]
+	last := a.cfg.State.OpenForm[kind]
 	form := tview.NewForm()
 	styleForm(form)
 	var mode *tview.DropDown
@@ -309,23 +309,23 @@ func (a *App) showOpenForm(kind, label string, targets []openTarget) {
 			return
 		}
 		tool, place := tools[ti], places[pi].Data.(editorPlace)
-		if a.cfg.Integrations.OpenForm == nil {
-			a.cfg.Integrations.OpenForm = map[string]config.OpenChoice{}
+		if a.cfg.State.OpenForm == nil {
+			a.cfg.State.OpenForm = map[string]config.OpenChoice{}
 		}
-		a.cfg.Integrations.OpenForm[kind] = choice
+		a.cfg.State.OpenForm[kind] = choice
 		a.closeModal(pageForm)
 		if tool.agent != nil {
-			a.cfg.Integrations.UsePlace(placeOfAgent, placeKeyOf(place))
-			a.cfg.Integrations.AgentPlace = placeKeyOf(place)
-			a.saveConfig()
+			a.cfg.State.UsePlace(placeOfAgent, placeKeyOf(place))
+			a.cfg.State.AgentPlace = placeKeyOf(place)
+			a.saveState()
 			place.agent = tool.agent
 			target.open(nil, place)
 			return
 		}
 		if place.client != nil {
-			a.cfg.Integrations.UsePlace(placeOfEditor, placeKeyOf(place))
+			a.cfg.State.UsePlace(placeOfEditor, placeKeyOf(place))
 		}
-		a.saveConfig()
+		a.saveState()
 		target.open(tool.editor, place)
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })

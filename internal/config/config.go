@@ -72,28 +72,9 @@ type Instance struct {
 	// key and the token is only ever spent on the API.
 	CloneProtocol string  `yaml:"clone_protocol,omitempty" json:"clone_protocol,omitempty"`
 	Groups        []Group `yaml:"groups" json:"groups"`
-	// PeopleUses counts whom merge requests were given to on this server -
-	// by role (RoleAssignee, RoleReviewer), then by user name - so the
-	// lists of people start with the usual ones.
-	PeopleUses map[string]map[string]int `yaml:"people_uses,omitempty" json:"people_uses,omitempty"`
-}
-
-// The roles PeopleUses counts by.
-const (
-	RoleAssignee = "assignee"
-	RoleReviewer = "reviewer"
-)
-
-// UsePerson counts one more time username was given a merge request in a
-// role.
-func (i *Instance) UsePerson(role, username string) {
-	if i.PeopleUses == nil {
-		i.PeopleUses = map[string]map[string]int{}
-	}
-	if i.PeopleUses[role] == nil {
-		i.PeopleUses[role] = map[string]int{}
-	}
-	i.PeopleUses[role][username]++
+	// LegacyPeopleUses is where an earlier version counted whom merge
+	// requests were given to; it moves into State on load.
+	LegacyPeopleUses map[string]map[string]int `yaml:"people_uses,omitempty" json:"-"`
 }
 
 // Clone protocols. They mirror the workspace's, which cannot be imported here
@@ -575,16 +556,12 @@ type Integrations struct {
 	// code, zed, custom). One not named is on whenever it is installed;
 	// one turned off is offered nowhere.
 	Editors map[string]bool `yaml:"editors,omitempty"`
-	// AgentPlace is where an agent was last opened, which the next one is
-	// offered first.
-	AgentPlace string `yaml:"agent_place,omitempty"`
-	// PlaceUses counts the places things were opened in - by what went
-	// there (agent, attach), then by place - so a picker of places starts
-	// on the usual one rather than the one used last.
-	PlaceUses map[string]map[string]int `yaml:"place_uses,omitempty"`
-	// OpenForm is what Open… was last given for each kind of row
-	// (repository, merge_request, worktree), so it opens filled in so.
-	OpenForm map[string]OpenChoice `yaml:"open_form,omitempty"`
+	// LegacyAgentPlace, LegacyPlaceUses and LegacyOpenForm are where an
+	// earlier version kept what is now State; they move there on load, and
+	// the file is written again without them.
+	LegacyAgentPlace string                    `yaml:"agent_place,omitempty"`
+	LegacyPlaceUses  map[string]map[string]int `yaml:"place_uses,omitempty"`
+	LegacyOpenForm   map[string]OpenChoice     `yaml:"open_form,omitempty"`
 }
 
 // OpenChoice is one filling of Open…: the mode of a merge request (branch
@@ -593,17 +570,6 @@ type OpenChoice struct {
 	Mode  string `yaml:"mode,omitempty"`
 	With  string `yaml:"with,omitempty"`
 	Where string `yaml:"where,omitempty"`
-}
-
-// UsePlace counts one more opening of what in place.
-func (i *Integrations) UsePlace(what, place string) {
-	if i.PlaceUses == nil {
-		i.PlaceUses = map[string]map[string]int{}
-	}
-	if i.PlaceUses[what] == nil {
-		i.PlaceUses[what] = map[string]int{}
-	}
-	i.PlaceUses[what][place]++
 }
 
 // DefaultToastSeconds is how long a toast stays unless the user chose.
@@ -622,6 +588,9 @@ func (c *Config) ToastLife() time.Duration {
 type Config struct {
 	Integrations Integrations `yaml:"integrations,omitempty"`
 	RootDir      string       `yaml:"root_dir"`
+	// State is what using unagit taught it on this machine, kept in
+	// state.json beside the indexes and never in config.yaml.
+	State State `yaml:"-"`
 	// FavouriteEditor is the editor everything opens in unless another is
 	// chosen: nvim, idea, code, zed or custom. Empty, or ask, means every
 	// open asks which.
@@ -759,6 +728,7 @@ func LoadFrom(dir string) (*Config, error) {
 	b, err := os.ReadFile(cfg.Path())
 	if err != nil {
 		if os.IsNotExist(err) {
+			cfg.loadState()
 			return cfg, nil
 		}
 		return nil, err
@@ -769,6 +739,13 @@ func LoadFrom(dir string) (*Config, error) {
 		return nil, fmt.Errorf("parse %s: %w", cfg.Path(), err)
 	}
 	cfg.normalise()
+	cfg.loadState()
+	// What an older version kept in config.yaml moves out of it, once.
+	if cfg.moveStateOut() {
+		if err := cfg.SaveState(); err == nil {
+			_ = cfg.Save()
+		}
+	}
 	return cfg, nil
 }
 

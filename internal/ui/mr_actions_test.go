@@ -365,7 +365,9 @@ func TestTheChosenStandAboveALineAndTheCursorFollows(t *testing.T) {
 	a, sc, srv := newTestAppSrv(t)
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() {
-		a.cfg.Instances[0].PeopleUses = map[string]map[string]int{config.RoleAssignee: {"mike": 3}}
+		for range 3 {
+			a.cfg.State.UsePerson(a.cfg.Instances[0].ID, config.RoleAssignee, "mike")
+		}
 		for i := range a.mrs {
 			if a.mrs[i].IID == 7 {
 				a.mrs[i].Assignees = []forge.User{{Username: "john"}}
@@ -414,7 +416,7 @@ func TestTheChosenStandAboveALineAndTheCursorFollows(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Assignees of acme/gateway !7: mike")
 	waitWritten(t, srv, `"assignee_ids":[13]`)
-	if n := onLoop(a, func() int { return a.cfg.Instances[0].PeopleUses[config.RoleAssignee]["mike"] }); n != 4 {
+	if n := onLoop(a, func() int { return a.cfg.State.PersonUses(a.cfg.Instances[0].ID, config.RoleAssignee)["mike"] }); n != 4 {
 		t.Fatalf("mike assigned %d times, want 4", n)
 	}
 }

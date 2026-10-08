@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -67,8 +68,12 @@ func TestOpenAsksWithWhatAndWhere(t *testing.T) {
 	}
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	must(t, err)
-	if got := saved.Integrations.OpenForm["repository"]; got.With != "agent:claude" || got.Where != "zellij-right" {
+	if got := saved.State.OpenForm["repository"]; got.With != "agent:claude" || got.Where != "zellij-right" {
 		t.Fatalf("kept %+v", got)
+	}
+	// It is the machine's, not the configuration's.
+	if raw, _ := os.ReadFile(a.cfg.Path()); strings.Contains(string(raw), "open_form") || strings.Contains(string(raw), "place_uses") {
+		t.Fatalf("config.yaml keeps what using unagit taught it:\n%s", raw)
 	}
 
 	typeRunes(sc, "O")

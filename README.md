@@ -699,8 +699,8 @@ alike:
   everyone else by name, and the cursor starts there. `space` assigns - the
   name moves above the line, the cursor with it - `x` unassigns, putting
   the name back at the top below the line, and `Esc` saves. How often you
-  give merge requests to whom is counted in `config.yaml`, under the
-  server's `people_uses`.
+  give merge requests to whom is counted in `state.json`, beside the
+  indexes - this machine's, never in `config.yaml`.
 - `s` (**Add/Change Reviewer…**) does the same for who is asked to review:
   the members on GitLab, those with push access on GitHub.
 - `t` lists the labels that can be put on it - the repository's, and on
@@ -1043,13 +1043,18 @@ its pipelines are watched.
 ## Where unagit keeps its own things
 
 ```
-~/.config/unagit/config.yaml      written by the Settings tab
+~/.config/unagit/config.yaml      written by the Settings tab, your choices alone
 ~/.config/unagit/tokens.enc       sealed with your passphrase
 ~/.config/unagit/index-*.json     the cached lists
+~/.config/unagit/state.json       what use taught it: usual places, usual people
 ~/.config/unagit/sessions/        what is open in an editor right now
 ~/.config/unagit/watch/           what is watched, what was last seen of it
 ~/.config/unagit/themes/*.json    themes of your own
 ```
+
+`config.yaml` changes only when you change a setting, so it can be kept in
+a dotfiles repository and carried to another machine; everything else here
+is this machine's, to sync another way or not at all.
 
 Working on unagit itself? [AGENTS.md](AGENTS.md) has the internals.
 The test commands and measured costs are in [docs/testing.md](docs/testing.md).
