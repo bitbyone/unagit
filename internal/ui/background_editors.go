@@ -295,24 +295,28 @@ func editorContext(r session.Record) string {
 }
 
 // Marks keep the same place and width in every list, and take no room when
-// nobody has one. The second cell leaves room for a future watched mark.
+// nobody has one. They stand first in a row, so the column starts with the
+// row's leading space; it is as wide as the most marks a row has.
 func editorColumn(rows []int, hidden bool, mark func(int) string) *listColumn {
+	width := 0
 	if !hidden {
 		for _, idx := range rows {
-			if mark(idx) != "" {
-				return fixedColumn(2)
-			}
+			width = max(width, cells(mark(idx)))
 		}
 	}
-	return &listColumn{}
+	if width == 0 {
+		return &listColumn{}
+	}
+	return fixedColumn(1 + width)
 }
 
 func editorField(mark string, width int) field {
-	return field{text: mark, width: width, colour: role("mark.editor")}
+	return field{text: " " + mark, width: width, colour: role("mark.editor")}
 }
 
 // A selection repaints the glyph in the band's ink. Keep its theme colour
-// after the table, as the tags do, with enough contrast on that band.
+// after the table, as the tags do, with enough contrast on that band. x is
+// where the marks' field starts; the glyph is after its leading space.
 func keepEditorMark(p *pane, row, x int, mark string, marked bool) {
 	if mark == "" {
 		return
@@ -324,5 +328,5 @@ func keepEditorMark(p *pane, row, x int, mark string, marked bool) {
 	_, bg, _ := style.Decompose()
 	ink := legibleOn([]tcell.Color{role("mark.editor")}, bg, colText)[0]
 	markup := "[" + ink.String() + ":" + bg.String() + "]" + esc(mark) + "[-:-]"
-	p.kept.keep(row, keptMarkup{x: x, markup: markup, width: cells(mark)})
+	p.kept.keep(row, keptMarkup{x: x + 1, markup: markup, width: cells(mark)})
 }

@@ -170,7 +170,7 @@ Every action in the action pickers that opens an agent - today's "Open in
 name, the one the Agents tab uses (`agentIcons`). Without a Nerd Font the
 name stands alone, aligned with the other actions rather than indented.
 
-## 10. The marks read from the name outwards
+## 10. The marks read from the name outwards (done)
 
 Today a row begins with the favourite's star and the state on disk, then
 the open editor's mark, then the name: the column of marks that are only

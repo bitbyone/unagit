@@ -222,7 +222,24 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	if hide("mr") {
 		hiddenW = 0
 	}
-	cols := []*listColumn{fixedColumn(markW)}
+	// The marks of what is open stand furthest out, and take the row's
+	// leading space; the row's own mark - the star, what is on disk - stays
+	// against the name.
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string {
+		pr := a.projects[idx]
+		return a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
+	})
+	var cols []*listColumn
+	// The row's leading space goes to the marks; with a star column it was
+	// never there, the star standing first.
+	lead := marksCol.shown() && star == 0
+	if marksCol.shown() {
+		cols = append(cols, marksCol)
+	}
+	if lead {
+		markW--
+	}
+	cols = append(cols, fixedColumn(markW))
 	add := func(id string, c *listColumn) *listColumn {
 		if id != "" && hide(id) {
 			c.width = 0
@@ -230,13 +247,6 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		cols = append(cols, c)
 		return c
-	}
-	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string {
-		pr := a.projects[idx]
-		return a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
-	})
-	if marksCol.shown() {
-		cols = append(cols, marksCol)
 	}
 	nameCol := add("", flexColumn("REPOSITORY", names, 20, 2))
 	branchCol := add("branch", flexColumn("BRANCH", branches, 10, 1))
@@ -286,10 +296,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// The heat of a size is where it stands between the least and the most
 	// a repository takes.
 	least, most := a.repoSizeRange()
-	header := []field{{text: "", width: markW, colour: role("repositories.header")}}
+	var header []field
 	if marksCol.shown() {
 		header = append(header, field{width: marksCol.width})
 	}
+	header = append(header, field{text: "", width: markW, colour: role("repositories.header")})
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("repositories.header")})
 	}
@@ -335,6 +346,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		if grouped {
 			mark = " " + mark
 		}
+		if lead {
+			mark = mark[1:]
+		}
 		branch, branchColour := info.Branch, role("repositories.branch")
 		if branch == pr.DefaultBranch {
 			branchColour = role("repositories.default_branch")
@@ -361,13 +375,15 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			wtCount = fmt.Sprintf("%d", info.Worktrees)
 		}
 
-		fields := []field{{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)}}
+		var fields []field
 		nameX := markW + 1
 		if marksCol.shown() {
-			fields = append(fields, editorField(a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace)), marksCol.width))
-			keepEditorMark(p, row, markW+1, a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace)), p.marks[idx])
+			open := a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
+			fields = append(fields, editorField(open, marksCol.width))
+			keepEditorMark(p, row, 0, open, p.marks[idx])
 			nameX += marksCol.width + 1
 		}
+		fields = append(fields, field{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)})
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1

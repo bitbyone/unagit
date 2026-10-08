@@ -340,3 +340,39 @@ func TestAWaitingWindowLauncherHoldsNoOtherOpen(t *testing.T) {
 	// The launcher still waits for its window; opening is free again.
 	waitEditorIdle(t, a)
 }
+
+// TestOpenMarksStandFurthestOut: a row reads from its name outwards - what
+// is on disk against the name, the star before it, and the marks of what is
+// open furthest out - so a row with nothing open has no gap between its
+// state and its name.
+func TestOpenMarksStandFurthestOut(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	wt := p.worktree("feat/x")
+	p.rescan()
+	changeOnLoop(a, func() {
+		a.openDirs = map[string]session.Record{
+			filepath.Clean(p.clone): {Dir: p.clone, Editor: editors.Nvim},
+			filepath.Clean(wt):      {Dir: wt, Editor: editors.Nvim},
+		}
+		a.cfg.Filters.ToggleFavourite(a.cfg.Instances[0].ID, "acme/billing", 0)
+		a.projectsPane.reload()
+		a.worktreesPane.reload()
+	})
+	waitFor(t, a, sc, "▣")
+	text := a.screenText(sc)
+	if line := lineAt(text, "acme/gateway main"); !strings.Contains(line, "│ ▣   ● acme/gateway") {
+		t.Errorf("the open clone's row: %q", line)
+	}
+	if line := lineAt(text, "acme/billing main"); !strings.Contains(line, "│   ★ ○ acme/billing") {
+		t.Errorf("the starred row: %q", line)
+	}
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "feat/x")
+	if line := lineAt(a.screenText(sc), "feat/x"); !strings.Contains(line, "│ ▣ "+glyphWorktree+" acme/gateway") {
+		t.Errorf("the open worktree's row: %q", line)
+	}
+	assertLegible(t, a, sc, "marks before the state")
+}

@@ -404,7 +404,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 	}
 
-	const markW = 2
+	markW := 2
 	// What gives way when the row is tight, in this order: the directory,
 	// once it is down to minPath, the server, when it was made, its size,
 	// the merge request, the comments, then the edits. RMT stays. The
@@ -424,12 +424,15 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	}
 	// A column hidden in View options is never laid out and keeps no width.
 	hide := func(id string) bool { return a.hidesColumn(config.ListWorktrees, id) }
-	cols := []*listColumn{fixedColumn(markW)}
+	// The marks of what is open stand furthest out and take the row's
+	// leading space; the worktree's own mark stays against the name.
 	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string { return a.editorMark(a.worktrees[idx].Dir) })
+	var cols []*listColumn
 	if marksCol.shown() {
 		cols = append(cols, marksCol)
+		markW--
 	}
-	cols = append(cols, repoCol)
+	cols = append(cols, fixedColumn(markW), repoCol)
 	add := func(id string, c *listColumn) *listColumn {
 		if hide(id) {
 			c.width = 0
@@ -473,10 +476,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// The heat of a size is where it stands between the least and the most
 	// a worktree takes.
 	wtLeast, wtMost := a.worktreeSizeRange()
-	header := []field{{text: "", width: markW, colour: role("worktrees.header")}}
+	var header []field
 	if marksCol.shown() {
 		header = append(header, field{width: marksCol.width})
 	}
+	header = append(header, field{text: "", width: markW, colour: role("worktrees.header")})
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("worktrees.header")})
 	}
@@ -518,18 +522,23 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		if r.Branch != "" && r.Branch == a.worktreeProject(r).DefaultBranch {
 			branchColour = role("worktrees.default_branch")
 		}
-		mark, count, countColour := tag(colOn)+" "+glyphWorktree+tagEnd, "1", colDim
+		lead := " "
+		if marksCol.shown() {
+			lead = ""
+		}
+		mark, count, countColour := tag(colOn)+lead+glyphWorktree+tagEnd, "1", colDim
 		if r.grouped() {
-			mark, count, countColour = tag(colAccent)+" "+glyphGroup+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
+			mark, count, countColour = tag(colAccent)+lead+glyphGroup+tagEnd, fmt.Sprintf("%d", len(r.Members)), colWarn
 			if r.Branch == "" {
 				branchColour = colMuted
 			}
 		}
-		cells := []field{{raw: mark}}
+		var cells []field
 		if marksCol.shown() {
 			cells = append(cells, editorField(a.editorMark(r.Dir), marksCol.width))
-			keepEditorMark(p, row+1, markW+1, a.editorMark(r.Dir), false)
+			keepEditorMark(p, row+1, 0, a.editorMark(r.Dir), false)
 		}
+		cells = append(cells, field{raw: mark})
 		if withServer {
 			cells = append(cells, field{text: a.worktreeServer(r), width: serverW, colour: role("worktrees.server")})
 		}

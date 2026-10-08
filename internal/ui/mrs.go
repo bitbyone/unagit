@@ -125,7 +125,7 @@ func (a *App) filterMRs(query string) []int {
 // title reads the row, so it minds a cut the most; NEW, APPR and CI take
 // room only when a row has something in them, so a list nobody has
 // reviewed, approved or built keeps its titles whole.
-type mrColumns struct{ marks, server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
+type mrColumns struct{ marks, mark, server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
 
 // titleMeasure is the widest the title column grows: past it the author and
 // the branch would stand so far right of it that the eye loses the row on
@@ -171,7 +171,22 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	}
 	// A column hidden in View options is never laid out and keeps no width.
 	hide := func(id string) bool { return a.hidesColumn(config.ListMergeRequests, id) }
-	cols := []*listColumn{fixedColumn(markW)}
+	// The marks of what is open stand furthest out and take the row's
+	// leading space; the star and what is on disk stay against the rest.
+	marksCol := editorColumn(rows, hide("marks"), func(idx int) string {
+		mr := a.mrs[idx]
+		return a.mrEditorMark(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
+	})
+	// The row's leading space goes to the marks; with a star column it was
+	// never there, the star standing first.
+	var cols []*listColumn
+	if marksCol.shown() {
+		cols = append(cols, marksCol)
+		if markW == 2 {
+			markW--
+		}
+	}
+	cols = append(cols, fixedColumn(markW))
 	add := func(id string, c *listColumn) *listColumn {
 		if id != "" && hide(id) {
 			c.width = 0
@@ -179,13 +194,6 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		}
 		cols = append(cols, c)
 		return c
-	}
-	marksCol := editorColumn(rows, hide("marks"), func(idx int) string {
-		mr := a.mrs[idx]
-		return a.mrEditorMark(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
-	})
-	if marksCol.shown() {
-		cols = append(cols, marksCol)
 	}
 	title := flexColumn("TITLE", titles, 24, 2)
 	title.max = titleMeasure
@@ -214,7 +222,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	}
 	// One cell stays free, so the last column does not touch the frame.
 	layoutColumns(room-1, cols...)
-	return mrColumns{marks: marksCol.width, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
+	return mrColumns{marks: marksCol.width, mark: markW, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
 		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
 		ci: ci, updated: updatedCol.width}
 }
@@ -304,10 +312,11 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	withServer = withServer && serverW > 0
 
 	// The header is laid out the same way the rows are.
-	header := []field{{text: "", width: 2 + star, colour: role("merge_requests.header")}}
+	var header []field
 	if c.marks > 0 {
 		header = append(header, field{width: c.marks})
 	}
+	header = append(header, field{text: "", width: c.mark, colour: role("merge_requests.header")})
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("merge_requests.header")})
 	}
@@ -346,6 +355,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		if grouped {
 			mark = "  " + mrMark(disk)
 		}
+		if c.marks > 0 && star == 0 {
+			mark = mark[1:]
+		}
 		mark = tag(mrMarkColor(disk)) + mark + tagEnd
 		mark = starred(star, favourite(idx), mark)
 		title := trunc(mr.Title, c.title)
@@ -366,15 +378,12 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			pending = fmt.Sprintf("%d", disk.Pending)
 		}
 
-		fields := []field{{raw: mark}}
+		var fields []field
 		if c.marks > 0 {
 			fields = append(fields, editorField(a.mrEditorMark(disk), c.marks))
-			x := 3 + star
-			if grouped {
-				x++
-			}
-			keepEditorMark(p, row, x, a.mrEditorMark(disk), p.marks[idx])
+			keepEditorMark(p, row, 0, a.mrEditorMark(disk), p.marks[idx])
 		}
+		fields = append(fields, field{raw: mark})
 		if withServer {
 			fields = append(fields, field{text: a.instanceLabel(mr.Instance), width: serverW, colour: role("merge_requests.server")})
 		}
