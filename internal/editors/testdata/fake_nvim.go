@@ -138,8 +138,18 @@ func serve(socket string) {
 		case strings.Contains(expr, "checktime"):
 			log("checktime", socket)
 			fmt.Fprintln(c, "0")
+		case strings.Contains(expr, "execute('detach')"):
+			// Its one window lets go, as :detach over RPC does in Neovim.
+			log("detach", socket)
+			os.WriteFile(socket+".uis", []byte("0"), 0600)
+			fmt.Fprintln(c, "")
 		case strings.Contains(expr, "nvim_list_uis"):
-			fmt.Fprintln(c, "0")
+			// How many windows it has is the test's to say.
+			if b, err := os.ReadFile(socket + ".uis"); err == nil {
+				fmt.Fprintln(c, strings.TrimSpace(string(b)))
+			} else {
+				fmt.Fprintln(c, "0")
+			}
 		default:
 			fmt.Fprintln(c, "0")
 		}

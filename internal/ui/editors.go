@@ -132,19 +132,7 @@ func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, 
 			if !sameDirectory(running.Dir, dir) || running.Socket == "" && running.Pane == "" {
 				continue
 			}
-			if running.Pane == "" && place.client != nil {
-				a.tv.QueueUpdateDraw(func() {
-					a.flash("Neovim already runs in " + running.Label() + " - E attaches to it here")
-				})
-				return
-			}
-			if file != "" && running.Socket != "" {
-				if err := editors.OpenFile(running.Launcher, running.Socket, file); err != nil {
-					a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
-					return
-				}
-			}
-			a.attachEditorLocked(running, false)
+			a.reachRunning(running, file, place)
 			return
 		}
 	}
@@ -212,7 +200,7 @@ func (a *App) attachEditor(r session.Record) {
 	go func() {
 		a.editorMu.Lock()
 		defer a.editorMu.Unlock()
-		a.attachEditorLocked(r, false)
+		a.reachRunning(r, "", editorPlace{})
 	}()
 }
 
@@ -280,8 +268,16 @@ func (a *App) refreshAfterTerminal(r session.Record) {
 
 func (a *App) editorReturned(r session.Record) {
 	aside := editors.SocketAlive(r.Socket)
+	// Attached as a second window, it is not aside: its pane still has it.
+	elsewhere := false
+	if aside {
+		n, err := editors.UIs(r.Launcher, r.Socket)
+		elsewhere = err == nil && n > 0
+	}
 	a.tv.QueueUpdateDraw(func() {
-		if aside {
+		if elsewhere {
+			a.note(r.Label() + " stays open in its other window")
+		} else if aside {
 			a.note("nvim aside: " + r.Label() + " · E lists the running editors")
 		} else {
 			a.done("opened " + r.Dir)

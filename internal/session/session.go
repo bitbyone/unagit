@@ -4,7 +4,8 @@
 // A terminal editor's record lasts until it closes. A Neovim with a socket
 // lives independently of the unagit that opened it, so its record follows
 // the listener instead of the writer's pid. Multiplexer records follow their
-// pane in its original session. Window editors keep the pid rule:
+// pane in its original session, and a Neovim put aside from its pane then
+// follows its listener like any other. Window editors keep the pid rule:
 // nothing tells unagit when their windows close. Each opening gets a file of
 // its own, and readers sweep away those whose editor is gone.
 package session
@@ -89,27 +90,32 @@ func (s *Store) Add(r Record) (func(), error) {
 	if err := s.secureDirectory(); err != nil {
 		return noop, err
 	}
+	if err := s.write(path, r); err != nil {
+		return noop, err
+	}
+	return func() { os.Remove(path) }, nil
+}
+
+// write puts a record in place whole, so a reader never sees half of one.
+func (s *Store) write(path string, r Record) error {
 	b, err := json.Marshal(r)
 	if err != nil {
-		return noop, err
+		return err
 	}
 	f, err := os.CreateTemp(s.dir, ".record-")
 	if err != nil {
-		return noop, err
+		return err
 	}
 	defer os.Remove(f.Name())
 	_, err = f.Write(b)
 	closeErr := f.Close()
 	if err != nil {
-		return noop, err
+		return err
 	}
 	if closeErr != nil {
-		return noop, closeErr
+		return closeErr
 	}
-	if err := os.Rename(f.Name(), path); err != nil {
-		return noop, err
-	}
-	return func() { os.Remove(path) }, nil
+	return os.Rename(f.Name(), path)
 }
 
 func (s *Store) secureDirectory() error {
@@ -223,10 +229,24 @@ func (s *Store) records(backgroundOnly bool) []Record {
 				read.live, read.err = connection.Panes()
 				panes[connection] = read
 			}
-			if read.err != nil {
+			switch {
+			case read.err != nil && r.Socket == "":
+				// Nothing else can tell; ask again later.
 				continue
+			case read.err != nil:
+				live = editors.SocketAlive(r.Socket)
+			case read.live[r.Pane]:
+				live = true
+			case r.Socket != "" && editors.SocketAlive(r.Socket):
+				// Put aside from its pane with Ctrl-Z: the pane closed and
+				// the server runs on. From now on it is an editor aside like
+				// any other, and its record says so for every reader.
+				r.Pane, r.Mux, r.MuxSession, r.MuxLauncher = "", "", "", ""
+				_ = s.write(path, r)
+				live = true
+			default:
+				live = false
 			}
-			live = read.live[r.Pane]
 		} else if r.Socket != "" {
 			live = editors.SocketAlive(r.Socket)
 			// The record is written before the first UI starts listening.

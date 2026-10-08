@@ -93,6 +93,9 @@ The socket is a channel into the editor, so unagit can tell it things:
   (and every focus of a Neovim's Zellij pane) asks the server to
   `checktime` first, which covers a reset, a pull and a rebase alike,
   whoever made them.
+- **Zellij panes** - built: a Neovim opened in a pane can be put aside the
+  same way and comes back in a terminal or a pane; see
+  [multiplexers.md](multiplexers.md).
 - **Open a file at a line** in the editor that is already running - from a
   comment of a merge request, from Incomm.
 - **Deleting a worktree** sees an editor running in it and offers to close

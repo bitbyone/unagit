@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -366,17 +367,157 @@ func TestOpeningADirectoryWithANeovimPaneGoesToThatPane(t *testing.T) {
 	if b, _ := os.ReadFile(log); strings.Contains(string(b), "start|") {
 		t.Fatalf("a second Neovim started in the same directory:\n%s", b)
 	}
+}
 
-	// From another Zellij session the pane cannot be reached; it is named
-	// instead of opening a second editor.
+// paneNeovim opens the clone in a new Zellij tab and starts the fake
+// Neovim's server on the socket that pane was given, as the pane would.
+func paneNeovim(t *testing.T, a *App, sc tcell.SimulationScreen, path string) session.Record {
+	t.Helper()
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitMuxOpened(t, a, path)
+	rows := a.sessions.Running()
+	if len(rows) != 1 || rows[0].Socket == "" || rows[0].Pane == "" {
+		t.Fatalf("Neovim in a pane: %+v", rows)
+	}
+	must(t, exec.Command("nvim", "--listen", rows[0].Socket).Run())
+	return rows[0]
+}
+
+func countIn(log, what string) int {
+	b, _ := os.ReadFile(log)
+	return strings.Count(string(b), what)
+}
+
+func TestNeovimInAPaneCanBePutAsideAndBroughtBack(t *testing.T) {
+	// The fake Neovim changes PATH; Zellij itself is local to this app.
+	_, log := editortest.Install(t)
+	tool, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { shortSessions(t, a) })
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	r := paneNeovim(t, a, sc, p.path)
+	var started string
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-tab" {
+			started = strings.Join(call.Args, " ")
+		}
+	}
+	if !strings.Contains(started, "--listen") || !strings.Contains(started, "<cmd>detach<cr>") {
+		t.Fatalf("Neovim in a pane cannot be put aside: %s", started)
+	}
+
+	// Ctrl-Z in the pane: it closes, the server runs on, and E has it as
+	// an editor aside.
+	tool.SetPanes(t, nil)
+	waitEditorState(t, a, func() bool {
+		rows := a.sessions.Running()
+		return len(rows) == 1 && rows[0].Pane == "" && rows[0].Socket == r.Socket
+	})
+
+	// A split on its directory brings it back in a pane of its own.
+	changeOnLoop(a, a.clearSaid)
+	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
+	waitEditorIdle(t, a)
+	calls := tool.Calls(t)
+	var split []string
+	for _, call := range calls {
+		if call.Args[3] == "new-pane" {
+			split = call.Args
+		}
+	}
+	if joined := strings.Join(split, " "); !strings.Contains(joined, "--remote-ui") || !strings.Contains(joined, r.Socket) {
+		t.Fatalf("the split did not attach to the Neovim aside: %v", split)
+	}
+	rows := a.sessions.Running()
+	if len(rows) != 1 || rows[0].Pane == "" || rows[0].Socket != r.Socket {
+		t.Fatalf("the Neovim back in a pane: %+v", rows)
+	}
+	if n := countIn(log, "checktime|"+r.Socket); n == 0 {
+		t.Fatal("the Neovim aside did not read changed files before it was shown")
+	}
+
+	// Put aside again, Ctrl-O attaches it in unagit's own terminal.
+	tool.SetPanes(t, nil)
+	waitEditorState(t, a, func() bool {
+		rows := a.sessions.Running()
+		return len(rows) == 1 && rows[0].Pane == ""
+	})
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitForEditorLog(t, log, "attach|"+r.Socket)
+	waitEditorIdle(t, a)
+	if n := countIn(log, "start|"); n != 1 {
+		t.Fatalf("Neovim started %d times for one directory", n)
+	}
+}
+
+func TestANeovimPaneElsewhereCanBeAttachedOrTakenOver(t *testing.T) {
+	// The fake Neovim changes PATH; Zellij itself is local to this app.
+	_, log := editortest.Install(t)
+	_, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { shortSessions(t, a) })
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	r := paneNeovim(t, a, sc, p.path)
+	windows := r.Socket + ".uis"
+	must(t, os.WriteFile(windows, []byte("1"), 0600))
+	// This unagit is now in another Zellij session than the pane.
 	changeOnLoop(a, func() {
 		other := *a.multiplexer
 		other.Session = "elsewhere"
 		a.multiplexer = &other
 	})
-	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
-	waitFor(t, a, sc, "test-session")
-	if b, _ := os.ReadFile(log); strings.Contains(string(b), "start|") {
-		t.Fatalf("a second Neovim started from another session:\n%s", b)
+
+	title := "Neovim in Zellij session test-session"
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
+		resizeApp(a, sc, size.w, size.h)
+		sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+		waitFor(t, a, sc, title)
+		waitFor(t, a, sc, "Take Over")
+		text := a.screenText(sc)
+		if !strings.Contains(text, "Attach Here Too") {
+			t.Fatalf("no way to attach at %dx%d:\n%s", size.w, size.h, text)
+		}
+		t.Logf("pane elsewhere at %dx%d:\n%s", size.w, size.h, text)
+		assertLegible(t, a, sc, "Neovim in a pane elsewhere")
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+		waitGone(t, a, sc, title)
+		waitEditorIdle(t, a)
 	}
+	if n := countIn(log, "attach|"); n != 0 {
+		t.Fatal("Esc attached anyway")
+	}
+
+	// Attached here too: a second window, the pane keeps its own.
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Attach Here Too")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForEditorLog(t, log, "attach|"+r.Socket)
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "stays open in its other window") })
+	waitEditorIdle(t, a)
+	if n := countIn(log, "detach|"); n != 0 {
+		t.Fatal("attaching too put the pane's window aside")
+	}
+
+	// Taken over: the pane's window is put aside first.
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Take Over")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForEditorLog(t, log, "detach|"+r.Socket)
+	waitEditorState(t, a, func() bool { return countIn(log, "attach|"+r.Socket) == 2 })
+	waitEditorIdle(t, a)
+
+	// With two windows Neovim would put aside whichever was used last, so
+	// it is not offered.
+	must(t, os.WriteFile(windows, []byte("2"), 0600))
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Attach Here Too")
+	if strings.Contains(a.screenText(sc), "Take Over") {
+		t.Fatal("taking over was offered with two windows")
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, title)
 }

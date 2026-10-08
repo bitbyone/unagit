@@ -448,11 +448,19 @@ The pane closes when its editor exits.
 `unagit sessions` and `unagit cd` include these panes, and Neovim wears the
 usual open-editor marker. Records follow the pane in its original Zellij
 session, including after unagit exits; a later instance finds them again.
-Neovim in a pane listens on a socket of its own, so unagit can still reach
-it: opening the same directory again - `Ctrl-O`, a split, a file chosen in
-Yazi - goes to its pane instead of starting a second Neovim, and from
-another Zellij session says where it is. `E` lists it with the others;
-Enter goes to its pane and `x` closes it. Each opening also records a
+Neovim in a pane is the same Neovim as in unagit's own terminal: it runs
+until `:qa`, and **Ctrl-Z** puts it aside - the pane closes, the editor
+runs on with its buffers and unsaved changes, and `E` lists it. Opening its
+directory again brings it back where you ask: `Ctrl-O` or Enter in `E` in
+unagit's terminal, a tab or split in a pane of its own. While it still has
+its pane, opening the directory goes to that pane instead of starting a
+second Neovim. From a unagit outside that Zellij session the pane cannot be
+brought forward, so unagit asks: **Attach Here Too** opens the same editor
+in this terminal as well - both windows show the same files and cursor,
+sized to the smaller - and **Take Over** puts the pane's window aside, as
+Ctrl-Z there would, and opens it here. Taking over is offered only while
+the pane is its one window. Closing a pane by hand, rather than with
+Ctrl-Z, ends the Neovim in it. Each opening also records a
 zoxide visit when that integration is enabled.
 
 Requires Zellij 0.45.1 or newer. No setting is needed; the actions appear

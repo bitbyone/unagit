@@ -52,17 +52,33 @@ record for a later retry. Missing sessions are swept.
 `unagit sessions` and `unagit cd` include these editors. Neovim panes wear
 the existing open-editor marker, including in a new unagit instance.
 
-Neovim in a pane is started with `--listen` (without the Ctrl-Z of one put
-aside: its pane is where it waits), so unagit can open a file in it, ask
-about unsaved changes and close it. One Neovim per directory holds here
-too: opening a directory whose Neovim has a live pane - `Ctrl-O`, a split,
-a file chosen in Yazi - focuses that pane (`focus-pane-id`) instead of
-starting a second one, and from another Zellij session names the session
-instead. `E` lists these editors; Enter focuses the pane. A Neovim aside in
-unagit's own terminal is not moved into a pane: a split on its directory
-says to attach with `E`. When the configuration directory leaves no room
-for a socket path, the pane opens without one, and is still found by its
-pane.
+Neovim in a pane is started as in unagit's own terminal: `--listen` and
+the Ctrl-Z mapping. Ctrl-Z puts it aside - its pane closes, the server
+runs on - and its record, alive while the pane **or** the socket is, then
+drops the pane and is an editor aside like any other (`session.records`
+writes that down, so later readers do not ask Zellij about it). One Neovim
+per directory holds throughout: opening a directory whose Neovim has a
+live pane in this session focuses that pane (`focus-pane-id`); one aside
+comes back in unagit's terminal (`Ctrl-O`, `E`) or in a new tab or split
+running `nvim --server <socket> --remote-ui`, whose pane the record then
+names. When the configuration directory leaves no room for a socket path,
+the pane opens without one and is still found by its pane.
+
+**A pane out of reach.** From a unagit outside the pane's Zellij session
+the pane cannot be brought forward, so a picker asks: Attach Here Too (a
+second window on the same server, in this terminal) or Take Over (only
+while the pane is its one window). Checked by hand with Neovim 0.12.5:
+
+- `:detach` asked for over RPC (`--remote-expr "execute('detach')"`)
+  detaches a window and the server runs on, unsaved changes kept; with two
+  windows it detaches the one last in use, which is why taking over waits
+  for exactly one.
+- `chanclose()` on the window's channel ends the server as well when that
+  window is the one Neovim was started with. Not usable.
+- The server runs in a session of its own: once detached it survives its
+  pane's process group getting SIGHUP and SIGTERM and its terminal closing,
+  so a closed pane or an ended Zellij session leaves it running. Attached,
+  it ends with its window - which is why closing a pane by hand ends it.
 
 Opening a tab or split records a zoxide visit when that integration is on.
 Unagit stays running throughout; opening is shown as a background job.

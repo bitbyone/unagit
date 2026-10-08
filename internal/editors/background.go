@@ -174,6 +174,38 @@ func Checktime(launcher, socket string) error {
 	return err
 }
 
+// UIs counts the interfaces attached to a Neovim.
+func UIs(launcher, socket string) (int, error) {
+	out, err := RemoteExpr(launcher, socket, "len(nvim_list_uis())")
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(out)
+}
+
+// DetachUI makes a Neovim let go of its interface, as Ctrl-Z in it would:
+// the server runs on with its buffers and unsaved changes, and the process
+// of that interface - a Zellij pane's - ends. Checked by hand with Neovim
+// 0.12.5: :detach asked for over RPC detaches the interface last in use,
+// which is the one only when there is one, so callers count first.
+// chanclose on the interface's channel is not the way: when it is the
+// interface Neovim was started with, the server ends with it.
+func DetachUI(launcher, socket string) error {
+	if _, err := RemoteExpr(launcher, socket, "execute('detach')"); err != nil {
+		return err
+	}
+	deadline := time.Now().Add(closeWait)
+	for {
+		if n, err := UIs(launcher, socket); err == nil && n == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the editor kept its other window; close it there and try again")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 // OpenFile keeps unsaved buffers in their own tab instead of replacing them
 // when the file browser hands a file to an already running editor.
 func OpenFile(launcher, socket, file string) error {
