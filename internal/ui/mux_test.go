@@ -32,11 +32,14 @@ func terminalFavourite(a *App) {
 	})
 }
 
+// pickMuxAction does an action of the row by typing its name: one kept for
+// the filter is listed only then.
 func pickMuxAction(t *testing.T, a *App, sc tcell.SimulationScreen, name string) {
 	t.Helper()
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, name)
+	waitFor(t, a, sc, "Actions · ")
 	typeRunes(sc, name)
+	waitFor(t, a, sc, name)
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 }
 
@@ -66,7 +69,7 @@ func TestZellijOpensACloneAndSplitsWithoutSuspendingUnagit(t *testing.T) {
 		}
 		a.reindexProjects()
 	})
-	for i, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
+	for i, name := range []string{"Open in Zellij Tab", "Open in Zellij Vertical Split", "Open in Zellij Horizontal Split"} {
 		if i > 0 {
 			// The Neovim of the last pane is closed first: one still running
 			// in the directory would be gone to instead of opening another.
@@ -133,7 +136,7 @@ func TestZellijMakesTheMergeRequestBranchInsteadOfAReview(t *testing.T) {
 	})
 	typeRunes(sc, "2g")
 	waitFor(t, a, sc, "Rate limiting")
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitMuxOpened(t, a, p.path+" !7")
 	branch := onLoop(a, func() string { return a.mrDir(mr.Instance, p.path, mr.IID, mr.SourceBranch) })
 	review := onLoop(a, func() string { return a.reviewDir(mr.Instance, p.path, mr.IID, mr.SourceBranch) })
@@ -165,7 +168,7 @@ func TestZellijUsesTheLitBlockOfAGroupedWorktree(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "feat-browse · 2 repositories")
 	waitFor(t, a, sc, "clean")
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitMuxOpened(t, a, "feat-browse")
 	rows := a.sessions.List()
 	if len(rows) != 1 || rows[0].Mode != session.ModeGroup {
@@ -176,7 +179,7 @@ func TestZellijUsesTheLitBlockOfAGroupedWorktree(t *testing.T) {
 	waitEditorState(t, a, func() bool { return a.wtView != nil && a.wtView.at == 1 })
 	lit := onLoop(a, func() worktreeRow { return a.wtView.lit() })
 	changeOnLoop(a, a.clearSaid)
-	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	pickMuxAction(t, a, sc, "Open in Zellij Vertical Split")
 	waitMuxOpened(t, a, lit.Path)
 	rows = a.sessions.List()
 	if len(rows) != 2 || rows[0].Mode != session.ModeBranch || !sameDirectory(rows[0].Dir, lit.Dir) || rows[0].Dir == group {
@@ -198,7 +201,7 @@ func TestZellijAsksForATerminalEditorAndItsPickerFits(t *testing.T) {
 	useFavourite(a, editors.Zed)
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		resizeApp(a, sc, size.w, size.h)
-		pickMuxAction(t, a, sc, "Open in New Tab")
+		pickMuxAction(t, a, sc, "Open in Zellij Tab")
 		waitFor(t, a, sc, "Open with · terminal editors")
 		text := a.screenText(sc)
 		if !strings.Contains(text, "Neovim") || strings.Contains(text, "Zed") || strings.Contains(text, "VS Code") {
@@ -219,7 +222,7 @@ func TestZellijAsksForATerminalEditorAndItsPickerFits(t *testing.T) {
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 		waitGone(t, a, sc, "Open with · terminal editors")
 	}
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitFor(t, a, sc, "Open with · terminal editors")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitMuxOpened(t, a, p.path)
@@ -235,12 +238,12 @@ func TestZellijActionsStayHiddenOutsideZellij(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Open in Editor")
-	text := a.screenText(sc)
-	for _, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
-		if strings.Contains(text, name) {
-			t.Fatalf("%s offered outside Zellij", name)
-		}
+	waitFor(t, a, sc, "Open With…")
+	// Kept for the filter, they would show once typed for.
+	typeRunes(sc, "split")
+	waitFor(t, a, sc, "split")
+	if text := a.screenText(sc); strings.Contains(text, "Zellij") {
+		t.Fatalf("Zellij offered outside Zellij:\n%s", text)
 	}
 }
 
@@ -253,7 +256,7 @@ func TestZellijFailureDoesNotRecordAnOpening(t *testing.T) {
 	terminalFavourite(a)
 	p := newRealProject(t, a, "acme/gateway")
 	must(t, os.WriteFile(tool.Failure, []byte("cannot create pane"), 0600))
-	pickMuxAction(t, a, sc, "Open in Horizontal Split")
+	pickMuxAction(t, a, sc, "Open in Zellij Horizontal Split")
 	waitFor(t, a, sc, "zellij request failed")
 	waitEditorIdle(t, a)
 	if rows := a.sessions.List(); len(rows) != 0 {
@@ -284,7 +287,7 @@ func TestZellijPaneIsMarkedByTheNextUnagit(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	useFavourite(a, editors.Nvim)
 	p := newRealProject(t, a, "acme/gateway")
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitMuxOpened(t, a, p.path)
 	a.tv.Stop()
 	select {
@@ -312,7 +315,7 @@ func TestZellijFocusFailureKeepsTheEditorSession(t *testing.T) {
 	terminalFavourite(a)
 	p := newRealProject(t, a, "acme/gateway")
 	must(t, os.WriteFile(tool.Failure, []byte("focus"), 0600))
-	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	pickMuxAction(t, a, sc, "Open in Zellij Vertical Split")
 	waitFor(t, a, sc, "could not focus its pane")
 	waitEditorIdle(t, a)
 	if rows := a.sessions.List(); len(rows) != 1 || !sameDirectory(rows[0].Dir, p.clone) {
@@ -328,7 +331,7 @@ func TestOpeningADirectoryWithANeovimPaneGoesToThatPane(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	useFavourite(a, editors.Nvim)
 	p := newRealProject(t, a, "acme/gateway")
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitMuxOpened(t, a, p.path)
 	rows := a.sessions.List()
 	if len(rows) != 1 || rows[0].Socket == "" || rows[0].Pane == "" {
@@ -346,7 +349,7 @@ func TestOpeningADirectoryWithANeovimPaneGoesToThatPane(t *testing.T) {
 	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to the Neovim of "+p.path) })
 	changeOnLoop(a, a.clearSaid)
-	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	pickMuxAction(t, a, sc, "Open in Zellij Vertical Split")
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to the Neovim of "+p.path) })
 	waitEditorIdle(t, a)
 	focused, started := 0, 0
@@ -373,7 +376,7 @@ func TestOpeningADirectoryWithANeovimPaneGoesToThatPane(t *testing.T) {
 // Neovim's server on the socket that pane was given, as the pane would.
 func paneNeovim(t *testing.T, a *App, sc tcell.SimulationScreen, path string) session.Record {
 	t.Helper()
-	pickMuxAction(t, a, sc, "Open in New Tab")
+	pickMuxAction(t, a, sc, "Open in Zellij Tab")
 	waitMuxOpened(t, a, path)
 	rows := a.sessions.Running()
 	if len(rows) != 1 || rows[0].Socket == "" || rows[0].Pane == "" {
@@ -417,7 +420,7 @@ func TestNeovimInAPaneCanBePutAsideAndBroughtBack(t *testing.T) {
 
 	// A split on its directory brings it back in a pane of its own.
 	changeOnLoop(a, a.clearSaid)
-	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	pickMuxAction(t, a, sc, "Open in Zellij Vertical Split")
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
 	waitEditorIdle(t, a)
 	calls := tool.Calls(t)

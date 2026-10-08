@@ -22,48 +22,6 @@ type editorPlace struct {
 	agent  *agents.Agent
 }
 
-// muxActions open the favourite terminal editor beside unagit, in the
-// multiplexer it runs in - Zellij or herdr - and in Ghostty.
-func (a *App) muxActions(open func(*editors.Editor, editorPlace)) []uiAction {
-	var actions []uiAction
-	inMux := func() bool { return a.multiplexer != nil }
-	name := func() string {
-		if a.multiplexer == nil {
-			return "Zellij or herdr"
-		}
-		return a.multiplexer.Name()
-	}
-	for _, spec := range []struct {
-		name, about string
-		where       mux.Placement
-	}{
-		{"Open in New Tab", "Open the favourite terminal editor in a named tab of the %s unagit runs in.", mux.Tab},
-		{"Open in Vertical Split", "Open the favourite terminal editor beside unagit, in %s.", mux.Vertical},
-		{"Open in Horizontal Split", "Open the favourite terminal editor below unagit, in %s.", mux.Horizontal},
-	} {
-		actions = append(actions, uiAction{name: spec.name, about: fmt.Sprintf(spec.about, name()), rank: 19, when: inMux, run: func() {
-			if a.multiplexer == nil {
-				a.flash("run unagit inside Zellij or herdr to open a tab or split")
-				return
-			}
-			place := editorPlace{client: a.multiplexer, where: spec.where}
-			a.withEditorKind(false, true, func(ed *editors.Editor) { open(ed, place) })
-		}})
-	}
-	ghostty := func() bool { return a.ghostty() != nil }
-	actions = append(actions, uiAction{name: "Open in Ghostty…", about: "Open the favourite terminal editor in a Ghostty window, tab or split of its own.", rank: 19, when: ghostty, run: func() {
-		g := a.ghostty()
-		if g == nil {
-			a.flash("Ghostty is not on - see Settings › Integrations")
-			return
-		}
-		a.pickPlace(placeOfEditor, "Open in Ghostty · where", a.clientPlaces(g), func(place editorPlace) {
-			a.withEditorKind(false, true, func(ed *editors.Editor) { open(ed, place) })
-		})
-	}})
-	return actions
-}
-
 func (a *App) openNowIn(dir string, what session.Record, ed *editors.Editor, place editorPlace) {
 	go a.openEditorIn(dir, what, ed, "", place)
 }

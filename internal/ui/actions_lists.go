@@ -72,8 +72,9 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 	notCloned := func() bool { return !cloned() }
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseProject(pr) }),
-		{name: "Open in Editor", about: "Open the clone in your favourite editor, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
-		{name: "Open in Editor…", about: "Choose the editor, then open the clone.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
+		{name: "Open", about: "Open the clone in your favourite editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
+		a.openAction("repository", pr.PathWithNamespace, openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }}),
+		{name: "Open With…", about: "Choose the editor, then open the clone here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
 		{name: "Pull", about: "Fetch origin and fast-forward the clone's branch when nothing local is in the way.", keys: "p", rank: 30, when: cloned, run: func() { a.updateProject(pr) }},
 		{name: "Show Merge Requests", about: "Switch to Merge requests, narrowed to this repository.", keys: "m", rank: 40, run: func() {
@@ -126,8 +127,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
-	acts = append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) })...)
-	return append(acts, a.agentActions(func(place editorPlace) { a.openProjectIn(pr, nil, place) })...)
+	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }
 
 // repositoriesActions are what Repositories itself can do.
@@ -182,7 +182,10 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseMR(mr) }),
 		{name: "Review", about: "Open a review worktree: the whole change as unstaged edits on the merge base, so the editor's gutter shows it.", keys: "Ctrl-R", rank: 10, run: func() { a.openMRReview(mr, nil) }},
-		{name: "Open Branch in Editor", about: "Open a worktree of the source branch, for committing to it.", keys: "Ctrl-O", rank: 20, run: func() { p.onOpen(false) }},
+		{name: "Open", about: "Open a worktree of the source branch in your favourite editor, here, for committing to it.", keys: "Ctrl-O", rank: 11, run: func() { p.onOpen(false) }},
+		a.openAction("merge_request", fmt.Sprintf("%s !%d", path, mr.IID),
+			openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) }},
+			openTarget{"Review", func(ed *editors.Editor, place editorPlace) { a.openMRReviewIn(mr, ed, place) }}),
 		{name: "Show Conversation", about: "Read the merge request's threads and write a comment.", keys: "c", rank: 25, run: func() { a.showComments(mr) }},
 		{name: "Show Details", about: "Open the column on the right: description, pipeline, approvals, changes.", keys: "Enter", rank: 30, run: p.enter},
 		{name: "Open in Browser", about: "Open the merge request's page on the server.", keys: "w", rank: 35, when: func() bool { return mr.WebURL != "" }, run: func() {
@@ -197,10 +200,10 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
 		{name: "Reviewers…", about: "Choose who is asked to review: space asks or withdraws, Esc saves.", keys: "a", rank: 43, run: func() { a.editReviewers(mr) }},
 		{name: "Publish Comments", about: "Post the comments you wrote in Incomm to the merge request.", keys: "P", rank: 45, run: func() { a.publishMR(mr) }},
-		{name: "Review in Editor…", about: "Choose the editor, then open the review.", keys: "Alt-R", rank: 50, run: func() {
+		{name: "Review With…", about: "Choose the editor, then open the review here.", keys: "Alt-R", rank: 50, run: func() {
 			a.withEditor(true, func(ed *editors.Editor) { a.openMRReview(mr, ed) })
 		}},
-		{name: "Open Branch in Editor…", about: "Choose the editor, then open the worktree of the source branch.", keys: "Alt-O", rank: 55, run: func() { p.onOpen(true) }},
+		{name: "Open With…", about: "Choose the editor, then open the worktree of the source branch here.", keys: "Alt-O", rank: 55, run: func() { p.onOpen(true) }},
 		{name: "Pull Branch", about: "Fetch and fast-forward the branch worktree to the source branch.", keys: "p", rank: 60, run: func() { a.updateMR(mr) }},
 		{name: "Prepare Review", about: "Make the review worktree without starting an editor.", keys: "C", rank: 65, run: func() { a.cloneMRReview(mr) }},
 		{name: "Show Changes", about: "Show the whole merge request in Hunk, making its review first when nothing is on disk; one commit is the commit log's.", keys: "D", rank: 70, run: func() { a.diffMR(mr) }},
@@ -217,8 +220,9 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
-	acts = append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) })...)
-	return append(acts, a.agentActions(func(place editorPlace) { a.openMRIn(mr, nil, place) })...)
+	return append(acts, a.openingActions(
+		openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) }},
+		openTarget{"Review", func(ed *editors.Editor, place editorPlace) { a.openMRReviewIn(mr, ed, place) }})...)
 }
 
 // mergeRequestsActions are what Merge requests itself can do.
@@ -249,8 +253,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 	single := func() bool { return !r.grouped() }
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseWorktree(r) }),
-		{name: "Open in Editor", about: "Open the worktree in your favourite editor.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
-		{name: "Open in Editor…", about: "Choose the editor, then open the worktree.", keys: "Alt-O", rank: 15, run: func() { open(true) }},
+		{name: "Open", about: "Open the worktree in your favourite editor, here.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
+		{name: "Open With…", about: "Choose the editor, then open the worktree here.", keys: "Alt-O", rank: 15, run: func() { open(true) }},
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,
 			when: func() bool { return r.Branch == "(detached)" }, run: func() { a.backToBranch(a.worktreeProject(r), r.Dir) }},
 		{name: "Pull", about: "Bring the branch up to origin; a branch not yet pushed is rebased onto its base.", keys: "p", rank: 20, run: func() { a.updateWorktree(r) }},
@@ -290,8 +294,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			a.openWorktreeIn(r, ed, place)
 		}
 	}
-	acts = append(acts, a.muxActions(openIn)...)
-	return append(acts, a.agentActions(func(place editorPlace) { openIn(nil, place) })...)
+	acts = append(acts, a.openAction("worktree", r.Path, openTarget{"Open", openIn}))
+	return append(acts, a.openingActions(openTarget{"Open", openIn})...)
 }
 
 // worktreeListActions are worktreeActions as the list has them: taking a

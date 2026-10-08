@@ -175,6 +175,7 @@ func helpRows() []helpLine {
 		section("Every list", helpLists|helpWorktreeList),
 		key("Ctrl-O", "open as it is on disk; clones only what is missing"),
 		key("Alt-O", "the same, in an editor you choose"),
+		key("O", "open with what, and where: editor or agent"),
 		key("d", "delete from disk; warns about unsaved work"),
 		key("w", "open in the browser").in(helpLists),
 		key("Ctrl-L", "commit log; Enter shows a commit's detail"),

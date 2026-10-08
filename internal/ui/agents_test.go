@@ -49,8 +49,8 @@ func fakeAgents(t *testing.T, herdr string, ids ...string) (string, func(*App)) 
 func pickPlaceNamed(t *testing.T, a *App, sc tcell.SimulationScreen, agent, place string) {
 	t.Helper()
 	ag, _ := agents.ByID(agent)
-	waitFor(t, a, sc, "Open in "+ag.Name+" · where")
-	items := onLoop(a, func() []pickItem { return a.agentPlaces(ag) })
+	waitFor(t, a, sc, "Open with "+ag.Name+" · where")
+	items := onLoop(a, func() []pickItem { return a.orderPlaces(placeOfAgent, a.agentPlaces(ag)) })
 	at := -1
 	for i, it := range items {
 		if it.Label == place {
@@ -80,8 +80,8 @@ func TestAnAgentOpensWhereItIsAsked(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 
-	pickMuxAction(t, a, sc, "Open in Claude Code")
-	waitFor(t, a, sc, "Open in Claude Code · where")
+	pickMuxAction(t, a, sc, "Open with Claude Code")
+	waitFor(t, a, sc, "Open with Claude Code · where")
 	for _, want := range []string{"This Terminal", "Zellij Tab", "Zellij Split Right", "Zellij Split Below"} {
 		waitFor(t, a, sc, want)
 	}
@@ -111,8 +111,8 @@ func TestAnAgentOpensWhereItIsAsked(t *testing.T) {
 	// The next agent starts on the place used last: Enter alone goes there.
 	tool.SetPanes(t, nil)
 	changeOnLoop(a, a.clearSaid)
-	pickMuxAction(t, a, sc, "Open in Codex")
-	waitFor(t, a, sc, "Open in Codex · where")
+	pickMuxAction(t, a, sc, "Open with Codex")
+	waitFor(t, a, sc, "Open with Codex · where")
 	waitFor(t, a, sc, "NORMAL")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitEditorState(t, a, func() bool {
@@ -131,7 +131,7 @@ func TestAnAgentStartsInAHerdrWorkspaceFromOutsideHerdr(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 
-	pickMuxAction(t, a, sc, "Open in Claude Code")
+	pickMuxAction(t, a, sc, "Open with Claude Code")
 	waitFor(t, a, sc, "herdr · Unagit Agents")
 	if strings.Contains(a.screenText(sc), "herdr Tab") {
 		t.Fatal("a herdr tab offered from outside herdr")
@@ -177,7 +177,7 @@ func TestAnAgentRunsInThisTerminal(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t, prepareAgents)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
-	pickMuxAction(t, a, sc, "Open in opencode")
+	pickMuxAction(t, a, sc, "Open with opencode")
 	pickPlaceNamed(t, a, sc, "opencode", "This Terminal")
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "opencode ended in") })
 	ran, _ := os.ReadFile(log)
@@ -195,13 +195,13 @@ func TestAgentsAreIntegrationsOfTheirOwn(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t, prepareAgents)
 	waitFor(t, a, sc, "acme/gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Open in Claude Code")
+	waitFor(t, a, sc, "Open with Claude Code")
 	text := a.screenText(sc)
-	if strings.Contains(text, "Open in Copilot CLI") {
+	if strings.Contains(text, "Open with Copilot CLI") {
 		t.Fatal("an agent that is not installed is offered")
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Open in Claude Code")
+	waitGone(t, a, sc, "Open with Claude Code")
 
 	openSection(t, a, sc, sectionIntegrations)
 	changeOnLoop(a, func() {
@@ -214,7 +214,7 @@ func TestAgentsAreIntegrationsOfTheirOwn(t *testing.T) {
 		a.tv.SetFocus(v)
 		v.paintFocus(true)
 	})
-	waitFor(t, a, sc, "Open in Claude Code… starts it")
+	waitFor(t, a, sc, "Open with Claude Code… starts it")
 	typeRunes(sc, "e")
 	waitEditorState(t, a, func() bool {
 		on, set := a.cfg.Integrations.Agents["claude"]
@@ -228,8 +228,8 @@ func TestAgentsAreIntegrationsOfTheirOwn(t *testing.T) {
 	typeRunes(sc, "1")
 	waitFor(t, a, sc, "acme/gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Open in Codex")
-	if strings.Contains(a.screenText(sc), "Open in Claude Code") {
+	waitFor(t, a, sc, "Open with Codex")
+	if strings.Contains(a.screenText(sc), "Open with Claude Code") {
 		t.Fatal("an agent turned off is offered")
 	}
 }
@@ -249,8 +249,8 @@ func TestThePlacePickerFits(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		resizeApp(a, sc, size.w, size.h)
-		pickMuxAction(t, a, sc, "Open in Claude Code")
-		waitFor(t, a, sc, "Open in Claude Code · where")
+		pickMuxAction(t, a, sc, "Open with Claude Code")
+		waitFor(t, a, sc, "Open with Claude Code · where")
 		for _, want := range []string{"This Terminal", "Zellij Split Below", "herdr · Unagit Agents", "Ghostty Window", "Ghostty Tab", "Suspend unagit"} {
 			waitFor(t, a, sc, want)
 		}
@@ -268,6 +268,56 @@ func TestThePlacePickerFits(t *testing.T) {
 		}
 		assertLegible(t, a, sc, "place picker")
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-		waitGone(t, a, sc, "Open in Claude Code · where")
+		waitGone(t, a, sc, "Open with Claude Code · where")
+	}
+}
+
+// TestOpeningComesInTiers: the agents' "Open with <agent>…" is listed, the
+// agent in each place only once something is typed, and "cc split" runs
+// Claude Code in a vertical split at once. A merge request has the same
+// for its review.
+func TestOpeningComesInTiers(t *testing.T) {
+	t.Parallel()
+	tool, prepareMux := fakeMux(t)
+	_, prepareAgents := fakeAgents(t, "", "claude")
+	a, sc, _ := newTestAppSrv(t, prepareMux, prepareAgents)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Open with Claude Code…")
+	if text := a.screenText(sc); strings.Contains(text, "Zellij") {
+		t.Fatalf("an action of a place is listed before anything is typed:\n%s", text)
+	}
+	typeRunes(sc, "cc split")
+	waitFor(t, a, sc, "Open with Claude Code in Zellij Vertical Split")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitEditorState(t, a, func() bool {
+		return strings.Contains(a.transient, "opened Claude Code in Zellij: "+p.path)
+	})
+	var split []string
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-pane" {
+			split = call.Args
+		}
+	}
+	if len(split) == 0 || split[5] != "right" || !strings.HasSuffix(split[len(split)-1], "/claude") {
+		t.Fatalf("split: %v", split)
+	}
+
+	names := onLoop(a, func() map[string]bool {
+		out := map[string]bool{}
+		for _, act := range a.mergeRequestActions(a.mrsPane, a.mrs[0]) {
+			out[act.name] = act.filterOnly
+		}
+		return out
+	})
+	for name, hidden := range map[string]bool{
+		"Review with Claude Code…": false, "Open with Claude Code…": false,
+		"Review in Zellij Vertical Split": true, "Review with Claude Code in Zellij Tab": true, "Open in Zellij Horizontal Split": true,
+	} {
+		if got, ok := names[name]; !ok || got != hidden {
+			t.Errorf("%q: offered %v, kept for the filter %v; want kept %v", name, ok, got, hidden)
+		}
 	}
 }

@@ -90,12 +90,14 @@ type pickItem struct {
 }
 
 // wordsMatch says whether every word of the query is an alias of the item,
-// or the start of one, or the start of a word of its name.
-func wordsMatch(query string, it pickItem) bool {
+// or the start of one, or the start of a word of its name; and how many
+// words of the name none of them starts - the fewer, the closer the name.
+func wordsMatch(query string, it pickItem) (bool, int) {
 	words := strings.FieldsFunc(strings.ToLower(plainText(it.Label)), func(r rune) bool {
 		return r == ' ' || r == '/' || r == '-' || r == '·'
 	})
-	for _, q := range strings.Fields(strings.ToLower(query)) {
+	typed := strings.Fields(strings.ToLower(query))
+	for _, q := range typed {
 		found := false
 		for _, w := range append(words, it.Aliases...) {
 			if strings.HasPrefix(strings.ToLower(w), q) {
@@ -104,10 +106,20 @@ func wordsMatch(query string, it pickItem) bool {
 			}
 		}
 		if !found {
-			return false
+			return false, 0
 		}
 	}
-	return true
+	rest := 0
+	for _, w := range words {
+		said := false
+		for _, q := range typed {
+			said = said || strings.HasPrefix(w, q)
+		}
+		if !said {
+			rest++
+		}
+	}
+	return true, rest
 }
 
 // showPicker opens a fuzzy-filtered single choice list.
@@ -303,11 +315,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		// mentions a worktree in passing. Before both, an item every typed
 		// word starts a word of, or an alias: "cc split" is Claude Code in a
 		// split, whatever else the letters run through. Among those the
-		// preferred come first, then the list's own order.
+		// name with the fewest words left unsaid comes first, then the
+		// preferred, then the list's own order.
 		type hit struct {
 			it    pickItem
 			tier  int
 			score int
+			rest  int
 		}
 		typed := strings.TrimSpace(query) != ""
 		var hits []hit
@@ -321,13 +335,16 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				score, ok = fuzzy.Match(query, it.About)
 				tier = 2
 			}
-			if typed && wordsMatch(query, it) {
-				ok, tier = true, 0
+			rest := 0
+			if typed {
+				if all, left := wordsMatch(query, it); all {
+					ok, tier, rest = true, 0, left
+				}
 			}
 			if !ok {
 				continue
 			}
-			hits = append(hits, hit{it, tier, score})
+			hits = append(hits, hit{it, tier, score, rest})
 		}
 		if typed {
 			sort.SliceStable(hits, func(i, j int) bool {
@@ -335,6 +352,8 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				switch {
 				case l.tier != r.tier:
 					return l.tier < r.tier
+				case l.tier == 0 && l.rest != r.rest:
+					return l.rest < r.rest
 				case l.tier == 0 && l.it.Prefer != r.it.Prefer:
 					return l.it.Prefer < r.it.Prefer
 				case l.tier == 0:

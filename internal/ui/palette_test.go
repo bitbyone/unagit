@@ -181,7 +181,7 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Actions · acme/gateway")
 	text := a.screenText(sc)
-	open, worktree, hide := lineOf(text, "Open in Editor…"), lineOf(text, "New Worktree…"), lineOf(text, "Hide or Unhide")
+	open, worktree, hide := lineOf(text, "Open With…"), lineOf(text, "New Worktree…"), lineOf(text, "Hide or Unhide")
 	if open < 0 || worktree < 0 || hide < 0 || !(open < worktree && worktree < hide) {
 		t.Errorf("the actions are not in the order they are wanted:\n%s", text)
 	}
@@ -226,7 +226,7 @@ func TestCtrlAIsAltEnter(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Actions · acme/gateway !7")
-	waitFor(t, a, sc, "Review in Editor…")
+	waitFor(t, a, sc, "Review With…")
 }
 
 // TestColonListsWhatTheScreenCanDo: the screen's own actions, a new

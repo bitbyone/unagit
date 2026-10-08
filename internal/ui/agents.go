@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/tobola/unagit/internal/agents"
@@ -155,7 +156,14 @@ func (a *App) editorPlaces(here string) []pickItem {
 func (a *App) places(here string, herdr bool) []pickItem {
 	items := []pickItem{{Label: "This Terminal", Data: editorPlace{}, About: here}}
 	if c := a.multiplexer; c != nil {
-		items = append(items, a.clientPlaces(c)...)
+		for _, it := range a.clientPlaces(c) {
+			// Inside herdr an editor takes its tabs and splits, never the
+			// agents' workspace.
+			if !herdr && c.Kind == mux.Herdr && it.Data.(editorPlace).where == mux.Window {
+				continue
+			}
+			items = append(items, it)
+		}
 	}
 	if c := a.herdr(); herdr && c != nil && (a.multiplexer == nil || a.multiplexer.Kind != mux.Herdr) {
 		items = append(items, a.clientPlaces(c)...)
@@ -174,23 +182,35 @@ const (
 	placeOfAttach = "attach"
 )
 
-// pickPlace asks where something opens, the cursor on the place chosen
-// most often for the same kind of thing - on a tie the one chosen last, so
-// the first choice is offered again at once - and counts the choice.
-func (a *App) pickPlace(what, title string, items []pickItem, then func(editorPlace)) {
+// orderPlaces puts the places chosen most often for the same kind of thing
+// first - on a tie the one chosen last, so a first choice is offered again
+// at once - and the rest in their own order.
+func (a *App) orderPlaces(what string, items []pickItem) []pickItem {
 	uses := a.cfg.Integrations.PlaceUses[what]
 	last := ""
 	if what == placeOfAgent {
 		last = a.cfg.Integrations.AgentPlace
 	}
-	start, most := 0, 0
-	for i, it := range items {
+	out := append([]pickItem(nil), items...)
+	weight := func(it pickItem) (int, bool) {
 		key := placeKeyOf(it.Data.(editorPlace))
-		if n := uses[key]; n > most || n == most && n > 0 && key == last {
-			start, most = i, n
-		}
+		return uses[key], uses[key] > 0 && key == last
 	}
-	a.showPickerWith(title, items, pickerOptions{start: start, pack: true, explain: true}, func(it pickItem) {
+	sort.SliceStable(out, func(i, j int) bool {
+		li, lastI := weight(out[i])
+		lj, lastJ := weight(out[j])
+		if li != lj {
+			return li > lj
+		}
+		return lastI && !lastJ
+	})
+	return out
+}
+
+// pickPlace asks where something opens, the places in the order they are
+// usually chosen, and counts the choice.
+func (a *App) pickPlace(what, title string, items []pickItem, then func(editorPlace)) {
+	a.showPickerWith(title, a.orderPlaces(what, items), pickerOptions{pack: true, explain: true}, func(it pickItem) {
 		place := it.Data.(editorPlace)
 		a.cfg.Integrations.UsePlace(what, placeKeyOf(place))
 		if what == placeOfAgent {
@@ -199,33 +219,6 @@ func (a *App) pickPlace(what, title string, items []pickItem, then func(editorPl
 		a.saveConfig()
 		then(place)
 	})
-}
-
-// agentActions are the "Open in <agent>…" of every agent that is on: each
-// asks where, then opens the directory open would.
-func (a *App) agentActions(open func(editorPlace)) []uiAction {
-	var actions []uiAction
-	for _, ag := range agents.All {
-		ag := ag
-		actions = append(actions, uiAction{
-			name:  "Open in " + ag.Name + "…",
-			about: "Start " + ag.Name + " in this directory: in this terminal, or in a tab, split or window - of herdr, Zellij or Ghostty, whichever are here.",
-			rank:  21,
-			icon:  agentIcons[ag.ID],
-			when:  func() bool { return a.agentOn(ag) },
-			run: func() {
-				if !a.agentOn(ag) {
-					a.flash(ag.Name + " is off - turn it on in Settings › Integrations")
-					return
-				}
-				a.pickPlace(placeOfAgent, "Open in "+ag.Name+" · where", a.agentPlaces(ag), func(place editorPlace) {
-					place.agent = &ag
-					open(place)
-				})
-			},
-		})
-	}
-	return actions
 }
 
 // openAgent starts an agent in a directory that is ready: here, suspending

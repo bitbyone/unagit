@@ -138,7 +138,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		ag := ag
 		agentCards = append(agentCards, &integrationCard{
 			name: ag.Name, command: ag.Command,
-			description: "Open in " + ag.Name + "… starts it in the selected repository, merge request or worktree: in this terminal, or in a tab, split or window of herdr, Zellij or Ghostty.",
+			description: "Open with " + ag.Name + "… starts it in the selected repository, merge request or worktree: in this terminal, or in a tab, split or window of herdr, Zellij or Ghostty.",
 			enabled:     func() bool { return s.app.agentOn(ag) },
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
 		})

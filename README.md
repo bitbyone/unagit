@@ -442,11 +442,13 @@ the repository like any other.
 
 ### [Zellij](https://zellij.dev)
 
-Inside Zellij, the selection action picker (`Alt-Enter` or `Ctrl-A`) offers
-**Open in New Tab**, **Open in Vertical Split** (beside unagit), and
-**Open in Horizontal Split** (below it). They use the favourite terminal
-editor, or ask among terminal editors when the favourite opens a window.
-Existing opening keys keep using unagit's own terminal.
+Inside Zellij, the selection action picker (`Alt-Enter` or `Ctrl-A`) has
+**Open in Zellij Tab**, **Open in Zellij Vertical Split** (beside unagit)
+and **Open in Zellij Horizontal Split** (below it), and a merge request the
+same with **Review**. They are found by typing - `tab`, `split` or `vs`,
+`hs` - and use the favourite terminal editor, or ask among terminal editors
+when the favourite opens a window. `O` (**Open…**) chooses the editor and
+the place in one form. The opening keys keep using unagit's own terminal.
 
 A repository is cloned if needed; a merge request gets its branch worktree,
 as with `Ctrl-O`. A worktree or the lit block of its view opens its own
@@ -478,12 +480,12 @@ only inside Zellij. tmux is not implemented yet.
 ### [herdr](https://herdr.dev)
 
 herdr is a terminal multiplexer made for coding agents. Inside it, unagit
-treats it as it treats Zellij: **Open in New Tab** and the two splits open
-the editor in herdr's tabs and splits, beside unagit, and the records, the
-open-editor marker, `E` and Ctrl-Z all work the same.
+treats it as it treats Zellij: **Open in herdr Tab** and the two splits
+open the editor in herdr's tabs and splits, beside unagit, and the records,
+the open-editor marker, `E` and Ctrl-Z all work the same.
 
 From anywhere - herdr or a plain terminal - an agent can be started in herdr
-(**Open in Claude Code…** and the other agents, below): every one goes to a
+(**Open with Claude Code in herdr** and the other agents, below): every one goes to a
 workspace called **Unagit Agents**, a tab each, named after the repository,
 merge request or branch, and herdr is switched to it. Bringing herdr's
 window forward is yours: unagit does not know which key or window shows it.
@@ -494,10 +496,10 @@ off. Requires herdr 0.9 or newer.
 
 ### [Ghostty](https://ghostty.org)
 
-On a Mac, **Open in Ghostty…** opens the favourite terminal editor in a new
-Ghostty window or tab, or - when unagit runs in Ghostty itself, not in a
-multiplexer inside it - in a split beside unagit; agents can be opened in
-the same places. Ghostty is scripted through AppleScript: macOS asks once
+On a Mac, **Open in Ghostty Window** and **Open in Ghostty Tab** open the
+favourite terminal editor in a new Ghostty window or tab, and - when unagit
+runs in Ghostty itself, not in a multiplexer inside it - the Ghostty splits
+open it beside unagit; agents can be opened in the same places. Ghostty is scripted through AppleScript: macOS asks once
 whether unagit may control it. Ghostty keeps a terminal whose program has
 ended open until a key; unagit closes it instead. A tab cannot be opened
 when tabs are turned off in Ghostty's configuration - use a window.
@@ -506,13 +508,40 @@ when tabs are turned off in Ghostty's configuration - use a window.
 
 Claude Code, Codex, Copilot CLI, opencode and Antigravity are integrations of
 their own, each on whenever its command (`claude`, `codex`, `copilot`,
-`opencode`, `agy`) is on PATH. Each adds **Open in <agent>…** to the actions
-of a repository, a merge request and a worktree: the directory is prepared
-as `Ctrl-O` prepares it - cloned, the branch worktree made - and then the
-agent starts there, where you choose: **This Terminal** (unagit is
-suspended until the agent ends), a tab or split of the Zellij or herdr
-unagit runs in, a tab of herdr's Unagit Agents workspace, or a Ghostty
-window, tab or split. The place chosen last is offered first next time.
+`opencode`, `agy`) is on PATH. Each adds **Open with <agent>…** to the
+actions of a repository, a merge request and a worktree, and **Review with
+<agent>…** to a merge request's: the directory is prepared as `Ctrl-O`
+prepares it - cloned, the branch worktree made - or the review as `Ctrl-R`
+makes it, the change unstaged, and then the agent starts there, where you
+choose: **This Terminal** (unagit is suspended until the agent ends), a tab
+or split of the Zellij or herdr unagit runs in, a tab of herdr's Unagit
+Agents workspace, or a Ghostty window, tab or split. The places are listed
+in the order they are usually chosen.
+
+### Where things open
+
+Opening is three questions: what - the clone, a merge request's branch or
+its review, a worktree - with what, and where. The action pickers answer
+them in three tiers:
+
+- at the top, **Open** (`Ctrl-O`) and **Review** (`Ctrl-R`) in the favourite
+  editor here, **Open With…** (`Alt-O`) in an editor you choose, and
+  **Open…** (`O`), a form of all three questions - Branch or Review on a
+  merge request, an editor or an agent that is on, and the places that one
+  can go - filled in as it was last used for that kind of row;
+- at the bottom, **Open with <agent>…** and **Review with <agent>…**, which
+  ask where;
+- found only by typing, and run at once: every place for the favourite
+  editor - **Open in Zellij Vertical Split**, **Review in herdr Tab**,
+  **Open in Ghostty Window** - and every agent in every place - **Open with
+  Claude Code in Zellij Vertical Split**, **Open with Codex in herdr**.
+
+**with** names the tool and **in** the place, and `…` ends a name exactly
+when another choice follows. Short words find them too, shown under the
+picker: `cc` and `claude` for Claude Code, `cx` and `codex` for Codex,
+`vsplit`, `vs` or `split` for a vertical split, `hsplit` or `hs` for a
+horizontal one, `tab`, and `rev` for a review - so `cc split` puts Claude
+Code in a vertical split first.
 
 **[4] Agents** lists the agents started from unagit - never the others herdr
 runs - with what each works on, where it runs, and, for those in herdr, what

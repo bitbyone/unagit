@@ -222,14 +222,14 @@ func TestActionIconsKeepTheNamesInLine(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Actions · acme/gateway")
-	icon := onLoop(a, func() string { return actionIcons["Open in Editor"] })
+	icon := onLoop(a, func() string { return actionIcons["Open"] })
 	if icon == "" {
-		t.Fatal("Open in Editor has no icon in the default theme")
+		t.Fatal("Open has no icon in the default theme")
 	}
-	waitFor(t, a, sc, icon+" Open in Editor")
+	waitFor(t, a, sc, icon+" Open ")
 	text := a.screenText(sc)
 	start := -1
-	for _, name := range []string{"Open in Editor", "New Worktree…", "Show Details", "Copy…"} {
+	for _, name := range []string{"Open With…", "New Worktree…", "Show Details", "Copy…"} {
 		line := lineAt(text, name)
 		if line == "" {
 			t.Fatalf("%s is not listed:\n%s", name, text)
@@ -243,7 +243,7 @@ func TestActionIconsKeepTheNamesInLine(t *testing.T) {
 	assertLegible(t, a, sc, "the actions with icons")
 }
 
-// TestAnAgentsActionsWearItsIcon: with the icons on, Open in <agent>… has
+// TestAnAgentsActionsWearItsIcon: with the icons on, Open with <agent>… has
 // that agent's icon before it, the one the Agents tab draws, in line with
 // the other actions. Serial: the glyphs are the process's.
 func TestAnAgentsActionsWearItsIcon(t *testing.T) {
@@ -260,14 +260,14 @@ func TestAnAgentsActionsWearItsIcon(t *testing.T) {
 		if icon == "" {
 			t.Fatalf("%s has no icon in the default theme", ag.name)
 		}
-		waitFor(t, a, sc, icon+" Open in "+ag.name+"…")
+		waitFor(t, a, sc, icon+" Open with "+ag.name+"…")
 	}
 	text := a.screenText(sc)
 	in := func(name string) int {
 		line := lineAt(text, name)
 		return len([]rune(line[:strings.Index(line, name)]))
 	}
-	if in("Open in Claude Code…") != in("Open in Editor") {
+	if in("Open with Claude Code…") != in("Open With…") {
 		t.Errorf("the agent's action is out of line with the others:\n%s", text)
 	}
 	assertLegible(t, a, sc, "the agents' actions with their icons")

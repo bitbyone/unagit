@@ -22,7 +22,7 @@ the place most often chosen, so Enter Enter is as quick as one Enter is
 now. The same picker of places as the agents' (`agentPlaces`), without the
 herdr workspace: editors go to herdr only from inside it (see 2).
 
-## 2. Opening: three tiers of actions, named by a grammar
+## 2. Opening: three tiers of actions, named by a grammar (done)
 
 Opening is three questions: **what** (the clone, a merge request's branch
 worktree, its review worktree), **with** what (an editor, an agent) and

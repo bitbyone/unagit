@@ -536,6 +536,17 @@ type Integrations struct {
 	// there (agent, attach), then by place - so a picker of places starts
 	// on the usual one rather than the one used last.
 	PlaceUses map[string]map[string]int `yaml:"place_uses,omitempty"`
+	// OpenForm is what Open… was last given for each kind of row
+	// (repository, merge_request, worktree), so it opens filled in so.
+	OpenForm map[string]OpenChoice `yaml:"open_form,omitempty"`
+}
+
+// OpenChoice is one filling of Open…: the mode of a merge request (branch
+// or review), the tool (editor:<id> or agent:<id>) and the place.
+type OpenChoice struct {
+	Mode  string `yaml:"mode,omitempty"`
+	With  string `yaml:"with,omitempty"`
+	Where string `yaml:"where,omitempty"`
 }
 
 // UsePlace counts one more opening of what in place.

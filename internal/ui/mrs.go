@@ -592,6 +592,12 @@ func (a *App) openMRReview(mr forge.MergeRequest, ed *editors.Editor) {
 	a.openMRReviewFrom(mr, "", ed)
 }
 
+// openMRReviewIn is openMRReview in a tab, split or window, or with an
+// agent: the review worktree is made the same way.
+func (a *App) openMRReviewIn(mr forge.MergeRequest, ed *editors.Editor, place editorPlace) {
+	a.openMRReviewFromIn(mr, "", ed, place)
+}
+
 // reviewRefs asks the forge which two commits it diffs the merge request
 // between. Without an answer the review falls back to the local merge base.
 func reviewRefs(ctx context.Context, client forge.Provider, mr forge.MergeRequest, log func(string)) workspace.Review {
@@ -636,6 +642,10 @@ func forgeCommits(ctx context.Context, client forge.Provider, mr forge.MergeRequ
 // openMRReviewFrom is openMRReview narrowed to the commits from one onwards;
 // an empty from is the whole merge request.
 func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string, ed *editors.Editor) {
+	a.openMRReviewFromIn(mr, from, ed, editorPlace{})
+}
+
+func (a *App) openMRReviewFromIn(mr forge.MergeRequest, from string, ed *editors.Editor, place editorPlace) {
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
@@ -644,8 +654,8 @@ func (a *App) openMRReviewFrom(mr forge.MergeRequest, from string, ed *editors.E
 	if from != "" {
 		title = fmt.Sprintf("Opening %s !%d for review from %.8s", path, mr.IID, from)
 	}
-	a.runTaskOpening(title,
-		a.sessionOf(mr, path, session.ModeReview), ed,
+	a.runTaskOpeningIn(title,
+		a.sessionOf(mr, path, session.ModeReview), ed, place,
 		func(log func(string)) (string, error) {
 			return a.prepareReview(mr, project, client, from, integrate, log)
 		})
