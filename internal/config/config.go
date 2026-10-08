@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -564,6 +565,17 @@ func (i *Integrations) UsePlace(what, place string) {
 	i.PlaceUses[what][place]++
 }
 
+// DefaultToastSeconds is how long a toast stays unless the user chose.
+const DefaultToastSeconds = 5
+
+// ToastLife is how long a toast stays.
+func (c *Config) ToastLife() time.Duration {
+	if c.ToastSeconds <= 0 {
+		return DefaultToastSeconds * time.Second
+	}
+	return time.Duration(c.ToastSeconds) * time.Second
+}
+
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
 // Tokens are not stored here; they live encrypted in the vault.
 type Config struct {
@@ -582,9 +594,12 @@ type Config struct {
 	// RememberPassphrase keeps the vault passphrase in the macOS keychain,
 	// readable by the unagit binary alone, so it opens without asking. The
 	// user's choice, off unless they make it.
-	RememberPassphrase bool       `yaml:"remember_passphrase,omitempty"`
-	Filters            Filters    `yaml:"filters,omitempty"`
-	Instances          []Instance `yaml:"instances"`
+	RememberPassphrase bool `yaml:"remember_passphrase,omitempty"`
+	// ToastSeconds is how long a toast stays in front of the user; 0 is
+	// DefaultToastSeconds.
+	ToastSeconds int        `yaml:"toast_seconds,omitempty"`
+	Filters      Filters    `yaml:"filters,omitempty"`
+	Instances    []Instance `yaml:"instances"`
 	// Tags are the user's own labels for repositories - the default ones
 	// until a configuration says otherwise, an empty list included. A server
 	// passes its tags down to everything on it and a group to its subgroups

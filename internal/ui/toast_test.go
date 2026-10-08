@@ -1,9 +1,14 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/config"
 )
 
 // TestToastsStackAndGo: toasts of every severity stack in the top right
@@ -86,4 +91,43 @@ func TestToastsStackAndGo(t *testing.T) {
 		return onLoop(a, func() int { return len(a.toasts) }) == 0
 	})
 	waitGone(t, a, sc, "pipeline failed · unit tests")
+}
+
+// TestToastsStayAsLongAsSettingsSay: five seconds unless Settings ›
+// Notifications says otherwise, and what it says is saved.
+func TestToastsStayAsLongAsSettingsSay(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	life := func() time.Duration {
+		return onLoop(a, func() time.Duration {
+			a.toasts = nil
+			a.showToast(sevInfo, "acme/api !42", "pipeline started")
+			left := a.toasts[0].left
+			a.toasts = nil
+			return left
+		})
+	}
+	if got := life(); got != 5*time.Second {
+		t.Fatalf("a toast stays %v by default, want 5s", got)
+	}
+	openSection(t, a, sc, sectionNotifications)
+	waitFor(t, a, sc, "Toasts stay")
+	for _, size := range []struct{ w, h int }{{120, 34}, {80, 24}} {
+		resizeApp(a, sc, size.w, size.h)
+		waitFor(t, a, sc, "Toasts stay")
+		assertLegible(t, a, sc, "Settings › Notifications")
+	}
+	changeOnLoop(a, func() {
+		a.settings.notices.GetFormItemByLabel("Toasts stay").(*tview.DropDown).SetCurrentOption(slices.Index(toastChoices, 10))
+	})
+	pressButton(t, a, sc, a.settings.notices, "Save")
+	waitTrue(t, "the length was not saved", func() bool { return onLoop(a, func() int { return a.cfg.ToastSeconds }) == 10 })
+	if got := life(); got != 10*time.Second {
+		t.Fatalf("a toast stays %v, want 10s", got)
+	}
+	saved, err := config.LoadFrom(a.cfg.Dir())
+	if err != nil || saved.ToastSeconds != 10 {
+		t.Fatalf("the file says %d (%v)", saved.ToastSeconds, err)
+	}
 }

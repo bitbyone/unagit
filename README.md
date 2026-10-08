@@ -720,7 +720,8 @@ the tab turns a mark of its own with how many run (`[5] Watched ⠋1`).
 Every change - a pipeline that began, passed, failed, was cancelled or
 waits for a manual job, a merge request merged or closed - is a toast in
 the top right corner, coloured by how it went (info, success, warning,
-danger), for a few seconds of your looking at it. It never takes the keys
+danger), for five seconds of your looking at it - Settings › Notifications
+sets how long. It never takes the keys
 from whatever you are typing. The tab counts the changes not seen yet
 (`[5] Watched ●2`) until you open it, and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor

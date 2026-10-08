@@ -201,7 +201,7 @@ func walkSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	waitFor(t, a, sc, "acme/gateway")
 
-	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionTheme, sectionSecurity, sectionIntegrations} {
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionTheme, sectionSecurity, sectionIntegrations, sectionNotifications} {
 		openSection(t, a, sc, section)
 		waitFor(t, a, sc, sectionNames[section])
 		assertLegible(t, a, sc, "settings: "+sectionNames[section])

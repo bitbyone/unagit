@@ -73,6 +73,8 @@ func (a *App) helpContext() (helpContext, string) {
 		switch a.settings.current {
 		case sectionGeneral:
 			return helpGeneral, "General settings"
+		case sectionNotifications:
+			return helpGeneral, "Notification settings"
 		case sectionGitLab, sectionGitHub:
 			return helpServers, "Servers"
 		case sectionGroups:

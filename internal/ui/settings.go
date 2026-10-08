@@ -25,9 +25,10 @@ const (
 	sectionTheme
 	sectionSecurity
 	sectionIntegrations
+	sectionNotifications
 )
 
-var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Theme", "Security", "Integrations"}
+var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Theme", "Security", "Integrations", "Notifications"}
 
 // settingsView is the whole configuration: a list of sections on the left and
 // the section's editor on the right. Nothing here needs the file to be edited
@@ -40,6 +41,7 @@ type settingsView struct {
 
 	integrations *integrationsView
 	general      *tview.Form
+	notices      *tview.Form
 	gitlab       *tview.Table
 	github       *tview.Table
 	tree         *tview.TreeView
@@ -80,6 +82,7 @@ func (a *App) newSettingsView() *settingsView {
 	box(s.list.Box, "Settings")
 
 	s.general = s.newGeneralForm()
+	s.notices = s.newSettingsForm("Notifications")
 	s.integrations = s.newIntegrationsView()
 	s.gitlab = s.newServerTable(config.KindGitLab, "GitLab servers")
 	s.github = s.newServerTable(config.KindGitHub, "GitHub accounts")
@@ -98,6 +101,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("tags", s.tagsKept, true, false)
 	s.content.AddPage("theme", s.themePanel, true, false)
 	s.content.AddPage("security", s.security, true, false)
+	s.content.AddPage("notifications", s.notices, true, false)
 	if a.debug {
 		s.debug = s.newDebugView()
 		s.content.AddPage("debug", s.debug, true, false)
@@ -129,6 +133,7 @@ func (a *App) newSettingsView() *settingsView {
 // reload rebuilds every section from the current configuration.
 func (s *settingsView) reload() {
 	s.fillGeneral()
+	s.fillNotifications()
 	s.fillIntegrations()
 	s.fillServerTables()
 	s.fillTree()
@@ -165,6 +170,8 @@ func (s *settingsView) show(section int) {
 		s.content.SwitchToPage("theme")
 	case sectionSecurity:
 		s.content.SwitchToPage("security")
+	case sectionNotifications:
+		s.content.SwitchToPage("notifications")
 	case sectionDebug:
 		s.debug.fill(s.app)
 		s.content.SwitchToPage("debug")
@@ -193,6 +200,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.themes
 	case sectionSecurity:
 		return s.security
+	case sectionNotifications:
+		return s.notices
 	case sectionDebug:
 		return s.debug.table
 	}
@@ -216,6 +225,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.themePanel.Box
 	case sectionSecurity:
 		return s.security.Box
+	case sectionNotifications:
+		return s.notices.Box
 	case sectionDebug:
 		return s.debug.Box
 	}
@@ -229,7 +240,7 @@ func (s *settingsView) paintFocus() {
 	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box,
+		s.integrations.Box, s.general.Box, s.notices.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -260,6 +271,8 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.themes)
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
+	case sectionNotifications:
+		s.app.tv.SetFocus(s.notices)
 	case sectionDebug:
 		s.app.tv.SetFocus(s.debug.table)
 	}
@@ -345,9 +358,14 @@ func (s *settingsView) contentKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
 // ------------------------------------------------------------------ general
 
 func (s *settingsView) newGeneralForm() *tview.Form {
+	return s.newSettingsForm("General")
+}
+
+// newSettingsForm is a section that is a form, saved by its buttons.
+func (s *settingsView) newSettingsForm(title string) *tview.Form {
 	form := tview.NewForm()
 	styleForm(form)
-	box(form.Box, "General").SetBorderPadding(1, 1, 2, 2)
+	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)
 	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc {
 			s.focusList()

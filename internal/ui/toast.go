@@ -31,18 +31,6 @@ const (
 	toastWidth = 48
 )
 
-// toastLife is how long a toast of a severity stays: a failure longer than
-// a success, since it asks for something to be done.
-func toastLife(sev severity) time.Duration {
-	switch sev {
-	case sevError:
-		return 12 * time.Second
-	case sevWarning:
-		return 9 * time.Second
-	}
-	return 6 * time.Second
-}
-
 // toastMark is the first line's mark for a severity.
 func toastMark(sev severity) string {
 	switch sev {
@@ -71,7 +59,7 @@ func toastColour(sev severity) tcell.Color {
 
 // showToast puts a toast up. It runs on the event loop.
 func (a *App) showToast(sev severity, title, body string) {
-	a.toasts = append(a.toasts, &toast{sev: sev, title: title, body: body, left: toastLife(sev)})
+	a.toasts = append(a.toasts, &toast{sev: sev, title: title, body: body, left: a.cfg.ToastLife()})
 	if over := len(a.toasts) - toastsKept; over > 0 {
 		a.toasts = append([]*toast(nil), a.toasts[over:]...)
 	}
