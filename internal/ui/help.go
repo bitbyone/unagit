@@ -7,6 +7,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/editors"
 )
 
 // Help captures focus before opening its overlay; it describes the place the
@@ -189,7 +191,7 @@ func helpRows() []helpLine {
 		key("E", "running editors: Enter attach… · x close"),
 		key("Alt-A", "running agents: Enter goes to one"),
 		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
-		key(glyphEditor, "this directory is open in Neovim"),
+		key(editorGlyph(editors.Nvim), "this directory is open in Neovim"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
@@ -347,7 +349,8 @@ func helpRows() []helpLine {
 		blank(),
 		section("Settings · integrations", helpIntegrations),
 		key("e", "toggle the selected integration"),
-		key("f", "on Editors: the favourite everything opens in"),
+		key("f", "on an editor: the favourite, or none"),
+		key("o", "on Custom: its command, arguments, kind"),
 		key("c", "check installation"),
 		key("Tab / j k", "move between integrations"),
 		key("Esc  h", "back to the sections"),

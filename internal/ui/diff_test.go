@@ -101,9 +101,8 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 			waitFor(t, a, sc, "acme/gateway")
 			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
-			typeRunes(sc, "jj") // Incomm, Editors, Hunk
-			// Hunk's own line: the keys may not have landed yet, and the
-			// Incomm card says "e toggle" as well.
+			focusCard(t, a, sc, "Hunk")
+			// Hunk's own line: the Incomm card says "e toggle" as well.
 			waitFor(t, a, sc, "D opens what")
 			text := a.screenText(sc)
 			for _, want := range []string{"Hunk", "D opens what", "c check"} {

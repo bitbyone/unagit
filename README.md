@@ -380,7 +380,7 @@ Configure integrations in **Settings → Integrations**. Each integration has
 its own card - Zellij included - with its state at the right of its title:
 **enabled**, **disabled** or **not installed**. Press `e` to enable or
 disable it and `c` to check installation. The cards stand under the kind of
-integration they are - Editors & Review, Terminals, AI Agents, Files &
+integration they are - Editors, Review, Terminals, AI Agents, Files &
 Navigation - three across on a large screen, two on an ordinary one, one on
 a narrow one; `h` `j` `k` `l` and the arrows move between them as they are
 drawn, `Tab` through all of them in order, and `h` from the first column
@@ -820,12 +820,15 @@ scale - in sixteen shades worked out between them, as faded as the ends.
 
 Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -
 opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
-`Alt-R`, ...) and unagit asks which one first. Settings › Integrations ›
-Editors lists the ones it found - Neovim, IntelliJ IDEA, VS Code and Zed: a
-launcher on `PATH` or in JetBrains Toolbox's scripts folder first, then, on
-macOS, the application in `/Applications` - and `f` picks the favourite, or
-none. Without a favourite that is installed, every open asks, the way Alt
-does. A command of your own goes in Settings › General as the custom editor.
+`Alt-R`, ...) and unagit asks which one first. Settings › Integrations has
+a card for each editor - Neovim, IntelliJ IDEA, VS Code, Zed and a custom
+one - saying whether it was found: a launcher on `PATH` or in JetBrains
+Toolbox's scripts folder first, then, on macOS, the application in
+`/Applications`. `e` turns an editor off, and it is then offered nowhere;
+`f` makes it the favourite, starred in its title, and `f` on the favourite
+leaves none. Without a favourite that is installed and on, every open asks,
+the way Alt does. A command of your own is the Custom card's: `o` sets its
+command, its arguments and whether it opens a window.
 
 Neovim takes the terminal. With Neovim 0.12 or newer, **Ctrl-Z** (or
 `:detach`) puts it aside and returns to unagit, keeping the buffers and

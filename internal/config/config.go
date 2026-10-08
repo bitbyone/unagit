@@ -525,6 +525,10 @@ type Integrations struct {
 	// Agents are the coding agents a directory can be opened in, by their
 	// id (agents.All). One not named is on whenever it is installed.
 	Agents map[string]bool `yaml:"agents,omitempty"`
+	// Editors are the editors things open in, by their id (nvim, idea,
+	// code, zed, custom). One not named is on whenever it is installed;
+	// one turned off is offered nowhere.
+	Editors map[string]bool `yaml:"editors,omitempty"`
 	// AgentPlace is where an agent was last opened, which the next one is
 	// offered first.
 	AgentPlace string `yaml:"agent_place,omitempty"`

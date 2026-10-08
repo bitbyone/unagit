@@ -16,7 +16,7 @@ sessions`.
   | Mark | Nerd Font (`nerd_glyphs`) | Plain (`glyphs`) | Role, falls back on |
   | --- | --- | --- | --- |
   | watched | `󱣾` (U+F18FE) | `◎` | `mark.watched` → `text.accent` |
-  | open in Neovim | `` (U+EE9B) | `▣` | `mark.editor` → `state.on` |
+  | open in Neovim | `` (U+E6AE, `editor_neovim`) | `▣` | `mark.editor` → `state.on` |
 
   The plain characters are not used for anything else (`○ ● ◐ ◉ ◆` are the
   disk and group marks), and both read without a Nerd Font. Each goes into

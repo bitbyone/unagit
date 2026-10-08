@@ -233,6 +233,10 @@ type Glyphs struct {
 	AgentCopilot  string `json:"agent_copilot"`
 	AgentOpencode string `json:"agent_opencode"`
 	AgentAgy      string `json:"agent_agy"`
+	// EditorNeovim marks a directory open in Neovim, in place of Editor,
+	// which stays the mark of an editor without an icon of its own; an
+	// icon alone.
+	EditorNeovim string `json:"editor_neovim"`
 	// IntegrationState goes before an integration's state on its card, in
 	// the state's colour; an icon alone, without which a cell of the colour
 	// stands there.

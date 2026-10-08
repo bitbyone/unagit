@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
@@ -48,40 +49,95 @@ func fakeEditorsOnPath(t *testing.T) (marker string) {
 	return marker
 }
 
-// TestEditorsCardChoosesTheFavourite: the card lists what is installed and
-// what is not, and f makes another one the favourite, saved.
-func TestEditorsCardChoosesTheFavourite(t *testing.T) {
+// TestEditorCardsChooseTheFavourite: every editor has a card saying whether
+// it is here, f makes one the favourite - the star moves to its title, and
+// it is saved - f on the favourite leaves none, and e turns an editor off,
+// so it is offered nowhere.
+func TestEditorCardsChooseTheFavourite(t *testing.T) {
 	fakeEditors(t)
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	useFavourite(a, editors.Nvim)
+	resizeApp(a, sc, 160, 44)
 	openSection(t, a, sc, sectionIntegrations)
-	waitFor(t, a, sc, "f favourite")
+	waitFor(t, a, sc, "Neovim "+glyphFavourite)
 	text := a.screenText(sc)
-	for _, want := range []string{"★ Neovim", "terminal", "Zed", "window", "IntelliJ IDEA  not found", "VS Code"} {
+	for _, want := range []string{"╭ Neovim " + glyphFavourite + " ─", "╭ IntelliJ IDEA ─", "╭ VS Code ─", "╭ Zed ─", "╭ Custom ─", "not set up", "Review"} {
 		if !strings.Contains(text, want) {
-			t.Errorf("%q is not on the card:\n%s", want, text)
+			t.Errorf("%q is not on the page:\n%s", want, text)
 		}
 	}
-	assertLegible(t, a, sc, "the editors card")
-
-	typeRunes(sc, "f")
-	waitFor(t, a, sc, "Favourite editor")
-	typeRunes(sc, "j") // None, ★ Neovim, Zed
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "★ Zed")
-	saved, err := config.LoadFrom(a.cfg.Dir())
-	if err != nil {
-		t.Fatal(err)
+	if line := lineAt(text, "╭ IntelliJ IDEA"); !strings.Contains(line, "not installed") {
+		t.Errorf("IDEA is said to be here: %q", line)
 	}
-	if saved.FavouriteEditor != editors.Zed {
-		t.Errorf("favourite saved as %q", saved.FavouriteEditor)
+	assertLegible(t, a, sc, "the editor cards")
+
+	saved := func() string {
+		t.Helper()
+		cfg, err := config.LoadFrom(a.cfg.Dir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg.FavouriteEditor
+	}
+	focusCard(t, a, sc, "Zed")
+	typeRunes(sc, "f")
+	waitFor(t, a, sc, "Zed "+glyphFavourite)
+	if strings.Contains(a.screenText(sc), "Neovim "+glyphFavourite) {
+		t.Error("two favourites")
+	}
+	if got := saved(); got != editors.Zed {
+		t.Errorf("favourite saved as %q", got)
+	}
+	typeRunes(sc, "f")
+	waitGone(t, a, sc, "Zed "+glyphFavourite)
+	if got := saved(); got != askEveryTime {
+		t.Errorf("no favourite saved as %q", got)
+	}
+
+	// Off, Zed is offered nowhere and cannot be the favourite.
+	typeRunes(sc, "e")
+	waitEditorState(t, a, func() bool { return !a.editorOn(editors.Zed) })
+	for _, e := range onLoop(a, a.editorsOn) {
+		if e.ID == editors.Zed {
+			t.Fatal("Zed is offered while off")
+		}
+	}
+	typeRunes(sc, "f")
+	waitFor(t, a, sc, "Zed is off")
+}
+
+// TestTheCustomEditorIsSetUpOnItsCard: o on the Custom card sets its
+// command, arguments and kind, and the card says what it runs.
+func TestTheCustomEditorIsSetUpOnItsCard(t *testing.T) {
+	fakeEditors(t)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	resizeApp(a, sc, 160, 44)
+	openSection(t, a, sc, sectionIntegrations)
+	focusCard(t, a, sc, "Custom")
+	typeRunes(sc, "o")
+	waitFor(t, a, sc, "Custom editor")
+	assertLegible(t, a, sc, "the custom editor form")
+	form := onLoop(a, func() *tview.Form { f, _ := a.focusedForm(); return f })
+	setField(t, a, form, 0, "zed")
+	setField(t, a, form, 1, "--new .")
+	changeOnLoop(a, func() { form.GetFormItemByLabel(labelCustomWindow).(*tview.Checkbox).SetChecked(true) })
+	pressButton(t, a, sc, form, "Save")
+	waitFor(t, a, sc, "saved the custom editor")
+	waitFor(t, a, sc, "zed --new . · opens a window")
+	if a.cfg.Editor != "zed" || strings.Join(a.cfg.EditorArgs, " ") != "--new ." || !a.cfg.EditorWindow {
+		t.Fatalf("custom editor = %q %q window %v", a.cfg.Editor, a.cfg.EditorArgs, a.cfg.EditorWindow)
+	}
+	if line := lineAt(a.screenText(sc), "╭ Custom"); !strings.Contains(line, "enabled") {
+		t.Errorf("the custom editor is not on once found: %q", line)
 	}
 }
 
-// TestEditorsCardFits draws the card at several sizes: every editor on screen,
-// the frame whole.
-func TestEditorsCardFits(t *testing.T) {
+// TestEditorCardsFit draws each editor's card at several sizes, focused:
+// inside the panel, nothing over the status line, legible.
+func TestEditorCardsFit(t *testing.T) {
 	fakeEditors(t)
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
@@ -90,35 +146,25 @@ func TestEditorsCardFits(t *testing.T) {
 			useFavourite(a, "")
 			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
-			waitFor(t, a, sc, "f favourite")
-			text := a.screenText(sc)
-			for _, want := range []string{"Neovim", "IntelliJ IDEA", "VS Code", "Zed", "c check", "No favourite"} {
-				if !strings.Contains(text, want) {
-					t.Errorf("%q is not on screen:\n%s", want, text)
+			for _, name := range []string{"Neovim", "IntelliJ IDEA", "VS Code", "Zed", "Custom"} {
+				focusCard(t, a, sc, name)
+				waitFor(t, a, sc, "╭ "+name)
+				text := a.screenText(sc)
+				inside := onLoop(a, func() bool {
+					v := a.settings.integrations
+					px, py, pw, ph := v.GetInnerRect()
+					x, y, w, h := v.card(name).view.GetRect()
+					return rect{x, y, w, h}.within(rect{px, py, pw, ph})
+				})
+				if !inside {
+					t.Errorf("the %s card overflows its panel:\n%s", name, text)
 				}
-			}
-			// The card is drawn inside the panel, and nothing is drawn over
-			// the status line below it.
-			inside := onLoop(a, func() bool {
-				v := a.settings.integrations
-				px, py, pw, ph := v.GetInnerRect()
-				x, y, w, h := v.card("Editors").view.GetRect()
-				return rect{x, y, w, h}.within(rect{px, py, pw, ph})
-			})
-			if !inside {
-				t.Errorf("the editors card overflows its panel:\n%s", text)
-			}
-			lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
-			if last := lines[len(lines)-1]; !strings.Contains(last, "? help") {
-				t.Errorf("the status line was drawn over: %q\n%s", last, text)
-			}
-			for _, line := range lines {
-				// The editor's own line, not a description mentioning it.
-				if strings.Contains(line, "Neovim  ") && !strings.Contains(line, "terminal") && !strings.Contains(line, "not found") {
-					t.Errorf("an editor's line wraps: %q", line)
+				lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+				if last := lines[len(lines)-1]; !strings.Contains(last, "? help") {
+					t.Errorf("the status line was drawn over: %q\n%s", last, text)
 				}
+				assertLegible(t, a, sc, "the "+name+" card")
 			}
-			assertLegible(t, a, sc, "the editors card")
 		})
 	}
 }

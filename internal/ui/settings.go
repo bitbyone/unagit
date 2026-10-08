@@ -365,17 +365,10 @@ func (s *settingsView) fillGeneral() {
 	root := form.GetFormItemByLabel("Default root").(*tview.InputField)
 	form.AddTextView("", "Projects go here unless a server or a group\n"+
 		"overrides it.", 46, 2, true, false)
-	form.AddInputField("Custom editor", cfg.Editor, 46, nil, nil)
-	editor := form.GetFormItemByLabel("Custom editor").(*tview.InputField)
-	form.AddInputField("Custom editor arguments", strings.Join(cfg.EditorArgs, " "), 46, nil, nil)
-	args := form.GetFormItemByLabel("Custom editor arguments").(*tview.InputField)
-	window := addCheckbox(form, "Custom editor opens a window", cfg.EditorWindow)
-	form.AddTextView("", "One more choice in Integrations › Editors.", 46, 1, true, false)
+	form.AddTextView("", "The editors, the custom one among them, are in\n"+
+		"Integrations.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
-		cfg.Editor = strings.TrimSpace(editor.GetText())
-		cfg.EditorArgs = strings.Fields(args.GetText())
-		cfg.EditorWindow = window.IsChecked()
 		s.app.saveConfig()
 		s.reload()
 		s.app.note("Saved. Projects already on disk keep their current location.")

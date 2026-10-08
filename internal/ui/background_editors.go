@@ -235,17 +235,26 @@ func (a *App) watchEditors(stop <-chan struct{}) {
 }
 
 func (a *App) editorMark(dir string) string {
-	if _, ok := a.openDirs[filepath.Clean(dir)]; ok {
-		return glyphEditor
+	if r, ok := a.openDirs[filepath.Clean(dir)]; ok {
+		return editorGlyph(r.Editor)
 	}
 	return ""
 }
 
 func (a *App) mrEditorMark(disk mrDisk) string {
-	if a.editorMark(disk.BranchDir) != "" || a.editorMark(disk.ReviewDir) != "" {
-		return glyphEditor
+	if mark := a.editorMark(disk.BranchDir); mark != "" {
+		return mark
 	}
-	return ""
+	return a.editorMark(disk.ReviewDir)
+}
+
+// editorGlyph is the mark of a directory open in an editor: the editor's
+// own icon when the theme has one, the plain mark otherwise.
+func editorGlyph(id string) string {
+	if id == editors.Nvim && glyphEditorNeovim != "" {
+		return glyphEditorNeovim
+	}
+	return glyphEditor
 }
 
 func labelRunningEditors(items []pickItem, rows []session.Record, modified []string, width int) string {

@@ -270,7 +270,7 @@ func (a *App) openReadme(pr forge.Project, text string) {
 // session recorded: a file is not a place to cd into.
 func (a *App) openFile(path string, ed *editors.Editor) {
 	if ed == nil {
-		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
+		fav, ok := editors.Favourite(a.editorsOn(), a.cfg.FavouriteEditor)
 		if !ok {
 			a.tv.QueueUpdateDraw(func() {
 				a.withEditor(true, func(chosen *editors.Editor) { go a.openFile(path, chosen) })

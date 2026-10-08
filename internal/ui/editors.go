@@ -23,6 +23,32 @@ func (a *App) detectEditors() []editors.Editor {
 	})
 }
 
+// editorOn says whether an editor may be offered: one not turned off in
+// Settings › Integrations. Whether it is installed is the editor's Found.
+func (a *App) editorOn(id string) bool {
+	on, set := a.cfg.Integrations.Editors[id]
+	return on || !set
+}
+
+func (a *App) setEditorOn(id string, on bool) {
+	if a.cfg.Integrations.Editors == nil {
+		a.cfg.Integrations.Editors = map[string]bool{}
+	}
+	a.cfg.Integrations.Editors[id] = on
+}
+
+// editorsOn are the editors that can be opened in: installed and on. A
+// favourite among the rest counts as none, so opening asks.
+func (a *App) editorsOn() []editors.Editor {
+	var out []editors.Editor
+	for _, e := range a.detectEditors() {
+		if e.Found && a.editorOn(e.ID) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // withEditor runs then with the editor to open in. Without ask, and with a
 // favourite that is installed, that is nil: the favourite, looked up when the
 // editor is actually started. Otherwise - Alt with an opening key, or no
@@ -33,7 +59,7 @@ func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
 }
 
 func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Editor)) {
-	all := a.detectEditors()
+	all := a.editorsOn()
 	if terminalOnly {
 		filtered := make([]editors.Editor, 0, len(all))
 		for _, ed := range all {
@@ -62,7 +88,7 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 		if terminalOnly {
 			kind = "terminal editor"
 		}
-		a.errorf("no %s found - install one, or set a custom editor in Settings › General", kind)
+		a.errorf("no %s is installed and on - install one, or turn one on in Settings › Integrations", kind)
 		return
 	}
 	title := "Open with"
@@ -71,9 +97,9 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 		title += " · terminal editors"
 	case hasFav, chosen == askEveryTime:
 	case chosen == "":
-		title += " · no favourite yet: f in Settings › Integrations › Editors"
+		title += " · no favourite yet: f on an editor in Settings › Integrations"
 	default:
-		title += " · the favourite, " + chosen + ", is not installed"
+		title += " · the favourite, " + chosen + ", is not installed or is off"
 	}
 	a.showPicker(title, items, func(it pickItem) {
 		ed := it.Data.(editors.Editor)
@@ -113,7 +139,7 @@ func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, 
 		return
 	}
 	if ed == nil {
-		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
+		fav, ok := editors.Favourite(a.editorsOn(), a.cfg.FavouriteEditor)
 		if !ok || place.client != nil && !fav.Terminal {
 			a.tv.QueueUpdateDraw(func() {
 				a.closeModal(pageTask)

@@ -136,14 +136,14 @@ under `nerd_glyphs` in the theme, like the agents' icons.
   background (`keptTable`), or they lose their fill - this has gone wrong
   twice; `TestTagsOnRepositories` is to check this row too.
 
-## 7. The open editor's own icon
+## 7. The open editor's own icon (done)
 
 Neovim's mark is `nf-custom-neovim` (U+E6AE). An editor without an icon of
 its own, or a terminal without a Nerd Font, keeps today's mark. The font
 also has `dev-intellij` (U+E7B5) and `dev-vscode` (U+E8DA), should those
 ever count as open; Zed has none.
 
-## 8. Every editor an integration of its own
+## 8. Every editor an integration of its own (done)
 
 The Editors card becomes a card per editor - Neovim, IntelliJ IDEA, VS
 Code, Zed, Custom - each with its state and `e`, so one can be turned off

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -22,10 +21,15 @@ type integrationCard struct {
 	// integration found on this machine.
 	found func() string
 	check func()
-	// render and onKey replace the enable/disable card with one of its own
-	// making; onKey reports whether it took the letter.
-	render func(focused bool) string
-	onKey  func(r rune) bool
+	// onKey is a card's own letters, before the shared ones; it reports
+	// whether it took the letter. keys names them in the card's hint.
+	onKey func(r rune) bool
+	keys  string
+	// title, when set, is the card's name as its top edge shows it.
+	title func() string
+	// missing, when set, says what to do when it is not installed, and
+	// absent is the state then, "not installed" unless set.
+	missing, absent func() string
 }
 
 // integrationCategory is a heading and the cards under it.
@@ -59,10 +63,6 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		description: "Show merge request comments in your editor.\nCtrl-R imports comments before opening the review.",
 		enabled:     func() bool { return s.app.cfg.Integrations.Incomm },
 		toggle:      func() { s.app.cfg.Integrations.Incomm = !s.app.cfg.Integrations.Incomm },
-	}, {
-		name:   "Editors",
-		render: v.renderEditors,
-		onKey:  v.editorKeys,
 	}, {
 		name: "Hunk", command: "hunk",
 		description: "Review changes in the terminal: D opens what a row holds, and a grouped worktree as one review of all its repositories.",
@@ -132,6 +132,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.cfg.Integrations.Ghostty = &on
 		},
 	}
+	editorCards := v.editorCards()
 	var agentCards []*integrationCard
 	for _, ag := range agents.All {
 		ag := ag
@@ -142,10 +143,11 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
 		})
 	}
-	// By what they are for: what opens the code and reviews it, where
+	// By what they are for: what opens the code, what reviews it, where
 	// things open beside unagit, the agents, and the rest of the desk.
 	v.categories = []integrationCategory{
-		{"Editors & Review", []*integrationCard{byName["Editors"], byName["Incomm"], byName["Hunk"]}},
+		{"Editors", editorCards},
+		{"Review", []*integrationCard{byName["Incomm"], byName["Hunk"]}},
 		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"]}},
 		{"AI Agents", agentCards},
 		{"Files & Navigation", []*integrationCard{byName["Zoxide"], byName["Yazi"], byName["Chezmoi"]}},
@@ -156,6 +158,9 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
 		box(card.view.Box, card.name).SetBorderPadding(1, 0, 2, 2)
+		if card.title == nil {
+			card.title = func() string { return card.name }
+		}
 		// A card stands out from the page, as a tile on it.
 		card.view.SetBackgroundColor(colCard)
 		card.view.SetInputCapture(v.keys)
@@ -300,6 +305,8 @@ func (c clippedScreen) SetContent(x, y int, primary rune, combining []rune, styl
 // cardState is whether an integration is on, and the role it is drawn in.
 func cardState(c *integrationCard) (string, string) {
 	switch {
+	case c.binary == "" && c.absent != nil:
+		return c.absent(), "integration.missing"
 	case c.binary == "":
 		return "not installed", "integration.missing"
 	case c.enabled():
@@ -313,7 +320,7 @@ func cardState(c *integrationCard) (string, string) {
 // word, so it reads at a glance down a column of cards. The editors card
 // has no state of its own.
 func drawCardState(screen tcell.Screen, c *integrationCard) {
-	if c.render != nil || c.enabled == nil {
+	if c.enabled == nil {
 		return
 	}
 	x, y, w, _ := c.view.GetRect()
@@ -321,7 +328,7 @@ func drawCardState(screen tcell.Screen, c *integrationCard) {
 	colour := role(colourRole)
 	// " ■ word " ending one rule cell short of the corner.
 	start := x + w - 2 - (len(word) + 4)
-	if start <= x+2+len([]rune(c.name))+3 {
+	if start <= x+2+cells(c.title())+3 {
 		return
 	}
 	style := baseStyle().Background(colCard).Foreground(colText)
@@ -426,17 +433,16 @@ func (v *integrationsView) paintFocus(active bool) {
 	for i, card := range v.cards {
 		focused := active && i == v.current
 		focusBox(card.view.Box, focused)
-		if card.render != nil {
-			card.view.SetText(card.render(focused))
-			continue
-		}
+		card.view.SetTitle(" " + card.title() + " ")
 		text := card.description + "\n"
 		if card.found != nil && card.binary != "" {
 			if found := card.found(); found != "" {
 				text += found + "\n"
 			}
 		}
-		if card.binary == "" && card.command == "ghostty" {
+		if card.binary == "" && card.missing != nil {
+			text += tag(colMuted) + card.missing() + tagEnd
+		} else if card.binary == "" && card.command == "ghostty" {
 			text += tag(colMuted) + "Install Ghostty; it is scripted on macOS only." + tagEnd
 		} else if card.binary == "" {
 			text += tag(colMuted) + "Install " + card.command + " and add it to PATH." + tagEnd
@@ -445,6 +451,9 @@ func (v *integrationsView) paintFocus(active bool) {
 		}
 		text += "\n\n"
 		if focused {
+			if card.keys != "" {
+				text += tag(colDim) + card.keys + " · " + tagEnd
+			}
 			if card.binary != "" {
 				text += tag(colDim) + "e toggle · " + tagEnd
 			}
@@ -544,83 +553,6 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	return nil
 }
 
-// renderEditors lists the editors unagit can open in, which of them this
-// machine has, and the favourite everything opens in by default.
-func (v *integrationsView) renderEditors(focused bool) string {
-	cfg := v.settings.app.cfg
-	_, hasFav := editors.Favourite(v.editors, cfg.FavouriteEditor)
-	width := 0
-	for _, e := range v.editors {
-		width = max(width, len([]rune(e.Name)))
-	}
-	// One line per editor, whatever the width: name, kind, and where it was
-	// found, shortened from the left, where paths say least - or left out
-	// when there is no room for it.
-	room := v.width - (2 + width + 2 + 8 + 2)
-	text := ""
-	for _, e := range v.editors {
-		// The favourite is marked even when it is gone, so it is plain why
-		// opening asks.
-		mark := "  "
-		if e.ID == cfg.FavouriteEditor {
-			mark = tag(colOn) + glyphFavourite + " " + tagEnd
-		}
-		name := fmt.Sprintf("%-*s", width, e.Name)
-		if !e.Found {
-			text += mark + tag(colMuted) + tview.Escape(name) + "  not found" + tagEnd + "\n"
-			continue
-		}
-		kind := "window  "
-		if e.Terminal {
-			kind = "terminal"
-		}
-		line := mark + tview.Escape(name) + "  " + kind
-		if room >= 12 {
-			line += "  " + tag(colMuted) + tview.Escape(shortPath(e.Where, room)) + tagEnd
-		}
-		text += line + "\n"
-	}
-	if !hasFav {
-		text += tag(colWarn) + "No favourite: every open asks which." + tagEnd + "\n"
-	}
-	if focused {
-		text += "\n" + tag(colDim) + "f favourite · c check" + tagEnd
-	}
-	return text
-}
-
-func (v *integrationsView) editorKeys(r rune) bool {
-	switch r {
-	case 'c':
-		v.check()
-		return true
-	case 'f':
-		// Asking every time is a choice too, and the way back to it.
-		items := []pickItem{{Label: "None", Sub: "ask every time", Data: askEveryTime}}
-		start := 0
-		for _, e := range v.editors {
-			if !e.Found {
-				continue
-			}
-			if e.ID == v.settings.app.cfg.FavouriteEditor {
-				start = len(items)
-			}
-			items = append(items, pickItem{Label: e.Name, Sub: kindOf(e), Data: e.ID})
-		}
-		if len(items) == 1 {
-			v.settings.app.flash("no editor found - install one, or set a custom editor in General")
-			return true
-		}
-		v.settings.app.showPickerAt("Favourite editor", items, start, func(it pickItem) {
-			v.settings.app.cfg.FavouriteEditor = it.Data.(string)
-			v.settings.app.saveConfig()
-			v.paintFocus(true)
-		})
-		return true
-	}
-	return false
-}
-
 // askEveryTime is the favourite of someone who wants to be asked. It is not
 // an editor, so it is never found; an empty favourite would instead be taken
 // for a configuration from before there was a choice.
@@ -639,6 +571,12 @@ func shortPath(path string, n int) string {
 }
 
 func (v *integrationsView) integrationBinary(command string) string {
+	if id, ok := strings.CutPrefix(command, editorCommand); ok {
+		if e, found := editors.Pick(v.editors, id); found && e.Found {
+			return e.Where
+		}
+		return ""
+	}
 	switch command {
 	case "zoxide":
 		return v.settings.app.zoxideTool().Binary()

@@ -76,8 +76,8 @@ func pressButton(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Fo
 	time.Sleep(100 * time.Millisecond)
 }
 
-// TestGeneralSectionEditsTheConfig: the editor and the root are set from the
-// interface, not from the file.
+// TestGeneralSectionEditsTheConfig: the root is set from the interface,
+// not from the file, and the editors are no longer there.
 func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -88,29 +88,21 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	// Each note is whole, and under the field it is about.
 	text := a.screenText(sc)
 	root, rootNote := strings.Index(text, "Default root"), strings.Index(text, "Projects go here unless a server or a group")
-	editor, editorNote := strings.Index(text, "Custom editor opens a window"), strings.Index(text, "One more choice in Integrations › Editors.")
-	if rootNote < root || !strings.Contains(text, "overrides it.") || editorNote < editor ||
-		strings.Index(text, "Custom editor ") < rootNote {
+	if rootNote < root || !strings.Contains(text, "overrides it.") || strings.Contains(text, "Custom editor") {
 		t.Errorf("the notes are not whole, or not under their fields:\n%s", text)
 	}
 
 	form := a.settings.general
 	setField(t, a, form, 0, "/tmp/unagit-root")
-	setField(t, a, form, 2, "hx")
-	setField(t, a, form, 3, "--config foo .")
 	pressButton(t, a, sc, form, "Save")
-
-	if a.cfg.RootDir != "/tmp/unagit-root" || a.cfg.Editor != "hx" {
+	if a.cfg.RootDir != "/tmp/unagit-root" {
 		t.Fatalf("cfg = %+v", a.cfg)
-	}
-	if strings.Join(a.cfg.EditorArgs, " ") != "--config foo ." {
-		t.Errorf("editor args = %q", a.cfg.EditorArgs)
 	}
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Editor != "hx" || saved.RootDir != "/tmp/unagit-root" {
+	if saved.RootDir != "/tmp/unagit-root" {
 		t.Errorf("not written to disk: %+v", saved)
 	}
 }

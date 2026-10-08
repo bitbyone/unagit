@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/session"
 )
 
 // TestGuessingANerdFont: the terminals that bring the icons with them are
@@ -158,6 +161,7 @@ func TestAnIntegrationsStateIsAnIconWithANerdFont(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
 	openSection(t, a, sc, sectionIntegrations)
+	focusCard(t, a, sc, "Incomm")
 	waitFor(t, a, sc, "\uf192 disabled")
 	text := a.screenText(sc)
 	y := lineOf(text, "\uf192 disabled")
@@ -168,6 +172,33 @@ func TestAnIntegrationsStateIsAnIconWithANerdFont(t *testing.T) {
 		t.Fatalf("the state's icon is %q in %v on %v", r, fg(style), bg)
 	}
 	assertLegible(t, a, sc, "integration states as icons")
+}
+
+// TestNeovimsMarkIsItsIcon: a directory open in Neovim is marked with
+// Neovim's icon with a Nerd Font, and with the plain mark without one.
+// Serial: the glyphs are the process's.
+func TestNeovimsMarkIsItsIcon(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	changeOnLoop(a, func() {
+		a.openDirs = map[string]session.Record{filepath.Clean(p.clone): {Dir: p.clone, Editor: editors.Nvim}}
+		a.projectsPane.reload()
+	})
+	waitFor(t, a, sc, "▣")
+	changeOnLoop(a, func() {
+		nerdFont = true
+		setTheme(loadThemes("").byName[defaultThemeName])
+		a.projectsPane.reload()
+	})
+	waitFor(t, a, sc, "\ue6ae")
+	if got := onLoop(a, func() string { return editorGlyph(editors.Zed) }); got != onLoop(a, func() string { return glyphEditor }) {
+		t.Errorf("an editor without an icon of its own is marked %q", got)
+	}
+	assertLegible(t, a, sc, "Neovim's icon in the marks")
 }
 
 func fg(s tcell.Style) tcell.Color {

@@ -15,7 +15,7 @@ func TestIntegrationsAreTilesUnderTheirKind(t *testing.T) {
 	for _, size := range []struct{ w, h, columns int }{{220, 50, 3}, {140, 40, 2}, {90, 30, 1}} {
 		resizeApp(a, sc, size.w, size.h)
 		openSection(t, a, sc, sectionIntegrations)
-		waitFor(t, a, sc, "Editors & Review")
+		waitFor(t, a, sc, "╭ Neovim")
 		if got := onLoop(a, func() int { return a.settings.integrations.columns }); got != size.columns {
 			t.Fatalf("%d columns at %d wide, want %d", got, size.w, size.columns)
 		}
@@ -23,7 +23,7 @@ func TestIntegrationsAreTilesUnderTheirKind(t *testing.T) {
 		t.Logf("Integrations at %dx%d:\n%s", size.w, size.h, text)
 		// Side by side: the first row holds that many card tops.
 		for _, line := range strings.Split(text, "\n") {
-			if strings.Contains(line, "╭ Editors") {
+			if strings.Contains(line, "╭ Neovim") {
 				if got := strings.Count(line, "╭"); got != size.columns {
 					t.Fatalf("%d cards in the first row at %d wide:\n%s", got, size.w, line)
 				}
@@ -41,8 +41,8 @@ func TestIntegrationsAreTilesUnderTheirKind(t *testing.T) {
 		return onLoop(a, func() string { v := a.settings.integrations; return v.cards[v.current].name })
 	}
 	for _, step := range []struct{ key, want string }{
-		{"l", "Incomm"}, {"l", "Incomm"}, {"j", "Hunk"}, {"j", "Zellij"}, {"l", "Herdr"}, {"j", "Ghostty"},
-		{"j", "Claude Code"}, {"k", "Ghostty"}, {"k", "Zellij"}, {"h", "Zellij"},
+		{"l", "IntelliJ IDEA"}, {"l", "IntelliJ IDEA"}, {"j", "Zed"}, {"j", "Custom"}, {"j", "Incomm"}, {"l", "Hunk"},
+		{"j", "Herdr"}, {"h", "Zellij"}, {"j", "Ghostty"}, {"j", "Claude Code"}, {"k", "Ghostty"}, {"k", "Zellij"}, {"h", "Zellij"},
 	} {
 		typeRunes(sc, step.key)
 		// The condition runs on the event loop already.
@@ -72,7 +72,7 @@ func TestACardAtTheEdgeSlidesUnderIt(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	resizeApp(a, sc, 140, 30)
 	openSection(t, a, sc, sectionIntegrations)
-	waitFor(t, a, sc, "╭ Incomm")
+	waitFor(t, a, sc, "╭ Neovim")
 	focusCard(t, a, sc, "Ghostty")
 	waitFor(t, a, sc, "╭ Ghostty")
 	r := onLoop(a, func() [4]int { x, y, w, h := a.settings.integrations.GetRect(); return [4]int{x, y, w, h} })
@@ -104,6 +104,7 @@ func TestACardStandsOutAndSaysWhetherItIsOn(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionIntegrations)
+	focusCard(t, a, sc, "Incomm")
 	waitFor(t, a, sc, "╭ Incomm")
 	lines := strings.Split(a.screenText(sc), "\n")
 	for y, line := range lines {
@@ -111,6 +112,10 @@ func TestACardStandsOutAndSaysWhetherItIsOn(t *testing.T) {
 			continue
 		}
 		state := onLoop(a, func() string { _, r := cardState(a.settings.integrations.card("Incomm")); return r })
+		// Incomm's own edge, not the card beside it.
+		if next := strings.Index(line[strings.Index(line, "╭ Incomm")+1:], "╭"); next >= 0 {
+			line = line[:strings.Index(line, "╭ Incomm")+1+next]
+		}
 		word := -1
 		for _, w := range []string{" not installed ", " disabled ", " enabled "} {
 			if i := strings.LastIndex(line, w); i > word {
