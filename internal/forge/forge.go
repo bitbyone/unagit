@@ -500,6 +500,13 @@ type Provider interface {
 	// SetReviewers makes these user names the reviewers asked, adding and
 	// removing as needed.
 	SetReviewers(ctx context.Context, mr MergeRequest, usernames []string) error
+	// AssigneeCandidates lists who a merge request can be assigned to: the
+	// project's members on GitLab, whoever GitHub lets be assigned there,
+	// the author included.
+	AssigneeCandidates(ctx context.Context, mr MergeRequest) ([]User, error)
+	// SetAssignees makes these user names the assignees, adding and
+	// removing as needed; none clears them.
+	SetAssignees(ctx context.Context, mr MergeRequest, usernames []string) error
 	// LabelChoices lists the labels that can be put on a merge request: its
 	// repository's, and on GitLab those of the groups above it.
 	LabelChoices(ctx context.Context, mr MergeRequest) ([]Label, error)

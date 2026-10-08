@@ -226,3 +226,27 @@ func TestALabelIsReadAsAnObjectOrAName(t *testing.T) {
 		t.Errorf("details = %+v", mr.Labels)
 	}
 }
+
+// TestAssigneesAreSetByIDAndClearedWithZero: as the reviewers are, in their
+// own field.
+func TestAssigneesAreSetByIDAndClearedWithZero(t *testing.T) {
+	var sent []recorded
+	srv := mergeServer(t, &sent, map[string]string{
+		"/api/v4/projects/42/members/all": `[{"id":3,"username":"jane","name":"Jane","state":"active"}]`,
+		"/api/v4/users?username=jane":     `[{"id":3,"username":"jane"}]`,
+	}, nil)
+	c := New(srv.URL, "t")
+	users, err := c.AssigneeCandidates(context.Background(), mergeMR)
+	if err != nil || len(users) != 1 || users[0].Username != "jane" {
+		t.Fatalf("candidates = %+v, %v", users, err)
+	}
+	if err := c.SetAssignees(context.Background(), mergeMR, []string{"jane"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetAssignees(context.Background(), mergeMR, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 2 || fmt.Sprint(sent[0].body["assignee_ids"]) != "[3]" || fmt.Sprint(sent[1].body["assignee_ids"]) != "[0]" {
+		t.Errorf("sent = %+v", sent)
+	}
+}

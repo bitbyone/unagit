@@ -691,6 +691,9 @@ alike:
 - `a` lists who can be asked to review - the repository's members on GitLab,
   those with push access on GitHub - with the reviewers asked marked;
   `space` asks or withdraws, and `Esc` saves the choice.
+- `s` does the same for who it is assigned to: the same people on GitLab,
+  on GitHub whoever can be assigned there, the author included; `space`
+  assigns or unassigns, and `Esc` saves.
 - `t` lists the labels that can be put on it - the repository's, and on
   GitLab those of the groups above it - with the ones it wears marked;
   `space` puts one on or takes it off, and `Esc` saves. The labels stand
@@ -1006,7 +1009,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `A` | read and write comments · approve |
-| `M` `Ctrl-D` `a` `t` | in Merge requests: merge · draft or ready · reviewers · labels |
+| `M` `Ctrl-D` `a` `s` `t` | in Merge requests: merge · draft · reviewers · assignees · labels |
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |

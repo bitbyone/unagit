@@ -227,6 +227,29 @@ func TestReviewersAreChosenAndSavedOnEsc(t *testing.T) {
 	waitRowFetched(t, a, sc)
 }
 
+// TestAssigneesAreChosenAndSavedOnEsc: s lists the members as a does,
+// space assigns one, and nothing is sent until the list closes.
+func TestAssigneesAreChosenAndSavedOnEsc(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gs")
+	waitFor(t, a, sc, "Assignees · acme/gateway !7")
+	waitFor(t, a, sc, "Mike Moe")
+	assertLegible(t, a, sc, "the assignees")
+	typeRunes(sc, "j ") // jane, john
+	waitFor(t, a, sc, "1 assigned")
+	if len(srv.written()) != 0 {
+		t.Fatalf("sent before the list closed: %q", srv.written())
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Assignees of acme/gateway !7: john")
+	waitWritten(t, srv, `"assignee_ids":[12]`)
+	waitRowFetched(t, a, sc)
+}
+
 // TestCloseIsInThePickerAndAsks: closing has no key, and asks first.
 func TestCloseIsInThePickerAndAsks(t *testing.T) {
 	t.Parallel()

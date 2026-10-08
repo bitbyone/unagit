@@ -302,6 +302,7 @@ func helpRows() []helpLine {
 		key("M", "merge: now, or when the pipeline succeeds"),
 		key("Ctrl-D", "mark as a draft · mark ready"),
 		key("a", "reviewers: space asks or withdraws, Esc saves"),
+		key("s", "assignees: space assigns or unassigns, Esc saves"),
 		key("t", "labels: space puts on or takes off, Esc saves"),
 		key("P", "publish Incomm comments and resolved threads"),
 		key("f  F", "limit to one repository · clear the limit"),

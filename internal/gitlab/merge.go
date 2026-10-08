@@ -110,6 +110,22 @@ type member struct {
 // SetReviewers replaces the reviewers. GitLab takes user ids, so each name is
 // looked up first; an empty list clears them.
 func (c *Client) SetReviewers(ctx context.Context, mr forge.MergeRequest, usernames []string) error {
+	return c.setPeople(ctx, mr, "reviewer_ids", usernames)
+}
+
+// AssigneeCandidates are the project's members, as the reviewers' are.
+func (c *Client) AssigneeCandidates(ctx context.Context, mr forge.MergeRequest) ([]forge.User, error) {
+	return c.ReviewerCandidates(ctx, mr)
+}
+
+// SetAssignees replaces the assignees, as SetReviewers the reviewers.
+func (c *Client) SetAssignees(ctx context.Context, mr forge.MergeRequest, usernames []string) error {
+	return c.setPeople(ctx, mr, "assignee_ids", usernames)
+}
+
+// setPeople puts the users named into one of a merge request's lists of
+// people by their ids; a lone 0 is how GitLab documents clearing one.
+func (c *Client) setPeople(ctx context.Context, mr forge.MergeRequest, field string, usernames []string) error {
 	ids := make([]int, 0, len(usernames))
 	for _, name := range usernames {
 		q := url.Values{}
@@ -124,10 +140,9 @@ func (c *Client) SetReviewers(ctx context.Context, mr forge.MergeRequest, userna
 		ids = append(ids, found[0].ID)
 	}
 	if len(ids) == 0 {
-		// A lone 0 is how GitLab documents clearing them.
-		return c.send(ctx, http.MethodPut, mrPath(mr), map[string]any{"reviewer_ids": []int{0}}, nil)
+		ids = []int{0}
 	}
-	return c.send(ctx, http.MethodPut, mrPath(mr), map[string]any{"reviewer_ids": ids}, nil)
+	return c.send(ctx, http.MethodPut, mrPath(mr), map[string]any{field: ids}, nil)
 }
 
 // apiMessage pulls the reason out of a GitLab error body, which is JSON with

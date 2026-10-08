@@ -213,3 +213,27 @@ func (c *Client) SetLabels(ctx context.Context, mr forge.MergeRequest, names []s
 	}
 	return c.send(ctx, http.MethodPut, fmt.Sprintf("/repos/%s/issues/%d/labels", mr.ProjectPath, mr.IID), map[string]any{"labels": names}, nil)
 }
+
+// AssigneeCandidates lists who can be assigned in the repository, the
+// author among them: unlike a review, an author may take their own pull
+// request.
+func (c *Client) AssigneeCandidates(ctx context.Context, mr forge.MergeRequest) ([]forge.User, error) {
+	users, err := getAll[user](ctx, c, "/repos/"+mr.ProjectPath+"/assignees", nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.User, len(users))
+	for i, u := range users {
+		out[i] = forge.User{Username: u.Login, Name: u.Name}
+	}
+	return out, nil
+}
+
+// SetAssignees replaces the assignees of the issue the pull request also
+// is; an empty list clears them.
+func (c *Client) SetAssignees(ctx context.Context, mr forge.MergeRequest, usernames []string) error {
+	if usernames == nil {
+		usernames = []string{}
+	}
+	return c.send(ctx, http.MethodPatch, fmt.Sprintf("/repos/%s/issues/%d", mr.ProjectPath, mr.IID), map[string]any{"assignees": usernames}, nil)
+}

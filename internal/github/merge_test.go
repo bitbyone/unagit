@@ -200,3 +200,27 @@ func TestLabelsComeWithTheirColourAndAreSetOnTheIssue(t *testing.T) {
 		t.Errorf("sent = %+v", sent)
 	}
 }
+
+// TestAssigneesTakeTheAuthorAndReplaceTheIssues: an author may be assigned
+// their own pull request, and the list replaces the issue's, an empty one
+// clearing it.
+func TestAssigneesTakeTheAuthorAndReplaceTheIssues(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/assignees", `[{"login":"toby"},{"login":"jane"}]`)
+	var sent []map[string]any
+	s.mux.HandleFunc("/repos/acme/api/issues/7", capture(&sent, func(w http.ResponseWriter) { fmt.Fprint(w, `{}`) }))
+	c := s.client()
+	users, err := c.AssigneeCandidates(context.Background(), mergePR)
+	if err != nil || fmt.Sprint(users) != "[{toby } {jane }]" {
+		t.Fatalf("candidates = %v, %v - the author belongs among them", users, err)
+	}
+	if err := c.SetAssignees(context.Background(), mergePR, []string{"toby"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetAssignees(context.Background(), mergePR, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 2 || sent[0]["_method"] != http.MethodPatch || fmt.Sprint(sent[0]["assignees"]) != "[toby]" || fmt.Sprint(sent[1]["assignees"]) != "[]" {
+		t.Errorf("sent = %+v", sent)
+	}
+}

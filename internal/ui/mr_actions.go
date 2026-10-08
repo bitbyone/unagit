@@ -193,44 +193,77 @@ func (a *App) closeMR(mr forge.MergeRequest) {
 	})
 }
 
+// peopleRole is one of a merge request's lists of people - who is asked
+// to review it, who it is assigned to - and how it is read and changed.
+type peopleRole struct {
+	// title heads the list, verb is what space does, state what the people
+	// on it are ("asked", "assigned").
+	title, verb, state string
+	current            func(forge.MergeRequest) []forge.User
+	candidates         func(context.Context, forge.Provider, forge.MergeRequest) ([]forge.User, error)
+	set                func(context.Context, forge.Provider, forge.MergeRequest, []string) error
+}
+
+var (
+	reviewersRole = peopleRole{title: "Reviewers", verb: "ask/withdraw", state: "asked",
+		current: func(mr forge.MergeRequest) []forge.User { return mr.Reviewers },
+		candidates: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest) ([]forge.User, error) {
+			return c.ReviewerCandidates(ctx, mr)
+		},
+		set: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest, names []string) error {
+			return c.SetReviewers(ctx, mr, names)
+		}}
+	assigneesRole = peopleRole{title: "Assignees", verb: "assign/unassign", state: "assigned",
+		current: func(mr forge.MergeRequest) []forge.User { return mr.Assignees },
+		candidates: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest) ([]forge.User, error) {
+			return c.AssigneeCandidates(ctx, mr)
+		},
+		set: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest, names []string) error {
+			return c.SetAssignees(ctx, mr, names)
+		}}
+)
+
 // editReviewers lists who can review, those asked marked; space asks or
 // withdraws, and the choice goes to the server when the list closes.
-func (a *App) editReviewers(mr forge.MergeRequest) {
+func (a *App) editReviewers(mr forge.MergeRequest) { a.editPeople(mr, reviewersRole) }
+
+// editAssignees is the same for who the merge request is assigned to.
+func (a *App) editAssignees(mr forge.MergeRequest) { a.editPeople(mr, assigneesRole) }
+
+func (a *App) editPeople(mr forge.MergeRequest, role peopleRole) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
-	a.note(fmt.Sprintf("Reading who can review %s !%d …", path, mr.IID))
-	go func() {
+	var users []forge.User
+	a.loadThen(fmt.Sprintf("%s of %s !%d", role.title, path, mr.IID), func(step func(string)) (string, error) {
+		step("reading who can be chosen")
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		users, err := client.ReviewerCandidates(ctx, mr)
-		a.tv.QueueUpdateDraw(func() {
-			if err != nil {
-				a.errorf("%v", err)
-				return
-			}
-			a.showReviewerToggles(client, mr, path, users)
-		})
-	}()
+		var err error
+		users, err = role.candidates(ctx, client, mr)
+		return "", err
+	}, func(string) {
+		a.showPeopleToggles(client, mr, path, users, role)
+	})
 }
 
-func (a *App) showReviewerToggles(client forge.Provider, mr forge.MergeRequest, path string, users []forge.User) {
+func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, path string, users []forge.User, role peopleRole) {
 	var before []string
-	asked := map[string]bool{}
-	for _, r := range mr.Reviewers {
+	on := map[string]bool{}
+	for _, r := range role.current(mr) {
 		before = append(before, r.Username)
-		asked[r.Username] = true
+		on[r.Username] = true
 	}
-	// Someone asked already stays on the list even when the candidates do
+	// Someone on the list already stays there even when the candidates do
 	// not name them, or they could not be taken off.
 	known := map[string]bool{}
 	for _, u := range users {
 		known[u.Username] = true
 	}
-	for _, r := range mr.Reviewers {
+	for _, r := range role.current(mr) {
 		if !known[r.Username] {
 			users = append(users, r)
 		}
@@ -238,12 +271,12 @@ func (a *App) showReviewerToggles(client forge.Provider, mr forge.MergeRequest, 
 	sort.SliceStable(users, func(i, j int) bool { return users[i].Username < users[j].Username })
 
 	a.showToggles(toggles{
-		title: fmt.Sprintf("Reviewers · %s !%d", path, mr.IID),
-		verb:  "ask/withdraw",
+		title: fmt.Sprintf("%s · %s !%d", role.title, path, mr.IID),
+		verb:  role.verb,
 		items: func() []toggleItem {
 			items := make([]toggleItem, 0, len(users))
 			for _, u := range users {
-				label := tagMark(asked[u.Username]) + " " + esc(u.Username)
+				label := tagMark(on[u.Username]) + " " + esc(u.Username)
 				if u.Name != "" && u.Name != u.Username {
 					label += "  " + tag(colDim) + esc(u.Name) + tagEnd
 				}
@@ -253,22 +286,22 @@ func (a *App) showReviewerToggles(client forge.Provider, mr forge.MergeRequest, 
 		},
 		toggle: func(it toggleItem) {
 			name := it.Data.(string)
-			asked[name] = !asked[name]
+			on[name] = !on[name]
 		},
 		status: func() string {
 			n := 0
-			for _, on := range asked {
-				if on {
+			for _, v := range on {
+				if v {
 					n++
 				}
 			}
-			return fmt.Sprintf("%d asked", n)
+			return fmt.Sprintf("%d %s", n, role.state)
 		},
 		escSays: "save",
 		closed: func() {
 			var after []string
 			for _, u := range users {
-				if asked[u.Username] {
+				if on[u.Username] {
 					after = append(after, u.Username)
 				}
 			}
@@ -276,17 +309,17 @@ func (a *App) showReviewerToggles(client forge.Provider, mr forge.MergeRequest, 
 			if slices.Equal(before, after) {
 				return
 			}
-			a.saveReviewers(client, mr, path, after)
+			a.savePeople(client, mr, path, after, role)
 		},
 	})
 }
 
-func (a *App) saveReviewers(client forge.Provider, mr forge.MergeRequest, path string, usernames []string) {
-	a.note(fmt.Sprintf("Asking for reviews of %s !%d …", path, mr.IID))
+func (a *App) savePeople(client forge.Provider, mr forge.MergeRequest, path string, usernames []string, role peopleRole) {
+	a.note(fmt.Sprintf("Setting the %s of %s !%d …", strings.ToLower(role.title), path, mr.IID))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		err := client.SetReviewers(ctx, mr, usernames)
+		err := role.set(ctx, client, mr, usernames)
 		a.tv.QueueUpdateDraw(func() {
 			if err != nil {
 				a.errorf("%v", err)
@@ -296,7 +329,7 @@ func (a *App) saveReviewers(client forge.Provider, mr forge.MergeRequest, path s
 			if len(usernames) > 0 {
 				who = strings.Join(usernames, ", ")
 			}
-			a.done(fmt.Sprintf("Reviewers of %s !%d: %s", path, mr.IID, who))
+			a.done(fmt.Sprintf("%s of %s !%d: %s", role.title, path, mr.IID, who))
 			a.refetchMR(client, mr)
 		})
 	}()
