@@ -95,6 +95,8 @@ type Event struct {
 	// "pipeline failed · test:unit".
 	What string `json:"what"`
 	Line string `json:"line"`
+	// Title is the merge request's title, when the watch is on one.
+	Title string `json:"title,omitempty"`
 	// Level is how it reads: a pipeline that passed is a success, one that
 	// failed a danger, one cancelled or waiting for a hand a warning, one
 	// that began an info. Every event is news - counted on the tab until

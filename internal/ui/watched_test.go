@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -383,4 +385,55 @@ func TestAWatchMovesTheListsCIColumn(t *testing.T) {
 	waitTrue(t, "the list never took the failure", func() bool { return pipeline() == "failed" })
 	waitFor(t, a, sc, "pipeline failed · unit tests")
 	waitTrue(t, "the marks still turn with nothing running", func() bool { return !onLoop(a, func() bool { return a.ciWatching }) })
+}
+
+// TestAPipelineStartedOnTheServerIsNotified: a watched merge request whose
+// pipeline has ended gets a new one, started on the server - that start is
+// news and is notified, as its end is.
+func TestAPipelineStartedOnTheServerIsNotified(t *testing.T) {
+	t.Parallel()
+	srv := newWatchServer(t)
+	srv.set("success", 90, "aaaa1111")
+	cfg := writeTestConfig(t, srv.URL)
+	w := watchMR7(t, cfg)
+	var notified atomic.Int64
+	var mu sync.Mutex
+	var bodies []string
+	app := newApp(cfg, testVault(t, cfg))
+	app.ciAskEvery = 40 * time.Millisecond
+	app.watchIdleEvery = 40 * time.Millisecond
+	app.watchLookEvery = 20 * time.Millisecond
+	app.notifier = func(title, body string) {
+		mu.Lock()
+		bodies = append(bodies, body)
+		mu.Unlock()
+		notified.Add(1)
+	}
+	a, sc, _ := startAppWithStop(t, app)
+	changeOnLoop(a, func() { a.quiet.focused.Store(false); a.quiet.focusKnown.Store(true) })
+	waitState(t, cfg, w.Key(), "success")
+	waitTrue(t, "the instance still says it is in front", func() bool {
+		ps := watch.Open(cfg.WatchDir()).Presences()
+		return len(ps) == 1 && !ps[0].Focused
+	})
+
+	srv.set("running", 91, "aaaa1111") // Run pipeline, on the server
+	waitTrue(t, "the start was never notified", func() bool { return notified.Load() >= 1 })
+	waitFor(t, a, sc, "pipeline started")
+	srv.set("success", 91, "aaaa1111")
+	waitTrue(t, "the end was never notified", func() bool { return notified.Load() >= 2 })
+	mu.Lock()
+	defer mu.Unlock()
+	if strings.Join(bodies, " | ") != "pipeline started | pipeline passed" {
+		t.Fatalf("notified %q", bodies)
+	}
+	// Each says what it is about, and what became of it is in notify.log.
+	snap, _ := watch.Open(cfg.WatchDir()).State()
+	if e := snap.Events[len(snap.Events)-1]; e.Title != "Rate limiting" {
+		t.Errorf("the news is not about the merge request: %+v", e)
+	}
+	log, _ := os.ReadFile(filepath.Join(cfg.WatchDir(), "notify.log"))
+	if !strings.Contains(string(log), "pipeline started  ->  sent through the notifier") {
+		t.Errorf("notify.log says:\n%s", log)
+	}
 }

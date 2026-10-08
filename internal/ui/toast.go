@@ -19,7 +19,10 @@ import (
 type toast struct {
 	sev         severity
 	title, body string
-	left        time.Duration
+	// about is what the news is about - a merge request's title - on a
+	// line of its own under the heading, muted.
+	about string
+	left  time.Duration
 }
 
 const (
@@ -58,8 +61,11 @@ func toastColour(sev severity) tcell.Color {
 }
 
 // showToast puts a toast up. It runs on the event loop.
-func (a *App) showToast(sev severity, title, body string) {
-	a.toasts = append(a.toasts, &toast{sev: sev, title: title, body: body, left: a.cfg.ToastLife()})
+func (a *App) showToast(sev severity, title, body string) { a.showToastAbout(sev, title, "", body) }
+
+// showToastAbout is showToast with a line saying what it is about.
+func (a *App) showToastAbout(sev severity, title, about, body string) {
+	a.toasts = append(a.toasts, &toast{sev: sev, title: title, about: about, body: body, left: a.cfg.ToastLife()})
 	if over := len(a.toasts) - toastsKept; over > 0 {
 		a.toasts = append([]*toast(nil), a.toasts[over:]...)
 	}
@@ -129,6 +135,9 @@ func (a *App) drawToasts(screen tcell.Screen) {
 			lines = lines[:3]
 		}
 		height := 3 + len(lines)
+		if t.about != "" {
+			height++
+		}
 		if y+height > sh-1 {
 			return
 		}
@@ -153,8 +162,13 @@ func (a *App) drawToasts(screen tcell.Screen) {
 		screen.SetContent(x+width-1, y+height-1, tview.Borders.BottomRight, nil, border)
 		head := tag(colour) + "[::b]" + esc(toastMark(t.sev)+" "+t.title) + "[::-]" + tagEnd
 		tview.Print(screen, head, x+2, y+1, width-4, tview.AlignLeft, colour)
+		first := y + 2
+		if t.about != "" {
+			tview.Print(screen, tag(role("toast.about"))+esc(trunc(t.about, width-4))+tagEnd, x+2, first, width-4, tview.AlignLeft, role("toast.about"))
+			first++
+		}
 		for j, line := range lines {
-			tview.Print(screen, tag(role("toast.text"))+esc(line)+tagEnd, x+2, y+2+j, width-4, tview.AlignLeft, role("toast.text"))
+			tview.Print(screen, tag(role("toast.text"))+esc(line)+tagEnd, x+2, first+j, width-4, tview.AlignLeft, role("toast.text"))
 		}
 		y += height
 	}

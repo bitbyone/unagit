@@ -25,7 +25,7 @@ func notificationModeName(mode string) string {
 	case notify.Off:
 		return "off"
 	}
-	return "the terminal, or the system where it cannot"
+	return "the system, or the terminal where it has none"
 }
 
 func (a *App) notificationsCard() *integrationCard {
@@ -48,6 +48,8 @@ func (a *App) notificationsCard() *integrationCard {
 			term := notify.Detect(os.Getenv)
 			line := "Through " + notificationModeName(cfg.Notifications) + "."
 			switch {
+			case (cfg.Notifications == notify.Auto || cfg.Notifications == notify.System) && notify.SystemCommand() != "":
+				line += " The system shows them."
 			case term.Muxer != "":
 				line += " " + term.Muxer + " passes none on; the system shows them."
 			case term.Protocol == notify.None:

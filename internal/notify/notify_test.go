@@ -54,6 +54,7 @@ func TestNothingInASequenceCanEndItEarly(t *testing.T) {
 
 func TestRoute(t *testing.T) {
 	t.Parallel()
+	hasSystem := SystemCommand() != ""
 	ghostty := TerminalInfo{Protocol: OSC777}
 	plain := TerminalInfo{}
 	cases := []struct {
@@ -62,11 +63,11 @@ func TestRoute(t *testing.T) {
 		free, away bool
 		term, syst bool
 	}{
-		{Auto, ghostty, true, true, true, false},
-		// A terminal in front shows nothing of its own.
-		{Auto, ghostty, true, false, false, true},
-		{Auto, ghostty, false, true, false, true},
-		{Auto, plain, true, true, false, true},
+		// Automatic is the system's, which answers, wherever it has one.
+		{Auto, ghostty, true, true, !hasSystem, hasSystem},
+		{Auto, ghostty, true, false, false, hasSystem},
+		{Auto, ghostty, false, true, false, hasSystem},
+		{Auto, plain, true, true, false, hasSystem},
 		{Terminal, ghostty, true, false, true, false},
 		{Terminal, ghostty, false, true, false, false},
 		{System, ghostty, true, true, false, true},

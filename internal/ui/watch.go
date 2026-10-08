@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -410,10 +413,14 @@ func (f *watchFollower) poll() {
 	snap.Poller = a.watchID
 	presences := f.store.Presences()
 	anyFocused := false
+	var inFront []string
 	due := map[string]bool{}
 	for _, p := range presences {
 		snap.Seen = max(snap.Seen, p.Seen)
 		anyFocused = anyFocused || p.Focused
+		if p.Focused {
+			inFront = append(inFront, p.ID)
+		}
 		if p.AskSeq > f.askSeen[p.ID] {
 			f.askSeen[p.ID] = p.AskSeq
 			if p.Ask == nil {
@@ -499,10 +506,12 @@ func (f *watchFollower) poll() {
 			f.moved("state.json")
 		}
 	}
-	if !anyFocused {
-		for _, e := range events {
-			a.notifyWatch(f.ctx, e)
+	for _, e := range events {
+		if anyFocused {
+			a.logNotice(e, "not sent: unagit "+strings.Join(inFront, ", ")+" in front")
+			continue
 		}
+		a.notifyWatch(f.ctx, e)
 	}
 }
 
@@ -626,7 +635,7 @@ func (a *App) sayWatchEvents(events []watch.Event) {
 		events = events[over:]
 	}
 	for _, e := range events {
-		a.showToast(levelSeverity(e.Level), e.What, e.Line)
+		a.showToastAbout(levelSeverity(e.Level), e.What, noticeTitle(e.Title), e.Line)
 	}
 }
 
@@ -760,8 +769,9 @@ func firstFailed(jobs []forge.Job) string {
 // for each change, a pipeline that began as much as one that ended. The
 // first reading is never news - only a change from what was last held.
 func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended string) []watch.Event {
+	title := cmp.Or(after.Title, before.Title, w.Title)
 	ev := func(line string, level watch.Level) []watch.Event {
-		return []watch.Event{{Key: w.Key(), What: w.Label(), Line: line, Level: level}}
+		return []watch.Event{{Key: w.Key(), What: w.Label(), Line: line, Level: level, Title: title}}
 	}
 	if ended != "" {
 		if ended == "merged" {
@@ -843,24 +853,66 @@ const frontAskEvery = 3 * time.Second
 // terminal where it can show one, the system otherwise. It runs off the
 // loop; the sequence is written on it, between two draws.
 func (a *App) notifyWatch(ctx context.Context, e watch.Event) {
-	a.sendNotification(ctx, "unagit · "+e.What, e.Line)
+	way, err := a.sendNotification(ctx, "unagit · "+e.What, noticeTitle(e.Title), e.Line)
+	switch {
+	case err != nil:
+		a.logNotice(e, "failed through the "+way+": "+err.Error())
+	case way == "":
+		a.logNotice(e, "not sent: notifications are off")
+	default:
+		a.logNotice(e, "sent through the "+way)
+	}
+}
+
+// noticeLogMax is how large notify.log grows before its older half goes.
+const noticeLogMax = 128 << 10
+
+// logNotice notes in watch/notify.log what became of a change's desktop
+// notification - sent, and which way, or why not - so one that did not
+// come can be explained afterwards. It is this machine's, beside the
+// watches.
+func (a *App) logNotice(e watch.Event, what string) {
+	path := filepath.Join(a.cfg.WatchDir(), "notify.log")
+	line := fmt.Sprintf("%s  %s · %s  ->  %s\n", time.Now().Format(time.RFC3339), e.What, e.Line, what)
+	a.noticeMu.Lock()
+	defer a.noticeMu.Unlock()
+	if old, err := os.ReadFile(path); err == nil && len(old) > noticeLogMax {
+		keep := old[len(old)/2:]
+		if i := bytes.IndexByte(keep, '\n'); i >= 0 {
+			keep = keep[i+1:]
+		}
+		_ = os.WriteFile(path, keep, 0o600)
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line)
 }
 
 // sendNotification shows title and body as Settings › Integrations says.
-func (a *App) sendNotification(ctx context.Context, title, body string) {
+func (a *App) sendNotification(ctx context.Context, title, subtitle, body string) (string, error) {
 	mode := ""
 	wait, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if !a.onLoopWait(wait, func() { mode = a.cfg.Integrations.Notifications }) {
-		return
+		return "", fmt.Errorf("unagit is closing")
 	}
-	a.sendNotificationAs(mode, title, body)
+	return a.sendNotificationAs(mode, title, subtitle, body)
 }
+
+// noticeTitleMax is how much of a merge request's title a toast and a
+// notification carry: enough to know which one, not the whole of it.
+const noticeTitleMax = 48
+
+// noticeTitle is a merge request's title cut to what a notice carries.
+func noticeTitle(title string) string { return trunc(strings.TrimSpace(title), noticeTitleMax) }
 
 // sendNotificationAs shows title and body through the way a mode chooses,
 // and says which it took: "terminal", "system" or "" for none. It runs off
 // the loop.
-func (a *App) sendNotificationAs(mode, title, body string) (string, error) {
+func (a *App) sendNotificationAs(mode, title, subtitle, body string) (string, error) {
 	if a.notifier != nil {
 		a.notifier(title, body)
 		return "notifier", nil
@@ -871,7 +923,13 @@ func (a *App) sendNotificationAs(mode, title, body string) (string, error) {
 	term := notify.Detect(os.Getenv)
 	toTerminal, toSystem := notify.Route(mode, term, free, away)
 	if toTerminal {
-		seq := term.Sequence(title, body)
+		line := body
+		if subtitle != "" {
+			// A terminal's notification has no line between; the title of
+			// what it is about follows what happened.
+			line += " · " + subtitle
+		}
+		seq := term.Sequence(title, line)
 		a.tv.QueueUpdate(func() {
 			if q == nil || q.suspended.Load() {
 				return
@@ -883,7 +941,7 @@ func (a *App) sendNotificationAs(mode, title, body string) (string, error) {
 		return "terminal", nil
 	}
 	if toSystem {
-		return "system", notify.SystemNotify(title, body)
+		return "system", notify.SystemNotify(title, subtitle, body)
 	}
 	return "", nil
 }

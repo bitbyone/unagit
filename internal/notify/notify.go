@@ -161,16 +161,23 @@ func SystemCommand() string {
 }
 
 // SystemNotify shows a notification through the system: Notification
-// Centre on macOS, the desktop's notification daemon elsewhere.
-func SystemNotify(title, body string) error {
+// Centre on macOS, the desktop's notification daemon elsewhere. subtitle,
+// when given, is the line between the two - what the news is about.
+func SystemNotify(title, subtitle, body string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var cmd *exec.Cmd
 	switch SystemCommand() {
 	case "osascript":
 		script := fmt.Sprintf("display notification %s with title %s", appleString(body), appleString(title))
+		if subtitle != "" {
+			script += " subtitle " + appleString(subtitle)
+		}
 		cmd = exec.CommandContext(ctx, "osascript", "-e", script)
 	case "notify-send":
+		if subtitle != "" {
+			body = subtitle + "\n" + body
+		}
 		cmd = exec.CommandContext(ctx, "notify-send", "--app-name=unagit", title, body)
 	default:
 		return fmt.Errorf("this system has no notifier unagit knows; choose the terminal in Settings › Integrations")
@@ -192,8 +199,13 @@ func appleString(s string) string {
 // terminal, when a sequence written would land in the editor's output.
 // terminalAway is true when the terminal has said it is not in front: a
 // terminal shows nothing for a window that is - Ghostty and iTerm2 leave
-// that to the program inside - so automatic goes to the terminal only
-// then, and to the system whenever the terminal may be in front.
+// that to the program inside.
+//
+// Automatic goes to the system wherever there is a notifier unagit knows:
+// a terminal's sequence is written and never answered, and is dropped
+// unseen when the terminal has no leave to notify or thinks its window in
+// front - a pipeline's start went missing that way while its end came. The
+// terminal is automatic's way only where the system has none.
 func Route(mode string, t TerminalInfo, terminalFree, terminalAway bool) (useTerminal, useSystem bool) {
 	switch mode {
 	case Off:
@@ -203,8 +215,8 @@ func Route(mode string, t TerminalInfo, terminalFree, terminalAway bool) (useTer
 	case System:
 		return false, true
 	}
-	if terminalFree && terminalAway && t.Protocol != None {
-		return true, false
+	if SystemCommand() != "" {
+		return false, true
 	}
-	return false, true
+	return terminalFree && terminalAway && t.Protocol != None, false
 }

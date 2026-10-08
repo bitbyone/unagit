@@ -745,14 +745,16 @@ sets how long. It never takes the keys
 from whatever you are typing. The tab counts the changes not seen yet
 (`[5] Watched ●2`) until you open it, and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor
-running in unagit's terminal - a desktop notification goes out: through
-the terminal where it shows them (Ghostty, WezTerm, foot, iTerm2, kitty;
-under tmux with `allow-passthrough on`) and has said its window is not in
-front - a terminal shows none for a window in front - through Notification
-Centre or `notify-send` otherwise, and under Zellij or herdr, which pass none on. A
-terminal that does not say whether it has focus is taken to be in front
-when its application is. Settings › Integrations › Notifications chooses
-the terminal, the system, or neither, and `t` there sends a test.
+running in unagit's terminal - a desktop notification goes out, through
+Notification Centre or `notify-send`: a terminal's own notification is never
+answered, and is dropped unseen when the terminal thinks its window in
+front or has no leave to notify, so it is used only when chosen, or where
+the system has no notifier. A toast and a notification both carry the start
+of the merge request's title. A terminal that does not say whether it has
+focus is taken to be in front when its application is. Settings ›
+Integrations › Notifications chooses the system, the terminal, or neither,
+and `t` there sends a test. What became of each notification - sent, which
+way, or why not - is noted in `~/.config/unagit/watch/notify.log`.
 
 `unagit --debug` adds Settings › Debug, which fires each of these by hand -
 a toast of every severity, every kind of watched news, a desktop

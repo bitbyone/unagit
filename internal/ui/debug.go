@@ -59,7 +59,7 @@ func (s *settingsView) newDebugView() *debugView {
 	box(v.Box, debugSectionName).SetBorderPadding(0, 0, 1, 1)
 
 	event := func(what, line string, level watch.Level) watch.Event {
-		return watch.Event{Key: "debug", What: what, Line: line, Level: level}
+		return watch.Event{Key: "debug", What: what, Line: line, Level: level, Title: "Rate limiting for the public API, with a token bucket per client"}
 	}
 	mr, branch := "acme/gateway !7", "acme/gateway main"
 	news := []watch.Event{
@@ -206,7 +206,7 @@ func (a *App) testNotification(mode string, after time.Duration) {
 		case <-a.stopFollowing:
 			return
 		}
-		way, err := a.sendNotificationAs(mode, "unagit · test", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
+		way, err := a.sendNotificationAs(mode, "unagit · test", "Rate limiting for the public API", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
 		a.tv.QueueUpdateDraw(func() {
 			switch {
 			case err != nil:

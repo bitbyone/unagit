@@ -267,6 +267,8 @@ type App struct {
 		at    time.Time
 		front bool
 	}
+	// noticeMu keeps two notes of notify.log from writing over each other.
+	noticeMu sync.Mutex
 	// toasts are the news on screen (toast.go); toasting while they are
 	// counted down.
 	toasts   []*toast

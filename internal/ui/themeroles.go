@@ -149,6 +149,7 @@ var colourRoles = []colourRole{
 	{"watched.error", "state.warning", "why the last reading failed"},
 	{"toast.background", "surface.raised", "a toast: news from the background, in the top right corner"},
 	{"toast.text", "text.normal", "what a toast says"},
+	{"toast.about", "text.muted", "what a toast is about: a merge request's title"},
 	{"toast.info", "text.accent", "a toast's border and title: something began"},
 	{"toast.success", "state.good", "something passed"},
 	{"toast.warning", "state.warning", "something was cancelled or waits for a hand"},
