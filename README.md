@@ -148,7 +148,7 @@ all and live only there.
   hides one or shows it again, in Merge requests and Worktrees too. What you
   hide is kept in `config.yaml` under `filters.hidden_columns`; the column a
   row is - the repository, a merge request's title - always stays. A merge
-  request's `ASSIGNEES` and `REVIEWERS` start hidden and are shown there
+  request's `ASSIGNEE` and `REVIEWER` start hidden and are shown there
   (kept under `filters.shown_columns`): as many names as fit stand whole,
   and the rest are counted, `+2`.
 - The `NEW` column counts the commits pushed to a merge request since your
@@ -691,17 +691,22 @@ alike:
   of the head the list has seen: a push since then is refused rather than
   merged unread, and unagit says to look first.
 - `Ctrl-D` marks a merge request as a draft, or a draft as ready.
-- `a` lists who can be asked to review - the repository's members on GitLab,
-  those with push access on GitHub - with the reviewers asked marked and
-  first, to be withdrawn or replaced at once; `space` asks or withdraws, `x`
-  withdraws, and `Esc` saves the choice.
-- `s` does the same for who it is assigned to: the same people on GitLab,
-  on GitHub whoever can be assigned there, the author included; `space`
-  assigns or unassigns, `x` unassigns, and `Esc` saves.
+- `a` (**Add/Change Assignee…**) lists who it can be assigned to - the
+  repository's members on GitLab, on GitHub whoever can be assigned there,
+  the author included. Who is assigned stands at the top, above a line, to
+  be taken off or replaced at once; below it come first whom you assign
+  most often, then who is about the merge requests the list shows now, then
+  everyone else by name, and the cursor starts there. `space` assigns - the
+  name moves above the line, the cursor with it - `x` unassigns, putting
+  the name back at the top below the line, and `Esc` saves. How often you
+  give merge requests to whom is counted in `config.yaml`, under the
+  server's `people_uses`.
+- `s` (**Add/Change Reviewer…**) does the same for who is asked to review:
+  the members on GitLab, those with push access on GitHub.
 - `t` lists the labels that can be put on it - the repository's, and on
-  GitLab those of the groups above it - with the ones it wears marked and
-  first; `space` puts one on or takes it off, `x` takes it off, and `Esc`
-  saves. The labels stand
+  GitLab those of the groups above it - with the ones it wears above a line,
+  as the people are; `space` puts one on or takes it off, `x` takes it off,
+  and `Esc` saves. The labels stand
   as pills in the `LABELS` column, after the title, and `/` finds a merge
   request by them. A pill takes its label's hue, worked out in the theme's
   own colours the way the tags' are, so a red label is a red pill in any
@@ -841,7 +846,8 @@ in under `glyphs` - and they are drawn when the terminal can: Ghostty,
 WezTerm and kitty bring the icons with them, and iTerm2 and Alacritty are
 asked for their font. `n` in Settings › Theme turns them on or off when
 that guess is wrong, and back to guessing. A few are icons only, with nothing in their
-place without a Nerd Font: the server's before a repository's name in the
+place without a Nerd Font: one before each column's heading in the lists
+(`column_icons`, by the heading), the server's before a repository's name in the
 lists, and the one after a worktree's count of repositories, a draft's icon in place
 of the word - and of the "Draft:" its title starts with - and an icon,
 muted, before each action in the action pickers, where a theme gives one
@@ -1014,7 +1020,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `A` | read and write comments · approve |
-| `M` `Ctrl-D` `a` `s` `t` | in Merge requests: merge · draft · reviewers · assignees · labels |
+| `M` `Ctrl-D` `a` `s` `t` | in Merge requests: merge · draft · assignee · reviewer · labels |
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |

@@ -371,9 +371,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	p.kept.reset()
 	withServer := a.multiInstance()
 
-	actW, mrW := len("ACTIVITY"), len("MR")
-	reposW, editsW, comW := len("REPOS"), cells(glyphEdits), len("COM")
-	createdW, sizeW := len("CREATED"), len("SIZE")
+	actW, mrW := headingWidth("ACTIVITY"), headingWidth("MR")
+	reposW, editsW, comW := headingWidth("REPOS"), cells(glyphEdits), headingWidth("COM")
+	createdW, sizeW := headingWidth("CREATED"), headingWidth("SIZE")
 	mrs := map[int]string{}
 	// CI is the newest pipeline of the branch itself, not of its merge
 	// request, which the merge request list shows; a group has none of its
@@ -384,7 +384,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	for _, idx := range filtered {
 		r := a.worktrees[idx]
 		if a.worktreeCI(r) != "" {
-			ciW = 2
+			ciW = headingWidth("CI")
 		}
 		repos = append(repos, iconWidth(a.worktreeIcon(r))+len([]rune(r.Path)))
 		branches = append(branches, len([]rune(a.worktreeBranch(r))))
@@ -517,7 +517,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		header = append(header, field{text: "CREATED", width: createdW, colour: role("worktrees.header")})
 	}
 	header = append(header, field{text: "ACTIVITY", width: actW, colour: role("worktrees.header")})
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).SetSelectable(false).SetExpansion(1))
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
 
 	for row, idx := range filtered {
 		r := a.worktrees[idx]

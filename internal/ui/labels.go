@@ -135,90 +135,100 @@ func (a *App) editLabels(mr forge.MergeRequest) {
 }
 
 func (a *App) showLabelToggles(client forge.Provider, mr forge.MergeRequest, path string, choices []forge.Label) {
-	on := map[string]bool{}
-	for _, l := range mr.Labels {
-		on[l.Name] = true
+	byName := map[string]forge.Label{}
+	for _, l := range choices {
+		byName[l.Name] = l
 	}
 	// A label the merge request wears stays on the list even when the
 	// choices do not name it - one of a group it was moved out of - or it
 	// could not be taken off.
-	known := map[string]bool{}
-	for _, l := range choices {
-		known[l.Name] = true
-	}
+	before := forge.LabelNames(mr.Labels)
+	chosen := slices.Clone(before)
+	on := map[string]bool{}
 	for _, l := range mr.Labels {
-		if !known[l.Name] {
-			choices = append(choices, l)
+		on[l.Name] = true
+		if _, ok := byName[l.Name]; !ok {
+			byName[l.Name] = l
 		}
 	}
-	// What it wears now comes first, to be taken off or replaced at once.
-	sort.SliceStable(choices, func(i, j int) bool {
-		if on[choices[i].Name] != on[choices[j].Name] {
-			return on[choices[i].Name]
-		}
-		return strings.ToLower(choices[i].Name) < strings.ToLower(choices[j].Name)
-	})
-	if len(choices) == 0 {
+	if len(byName) == 0 {
 		a.flash(path + " has no labels to put on - make them on the forge first")
 		return
 	}
-	before := forge.LabelNames(mr.Labels)
+	var rest []string
+	for name := range byName {
+		if !on[name] {
+			rest = append(rest, name)
+		}
+	}
+	sort.SliceStable(rest, func(i, j int) bool { return strings.ToLower(rest[i]) < strings.ToLower(rest[j]) })
+	// The cursor as the lists of people move it (showPeopleToggles).
+	want := 0
+	if len(chosen) > 0 {
+		want = len(chosen) + 1
+	}
+	takeOff := func(name string) {
+		chosen = slices.DeleteFunc(chosen, func(n string) bool { return n == name })
+		rest = append([]string{name}, rest...)
+		on[name] = false
+		want = 0
+	}
 	a.showToggles(toggles{
 		title: fmt.Sprintf("Labels · %s !%d", path, mr.IID),
 		verb:  "on/off",
 		items: func() []toggleItem {
-			items := make([]toggleItem, 0, len(choices))
-			for _, l := range choices {
+			row := func(name string) toggleItem {
+				l := byName[name]
 				markup, _ := pillOf(l.Name, labelColour(l), a.cfg.Ends(), behindList)
-				label := tagMark(on[l.Name]) + " " + markup
+				label := tagMark(on[name]) + " " + markup
 				if l.Description != "" {
 					label += "  " + tag(colDim) + esc(firstLine(strings.TrimSpace(l.Description))) + tagEnd
 				}
-				items = append(items, toggleItem{Label: label, Search: l.Name + " " + l.Description, Data: l.Name})
+				return toggleItem{Label: label, Search: l.Name + " " + l.Description, Data: name}
+			}
+			var items []toggleItem
+			for _, name := range chosen {
+				items = append(items, row(name))
+			}
+			if len(chosen) > 0 {
+				items = append(items, separatorItem())
+			}
+			for _, name := range rest {
+				items = append(items, row(name))
 			}
 			return items
 		},
 		toggle: func(it toggleItem) {
 			name := it.Data.(string)
-			on[name] = !on[name]
-		},
-		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) { on[it.Data.(string)] = false }}},
-		status: func() string {
-			n := 0
-			for _, v := range on {
-				if v {
-					n++
-				}
+			if on[name] {
+				takeOff(name)
+				return
 			}
-			return fmt.Sprintf("%d on", n)
+			rest = slices.DeleteFunc(rest, func(n string) bool { return n == name })
+			chosen = append(chosen, name)
+			on[name] = true
+			want = len(chosen) - 1
 		},
+		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) {
+			if name := it.Data.(string); on[name] {
+				takeOff(name)
+			} else {
+				want = -1
+			}
+		}}},
+		cursor:  func() int { return want },
+		status:  func() string { return fmt.Sprintf("%d on", len(chosen)) },
 		escSays: "save",
 		closed: func() {
 			// The order the merge request had is kept; what is new follows.
-			var after []string
-			for _, name := range before {
-				if on[name] {
-					after = append(after, name)
-				}
-			}
-			for _, l := range choices {
-				if on[l.Name] && !slices.Contains(after, l.Name) {
-					after = append(after, l.Name)
-				}
-			}
-			if slices.Equal(before, after) {
+			if slices.Equal(before, chosen) {
 				return
 			}
-			var labels []forge.Label
-			for _, name := range after {
-				for _, l := range choices {
-					if l.Name == name {
-						labels = append(labels, l)
-						break
-					}
-				}
+			labels := make([]forge.Label, len(chosen))
+			for i, name := range chosen {
+				labels[i] = byName[name]
 			}
-			a.saveLabels(client, mr, path, after, labels)
+			a.saveLabels(client, mr, path, slices.Clone(chosen), labels)
 		},
 	})
 }

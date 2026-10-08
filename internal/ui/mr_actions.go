@@ -11,6 +11,7 @@ import (
 
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 )
 
@@ -199,13 +200,15 @@ type peopleRole struct {
 	// title heads the list, verb is what space does, state what the people
 	// on it are ("asked", "assigned").
 	title, verb, state string
-	current            func(forge.MergeRequest) []forge.User
-	candidates         func(context.Context, forge.Provider, forge.MergeRequest) ([]forge.User, error)
-	set                func(context.Context, forge.Provider, forge.MergeRequest, []string) error
+	// use is the role PeopleUses counts it by.
+	use        string
+	current    func(forge.MergeRequest) []forge.User
+	candidates func(context.Context, forge.Provider, forge.MergeRequest) ([]forge.User, error)
+	set        func(context.Context, forge.Provider, forge.MergeRequest, []string) error
 }
 
 var (
-	reviewersRole = peopleRole{title: "Reviewers", verb: "ask/withdraw", state: "asked",
+	reviewersRole = peopleRole{title: "Reviewers", verb: "ask/withdraw", state: "asked", use: config.RoleReviewer,
 		current: func(mr forge.MergeRequest) []forge.User { return mr.Reviewers },
 		candidates: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest) ([]forge.User, error) {
 			return c.ReviewerCandidates(ctx, mr)
@@ -213,7 +216,7 @@ var (
 		set: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest, names []string) error {
 			return c.SetReviewers(ctx, mr, names)
 		}}
-	assigneesRole = peopleRole{title: "Assignees", verb: "assign/unassign", state: "assigned",
+	assigneesRole = peopleRole{title: "Assignees", verb: "assign/unassign", state: "assigned", use: config.RoleAssignee,
 		current: func(mr forge.MergeRequest) []forge.User { return mr.Assignees },
 		candidates: func(ctx context.Context, c forge.Provider, mr forge.MergeRequest) ([]forge.User, error) {
 			return c.AssigneeCandidates(ctx, mr)
@@ -251,74 +254,143 @@ func (a *App) editPeople(mr forge.MergeRequest, role peopleRole) {
 }
 
 func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, path string, users []forge.User, role peopleRole) {
-	var before []string
-	on := map[string]bool{}
-	for _, r := range role.current(mr) {
-		before = append(before, r.Username)
-		on[r.Username] = true
+	byName := map[string]forge.User{}
+	for _, u := range users {
+		byName[u.Username] = u
 	}
 	// Someone on the list already stays there even when the candidates do
 	// not name them, or they could not be taken off.
-	known := map[string]bool{}
-	for _, u := range users {
-		known[u.Username] = true
-	}
+	var before, chosen []string
 	for _, r := range role.current(mr) {
-		if !known[r.Username] {
-			users = append(users, r)
+		before = append(before, r.Username)
+		chosen = append(chosen, r.Username)
+		if _, ok := byName[r.Username]; !ok {
+			byName[r.Username] = r
 		}
 	}
-	// Who is on it now comes first, to be taken off or replaced at once.
-	sort.SliceStable(users, func(i, j int) bool {
-		if on[users[i].Username] != on[users[j].Username] {
-			return on[users[i].Username]
+	on := map[string]bool{}
+	for _, name := range chosen {
+		on[name] = true
+	}
+	var rest []string
+	for name := range byName {
+		if !on[name] {
+			rest = append(rest, name)
 		}
-		return users[i].Username < users[j].Username
+	}
+	// Below the line, whom the user gives merge requests to most often,
+	// then who is about the merge requests the list now shows, then the
+	// rest by name.
+	uses := map[string]int{}
+	if inst := a.cfg.Instance(mr.Instance); inst != nil {
+		uses = inst.PeopleUses[role.use]
+	}
+	about := a.peopleAbout(mr.Instance)
+	sort.SliceStable(rest, func(i, j int) bool {
+		x, y := rest[i], rest[j]
+		if uses[x] != uses[y] {
+			return uses[x] > uses[y]
+		}
+		if about[x] != about[y] {
+			return about[x] > about[y]
+		}
+		return x < y
 	})
+	// want is the row the cursor goes to next: the first below the line at
+	// first; someone chosen keeps it as they move above; someone taken off
+	// goes back to the top of the rest, and the cursor to the top.
+	want := 0
+	if len(chosen) > 0 {
+		want = len(chosen) + 1
+	}
+	takeOff := func(name string) {
+		chosen = slices.DeleteFunc(chosen, func(n string) bool { return n == name })
+		rest = append([]string{name}, rest...)
+		on[name] = false
+		want = 0
+	}
 
 	a.showToggles(toggles{
 		title: fmt.Sprintf("%s · %s !%d", role.title, path, mr.IID),
 		verb:  role.verb,
 		items: func() []toggleItem {
-			items := make([]toggleItem, 0, len(users))
-			for _, u := range users {
-				label := tagMark(on[u.Username]) + " " + esc(u.Username)
-				if u.Name != "" && u.Name != u.Username {
+			row := func(name string) toggleItem {
+				u := byName[name]
+				label := tagMark(on[name]) + " " + esc(name)
+				if u.Name != "" && u.Name != name {
 					label += "  " + tag(colDim) + esc(u.Name) + tagEnd
 				}
-				items = append(items, toggleItem{Label: label, Search: u.Username + " " + u.Name, Data: u.Username})
+				return toggleItem{Label: label, Search: name + " " + u.Name, Data: name}
+			}
+			var items []toggleItem
+			for _, name := range chosen {
+				items = append(items, row(name))
+			}
+			if len(chosen) > 0 {
+				items = append(items, separatorItem())
+			}
+			for _, name := range rest {
+				items = append(items, row(name))
 			}
 			return items
 		},
 		toggle: func(it toggleItem) {
 			name := it.Data.(string)
-			on[name] = !on[name]
-		},
-		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) { on[it.Data.(string)] = false }}},
-		status: func() string {
-			n := 0
-			for _, v := range on {
-				if v {
-					n++
-				}
+			if on[name] {
+				takeOff(name)
+				return
 			}
-			return fmt.Sprintf("%d %s", n, role.state)
+			rest = slices.DeleteFunc(rest, func(n string) bool { return n == name })
+			chosen = append(chosen, name)
+			on[name] = true
+			want = len(chosen) - 1
 		},
+		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) {
+			if name := it.Data.(string); on[name] {
+				takeOff(name)
+			} else {
+				want = -1
+			}
+		}}},
+		cursor:  func() int { return want },
+		status:  func() string { return fmt.Sprintf("%d %s", len(chosen), role.state) },
 		escSays: "save",
 		closed: func() {
-			var after []string
-			for _, u := range users {
-				if on[u.Username] {
-					after = append(after, u.Username)
-				}
-			}
+			after := slices.Clone(chosen)
+			sort.Strings(after)
 			sort.Strings(before)
 			if slices.Equal(before, after) {
 				return
 			}
+			// Who was newly given it counts towards the order next time.
+			if inst := a.cfg.Instance(mr.Instance); inst != nil {
+				for _, name := range after {
+					if !slices.Contains(before, name) {
+						inst.UsePerson(role.use, name)
+					}
+				}
+				a.saveConfig()
+			}
 			a.savePeople(client, mr, path, after, role)
 		},
 	})
+}
+
+// peopleAbout counts, by user name, how often each person stands on the
+// merge requests the list shows now - as author, assignee or reviewer.
+func (a *App) peopleAbout(instance string) map[string]int {
+	out := map[string]int{}
+	for _, idx := range a.filterMRs(a.mrsPane.query) {
+		mr := a.mrs[idx]
+		if mr.Instance != instance {
+			continue
+		}
+		out[mr.Author.Username]++
+		for _, u := range append(slices.Clone(mr.Assignees), mr.Reviewers...) {
+			out[u.Username]++
+		}
+	}
+	return out
 }
 
 func (a *App) savePeople(client forge.Provider, mr forge.MergeRequest, path string, usernames []string, role peopleRole) {

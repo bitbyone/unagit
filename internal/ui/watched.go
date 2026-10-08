@@ -169,7 +169,7 @@ func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 	p.table.Clear()
 	const markW, ciW = 1, 1
 	var whats, titles, pipes, bys []int
-	changedW := len("CHANGED")
+	changedW := headingWidth("CHANGED")
 	for _, idx := range filtered {
 		w := rows[idx]
 		st := a.watchSnap.States[w.Key()]
@@ -204,7 +204,7 @@ func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 	if titleCol.shown() {
 		header = append(header, field{text: "TITLE", width: titleCol.width, colour: head})
 	}
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).SetSelectable(false).SetExpansion(1))
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
 
 	for row, idx := range filtered {
 		w := rows[idx]

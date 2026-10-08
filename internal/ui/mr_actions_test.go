@@ -215,12 +215,14 @@ func TestReviewersAreChosenAndSavedOnEsc(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	typeRunes(sc, "a")
+	typeRunes(sc, "s")
 	waitFor(t, a, sc, "Reviewers · acme/gateway !7")
 	waitFor(t, a, sc, "Mike Moe")
 	assertLegible(t, a, sc, "the reviewers")
-	typeRunes(sc, "jj ") // jane, john, mike
+	typeRunes(sc, "/mike")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "1 asked")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // the filter
 	if len(srv.written()) != 0 {
 		t.Fatalf("sent before the list closed: %q", srv.written())
 	}
@@ -238,12 +240,14 @@ func TestAssigneesAreChosenAndSavedOnEsc(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	typeRunes(sc, "gs")
+	typeRunes(sc, "ga")
 	waitFor(t, a, sc, "Assignees · acme/gateway !7")
 	waitFor(t, a, sc, "Mike Moe")
 	assertLegible(t, a, sc, "the assignees")
-	typeRunes(sc, "j ") // jane, john
+	typeRunes(sc, "/john")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "1 assigned")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // the filter
 	if len(srv.written()) != 0 {
 		t.Fatalf("sent before the list closed: %q", srv.written())
 	}
@@ -276,8 +280,8 @@ func TestCloseIsInThePickerAndAsks(t *testing.T) {
 	waitRowFetched(t, a, sc)
 }
 
-// TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit: ASSIGNEES and
-// REVIEWERS wait in View options until shown; then as many names as fit
+// TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit: ASSIGNEE and
+// REVIEWER wait in View options until shown; then as many names as fit
 // stand whole and the rest are counted. In the reviewers' list who is
 // asked comes first, and x withdraws them.
 func TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit(t *testing.T) {
@@ -294,7 +298,7 @@ func TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit(t *testing.T) {
 	})
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	if text := a.screenText(sc); strings.Contains(text, "ASSIGNEES") || strings.Contains(text, "REVIEWERS") {
+	if text := a.screenText(sc); strings.Contains(text, "ASSIGNEE") || strings.Contains(text, "REVIEWER") {
 		t.Fatalf("the people columns show before they are asked for:\n%s", text)
 	}
 	changeOnLoop(a, func() {
@@ -302,8 +306,8 @@ func TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit(t *testing.T) {
 		a.cfg.Filters.ToggleColumn(config.ListMergeRequests, "reviewers")
 		a.applyFilters()
 	})
-	waitFor(t, a, sc, "ASSIGNEES")
-	waitFor(t, a, sc, "REVIEWERS")
+	waitFor(t, a, sc, "ASSIGNEE")
+	waitFor(t, a, sc, "REVIEWER")
 	for _, size := range []struct{ w, h int }{{100, 30}, {160, 34}} {
 		resizeApp(a, sc, size.w, size.h)
 		waitFor(t, a, sc, "Rate limiting")
@@ -314,14 +318,14 @@ func TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit(t *testing.T) {
 	}
 
 	resizeApp(a, sc, 120, 34)
-	typeRunes(sc, "ga")
+	typeRunes(sc, "gs")
 	waitFor(t, a, sc, "Reviewers · acme/gateway !7")
 	waitFor(t, a, sc, "1 asked")
 	text := a.screenText(sc)
 	if strings.Index(text, "Mike Moe") > strings.Index(text, "Jane Doe") {
 		t.Fatalf("who is asked is not on top:\n%s", text)
 	}
-	typeRunes(sc, "x")
+	typeRunes(sc, "gx")
 	waitFor(t, a, sc, "0 asked")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Reviewers of acme/gateway !7: nobody")
@@ -348,5 +352,69 @@ func TestPeopleFieldCountsWhoDoesNotFit(t *testing.T) {
 		if strings.TrimRight(got, " ") != c.want || len([]rune(got)) != c.width {
 			t.Errorf("width %d: %q, want %q in exactly %d", c.width, got, c.want, c.width)
 		}
+	}
+}
+
+// TestTheChosenStandAboveALineAndTheCursorFollows: who is assigned stands
+// above a line, and the cursor starts below it on whom the user assigns
+// most often; one assigned moves above with the cursor on them, one taken
+// off goes back below with the cursor at the top, and with nobody chosen
+// there is no line. Whom the user assigns is counted for next time.
+func TestTheChosenStandAboveALineAndTheCursorFollows(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		a.cfg.Instances[0].PeopleUses = map[string]map[string]int{config.RoleAssignee: {"mike": 3}}
+		for i := range a.mrs {
+			if a.mrs[i].IID == 7 {
+				a.mrs[i].Assignees = []forge.User{{Username: "john"}}
+			}
+		}
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "ga")
+	waitFor(t, a, sc, "1 assigned")
+	order := func() []string {
+		var out []string
+		for _, line := range strings.Split(a.screenText(sc), "\n") {
+			switch {
+			case strings.Contains(line, "John Roe"):
+				out = append(out, "john")
+			case strings.Contains(line, "Mike Moe"):
+				out = append(out, "mike")
+			case strings.Contains(line, "Jane Doe"):
+				out = append(out, "jane")
+			case strings.Contains(line, "│────────────────────"):
+				out = append(out, "-")
+			}
+		}
+		return out
+	}
+	if got := strings.Join(order(), " "); got != "john - mike jane" {
+		t.Fatalf("the order is %q, want the assigned, the line, then the usual", got)
+	}
+	assertLegible(t, a, sc, "the assignees with a line")
+
+	typeRunes(sc, " ") // mike, under the cursor below the line
+	waitFor(t, a, sc, "2 assigned")
+	typeRunes(sc, "x") // the cursor moved up with mike
+	waitFor(t, a, sc, "1 assigned")
+	if got := strings.Join(order(), " "); got != "john - mike jane" {
+		t.Fatalf("taken off, mike is not back at the top below the line: %q", got)
+	}
+	typeRunes(sc, "x") // the cursor went to the top: john
+	waitFor(t, a, sc, "0 assigned")
+	if got := strings.Join(order(), " "); got != "john mike jane" {
+		t.Fatalf("with nobody chosen: %q, want no line", got)
+	}
+	typeRunes(sc, "j ") // mike
+	waitFor(t, a, sc, "1 assigned")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Assignees of acme/gateway !7: mike")
+	waitWritten(t, srv, `"assignee_ids":[13]`)
+	if n := onLoop(a, func() int { return a.cfg.Instances[0].PeopleUses[config.RoleAssignee]["mike"] }); n != 4 {
+		t.Fatalf("mike assigned %d times, want 4", n)
 	}
 }

@@ -165,11 +165,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		return w + bw
 	}
 
-	actW, syncW, editsW := len("ACTIVITY"), len("RMT"), cells(glyphEdits)
+	actW, syncW, editsW := headingWidth("ACTIVITY"), headingWidth("RMT"), cells(glyphEdits)
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
-	mrW, hiddenW := 2, 0
-	sizeW := len("SIZE")
+	mrW, hiddenW := headingWidth("MR"), 0
+	sizeW := headingWidth("SIZE")
 	// CI is the newest pipeline of the clone's branch, and takes room only
 	// when some row has one.
 	ciW := 0
@@ -178,7 +178,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	for _, idx := range filtered {
 		pr := a.projects[idx]
 		if a.repositoryCI(pr) != "" {
-			ciW = 2
+			ciW = headingWidth("CI")
 		}
 		sizeW = max(sizeW, len([]rune(a.repoSizeWords(projectKey{pr.Instance, pr.PathWithNamespace}))))
 		if a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace) {
@@ -254,7 +254,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	pathCol.drop = 1
 	add("path", pathCol)
 	syncCol, editsCol := add("remote", fixedColumn(syncW)), add("edits", fixedColumn(editsW))
-	mrCol, wtCol := add("mr", fixedColumn(mrW)), add("wt", fixedColumn(2))
+	mrCol, wtCol := add("mr", fixedColumn(mrW)), add("wt", fixedColumn(headingWidth("WT")))
 	sizeCol, actCol := add("size", fixedColumn(sizeW)), add("activity", fixedColumn(actW))
 	serverCol, tagsCol := &listColumn{}, &listColumn{}
 	if withServer {
@@ -329,7 +329,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		field{text: "WT", width: wtW, colour: role("repositories.header"), right: true},
 		field{text: "SIZE", width: sizeW, colour: role("repositories.header"), right: true},
 		field{text: "ACTIVITY", width: actW, colour: role("repositories.header")})
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).
 		SetSelectable(false).SetExpansion(1))
 
 	drawRow := func(row, idx int) {

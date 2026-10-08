@@ -142,7 +142,7 @@ const titleMeasure = 100
 func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped bool) mrColumns {
 	var servers, projs, titles, authors, branches, labelled, labelsShort []int
 	var assigned, assignedShort, reviewing, reviewingShort []int
-	iid, com, updated, fresh, appr, ci, pub := 3, len("COM"), len("UPDATED"), 0, 0, 0, 0
+	iid, com, updated, fresh, appr, ci, pub := max(3, headingWidth("MR")), headingWidth("COM"), headingWidth("UPDATED"), 0, 0, 0, 0
 	if a.cfg.Integrations.Incomm {
 		pub = 3 // PUB: what waits to be published from Incomm
 	}
@@ -169,10 +169,10 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		_, comW := commentWords(mr)
 		com = max(com, comW)
 		if _, w := approvalWords(mr, a.me[mr.Instance]); w > 0 {
-			appr = max(appr, w, len("APPR"))
+			appr = max(appr, w, headingWidth("APPR"))
 		}
 		if mr.Pipeline != "" {
-			ci = 2
+			ci = headingWidth("CI")
 		}
 		if names := a.peopleNames(mr.Instance, mr.Assignees); len(names) > 0 {
 			assigned, assignedShort = append(assigned, peopleWidth(names, len(names))), append(assignedShort, peopleWidth(names, 1))
@@ -248,8 +248,8 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		cols = append(cols, c)
 		return c
 	}
-	assigneesCol := people("assignees", "ASSIGNEES", assigned, assignedShort)
-	reviewersCol := people("reviewers", "REVIEWERS", reviewing, reviewingShort)
+	assigneesCol := people("assignees", "ASSIGNEE", assigned, assignedShort)
+	reviewersCol := people("reviewers", "REVIEWER", reviewing, reviewingShort)
 	comCol, updatedCol := add("comments", fixedColumn(com)), add("updated", fixedColumn(updated))
 	server, proj := &listColumn{}, &listColumn{}
 	if withServer {
@@ -279,7 +279,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 }
 
 // atLeast keeps a column wide enough for its own heading.
-func atLeast(width int, heading string) int { return max(width, len(heading)) }
+func atLeast(width int, heading string) int { return max(width, headingWidth(heading)) }
 
 // field is one column of a row: text of a fixed width, in a colour.
 type field struct {
@@ -380,8 +380,8 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		field{text: "LABELS", width: c.labels, colour: role("merge_requests.header")},
 		field{width: c.fill},
 		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")},
-		field{text: "ASSIGNEES", width: c.assignees, colour: role("merge_requests.header")},
-		field{text: "REVIEWERS", width: c.reviewers, colour: role("merge_requests.header")})
+		field{text: "ASSIGNEE", width: c.assignees, colour: role("merge_requests.header")},
+		field{text: "REVIEWER", width: c.reviewers, colour: role("merge_requests.header")})
 	if c.ci > 0 {
 		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
 	}
@@ -398,7 +398,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		header = append(header, field{text: "APPR", width: c.appr, colour: role("merge_requests.header")})
 	}
 	header = append(header, field{text: "UPDATED", width: c.updated, colour: role("merge_requests.header")})
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).
 		SetSelectable(false).SetExpansion(1))
 
 	drawRow := func(row, idx int) {
@@ -1048,6 +1048,27 @@ func undrafted(title string) string {
 		}
 	}
 	return title
+}
+
+// withHeadingIcons puts the theme's icon before each heading of a list's
+// header, where the column has room for both: a narrow column keeps its
+// heading whole rather than an icon and half a word.
+func withHeadingIcons(header []field) []field {
+	if len(columnIcons) == 0 {
+		return header
+	}
+	out := make([]field, len(header))
+	for i, f := range header {
+		out[i] = f
+		icon := columnIcons[f.text]
+		if f.raw != "" || f.icon != "" || icon == "" {
+			continue
+		}
+		if f.width >= cells(icon)+1+cells(f.text) {
+			out[i].icon = icon
+		}
+	}
+	return out
 }
 
 // peopleNames is how a list of people reads in a column: each by name.

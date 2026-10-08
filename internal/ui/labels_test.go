@@ -51,9 +51,10 @@ func TestLabelsAreAColumnAndAreChosenAndSavedOnEsc(t *testing.T) {
 	if text := a.screenText(sc); strings.Index(text, "✓ ux") > strings.Index(text, "group::backend") {
 		t.Fatalf("the labels worn are not on top:\n%s", text)
 	}
-	typeRunes(sc, "x") // bug off
-	waitFor(t, a, sc, "1 on")
-	typeRunes(sc, "jj ") // group::backend on
+	// The cursor starts below the line, on group::backend.
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "3 on")
+	typeRunes(sc, "gx") // bug off
 	waitFor(t, a, sc, "2 on")
 	if len(srv.written()) != 0 {
 		t.Fatalf("sent before the list closed: %q", srv.written())

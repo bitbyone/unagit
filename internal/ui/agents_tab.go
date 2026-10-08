@@ -327,7 +327,7 @@ func (a *App) filterAgents(query string) []int {
 func (a *App) drawAgents(p *pane, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
-	stateW, agentW := len("STATE"), len("AGENT")
+	stateW, agentW := headingWidth("STATE"), headingWidth("AGENT")
 	var titles, whats, branches, wheres []int
 	var paths []string
 	for _, idx := range filtered {
@@ -366,7 +366,7 @@ func (a *App) drawAgents(p *pane, filtered []int) {
 	if pathCol.shown() {
 		header = append(header, field{text: "PATH", width: pathCol.width, colour: role("agents.header")})
 	}
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(header)).SetSelectable(false).SetExpansion(1))
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
 
 	for row, idx := range filtered {
 		r := a.agentRows[idx]

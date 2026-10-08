@@ -147,7 +147,8 @@ func TestServerIconsGoBeforeRepositoryNames(t *testing.T) {
 	a.tv.QueueUpdateDraw(func() { a.refreshDisk() })
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/x")
-	waitFor(t, a, sc, "\U000F0BA0 acme/gateway   1 \U000F0CCF feat/x")
+	// REPOS is wider by its heading's icon.
+	waitFor(t, a, sc, "\U000F0BA0 acme/gateway     1 \U000F0CCF feat/x")
 	assertLegible(t, a, sc, "the worktrees with icons")
 }
 

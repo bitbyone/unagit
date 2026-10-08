@@ -202,8 +202,8 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
 		{name: "Merge…", about: "Merge it on the server - now, or once its pipeline succeeds - after saying what stands in the way.", keys: "M", rank: 41, run: func() { a.mergeMR(mr) }},
 		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
-		{name: "Reviewers…", about: "Choose who is asked to review: space asks or withdraws, Esc saves.", keys: "a", rank: 43, run: func() { a.editReviewers(mr) }},
-		{name: "Assignees…", about: "Choose who the merge request is assigned to: space assigns or unassigns, Esc saves.", keys: "s", rank: 43, run: func() { a.editAssignees(mr) }},
+		{name: "Add/Change Reviewer…", about: "Choose who is asked to review: space asks or withdraws, x withdraws, Esc saves.", keys: "s", rank: 43, run: func() { a.editReviewers(mr) }},
+		{name: "Add/Change Assignee…", about: "Choose who the merge request is assigned to: space assigns or unassigns, x unassigns, Esc saves.", keys: "a", rank: 43, run: func() { a.editAssignees(mr) }},
 		{name: "Labels…", about: "Put the forge's labels on the merge request or take them off: the repository's labels, and on GitLab its groups'; space puts on or takes off, Esc saves.", keys: "t", rank: 44, run: func() { a.editLabels(mr) }},
 		{name: "Publish Comments", about: "Post the comments you wrote in Incomm to the merge request.", keys: "P", rank: 45, run: func() { a.publishMR(mr) }},
 		{name: "Review With…", about: "Choose the editor, then open the review here.", keys: "Alt-R", rank: 50, run: func() {

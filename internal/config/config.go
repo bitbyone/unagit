@@ -72,6 +72,28 @@ type Instance struct {
 	// key and the token is only ever spent on the API.
 	CloneProtocol string  `yaml:"clone_protocol,omitempty" json:"clone_protocol,omitempty"`
 	Groups        []Group `yaml:"groups" json:"groups"`
+	// PeopleUses counts whom merge requests were given to on this server -
+	// by role (RoleAssignee, RoleReviewer), then by user name - so the
+	// lists of people start with the usual ones.
+	PeopleUses map[string]map[string]int `yaml:"people_uses,omitempty" json:"people_uses,omitempty"`
+}
+
+// The roles PeopleUses counts by.
+const (
+	RoleAssignee = "assignee"
+	RoleReviewer = "reviewer"
+)
+
+// UsePerson counts one more time username was given a merge request in a
+// role.
+func (i *Instance) UsePerson(role, username string) {
+	if i.PeopleUses == nil {
+		i.PeopleUses = map[string]map[string]int{}
+	}
+	if i.PeopleUses[role] == nil {
+		i.PeopleUses[role] = map[string]int{}
+	}
+	i.PeopleUses[role][username]++
 }
 
 // Clone protocols. They mirror the workspace's, which cannot be imported here

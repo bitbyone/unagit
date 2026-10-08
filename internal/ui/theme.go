@@ -59,7 +59,10 @@ var (
 	agentIcons map[string]string
 	// actionIcons are the theme's icons of the actions, nil without a
 	// Nerd Font.
-	actionIcons                                             map[string]string
+	actionIcons map[string]string
+	// columnIcons are the theme's icons of the columns' headings, nil
+	// without a Nerd Font.
+	columnIcons                                             map[string]string
 	glyphCheck, glyphCross, glyphDot, glyphRing             string
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried string
 	glyphUser, glyphStarred, glyphAgent                     string
@@ -184,9 +187,9 @@ func setTheme(t Theme) {
 	glyphDefaultEditor = g.DefaultEditor
 	agentIcons = map[string]string{"claude": g.AgentClaude, "codex": g.AgentCodex, "copilot": g.AgentCopilot,
 		"opencode": g.AgentOpencode, "agy": g.AgentAgy}
-	actionIcons = nil
+	actionIcons, columnIcons = nil, nil
 	if nerdFont {
-		actionIcons = t.ActionIcons
+		actionIcons, columnIcons = t.ActionIcons, t.ColumnIcons
 	}
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried

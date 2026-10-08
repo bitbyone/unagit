@@ -29,6 +29,15 @@ type listColumn struct {
 	width int
 }
 
+// headingWidth is what a column's heading takes: its words, and the
+// theme's icon before them where there is one (withHeadingIcons).
+func headingWidth(heading string) int {
+	if icon := columnIcons[heading]; icon != "" {
+		return cells(icon) + 1 + cells(heading)
+	}
+	return cells(heading)
+}
+
 // fixedColumn is a column that is always as wide as w: a mark, a count.
 func fixedColumn(w int) *listColumn {
 	return &listColumn{floor: w, min: w, ideal: w, full: w, weight: 1, width: w}
@@ -38,7 +47,7 @@ func fixedColumn(w int) *listColumn {
 // lengths are the cells of each row's text; least is the narrowest worth
 // showing.
 func flexColumn(heading string, lengths []int, least int, weight float64) *listColumn {
-	floor := len([]rune(heading))
+	floor := headingWidth(heading)
 	full, ideal := spread(lengths)
 	full, ideal = max(full, floor), max(ideal, floor)
 	return &listColumn{floor: floor, min: max(floor, min(least, full)), ideal: ideal, full: full, weight: weight}

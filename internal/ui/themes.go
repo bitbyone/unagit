@@ -155,6 +155,10 @@ type Theme struct {
 	// only where the terminal can, and an action without one keeps its place
 	// in the column.
 	ActionIcons map[string]string `json:"action_icons,omitempty"`
+	// ColumnIcons go before the headings of the lists' columns, by the
+	// heading - Nerd Font icons drawn only where the terminal can, and only
+	// where the column has room for them beside its heading.
+	ColumnIcons map[string]string `json:"column_icons,omitempty"`
 	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
 	// Nerd Font (Settings › Theme): only the ones it names, the rest as
 	// Glyphs has them. A theme that wants an icon gives it here and a plain
@@ -324,6 +328,10 @@ func readTheme(data []byte, base Theme) (Theme, error) {
 	t.ActionIcons = map[string]string{}
 	for name, icon := range base.ActionIcons {
 		t.ActionIcons[name] = icon
+	}
+	t.ColumnIcons = map[string]string{}
+	for name, icon := range base.ColumnIcons {
+		t.ColumnIcons[name] = icon
 	}
 	// A copy too: decoding into the base's own slice wrote every theme's
 	// heat over the one before it.
@@ -622,6 +630,11 @@ func (t Theme) validate() error {
 	for name, icon := range t.ActionIcons {
 		if utf8.RuneCountInString(icon) > 1 {
 			problems = append(problems, fmt.Sprintf("action_icons.%s: %q is not one character", name, icon))
+		}
+	}
+	for name, icon := range t.ColumnIcons {
+		if utf8.RuneCountInString(icon) > 1 {
+			problems = append(problems, fmt.Sprintf("column_icons.%s: %q is not one character", name, icon))
 		}
 	}
 	if t.Glyphs.CIRunning == "" {
