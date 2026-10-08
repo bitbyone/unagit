@@ -65,6 +65,40 @@ Claude Code 2.1.293, on 2026-10-08:
   to no window. Whether `focus` on it slides it out was not tried: it would
   have moved the user's window under them.
 
+- **What herdr's hooks do depends on the agent.** `herdr integration
+  install claude` (integration version 10, tried in a throwaway `HOME`)
+  adds one `SessionStart` hook that reports the session's id and
+  transcript path (`pane.report_agent_session`) - for resuming it, not for
+  its state. Claude's state is the manifest's: rules over the screen and
+  over the terminal title Claude sets (a spinner while it works), kept up
+  to date by herdr per Claude version - "Do you want to proceed?" with
+  numbered options is `blocked`, the prompt box back with no spinner is
+  `idle`. Other integrations report the state itself: opencode's plugin
+  calls `pane.report_agent` with working, idle and blocked. Every hook
+  needs `HERDR_ENV`, `HERDR_PANE_ID` and `HERDR_SOCKET_PATH`, and quietly
+  does nothing without them.
+- **The host's herdr socket does not reach a container.** Under OrbStack a
+  Unix socket on the host, bind-mounted into a container (the file or its
+  directory), answered on the host and refused the connection inside.
+
+So the launcher gives a Claude in a container what a Claude on the host
+gets without the integration: the same identification and the same screen
+rules. What it loses is the session's identity, and for an agent whose
+state comes from its hooks it would leave only the screen. It also leans
+on which foreground process herdr picks, which herdr does not document.
+The two ways that keep the hooks:
+
+- **A relay**: the container's `HERDR_SOCKET_PATH` is a socket inside it,
+  served by a small forwarder that passes only `pane.report_agent`,
+  `pane.report_agent_session` and `pane.release_agent`, with the pane
+  fixed to the container's own, over TCP to unagit on the host
+  (`host.docker.internal`), with a token per container. Never the socket
+  itself: `send-keys` into another pane would be a way out of the sandbox.
+- **Herdr's own remote**: a herdr server inside the container as an SSH
+  machine (`herdr machine add`, `ProxyCommand docker exec -i … sshd -i`).
+  Supported by herdr and complete - the hooks talk to a server next to
+  them - but every container is a machine in herdr's sidebar.
+
 Not tried: herdr's SSH machines (`herdr machine add`) with a container as
 the machine. The launcher makes them unnecessary for a container on this
 computer.
