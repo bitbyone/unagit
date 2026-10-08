@@ -467,9 +467,9 @@ func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 	useFavourite(a, editors.Nvim)
 	p := newRealProject(t, a, "acme/gateway")
 	r := paneNeovim(t, a, sc, p.path)
-	tabs := func() (n int, last string) {
+	splits := func() (n int, last string) {
 		for _, call := range tool.Calls(t) {
-			if call.Args[3] == "new-tab" {
+			if call.Args[3] == "new-pane" {
 				n, last = n+1, strings.Join(call.Args, " ")
 			}
 		}
@@ -487,32 +487,35 @@ func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 		waitFor(t, a, sc, "Enter attach")
 		typeRunes(sc, "a")
 		waitFor(t, a, sc, "Attach acme/gateway · where")
-		for _, want := range []string{"This Terminal", "Zellij Tab", "Zellij Split Right", "Zellij Split Below"} {
+		for _, want := range []string{"Zellij Tab", "Zellij Split Right", "Zellij Split Below"} {
 			waitFor(t, a, sc, want)
 		}
 		waitFor(t, a, sc, "NORMAL")
+		if strings.Contains(a.screenText(sc), "This Terminal") {
+			t.Fatal("this terminal is offered; Enter is for that")
+		}
 	}
 
 	putAside()
 	assertLegible(t, a, sc, "where to bring Neovim back")
-	typeRunes(sc, "j")
+	typeRunes(sc, "j") // Zellij Split Right
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
 	waitEditorIdle(t, a)
-	if n, last := tabs(); n != 2 || !strings.Contains(last, "--remote-ui") || !strings.Contains(last, r.Socket) {
-		t.Fatalf("the tab did not attach to the Neovim aside: %d tabs, last %s", n, last)
+	if n, last := splits(); n != 1 || !strings.Contains(last, "--remote-ui") || !strings.Contains(last, r.Socket) {
+		t.Fatalf("the split did not attach to the Neovim aside: %d splits, last %s", n, last)
 	}
 
-	// The tab is now the usual place: Enter alone goes there.
+	// The split is now the usual place, listed first: a Enter goes there.
 	putAside()
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
 	waitEditorIdle(t, a)
-	if n, _ := tabs(); n != 3 {
-		t.Fatalf("Enter Enter did not go to the tab again: %d tabs", n)
+	if n, _ := splits(); n != 2 {
+		t.Fatalf("a Enter did not go to the split again: %d splits", n)
 	}
-	if got := onLoop(a, func() int { return a.cfg.Integrations.PlaceUses[placeOfAttach]["zellij-tab"] }); got != 2 {
-		t.Fatalf("the tab counted %d times", got)
+	if got := onLoop(a, func() int { return a.cfg.Integrations.PlaceUses[placeOfAttach]["zellij-right"] }); got != 2 {
+		t.Fatalf("the split counted %d times", got)
 	}
 	if n := countIn(log, "attach|"); n != 0 {
 		t.Fatal("attached in unagit's own terminal as well")

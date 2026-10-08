@@ -863,9 +863,8 @@ Neovim takes the terminal. With Neovim 0.12 or newer, **Ctrl-Z** (or
 `:detach`) puts it aside and returns to unagit, keeping the buffers and
 unsaved changes. **E** on a main list, or **Running Editors…** in `:`, lists
 these editors: Enter attaches in this terminal, `x` closes, and `a`
-(**Attach In…**) asks where - this terminal, or a tab, split or window of
-Zellij, herdr or Ghostty - the place chosen most often first, so `a` Enter
-goes there again. With unsaved changes, closing
+(**Attach In…**) asks for a tab, split or window of Zellij, herdr or
+Ghostty, the place chosen most often first, so `a` Enter goes there again. With unsaved changes, closing
 attaches first and asks about saving in Neovim. The list shows the repository,
 branch or merge request, directory, age and unsaved changes (`?` when the
 editor is too busy to answer). `▣` at the start of a row marks its

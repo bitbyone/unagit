@@ -104,7 +104,7 @@ func (a *App) drawRunningEditors(rows []session.Record, modified []string) {
 		wide: true, explain: true, header: header, enterHint: "attach", relabel: label,
 		enterName: "Attach to Editor", enterAbout: "Return to this Neovim in this terminal, its files and unsaved changes intact.",
 		keys: []pickKey{
-			{keys: "a", hint: "attach in…", name: "Attach In…", about: "Return to this Neovim in a tab, split or window - or this terminal - chosen from where it can go.",
+			{keys: "a", hint: "attach in…", name: "Attach In…", about: "Return to this Neovim in a tab, split or window, chosen from where it can go.",
 				run: func(it pickItem) { a.attachWhere(it.Data.(session.Record)) }},
 			{keys: "x", hint: "close", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", stay: true,
 				run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record), reread) }},
@@ -112,20 +112,25 @@ func (a *App) drawRunningEditors(rows []session.Record, modified []string) {
 	}, func(it pickItem) { a.attachEditor(it.Data.(session.Record)) })
 }
 
-// attachWhere brings a Neovim put aside back where the user chooses: this
-// terminal, or a tab, split or window of what is here. One still in a pane
-// goes to that pane, where it already is.
+// attachWhere brings a Neovim put aside back in a tab, split or window of
+// what is here; this terminal is Enter's. One still in a pane goes to that
+// pane, where it already is.
 func (a *App) attachWhere(r session.Record) {
-	places := a.editorPlaces("Suspend unagit and bring Neovim back here; unagit returns when it is put aside or closed.")
 	if r.Pane != "" {
 		a.attachEditor(r)
 		return
 	}
-	a.pickPlace(placeOfAttach, "Attach "+r.Label()+" · where", places, func(place editorPlace) {
-		if place.client == nil {
-			a.attachEditor(r)
-			return
+	var places []pickItem
+	for _, it := range a.editorPlaces("") {
+		if it.Data.(editorPlace).client != nil {
+			places = append(places, it)
 		}
+	}
+	if len(places) == 0 {
+		a.flash("no tab, split or window to attach in - run unagit in Zellij or herdr, or turn Ghostty on; Enter attaches here")
+		return
+	}
+	a.pickPlace(placeOfAttach, "Attach "+r.Label()+" · where", places, func(place editorPlace) {
 		go func() {
 			a.editorMu.Lock()
 			defer a.editorMu.Unlock()
