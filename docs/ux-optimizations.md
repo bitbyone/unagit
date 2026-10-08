@@ -159,9 +159,18 @@ Open….
 - In the configuration as the agents are: an editor not named is on
   whenever it is installed.
 
+## 9. An agent's action carries the agent's icon
+
+Every action in the action pickers that opens an agent - today's "Open in
+\<agent\>…" (`agentActions`), and 2's "Open with \<agent\>…", "Review with
+\<agent\>…" and its tier 3 - is drawn with that agent's icon before its
+name, the one the Agents tab uses (`agentIcons`). Without a Nerd Font the
+name stands alone, aligned with the other actions rather than indented.
+
 ## Order of work
 
-1, 3, 4 and 5 are small and independent. 7 and 8 go together (the editors'
+1, 3, 4, 5 and 9 are small and independent; 2's new agent actions take 9's
+icon from the start. 7 and 8 go together (the editors'
 identity), then 6, which uses 7's icons. 2 is the largest and last: the
 filter-only flag, aliases and ranking in the action picker, then Open…,
 then the tiers.
