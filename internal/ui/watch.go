@@ -867,8 +867,9 @@ func (a *App) sendNotificationAs(mode, title, body string) (string, error) {
 	}
 	q := a.quiet
 	free := q != nil && !q.suspended.Load()
+	away := q != nil && q.focusKnown.Load() && !q.focused.Load()
 	term := notify.Detect(os.Getenv)
-	toTerminal, toSystem := notify.Route(mode, term, free)
+	toTerminal, toSystem := notify.Route(mode, term, free, away)
 	if toTerminal {
 		seq := term.Sequence(title, body)
 		a.tv.QueueUpdate(func() {

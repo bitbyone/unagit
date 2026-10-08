@@ -59,20 +59,23 @@ func TestRoute(t *testing.T) {
 	cases := []struct {
 		mode       string
 		t          TerminalInfo
-		free       bool
+		free, away bool
 		term, syst bool
 	}{
-		{Auto, ghostty, true, true, false},
-		{Auto, ghostty, false, false, true},
-		{Auto, plain, true, false, true},
-		{Terminal, ghostty, false, false, false},
-		{System, ghostty, true, false, true},
-		{Off, ghostty, true, false, false},
+		{Auto, ghostty, true, true, true, false},
+		// A terminal in front shows nothing of its own.
+		{Auto, ghostty, true, false, false, true},
+		{Auto, ghostty, false, true, false, true},
+		{Auto, plain, true, true, false, true},
+		{Terminal, ghostty, true, false, true, false},
+		{Terminal, ghostty, false, true, false, false},
+		{System, ghostty, true, true, false, true},
+		{Off, ghostty, true, true, false, false},
 	}
 	for _, c := range cases {
-		term, syst := Route(c.mode, c.t, c.free)
+		term, syst := Route(c.mode, c.t, c.free, c.away)
 		if term != c.term || syst != c.syst {
-			t.Errorf("%q free=%v: terminal %v system %v", c.mode, c.free, term, syst)
+			t.Errorf("%q free=%v away=%v: terminal %v system %v", c.mode, c.free, c.away, term, syst)
 		}
 	}
 }
@@ -90,7 +93,7 @@ func TestAMultiplexerThatKeepsThemGoesToTheSystem(t *testing.T) {
 		if info.Muxer == "" || info.Protocol != None || info.Sequence("t", "b") != nil {
 			t.Fatalf("%v: %+v", vars, info)
 		}
-		if useTerminal, useSystem := Route(Auto, info, true); useTerminal || !useSystem {
+		if useTerminal, useSystem := Route(Auto, info, true, true); useTerminal || !useSystem {
 			t.Fatalf("%v: routed to the terminal", vars)
 		}
 		if app := info.App(env(vars)); app != "Ghostty" {

@@ -190,7 +190,11 @@ func appleString(s string) string {
 // Route is where a notification goes: the terminal (its sequence), the
 // system, or nowhere. terminalFree is false while an editor has the
 // terminal, when a sequence written would land in the editor's output.
-func Route(mode string, t TerminalInfo, terminalFree bool) (useTerminal, useSystem bool) {
+// terminalAway is true when the terminal has said it is not in front: a
+// terminal shows nothing for a window that is - Ghostty and iTerm2 leave
+// that to the program inside - so automatic goes to the terminal only
+// then, and to the system whenever the terminal may be in front.
+func Route(mode string, t TerminalInfo, terminalFree, terminalAway bool) (useTerminal, useSystem bool) {
 	switch mode {
 	case Off:
 		return false, false
@@ -199,7 +203,7 @@ func Route(mode string, t TerminalInfo, terminalFree bool) (useTerminal, useSyst
 	case System:
 		return false, true
 	}
-	if terminalFree && t.Protocol != None {
+	if terminalFree && terminalAway && t.Protocol != None {
 		return true, false
 	}
 	return false, true

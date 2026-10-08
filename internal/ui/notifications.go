@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -79,8 +78,7 @@ func (a *App) notificationsCard() *integrationCard {
 				a.saveConfig()
 				return true
 			case 't':
-				go a.sendNotification(context.Background(), "unagit", "a test notification, as a watched pipeline's would come")
-				a.done("sent a test notification")
+				a.testNotification(cfg.Notifications, 0)
 				return true
 			}
 			return false

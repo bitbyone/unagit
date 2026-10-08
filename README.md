@@ -726,8 +726,9 @@ from whatever you are typing. The tab counts the changes not seen yet
 watch goes. When no unagit is in front - another window, or an editor
 running in unagit's terminal - a desktop notification goes out: through
 the terminal where it shows them (Ghostty, WezTerm, foot, iTerm2, kitty;
-under tmux with `allow-passthrough on`), through Notification Centre or
-`notify-send` otherwise, and under Zellij or herdr, which pass none on. A
+under tmux with `allow-passthrough on`) and has said its window is not in
+front - a terminal shows none for a window in front - through Notification
+Centre or `notify-send` otherwise, and under Zellij or herdr, which pass none on. A
 terminal that does not say whether it has focus is taken to be in front
 when its application is. Settings › Integrations › Notifications chooses
 the terminal, the system, or neither, and `t` there sends a test.

@@ -105,9 +105,10 @@ func (s *settingsView) newDebugView() *debugView {
 				}
 			}()
 		}},
-		debugTrigger{"Desktop", "as Settings › Integrations chooses", func() { a.debugDesktop(a.cfg.Integrations.Notifications) }},
-		debugTrigger{"Desktop", "through the terminal", func() { a.debugDesktop(notify.Terminal) }},
-		debugTrigger{"Desktop", "through the system", func() { a.debugDesktop(notify.System) }},
+		debugTrigger{"Desktop", "as Settings › Integrations chooses", func() { a.testNotification(a.cfg.Integrations.Notifications, 0) }},
+		debugTrigger{"Desktop", "as Settings chooses, in 10 s - switch away", func() { a.testNotification(a.cfg.Integrations.Notifications, 10*time.Second) }},
+		debugTrigger{"Desktop", "through the terminal, in 10 s - switch away", func() { a.testNotification(notify.Terminal, 10*time.Second) }},
+		debugTrigger{"Desktop", "through the system", func() { a.testNotification(notify.System, 0) }},
 	)
 	v.table.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev, handled := s.contentKeys(ev); handled {
@@ -167,7 +168,8 @@ func (v *debugView) fill(a *App) {
 		tag(colMuted) + "terminal      " + tagEnd + esc(name) + tag(colMuted) + " · sequence " + tagEnd + yesNo(term.Protocol != notify.None),
 		tag(colMuted) + "says focus    " + tagEnd + yesNo(known),
 		tag(colMuted) + "in front      " + tagEnd + yesNo(a.terminalInFront()),
-		tag(colMuted) + "desktop       " + tagEnd + esc(notificationModeName(a.cfg.Integrations.Notifications)),
+		tag(colMuted) + "desktop       " + tagEnd + esc(notificationModeName(a.cfg.Integrations.Notifications)) +
+			tag(colMuted) + " · now through " + tagEnd + esc(a.notificationWay()),
 		tag(colMuted) + "Watched news is a toast here, and on the desktop when no unagit is in front." + tagEnd,
 	}
 	v.state.SetText(strings.Join(lines, "\n"))
@@ -191,20 +193,47 @@ func (a *App) debugNews(e watch.Event) {
 	go a.notifyWatch(context.Background(), e)
 }
 
-// debugDesktop sends a desktop notification the way a mode chooses, and
-// says which way it went.
-func (a *App) debugDesktop(mode string) {
+// testNotification sends a desktop notification the way a mode chooses,
+// after a while to switch away in - a terminal shows none for its window
+// in front - and says which way it went.
+func (a *App) testNotification(mode string, after time.Duration) {
+	if after > 0 {
+		a.done(fmt.Sprintf("in %d s: switch to another window", int(after.Seconds())))
+	}
 	go func() {
-		way, err := a.sendNotificationAs(mode, "unagit · Debug", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
+		select {
+		case <-time.After(after):
+		case <-a.stopFollowing:
+			return
+		}
+		way, err := a.sendNotificationAs(mode, "unagit · test", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
 		a.tv.QueueUpdateDraw(func() {
 			switch {
 			case err != nil:
 				a.errorf("%v", err)
 			case way == "":
 				a.flash("nothing was sent: " + notificationModeName(mode) + " has no way here")
+			case way == "terminal":
+				a.done("sent through the terminal, which shows it only while its window is not in front")
 			default:
 				a.done("sent through the " + way)
 			}
 		})
 	}()
+}
+
+// notificationWay is the way a notification would go now, as Settings
+// chooses.
+func (a *App) notificationWay() string {
+	q := a.quiet
+	free := q != nil && !q.suspended.Load()
+	away := q != nil && q.focusKnown.Load() && !q.focused.Load()
+	term, system := notify.Route(a.cfg.Integrations.Notifications, notify.Detect(os.Getenv), free, away)
+	switch {
+	case term:
+		return "the terminal"
+	case system:
+		return "the system"
+	}
+	return "nothing"
 }

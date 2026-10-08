@@ -309,6 +309,10 @@ another way than above:
   multiplexer that keeps them - is told from the application in front
   (`lsappinfo` on macOS, every 3 s at most). Zellij and herdr pass no
   notification sequence on, so the system's notifier stands in.
+- **The terminal's way only for a window away.** Ghostty and iTerm2 show
+  nothing for a sequence from a window in front; automatic sends one only
+  when the terminal has said it lost focus, and the system's notifier
+  otherwise - with an editor in front in unagit's own window, say.
 - **The rows keep their mark for the visit.** Opening the screen counts the
   changes as seen on the tab at once, and the rows changed since the last
   visit keep their `●` while it is open, so it can be told which they were.
