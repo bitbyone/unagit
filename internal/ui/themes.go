@@ -237,8 +237,8 @@ type Glyphs struct {
 	// the state's colour; an icon alone, without which a cell of the colour
 	// stands there.
 	IntegrationState string `json:"integration_state"`
-	Hidden        string `json:"hidden"`
-	Favourite     string `json:"favourite"`
+	Hidden           string `json:"hidden"`
+	Favourite        string `json:"favourite"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
 	Check string `json:"check"`
 	Cross string `json:"cross"`
