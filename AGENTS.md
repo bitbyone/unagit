@@ -63,6 +63,15 @@ the code cannot. No emoji, no exclamation marks, ASCII arrows in code comments
 (`→` is fine in user-facing strings). Errors are lower case and say what to do
 about it.
 
+### Keep command output short
+
+Pipe a command's output through `head`, `tail` or `grep` to what you need,
+and read a large file with an offset and a limit rather than `cat`. The
+UI tests print whole screens and the files here run to a thousand lines:
+unfiltered, they fill the context with what nobody reads. A failing test
+is `grep -E "FAIL|_test.go:[0-9]+:"` first, its screen only when that
+does not say enough.
+
 ### A trap when editing
 
 `gofmt` realigns struct tags and re-wraps nothing else, but it *does* move
