@@ -299,6 +299,7 @@ func (a *App) showViewOptions() {
 	a.showToggles(toggles{
 		title: "View · Repositories",
 		verb:  "on/off",
+		pack:  true,
 		items: func() []toggleItem {
 			items := make([]toggleItem, len(options))
 			for i, o := range options {
@@ -323,6 +324,7 @@ func (a *App) showTagFilter() {
 	a.showToggles(toggles{
 		title: "Show the repositories tagged",
 		verb:  "on/off",
+		pack:  true,
 		items: func() []toggleItem {
 			var items []toggleItem
 			for _, t := range a.cfg.TagList() {

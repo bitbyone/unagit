@@ -38,6 +38,9 @@ type toggles struct {
 	// footer says Esc does, instead of close.
 	closed  func()
 	escSays string
+	// pack sizes the dialog to its rows, as a packed picker is, rather than
+	// to most of the screen: a few tags are not a screenful.
+	pack bool
 }
 
 type toggleKey struct {
@@ -206,6 +209,18 @@ func (a *App) showToggles(t toggles) {
 		}
 		return list
 	}}
-	a.pages.AddPage(pageToggles, modalPct(frame, 70, 75), true, true)
+	var page tview.Primitive = modalPct(frame, 70, 75)
+	if t.pack {
+		// As wide as the longest row, the title or the footer, up to what a
+		// packed picker takes, and as tall as the rows and the footer.
+		inner := max(tview.TaggedStringWidth(t.title)+4, tview.TaggedStringWidth(footer.GetText(false))+1, 40)
+		for _, it := range shown {
+			inner = max(inner, tview.TaggedStringWidth(it.Label)+1)
+		}
+		inner = min(inner, 76)
+		footerLines := len(tview.WordWrap(footer.GetText(true), inner))
+		page = modalFixed(frame, inner+2, 2+1+max(1, len(shown))+footerLines)
+	}
+	a.pages.AddPage(pageToggles, page, true, true)
 	setMode(false)
 }

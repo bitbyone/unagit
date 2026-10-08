@@ -139,7 +139,7 @@ func (a *App) showSortPicker() {
 		config.ListMergeRequests: "Sort merge requests",
 		config.ListWorktrees:     "Sort worktrees",
 	}[list]
-	a.showPicker(title, items, func(it pickItem) {
+	a.showPickerWith(title, items, pickerOptions{pack: true}, func(it pickItem) {
 		if it.Data == favouritesFirst {
 			f.FavouritesInPlace = !f.FavouritesInPlace
 			a.applyFilters()
@@ -321,6 +321,7 @@ func (a *App) showMRViewOptions() {
 	a.showToggles(toggles{
 		title: "View · Merge requests",
 		verb:  "on/off",
+		pack:  true,
 		items: func() []toggleItem {
 			items := make([]toggleItem, 0, len(options)+len(f.HiddenAuthors))
 			for i, o := range options {
@@ -435,6 +436,7 @@ func (a *App) showWorktreeViewOptions() {
 	a.showToggles(toggles{
 		title: "View · Worktrees",
 		verb:  "show/hide",
+		pack:  true,
 		items: func() []toggleItem { return a.columnItems(config.ListWorktrees) },
 		toggle: func(it toggleItem) {
 			a.toggleColumnItem(it)
