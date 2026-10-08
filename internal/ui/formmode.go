@@ -18,7 +18,12 @@ import (
 //
 // The mode is kept per form, on the event loop, by the app the form is in.
 
-type formMode struct{ insert bool }
+type formMode struct {
+	insert bool
+	// back, when set, is where h in NORMAL goes instead of up a field: a
+	// form in a pane goes back to the list beside it.
+	back func()
+}
 
 // navigationKeys are what NORMAL moves and edits with; no button takes them.
 const navigationKeys = "hjkli"
@@ -160,7 +165,14 @@ func (a *App) bindFormButtons(form *tview.Form) {
 				case 'j', 'l':
 					a.moveFocus(form, 1)
 					return nil
-				case 'k', 'h':
+				case 'h':
+					if mode.back != nil {
+						mode.back()
+					} else {
+						a.moveFocus(form, -1)
+					}
+					return nil
+				case 'k':
 					a.moveFocus(form, -1)
 					return nil
 				case 'i':
@@ -190,6 +202,14 @@ func (a *App) bindFormButtons(form *tview.Form) {
 		}
 		return ev
 	})
+}
+
+// formBack makes h in a form's NORMAL mode go back, as in a pane beside a
+// list, rather than up a field.
+func (a *App) formBack(form *tview.Form, back func()) {
+	if mode := a.formModes[form]; mode != nil {
+		mode.back = back
+	}
 }
 
 // focusedForm is the form with the focus and its mode, or nil.

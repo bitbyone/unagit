@@ -219,6 +219,13 @@ every list's header, the lists usable meanwhile, and a second start refused.
 for a refresh. A refresh asks the forge only about what the list shows; what
 is hidden keeps what was last read (`keepExtras`).
 
+**In Settings, h goes back to the sections whenever the content has no
+use for it**, and l from a section goes in. A list or a text goes back at
+once (`contentKeys`); a form goes back from NORMAL (`formBack`) and types
+the letter in INSERT; the integrations go back from their first column;
+the groups tree folds with h and unfolds with l, and goes back from a node
+with nothing to fold. A new section follows the same rule.
+
 Main views expose shortcuts through `?`: help keeps actions for the opening
 context in normal text and dims the rest.
 

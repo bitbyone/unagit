@@ -81,7 +81,7 @@ the more usual. `cc split` puts "Open with Claude Code in herdr Vertical
 Split" first. The explanation under the picker shows an action's aliases,
 so they can be learnt.
 
-## 3. Integration cards scroll, and keep their background inside the frame
+## 3. Integration cards scroll, and keep their background inside the frame (first half done)
 
 - A card at the edge of the scrolled area disappears whole, because tview
   draws a widget past its rectangle and the card would cover the panel's
@@ -95,7 +95,7 @@ so they can be learnt.
   icons: every card cell lies inside its rectangle. Waiting for the
   terminal, theme and size it was seen in.)
 
-## 4. h and l between the sidebar and the content, everywhere in Settings
+## 4. h and l between the sidebar and the content, everywhere in Settings (done)
 
 Integrations already does it: `h` from the first column goes back to the
 sections, `l` from a section goes in. Every section is to work so, by one

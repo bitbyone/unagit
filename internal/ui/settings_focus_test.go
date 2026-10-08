@@ -111,3 +111,45 @@ func TestANewRootReachesGroupsAndClones(t *testing.T) {
 	waitFor(t, b, bsc, "acme/gateway")
 	check(b, bsc, "after a restart")
 }
+
+// TestHGoesBackToTheSections: in every section h leads back to the list of
+// sections wherever the pane has no use of its own for it - a form in
+// NORMAL, a list, a text - and in the groups tree it folds first.
+func TestHGoesBackToTheSections(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionTags, sectionTheme, sectionSecurity} {
+		openSection(t, a, sc, section)
+		waitFocus(t, a, func() bool { return a.settings.contentFocused })
+		if section == sectionGeneral {
+			// It opens typing, where h is a letter.
+			changeOnLoop(a, func() { a.formModes[a.settings.general].insert = false })
+		}
+		typeRunes(sc, "h")
+		waitFocus(t, a, func() bool { return a.settings.list.HasFocus() && !a.settings.contentFocused })
+	}
+
+	// The tree: h folds an open server, l opens it again, and h on a
+	// folded one goes back.
+	openSection(t, a, sc, sectionGroups)
+	waitFocus(t, a, func() bool { return a.settings.tree.HasFocus() })
+	expanded := func() bool { return a.settings.tree.GetCurrentNode().IsExpanded() }
+	if !onLoop(a, expanded) {
+		t.Fatal("the server starts folded")
+	}
+	typeRunes(sc, "h")
+	waitFocus(t, a, func() bool { return !expanded() && a.settings.tree.HasFocus() })
+	typeRunes(sc, "l")
+	waitFocus(t, a, func() bool { return expanded() })
+	changeOnLoop(a, a.settings.fillTree)
+	if !onLoop(a, expanded) {
+		t.Fatal("the tree forgot what l unfolded")
+	}
+	typeRunes(sc, "hh")
+	waitFocus(t, a, func() bool { return a.settings.list.HasFocus() })
+	changeOnLoop(a, a.settings.fillTree)
+	if onLoop(a, expanded) {
+		t.Fatal("the tree forgot what h folded")
+	}
+}

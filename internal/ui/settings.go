@@ -55,6 +55,9 @@ type settingsView struct {
 	// contentFocused remembers which side had the keyboard, so closing a
 	// dialog puts it back where it was.
 	contentFocused bool
+	// folded is what h and l made of the groups tree, by node (treeKey), so
+	// it outlasts the tree being built again.
+	folded map[string]bool
 }
 
 func (a *App) newSettingsView() *settingsView {
@@ -301,6 +304,10 @@ func (s *settingsView) contentKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
 		return nil, true
 	case tcell.KeyRune:
 		switch ev.Rune() {
+		case 'h':
+			// Back to the sections, wherever the pane has no use for h.
+			s.focusList()
+			return nil, true
 		case 'q':
 			s.app.tv.Stop()
 			return nil, true
@@ -339,6 +346,7 @@ func (s *settingsView) newGeneralForm() *tview.Form {
 		return ev
 	})
 	s.app.bindFormButtons(form)
+	s.app.formBack(form, s.focusList)
 	return form
 }
 
@@ -715,6 +723,9 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 	tree := tview.NewTreeView()
 	box(tree.Box, "Groups & roots").SetBorderPadding(0, 0, 1, 1)
 	tree.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyRune && (ev.Rune() == 'h' || ev.Rune() == 'l') && s.foldTree(ev.Rune() == 'l') {
+			return nil
+		}
 		if ev, handled := s.contentKeys(ev); handled {
 			return ev
 		}
@@ -761,6 +772,33 @@ type treeRef struct {
 	group    *forge.Group
 }
 
+// treeKey names a node of the groups tree across rebuilds.
+func (r treeRef) treeKey() string {
+	if r.group == nil {
+		return r.instance
+	}
+	return fmt.Sprintf("%s/%d", r.instance, r.group.ID)
+}
+
+// foldTree unfolds the node under the cursor (l) or folds it (h), and
+// reports whether it did: h on a node with nothing to fold, and l on one
+// with nothing to unfold, are left to go back to the sections or to do
+// nothing.
+func (s *settingsView) foldTree(open bool) bool {
+	node := s.tree.GetCurrentNode()
+	if node == nil || len(node.GetChildren()) == 0 || node.IsExpanded() == open {
+		return open
+	}
+	node.SetExpanded(open)
+	if ref, ok := node.GetReference().(treeRef); ok {
+		if s.folded == nil {
+			s.folded = map[string]bool{}
+		}
+		s.folded[ref.treeKey()] = !open
+	}
+	return true
+}
+
 func (s *settingsView) fillTree() {
 	a := s.app
 	// Rebuilding the tree would otherwise throw the cursor back to the top.
@@ -797,6 +835,7 @@ func (s *settingsView) fillTree() {
 			SetReference(instRef).
 			SetSelectable(true)
 		instNode.SetSelectedTextStyle(styleSelected)
+		instNode.SetExpanded(!s.folded[instRef.treeKey()])
 		root.AddChild(instNode)
 		remember(instNode, instRef)
 		if first == nil {
@@ -835,7 +874,8 @@ func (s *settingsView) fillTree() {
 				remember(node, ref)
 				s.labelGroup(node, inst.ID, g)
 				node.SetSelectedFunc(func() { s.cycleGroup(node, inst.ID, g) })
-				node.SetExpanded(depth < 1)
+				folded, chosen := s.folded[ref.treeKey()]
+				node.SetExpanded(chosen && !folded || !chosen && depth < 1)
 				parent.AddChild(node)
 				add(node, g.ID, depth+1)
 			}
