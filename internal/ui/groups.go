@@ -136,7 +136,7 @@ func branchIndex(branches []string, name string) int {
 func (a *App) startGroupWorktree(projects []forge.Project) {
 	for _, pr := range projects {
 		if a.client(pr.Instance) == nil {
-			a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
+			a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
 			return
 		}
 	}

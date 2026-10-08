@@ -522,6 +522,10 @@ type Integrations struct {
 	// Ghostty opens editors and agents in Ghostty windows and splits on a
 	// Mac. Unset, it is on whenever Ghostty is installed.
 	Ghostty *bool `yaml:"ghostty,omitempty"`
+	// Notifications is where a watched pipeline's news goes while the user
+	// looks elsewhere: "" for the terminal where it can and the system
+	// otherwise, "terminal", "system", or "off" (internal/notify).
+	Notifications string `yaml:"notifications,omitempty"`
 	// Agents are the coding agents a directory can be opened in, by their
 	// id (agents.All). One not named is on whenever it is installed.
 	Agents map[string]bool `yaml:"agents,omitempty"`
@@ -673,6 +677,10 @@ func (c *Config) ThemesDir() string { return filepath.Join(c.Dir(), "themes") }
 func (c *Config) IndexPath(name string) string {
 	return filepath.Join(c.Dir(), "index-"+name+".json")
 }
+
+// WatchDir is where what is watched and what was last seen of it are kept:
+// this machine's state, not configuration (internal/watch).
+func (c *Config) WatchDir() string { return filepath.Join(c.Dir(), "watch") }
 
 // VaultPath is the location of the encrypted tokens.
 func VaultPath() string { return filepath.Join(Dir(), "tokens.enc") }

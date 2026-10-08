@@ -28,7 +28,9 @@ func (a *App) listActions(p *pane) []uiAction {
 			run: func() { a.switchTab(pageWorktrees) }},
 		{name: "Go to Agents", about: "Every coding agent at work, and what each is doing.", keys: "4", rank: 905, when: func() bool { return a.currentTab() != pageAgents },
 			run: func() { a.switchTab(pageAgents) }},
-		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "5", rank: 910, run: func() { a.switchTab(pageSettings) }},
+		{name: "Go to Watched", about: "Every pipeline watched, and how each stands.", keys: "5", rank: 907, when: func() bool { return a.currentTab() != pageWatched },
+			run: func() { a.switchTab(pageWatched) }},
+		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "6", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	}
@@ -100,6 +102,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			}
 			a.showBranchPipeline(pr.Instance, pr.PathWithNamespace, branch)
 		}},
+		a.watchPipelinesAction(pipelineWatch(pr.Instance, pr.PathWithNamespace, pr.ID, 0, a.repositoryWatchBranch(pr))),
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 59,
 			when: func() bool { return strings.HasPrefix(a.diskOf(pr.Instance, pr.PathWithNamespace).Branch, "@") },
 			run:  func() { a.backToBranch(pr, a.projectDir(pr.Instance, pr.PathWithNamespace)) }},
@@ -195,6 +198,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Refresh", about: "Ask the server about this merge request alone: its state, head, pipeline, approvals and threads.", keys: "r", rank: 16, run: func() { a.refreshMRRow(mr) }},
 		{name: "Mark as Reviewed", about: "Take the head as seen without opening the review - read in the browser, or in Hunk - so NEW counts only what is pushed after.", keys: "V", rank: 17, run: func() { a.markReviewed(mr) }},
 		{name: "Show Pipeline…", about: "The jobs of the head's pipeline, the first that failed under the cursor: read its log, retry it, open it.", keys: "J", rank: 37, run: func() { a.showMRPipeline(mr, 0) }},
+		a.watchMRAction(mr),
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
 		{name: "Merge…", about: "Merge it on the server - now, or once its pipeline succeeds - after saying what stands in the way.", keys: "M", rank: 41, run: func() { a.mergeMR(mr) }},
 		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
@@ -275,6 +279,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		}},
 		{name: "Rebase onto Base", about: "Rebase the branch onto its base even once pushed; P then force-pushes with a lease.", keys: "Ctrl-R", rank: 50, run: func() { a.rebaseWorktree(r) }},
 		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline, as CI shows it; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},
+		a.watchWorktreeAction(r),
 		{name: "Go to Merge Request", about: "Switch to Merge requests with the cursor on the one open from this branch; in a group, the one you pick.", keys: "m", rank: 36,
 			when: func() bool { return len(a.worktreeMRs(r)) > 0 }, run: func() { a.goToWorktreeMR(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},

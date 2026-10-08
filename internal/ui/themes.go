@@ -237,6 +237,9 @@ type Glyphs struct {
 	// which stays the mark of an editor without an icon of its own; an
 	// icon alone.
 	EditorNeovim string `json:"editor_neovim"`
+	// Watched marks what has its pipelines watched, in the lists and on
+	// the Watched screen.
+	Watched string `json:"watched"`
 	// DefaultEditor marks the default editor, before the word "default";
 	// an icon alone.
 	DefaultEditor string `json:"default_editor"`
@@ -565,6 +568,7 @@ func (t Theme) glyphs() map[string]string {
 	g := t.Glyphs
 	return map[string]string{
 		"glyphs.editor":    g.Editor,
+		"glyphs.watched":   g.Watched,
 		"glyphs.disk_none": g.DiskNone, "glyphs.disk_branch": g.DiskBranch,
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
 		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,

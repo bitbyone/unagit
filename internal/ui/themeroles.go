@@ -138,6 +138,13 @@ var colourRoles = []colourRole{
 	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
 	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},
 	{"mark.agent_working", "agents.working", "the agent there is at work"},
+	{"mark.watched", "text.accent", "what has its pipelines watched"},
+	{"watched.header", "column.header", ""},
+	{"watched.unseen", "state.warning", "a change on the Watched screen not yet seen"},
+	{"watched.what", "column.name", "what is watched: a merge request, a branch"},
+	{"watched.by", "column.author", "whom the pipeline was started by"},
+	{"watched.changed", "column.age", "when the pipeline last changed"},
+	{"watched.error", "state.warning", "why the last reading failed"},
 }
 
 // roleColours is every role as the theme on resolves it (setTheme).

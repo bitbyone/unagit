@@ -227,7 +227,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// against the name.
 	marksCol := editorColumn(filtered, hide("marks"), func(idx int) []openMark {
 		pr := a.projects[idx]
-		return a.openMarks(a.projectDir(pr.Instance, pr.PathWithNamespace))
+		return append(watchedMarks(a.projectWatched(pr)), a.openMarks(a.projectDir(pr.Instance, pr.PathWithNamespace))...)
 	})
 	var cols []*listColumn
 	// The row's leading space goes to the marks; with a star column it was
@@ -386,8 +386,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		var fields []field
 		nameX := markW + 1
 		if marksCol.shown() {
-			fields = append(fields, editorField(open, marksCol.width))
-			keepEditorMark(p, row, 0, open, p.marks[idx])
+			marks := append(watchedMarks(a.projectWatched(pr)), open...)
+			fields = append(fields, editorField(marks, marksCol.width))
+			keepEditorMark(p, row, 0, marks, p.marks[idx])
 			nameX += marksCol.width + 1
 		}
 		fields = append(fields, field{raw: starred(star, favourite(idx), tag(markColour)+mark+tagEnd)})

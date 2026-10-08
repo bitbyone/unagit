@@ -132,6 +132,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.cfg.Integrations.Ghostty = &on
 		},
 	}
+	byName["Notifications"] = s.app.notificationsCard()
 	editorCards := v.editorCards()
 	var agentCards []*integrationCard
 	for _, ag := range agents.All {
@@ -148,7 +149,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	v.categories = []integrationCategory{
 		{"Editors", editorCards},
 		{"Review", []*integrationCard{byName["Incomm"], byName["Hunk"]}},
-		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"]}},
+		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"], byName["Notifications"]}},
 		{"AI Agents", agentCards},
 		{"Files & Navigation", []*integrationCard{byName["Zoxide"], byName["Yazi"], byName["Chezmoi"]}},
 	}

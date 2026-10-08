@@ -177,7 +177,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	// leading space; the star and what is on disk stay against the rest.
 	marksCol := editorColumn(rows, hide("marks"), func(idx int) []openMark {
 		mr := a.mrs[idx]
-		return a.mrOpenMarks(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
+		return append(watchedMarks(a.mrWatched(mr)), a.mrOpenMarks(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])...)
 	})
 	// The row's leading space goes to the marks; with a star column it was
 	// never there, the star standing first.
@@ -393,8 +393,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		var fields []field
 		if c.marks > 0 {
-			fields = append(fields, editorField(open, c.marks))
-			keepEditorMark(p, row, 0, open, p.marks[idx])
+			marks := append(watchedMarks(a.mrWatched(mr)), open...)
+			fields = append(fields, editorField(marks, c.marks))
+			keepEditorMark(p, row, 0, marks, p.marks[idx])
 		}
 		fields = append(fields, field{raw: mark})
 		if withServer {

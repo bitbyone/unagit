@@ -11,6 +11,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/watch"
 )
 
 // A pipeline up close: its jobs - GitHub's check runs - with the first that
@@ -33,12 +34,18 @@ type ciTarget struct {
 	// pipelines, when set, lists the other pipelines of the same merge
 	// request, branch or commit, newest first, for P.
 	pipelines func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error)
+	// watch is what Watch Pipelines on the jobs watches: the merge request
+	// or the branch; nil for one commit's pipelines.
+	watch *watch.Watch
 }
 
 // mrCI is a merge request's pipeline: the one its head ran.
 func (a *App) mrCI(mr forge.MergeRequest) ciTarget {
 	path := a.projectPathOfMR(mr)
+	w := pipelineWatch(mr.Instance, path, mr.ProjectID, mr.IID, "")
+	w.Title = mr.Title
 	return ciTarget{
+		watch:    &w,
 		instance: mr.Instance,
 		project:  forge.Project{ID: mr.ProjectID, PathWithNamespace: path, Instance: mr.Instance},
 		label:    fmt.Sprintf("%s !%d", path, mr.IID),
@@ -60,7 +67,9 @@ func (a *App) branchCI(instance, projectPath, branch string) (ciTarget, error) {
 	if branch == "" || strings.HasPrefix(branch, "(") || strings.HasPrefix(branch, "@") {
 		return ciTarget{}, fmt.Errorf("%s has no branch checked out - a pipeline belongs to a branch", projectPath)
 	}
+	w := pipelineWatch(instance, projectPath, pr.ID, 0, branch)
 	return ciTarget{
+		watch:    &w,
 		instance: instance,
 		project:  pr,
 		label:    projectPath + " · " + branch,
@@ -151,7 +160,7 @@ func (a *App) showPipeline(target ciTarget, focus int64) { a.showPipelineThen(ta
 func (a *App) showPipelineThen(target ciTarget, focus int64, then func()) {
 	client := a.client(target.instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(target.instance))
 		return
 	}
 	var pipe *forge.Pipeline
@@ -208,6 +217,14 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 			a.browserKey("W", "pipeline", "Open Pipeline in Browser", "The whole pipeline's page on the forge; the jobs stay open.",
 				func(pickItem) string { return state.pipe.WebURL }),
 		}}
+	if w := target.watch; w != nil {
+		opts.keys = append(opts.keys, pickKey{stay: true,
+			named: func() (string, string) {
+				act := a.watchPipelinesAction(*w)
+				return act.name, act.about
+			},
+			run: func(pickItem) { a.watchPipelinesAction(*w).run() }})
+	}
 	if target.pipelines != nil {
 		opts.keys = append(opts.keys, pickKey{keys: "P", hint: "pipelines", name: "Earlier Pipelines…",
 			about: "Every pipeline of the same merge request, branch or commit, the newest first.",
@@ -486,7 +503,7 @@ func duration(seconds float64) string {
 func (a *App) runJob(target ciTarget, job forge.Job) {
 	client := a.client(target.instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(target.instance))
 		return
 	}
 	title, said := "Retrying "+job.Name+"…", job.Name+" runs again"
@@ -739,7 +756,7 @@ func (a *App) followLog(target ciTarget, job forge.Job, open func() bool, show f
 func (a *App) showPipelineList(target ciTarget, current int, back func()) {
 	client := a.client(target.instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(target.instance))
 		return
 	}
 	var pipes []forge.Pipeline
@@ -759,7 +776,7 @@ func (a *App) showPipelineList(target ciTarget, current int, back func()) {
 func (a *App) showCommitPipelines(target ciTarget, back func()) {
 	client := a.client(target.instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(target.instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(target.instance))
 		return
 	}
 	var pipes []forge.Pipeline

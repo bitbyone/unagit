@@ -288,6 +288,9 @@ type pickKey struct {
 	// stay keeps the picker open, the cursor where it was: for a key whose
 	// work happens elsewhere, like opening the browser.
 	stay bool
+	// named, when set, says the name and the about as they are now, for
+	// an action that turns into its opposite once done (Watch Pipelines).
+	named func() (string, string)
 }
 
 func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) *livePicker {
@@ -441,7 +444,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			hints = append(hints, "Enter select")
 		}
 		for _, k := range opts.keys {
-			hints = append(hints, k.keys+" "+k.hint)
+			// A key-less action is the actions picker's alone.
+			if k.keys != "" {
+				hints = append(hints, k.keys+" "+k.hint)
+			}
 		}
 		if onNew != nil {
 			hints = append(hints, "n new")
@@ -533,10 +539,14 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				}})
 			}
 			for n, k := range opts.keys {
-				if k.name == "" {
+				name, about := k.name, k.about
+				if k.named != nil {
+					name, about = k.named()
+				}
+				if name == "" {
 					continue
 				}
-				acts = append(acts, uiAction{name: k.name, about: k.about, keys: k.keys, rank: 10 + n, run: func() {
+				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, rank: 10 + n, run: func() {
 					if !k.stay {
 						dismiss()
 					}

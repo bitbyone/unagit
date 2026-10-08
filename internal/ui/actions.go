@@ -134,7 +134,7 @@ func (a *App) confirmDeleteWorktreeEntry(pr forge.Project, e workspace.WorktreeE
 func (a *App) showWorktreePicker(pr forge.Project) {
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
 		return
 	}
 	a.load("Loading branches of "+pr.PathWithNamespace, func(log func(string)) (string, error) {

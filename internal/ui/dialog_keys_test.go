@@ -224,7 +224,7 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Jane Doe")
 	check("Merge request detail", []string{"Ctrl-R", "Ctrl-F Ctrl-B"}, []string{"e"})
-	typeRunes(sc, "5")
+	typeRunes(sc, "6")
 	waitFor(t, a, sc, "Default root")
 	check("Settings", []string{}, []string{"Ctrl-O", "a e t v d"})
 	openSection(t, a, sc, sectionGitLab)

@@ -426,7 +426,10 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	hide := func(id string) bool { return a.hidesColumn(config.ListWorktrees, id) }
 	// The marks of what is open stand furthest out and take the row's
 	// leading space; the worktree's own mark stays against the name.
-	marksCol := editorColumn(filtered, hide("marks"), func(idx int) []openMark { return a.openMarks(a.worktrees[idx].Dir) })
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) []openMark {
+		r := a.worktrees[idx]
+		return append(watchedMarks(a.worktreeWatched(r)), a.openMarks(r.Dir)...)
+	})
 	var cols []*listColumn
 	if marksCol.shown() {
 		cols = append(cols, marksCol)
@@ -536,8 +539,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		open := a.openMarks(r.Dir)
 		var cells []field
 		if marksCol.shown() {
-			cells = append(cells, editorField(open, marksCol.width))
-			keepEditorMark(p, row+1, 0, open, false)
+			marks := append(watchedMarks(a.worktreeWatched(r)), open...)
+			cells = append(cells, editorField(marks, marksCol.width))
+			keepEditorMark(p, row+1, 0, marks, false)
 		}
 		cells = append(cells, field{raw: mark})
 		if withServer {
@@ -923,7 +927,7 @@ func (a *App) newMergeRequest(r worktreeRow) {
 	pr := a.worktreeProject(r)
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
 		return
 	}
 	if mr, ok := a.openMRFor(r); ok {

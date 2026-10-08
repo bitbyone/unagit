@@ -140,7 +140,7 @@ func (a *App) pursueGoal() {
 	}
 	client := a.client(g.Link.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(g.Link.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(g.Link.Instance))
 		return
 	}
 	stub := forge.MergeRequest{Instance: g.Link.Instance, ProjectPath: g.Link.Project, IID: g.Link.IID}

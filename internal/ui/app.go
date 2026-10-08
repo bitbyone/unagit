@@ -27,6 +27,7 @@ import (
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/watch"
 	"github.com/tobola/unagit/internal/workspace"
 	"github.com/tobola/unagit/internal/zoxide"
 )
@@ -37,6 +38,7 @@ const (
 	pageMRs       = "mrs"
 	pageWorktrees = "worktrees"
 	pageAgents    = "agents"
+	pageWatched   = "watched"
 	pageSettings  = "settings"
 	pageHelp      = "help"
 	pageTask      = "task"
@@ -226,6 +228,35 @@ type App struct {
 	agentsError   string
 	agentsInFront atomic.Bool
 	agentsNow     chan struct{}
+	// What is watched and what was last seen of it (watch.go). watchStore
+	// is set at the unlock, watchID names this instance among those open;
+	// watchShown is how far its events have been said here, watchSeen how
+	// far its user has looked, watchStarted set once the first state came.
+	// watchAsk* is a read asked for, for the follower to pass on.
+	watchStore     *watch.Store
+	watchID        string
+	watches        []watch.Watch
+	watchSnap      watch.Snapshot
+	watchShown     uint64
+	watchSeen      atomic.Uint64
+	watchLooked    uint64 // how far it was seen when Watched was last opened
+	watchStarted   bool
+	watchPolling   atomic.Bool
+	watchNow       chan struct{}
+	watchAskMu     sync.Mutex
+	watchAskSeq    uint64
+	watchAskKeys   []string
+	watchedPane    *pane
+	stopFollowing  chan struct{}
+	followDone     chan struct{}
+	watchLookEvery time.Duration
+	watchIdleEvery time.Duration
+	// notifier, when set, takes the desktop notifications instead of the
+	// terminal and the system; tests count them.
+	notifier func(title, body string)
+	// quiet is the screen as wrapped, which knows whether the terminal is in
+	// front and whether an editor has it.
+	quiet *quietScreen
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -329,6 +360,7 @@ func newApp(cfg *config.Config, vault tokenVault) *App {
 		sessions:  session.New(cfg.Dir()),
 		disk:      map[projectKey]diskInfo{},
 		agentsNow: make(chan struct{}, 1),
+		watchNow:  make(chan struct{}, 1),
 	}
 	a.vault = vault
 	a.rebuildClients()
@@ -346,6 +378,7 @@ func NewLocked(cfg *config.Config) *App {
 		sessions:  session.New(cfg.Dir()),
 		disk:      map[projectKey]diskInfo{},
 		agentsNow: make(chan struct{}, 1),
+		watchNow:  make(chan struct{}, 1),
 	}
 }
 
@@ -430,17 +463,26 @@ func (a *App) Run() error {
 		}
 		a.SetScreen(screen)
 	}
+	stopWatching := make(chan struct{})
+	a.stopFollowing = stopWatching
 	if a.vault == nil {
 		a.showUnlock()
 	} else {
 		a.start()
 	}
-	stopWatching := make(chan struct{})
 	go a.watchTheme(stopWatching)
 	go a.watchEditors(stopWatching)
 	go a.watchAgents(stopWatching)
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 	close(stopWatching)
+	// The watches' follower gives up its lock and its presence before
+	// unagit is gone, so another instance takes over at once.
+	if a.followDone != nil {
+		select {
+		case <-a.followDone:
+		case <-time.After(5 * time.Second):
+		}
+	}
 	// Window editors outlive unagit, but nothing vouches for them any more.
 	closeWindowSessions()
 	return err
@@ -459,12 +501,14 @@ func (a *App) buildInterface() tview.Primitive {
 	a.mrsPane = a.newMRsPane()
 	a.worktreesPane = a.newWorktreesPane()
 	a.agentsPane = a.newAgentsPane()
+	a.watchedPane = a.newWatchedPane()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
 	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
 	a.pages.AddPage(pageAgents, a.agentsPane.root, true, false)
+	a.pages.AddPage(pageWatched, a.watchedPane.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -488,6 +532,7 @@ func (a *App) start() {
 		a.themeProblem = ""
 	}
 	a.loadIndexes()
+	a.startWatching()
 	a.detectChezmoi()
 	a.refreshDisk()
 	a.projectsPane.reload()
@@ -909,9 +954,9 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 	}
 	if len(ready) == 0 {
 		if len(missing) > 0 {
-			return nil, fmt.Errorf("no token for %s - set one in [4] Settings", strings.Join(missing, ", "))
+			return nil, fmt.Errorf("no token for %s - set one in "+settingsTab, strings.Join(missing, ", "))
 		}
-		return nil, fmt.Errorf("no groups selected - open [4] Settings first")
+		return nil, fmt.Errorf("no groups selected - open " + settingsTab + " first")
 	}
 	return ready, nil
 }

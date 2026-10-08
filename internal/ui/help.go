@@ -23,6 +23,7 @@ const (
 	helpWorktreeList
 	helpWorktreeDetail
 	helpAgentList
+	helpWatchedList
 	helpSettingsList
 	helpServers
 	helpGroups
@@ -36,7 +37,7 @@ const (
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpAgentList | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
+	helpNavigation    = helpLists | helpWorktrees | helpAgentList | helpWatchedList | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -63,6 +64,8 @@ func (a *App) helpContext() (helpContext, string) {
 		return helpWorktreeList, "Worktrees"
 	case pageAgents:
 		return helpAgentList, "Agents"
+	case pageWatched:
+		return helpWatchedList, "Watched"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -142,7 +145,7 @@ func helpRows() []helpLine {
 	applyTheme()
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
-		key("1 2 3 4 5", "Repos · MRs · Worktrees · Agents · Settings"),
+		key("1 2 3 4 5 6", "Repos, MRs, Worktrees, Agents, Watched, Settings"),
 		key("Alt-Enter", "every action on the selection, with its key"),
 		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
 		key(":", "every action of the screen, with its key"),
@@ -194,6 +197,7 @@ func helpRows() []helpLine {
 		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
 		key(editorGlyph(editors.Nvim), "this directory is open in Neovim"),
 		key(glyphAgent, "an agent works here; its colour, what it does"),
+		key(glyphWatched, "its pipelines are watched; see Watched (5)"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),
@@ -266,6 +270,15 @@ func helpRows() []helpLine {
 		key(glyphDot+" idle", "done with its turn, ready for the next"),
 		blank(),
 
+		section("Watched", helpWatchedList),
+		key("Enter", "the pipeline's jobs"),
+		key("x", "stop watching; every marked one with space"),
+		key("w", "the pipeline in the browser"),
+		key("m", "go to the merge request or repository"),
+		key("r  R", "read this one, or every one, now"),
+		key(glyphDot, "a change not seen yet; counted on the tab"),
+		blank(),
+
 		section("A worktree's view (Enter)", helpWorktreeDetail),
 		key("j  k", "from block to block: the group, each repository"),
 		key("p  P  C", "pull · push · commit what is lit"),
@@ -310,7 +323,7 @@ func helpRows() []helpLine {
 		key("r", "reload"),
 		blank(),
 
-		section("Settings  (4)", helpSettingsList),
+		section("Settings  (6)", helpSettingsList),
 		key("j  k", "move between the sections"),
 		key("Enter  l", "edit the section"),
 		blank(),

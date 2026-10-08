@@ -22,6 +22,10 @@ import (
 type quietScreen struct {
 	tcell.Screen
 	suspended atomic.Bool
+	// focused is whether the terminal is in front, as it last said; true
+	// until it says otherwise - unagit was just started there - and for
+	// ever in a terminal that never says.
+	focused atomic.Bool
 	// onFocus runs, off the event loop, whenever the terminal regains focus.
 	onFocus func()
 	// dimmed is set once a modal has dimmed what is under it in the frame
@@ -51,6 +55,7 @@ func (s *quietScreen) PollEvent() tcell.Event {
 		if !ok {
 			return ev
 		}
+		s.focused.Store(focus.Focused)
 		if focus.Focused && s.onFocus != nil {
 			s.onFocus()
 		}
@@ -86,10 +91,12 @@ func (s *quietScreen) Sync() {
 // terminal.
 func (a *App) SetScreen(s tcell.Screen) {
 	a.screenGiven = true
-	a.tv.SetScreen(&quietScreen{Screen: s, onFocus: func() {
+	a.quiet = &quietScreen{Screen: s, onFocus: func() {
 		// Back from another window, where the files may have changed.
 		go a.tv.QueueUpdateDraw(func() { a.refreshLocal() })
-	}})
+	}}
+	a.quiet.focused.Store(true)
+	a.tv.SetScreen(a.quiet)
 }
 
 // localRefreshGap keeps switching tabs back and forth from starting a git per

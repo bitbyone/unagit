@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Agents │ [5] Settings
+ [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Agents │ [5] Watched │ [6] Settings
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **[5] Settings** you add servers (`a`), paste a
+Nothing to edit by hand. In **[6] Settings** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -697,6 +697,42 @@ alike:
 After each the row is asked about again, so the list shows what the server
 now has.
 
+## Watching pipelines
+
+A pipeline you are waiting for need not be on screen. **Watch Pipelines**,
+in the actions (`Alt-Enter`) of a repository, a merge request, a worktree, a
+block of the worktree view or a pipeline's jobs, follows it in the
+background: a merge request's pipeline whatever its head ran - a push moves
+the watch on to the new one - or a branch's newest. A grouped worktree asks
+which of its repositories. The row wears `◎` in every list, and on
+something watched the same action is **Stop Watching Pipelines**.
+
+**[5] Watched** lists every watch with how its pipeline stands, the job it
+failed on, who started it and when it last changed. `Enter` opens the jobs,
+`x` stops watching - `space` marks several, `x` then lets them all go -
+`w` opens the pipeline in the browser, `m` goes to the merge request or the
+repository, `r` and `R` read one or every one now.
+
+A pipeline that ends - passed, failed, cancelled, waiting for a manual
+job - is said on the status line, never in a box that would take the keys
+from whatever you are typing; the tab counts the changes not seen yet
+(`[5] Watched ●2`) until you open it. A merge request merged or closed says
+so and its watch goes. When no unagit is in front - another window, or
+an editor running in unagit's terminal - a desktop notification goes out:
+through the terminal where it shows them (Ghostty, WezTerm, foot, iTerm2,
+kitty; under tmux with `allow-passthrough on`), through Notification Centre
+or `notify-send` otherwise. Settings › Integrations › Notifications chooses
+the terminal, the system, or neither, and `t` there sends a test.
+
+Watching runs only while unagit does: the token is only ever in a running
+unagit's memory, and there is no background service. With several open, one
+asks the servers and the others read what it found, so each change is said
+once; when that one exits another carries on. A running pipeline is asked
+about every 15 seconds, a finished one every two minutes, to notice the next
+push. What is watched is kept under `~/.config/unagit/watch/`, beside the
+configuration but not in it: `config.yaml` is what you carry between
+machines, what you happen to wait for here is not.
+
 ## The rest of it
 
 - **One list, several servers.** Any number of GitLab instances plus GitHub,
@@ -929,7 +965,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | --- | --- |
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
-| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Agents · Settings |
+| `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Agents · Watched · Settings |
 | `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
@@ -964,7 +1000,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `?` `q` | help · quit |
 
 On-disk markers: `○` nothing, `●` branch worktree, `◐` review worktree, `◉`
-both, `⊘` hidden.
+both, `⊘` hidden. In the marks column, `◎` (an eye with a Nerd Font) says
+its pipelines are watched.
 
 ## Where unagit keeps its own things
 
@@ -973,6 +1010,7 @@ both, `⊘` hidden.
 ~/.config/unagit/tokens.enc       sealed with your passphrase
 ~/.config/unagit/index-*.json     the cached lists
 ~/.config/unagit/sessions/        what is open in an editor right now
+~/.config/unagit/watch/           what is watched, what was last seen of it
 ~/.config/unagit/themes/*.json    themes of your own
 ```
 

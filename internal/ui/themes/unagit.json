@@ -90,6 +90,7 @@
   "heat": ["#5a7f8c", "#8f5a5a"],
   "glyphs": {
     "editor": "▣",
+    "watched": "◎",
     "disk_none": "○",
     "disk_branch": "●",
     "disk_review": "◐",
@@ -142,6 +143,7 @@
     "agent_agy": "\uec10",
     "integration_state": "\uf192",
     "editor_neovim": "\ue6ae",
+    "watched": "\uf06e",
     "default_editor": "\udb80\uddbf",
     "draft": "\uebd9",
     "user": "\uf007",

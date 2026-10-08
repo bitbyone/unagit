@@ -76,7 +76,7 @@ func (a *App) keepStarred(pr forge.Project) {
 // lists them.
 func (a *App) showStarred() {
 	if !a.hasGitHub() {
-		a.note("no GitHub account with a token - add one in [4] Settings")
+		a.note("no GitHub account with a token - add one in " + settingsTab)
 		return
 	}
 	var starred []forge.Project
@@ -194,7 +194,7 @@ func (a *App) cloneStarred(pr forge.Project, back func()) {
 func (a *App) showReadme(pr forge.Project, back func()) {
 	client := a.client(pr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(pr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
 		return
 	}
 	var text string

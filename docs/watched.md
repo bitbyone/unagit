@@ -1,7 +1,8 @@
 # Watched
 
-A plan, not yet built. Today a running pipeline is followed only while it is
-in front of the user: the lists ask again about the pipelines they show as
+Built, as below; [Where it stands](#where-it-stands) at the end says where
+the code went another way and what is still to do. Before it, a running
+pipeline was followed only while it was in front of the user: the lists ask again about the pipelines they show as
 running (`cipoll.go`), and an open jobs dialog follows its own
 (`followPipeline`). Nothing says "it failed" once the user has looked away,
 and nothing follows a pipeline a filter hides. The aim: the user *watches*
@@ -16,8 +17,8 @@ the user - become new sections later rather than new screens.
 
 ## Decisions
 
-- **One screen, `[4] Watched`, in sections.** Settings moves to `[5]`. The
-  first and for now only section is Pipelines.
+- **One screen, `[5] Watched`, in sections**, after Agents; Settings moves
+  to `[6]`. The first and for now only section is Pipelines.
 - **"Watch Pipelines" is an action without a key.** It is in the action
   pickers (`Alt-Enter`) of a repository, a merge request, a worktree, a
   repository's block in the worktree view, and of the jobs dialog; on
@@ -45,7 +46,7 @@ the user - become new sections later rather than new screens.
   is not looking at must not take the keyboard from whatever they are typing
   into, so a watch's news is a `note` on the status line (`done` for a
   success), the tab's title gains a count of unseen changes
-  (`[4] Watched 2`), and the row stays marked until the screen has been
+  (`[5] Watched ●2`), and the row stays marked until the screen has been
   opened. This is a deliberate exception, and this is where it is written
   down.
 
@@ -275,3 +276,38 @@ Each a `watchKind`, its row and its actions:
 - Twenty running pipelines at 15 s are under 5,000 requests an hour -
   GitHub's limit for a token - but the lists' own refresh shares it.
   GraphQL batching is what removes the ceiling.
+
+## Where it stands
+
+Built in `internal/watch` (the files), `internal/notify` (the sequences and
+the system notifiers), `internal/ui/watch.go` (the follower, the poller,
+the events) and `internal/ui/watched.go` (the screen). Where it went
+another way than above:
+
+- **The poller's lock is tried, not waited for.** Each instance tries
+  `poller.lock` with `LOCK_NB` at every look (a second); a blocked `flock`
+  cannot be called off when unagit exits, and a look a second takes over
+  within a second all the same. `Run` waits for the follower to let the
+  lock and its presence file go.
+- **A merge request costs two requests a turn**, its detail - to notice it
+  merged, closed or pushed - and its pipeline. The jobs are read only when a
+  pipeline has newly failed.
+- **Only an ending is news.** A pipeline that passed, failed, was cancelled
+  or waits for a manual job, and a merge request merged or closed, are
+  counted on the tab and notified; one that started, or a new head, is said
+  on the status line and no more.
+- **The rows keep their mark for the visit.** Opening the screen counts the
+  changes as seen on the tab at once, and the rows changed since the last
+  visit keep their `●` while it is open, so it can be told which they were.
+- **Presence files are per instance**, named `<pid>-<n>`, so two Apps in one
+  test process are told apart as two processes are.
+- **A reading that fails** keeps the last state, says why in the row, and is
+  tried again at the idle interval.
+
+Still to do:
+
+- `If-None-Match` on GitHub, and the GraphQL batch (`PipelineStates`).
+- Backing off a server by its rate limit headers.
+- A branch deleted on origin does not end its watch yet.
+- The lists' own following (`watchCI`) and the poller still ask separately
+  about a pipeline both follow.

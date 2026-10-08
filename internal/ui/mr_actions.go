@@ -34,7 +34,7 @@ func pipelineUnderway(status string) bool {
 func (a *App) mergeMR(mr forge.MergeRequest) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
@@ -139,7 +139,7 @@ func mergeWarnings(mr forge.MergeRequest, underway bool) []string {
 func (a *App) toggleDraft(mr forge.MergeRequest) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
@@ -169,7 +169,7 @@ func (a *App) toggleDraft(mr forge.MergeRequest) {
 func (a *App) closeMR(mr forge.MergeRequest) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
@@ -198,7 +198,7 @@ func (a *App) closeMR(mr forge.MergeRequest) {
 func (a *App) editReviewers(mr forge.MergeRequest) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)

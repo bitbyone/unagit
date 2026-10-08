@@ -21,39 +21,60 @@ var tabs = []tab{
 	{pageMRs, '2', "Merge requests", "MRs"},
 	{pageWorktrees, '3', "Worktrees", "Worktrees"},
 	{pageAgents, '4', "Agents", "Agents"},
-	{pageSettings, '5', "Settings", "Settings"},
+	{pageWatched, '5', "Watched", "Watched"},
+	{pageSettings, '6', "Settings", "Settings"},
 }
 
-// drawTabs renders the tab bar, highlighting the visible page.
+// settingsTab is how a message points at Settings.
+const settingsTab = "[6] Settings"
+
+// drawTabs renders the tab bar, highlighting the visible page. Where the
+// titles do not fit, the short ones stand in; where even those do not, the
+// keys lose their brackets.
 func (a *App) drawTabs() {
 	current := a.currentTab()
-	short := false
-	if a.tabsWidth > 0 {
-		full := 1
-		for _, t := range tabs {
-			full += len([]rune(t.title)) + 7
-		}
-		// The waiting agents' count takes a few cells more.
-		short = full+4 > a.tabsWidth
-	}
-	var parts []string
-	for _, t := range tabs {
-		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
+	label := func(t tab, short, tight bool) string {
 		title := t.title
 		if short {
 			title = t.short
 		}
 		// The agents waiting for an answer are counted where they show from
-		// every screen.
+		// every screen, and so are the watched changes nobody has seen.
 		if t.page == pageAgents && a.agentsWaiting() > 0 {
 			title += fmt.Sprintf(" %s%d", glyphManual, a.agentsWaiting())
 		}
-		label := tview.Escape(fmt.Sprintf(" [%c] %s ", t.key, title))
+		if t.page == pageWatched && a.watchUnseen() > 0 {
+			title += fmt.Sprintf(" %s%d", glyphDot, a.watchUnseen())
+		}
+		if tight {
+			return fmt.Sprintf(" %c %s ", t.key, title)
+		}
+		return fmt.Sprintf(" [%c] %s ", t.key, title)
+	}
+	short, tight := false, false
+	fits := func(short, tight bool) bool {
+		width := 1
+		for _, t := range tabs {
+			width += cells(label(t, short, tight)) + 1
+		}
+		return a.tabsWidth == 0 || width <= a.tabsWidth
+	}
+	switch {
+	case fits(false, false):
+	case fits(true, false):
+		short = true
+	default:
+		short, tight = true, true
+	}
+	var parts []string
+	for _, t := range tabs {
+		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
+		text := tview.Escape(label(t, short, tight))
 		if t.page == current {
-			parts = append(parts, fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), label))
+			parts = append(parts, fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), text))
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("[%s]%s[-]", colTabInactive.String(), label))
+		parts = append(parts, fmt.Sprintf("[%s]%s[-]", colTabInactive.String(), text))
 	}
 	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)))
 }
@@ -85,6 +106,11 @@ func (a *App) switchTab(page string) {
 	case pageAgents:
 		a.tv.SetFocus(a.agentsPane.focusTarget())
 		a.agentsNowAsk()
+	case pageWatched:
+		a.tv.SetFocus(a.watchedPane.focusTarget())
+		a.watchLooked = max(a.watchSnap.Seen, a.watchSeen.Load())
+		a.watchedPane.reload()
+		a.markWatchesSeen()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

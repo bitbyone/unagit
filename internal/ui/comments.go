@@ -219,7 +219,7 @@ func noteMeta(n forge.Note, reply bool) string {
 func (a *App) showComposer(mr forge.MergeRequest, onSent func()) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
@@ -284,7 +284,7 @@ func (a *App) showComposer(mr forge.MergeRequest, onSent func()) {
 func (a *App) approveMR(mr forge.MergeRequest, onDone func()) {
 	client := a.client(mr.Instance)
 	if client == nil {
-		a.errorf("%s has no token - set one in [4] Settings", a.instanceLabel(mr.Instance))
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
 	path := a.projectPathOfMR(mr)
