@@ -125,7 +125,9 @@ func (a *App) filterMRs(query string) []int {
 // title reads the row, so it minds a cut the most; NEW, APPR and CI take
 // room only when a row has something in them, so a list nobody has
 // reviewed, approved or built keeps its titles whole.
-type mrColumns struct{ marks, mark, server, proj, iid, title, author, branch, com, pub, fresh, appr, ci, updated int }
+// fill is what no column takes, a gap after the title so the rest stands
+// at the right edge.
+type mrColumns struct{ marks, mark, server, proj, iid, title, fill, author, branch, com, pub, fresh, appr, ci, updated int }
 
 // titleMeasure is the widest the title column grows: past it the author and
 // the branch would stand so far right of it that the eye loses the row on
@@ -221,8 +223,10 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		}
 	}
 	// One cell stays free, so the last column does not touch the frame.
-	layoutColumns(room-1, cols...)
+	spare := layoutColumns(room-1, cols...)
 	return mrColumns{marks: marksCol.width, mark: markW, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width,
+		// The gap is a field of its own, and a field costs a space before it.
+		fill:   max(0, spare-1),
 		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
 		ci: ci, updated: updatedCol.width}
 }
@@ -326,6 +330,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 	header = append(header,
 		field{text: "MR", width: c.iid, colour: role("merge_requests.header")},
 		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
+		field{width: c.fill},
 		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")})
 	if c.ci > 0 {
 		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
@@ -401,6 +406,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		fields = append(fields,
 			field{text: fmt.Sprintf("!%d", mr.IID), width: c.iid, colour: role("merge_requests.iid")},
 			titleField,
+			field{width: c.fill},
 			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")})
 		if c.ci > 0 {
 			ci, ciColour := ciMark(mr.Pipeline)

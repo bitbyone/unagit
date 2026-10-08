@@ -468,8 +468,8 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	withServer = withServer && serverCol.shown()
 	showPath, showCreated, showSize, showMR := pathCol.shown(), createdCol.shown(), sizeCol.shown(), mrCol.shown()
 	showComments, showEdits := comCol.shown(), editsCol.shown()
-	// What is left over is a gap behind PATH, so the columns after it stand
-	// at the right edge. The gap is a field of its own, and a field costs a
+	// What is left over is a gap before PATH, so it and the columns after
+	// it stand at the right edge. The gap is a field of its own, and a field costs a
 	// space before it.
 	fillW := max(0, spare-1)
 
@@ -492,11 +492,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		header = append(header, field{text: "CI", width: ciW, colour: role("worktrees.header")})
 	}
 	header = append(header, field{text: "RMT", width: remoteW, colour: role("worktrees.header")})
-	if showPath {
-		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
-	}
 	if fillW > 0 {
 		header = append(header, field{width: fillW})
+	}
+	if showPath {
+		header = append(header, field{text: "PATH", width: pathW, colour: role("worktrees.header")})
 	}
 	if showEdits {
 		header = append(header, field{text: glyphEdits, width: editsW, colour: role("worktrees.header"), right: true})
@@ -558,11 +558,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			cells = append(cells, field{text: ci, width: ciW, colour: ciColour})
 		}
 		cells = append(cells, remote)
-		if showPath {
-			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path"), shorten: shortenPath})
-		}
 		if fillW > 0 {
 			cells = append(cells, field{width: fillW})
+		}
+		if showPath {
+			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path"), shorten: shortenPath})
 		}
 		if showEdits {
 			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: role("worktrees.edits"), right: true})
