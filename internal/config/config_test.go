@@ -536,3 +536,31 @@ func TestAnOrderAListCannotHaveFallsBack(t *testing.T) {
 		t.Errorf("another list's order leaked: %q", got)
 	}
 }
+
+// TestSomeColumnsWaitToBeShown: the people columns of the merge requests
+// are hidden until shown, and showing one is kept in shown_columns; the
+// rest are shown until hidden.
+func TestSomeColumnsWaitToBeShown(t *testing.T) {
+	var f Filters
+	if !f.HidesColumn(ListMergeRequests, "assignees") || f.HidesColumn(ListMergeRequests, "author") {
+		t.Fatal("the defaults are wrong")
+	}
+	f.ToggleColumn(ListMergeRequests, "assignees")
+	f.ToggleColumn(ListMergeRequests, "author")
+	if f.HidesColumn(ListMergeRequests, "assignees") || !f.HidesColumn(ListMergeRequests, "author") {
+		t.Fatalf("toggled: %+v", f)
+	}
+	if len(f.ShownColumns[ListMergeRequests]) != 1 || len(f.HiddenColumns[ListMergeRequests]) != 1 {
+		t.Fatalf("kept as %+v / %+v", f.ShownColumns, f.HiddenColumns)
+	}
+	f.ToggleColumn(ListMergeRequests, "assignees")
+	f.ToggleColumn(ListMergeRequests, "author")
+	if f.ShownColumns != nil || f.HiddenColumns != nil {
+		t.Fatalf("toggled back, still kept: %+v / %+v", f.ShownColumns, f.HiddenColumns)
+	}
+	f.HideTags = true
+	f.ToggleColumn(ListRepositories, "tags")
+	if f.HidesColumn(ListRepositories, "tags") {
+		t.Fatal("tags hidden the old way do not show again")
+	}
+}

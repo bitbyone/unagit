@@ -12,8 +12,9 @@ import (
 
 // TestLabelsAreAColumnAndAreChosenAndSavedOnEsc: a merge request's labels
 // are pills in a LABELS column, legible on every row band; t lists the
-// labels that can be put on it, space puts one on, and nothing is sent
-// until the list closes, the labels it had keeping their order.
+// labels that can be put on it, those it wears first, x takes one off and
+// space puts one on, and nothing is sent until the list closes, the labels
+// it had keeping their order.
 func TestLabelsAreAColumnAndAreChosenAndSavedOnEsc(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
@@ -46,14 +47,20 @@ func TestLabelsAreAColumnAndAreChosenAndSavedOnEsc(t *testing.T) {
 	waitFor(t, a, sc, "Labels · acme/gateway !7")
 	waitFor(t, a, sc, "Owned by the backend team")
 	assertLegible(t, a, sc, "the labels to choose from")
-	typeRunes(sc, "j ") // bug, group::backend, ux
-	waitFor(t, a, sc, "3 on")
+	// What it wears comes first: bug, ux, then group::backend.
+	if text := a.screenText(sc); strings.Index(text, "✓ ux") > strings.Index(text, "group::backend") {
+		t.Fatalf("the labels worn are not on top:\n%s", text)
+	}
+	typeRunes(sc, "x") // bug off
+	waitFor(t, a, sc, "1 on")
+	typeRunes(sc, "jj ") // group::backend on
+	waitFor(t, a, sc, "2 on")
 	if len(srv.written()) != 0 {
 		t.Fatalf("sent before the list closed: %q", srv.written())
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Labels of acme/gateway !7: bug, ux, group::backend")
-	waitWritten(t, srv, `"labels":"bug,ux,group::backend"`)
+	waitFor(t, a, sc, "Labels of acme/gateway !7: ux, group::backend")
+	waitWritten(t, srv, `"labels":"ux,group::backend"`)
 	waitRowFetched(t, a, sc)
 }
 

@@ -151,7 +151,11 @@ func (a *App) showLabelToggles(client forge.Provider, mr forge.MergeRequest, pat
 			choices = append(choices, l)
 		}
 	}
+	// What it wears now comes first, to be taken off or replaced at once.
 	sort.SliceStable(choices, func(i, j int) bool {
+		if on[choices[i].Name] != on[choices[j].Name] {
+			return on[choices[i].Name]
+		}
 		return strings.ToLower(choices[i].Name) < strings.ToLower(choices[j].Name)
 	})
 	if len(choices) == 0 {
@@ -178,6 +182,7 @@ func (a *App) showLabelToggles(client forge.Provider, mr forge.MergeRequest, pat
 			name := it.Data.(string)
 			on[name] = !on[name]
 		},
+		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) { on[it.Data.(string)] = false }}},
 		status: func() string {
 			n := 0
 			for _, v := range on {

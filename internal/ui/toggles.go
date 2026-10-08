@@ -47,6 +47,8 @@ type toggleKey struct {
 	key  rune
 	hint string
 	run  func()
+	// onItem, when set instead of run, is given the row under the cursor.
+	onItem func(toggleItem)
 }
 
 // showToggles opens a multiple choice. Like every picker it opens on the list
@@ -169,7 +171,13 @@ func (a *App) showToggles(t toggles) {
 		case tcell.KeyRune:
 			for _, k := range t.keys {
 				if ev.Rune() == k.key {
-					k.run()
+					if k.onItem != nil {
+						if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+							k.onItem(shown[i])
+						}
+					} else {
+						k.run()
+					}
 					rebuild(input.GetText())
 					return nil
 				}

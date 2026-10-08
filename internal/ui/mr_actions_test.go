@@ -8,6 +8,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // waitWritten waits until the fake forge was sent a change containing want.
@@ -271,4 +274,79 @@ func TestCloseIsInThePickerAndAsks(t *testing.T) {
 	waitFor(t, a, sc, "Closed acme/gateway !7")
 	waitWritten(t, srv, `"state_event":"close"`)
 	waitRowFetched(t, a, sc)
+}
+
+// TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit: ASSIGNEES and
+// REVIEWERS wait in View options until shown; then as many names as fit
+// stand whole and the rest are counted. In the reviewers' list who is
+// asked comes first, and x withdraws them.
+func TestPeopleColumnsAreHiddenUntilShownAndCountWhoDoesNotFit(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		for i := range a.mrs {
+			if a.mrs[i].IID == 7 {
+				a.mrs[i].Assignees = []forge.User{{Username: "jane"}, {Username: "john"}, {Username: "mike"}}
+				a.mrs[i].Reviewers = []forge.User{{Username: "mike"}}
+			}
+		}
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	if text := a.screenText(sc); strings.Contains(text, "ASSIGNEES") || strings.Contains(text, "REVIEWERS") {
+		t.Fatalf("the people columns show before they are asked for:\n%s", text)
+	}
+	changeOnLoop(a, func() {
+		a.cfg.Filters.ToggleColumn(config.ListMergeRequests, "assignees")
+		a.cfg.Filters.ToggleColumn(config.ListMergeRequests, "reviewers")
+		a.applyFilters()
+	})
+	waitFor(t, a, sc, "ASSIGNEES")
+	waitFor(t, a, sc, "REVIEWERS")
+	for _, size := range []struct{ w, h int }{{100, 30}, {160, 34}} {
+		resizeApp(a, sc, size.w, size.h)
+		waitFor(t, a, sc, "Rate limiting")
+		assertLegible(t, a, sc, "the people columns")
+	}
+	if line := lineAt(a.screenText(sc), "!7"); !strings.Contains(line, "jane") || !strings.Contains(line, "mike") {
+		t.Errorf("at 160 columns the names are not there: %q", line)
+	}
+
+	resizeApp(a, sc, 120, 34)
+	typeRunes(sc, "ga")
+	waitFor(t, a, sc, "Reviewers · acme/gateway !7")
+	waitFor(t, a, sc, "1 asked")
+	text := a.screenText(sc)
+	if strings.Index(text, "Mike Moe") > strings.Index(text, "Jane Doe") {
+		t.Fatalf("who is asked is not on top:\n%s", text)
+	}
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "0 asked")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Reviewers of acme/gateway !7: nobody")
+	waitWritten(t, srv, `"reviewer_ids":[0]`)
+}
+
+// TestPeopleFieldCountsWhoDoesNotFit: whole names while they fit, the rest
+// counted, and the first cut short only when it alone does not fit.
+func TestPeopleFieldCountsWhoDoesNotFit(t *testing.T) {
+	t.Parallel()
+	names := []string{"Jane Doe", "John Roe", "Mike Moe"}
+	cases := []struct {
+		width int
+		want  string
+	}{
+		{30, "Jane Doe, John Roe, Mike Moe"},
+		{21, "Jane Doe, John Roe +1"},
+		{20, "Jane Doe +2"},
+		{14, "Jane Doe +2"},
+		{8, "Jane… +2"},
+	}
+	for _, c := range cases {
+		got := stripTags(peopleField(names, c.width, colText))
+		if strings.TrimRight(got, " ") != c.want || len([]rune(got)) != c.width {
+			t.Errorf("width %d: %q, want %q in exactly %d", c.width, got, c.want, c.width)
+		}
+	}
 }

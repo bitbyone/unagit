@@ -130,7 +130,7 @@ func (a *App) filterMRs(query string) []int {
 // reviewed, approved or built keeps its titles whole.
 // fill is what no column takes, a gap after the title so the rest stands
 // at the right edge.
-type mrColumns struct{ marks, mark, server, proj, iid, title, labels, fill, author, branch, com, pub, fresh, appr, ci, updated int }
+type mrColumns struct{ marks, mark, server, proj, iid, title, labels, fill, author, assignees, reviewers, branch, com, pub, fresh, appr, ci, updated int }
 
 // titleMeasure is the widest the title column grows: past it the author and
 // the branch would stand so far right of it that the eye loses the row on
@@ -141,6 +141,7 @@ const titleMeasure = 100
 // project is in the headings and every row is indented one cell instead.
 func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped bool) mrColumns {
 	var servers, projs, titles, authors, branches, labelled, labelsShort []int
+	var assigned, assignedShort, reviewing, reviewingShort []int
 	iid, com, updated, fresh, appr, ci, pub := 3, len("COM"), len("UPDATED"), 0, 0, 0, 0
 	if a.cfg.Integrations.Incomm {
 		pub = 3 // PUB: what waits to be published from Incomm
@@ -172,6 +173,12 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 		}
 		if mr.Pipeline != "" {
 			ci = 2
+		}
+		if names := a.peopleNames(mr.Instance, mr.Assignees); len(names) > 0 {
+			assigned, assignedShort = append(assigned, peopleWidth(names, len(names))), append(assignedShort, peopleWidth(names, 1))
+		}
+		if names := a.peopleNames(mr.Instance, mr.Reviewers); len(names) > 0 {
+			reviewing, reviewingShort = append(reviewing, peopleWidth(names, len(names))), append(reviewingShort, peopleWidth(names, 1))
 		}
 		if len(mr.Labels) > 0 {
 			_, all := a.labelPills(mr.Labels, math.MaxInt, behindList)
@@ -226,6 +233,23 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	iidCol := add("iid", fixedColumn(iid))
 	author := add("author", flexColumn("AUTHOR", authors, 8, 0.7))
 	branch := add("branch", flexColumn("BRANCH", branches, 10, 0.8))
+	people := func(id, heading string, full, short []int) *listColumn {
+		if len(full) == 0 || hide(id) {
+			return &listColumn{}
+		}
+		// A row with nobody takes none of the column.
+		for range len(rows) - len(full) {
+			full, short = append(full, 0), append(short, 0)
+		}
+		c := flexColumn(heading, full, 6, 0.6)
+		_, s := spread(short)
+		c.ideal = max(c.floor, s)
+		c.drop = 2
+		cols = append(cols, c)
+		return c
+	}
+	assigneesCol := people("assignees", "ASSIGNEES", assigned, assignedShort)
+	reviewersCol := people("reviewers", "REVIEWERS", reviewing, reviewingShort)
 	comCol, updatedCol := add("comments", fixedColumn(com)), add("updated", fixedColumn(updated))
 	server, proj := &listColumn{}, &listColumn{}
 	if withServer {
@@ -250,7 +274,7 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	return mrColumns{marks: marksCol.width, mark: markW, server: server.width, proj: proj.width, iid: iidCol.width, title: title.width, labels: labels.width,
 		// The gap is a field of its own, and a field costs a space before it.
 		fill:   max(0, spare-1),
-		author: author.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
+		author: author.width, assignees: assigneesCol.width, reviewers: reviewersCol.width, branch: branch.width, com: comCol.width, pub: pub, fresh: fresh, appr: appr,
 		ci: ci, updated: updatedCol.width}
 }
 
@@ -355,7 +379,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		field{text: "TITLE", width: c.title, colour: role("merge_requests.header")},
 		field{text: "LABELS", width: c.labels, colour: role("merge_requests.header")},
 		field{width: c.fill},
-		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")})
+		field{text: "AUTHOR", width: c.author, colour: role("merge_requests.header")},
+		field{text: "ASSIGNEES", width: c.assignees, colour: role("merge_requests.header")},
+		field{text: "REVIEWERS", width: c.reviewers, colour: role("merge_requests.header")})
 	if c.ci > 0 {
 		header = append(header, field{text: "CI", width: c.ci, colour: role("merge_requests.header")})
 	}
@@ -440,7 +466,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		}
 		fields = append(fields,
 			field{width: c.fill},
-			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")})
+			field{text: personName(a.named(mr.Instance, mr.Author)), width: c.author, colour: role("merge_requests.author")},
+			field{raw: peopleField(a.peopleNames(mr.Instance, mr.Assignees), c.assignees, role("merge_requests.assignees")), width: c.assignees},
+			field{raw: peopleField(a.peopleNames(mr.Instance, mr.Reviewers), c.reviewers, role("merge_requests.reviewers")), width: c.reviewers})
 		if c.ci > 0 {
 			ci, ciColour := ciMark(mr.Pipeline)
 			fields = append(fields, field{text: ci, width: c.ci, colour: ciColour})
@@ -1020,4 +1048,57 @@ func undrafted(title string) string {
 		}
 	}
 	return title
+}
+
+// peopleNames is how a list of people reads in a column: each by name.
+func (a *App) peopleNames(instance string, users []forge.User) []string {
+	out := make([]string, len(users))
+	for i, u := range users {
+		out[i] = personName(a.named(instance, u))
+	}
+	return out
+}
+
+// peopleWidth is what the first n names take, and +N for the rest.
+func peopleWidth(names []string, n int) int {
+	w := 0
+	for i := range min(n, len(names)) {
+		if i > 0 {
+			w += 2
+		}
+		w += len([]rune(names[i]))
+	}
+	if rest := len(names) - n; rest > 0 {
+		w += len(fmt.Sprintf(" +%d", rest))
+	}
+	return w
+}
+
+// peopleField is names in exactly width cells: as many whole as fit, the
+// rest counted, +2; the first cut short only when not even it fits.
+func peopleField(names []string, width int, colour tcell.Color) string {
+	if width <= 0 {
+		return ""
+	}
+	n := len(names)
+	for n > 1 && peopleWidth(names, n) > width {
+		n--
+	}
+	text := ""
+	if len(names) > 0 {
+		more := ""
+		if rest := len(names) - n; rest > 0 {
+			more = fmt.Sprintf(" +%d", rest)
+		}
+		shown := strings.Join(names[:n], ", ")
+		if room := width - len([]rune(more)); len([]rune(shown)) > room {
+			shown = trunc(shown, max(0, room))
+		}
+		text = tag(colour) + tview.Escape(shown) + tagEnd
+		if more != "" {
+			text += tag(colDim) + more + tagEnd
+		}
+		width -= len([]rune(shown)) + len([]rune(more))
+	}
+	return text + strings.Repeat(" ", max(0, width))
 }

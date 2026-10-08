@@ -95,6 +95,8 @@ var colourRoles = []colourRole{
 	{"merge_requests.iid", "column.server", "the !number, in the server's colour, so server, repository and number stand apart"},
 	{"merge_requests.title", "column.name", ""},
 	{"merge_requests.author", "column.author", ""},
+	{"merge_requests.assignees", "merge_requests.author", "who it is assigned to"},
+	{"merge_requests.reviewers", "merge_requests.author", "who is asked to review it"},
 	{"merge_requests.branch", "column.branch", ""},
 	{"merge_requests.pending", "column.pending", ""},
 	{"merge_requests.new", "column.new", ""},

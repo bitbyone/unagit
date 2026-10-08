@@ -261,6 +261,9 @@ type Filters struct {
 	// (ListRepositories, ListMergeRequests, ListWorktrees) and the
 	// column's name.
 	HiddenColumns map[string][]string `yaml:"hidden_columns,omitempty" json:"hidden_columns,omitempty"`
+	// ShownColumns are the columns hidden until asked for (hiddenAtFirst)
+	// that the user has shown.
+	ShownColumns map[string][]string `yaml:"shown_columns,omitempty" json:"shown_columns,omitempty"`
 	// Tags narrow the repositories to those wearing any of them.
 	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	// FavouritesInPlace leaves the favourites among the other rows. By
@@ -361,42 +364,58 @@ const (
 	ListWorktrees     = "worktrees"
 )
 
+// hiddenAtFirst are the columns a list leaves out until the user shows
+// them: worth having, not worth the room on every screen.
+var hiddenAtFirst = map[string][]string{
+	ListMergeRequests: {"assignees", "reviewers"},
+}
+
 // HidesColumn says whether a list leaves a column out.
 func (f *Filters) HidesColumn(list, column string) bool {
 	if list == ListRepositories && column == "tags" && f.HideTags {
 		return true
 	}
-	for _, c := range f.HiddenColumns[list] {
-		if c == column {
-			return true
-		}
+	if slices.Contains(hiddenAtFirst[list], column) {
+		return !slices.Contains(f.ShownColumns[list], column)
 	}
-	return false
+	return slices.Contains(f.HiddenColumns[list], column)
 }
 
 // ToggleColumn hides a column of a list, or shows it again.
 func (f *Filters) ToggleColumn(list, column string) {
-	if !f.HidesColumn(list, column) {
-		if f.HiddenColumns == nil {
-			f.HiddenColumns = map[string][]string{}
-		}
-		f.HiddenColumns[list] = append(f.HiddenColumns[list], column)
+	if slices.Contains(hiddenAtFirst[list], column) {
+		f.ShownColumns = toggled(f.ShownColumns, list, column)
 		return
 	}
-	if list == ListRepositories && column == "tags" {
+	if f.HidesColumn(list, column) && list == ListRepositories && column == "tags" {
 		f.HideTags = false
-	}
-	var kept []string
-	for _, c := range f.HiddenColumns[list] {
-		if c != column {
-			kept = append(kept, c)
+		if !slices.Contains(f.HiddenColumns[list], column) {
+			return
 		}
 	}
-	if len(kept) == 0 {
-		delete(f.HiddenColumns, list)
-		return
+	f.HiddenColumns = toggled(f.HiddenColumns, list, column)
+}
+
+// toggled is a list's columns with one added, or taken out when it was
+// there; nil when none is left.
+func toggled(m map[string][]string, list, column string) map[string][]string {
+	if !slices.Contains(m[list], column) {
+		if m == nil {
+			m = map[string][]string{}
+		}
+		m[list] = append(m[list], column)
+		return m
 	}
-	f.HiddenColumns[list] = kept
+	kept := slices.DeleteFunc(slices.Clone(m[list]), func(c string) bool { return c == column })
+	if len(kept) == 0 {
+		delete(m, list)
+		if len(m) == 0 {
+			return nil
+		}
+		return m
+	}
+	m[list] = kept
+	return m
 }
 
 // FavouritesFirst reports whether the favourites lead the lists.

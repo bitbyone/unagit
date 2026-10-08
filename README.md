@@ -147,7 +147,10 @@ all and live only there.
 - `v` also lists the columns in the order they stand, each with an eye: space
   hides one or shows it again, in Merge requests and Worktrees too. What you
   hide is kept in `config.yaml` under `filters.hidden_columns`; the column a
-  row is - the repository, a merge request's title - always stays.
+  row is - the repository, a merge request's title - always stays. A merge
+  request's `ASSIGNEES` and `REVIEWERS` start hidden and are shown there
+  (kept under `filters.shown_columns`): as many names as fit stand whole,
+  and the rest are counted, `+2`.
 - The `NEW` column counts the commits pushed to a merge request since your
   review last checked out its head (`●` when they are not on disk to count),
   `APPR` its approvals - `✓` when you approved, `1/2` of those asked for -
@@ -689,14 +692,16 @@ alike:
   merged unread, and unagit says to look first.
 - `Ctrl-D` marks a merge request as a draft, or a draft as ready.
 - `a` lists who can be asked to review - the repository's members on GitLab,
-  those with push access on GitHub - with the reviewers asked marked;
-  `space` asks or withdraws, and `Esc` saves the choice.
+  those with push access on GitHub - with the reviewers asked marked and
+  first, to be withdrawn or replaced at once; `space` asks or withdraws, `x`
+  withdraws, and `Esc` saves the choice.
 - `s` does the same for who it is assigned to: the same people on GitLab,
   on GitHub whoever can be assigned there, the author included; `space`
-  assigns or unassigns, and `Esc` saves.
+  assigns or unassigns, `x` unassigns, and `Esc` saves.
 - `t` lists the labels that can be put on it - the repository's, and on
-  GitLab those of the groups above it - with the ones it wears marked;
-  `space` puts one on or takes it off, and `Esc` saves. The labels stand
+  GitLab those of the groups above it - with the ones it wears marked and
+  first; `space` puts one on or takes it off, `x` takes it off, and `Esc`
+  saves. The labels stand
   as pills in the `LABELS` column, after the title, and `/` finds a merge
   request by them. A pill takes its label's hue, worked out in the theme's
   own colours the way the tags' are, so a red label is a red pill in any

@@ -268,7 +268,13 @@ func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, pa
 			users = append(users, r)
 		}
 	}
-	sort.SliceStable(users, func(i, j int) bool { return users[i].Username < users[j].Username })
+	// Who is on it now comes first, to be taken off or replaced at once.
+	sort.SliceStable(users, func(i, j int) bool {
+		if on[users[i].Username] != on[users[j].Username] {
+			return on[users[i].Username]
+		}
+		return users[i].Username < users[j].Username
+	})
 
 	a.showToggles(toggles{
 		title: fmt.Sprintf("%s · %s !%d", role.title, path, mr.IID),
@@ -288,6 +294,7 @@ func (a *App) showPeopleToggles(client forge.Provider, mr forge.MergeRequest, pa
 			name := it.Data.(string)
 			on[name] = !on[name]
 		},
+		keys: []toggleKey{{key: 'x', hint: "remove", onItem: func(it toggleItem) { on[it.Data.(string)] = false }}},
 		status: func() string {
 			n := 0
 			for _, v := range on {
