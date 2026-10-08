@@ -86,11 +86,14 @@ so they can be learnt.
 - A card at the edge of the scrolled area disappears whole, because tview
   draws a widget past its rectangle and the card would cover the panel's
   frame. Instead a card is drawn through a screen that drops the cells
-  outside the viewport, so it slides under the edge.
+  outside the viewport, so it slides under the edge. (done)
 - An unfocused card's background spills a cell past its right frame and a
   row below its bottom one (Herdr, Codex, opencode in the screenshot): the
   card gets its grid row's height, the frame is drawn for its own. The
-  background must end with the frame.
+  background must end with the frame. (Not reproduced on the simulation
+  screen, in any built-in theme, at any size, with or without Nerd Font
+  icons: every card cell lies inside its rectangle. Waiting for the
+  terminal, theme and size it was seen in.)
 
 ## 4. h and l between the sidebar and the content, everywhere in Settings
 

@@ -258,6 +258,11 @@ func (v *integrationsView) Draw(screen tcell.Screen) {
 	v.offset = max(0, min(v.offset, max(0, top-room)))
 
 	visible := func(t, h int) bool { return t >= v.offset && t+h <= v.offset+room }
+	// A card at the edge is drawn in part, sliding under it as the page
+	// scrolls: tview would draw it past its rectangle and over the panel's
+	// frame, so it is drawn through a screen that keeps to the room there is.
+	shows := func(t, h int) bool { return t+h > v.offset && t < v.offset+room }
+	clip := clippedScreen{Screen: screen, x: x, y: y, w: width, h: room}
 	for _, h := range headings {
 		if !visible(h.top, 1) {
 			continue
@@ -270,14 +275,25 @@ func (v *integrationsView) Draw(screen tcell.Screen) {
 	}
 	for i, c := range v.cards {
 		at := cardAt[i]
-		if !visible(at.top, at.height) {
-			// Left out whole rather than drawn past the panel's edge.
+		if !shows(at.top, at.height) {
 			c.view.SetRect(0, 0, 0, 0)
 			continue
 		}
 		c.view.SetRect(x+spots[i].column*(cardW+gap), y+at.top-v.offset, cardW, at.height)
-		c.view.Draw(screen)
-		drawCardState(screen, c)
+		c.view.Draw(clip)
+		drawCardState(clip, c)
+	}
+}
+
+// clippedScreen draws only inside a rectangle and drops the rest.
+type clippedScreen struct {
+	tcell.Screen
+	x, y, w, h int
+}
+
+func (c clippedScreen) SetContent(x, y int, primary rune, combining []rune, style tcell.Style) {
+	if x >= c.x && x < c.x+c.w && y >= c.y && y < c.y+c.h {
+		c.Screen.SetContent(x, y, primary, combining, style)
 	}
 }
 

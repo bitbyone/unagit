@@ -63,6 +63,39 @@ func TestIntegrationsAreTilesUnderTheirKind(t *testing.T) {
 	waitFor(t, a, sc, "╭ Chezmoi")
 }
 
+// TestACardAtTheEdgeSlidesUnderIt: scrolled, a card cut by the panel's
+// edge shows what is inside the panel and nothing over its frame, which
+// stays whole on every row.
+func TestACardAtTheEdgeSlidesUnderIt(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 140, 30)
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "╭ Incomm")
+	focusCard(t, a, sc, "Ghostty")
+	waitFor(t, a, sc, "╭ Ghostty")
+	r := onLoop(a, func() [4]int { x, y, w, h := a.settings.integrations.GetRect(); return [4]int{x, y, w, h} })
+	px, py, pw, ph := r[0], r[1], r[2], r[3]
+	lines := strings.Split(a.screenText(sc), "\n")
+	cut := false
+	for y := py; y < py+ph; y++ {
+		row := []rune(lines[y])
+		left, right := row[px], row[px+pw-1]
+		edge := y == py || y == py+ph-1
+		if !edge && (left != '│' || right != '│') {
+			t.Fatalf("the panel's frame is broken on row %d:\n%s", y, a.screenText(sc))
+		}
+		// A card's side with no top above it in the panel: cut by the edge.
+		if y == py+2 && strings.HasPrefix(strings.TrimSpace(string(row[px+1:px+pw-1])), "│") {
+			cut = true
+		}
+	}
+	if !cut {
+		t.Fatalf("no card slid under the top edge:\n%s", a.screenText(sc))
+	}
+}
+
 // TestACardStandsOutAndSaysWhetherItIsOn: a card's background is a step off
 // the page's, and its top edge ends with its state - a cell in the state's
 // colour, then the word.
