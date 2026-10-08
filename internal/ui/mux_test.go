@@ -455,9 +455,10 @@ func TestNeovimInAPaneCanBePutAsideAndBroughtBack(t *testing.T) {
 	}
 }
 
-// TestRunningEditorsAskWhereToBringNeovimBack: Enter in E asks where - this
+// TestRunningEditorsAskWhereToBringNeovimBack: a in E asks where - this
 // terminal or a tab or split of the multiplexer - and the next time starts
-// on the place chosen most, so Enter Enter goes there again.
+// on the place chosen most, so a Enter goes there again; Enter alone
+// attaches in this terminal.
 func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 	_, log := editortest.Install(t)
 	tool, prepare := fakeMux(t)
@@ -484,7 +485,7 @@ func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 		changeOnLoop(a, a.clearSaid)
 		typeRunes(sc, "E")
 		waitFor(t, a, sc, "Enter attach")
-		sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+		typeRunes(sc, "a")
 		waitFor(t, a, sc, "Attach acme/gateway · where")
 		for _, want := range []string{"This Terminal", "Zellij Tab", "Zellij Split Right", "Zellij Split Below"} {
 			waitFor(t, a, sc, want)
@@ -516,6 +517,18 @@ func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
 	if n := countIn(log, "attach|"); n != 0 {
 		t.Fatal("attached in unagit's own terminal as well")
 	}
+
+	// Enter asks nothing: this terminal.
+	tool.SetPanes(t, nil)
+	waitEditorState(t, a, func() bool {
+		rows := a.sessions.Running()
+		return len(rows) == 1 && rows[0].Pane == ""
+	})
+	typeRunes(sc, "E")
+	waitFor(t, a, sc, "Enter attach")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitForEditorLog(t, log, "attach|"+r.Socket)
+	waitEditorIdle(t, a)
 }
 
 func TestANeovimPaneElsewhereCanBeAttachedOrTakenOver(t *testing.T) {

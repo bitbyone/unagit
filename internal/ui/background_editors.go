@@ -102,18 +102,22 @@ func (a *App) drawRunningEditors(rows []session.Record, modified []string) {
 	header := labelRunningEditors(items, rows, modified, width)
 	picker = a.showPickerWith("Running Editors", items, pickerOptions{
 		wide: true, explain: true, header: header, enterHint: "attach", relabel: label,
-		enterName: "Attach to Editor…", enterAbout: "Return to this Neovim with its files and unsaved changes intact - here, or in a tab, split or window.",
-		keys: []pickKey{{keys: "x", hint: "close editor", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", stay: true,
-			run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record), reread) }}},
-	}, func(it pickItem) { a.attachWhere(it.Data.(session.Record)) })
+		enterName: "Attach to Editor", enterAbout: "Return to this Neovim in this terminal, its files and unsaved changes intact.",
+		keys: []pickKey{
+			{keys: "a", hint: "attach in…", name: "Attach In…", about: "Return to this Neovim in a tab, split or window - or this terminal - chosen from where it can go.",
+				run: func(it pickItem) { a.attachWhere(it.Data.(session.Record)) }},
+			{keys: "x", hint: "close", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", stay: true,
+				run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record), reread) }},
+		},
+	}, func(it pickItem) { a.attachEditor(it.Data.(session.Record)) })
 }
 
 // attachWhere brings a Neovim put aside back where the user chooses: this
-// terminal, or a tab, split or window of what is here. One in a pane goes
-// to that pane, and with nowhere else to go there is nothing to ask.
+// terminal, or a tab, split or window of what is here. One still in a pane
+// goes to that pane, where it already is.
 func (a *App) attachWhere(r session.Record) {
 	places := a.editorPlaces("Suspend unagit and bring Neovim back here; unagit returns when it is put aside or closed.")
-	if r.Pane != "" || len(places) == 1 {
+	if r.Pane != "" {
 		a.attachEditor(r)
 		return
 	}

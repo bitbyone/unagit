@@ -183,7 +183,7 @@ func TestRunningEditorsPickerFitsItsFrame(t *testing.T) {
 			waitFor(t, a, sc, "Running Editors")
 			text := a.screenText(sc)
 			t.Logf("rendered running editors:\n%s", text)
-			for _, want := range []string{"REPOSITORY", "BRANCH / MR", "DIRECTORY", "AGE", "EDITS", "!9", "attach", "close editor"} {
+			for _, want := range []string{"REPOSITORY", "BRANCH / MR", "DIRECTORY", "AGE", "EDITS", "!9", "Enter attach", "a attach in…", "x close"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q missing:\n%s", want, text)
 				}
