@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -26,6 +27,9 @@ import (
 var (
 	labelPillMaker pillMaker
 	labelColours   = map[string]tagColour{}
+	// labelColoursMu guards labelColours: every App draws from its own
+	// loop, and tests run several at once.
+	labelColoursMu sync.Mutex
 )
 
 // labelColour is the pill colours of a label: from its colour's hue, or by
@@ -39,6 +43,8 @@ func labelColour(l forge.Label) tagColour {
 		}
 		return tagPalette[sum%len(tagPalette)]
 	}
+	labelColoursMu.Lock()
+	defer labelColoursMu.Unlock()
 	if kept, ok := labelColours[l.Color]; ok {
 		return kept
 	}

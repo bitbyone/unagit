@@ -612,7 +612,15 @@ func sameRow(a, b forge.MergeRequest) bool {
 	return a.Title == b.Title && a.Draft == b.Draft && a.State == b.State &&
 		a.SourceBranch == b.SourceBranch && a.TargetBranch == b.TargetBranch &&
 		a.WebURL == b.WebURL && a.Comments == b.Comments && a.UpdatedAt.Equal(b.UpdatedAt) &&
-		a.Author == b.Author && slices.Equal(a.Labels, b.Labels)
+		a.Author == b.Author && slices.Equal(a.Labels, b.Labels) &&
+		samePeople(a.Assignees, b.Assignees) && samePeople(a.Reviewers, b.Reviewers)
+}
+
+// samePeople reports whether two lists name the same people. A forge does
+// not always move a merge request's updated time when only its reviewers
+// change, so a refresh that compared nothing else kept the ones it had.
+func samePeople(a, b []forge.User) bool {
+	return slices.EqualFunc(a, b, func(x, y forge.User) bool { return x.Username == y.Username })
 }
 
 // applyMRUpdate replaces one row of the index and redraws it, without touching

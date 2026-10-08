@@ -166,7 +166,9 @@ func setTheme(t Theme) {
 		}
 	}
 
+	labelColoursMu.Lock()
 	labelPillMaker, labelColours = newPillMaker(t), map[string]tagColour{}
+	labelColoursMu.Unlock()
 	roleColours = resolveRoles(t)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)

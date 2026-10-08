@@ -420,3 +420,44 @@ func TestTheChosenStandAboveALineAndTheCursorFollows(t *testing.T) {
 		t.Fatalf("mike assigned %d times, want 4", n)
 	}
 }
+
+// TestARowTakesNewPeopleWhenNothingElseChanged: GitLab does not always move
+// a merge request's updated time when only its reviewers change, so a row
+// that compared nothing else kept the reviewers it had after a new one was
+// asked and the row was read again.
+func TestARowTakesNewPeopleWhenNothingElseChanged(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	people := func() (string, string) {
+		return onLoopPair(a, func() (string, string) {
+			for _, mr := range a.mrs {
+				if mr.IID == 7 {
+					var r, s []string
+					for _, u := range mr.Reviewers {
+						r = append(r, u.Username)
+					}
+					for _, u := range mr.Assignees {
+						s = append(s, u.Username)
+					}
+					return strings.Join(r, ","), strings.Join(s, ",")
+				}
+			}
+			return "", ""
+		})
+	}
+	changeOnLoop(a, func() {
+		for _, mr := range a.mrs {
+			if mr.IID == 7 {
+				fresh := mr
+				fresh.Reviewers = []forge.User{{Username: "john"}}
+				a.applyMRUpdate(fresh, false, false)
+				fresh.Assignees = []forge.User{{Username: "jane"}}
+				a.applyMRUpdate(fresh, false, false)
+			}
+		}
+	})
+	if r, s := people(); r != "john" || s != "jane" {
+		t.Fatalf("reviewers %q, assignees %q - the row kept what it had", r, s)
+	}
+}
