@@ -37,7 +37,13 @@ func TestHideAnAuthorsMergeRequests(t *testing.T) {
 	waitFor(t, a, sc, "View · Merge requests")
 	waitFor(t, a, sc, "renovate")
 	assertLegible(t, a, sc, "the merge request view options")
-	typeRunes(sc, "jjjjjj ") // hide the authors below: off
+	// The columns first, then what is hidden: the last row is renovate,
+	// the one above it the option that hides it.
+	text := a.screenText(sc)
+	if strings.Index(text, "Columns") > strings.Index(text, "hide the authors") {
+		t.Fatalf("the columns are not before what is hidden:\n%s", text)
+	}
+	typeRunes(sc, "Gk ") // hide the authors below: off
 	waitFor(t, a, sc, "1 author(s) hidden, shown")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, " ") // on again

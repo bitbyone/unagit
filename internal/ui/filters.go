@@ -324,9 +324,17 @@ func (a *App) showMRViewOptions() {
 		pack:  true,
 		items: func() []toggleItem {
 			items := make([]toggleItem, 0, len(options)+len(f.HiddenAuthors))
-			for i, o := range options {
-				items = append(items, toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i})
+			option := func(i int) toggleItem {
+				return toggleItem{Label: tagMark(options[i].on()) + " " + options[i].label, Search: options[i].label, Data: i}
 			}
+			// What the list shows and its columns first; what is hidden
+			// last, under the option that hides it.
+			last := len(options) - 1
+			for i := range last {
+				items = append(items, option(i))
+			}
+			items = append(items, a.columnItems(config.ListMergeRequests)...)
+			items = append(items, option(last))
 			// The people first, each marked as one, then the repositories.
 			for _, h := range f.HiddenAuthors {
 				label := "  " + tag(colWarn) + glyphHidden + tagEnd + " " + tag(colAccent) + glyphUser + tagEnd + " " + esc(h.Username)
@@ -345,7 +353,7 @@ func (a *App) showMRViewOptions() {
 				}
 				items = append(items, toggleItem{Label: label, Search: h.Path, Data: h})
 			}
-			return append(items, a.columnItems(config.ListMergeRequests)...)
+			return items
 		},
 		toggle: func(it toggleItem) {
 			if a.toggleColumnItem(it) {
