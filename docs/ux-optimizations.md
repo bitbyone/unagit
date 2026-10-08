@@ -10,7 +10,7 @@ while. What already works well and is to be kept as it is:
   tabs and splits to choose from.
 - Attaching from `E` to a Neovim whose pane is open goes to that pane.
 
-## 1. Bring a Neovim put aside back where you choose
+## 1. Bring a Neovim put aside back where you choose (done)
 
 Today Enter in `E` attaches in unagit's own terminal only: a Neovim whose
 herdr tab closed when it was put aside can come back nowhere else.
@@ -167,10 +167,29 @@ Every action in the action pickers that opens an agent - today's "Open in
 name, the one the Agents tab uses (`agentIcons`). Without a Nerd Font the
 name stands alone, aligned with the other actions rather than indented.
 
+## 10. The marks read from the name outwards
+
+Today a row begins with the favourite's star and the state on disk, then
+the open editor's mark, then the name: the column of marks that are only
+now and then drawn stands between the name and the state every row has,
+and leaves a gap there. The order turns round, read from the name
+leftwards by how often a mark is there:
+
+```
+[editor, agents]  [favourite]  [state on disk]  name
+```
+
+The state on disk, drawn on every row, sits against the name; the star to
+its left; the open editor's and the agents' icons (6) furthest out, the
+column taking room only when a row has one. Repositories, Merge requests
+and Worktrees alike, and the kept markup of the cursor's band and marked
+rows (`keepEditorMark`, the star's) moves with them.
+
 ## Order of work
 
 1, 3, 4, 5 and 9 are small and independent; 2's new agent actions take 9's
 icon from the start. 7 and 8 go together (the editors'
-identity), then 6, which uses 7's icons. 2 is the largest and last: the
+identity), then 10 and 6 together, 6 using 7's icons in the column 10
+moves. 2 is the largest and last: the
 filter-only flag, aliases and ranking in the action picker, then Open…,
 then the tiers.
