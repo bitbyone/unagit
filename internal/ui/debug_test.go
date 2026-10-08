@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -24,6 +25,7 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 	var notified atomic.Int64
 	a, sc, _ := newTestAppSrv(t, func(a *App) {
 		a.debug = true
+		a.debugWait = 20 * time.Millisecond
 		a.notifier = func(title, body string) { notified.Add(1) }
 	})
 	waitFor(t, a, sc, "acme/gateway")
@@ -65,7 +67,7 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 	if n := notified.Load(); n != 0 {
 		t.Fatalf("news in front was notified %d times", n)
 	}
-	pick("through the system")
+	pick("through the system, in 4 s")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitTrue(t, "the desktop notification never went", func() bool { return notified.Load() == 1 })
 }

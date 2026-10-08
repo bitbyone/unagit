@@ -257,8 +257,10 @@ type App struct {
 	// quiet is the screen as wrapped, which knows whether the terminal is in
 	// front and whether an editor has it.
 	quiet *quietScreen
-	// debug lists Settings › Debug (--debug).
-	debug bool
+	// debug lists Settings › Debug (--debug); debugWait, when set, is how
+	// long it waits before the desktop (tests make it short).
+	debug     bool
+	debugWait time.Duration
 	// frontApp names the application in front, for a terminal that does
 	// not say whether it has focus; tests replace it.
 	frontApp  func() string

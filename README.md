@@ -758,7 +758,9 @@ way, or why not - is noted in `~/.config/unagit/watch/notify.log`.
 
 `unagit --debug` adds Settings › Debug, which fires each of these by hand -
 a toast of every severity, every kind of watched news, a desktop
-notification through the terminal or the system - and says whether the
+notification as Settings chooses, through the system or through the
+terminal, each four seconds after it is fired, to switch to another
+program in - and says whether the
 terminal reports its focus and whether unagit counts as in front, since a
 failed pipeline cannot be had when it is wanted to see how it looks.
 

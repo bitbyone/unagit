@@ -94,21 +94,17 @@ func (s *settingsView) newDebugView() *debugView {
 		v.triggers = append(v.triggers, debugTrigger{"Watched", e.Line, func() { a.debugNews(e) }})
 	}
 	v.triggers = append(v.triggers,
-		debugTrigger{"Watched", "pipeline failed, in 10 s - switch away to see the desktop", func() {
-			a.done("in 10 s: pipeline failed")
+		debugTrigger{"Watched", "pipeline failed, in 4 s - switch away to see the desktop", func() {
 			e := news[3]
-			go func() {
-				select {
-				case <-time.After(10 * time.Second):
-					a.tv.QueueUpdateDraw(func() { a.debugNews(e) })
-				case <-a.stopFollowing:
-				}
-			}()
+			a.afterDebugDelay("pipeline failed", func() { a.debugNews(e) })
 		}},
-		debugTrigger{"Desktop", "as Settings › Integrations chooses", func() { a.testNotification(a.cfg.Integrations.Notifications, 0) }},
-		debugTrigger{"Desktop", "as Settings chooses, in 10 s - switch away", func() { a.testNotification(a.cfg.Integrations.Notifications, 10*time.Second) }},
-		debugTrigger{"Desktop", "through the terminal, in 10 s - switch away", func() { a.testNotification(notify.Terminal, 10*time.Second) }},
-		debugTrigger{"Desktop", "through the system", func() { a.testNotification(notify.System, 0) }},
+		// Each after a while to switch to another program in: the way is
+		// chosen when it is sent, from where the user then is.
+		debugTrigger{"Desktop", "as Settings › Integrations chooses, in 4 s", func() {
+			a.testNotification(a.cfg.Integrations.Notifications, a.debugDelayOr())
+		}},
+		debugTrigger{"Desktop", "through the system, in 4 s", func() { a.testNotification(notify.System, a.debugDelayOr()) }},
+		debugTrigger{"Desktop", "through the terminal, in 4 s", func() { a.testNotification(notify.Terminal, a.debugDelayOr()) }},
 	)
 	v.table.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev, handled := s.contentKeys(ev); handled {
@@ -198,7 +194,7 @@ func (a *App) debugNews(e watch.Event) {
 // in front - and says which way it went.
 func (a *App) testNotification(mode string, after time.Duration) {
 	if after > 0 {
-		a.done(fmt.Sprintf("in %d s: switch to another window", int(after.Seconds())))
+		a.done(fmt.Sprintf("in %d s: switch to another program", int(after.Round(time.Second).Seconds())))
 	}
 	go func() {
 		select {
@@ -236,4 +232,30 @@ func (a *App) notificationWay() string {
 		return "the system"
 	}
 	return "nothing"
+}
+
+// debugDelay is how long Debug waits before what it fires on the desktop:
+// long enough to switch to another program, short enough to wait for.
+const debugDelay = 4 * time.Second
+
+// debugDelayOr is debugDelay, or what a test set instead.
+func (a *App) debugDelayOr() time.Duration {
+	if a.debugWait > 0 {
+		return a.debugWait
+	}
+	return debugDelay
+}
+
+// afterDebugDelay runs fire on the loop after debugDelay, saying first
+// what is coming.
+func (a *App) afterDebugDelay(what string, fire func()) {
+	after := a.debugDelayOr()
+	a.done(fmt.Sprintf("in %d s: %s - switch to another program", int(after.Round(time.Second).Seconds()), what))
+	go func() {
+		select {
+		case <-time.After(after):
+			a.tv.QueueUpdateDraw(fire)
+		case <-a.stopFollowing:
+		}
+	}()
 }
