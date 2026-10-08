@@ -36,6 +36,14 @@ type uiAction struct {
 	// icon for the name: an action about one thing of several, like an
 	// agent, wears that thing's icon. Empty without a Nerd Font.
 	icon string
+	// filterOnly keeps the action out of the pickers until something is
+	// typed: one of many alike - every agent in every place - found by
+	// name. aliases are words it is found by besides its name, shown under
+	// the picker so they can be learnt, and prefer orders it among those
+	// found equally well, the lower first.
+	filterOnly bool
+	aliases    []string
+	prefer     int
 }
 
 // available is the actions that can be done now, the most wanted first.
@@ -143,7 +151,11 @@ func (a *App) showActions(title string, actions []uiAction) {
 			}
 			label = tag(colMuted) + esc(icon) + tagEnd + " " + esc(label)
 		}
-		items[i] = pickItem{Label: label, Sub: keys, About: act.about, Data: act}
+		about := act.about
+		if len(act.aliases) > 0 {
+			about += " Typed as " + strings.Join(act.aliases, ", ") + "."
+		}
+		items[i] = pickItem{Label: label, Sub: keys, About: about, Data: act, Hidden: act.filterOnly, Aliases: act.aliases, Prefer: act.prefer}
 	}
 	opts := pickerOptions{pack: true, explain: true, filter: true}
 	if a.modalOpen() {

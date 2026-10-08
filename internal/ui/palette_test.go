@@ -362,3 +362,34 @@ func TestSettingsHasActionsToo(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "c change passphrase")
 }
+
+// TestActionsFoundByTypingAndByAliases: an action kept for the filter is not
+// listed until something is typed; then an action every typed word starts a
+// word or an alias of comes first, the preferred among them before the
+// rest, and its aliases are shown under the list.
+func TestActionsFoundByTypingAndByAliases(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	acts := []uiAction{
+		{name: "Show Changes", about: "Plain.", keys: "D", rank: 10, run: func() {}},
+		{name: "Open with Claude Code in Zellij Horizontal Split", about: "Below.", rank: 20, run: func() {},
+			filterOnly: true, aliases: []string{"cc", "claude", "hsplit", "hs"}, prefer: 1},
+		{name: "Open with Claude Code in Zellij Vertical Split", about: "Beside.", rank: 20, run: func() {},
+			filterOnly: true, aliases: []string{"cc", "claude", "vsplit", "vs", "split"}},
+		{name: "Close Claude Session", about: "Something else entirely.", rank: 30, run: func() {}},
+	}
+	changeOnLoop(a, func() { a.showActions("Actions · test", acts) })
+	waitFor(t, a, sc, "Close Claude Session")
+	if strings.Contains(a.screenText(sc), "Zellij") {
+		t.Fatalf("an action kept for the filter is listed:\n%s", a.screenText(sc))
+	}
+	typeRunes(sc, "cc split")
+	waitFor(t, a, sc, "Typed as cc, claude, vsplit, vs, split.")
+	text := a.screenText(sc)
+	vertical, horizontal := lineOf(text, "Vertical Split"), lineOf(text, "Horizontal Split")
+	if vertical < 0 || horizontal < 0 || vertical > horizontal {
+		t.Fatalf("the vertical split is not first:\n%s", text)
+	}
+	assertLegible(t, a, sc, "actions found by aliases")
+}

@@ -79,6 +79,35 @@ type pickItem struct {
 	// its items; it is searched as well.
 	About string
 	Data  any
+	// Hidden keeps the item out of the list until something is typed: one
+	// of many alike, looked for by name rather than walked past.
+	Hidden bool
+	// Aliases are short words it is found by besides its name - cc for
+	// Claude Code - and Prefer orders it among items found equally well,
+	// the lower first.
+	Aliases []string
+	Prefer  int
+}
+
+// wordsMatch says whether every word of the query is an alias of the item,
+// or the start of one, or the start of a word of its name.
+func wordsMatch(query string, it pickItem) bool {
+	words := strings.FieldsFunc(strings.ToLower(plainText(it.Label)), func(r rune) bool {
+		return r == ' ' || r == '/' || r == '-' || r == '·'
+	})
+	for _, q := range strings.Fields(strings.ToLower(query)) {
+		found := false
+		for _, w := range append(words, it.Aliases...) {
+			if strings.HasPrefix(strings.ToLower(w), q) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 // showPicker opens a fuzzy-filtered single choice list.
@@ -271,30 +300,49 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		shown = shown[:0]
 		// What an item is called comes before what its explanation says:
 		// searching for a worktree finds the action named so before one that
-		// mentions a worktree in passing.
+		// mentions a worktree in passing. Before both, an item every typed
+		// word starts a word of, or an alias: "cc split" is Claude Code in a
+		// split, whatever else the letters run through. Among those the
+		// preferred come first, then the list's own order.
 		type hit struct {
 			it    pickItem
-			named bool
+			tier  int
 			score int
 		}
+		typed := strings.TrimSpace(query) != ""
 		var hits []hit
 		for _, it := range items {
-			score, ok := fuzzy.Match(query, it.Label+" "+it.Sub)
-			named := ok
+			if it.Hidden && !typed {
+				continue
+			}
+			score, ok := fuzzy.Match(query, it.Label+" "+it.Sub+" "+strings.Join(it.Aliases, " "))
+			tier := 1
 			if !ok && it.About != "" {
 				score, ok = fuzzy.Match(query, it.About)
+				tier = 2
+			}
+			if typed && wordsMatch(query, it) {
+				ok, tier = true, 0
 			}
 			if !ok {
 				continue
 			}
-			hits = append(hits, hit{it, named, score})
+			hits = append(hits, hit{it, tier, score})
 		}
-		if strings.TrimSpace(query) != "" {
+		if typed {
 			sort.SliceStable(hits, func(i, j int) bool {
-				if hits[i].named != hits[j].named {
-					return hits[i].named
+				l, r := hits[i], hits[j]
+				switch {
+				case l.tier != r.tier:
+					return l.tier < r.tier
+				case l.tier == 0 && l.it.Prefer != r.it.Prefer:
+					return l.it.Prefer < r.it.Prefer
+				case l.tier == 0:
+					return false
+				case l.score != r.score:
+					return l.score > r.score
 				}
-				return hits[i].score > hits[j].score
+				return l.it.Prefer < r.it.Prefer
 			})
 		}
 		for _, h := range hits {
@@ -667,7 +715,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	var page tview.Primitive
 	if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
-		page = modalFixed(frame, inner+2+2*pad, 2+1+len(items)+extra+footerLines)
+		page = modalFixed(frame, inner+2+2*pad, 2+1+visibleItems(items)+extra+footerLines)
 	} else if opts.wide {
 		// As wide as its longest row and as tall as its rows, up to most of
 		// the screen: a log of two commits is not a screenful of nothing
@@ -691,7 +739,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(header.GetText(false))+1, inner)
 			width := min(most, rows+2+2*pad)
 			footerLines := len(tview.WordWrap(normalHint(), width-2-2*pad))
-			return width, min(h*85/100, 2+1+len(items)+extra+footerLines)
+			return width, min(h*85/100, 2+1+visibleItems(items)+extra+footerLines)
 		})
 	} else {
 		page = modalPct(frame, 70, 70)
@@ -735,6 +783,18 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		},
 		setHeader: func(text string) { header.SetText(text) },
 	}
+}
+
+// visibleItems counts the items listed before anything is typed; a picker
+// is as tall as they need, and those found by typing scroll.
+func visibleItems(items []pickItem) int {
+	n := 0
+	for _, it := range items {
+		if !it.Hidden {
+			n++
+		}
+	}
+	return max(n, 1)
 }
 
 // rule is a line across a dialog, setting a pane apart from what is above.
