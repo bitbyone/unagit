@@ -50,6 +50,7 @@ type settingsView struct {
 	themePanel   *tview.Flex
 	themeNotes   *tview.TextView
 	security     *tview.TextView
+	debug        *debugView // nil without --debug
 
 	current int
 	// contentFocused remembers which side had the keyboard, so closing a
@@ -69,6 +70,9 @@ func (a *App) newSettingsView() *settingsView {
 		SetSelectedStyle(styleSelected)
 	for _, name := range sectionNames {
 		s.list.AddItem(" "+name, "", 0, nil)
+	}
+	if a.debug {
+		s.list.AddItem(" "+debugSectionName, "", 0, nil)
 	}
 	s.list.SetChangedFunc(func(i int, _, _ string, _ rune) { s.show(i) })
 	s.list.SetSelectedFunc(func(int, string, string, rune) { s.focusContent() })
@@ -94,6 +98,10 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("tags", s.tagsKept, true, false)
 	s.content.AddPage("theme", s.themePanel, true, false)
 	s.content.AddPage("security", s.security, true, false)
+	if a.debug {
+		s.debug = s.newDebugView()
+		s.content.AddPage("debug", s.debug, true, false)
+	}
 
 	for _, panel := range []*tview.Box{s.gitlab.Box, s.github.Box} {
 		hintPanel(panel, func() string { return "a add · e edit · t token · v verify · d remove" }, 0, 0, 1, 1)
@@ -157,6 +165,9 @@ func (s *settingsView) show(section int) {
 		s.content.SwitchToPage("theme")
 	case sectionSecurity:
 		s.content.SwitchToPage("security")
+	case sectionDebug:
+		s.debug.fill(s.app)
+		s.content.SwitchToPage("debug")
 	}
 	s.paintFocus()
 }
@@ -182,6 +193,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.themes
 	case sectionSecurity:
 		return s.security
+	case sectionDebug:
+		return s.debug.table
 	}
 	return s.general
 }
@@ -203,6 +216,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.themePanel.Box
 	case sectionSecurity:
 		return s.security.Box
+	case sectionDebug:
+		return s.debug.Box
 	}
 	return s.general.Box
 }
@@ -217,6 +232,9 @@ func (s *settingsView) paintFocus() {
 		s.integrations.Box, s.general.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box,
 	} {
 		focusBox(b, false)
+	}
+	if s.debug != nil {
+		focusBox(s.debug.Box, false)
 	}
 	if s.contentFocused {
 		focusBox(s.contentBox(), true)
@@ -242,6 +260,8 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.themes)
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
+	case sectionDebug:
+		s.app.tv.SetFocus(s.debug.table)
 	}
 	s.paintFocus()
 }

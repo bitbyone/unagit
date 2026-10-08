@@ -76,3 +76,25 @@ func TestRoute(t *testing.T) {
 		}
 	}
 }
+
+// TestAMultiplexerThatKeepsThemGoesToTheSystem: Zellij and herdr pass no
+// notification on, so the system shows them, while the terminal is still
+// named to tell it among the applications in front.
+func TestAMultiplexerThatKeepsThemGoesToTheSystem(t *testing.T) {
+	t.Parallel()
+	for _, vars := range []map[string]string{
+		{"ZELLIJ": "0", "TERM_PROGRAM": "ghostty"},
+		{"HERDR_ENV": "1", "TERM_PROGRAM": "ghostty"},
+	} {
+		info := Detect(env(vars))
+		if info.Muxer == "" || info.Protocol != None || info.Sequence("t", "b") != nil {
+			t.Fatalf("%v: %+v", vars, info)
+		}
+		if useTerminal, useSystem := Route(Auto, info, true); useTerminal || !useSystem {
+			t.Fatalf("%v: routed to the terminal", vars)
+		}
+		if app := info.App(env(vars)); app != "Ghostty" {
+			t.Fatalf("%v: the terminal's application is %q", vars, app)
+		}
+	}
+}

@@ -20,6 +20,9 @@ func main() {
 	}
 }
 
+// debug is --debug, for whichever command starts the interface.
+var debug bool
+
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "unagit",
@@ -37,9 +40,10 @@ func rootCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return ui.NewLocked(cfg).Run()
+			return ui.NewLocked(cfg).WithDebug(debug).Run()
 		},
 	}
+	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
 	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
@@ -80,7 +84,7 @@ func goalCmd(use, short string, review bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return ui.NewLocked(cfg).WithGoal(ui.Goal{Link: link, Review: review}).Run()
+			return ui.NewLocked(cfg).WithGoal(ui.Goal{Link: link, Review: review}).WithDebug(debug).Run()
 		},
 	}
 }

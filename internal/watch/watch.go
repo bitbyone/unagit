@@ -95,14 +95,22 @@ type Event struct {
 	// "pipeline failed · test:unit".
 	What string `json:"what"`
 	Line string `json:"line"`
-	// News is an ending - a pipeline passed, failed, waits for a hand, a
-	// merge request merged: it is counted until seen and notified. A start
-	// is said on the status line and no more. Bad is a failure, Good a
-	// success.
-	News bool `json:"news,omitempty"`
-	Bad  bool `json:"bad,omitempty"`
-	Good bool `json:"good,omitempty"`
+	// Level is how it reads: a pipeline that passed is a success, one that
+	// failed a danger, one cancelled or waiting for a hand a warning, one
+	// that began an info. Every event is news - counted on the tab until
+	// seen, and shown, in unagit or on the desktop.
+	Level Level `json:"level,omitempty"`
 }
+
+// Level is an event's severity.
+type Level string
+
+const (
+	Info    Level = "info"
+	Success Level = "success"
+	Warning Level = "warning"
+	Danger  Level = "danger"
+)
 
 // keptEvents is how many of the newest events state.json keeps: enough for
 // an instance that looked away for a while, not a history.
@@ -110,7 +118,7 @@ const keptEvents = 50
 
 // Snapshot is state.json: every watch's state and the latest events.
 type Snapshot struct {
-	// Seq goes up with every write that has news; Seen is how far the user
+	// Seq goes up with every write that has events; Seen is how far the user
 	// has looked, in any instance.
 	Seq  uint64 `json:"seq"`
 	Seen uint64 `json:"seen"`

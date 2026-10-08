@@ -1,0 +1,71 @@
+package ui
+
+import (
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+// TestDebugIsThereOnlyWithTheFlag: Settings lists Debug only with --debug,
+// and there each row fires what it names - a toast, a watched change, a
+// desktop notification - legible at every size.
+func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
+	t.Parallel()
+	plain, plainSc := newTestApp(t)
+	waitFor(t, plain, plainSc, "acme/gateway")
+	typeRunes(plainSc, "6")
+	waitFor(t, plain, plainSc, "Integrations")
+	if strings.Contains(plain.screenText(plainSc), debugSectionName) {
+		t.Fatal("Debug is listed without --debug")
+	}
+
+	var notified atomic.Int64
+	a, sc, _ := newTestAppSrv(t, func(a *App) {
+		a.debug = true
+		a.notifier = func(title, body string) { notified.Add(1) }
+	})
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "6")
+	waitFor(t, a, sc, debugSectionName)
+	changeOnLoop(a, func() {
+		a.settings.selectSection(sectionDebug)
+		a.settings.focusContent()
+	})
+	waitFor(t, a, sc, "six at once")
+	for _, size := range []struct{ w, h int }{{120, 34}, {80, 24}} {
+		resizeApp(a, sc, size.w, size.h)
+		waitFor(t, a, sc, "says focus")
+		assertLegible(t, a, sc, "Settings › Debug")
+	}
+	resizeApp(a, sc, 120, 34)
+
+	// The fourth row is the danger toast.
+	for range 3 {
+		typeRunes(sc, "j")
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Debug · danger")
+	assertLegible(t, a, sc, "a danger toast over Settings")
+
+	// A watched failure, while in front: a toast and no notification.
+	pick := func(name string) {
+		changeOnLoop(a, func() {
+			for i, tr := range a.settings.debug.triggers {
+				if tr.name == name {
+					a.settings.debug.table.Select(i, 0)
+				}
+			}
+		})
+	}
+	pick("pipeline failed · unit tests")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "pipeline failed · unit tests")
+	if n := notified.Load(); n != 0 {
+		t.Fatalf("news in front was notified %d times", n)
+	}
+	pick("through the system")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "the desktop notification never went", func() bool { return notified.Load() == 1 })
+}

@@ -713,16 +713,30 @@ failed on, who started it and when it last changed. `Enter` opens the jobs,
 `w` opens the pipeline in the browser, `m` goes to the merge request or the
 repository, `r` and `R` read one or every one now.
 
-A pipeline that ends - passed, failed, cancelled, waiting for a manual
-job - is said on the status line, never in a box that would take the keys
-from whatever you are typing; the tab counts the changes not seen yet
-(`[5] Watched ●2`) until you open it. A merge request merged or closed says
-so and its watch goes. When no unagit is in front - another window, or
-an editor running in unagit's terminal - a desktop notification goes out:
-through the terminal where it shows them (Ghostty, WezTerm, foot, iTerm2,
-kitty; under tmux with `allow-passthrough on`), through Notification Centre
-or `notify-send` otherwise. Settings › Integrations › Notifications chooses
+What a watch reads is the lists' CI column too: a watched row's mark turns
+while its pipeline runs and changes when it ends, without a refresh, and
+the tab turns a mark of its own with how many run (`[5] Watched ⠋1`).
+
+Every change - a pipeline that began, passed, failed, was cancelled or
+waits for a manual job, a merge request merged or closed - is a toast in
+the top right corner, coloured by how it went (info, success, warning,
+danger), for a few seconds of your looking at it. It never takes the keys
+from whatever you are typing. The tab counts the changes not seen yet
+(`[5] Watched ●2`) until you open it, and a merged or closed merge request's
+watch goes. When no unagit is in front - another window, or an editor
+running in unagit's terminal - a desktop notification goes out: through
+the terminal where it shows them (Ghostty, WezTerm, foot, iTerm2, kitty;
+under tmux with `allow-passthrough on`), through Notification Centre or
+`notify-send` otherwise, and under Zellij or herdr, which pass none on. A
+terminal that does not say whether it has focus is taken to be in front
+when its application is. Settings › Integrations › Notifications chooses
 the terminal, the system, or neither, and `t` there sends a test.
+
+`unagit --debug` adds Settings › Debug, which fires each of these by hand -
+a toast of every severity, every kind of watched news, a desktop
+notification through the terminal or the system - and says whether the
+terminal reports its focus and whether unagit counts as in front, since a
+failed pipeline cannot be had when it is wanted to see how it looks.
 
 Watching runs only while unagit does: the token is only ever in a running
 unagit's memory, and there is no background service. With several open, one

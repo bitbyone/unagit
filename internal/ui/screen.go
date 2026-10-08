@@ -26,6 +26,10 @@ type quietScreen struct {
 	// until it says otherwise - unagit was just started there - and for
 	// ever in a terminal that never says.
 	focused atomic.Bool
+	// focusKnown is set by the first focus event: a terminal that never
+	// sends one (or a multiplexer that keeps them) leaves focused saying
+	// nothing.
+	focusKnown atomic.Bool
 	// onFocus runs, off the event loop, whenever the terminal regains focus.
 	onFocus func()
 	// dimmed is set once a modal has dimmed what is under it in the frame
@@ -56,6 +60,7 @@ func (s *quietScreen) PollEvent() tcell.Event {
 			return ev
 		}
 		s.focused.Store(focus.Focused)
+		s.focusKnown.Store(true)
 		if focus.Focused && s.onFocus != nil {
 			s.onFocus()
 		}

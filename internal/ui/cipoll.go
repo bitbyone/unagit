@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -50,7 +51,7 @@ func (a *App) runningBranches() []branchKey {
 // watchCI starts the watching when a shown pipeline is running and it is
 // not watched already. It runs on the event loop and is cheap to call.
 func (a *App) watchCI() {
-	if a.ciWatching || len(a.runningMRs()) == 0 && len(a.runningBranches()) == 0 {
+	if a.ciWatching || len(a.runningMRs()) == 0 && len(a.runningBranches()) == 0 && a.watchesRunning() == 0 {
 		return
 	}
 	a.ciWatching = true
@@ -72,13 +73,22 @@ func (a *App) followCI() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		ok := a.onLoopWait(ctx, func() {
 			running, branches := a.runningMRs(), a.runningBranches()
-			if len(running) == 0 && len(branches) == 0 {
+			watched := a.watchesRunning()
+			if len(running) == 0 && len(branches) == 0 && watched == 0 {
 				a.ciWatching = false
+				a.drawTabs()
 				return
 			}
 			if p := a.ciPane(); p != nil && p.reload != nil {
 				p.reload()
 			}
+			if watched > 0 {
+				a.drawTabs()
+			}
+			// What is watched is asked about by the watch, which hands it
+			// to the lists (shareWatchStates); asking twice costs requests.
+			running = slices.DeleteFunc(running, a.mrWatched)
+			branches = slices.DeleteFunc(branches, func(k branchKey) bool { return a.branchWatched(k.instance, k.path, k.branch) })
 			if time.Since(asked) < every {
 				return
 			}
@@ -121,6 +131,8 @@ func (a *App) ciPane() *pane {
 		return a.projectsPane
 	case pageWorktrees:
 		return a.worktreesPane
+	case pageWatched:
+		return a.watchedPane
 	}
 	return nil
 }

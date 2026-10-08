@@ -36,7 +36,7 @@ func (a *App) notificationsCard() *integrationCard {
 	passes := true
 	return &integrationCard{
 		name: "Notifications", command: notify.SystemCommand(),
-		description: "When a watched pipeline ends and no unagit is in front, say so on the desktop.",
+		description: "When no unagit is in front, say a watched pipeline's news on the desktop.",
 		enabled:     func() bool { return cfg.Notifications != notify.Off },
 		toggle: func() {
 			if cfg.Notifications == notify.Off {
@@ -49,6 +49,8 @@ func (a *App) notificationsCard() *integrationCard {
 			term := notify.Detect(os.Getenv)
 			line := "Through " + notificationModeName(cfg.Notifications) + "."
 			switch {
+			case term.Muxer != "":
+				line += " " + term.Muxer + " passes none on; the system shows them."
 			case term.Protocol == notify.None:
 				line += " This terminal shows none; the system does."
 			case term.Tmux && !passes:

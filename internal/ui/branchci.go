@@ -159,6 +159,9 @@ func (a *App) askBranchCI(keys []branchKey, title string) {
 				default:
 					a.branchStatus[q.key] = status[i]
 				}
+				if read[i] {
+					a.watchHeard(pipelineWatch(q.key.instance, q.key.path, 0, 0, q.key.branch), status[i])
+				}
 			}
 			a.saveBranchCI()
 			a.projectsPane.reload()

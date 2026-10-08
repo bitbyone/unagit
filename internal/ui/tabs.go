@@ -43,6 +43,10 @@ func (a *App) drawTabs() {
 		if t.page == pageAgents && a.agentsWaiting() > 0 {
 			title += fmt.Sprintf(" %s%d", glyphManual, a.agentsWaiting())
 		}
+		// A watched pipeline under way turns its mark there.
+		if t.page == pageWatched && a.watchesRunning() > 0 {
+			title += fmt.Sprintf(" %s%d", ciFrame(), a.watchesRunning())
+		}
 		if t.page == pageWatched && a.watchUnseen() > 0 {
 			title += fmt.Sprintf(" %s%d", glyphDot, a.watchUnseen())
 		}

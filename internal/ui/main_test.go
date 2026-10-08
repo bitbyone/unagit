@@ -26,6 +26,11 @@ func TestMain(m *testing.M) {
 	// Whether the terminal running the tests draws Nerd Font icons is
 	// nothing the tests should depend on.
 	nerdFontGuess = func() (bool, string) { return false, "tests" }
+	// Nor whether they run under a multiplexer, which changes what the
+	// Notifications card says.
+	for _, name := range []string{"ZELLIJ", "HERDR_ENV", "HERDR_PANE_ID"} {
+		os.Unsetenv(name)
+	}
 	limitParallel()
 	code := m.Run()
 	os.RemoveAll(dir)

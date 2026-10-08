@@ -88,6 +88,7 @@ func (a *App) applyMRRefresh(fresh forge.MergeRequest, say bool) {
 		return
 	}
 	a.applyMRUpdate(fresh, true, false)
+	a.watchHeard(pipelineWatch(fresh.Instance, a.projectPathOfMR(fresh), 0, fresh.IID, ""), fresh.Pipeline)
 	if say {
 		a.afterFresh = func() { a.done(fmt.Sprintf("!%d is up to date", fresh.IID)) }
 	}

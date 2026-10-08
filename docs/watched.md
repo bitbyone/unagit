@@ -41,11 +41,11 @@ the user - become new sections later rather than new screens.
   otherwise ask the servers about every watch - twice the requests, and
   every notification twice. One instance follows the watches and the others
   read what it found (below).
-- **A background change is a passing word, not a box.** AGENTS.md says a
+- **A background change is a toast, not a box.** AGENTS.md says a
   warning comes up in a box that holds the keys until Esc. A failure the user
   is not looking at must not take the keyboard from whatever they are typing
-  into, so a watch's news is a `note` on the status line (`done` for a
-  success), the tab's title gains a count of unseen changes
+  into, so a watch's news is a toast in the top right corner, coloured by
+  its level, that takes no key and goes by itself; the tab's title gains a count of unseen changes
   (`[5] Watched ●2`), and the row stays marked until the screen has been
   opened. This is a deliberate exception, and this is where it is written
   down.
@@ -101,7 +101,7 @@ may add or remove a watch at the same moment as another.
   every second - one `stat`, no new dependency (there is no file watching in
   the code today) - and read it when it changed. Events are the difference
   between the sequence numbers they last showed and the new one, so every
-  instance shows each change once on its own status line.
+  instance shows each change once, as its own toast.
 - **New watches.** The poller looks at `watches.json` the same way and asks
   about a new watch at once, rather than at its next turn.
 - **Seen.** Opening the Watched screen in any instance marks what it shows
@@ -111,7 +111,7 @@ may add or remove a watch at the same moment as another.
 - **Notifications are sent once, by the poller**, unless any instance says
   in its `present/<pid>` file that its terminal has focus and it is not
   suspended for an editor - then the user is looking at a unagit and the
-  status line is enough. A `present` file whose pid is gone is ignored and
+  toast is enough. A `present` file whose pid is gone is ignored and
   removed, as a stale session is.
 
 `unagit go`, `cd` and `sessions` never poll; only the TUI does.
@@ -129,7 +129,7 @@ No forge pushes pipeline changes to a client like this one:
 So it is polling, made cheap:
 
 - a watch whose pipeline runs is asked every 15 s (`ciAskEvery`); one that
-  waits, every 2 minutes, to notice a push that starts a new pipeline;
+  waits, every 20 s, to notice a push that starts a new pipeline;
 - one request per watch and turn - `MergeRequestPipeline` or
   `LatestPipeline`, no jobs. The jobs are read only when a pipeline has just
   failed, to name the first failed job, and when the user opens it;
@@ -186,7 +186,7 @@ shared.
 - Settings › Integrations › Notifications: automatic (as above), terminal
   only, system only, or off; and a key that sends a test.
 
-A notification says what and how it ended - "api-gateway !42 · pipeline
+A notification says what and what happened - "api-gateway !42 · pipeline
 failed · test:unit" - and nothing more.
 
 ## The screen
@@ -292,10 +292,23 @@ another way than above:
 - **A merge request costs two requests a turn**, its detail - to notice it
   merged, closed or pushed - and its pipeline. The jobs are read only when a
   pipeline has newly failed.
-- **Only an ending is news.** A pipeline that passed, failed, was cancelled
-  or waits for a manual job, and a merge request merged or closed, are
-  counted on the tab and notified; one that started, or a new head, is said
-  on the status line and no more.
+- **Every change is news**, with a level: a pipeline that began (info),
+  passed (success), failed (danger), was cancelled or waits for a manual
+  job (warning), a merge request merged or closed. Each is counted on the
+  tab, shown as a toast (`toast.go`) in every instance, and notified on the
+  desktop when none is in front. An earlier version said only endings,
+  on the status line; a start went unnoticed and so did the ending, under
+  whatever else the status line said.
+- **The lists follow the watches.** `shareWatchStates` puts each watch's
+  status into the merge request list and the branches' CI column, and
+  `watchCI` turns the marks - on the Watched screen and the tab too - while
+  a watched pipeline runs. `followCI` no longer asks about what a watch
+  follows; a list read that disagrees with a watch has it read now
+  (`watchHeard`).
+- **Focus that is never reported** - a terminal without focus events, a
+  multiplexer that keeps them - is told from the application in front
+  (`lsappinfo` on macOS, every 3 s at most). Zellij and herdr pass no
+  notification sequence on, so the system's notifier stands in.
 - **The rows keep their mark for the visit.** Opening the screen counts the
   changes as seen on the tab at once, and the rows changed since the last
   visit keep their `●` while it is open, so it can be told which they were.
@@ -309,5 +322,3 @@ Still to do:
 - `If-None-Match` on GitHub, and the GraphQL batch (`PipelineStates`).
 - Backing off a server by its rate limit headers.
 - A branch deleted on origin does not end its watch yet.
-- The lists' own following (`watchCI`) and the poller still ask separately
-  about a pipeline both follow.

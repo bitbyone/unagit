@@ -78,6 +78,7 @@ func watchApp(t *testing.T, cfg *config.Config, notified *atomic.Int64) (*App, t
 	app.notifier = func(title, body string) { notified.Add(1) }
 	a, sc, stopped := startAppWithStop(t, app)
 	a.quiet.focused.Store(false)
+	a.quiet.focusKnown.Store(true)
 	return a, sc, stopped
 }
 
@@ -263,6 +264,9 @@ func TestTheWatchedTabFits(t *testing.T) {
 	waitFor(t, a, sc, "pipeline failed")
 	typeRunes(sc, "5")
 	waitFor(t, a, sc, "failed · unit tests")
+	assertLegible(t, a, sc, "Watched tab under a toast")
+	// The toast stands over the rows' ends; they are measured without it.
+	onLoop(a, func() bool { a.toasts = nil; return true })
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
 		resizeApp(a, sc, size.w, size.h)
 		waitFor(t, a, sc, "acme/gateway !7")
@@ -288,7 +292,7 @@ func TestPipelineChanges(t *testing.T) {
 	lines := func(evs []watch.Event) string {
 		var out []string
 		for _, e := range evs {
-			out = append(out, e.Line)
+			out = append(out, e.Line+" ("+string(e.Level)+")")
 		}
 		return strings.Join(out, " | ")
 	}
@@ -301,11 +305,15 @@ func TestPipelineChanges(t *testing.T) {
 	}{
 		{"the first reading is not news", watch.State{}, failed, false, "", ""},
 		{"nothing changed", running, running, true, "", ""},
-		{"it failed", running, failed, true, "", "pipeline failed · lint"},
-		{"it passed", running, watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, "", "pipeline passed"},
-		{"a push started another", failed, watch.State{Pipeline: 2, Status: "pending", SHA: "b2"}, true, "", "new head b2 | pipeline started"},
-		{"it waits for a hand", running, watch.State{Pipeline: 1, Status: "manual", SHA: "a1"}, true, "", "pipeline waits for a manual job"},
-		{"merged", running, running, true, "merged", "merge request merged · no longer watched"},
+		{"it failed", running, failed, true, "", "pipeline failed · lint (danger)"},
+		{"it passed", running, watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, "", "pipeline passed (success)"},
+		{"a push started another", failed, watch.State{Pipeline: 2, Status: "pending", SHA: "b2"}, true, "", "new head b2 · pipeline started (info)"},
+		{"another began on the same head", watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, watch.State{Pipeline: 2, Status: "running", SHA: "a1"}, true, "", "pipeline started (info)"},
+		{"pending began to run", watch.State{Pipeline: 1, Status: "pending", SHA: "a1"}, running, true, "", ""},
+		{"it waits for a hand", running, watch.State{Pipeline: 1, Status: "manual", SHA: "a1"}, true, "", "pipeline waits for a manual job (warning)"},
+		{"cancelled", running, watch.State{Pipeline: 1, Status: "canceled", SHA: "a1"}, true, "", "pipeline cancelled (warning)"},
+		{"merged", running, running, true, "merged", "merge request merged · no longer watched (success)"},
+		{"closed", running, running, true, "closed", "merge request closed · no longer watched (warning)"},
 	}
 	for _, c := range cases {
 		if got := lines(pipelineChanges(w, c.before, c.after, c.known, c.ended)); got != c.want {
@@ -341,4 +349,38 @@ func TestTheJobsWatchTheirPipelines(t *testing.T) {
 	waitFor(t, a, sc, "unit tests")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Stop Watching Pipelines")
+}
+
+// TestAWatchMovesTheListsCIColumn: what a watch reads is the merge request
+// list's CI column too, without a refresh, and the tab turns a mark while a
+// watched pipeline runs.
+func TestAWatchMovesTheListsCIColumn(t *testing.T) {
+	t.Parallel()
+	srv := newWatchServer(t)
+	cfg := writeTestConfig(t, srv.URL)
+	w := watchMR7(t, cfg)
+	var notified atomic.Int64
+	a, sc, _ := watchApp(t, cfg, &notified)
+	waitState(t, cfg, w.Key(), "running")
+	pipeline := func() string {
+		return onLoop(a, func() string {
+			for _, mr := range a.mrs {
+				if mr.IID == 7 {
+					return mr.Pipeline
+				}
+			}
+			return "no !7"
+		})
+	}
+	waitTrue(t, "the list never took the running pipeline", func() bool { return pipeline() == "running" })
+	if n := onLoop(a, a.watchesRunning); n != 1 {
+		t.Fatalf("%d watches running, want 1", n)
+	}
+	waitTrue(t, "the tab does not count the running pipeline", func() bool {
+		return strings.Contains(a.screenText(sc), "Watched ") && onLoop(a, func() bool { return a.ciWatching })
+	})
+	srv.set("failed", 90, "aaaa1111")
+	waitTrue(t, "the list never took the failure", func() bool { return pipeline() == "failed" })
+	waitFor(t, a, sc, "pipeline failed · unit tests")
+	waitTrue(t, "the marks still turn with nothing running", func() bool { return !onLoop(a, func() bool { return a.ciWatching }) })
 }

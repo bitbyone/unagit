@@ -80,6 +80,11 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 			a.keyIn(s.security, "Toggle Keychain", "Keep the passphrase in the macOS login keychain so unagit opens without asking, or forget it again.", "k", 20,
 				func() bool { return passphraseStore.available() }),
 		}
+	case sectionDebug:
+		return debugSectionName, []uiAction{
+			{name: "Fire", about: "Show the toast, the news or the notification under the cursor, as if a server had said so.", keys: "Enter", rank: 10,
+				run: s.debug.fire},
+		}
 	case sectionIntegrations:
 		v := s.integrations
 		card := v.cards[v.current]
@@ -104,6 +109,14 @@ func (s *settingsView) settingsScreen() (string, []uiAction) {
 		acts = append(acts, uiAction{name: "Go to " + name, about: "Open the " + name + " section.", rank: 10 + i, when: func() bool { return s.current != i },
 			run: func() {
 				s.selectSection(i)
+				s.focusContent()
+			}})
+	}
+	if s.debug != nil {
+		acts = append(acts, uiAction{name: "Go to " + debugSectionName, about: "Fire toasts, watched news and desktop notifications by hand, to see how they look.",
+			rank: 10 + sectionDebug, when: func() bool { return s.current != sectionDebug },
+			run: func() {
+				s.selectSection(sectionDebug)
 				s.focusContent()
 			}})
 	}

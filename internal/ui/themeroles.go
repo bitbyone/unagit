@@ -145,6 +145,12 @@ var colourRoles = []colourRole{
 	{"watched.by", "column.author", "whom the pipeline was started by"},
 	{"watched.changed", "column.age", "when the pipeline last changed"},
 	{"watched.error", "state.warning", "why the last reading failed"},
+	{"toast.background", "surface.raised", "a toast: news from the background, in the top right corner"},
+	{"toast.text", "text.normal", "what a toast says"},
+	{"toast.info", "text.accent", "a toast's border and title: something began"},
+	{"toast.success", "state.good", "something passed"},
+	{"toast.warning", "state.warning", "something was cancelled or waits for a hand"},
+	{"toast.danger", "state.bad", "something failed"},
 }
 
 // roleColours is every role as the theme on resolves it (setTheme).

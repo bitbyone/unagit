@@ -568,6 +568,10 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 		a.newAnimationTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
 		t.Cleanup(func() { close(ticks) })
 	}
+	// Never the machine's own application in front.
+	if a.frontApp == nil {
+		a.frontApp = func() string { return "" }
+	}
 	// Attach the simulation screen from this goroutine: SetScreen initialises
 	// it, and the test reads its contents from here too.
 	sc := newObservedScreen(t)

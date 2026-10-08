@@ -24,10 +24,12 @@ import (
 // running unagit's memory, so nothing follows anything once the last one
 // exits; there is no background service.
 //
-// A change is a passing word on the status line, never a box: a failure the
-// user is not looking at must not take the keyboard from what they are
-// typing into. The tab counts what has not been seen, and a desktop
-// notification goes out only when no unagit is in front.
+// Every change - a pipeline that began, passed, failed - is a toast in the
+// corner, never a box: a failure the user is not looking at must not take
+// the keyboard from what they are typing into. The tab counts what has not
+// been seen, and a desktop notification goes out when no unagit is in
+// front. What a watch reads is the lists' CI column too, so a watched row's
+// mark moves without a refresh.
 
 const (
 	// watchLookEvery is how often the files are looked at, unless the App
@@ -35,8 +37,8 @@ const (
 	watchLookEvery = time.Second
 	// watchIdleEvery is how often a watch whose pipeline does not run is
 	// asked about, to notice a push that starts a new one. A running one is
-	// asked every ciAskEvery.
-	watchIdleEvery = 2 * time.Minute
+	// asked every ciAskEvery. It is short: a pipeline that starts is news.
+	watchIdleEvery = 20 * time.Second
 )
 
 // startWatching follows the watches from the unlock on: before it there is
@@ -474,7 +476,7 @@ func (f *watchFollower) poll() {
 		if after.Status != before.Status || after.Pipeline != before.Pipeline || !known {
 			after.Changed = time.Now()
 		}
-		if loud(evs) {
+		if len(evs) > 0 {
 			after.Seq = snap.Seq + 1
 		}
 		snap.States[w.Key()] = after
@@ -499,16 +501,9 @@ func (f *watchFollower) poll() {
 	}
 	if !anyFocused {
 		for _, e := range events {
-			if e.News {
-				a.notifyWatch(f.ctx, e)
-			}
+			a.notifyWatch(f.ctx, e)
 		}
 	}
-}
-
-// loud reports whether events are news to count on the tab and notify.
-func loud(events []watch.Event) bool {
-	return slices.ContainsFunc(events, func(e watch.Event) bool { return e.News })
 }
 
 func cloneStates(in map[string]watch.State) map[string]watch.State {
@@ -555,23 +550,97 @@ func (a *App) applyWatchState(watches []watch.Watch, snap watch.Snapshot) {
 		a.markWatchesSeen()
 	}
 	if !same {
+		a.shareWatchStates()
 		a.redrawWatches(marks)
+		a.watchCI()
 	}
 }
 
-// sayWatchEvents puts the news on the status line: the newest, and how many
-// more came with it.
-func (a *App) sayWatchEvents(events []watch.Event) {
-	e := events[len(events)-1]
-	msg := e.What + " · " + e.Line
-	if n := len(events) - 1; n > 0 {
-		msg += fmt.Sprintf(" · and %d more on the Watched tab", n)
+// shareWatchStates puts what the watches last read into the lists' CI
+// column: a watched merge request's pipeline, a watched branch's. The lists
+// are otherwise read on a refresh, and a watched row whose mark stood still
+// while its pipeline ran was the point of watching it missed.
+func (a *App) shareWatchStates() {
+	branches := false
+	for _, w := range a.watches {
+		st, ok := a.watchSnap.States[w.Key()]
+		if !ok || st.Read.IsZero() || st.Error != "" {
+			continue
+		}
+		if w.IID > 0 {
+			for i := range a.mrs {
+				mr := &a.mrs[i]
+				if mr.Instance == w.Instance && mr.IID == w.IID && a.projectPathOfMR(*mr) == w.Project && st.Status != "" {
+					mr.Pipeline = st.Status
+				}
+			}
+			continue
+		}
+		k := branchKey{w.Instance, w.Project, w.Branch}
+		if a.branchStatus[k] == st.Status {
+			continue
+		}
+		if a.branchStatus == nil {
+			a.branchStatus = map[branchKey]string{}
+		}
+		if st.Status == "" {
+			delete(a.branchStatus, k)
+		} else {
+			a.branchStatus[k] = st.Status
+		}
+		branches = true
 	}
-	if e.Good {
-		a.done(msg)
+	if branches {
+		a.saveBranchCI()
+	}
+}
+
+// watchesRunning counts the watches whose pipeline is under way.
+func (a *App) watchesRunning() int {
+	n := 0
+	for _, w := range a.watches {
+		if ciStateOf(a.watchSnap.States[w.Key()].Status) == ciRunning {
+			n++
+		}
+	}
+	return n
+}
+
+// watchHeard is told what a list read of something's pipeline: when it is
+// watched and the watch holds something else, the watch is read now rather
+// than at its next turn, so the Watched tab and the toasts keep up.
+func (a *App) watchHeard(w watch.Watch, status string) {
+	if !a.isWatched(w) {
 		return
 	}
-	a.note(msg)
+	if st, ok := a.watchSnap.States[w.Key()]; ok && st.Status != status {
+		a.watchAsk([]string{w.Key()})
+	}
+}
+
+// sayWatchEvents shows the news as toasts, the newest few; the rest are on
+// the Watched tab.
+func (a *App) sayWatchEvents(events []watch.Event) {
+	if over := len(events) - toastsKept; over > 0 {
+		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "on the Watched tab ([5])")
+		events = events[over:]
+	}
+	for _, e := range events {
+		a.showToast(levelSeverity(e.Level), e.What, e.Line)
+	}
+}
+
+// levelSeverity is an event's level as a message's severity.
+func levelSeverity(l watch.Level) severity {
+	switch l {
+	case watch.Success:
+		return sevSuccess
+	case watch.Warning:
+		return sevWarning
+	case watch.Danger:
+		return sevError
+	}
+	return sevInfo
 }
 
 // watchReading is what one watch's read came to.
@@ -687,14 +756,18 @@ func firstFailed(jobs []forge.Job) string {
 	return ""
 }
 
-// pipelineChanges is what changed between two readings, as events. The
+// pipelineChanges is what changed between two readings, as events: one
+// for each change, a pipeline that began as much as one that ended. The
 // first reading is never news - only a change from what was last held.
 func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended string) []watch.Event {
-	ev := func(line string) watch.Event { return watch.Event{Key: w.Key(), What: w.Label(), Line: line} }
+	ev := func(line string, level watch.Level) []watch.Event {
+		return []watch.Event{{Key: w.Key(), What: w.Label(), Line: line, Level: level}}
+	}
 	if ended != "" {
-		e := ev("merge request " + ended + " · no longer watched")
-		e.News, e.Good = true, ended == "merged"
-		return []watch.Event{e}
+		if ended == "merged" {
+			return ev("merge request merged · no longer watched", watch.Success)
+		}
+		return ev("merge request "+ended+" · no longer watched", watch.Warning)
 	}
 	if !known || after.Status == "" {
 		return nil
@@ -703,67 +776,94 @@ func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended
 	if !fresh && after.Status == before.Status {
 		return nil
 	}
-	var out []watch.Event
+	prefix := ""
 	if fresh && w.IID > 0 && before.SHA != "" && after.SHA != before.SHA {
-		out = append(out, ev("new head "+shortSHA(after.SHA)))
+		prefix = "new head " + shortSHA(after.SHA) + " · "
 	}
 	switch after.Status {
 	case "manual":
-		e := ev("pipeline waits for a manual job")
-		e.News = true
-		out = append(out, e)
+		return ev(prefix+"pipeline waits for a manual job", watch.Warning)
 	case "canceled", "cancelled":
-		e := ev("pipeline cancelled")
-		e.News, e.Bad = true, true
-		out = append(out, e)
-	default:
-		switch ciStateOf(after.Status) {
-		case ciPassed:
-			e := ev("pipeline passed")
-			e.News, e.Good = true, true
-			out = append(out, e)
-		case ciFailed:
-			line := "pipeline failed"
-			if after.Failed != "" {
-				line += " · " + after.Failed
-			}
-			e := ev(line)
-			e.News, e.Bad = true, true
-			out = append(out, e)
-		case ciRunning:
-			if fresh || ciStateOf(before.Status) != ciRunning {
-				out = append(out, ev("pipeline started"))
-			}
+		return ev(prefix+"pipeline cancelled", watch.Warning)
+	}
+	switch ciStateOf(after.Status) {
+	case ciPassed:
+		return ev(prefix+"pipeline passed", watch.Success)
+	case ciFailed:
+		line := prefix + "pipeline failed"
+		if after.Failed != "" {
+			line += " · " + after.Failed
+		}
+		return ev(line, watch.Danger)
+	case ciRunning:
+		if fresh || ciStateOf(before.Status) != ciRunning {
+			return ev(prefix+"pipeline started", watch.Info)
 		}
 	}
-	return out
+	return nil
 }
 
 // terminalInFront reports whether the user is looking at this unagit: its
 // terminal has focus and no editor has it.
+//
+// A terminal that never says whether it has focus - or a multiplexer that
+// keeps it to itself - is taken to be in front when its application is,
+// asked of the system now and then; where even that cannot be told, it is,
+// as unagit was just started there.
 func (a *App) terminalInFront() bool {
 	q := a.quiet
-	return q != nil && q.focused.Load() && !q.suspended.Load()
+	if q == nil || q.suspended.Load() {
+		return false
+	}
+	if q.focusKnown.Load() {
+		return q.focused.Load()
+	}
+	a.frontMu.Lock()
+	defer a.frontMu.Unlock()
+	if time.Since(a.frontSeen.at) < frontAskEvery {
+		return a.frontSeen.front
+	}
+	front := ""
+	if a.frontApp != nil {
+		front = a.frontApp()
+	} else {
+		front = notify.FrontApp(context.Background())
+	}
+	mine := notify.Detect(os.Getenv).App(os.Getenv)
+	a.frontSeen.at = time.Now()
+	a.frontSeen.front = front == "" || mine == "" || strings.EqualFold(front, mine)
+	return a.frontSeen.front
 }
+
+// frontAskEvery is how often the system is asked which application is in
+// front.
+const frontAskEvery = 3 * time.Second
 
 // notifyWatch sends a desktop notification of an event: through the
 // terminal where it can show one, the system otherwise. It runs off the
 // loop; the sequence is written on it, between two draws.
 func (a *App) notifyWatch(ctx context.Context, e watch.Event) {
-	if a.notifier != nil {
-		a.notifier("unagit · "+e.What, e.Line)
-		return
-	}
 	a.sendNotification(ctx, "unagit · "+e.What, e.Line)
 }
 
 // sendNotification shows title and body as Settings › Integrations says.
 func (a *App) sendNotification(ctx context.Context, title, body string) {
 	mode := ""
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	wait, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if !a.onLoopWait(ctx, func() { mode = a.cfg.Integrations.Notifications }) {
+	if !a.onLoopWait(wait, func() { mode = a.cfg.Integrations.Notifications }) {
 		return
+	}
+	a.sendNotificationAs(mode, title, body)
+}
+
+// sendNotificationAs shows title and body through the way a mode chooses,
+// and says which it took: "terminal", "system" or "" for none. It runs off
+// the loop.
+func (a *App) sendNotificationAs(mode, title, body string) (string, error) {
+	if a.notifier != nil {
+		a.notifier(title, body)
+		return "notifier", nil
 	}
 	q := a.quiet
 	free := q != nil && !q.suspended.Load()
@@ -779,9 +879,10 @@ func (a *App) sendNotification(ctx context.Context, title, body string) {
 				tty.Write(seq)
 			}
 		})
-		return
+		return "terminal", nil
 	}
 	if toSystem {
-		notify.SystemNotify(title, body)
+		return "system", notify.SystemNotify(title, body)
 	}
+	return "", nil
 }

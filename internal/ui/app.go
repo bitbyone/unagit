@@ -257,6 +257,20 @@ type App struct {
 	// quiet is the screen as wrapped, which knows whether the terminal is in
 	// front and whether an editor has it.
 	quiet *quietScreen
+	// debug lists Settings › Debug (--debug).
+	debug bool
+	// frontApp names the application in front, for a terminal that does
+	// not say whether it has focus; tests replace it.
+	frontApp  func() string
+	frontMu   sync.Mutex
+	frontSeen struct {
+		at    time.Time
+		front bool
+	}
+	// toasts are the news on screen (toast.go); toasting while they are
+	// counted down.
+	toasts   []*toast
+	toasting bool
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -454,6 +468,7 @@ func (a *App) Run() error {
 	a.tv.SetAfterDrawFunc(func(screen tcell.Screen) {
 		a.markFocusedField(screen)
 		a.drawDialogWord(screen)
+		a.drawToasts(screen)
 	})
 
 	if !a.screenGiven {

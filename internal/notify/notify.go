@@ -41,6 +41,9 @@ type TerminalInfo struct {
 	// Tmux is set inside tmux, which passes a sequence on to the terminal
 	// only wrapped, and only with allow-passthrough on.
 	Tmux bool
+	// Muxer names a multiplexer that passes no notification on - Zellij,
+	// herdr - so the system's notifier stands in for the terminal's.
+	Muxer string
 }
 
 // Detect names the terminal from its environment, the way the Nerd Font
@@ -62,7 +65,53 @@ func Detect(getenv func(string) string) TerminalInfo {
 	case strings.HasPrefix(term, "foot"):
 		info.Name, info.Protocol = "foot", OSC777
 	}
+	switch {
+	case getenv("ZELLIJ") != "":
+		info.Muxer = "Zellij"
+	case getenv("HERDR_ENV") != "" || getenv("HERDR_PANE_ID") != "":
+		info.Muxer = "herdr"
+	}
+	if info.Muxer != "" {
+		info.Protocol = None
+	}
 	return info
+}
+
+// App is the terminal's application as macOS names it, to be told among
+// the frontmost: "" where unagit cannot say.
+func (t TerminalInfo) App(getenv func(string) string) string {
+	if t.Name != "" {
+		return t.Name
+	}
+	if getenv("TERM_PROGRAM") == "Apple_Terminal" {
+		return "Terminal"
+	}
+	return ""
+}
+
+// FrontApp is the name of the application in front, on macOS; "" elsewhere
+// or when it cannot be told. lsappinfo asks for no permission, unlike
+// System Events.
+func FrontApp(ctx context.Context) string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	front, err := exec.CommandContext(ctx, "lsappinfo", "front").Output()
+	if err != nil {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "lsappinfo", "info", "-only", "name", strings.TrimSpace(string(front))).Output()
+	if err != nil {
+		return ""
+	}
+	// "LSDisplayName"="Ghostty"
+	_, name, ok := strings.Cut(strings.TrimSpace(string(out)), "=")
+	if !ok {
+		return ""
+	}
+	return strings.Trim(name, `"`)
 }
 
 // Sequence is the bytes that make the terminal show title and body, nil
