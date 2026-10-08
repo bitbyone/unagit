@@ -1,16 +1,14 @@
-// Package mux opens terminal programs beside their caller. A connection
-// names the session explicitly so its panes can be found from another shell.
+// Package mux opens terminal programs beside their caller: in Zellij, in
+// herdr, or in Ghostty. A connection names the session explicitly so its
+// panes can be found from another shell.
 package mux
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
-	"strings"
-	"time"
+	"path/filepath"
+	"runtime"
 )
 
 type Placement int
@@ -19,203 +17,200 @@ const (
 	Tab Placement = iota
 	Vertical
 	Horizontal
+	// Window is a place of its own: a Ghostty window, a herdr workspace.
+	Window
 )
 
-const Zellij = "zellij"
+// The kinds of place a program can be opened in.
+const (
+	Zellij  = "zellij"
+	Herdr   = "herdr"
+	Ghostty = "ghostty"
+)
 
 // Connection is also the identity used when reading a session's panes once
-// for several editor records. Binary is the launcher that was detected.
+// for several editor records. Binary is the launcher that was detected;
+// Session is Zellij's session name, herdr's socket, and nothing for
+// Ghostty, which has one of everything.
 type Connection struct{ Kind, Binary, Session string }
 
 type Client struct {
 	Connection
+	// SourcePane is where unagit itself runs, when it runs there: splits
+	// open beside it.
 	SourcePane string
+	// Workspace is the herdr workspace unagit runs in, where tabs open.
+	Workspace string
+	// Self is the unagit binary, which herdr and Ghostty start to run the
+	// command: they take a line of text, not separate arguments.
+	Self string
 }
 
-func Detect(getenv func(string) string, lookPath func(string) (string, error)) *Client {
-	if getenv("ZELLIJ") == "" || getenv("ZELLIJ_SESSION_NAME") == "" {
-		return nil
+// Name is how the kind reads in a sentence.
+func (c Connection) Name() string {
+	switch c.Kind {
+	case Zellij:
+		return "Zellij"
+	case Ghostty:
+		return "Ghostty"
 	}
-	bin, err := lookPath(Zellij)
-	if err != nil {
-		return nil
-	}
-	return &Client{Connection: Connection{Kind: Zellij, Binary: bin, Session: getenv("ZELLIJ_SESSION_NAME")}, SourcePane: getenv("ZELLIJ_PANE_ID")}
+	return c.Kind
 }
 
-func (c Connection) command(ctx context.Context, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, c.Binary, append([]string{"--session", c.Session, "action"}, args...)...)
-}
-
-func muxError(ctx context.Context, output []byte, err error) error {
-	if ctx.Err() != nil {
-		return fmt.Errorf("zellij is not answering; check the session and try again")
-	}
-	return fmt.Errorf("zellij request failed: %s (%v); check the session and use Zellij 0.45.1 or newer", strings.TrimSpace(string(output)), err)
-}
-
-type pane struct {
-	ID     int  `json:"id"`
-	Plugin bool `json:"is_plugin"`
-	Exited bool `json:"exited"`
-	TabID  int  `json:"tab_id"`
-}
-
-func (c Connection) panes(ctx context.Context) ([]pane, error) {
-	if c.Kind != Zellij || c.Binary == "" || c.Session == "" {
-		return nil, fmt.Errorf("unknown multiplexer; open the editor again from Zellij")
-	}
-	cmd := c.command(ctx, "list-panes", "--json")
-	out, err := cmd.CombinedOutput()
-	// An absent session is definitive. Other failures keep its records for a
-	// later retry; a title in a JSON reply must never be mistaken for an error.
-	if strings.HasPrefix(strings.TrimSpace(string(out)), "There is no active session") || strings.HasPrefix(strings.TrimSpace(string(out)), fmt.Sprintf("Session '%s' not found.", c.Session)) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, muxError(ctx, out, err)
-	}
-	var panes []pane
-	if err := json.Unmarshal(out, &panes); err != nil {
-		return nil, fmt.Errorf("cannot read zellij panes; use Zellij 0.45.1 or newer")
-	}
-	return panes, nil
-}
-
-func (c Connection) Panes() (map[string]bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	panes, err := c.panes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	live := map[string]bool{}
-	for _, p := range panes {
-		if !p.Plugin && !p.Exited {
-			live[fmt.Sprintf("terminal_%d", p.ID)] = true
-		}
-	}
-	return live, nil
-}
-
-func (c *Client) Open(where Placement, dir, name string, command *exec.Cmd) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var args []string
-	switch where {
-	case Tab:
-		args = []string{"new-tab", "--cwd", dir, "--name", name, "--layout-string", zellijLayout(dir, command.Args)}
-	case Vertical, Horizontal:
-		direction := "right"
-		if where == Horizontal {
-			direction = "down"
-		}
-		args = []string{"new-pane", "--direction", direction, "--cwd", dir, "--close-on-exit", "--near-current-pane"}
-	default:
-		return "", fmt.Errorf("unknown editor placement; choose a tab or split")
-	}
-	if where != Tab {
-		args = append(append(args, "--"), command.Args...)
-	}
-	cmd := c.command(ctx, args...)
-	cmd.Dir = dir
-	if c.SourcePane != "" {
-		cmd.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+c.SourcePane)
-	}
-	out, err := cmd.Output()
-	if err != nil {
-		if exit, ok := err.(*exec.ExitError); ok {
-			out = exit.Stderr
-		}
-		return "", muxError(ctx, out, err)
-	}
-	id := strings.TrimSpace(string(out))
-	tab := -1
-	if where != Tab {
-		if _, err := strconv.ParseUint(strings.TrimPrefix(id, "terminal_"), 10, 32); err != nil || !strings.HasPrefix(id, "terminal_") {
-			return "", fmt.Errorf("zellij did not return a pane id; use Zellij 0.45.1 or newer")
-		}
-	} else {
-		tab, err = strconv.Atoi(id)
-		if err != nil || tab < 0 {
-			return "", fmt.Errorf("zellij did not return a tab id; use Zellij 0.45.1 or newer")
-		}
-	}
-	// Creation replies precede the pane list. Do not write a persistent record
-	// until another reader can confirm its pane instead of sweeping it away.
-	for {
-		panes, err := c.panes(ctx)
+// Detect finds the multiplexer unagit runs in: Zellij, or herdr when herdr
+// may be used.
+func Detect(getenv func(string) string, lookPath func(string) (string, error), herdr bool) *Client {
+	if getenv("ZELLIJ") != "" && getenv("ZELLIJ_SESSION_NAME") != "" {
+		bin, err := lookPath(Zellij)
 		if err != nil {
-			return "", err
+			return nil
 		}
-		for _, p := range panes {
-			paneID := fmt.Sprintf("terminal_%d", p.ID)
-			if !p.Plugin && !p.Exited && (where == Tab && p.TabID == tab || where != Tab && paneID == id) {
-				return paneID, c.focus(ctx, paneID)
-			}
+		return &Client{Connection: Connection{Kind: Zellij, Binary: bin, Session: getenv("ZELLIJ_SESSION_NAME")}, SourcePane: getenv("ZELLIJ_PANE_ID")}
+	}
+	if herdr && getenv("HERDR_ENV") == "1" && getenv("HERDR_PANE_ID") != "" && getenv("HERDR_WORKSPACE_ID") != "" {
+		return DetectHerdr(getenv, lookPath)
+	}
+	return nil
+}
+
+// DetectHerdr connects to the herdr server from wherever unagit runs: from
+// one of its panes, the server of that pane, with tabs and splits beside
+// unagit; from anywhere else, the user's usual server, where only a
+// workspace of its own can be opened.
+func DetectHerdr(getenv func(string) string, lookPath func(string) (string, error)) *Client {
+	bin, err := lookPath(Herdr)
+	if err != nil {
+		return nil
+	}
+	socket := getenv("HERDR_SOCKET_PATH")
+	if socket == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil
 		}
-		select {
-		case <-ctx.Done():
-			return "", fmt.Errorf("the new zellij pane has no running editor; check its command")
-		case <-time.After(50 * time.Millisecond):
+		socket = filepath.Join(home, ".config", "herdr", "herdr.sock")
+	}
+	c := &Client{Connection: Connection{Kind: Herdr, Binary: bin, Session: socket}, Self: self()}
+	if getenv("HERDR_ENV") == "1" && getenv("HERDR_SOCKET_PATH") == socket {
+		c.SourcePane, c.Workspace = getenv("HERDR_PANE_ID"), getenv("HERDR_WORKSPACE_ID")
+	}
+	return c
+}
+
+// DetectGhostty finds Ghostty on a Mac, which is scripted through
+// AppleScript. here is whether unagit runs in a Ghostty terminal of its
+// own, which a split can then be made of.
+func DetectGhostty(getenv func(string) string, lookPath func(string) (string, error), here bool) *Client {
+	if runtime.GOOS != "darwin" || !ghosttyInstalled(getenv) {
+		return nil
+	}
+	bin, err := lookPath("osascript")
+	if err != nil {
+		return nil
+	}
+	c := &Client{Connection: Connection{Kind: Ghostty, Binary: bin}, Self: self()}
+	if here {
+		// Found when a split is asked for: Ghostty knows its terminals by
+		// ids unagit cannot see from inside one.
+		c.SourcePane = ghosttyFindSelf
+	}
+	return c
+}
+
+func ghosttyInstalled(getenv func(string) string) bool {
+	if getenv("TERM_PROGRAM") == "ghostty" {
+		return true
+	}
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
+		if _, err := os.Stat(filepath.Join(dir, "Ghostty.app")); err == nil {
+			return true
 		}
 	}
+	return false
+}
+
+// GhosttyApp is where Ghostty is installed, for saying so in Settings.
+func GhosttyApp() string {
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
+		app := filepath.Join(dir, "Ghostty.app")
+		if _, err := os.Stat(app); err == nil {
+			return app
+		}
+	}
+	return ""
+}
+
+func self() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		return real
+	}
+	return exe
+}
+
+// Places are where this client can open something.
+func (c *Client) Places() []Placement {
+	switch c.Kind {
+	case Zellij:
+		return []Placement{Tab, Vertical, Horizontal}
+	case Herdr:
+		if c.SourcePane == "" {
+			return []Placement{Window}
+		}
+		return []Placement{Tab, Vertical, Horizontal, Window}
+	case Ghostty:
+		if c.SourcePane == "" {
+			return []Placement{Window, Tab}
+		}
+		return []Placement{Window, Tab, Vertical, Horizontal}
+	}
+	return nil
+}
+
+// Open runs command in dir in a new place of this kind, brings it forward,
+// and returns the pane it runs in.
+func (c *Client) Open(where Placement, dir, name string, command *exec.Cmd) (string, error) {
+	switch c.Kind {
+	case Zellij:
+		return c.openZellij(where, dir, name, command)
+	case Herdr:
+		return c.openHerdr(where, dir, name, command.Args)
+	case Ghostty:
+		return c.openGhostty(where, dir, command.Args)
+	}
+	return "", fmt.Errorf("unknown multiplexer; open it again from Zellij, herdr or Ghostty")
 }
 
 // Focus brings one of the session's panes to the front: the editor already
 // open in a directory, rather than a second one fighting over its files.
 func (c *Client) Focus(paneID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return c.focus(ctx, paneID)
+	switch c.Kind {
+	case Zellij:
+		return c.focusZellij(paneID)
+	case Herdr:
+		return c.focusHerdr(paneID)
+	case Ghostty:
+		return c.focusGhostty(paneID)
+	}
+	return fmt.Errorf("unknown multiplexer; go to the editor yourself")
 }
 
-func (c *Client) focus(ctx context.Context, paneID string) error {
-	focus := c.command(ctx, "focus-pane-id", paneID)
-	if c.SourcePane != "" {
-		focus.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+c.SourcePane)
+// Panes are the live panes of the session, by the ids Open returns. An
+// absent session has none; a server that cannot be asked is an error, so
+// records are kept for a later look rather than swept.
+func (c Connection) Panes() (map[string]bool, error) {
+	switch c.Kind {
+	case Zellij:
+		return c.zellijPanes()
+	case Herdr:
+		return c.herdrPanes()
+	case Ghostty:
+		return c.ghosttyPanes()
 	}
-	out, err := focus.CombinedOutput()
-	// New tabs may already have the focus. Zellij reports that state as an
-	// error even though the requested result has been reached.
-	already := fmt.Sprintf("Pane Terminal(%s) is already focused", strings.TrimPrefix(paneID, "terminal_"))
-	if err != nil && strings.TrimSpace(string(out)) != already {
-		return muxError(ctx, out, err)
-	}
-	return nil
-}
-
-// KDL uses braced Unicode escapes for control characters. Arguments stay
-// separate, so shell metacharacters in a directory or custom command are data.
-func kdlQuote(s string) string {
-	var text strings.Builder
-	text.WriteByte('"')
-	for _, r := range s {
-		switch {
-		case r == '"' || r == '\\':
-			text.WriteByte('\\')
-			text.WriteRune(r)
-		case r < 32 || r == 127:
-			fmt.Fprintf(&text, "\\u{%x}", r)
-		default:
-			text.WriteRune(r)
-		}
-	}
-	text.WriteByte('"')
-	return text.String()
-}
-
-func zellijLayout(dir string, args []string) string {
-	var layout strings.Builder
-	fmt.Fprintf(&layout, "layout {\n pane command=%s cwd=%s {\n", kdlQuote(args[0]), kdlQuote(dir))
-	if len(args) > 1 {
-		layout.WriteString("  args")
-		for _, arg := range args[1:] {
-			layout.WriteByte(' ')
-			layout.WriteString(kdlQuote(arg))
-		}
-		layout.WriteByte('\n')
-	}
-	layout.WriteString("  close_on_exit true\n }\n}\n")
-	return layout.String()
+	return nil, fmt.Errorf("unknown multiplexer; open the editor again")
 }

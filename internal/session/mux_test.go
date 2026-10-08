@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/muxtest"
 )
 
@@ -128,5 +129,36 @@ func TestANeovimPutAsideFromItsPaneIsAnEditorAside(t *testing.T) {
 	l.Close()
 	if got := s.Running(); len(got) != 0 {
 		t.Fatalf("a closed Neovim is still listed: %+v", got)
+	}
+}
+
+// TestAgentsInHerdrAndGhosttyLiveWithTheirPanes: an agent started in a
+// herdr pane or a Ghostty terminal is listed while that is open, whoever
+// wrote the record, and swept once it is closed.
+func TestAgentsInHerdrAndGhosttyLiveWithTheirPanes(t *testing.T) {
+	t.Parallel()
+	h, g := muxtest.NewHerdr(t), muxtest.NewGhostty(t)
+	herdr, ghostty := h.HerdrClient(false), g.GhosttyClient(false)
+	pane, err := herdr.OpenShell(mux.Window, t.TempDir(), "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.SetTerminals(t, "G-1")
+	s := New(t.TempDir())
+	for _, r := range []Record{
+		{Dir: t.TempDir(), Editor: "claude", Pane: pane, Mux: herdr.Kind, MuxSession: herdr.Session, MuxLauncher: herdr.Binary},
+		{Dir: t.TempDir(), Editor: "codex", Pane: "G-1", Mux: ghostty.Kind, MuxLauncher: ghostty.Binary},
+	} {
+		if _, err := s.Add(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.List(); len(got) != 2 {
+		t.Fatalf("live panes: %+v", got)
+	}
+	g.SetTerminals(t)
+	h.Fail(t, "server_not_running")
+	if got := s.List(); len(got) != 0 {
+		t.Fatalf("closed panes kept: %+v", got)
 	}
 }

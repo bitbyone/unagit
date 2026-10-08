@@ -123,7 +123,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
-	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) })...)
+	acts = append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) })...)
+	return append(acts, a.agentActions(func(place editorPlace) { a.openProjectIn(pr, nil, place) })...)
 }
 
 // repositoriesActions are what Repositories itself can do.
@@ -204,7 +205,8 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
-	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) })...)
+	acts = append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) })...)
+	return append(acts, a.agentActions(func(place editorPlace) { a.openMRIn(mr, nil, place) })...)
 }
 
 // mergeRequestsActions are what Merge requests itself can do.
@@ -268,13 +270,15 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			a.showBranchManager(branchScope{project: a.worktreeProject(r), focus: r.Branch})
 		}},
 	}
-	return append(acts, a.muxActions(func(ed *editors.Editor, place editorPlace) {
+	openIn := func(ed *editors.Editor, place editorPlace) {
 		if r.grouped() {
 			a.openGroupIn(r, ed, place)
 		} else {
 			a.openWorktreeIn(r, ed, place)
 		}
-	})...)
+	}
+	acts = append(acts, a.muxActions(openIn)...)
+	return append(acts, a.agentActions(func(place editorPlace) { openIn(nil, place) })...)
 }
 
 // worktreeListActions are worktreeActions as the list has them: taking a

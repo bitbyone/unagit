@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/ui"
 )
 
@@ -39,10 +40,22 @@ func rootCmd() *cobra.Command {
 			return ui.NewLocked(cfg).Run()
 		},
 	}
-	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(),
+	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
+}
+
+// launchCmd is what herdr and Ghostty run in a pane unagit opens: they take a
+// line of text, so the command itself comes in the environment (mux).
+func launchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "launch",
+		Short:  "Run what unagit opened in a pane",
+		Hidden: true,
+		Args:   cobra.NoArgs,
+		RunE:   func(*cobra.Command, []string) error { return mux.RunLaunch() },
+	}
 }
 
 // goalCmd starts the TUI with a merge request to open straight away: the

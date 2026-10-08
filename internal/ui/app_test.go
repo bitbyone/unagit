@@ -582,7 +582,10 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 		if lookup != nil {
 			return lookup(name)
 		}
-		if name == "zoxide" || name == "yazi" {
+		// Nor the machine's herdr or coding agents: a test that wants one
+		// supplies a stand-in.
+		switch name {
+		case "zoxide", "yazi", "herdr", "claude", "codex", "copilot", "opencode", "agy":
 			return "", exec.ErrNotFound
 		}
 		return exec.LookPath(name)
@@ -590,8 +593,16 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 	if a.yaziInitPath == nil {
 		a.yaziInitPath = func() string { return filepath.Join(a.cfg.Dir(), "yazi", "init.lua") }
 	}
+	// Tests run inside whatever terminal runs them - herdr, Ghostty - and
+	// must never open anything in it.
 	if a.findMux == nil {
 		a.findMux = func() *mux.Client { return nil }
+	}
+	if a.findHerdr == nil {
+		a.findHerdr = func() *mux.Client { return nil }
+	}
+	if a.findGhostty == nil {
+		a.findGhostty = func() *mux.Client { return nil }
 	}
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {

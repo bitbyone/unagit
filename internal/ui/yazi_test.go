@@ -207,7 +207,11 @@ func TestYaziCardAndSelectionActionFit(t *testing.T) {
 		openSection(t, a, sc, sectionIntegrations)
 		changeOnLoop(a, func() {
 			v := a.settings.integrations
-			v.current = len(v.cards) - 1
+			for i, card := range v.cards {
+				if card.name == "Yazi" {
+					v.current = i
+				}
+			}
 			a.tv.SetFocus(v)
 			v.paintFocus(true)
 		})

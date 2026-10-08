@@ -8,7 +8,9 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/mux"
 )
 
 type integrationCard struct {
@@ -86,6 +88,33 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		found:       func() string { return hint },
 		check:       func() { hint = s.app.yaziFound() },
 	})
+	v.cards = append(v.cards, &integrationCard{
+		name: "Herdr", command: "herdr",
+		description: "Inside herdr, open editors in its tabs and splits as in Zellij. From anywhere, start agents in a herdr workspace, where herdr follows what they do.",
+		enabled:     s.app.herdrOn,
+		toggle: func() {
+			on := !s.app.herdrOn()
+			s.app.cfg.Integrations.Herdr = &on
+			s.app.detectMultiplexer()
+		},
+	}, &integrationCard{
+		name: "Ghostty", command: "ghostty",
+		description: "Open editors and agents in a Ghostty window or tab, or beside unagit in a split when it runs in Ghostty. macOS asks once to let unagit control Ghostty.",
+		enabled:     s.app.ghosttyOn,
+		toggle: func() {
+			on := !s.app.ghosttyOn()
+			s.app.cfg.Integrations.Ghostty = &on
+		},
+	})
+	for _, ag := range agents.All {
+		ag := ag
+		v.cards = append(v.cards, &integrationCard{
+			name: ag.Name, command: ag.Command,
+			description: "Open in " + ag.Name + "… starts it in the selected repository, merge request or worktree: in this terminal, or in a tab, split or window of herdr, Zellij or Ghostty.",
+			enabled:     func() bool { return s.app.agentOn(ag) },
+			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
+		})
+	}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
 		box(card.view.Box, card.name).SetBorderPadding(0, 0, 2, 2)
@@ -172,7 +201,9 @@ func (v *integrationsView) paintFocus(active bool) {
 				text += found + "\n"
 			}
 		}
-		if card.binary == "" {
+		if card.binary == "" && card.command == "ghostty" {
+			text += tag(colMuted) + "Install Ghostty; it is scripted on macOS only." + tagEnd
+		} else if card.binary == "" {
 			text += tag(colMuted) + "Install " + card.command + " and add it to PATH." + tagEnd
 		} else {
 			text += tag(colMuted) + tview.Escape(card.binary) + tagEnd
@@ -350,8 +381,17 @@ func shortPath(path string, n int) string {
 }
 
 func (v *integrationsView) integrationBinary(command string) string {
-	if command == "zoxide" {
+	switch command {
+	case "zoxide":
 		return v.settings.app.zoxideTool().Binary()
+	case "ghostty":
+		if v.settings.app.findGhosttyClient() == nil {
+			return ""
+		}
+		if app := mux.GhosttyApp(); app != "" {
+			return app
+		}
+		return "Ghostty"
 	}
 	bin, _ := v.settings.app.executable(command)
 	return bin

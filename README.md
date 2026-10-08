@@ -466,6 +466,45 @@ zoxide visit when that integration is enabled.
 Requires Zellij 0.45.1 or newer. No setting is needed; the actions appear
 only inside Zellij. tmux is not implemented yet.
 
+### [herdr](https://herdr.dev)
+
+herdr is a terminal multiplexer made for coding agents. Inside it, unagit
+treats it as it treats Zellij: **Open in New Tab** and the two splits open
+the editor in herdr's tabs and splits, beside unagit, and the records, the
+open-editor marker, `E` and Ctrl-Z all work the same.
+
+From anywhere - herdr or a plain terminal - an agent can be started in herdr
+(**Open in Claude Code…** and the other agents, below): every one goes to a
+workspace called **Unagit Agents**, a tab each, named after the repository,
+merge request or branch, and herdr is switched to it. Bringing herdr's
+window forward is yours: unagit does not know which key or window shows it.
+herdr itself starts the agent, so it follows what the agent is doing.
+
+The integration is on whenever `herdr` is on PATH; `e` in its card turns it
+off. Requires herdr 0.9 or newer.
+
+### [Ghostty](https://ghostty.org)
+
+On a Mac, **Open in Ghostty…** opens the favourite terminal editor in a new
+Ghostty window or tab, or - when unagit runs in Ghostty itself, not in a
+multiplexer inside it - in a split beside unagit; agents can be opened in
+the same places. Ghostty is scripted through AppleScript: macOS asks once
+whether unagit may control it. Ghostty keeps a terminal whose program has
+ended open until a key; unagit closes it instead. A tab cannot be opened
+when tabs are turned off in Ghostty's configuration - use a window.
+
+### Coding agents
+
+Claude Code, Codex, Copilot CLI, opencode and Antigravity are integrations of
+their own, each on whenever its command (`claude`, `codex`, `copilot`,
+`opencode`, `agy`) is on PATH. Each adds **Open in <agent>…** to the actions
+of a repository, a merge request and a worktree: the directory is prepared
+as `Ctrl-O` prepares it - cloned, the branch worktree made - and then the
+agent starts there, where you choose: **This Terminal** (unagit is
+suspended until the agent ends), a tab or split of the Zellij or herdr
+unagit runs in, a tab of herdr's Unagit Agents workspace, or a Ghostty
+window, tab or split. The place chosen last is offered first next time.
+
 ### [Yazi](https://yazi-rs.github.io)
 
 With `yazi` on PATH, **Browse Files** appears in the selection action picker

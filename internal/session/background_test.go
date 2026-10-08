@@ -63,7 +63,12 @@ func TestDeadSocketIsSweptEvenWithALiveWriter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := liveSocket(t, socket)
+	// No Accept waits on it: Go closes a listener with one pending only once
+	// that returns, and under load the socket would still answer.
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
 	l.(*net.UnixListener).SetUnlinkOnClose(false)
 	l.Close()
 	_, err = s.Add(Record{Dir: t.TempDir(), Socket: socket, Since: time.Now().Add(-time.Hour)})

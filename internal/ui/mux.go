@@ -1,40 +1,66 @@
 package ui
 
 import (
+	"crypto/rand"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/tobola/unagit/internal/agents"
 
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/session"
 )
 
-// The zero place keeps all existing opening keys in this terminal.
+// The zero place keeps all existing opening keys in this terminal. With an
+// agent, the agent is what opens there instead of an editor.
 type editorPlace struct {
 	client *mux.Client
 	where  mux.Placement
+	agent  *agents.Agent
 }
 
+// muxActions open the favourite terminal editor beside unagit, in the
+// multiplexer it runs in - Zellij or herdr - and in Ghostty.
 func (a *App) muxActions(open func(*editors.Editor, editorPlace)) []uiAction {
 	var actions []uiAction
+	inMux := func() bool { return a.multiplexer != nil }
+	name := func() string {
+		if a.multiplexer == nil {
+			return "Zellij or herdr"
+		}
+		return a.multiplexer.Name()
+	}
 	for _, spec := range []struct {
 		name, about string
 		where       mux.Placement
 	}{
-		{"Open in New Tab", "Open the favourite terminal editor in a named Zellij tab.", mux.Tab},
-		{"Open in Vertical Split", "Open the favourite terminal editor beside unagit in Zellij.", mux.Vertical},
-		{"Open in Horizontal Split", "Open the favourite terminal editor below unagit in Zellij.", mux.Horizontal},
+		{"Open in New Tab", "Open the favourite terminal editor in a named tab of the %s unagit runs in.", mux.Tab},
+		{"Open in Vertical Split", "Open the favourite terminal editor beside unagit, in %s.", mux.Vertical},
+		{"Open in Horizontal Split", "Open the favourite terminal editor below unagit, in %s.", mux.Horizontal},
 	} {
-		actions = append(actions, uiAction{name: spec.name, about: spec.about, rank: 19, when: func() bool { return a.multiplexer != nil }, run: func() {
+		actions = append(actions, uiAction{name: spec.name, about: fmt.Sprintf(spec.about, name()), rank: 19, when: inMux, run: func() {
 			if a.multiplexer == nil {
-				a.flash("run unagit inside Zellij to open a tab or split")
+				a.flash("run unagit inside Zellij or herdr to open a tab or split")
 				return
 			}
-			place := editorPlace{a.multiplexer, spec.where}
+			place := editorPlace{client: a.multiplexer, where: spec.where}
 			a.withEditorKind(false, true, func(ed *editors.Editor) { open(ed, place) })
 		}})
 	}
+	ghostty := func() bool { return a.ghostty() != nil }
+	actions = append(actions, uiAction{name: "Open in Ghostty…", about: "Open the favourite terminal editor in a Ghostty window, tab or split of its own.", rank: 19, when: ghostty, run: func() {
+		g := a.ghostty()
+		if g == nil {
+			a.flash("Ghostty is not on - see Settings › Integrations")
+			return
+		}
+		a.pickPlace("Open in Ghostty · where", a.clientPlaces(g), func(place editorPlace) {
+			a.withEditorKind(false, true, func(ed *editors.Editor) { open(ed, place) })
+		})
+	}})
 	return actions
 }
 
@@ -43,7 +69,7 @@ func (a *App) openNowIn(dir string, what session.Record, ed *editors.Editor, pla
 }
 
 func (a *App) runTaskOpeningIn(title string, what session.Record, ed *editors.Editor, place editorPlace, fn func(func(string)) (string, error)) {
-	if place.client == nil {
+	if place.client == nil && place.agent == nil {
 		a.runTaskOpening(title, what, ed, fn)
 		return
 	}
@@ -63,7 +89,7 @@ func muxTabName(what session.Record) string {
 
 func (a *App) openMuxEditor(dir string, what session.Record, ed editors.Editor, place editorPlace) {
 	if !ed.Terminal {
-		a.tv.QueueUpdateDraw(func() { a.flash("choose a terminal editor for a Zellij tab or split") })
+		a.tv.QueueUpdateDraw(func() { a.flash("choose a terminal editor for a tab, split or window") })
 		return
 	}
 	// Neovim listens in a pane as it does in unagit's own terminal, Ctrl-Z
@@ -92,37 +118,63 @@ func (a *App) openMuxEditor(dir string, what session.Record, ed editors.Editor, 
 		return
 	}
 	what.Launcher = ed.Where
-	a.openInPane(what, place, cmd, "opened in Zellij: ")
+	a.openInPane(what, place, cmd, "opened in "+place.client.Name()+": ")
 }
 
 // openInPane runs cmd in a new tab or split and records the editor as being
 // there. It serves a new editor and one put aside coming back alike.
 func (a *App) openInPane(what session.Record, place editorPlace, cmd *exec.Cmd, said string) {
 	var job *bgJob
-	a.tv.QueueUpdateDraw(func() { job = a.startJob("Opening editor in Zellij") })
+	where := place.client.Name()
+	a.tv.QueueUpdateDraw(func() { job = a.startJob("Opening in " + where) })
 	defer a.tv.QueueUpdateDraw(func() { a.endJob(job) })
-	pane, err := place.client.Open(place.where, what.Dir, muxTabName(what), cmd)
+	client, err := a.besideUnagit(place)
+	if err != nil {
+		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
+		return
+	}
+	pane, err := client.Open(place.where, what.Dir, muxTabName(what), cmd)
 	if err != nil && pane == "" {
 		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
-	openErr := err
-	what.Mux, what.MuxSession, what.MuxLauncher = place.client.Kind, place.client.Session, place.client.Binary
+	a.recordPane(what, client, pane, err, said)
+}
+
+// recordPane writes down what was opened in a pane, so it is found there
+// again - from this unagit or another - and says so.
+func (a *App) recordPane(what session.Record, client *mux.Client, pane string, openErr error, said string) {
+	what.Mux, what.MuxSession, what.MuxLauncher = client.Kind, client.Session, client.Binary
 	what.Pane = pane
-	_, err = a.sessions.Add(what)
+	_, err := a.sessions.Add(what)
 	a.zoxideAdd(what.Dir)
 	a.tv.QueueUpdateDraw(func() {
 		a.refreshDisk()
 		a.projectsPane.reload()
 		a.mrsPane.reload()
 		if err != nil {
-			a.errorf("editor opened in zellij, but cannot record its session: %v; check the configuration directory permissions", err)
+			a.errorf("opened in %s, but cannot record it: %v; check the configuration directory permissions", client.Name(), err)
 		} else if openErr != nil {
-			a.errorf("editor opened in zellij, but could not focus its pane: %v", openErr)
+			a.errorf("opened in %s, but could not focus its pane: %v", client.Name(), openErr)
 		} else {
 			a.done(said + what.Label())
 		}
 	})
+}
+
+// besideUnagit is the client a split is made with: in Ghostty, unagit has
+// to find its own terminal first, by a title it sets for the moment.
+func (a *App) besideUnagit(place editorPlace) (*mux.Client, error) {
+	c := place.client
+	if c.Kind != mux.Ghostty || place.where != mux.Vertical && place.where != mux.Horizontal || a.screen == nil {
+		return c, nil
+	}
+	var id [4]byte
+	_, _ = rand.Read(id[:])
+	title := fmt.Sprintf("unagit-%d-%x", os.Getpid(), id)
+	a.screen.SetTitle(title)
+	defer a.screen.SetTitle("unagit")
+	return c.FindSelf(title)
 }
 
 // attachInPane brings a Neovim put aside back in a tab or split of its own.
@@ -158,8 +210,25 @@ func (a *App) reachRunning(r session.Record, file string, place editorPlace) {
 }
 
 func (a *App) inSessionOf(r session.Record) bool {
-	c := a.multiplexer
-	return c != nil && c.Kind == r.Mux && c.Session == r.MuxSession
+	return a.clientOf(r) != nil
+}
+
+// clientOf is the client that can bring a record's pane forward: the
+// multiplexer unagit runs in, when the pane is in its session; Ghostty,
+// which reaches any of its terminals; herdr's server, from anywhere.
+func (a *App) clientOf(r session.Record) *mux.Client {
+	if c := a.multiplexer; c != nil && c.Kind == r.Mux && c.Session == r.MuxSession {
+		return c
+	}
+	switch r.Mux {
+	case mux.Ghostty:
+		return a.ghostty()
+	case mux.Herdr:
+		if c := a.herdr(); c != nil && c.Session == r.MuxSession {
+			return c
+		}
+	}
+	return nil
 }
 
 // askAboutPane is for a Neovim in a pane of another Zellij session, or open
@@ -187,7 +256,7 @@ func (a *App) askAboutPane(r session.Record, place editorPlace) {
 	here := r
 	here.Pane, here.Mux, here.MuxSession, here.MuxLauncher = "", "", "", ""
 	a.tv.QueueUpdateDraw(func() {
-		title := fmt.Sprintf("%s · Neovim in Zellij session %s", r.Label(), r.MuxSession)
+		title := fmt.Sprintf("%s · Neovim in %s session %s", r.Label(), muxName(r.Mux), r.MuxSession)
 		a.showPickerWith(title, items, pickerOptions{pack: true, explain: true}, func(it pickItem) {
 			go func() {
 				a.editorMu.Lock()
@@ -219,14 +288,14 @@ func (a *App) askAboutPane(r session.Record, place editorPlace) {
 func (a *App) goToPane(r session.Record, closing bool) {
 	if !a.inSessionOf(r) {
 		a.tv.QueueUpdateDraw(func() {
-			a.flash(fmt.Sprintf("%s is open in Neovim in Zellij session %s - go there, or close it from E", r.Label(), r.MuxSession))
+			a.flash(fmt.Sprintf("%s is open in Neovim in %s session %s - go there, or close it from E", r.Label(), muxName(r.Mux), r.MuxSession))
 		})
 		return
 	}
 	if r.Socket != "" {
 		_ = editors.Checktime(r.Launcher, r.Socket)
 	}
-	if err := a.multiplexer.Focus(r.Pane); err != nil {
+	if err := a.clientOf(r).Focus(r.Pane); err != nil {
 		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
@@ -238,4 +307,9 @@ func (a *App) goToPane(r session.Record, closing bool) {
 			a.done("went to the Neovim of " + r.Label())
 		}
 	})
+}
+
+// muxName is how a kind of pane reads in a sentence.
+func muxName(kind string) string {
+	return mux.Connection{Kind: kind}.Name()
 }

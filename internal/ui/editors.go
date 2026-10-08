@@ -108,6 +108,10 @@ func (a *App) openEditorAt(dir string, what session.Record, ed *editors.Editor, 
 func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, file string, place editorPlace) {
 	a.editorMu.Lock()
 	defer a.editorMu.Unlock()
+	if place.agent != nil {
+		a.openAgent(dir, what, place)
+		return
+	}
 	if ed == nil {
 		fav, ok := editors.Favourite(a.detectEditors(), a.cfg.FavouriteEditor)
 		if !ok || place.client != nil && !fav.Terminal {

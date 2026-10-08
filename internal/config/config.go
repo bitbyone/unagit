@@ -512,6 +512,19 @@ type Integrations struct {
 	// chezmoi has it, instead of cloning it again. Unset, it is on whenever
 	// chezmoi is installed.
 	Chezmoi *bool `yaml:"chezmoi,omitempty"`
+	// Herdr opens editors in herdr's tabs and splits while unagit runs in
+	// it, and starts agents there from anywhere. Unset, it is on whenever
+	// herdr is installed.
+	Herdr *bool `yaml:"herdr,omitempty"`
+	// Ghostty opens editors and agents in Ghostty windows and splits on a
+	// Mac. Unset, it is on whenever Ghostty is installed.
+	Ghostty *bool `yaml:"ghostty,omitempty"`
+	// Agents are the coding agents a directory can be opened in, by their
+	// id (agents.All). One not named is on whenever it is installed.
+	Agents map[string]bool `yaml:"agents,omitempty"`
+	// AgentPlace is where an agent was last opened, which the next one is
+	// offered first.
+	AgentPlace string `yaml:"agent_place,omitempty"`
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).

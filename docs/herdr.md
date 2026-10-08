@@ -1,6 +1,26 @@
 # Herdr: panes, agents, and agents in a container
 
-A plan, not yet built. Herdr is a terminal multiplexer made for AI coding
+## Where it stands
+
+Built (2026-10-08): herdr as a multiplexer level with Zellij; Ghostty
+windows, tabs and splits through AppleScript; Claude Code, Codex, Copilot
+CLI, opencode and Antigravity as integrations, each with Open in
+<agent>… and a choice of place. Agents opened in herdr from a place of
+their own go to one workspace, Unagit Agents, a tab each. herdr and
+Ghostty run the command through `unagit launch` (`internal/mux`), which
+was checked against both with `UNAGIT_HERDR_TEST=1` and
+`UNAGIT_GHOSTTY_TEST=1`. Found on the way: `herdr pane run` prints
+nothing when it succeeds; Ghostty keeps a terminal whose program ended
+open until a key, whatever `wait after command` says, so the launcher
+closes it; `line` cannot name an AppleScript variable; Ghostty refuses
+`new tab` when tabs are turned off in its configuration.
+
+Not yet: the agents' state in the lists, a picker of the running agents,
+bringing herdr's window forward, and everything about containers below.
+
+## The plan
+
+Herdr is a terminal multiplexer made for AI coding
 agents: workspaces, tabs and panes like Zellij's, and on top of them it
 knows which agent runs in a pane and whether it is working, idle or waiting
 for an answer. unagit should treat it in two ways:

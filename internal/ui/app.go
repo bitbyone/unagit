@@ -210,6 +210,10 @@ type App struct {
 	// findMux keeps each fixture independent of the terminal running its tests.
 	findMux     func() *mux.Client
 	multiplexer *mux.Client
+	// findHerdr and findGhostty do the same for herdr's server and Ghostty,
+	// which agents and editors can be opened in from outside them too.
+	findHerdr   func() *mux.Client
+	findGhostty func() *mux.Client
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -385,11 +389,7 @@ func forgeGroup(g config.Group) forge.Group {
 
 // Run builds the interface and starts the event loop.
 func (a *App) Run() error {
-	if a.findMux != nil {
-		a.multiplexer = a.findMux()
-	} else {
-		a.multiplexer = mux.Detect(os.Getenv, a.executable)
-	}
+	a.detectMultiplexer()
 	applyTheme()
 	a.chooseTheme()
 	layout := a.buildInterface()
