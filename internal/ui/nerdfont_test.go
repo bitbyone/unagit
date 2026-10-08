@@ -148,6 +148,28 @@ func TestServerIconsGoBeforeRepositoryNames(t *testing.T) {
 	assertLegible(t, a, sc, "the worktrees with icons")
 }
 
+// TestAnIntegrationsStateIsAnIconWithANerdFont: the state on a card's top
+// edge is a dot in the state's colour with the icons on, and a cell of that
+// colour without. Serial: the glyphs are the process's.
+func TestAnIntegrationsStateIsAnIconWithANerdFont(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "\uf192 disabled")
+	text := a.screenText(sc)
+	y := lineOf(text, "\uf192 disabled")
+	line := lineAt(text, "\uf192 disabled")
+	x := len([]rune(line[:strings.Index(line, "\uf192 disabled")]))
+	r, style := cellAt(a, sc, x, y)
+	if _, bg, _ := style.Decompose(); r != '\uf192' || fg(style) != role("integration.disabled") || bg != colCard {
+		t.Fatalf("the state's icon is %q in %v on %v", r, fg(style), bg)
+	}
+	assertLegible(t, a, sc, "integration states as icons")
+}
+
 func fg(s tcell.Style) tcell.Color {
 	c, _, _ := s.Decompose()
 	return c

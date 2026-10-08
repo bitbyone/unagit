@@ -109,7 +109,7 @@ rule: `h` goes back to the sections whenever the content has no use for it.
 
 The rule goes into AGENTS.md.
 
-## 5. An integration's state as an icon
+## 5. An integration's state as an icon (done)
 
 The cell of colour before the state is too wide. With a Nerd Font it is
 `nf-fa-circle_dot` (U+F192) in the state's colour, then the word:

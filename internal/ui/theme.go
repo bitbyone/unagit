@@ -53,6 +53,7 @@ var (
 	glyphEditor                                                    string
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft     string
+	glyphIntegrationState                                          string
 	// agentIcons are the agents' icons by their id, empty without a Nerd
 	// Font.
 	agentIcons map[string]string
@@ -175,6 +176,7 @@ func setTheme(t Theme) {
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft = g.Repos, g.ForgeGitHub, g.ForgeGitLab, g.Draft
+	glyphIntegrationState = g.IntegrationState
 	agentIcons = map[string]string{"claude": g.AgentClaude, "codex": g.AgentCodex, "copilot": g.AgentCopilot,
 		"opencode": g.AgentOpencode, "agy": g.AgentAgy}
 	actionIcons = nil

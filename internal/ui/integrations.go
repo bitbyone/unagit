@@ -308,9 +308,10 @@ func cardState(c *integrationCard) (string, string) {
 	return "disabled", "integration.disabled"
 }
 
-// drawCardState puts the state at the right end of the card's top edge: a
-// cell filled with its colour, then the word, so it reads at a glance down
-// a column of cards. The editors card has no state of its own.
+// drawCardState puts the state at the right end of the card's top edge: an
+// icon in its colour - a cell filled with it without a Nerd Font - then the
+// word, so it reads at a glance down a column of cards. The editors card
+// has no state of its own.
 func drawCardState(screen tcell.Screen, c *integrationCard) {
 	if c.render != nil || c.enabled == nil {
 		return
@@ -325,7 +326,11 @@ func drawCardState(screen tcell.Screen, c *integrationCard) {
 	}
 	style := baseStyle().Background(colCard).Foreground(colText)
 	screen.SetContent(start, y, ' ', nil, style)
-	screen.SetContent(start+1, y, ' ', nil, style.Background(colour))
+	if icon := []rune(glyphIntegrationState); len(icon) > 0 {
+		screen.SetContent(start+1, y, icon[0], icon[1:], style.Foreground(colour))
+	} else {
+		screen.SetContent(start+1, y, ' ', nil, style.Background(colour))
+	}
 	screen.SetContent(start+2, y, ' ', nil, style)
 	for i, r := range word {
 		screen.SetContent(start+3+i, y, r, nil, style.Foreground(colour))

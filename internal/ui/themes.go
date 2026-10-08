@@ -233,6 +233,10 @@ type Glyphs struct {
 	AgentCopilot  string `json:"agent_copilot"`
 	AgentOpencode string `json:"agent_opencode"`
 	AgentAgy      string `json:"agent_agy"`
+	// IntegrationState goes before an integration's state on its card, in
+	// the state's colour; an icon alone, without which a cell of the colour
+	// stands there.
+	IntegrationState string `json:"integration_state"`
 	Hidden        string `json:"hidden"`
 	Favourite     string `json:"favourite"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
