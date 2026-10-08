@@ -93,8 +93,10 @@ func (a *App) closeRunningEditor(r session.Record) {
 	})
 }
 
-// The drawings use only this copy. Checking sockets belongs to a job, never
-// to a row's draw function or the event loop.
+// The drawings use only this copy. Checking sockets and panes is done off
+// the loop, never by a row's draw function. It is not a job: it runs every
+// few seconds for as long as unagit does, and a spinner that never rests
+// says nothing. The screen is drawn again only when what is open changed.
 func (a *App) refreshOpenEditors() {
 	// Before the first editor has ever opened, there is nothing to read or
 	// animate. A missing directory after records existed still clears them.
@@ -105,15 +107,14 @@ func (a *App) refreshOpenEditors() {
 		return
 	}
 	a.openReading = true
-	j := a.startJob("reading editors")
 	go func() {
 		open := map[string]session.Record{}
 		for _, r := range a.sessions.InEditor(editors.Nvim) {
 			open[filepath.Clean(r.Dir)] = r
 		}
-		a.tv.QueueUpdateDraw(func() {
+		a.openCount.Store(int64(len(open)))
+		apply := func() {
 			a.openReading = false
-			a.endJob(j)
 			if reflect.DeepEqual(open, a.openDirs) {
 				return
 			}
@@ -121,24 +122,50 @@ func (a *App) refreshOpenEditors() {
 			a.projectsPane.reload()
 			a.mrsPane.reload()
 			a.worktreesPane.reload()
-		})
+		}
+		if seen := a.openSeen.Load(); seen != nil && reflect.DeepEqual(open, *seen) {
+			a.tv.QueueUpdate(apply)
+			return
+		}
+		a.openSeen.Store(&open)
+		a.tv.QueueUpdateDraw(apply)
 	}()
 }
 
+// editorsLookEvery is how often the sessions directory is looked at; a
+// record written or removed - an editor opened, closed or put aside by any
+// unagit, a Neovim's socket gone - changes its modification time.
+// editorsAskEvery is how often the editors are asked whether they still
+// run when nothing on disk changed: a Zellij pane closes without a trace in
+// the directory.
+const (
+	editorsLookEvery = 3 * time.Second
+	editorsAskEvery  = 15 * time.Second
+)
+
 func (a *App) watchEditors(stop <-chan struct{}) {
 	dir := filepath.Join(a.cfg.Dir(), "sessions")
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(editorsLookEvery)
 	defer ticker.Stop()
+	var seen time.Time
+	asked := time.Now()
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			if _, err := os.Stat(dir); err != nil {
-				continue
-			}
-			a.tv.QueueUpdateDraw(a.refreshOpenEditors)
 		}
+		fi, err := os.Stat(dir)
+		if err != nil {
+			continue
+		}
+		changed := !fi.ModTime().Equal(seen)
+		due := a.openCount.Load() > 0 && time.Since(asked) >= editorsAskEvery
+		if !changed && !due {
+			continue
+		}
+		seen, asked = fi.ModTime(), time.Now()
+		a.tv.QueueUpdate(a.refreshOpenEditors)
 	}
 }
 

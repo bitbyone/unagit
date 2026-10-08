@@ -50,12 +50,25 @@ closed pane records. An unavailable or unreadable server reply keeps the
 record for a later retry. Missing sessions are swept.
 
 `unagit sessions` and `unagit cd` include these editors. Neovim panes wear
-the existing open-editor marker, including in a new unagit instance. The
-multiplexer provides switching and closing for its panes; `E` and
-`unagit attach` continue to list Neovim servers with RPC sockets.
+the existing open-editor marker, including in a new unagit instance.
+
+Neovim in a pane is started with `--listen` (without the Ctrl-Z of one put
+aside: its pane is where it waits), so unagit can open a file in it, ask
+about unsaved changes and close it. One Neovim per directory holds here
+too: opening a directory whose Neovim has a live pane - `Ctrl-O`, a split,
+a file chosen in Yazi - focuses that pane (`focus-pane-id`) instead of
+starting a second one, and from another Zellij session names the session
+instead. `E` lists these editors; Enter focuses the pane. A Neovim aside in
+unagit's own terminal is not moved into a pane: a split on its directory
+says to attach with `E`. When the configuration directory leaves no room
+for a socket path, the pane opens without one, and is still found by its
+pane.
 
 Opening a tab or split records a zoxide visit when that integration is on.
-Unagit stays running throughout; opening is shown as a background job. A
+Unagit stays running throughout; opening is shown as a background job.
+Whether panes still live is asked every 15 seconds while some Neovim is
+open, and at once whenever the sessions directory changes; that read is
+not a job, and draws nothing unless something changed. A
 failed creation creates no session or visit. If focusing fails after
 creation, the editor's session is kept and the failure is reported.
 

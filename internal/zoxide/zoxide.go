@@ -16,10 +16,15 @@ import (
 	"unicode"
 )
 
+// timeout bounds every call: a visit not recorded is no reason to keep an
+// editor from opening.
 const timeout = 2 * time.Second
 
 // Client keeps the executable found for this instance of unagit.
-type Client struct{ binary string }
+type Client struct {
+	binary string
+	wait   time.Duration // timeout unless a test needs a slower machine's
+}
 
 func New() *Client { return Find(exec.LookPath) }
 
@@ -44,7 +49,11 @@ func (c *Client) run(args ...string) ([]byte, error) {
 	if c.binary == "" {
 		return nil, exec.ErrNotFound
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	wait := c.wait
+	if wait == 0 {
+		wait = timeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.binary, args...)
 	// A child holding an inherited output pipe must not outlive the timeout.

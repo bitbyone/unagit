@@ -94,4 +94,19 @@ func TestShellCommandsRecordZoxideVisits(t *testing.T) {
 	if got := run("go", "--print", "gateway"); got != clone+"\n" {
 		t.Fatalf("failed integration stdout = %q", got)
 	}
+	// Nor does a configuration that cannot be read keep cd from an open
+	// editor's directory; zoxide, whose switch it holds, is left alone.
+	if err := os.WriteFile(tool, []byte("#!/bin/sh\nif [ \"$1\" = add ]; then printf '%s\\n' \"$3\" >> \"$ZO_TEST_LOG\"; fi\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg.Path(), []byte("instances: [unclosed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(log)
+	if got := run("cd", "--print", "gateway"); got != clone+"\n" {
+		t.Fatalf("cd with an unreadable configuration = %q", got)
+	}
+	if now, _ := os.ReadFile(log); string(now) != string(before) {
+		t.Fatalf("an unreadable configuration recorded a visit: %q", now)
+	}
 }

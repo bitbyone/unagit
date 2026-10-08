@@ -50,9 +50,14 @@ the integration is on. The workspace package still knows nothing about
 zoxide.
 
 **Reading frecency back.** `zoxide query --list --score` prints a score and
-a path per line. Read in a background job after a switch of tab, with a
-short timeout, and kept until the next switch. A failed read keeps the last
-snapshot:
+a path per line. Read after a switch of tab - only while a list is in the
+frecency order, or Settings is in front for the card's count - off the
+loop, with a short timeout, and kept until the next switch. Not a job: it
+is a local file read in milliseconds, and a spinner on every switch would
+say nothing. A failed read keeps the last snapshot. Sorting looks a
+repository's worktree roots up in an index of the best score per parent
+directory, built once per snapshot, rather than walking every score for
+every row:
 
 - **Sort by frecency** - a new order for Repositories (a clone's score is the
   highest of its directory and every worktree, including the older layout

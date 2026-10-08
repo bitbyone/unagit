@@ -55,6 +55,9 @@ func TestCommandsUseArgumentsAndRespectEnvironment(t *testing.T) {
 	t.Setenv("ZO_TEST_LOG", log)
 	t.Setenv("_ZO_EXCLUDE_DIRS", "/excluded/*")
 	c := New()
+	// A shell script under a loaded test run can take longer than a real
+	// zoxide ever does; the bound itself is TestSlowToolHasABoundedWait's.
+	c.wait = time.Minute
 	off := false
 	if !c.Enabled(nil) || c.Enabled(&off) {
 		t.Fatal("automatic or explicit setting lost")

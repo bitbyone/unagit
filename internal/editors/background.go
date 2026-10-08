@@ -43,14 +43,25 @@ func (e Editor) BackgroundCommand(dir, socket string) (*exec.Cmd, error) {
 }
 
 func (e Editor) BackgroundCommandAt(dir, socket, file string) (*exec.Cmd, error) {
+	cmd, err := e.ServerCommandAt(dir, socket, file)
+	if err != nil {
+		return nil, err
+	}
+	for _, mode := range []string{"nnoremap", "inoremap", "vnoremap"} {
+		cmd.Args = append(cmd.Args, "-c", mode+" <C-z> <cmd>detach<cr>")
+	}
+	return cmd, nil
+}
+
+// ServerCommandAt starts Neovim listening on socket and nothing more: an
+// editor in a pane of its own is not put aside, but unagit still has to
+// reach it to open a file in it, ask about unsaved changes, or close it.
+func (e Editor) ServerCommandAt(dir, socket, file string) (*exec.Cmd, error) {
 	cmd, err := e.CommandAt(dir, file)
 	if err != nil {
 		return nil, err
 	}
 	cmd.Args = append(cmd.Args, "--listen", socket)
-	for _, mode := range []string{"nnoremap", "inoremap", "vnoremap"} {
-		cmd.Args = append(cmd.Args, "-c", mode+" <C-z> <cmd>detach<cr>")
-	}
 	return cmd, nil
 }
 
@@ -102,13 +113,31 @@ func AttachCommand(launcher, socket, dir string) *exec.Cmd {
 // Rechecking inside Neovim closes the race with another attached UI.
 func Close(launcher, socket string) (bool, error) {
 	out, err := RemoteExpr(launcher, socket, "len(getbufinfo({'bufmodified': 1})) ? 1 : execute('confirm qa')")
-	if !SocketAlive(socket) {
-		return true, nil
-	}
 	if out == "1" {
 		return false, nil
 	}
+	// A Neovim that quits takes a moment to let go of its socket - often
+	// after it has answered, or instead of answering. Asking at once would
+	// take it for one that refused, and attach to it as it goes.
+	if gone(socket, closeWait) {
+		return true, nil
+	}
 	return false, err
+}
+
+// closeWait is how long Close waits for an editor that was asked to quit.
+const closeWait = 2 * time.Second
+
+// gone waits up to wait for nothing to listen on socket any more.
+func gone(socket string, wait time.Duration) bool {
+	deadline := time.Now().Add(wait)
+	for SocketAlive(socket) {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return true
 }
 
 // ConfirmCloseOnAttach waits for the new UI, so a save question is drawn
@@ -133,6 +162,16 @@ func ConfirmCloseOnAttach(launcher, socket, before string, finished <-chan struc
 			}
 		}
 	}
+}
+
+// Checktime has Neovim read again the files that changed on disk while
+// nobody was looking - a review worktree reset for a force push or narrowed
+// to one commit, a branch pulled or rebased. Its buffers would otherwise
+// show the old files, and the gutter a diff that is no longer there. A
+// buffer with unsaved changes is asked about by Neovim itself.
+func Checktime(launcher, socket string) error {
+	_, err := RemoteExpr(launcher, socket, "execute('checktime')")
+	return err
 }
 
 // OpenFile keeps unsaved buffers in their own tab instead of replacing them

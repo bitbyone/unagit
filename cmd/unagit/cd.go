@@ -37,10 +37,7 @@ func cdCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
+			cfg, readable := sessionsConfig()
 			open := session.New(cfg.Dir()).List()
 			if len(open) == 0 {
 				return fmt.Errorf("nothing is open in an editor right now")
@@ -62,7 +59,7 @@ func cdCmd() *cobra.Command {
 				}
 				chosen = picked
 			}
-			if tool := zoxide.New(); tool.Enabled(cfg.Integrations.Zoxide) {
+			if tool := zoxide.New(); readable && tool.Enabled(cfg.Integrations.Zoxide) {
 				_ = tool.Add(chosen.Dir)
 			}
 			if print {
@@ -156,4 +153,19 @@ func matching(open []session.Record, query string) []session.Record {
 		}
 	}
 	return out
+}
+
+// sessionsConfig is the configuration of a command that needs only where
+// the sessions are and whether zoxide is wanted. One that cannot be read
+// must not keep a shell from a directory open in an editor, so the sessions
+// are read where they always are, and readable is false: zoxide is then
+// left alone, since its switch is not known.
+func sessionsConfig() (cfg *config.Config, readable bool) {
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = config.Default()
+		cfg.SetDir(config.Dir())
+		return cfg, false
+	}
+	return cfg, true
 }

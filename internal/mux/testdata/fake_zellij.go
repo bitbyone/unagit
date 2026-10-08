@@ -16,6 +16,9 @@ type pane struct {
 }
 
 func main() {
+	if os.Getenv("UNAGIT_FAKE_ZELLIJ_WARM") == "1" {
+		return
+	}
 	exe, _ := os.Executable()
 	dir := filepath.Dir(exe)
 	args := os.Args[1:]

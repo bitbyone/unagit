@@ -54,6 +54,15 @@ func New(t *testing.T) Tool {
 	if err := os.WriteFile(tool.Binary, bin, 0700); err != nil {
 		t.Fatal(err)
 	}
+	// The first start of a new executable is slow on macOS, which looks at
+	// it before letting it run - under a loaded test run, longer than the
+	// seconds unagit gives Zellij to answer. That start is had here, with
+	// no deadline and nothing logged.
+	warm := exec.Command(tool.Binary)
+	warm.Env = append(os.Environ(), "UNAGIT_FAKE_ZELLIJ_WARM=1")
+	if out, err := warm.CombinedOutput(); err != nil {
+		t.Fatalf("start fake zellij: %v: %s", err, out)
+	}
 	tool.SetPanes(t, nil)
 	return tool
 }

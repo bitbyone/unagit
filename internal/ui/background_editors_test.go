@@ -53,6 +53,8 @@ func TestNeovimCanBePutAsideAndFoundByTheNextUnagit(t *testing.T) {
 	// The attach is acknowledged by its own redraw, rather than by the word
 	// still visible from the first opening.
 	waitForEditorLog(t, log, "attach|"+socket)
+	// Files changed while it was aside are read again before it is shown.
+	waitForEditorLog(t, log, "checktime|"+socket)
 	waitEditorIdle(t, a)
 	if got := editorLog(t, log); strings.Count(got, "start|") != 1 {
 		t.Fatalf("same directory started twice:\n%s", got)
@@ -267,4 +269,36 @@ func assertEditorColour(t *testing.T, a *App, sc tcell.SimulationScreen) {
 		}
 	}
 	t.Fatal("editor mark is not on screen")
+}
+
+func TestAWaitingWindowLauncherHoldsNoOtherOpen(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	// A launcher that waits for its window, as code --wait does.
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	launcher := filepath.Join(dir, "editor")
+	must(t, os.WriteFile(launcher, []byte("#!/bin/sh\necho $$ > "+pidFile+"\nexec sleep 60\n"), 0o755))
+	t.Cleanup(func() {
+		if b, err := os.ReadFile(pidFile); err == nil {
+			var pid int
+			fmt.Sscan(string(b), &pid)
+			if p, err := os.FindProcess(pid); err == nil && pid > 0 {
+				p.Kill()
+			}
+		}
+	})
+	changeOnLoop(a, func() {
+		a.cfg.Editor, a.cfg.EditorArgs, a.cfg.EditorWindow = launcher, nil, true
+		a.cfg.FavouriteEditor = editors.Custom
+	})
+	newRealProject(t, a, "acme/gateway")
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitEditorState(t, a, func() bool {
+		_, err := os.Stat(pidFile)
+		return err == nil && strings.Contains(a.transient, "opened in")
+	})
+	// The launcher still waits for its window; opening is free again.
+	waitEditorIdle(t, a)
 }

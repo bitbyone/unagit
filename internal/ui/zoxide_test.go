@@ -228,3 +228,28 @@ func TestPlacesUseZoxideScores(t *testing.T) {
 		t.Fatal("listing places recorded a visit")
 	}
 }
+
+func TestZoxideScoresAreReadOnlyWhenShown(t *testing.T) {
+	t.Parallel()
+	log, _, prepare := fakeZoxide(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	queries := func() int {
+		b, err := os.ReadFile(log)
+		must(t, err)
+		return strings.Count(string(b), "query\t")
+	}
+	for _, tab := range []struct {
+		key  string
+		page string
+	}{{"2", pageMRs}, {"3", pageWorktrees}, {"1", pageProjects}} {
+		typeRunes(sc, tab.key)
+		waitEditorState(t, a, func() bool { return a.currentTab() == tab.page })
+	}
+	if n := queries(); n != 0 {
+		t.Fatalf("switching tabs read zoxide %d times with no list in the frecency order", n)
+	}
+	changeOnLoop(a, func() { a.cfg.Filters.SetOrder(config.ListWorktrees, config.SortFrecency) })
+	typeRunes(sc, "3")
+	waitEditorState(t, a, func() bool { return queries() > 0 })
+}

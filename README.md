@@ -448,9 +448,12 @@ The pane closes when its editor exits.
 `unagit sessions` and `unagit cd` include these panes, and Neovim wears the
 usual open-editor marker. Records follow the pane in its original Zellij
 session, including after unagit exits; a later instance finds them again.
-Use Zellij to switch to or close its panes. `E` and `unagit attach` list
-Neovim servers with RPC sockets. Each opening also records a zoxide visit
-when that integration is enabled.
+Neovim in a pane listens on a socket of its own, so unagit can still reach
+it: opening the same directory again - `Ctrl-O`, a split, a file chosen in
+Yazi - goes to its pane instead of starting a second Neovim, and from
+another Zellij session says where it is. `E` lists it with the others;
+Enter goes to its pane and `x` closes it. Each opening also records a
+zoxide visit when that integration is enabled.
 
 Requires Zellij 0.45.1 or newer. No setting is needed; the actions appear
 only inside Zellij. tmux is not implemented yet.
@@ -498,8 +501,8 @@ Choose **by frecency** in `o`, the sort picker, in Repositories or Worktrees
 for frequent and recent visits first. A repository takes the highest score
 of its clone and worktrees, including the older layout and grouped members.
 Unknown directories follow known ones; equal scores and unknown rows use
-activity. The lists read scores on each tab switch and keep that snapshot
-until the next switch. `unagit go` offers the most visited directories first
+activity. While a list is in that order, the scores are read on each tab
+switch and kept until the next one; otherwise zoxide is not asked. `unagit go` offers the most visited directories first
 when the integration is on. The card shows how many directories zoxide
 knows under your configured roots; `c` checks installation and reads it again.
 
@@ -764,8 +767,10 @@ attaches first and asks about saving in Neovim. The list shows the repository,
 branch or merge request, directory, age and unsaved changes (`?` when the
 editor is too busy to answer). `▣` beside a row marks its directory open in
 Neovim; Nerd Fonts use an icon, and `v` can hide the marks column.
-Opening the same directory in Neovim again attaches to it. Alt-O still lets
-you choose a different editor.
+Opening the same directory in Neovim again attaches to it. Before it is
+shown, Neovim reads again whatever changed on disk while it was aside - a
+review reset for a force push, a branch pulled - so its buffers and gutter
+are the files as they are. Alt-O still lets you choose a different editor.
 
 Quitting unagit leaves the editors aside running. The next instance finds
 them, and `unagit attach [query]` returns to one from a shell without opening

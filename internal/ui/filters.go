@@ -147,6 +147,10 @@ func (a *App) showSortPicker() {
 			return
 		}
 		f.SetOrder(list, it.Data.(string))
+		if a.order(list) == config.SortFrecency {
+			// Scores are read only while some list is in this order.
+			a.refreshZoxide()
+		}
 		a.applyFilters()
 		a.note("Sorted " + sortLabel(a.order(list)))
 	})

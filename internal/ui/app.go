@@ -104,11 +104,16 @@ type App struct {
 	zoxideClient  atomic.Pointer[zoxide.Client]
 	zoxideEnabled atomic.Bool
 	zoxideScores  map[string]float64
+	zoxideParents map[string]float64 // zoxideByParent's, built on demand
 	zoxideGen     int
 	openDirs      map[string]session.Record
 	openReading   bool
-	vault         tokenVault
-	clients       map[string]forge.Provider
+	// openSeen and openCount are what the last read of the editors found,
+	// kept by its goroutine: whether to draw, and whether to ask again.
+	openSeen  atomic.Pointer[map[string]session.Record]
+	openCount atomic.Int64
+	vault     tokenVault
+	clients   map[string]forge.Provider
 	// logins maps an instance to the account its token belongs to, filled in
 	// when a token is verified.
 	logins map[string]string

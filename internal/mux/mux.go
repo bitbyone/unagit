@@ -151,18 +151,7 @@ func (c *Client) Open(where Placement, dir, name string, command *exec.Cmd) (str
 		for _, p := range panes {
 			paneID := fmt.Sprintf("terminal_%d", p.ID)
 			if !p.Plugin && !p.Exited && (where == Tab && p.TabID == tab || where != Tab && paneID == id) {
-				focus := c.command(ctx, "focus-pane-id", paneID)
-				if c.SourcePane != "" {
-					focus.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+c.SourcePane)
-				}
-				out, err := focus.CombinedOutput()
-				// New tabs may already have the focus. Zellij reports that state
-				// as an error even though the requested result has been reached.
-				alreadyFocused := strings.TrimSpace(string(out)) == fmt.Sprintf("Pane Terminal(%d) is already focused", p.ID)
-				if err != nil && !alreadyFocused {
-					return paneID, muxError(ctx, out, err)
-				}
-				return paneID, nil
+				return paneID, c.focus(ctx, paneID)
 			}
 		}
 		select {
@@ -171,6 +160,29 @@ func (c *Client) Open(where Placement, dir, name string, command *exec.Cmd) (str
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
+}
+
+// Focus brings one of the session's panes to the front: the editor already
+// open in a directory, rather than a second one fighting over its files.
+func (c *Client) Focus(paneID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.focus(ctx, paneID)
+}
+
+func (c *Client) focus(ctx context.Context, paneID string) error {
+	focus := c.command(ctx, "focus-pane-id", paneID)
+	if c.SourcePane != "" {
+		focus.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+c.SourcePane)
+	}
+	out, err := focus.CombinedOutput()
+	// New tabs may already have the focus. Zellij reports that state as an
+	// error even though the requested result has been reached.
+	already := fmt.Sprintf("Pane Terminal(%s) is already focused", strings.TrimPrefix(paneID, "terminal_"))
+	if err != nil && strings.TrimSpace(string(out)) != already {
+		return muxError(ctx, out, err)
+	}
+	return nil
 }
 
 // KDL uses braced Unicode escapes for control characters. Arguments stay

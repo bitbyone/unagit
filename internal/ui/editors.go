@@ -122,6 +122,32 @@ func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, 
 	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
 	what.Dir, what.Editor = dir, ed.ID
 	what.Branch, _ = workspace.WorktreeHead(dir)
+	// One Neovim per directory: two fight over its swap files, and over a
+	// review worktree. The one already running is where this goes - its
+	// pane when it has one, its server otherwise.
+	if ed.ID == editors.Nvim {
+		for _, running := range a.sessions.InEditor(editors.Nvim) {
+			// One with neither a server nor a pane is in another terminal's
+			// unagit, which nothing here can reach.
+			if !sameDirectory(running.Dir, dir) || running.Socket == "" && running.Pane == "" {
+				continue
+			}
+			if running.Pane == "" && place.client != nil {
+				a.tv.QueueUpdateDraw(func() {
+					a.flash("Neovim already runs in " + running.Label() + " - E attaches to it here")
+				})
+				return
+			}
+			if file != "" && running.Socket != "" {
+				if err := editors.OpenFile(running.Launcher, running.Socket, file); err != nil {
+					a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
+					return
+				}
+			}
+			a.attachEditorLocked(running, false)
+			return
+		}
+	}
 	if place.client != nil {
 		a.openMuxEditor(dir, what, *ed, place)
 		return
@@ -130,20 +156,6 @@ func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, 
 		a.zoxideAdd(dir)
 		a.openWindowEditorAt(dir, what, *ed, file)
 		return
-	}
-	if ed.ID == editors.Nvim {
-		for _, running := range a.sessions.Running() {
-			if sameDirectory(running.Dir, dir) {
-				if file != "" {
-					if err := editors.OpenFile(running.Launcher, running.Socket, file); err != nil {
-						a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
-						return
-					}
-				}
-				a.attachEditorLocked(running, false)
-				return
-			}
-		}
 	}
 	var cmd *exec.Cmd
 	var err error
@@ -205,6 +217,10 @@ func (a *App) attachEditor(r session.Record) {
 }
 
 func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
+	if r.Pane != "" {
+		a.goToPane(r, confirmClose)
+		return
+	}
 	if !editors.SocketAlive(r.Socket) {
 		a.sessions.Remove(r)
 		a.tv.QueueUpdateDraw(func() { a.refreshOpenEditors(); a.flash("editor has closed; open the directory again") })
@@ -213,6 +229,8 @@ func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
 	if !confirmClose {
 		a.zoxideAdd(r.Dir)
 	}
+	// Before the UI is there to show them, so the files are the ones on disk.
+	_ = editors.Checktime(r.Launcher, r.Socket)
 	cmd := editors.AttachCommand(r.Launcher, r.Socket, r.Dir)
 	if confirmClose {
 		a.runTerminalEditorConfirm(cmd, r)
@@ -294,14 +312,18 @@ func (a *App) openWindowEditorAt(dir string, what session.Record, ed editors.Edi
 		a.done(fmt.Sprintf("opened in %s: %s", ed.Name, dir))
 	})
 	// The launcher returns once the window is asked for; a failure there is
-	// the only thing left to report.
-	if err := cmd.Wait(); err != nil {
-		msg := strings.TrimSpace(out.String())
-		if msg == "" {
-			msg = err.Error()
+	// the only thing left to report. It is waited for apart from the open,
+	// which holds the terminal's lock: a custom launcher that waits for its
+	// window to close would otherwise keep every other open waiting too.
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			msg := strings.TrimSpace(out.String())
+			if msg == "" {
+				msg = err.Error()
+			}
+			a.tv.QueueUpdateDraw(func() { a.errorf("%s: %s", ed.Name, msg) })
 		}
-		a.tv.QueueUpdateDraw(func() { a.errorf("%s: %s", ed.Name, msg) })
-	}
+	}()
 }
 
 // windowSessions are the records of window editors, taken back when unagit

@@ -65,7 +65,12 @@ func TestZellijOpensACloneAndSplitsWithoutSuspendingUnagit(t *testing.T) {
 		}
 		a.reindexProjects()
 	})
-	for _, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
+	for i, name := range []string{"Open in New Tab", "Open in Vertical Split", "Open in Horizontal Split"} {
+		if i > 0 {
+			// The Neovim of the last pane is closed first: one still running
+			// in the directory would be gone to instead of opening another.
+			tool.SetPanes(t, nil)
+		}
 		changeOnLoop(a, a.clearSaid)
 		pickMuxAction(t, a, sc, name)
 		waitMuxOpened(t, a, p.path)
@@ -311,5 +316,67 @@ func TestZellijFocusFailureKeepsTheEditorSession(t *testing.T) {
 	waitEditorIdle(t, a)
 	if rows := a.sessions.List(); len(rows) != 1 || !sameDirectory(rows[0].Dir, p.clone) {
 		t.Fatalf("unfocused editor was lost: %+v", rows)
+	}
+}
+
+func TestOpeningADirectoryWithANeovimPaneGoesToThatPane(t *testing.T) {
+	// The fake Neovim changes PATH; Zellij itself is local to this app.
+	_, log := editortest.Install(t)
+	tool, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { shortSessions(t, a) })
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	pickMuxAction(t, a, sc, "Open in New Tab")
+	waitMuxOpened(t, a, p.path)
+	rows := a.sessions.List()
+	if len(rows) != 1 || rows[0].Socket == "" || rows[0].Pane == "" {
+		t.Fatalf("Neovim in a pane has no server to reach: %+v", rows)
+	}
+	pane := rows[0].Pane
+	for _, call := range tool.Calls(t) {
+		if call.Args[3] == "new-tab" && !strings.Contains(strings.Join(call.Args, " "), "--listen") {
+			t.Fatalf("Neovim in a pane does not listen: %v", call.Args)
+		}
+	}
+
+	// Ctrl-O and the splits find the pane rather than a second Neovim.
+	changeOnLoop(a, a.clearSaid)
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to the Neovim of "+p.path) })
+	changeOnLoop(a, a.clearSaid)
+	pickMuxAction(t, a, sc, "Open in Vertical Split")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to the Neovim of "+p.path) })
+	waitEditorIdle(t, a)
+	focused, started := 0, 0
+	for _, call := range tool.Calls(t) {
+		switch call.Args[3] {
+		case "focus-pane-id":
+			if call.Args[4] == pane {
+				focused++
+			}
+		case "new-tab", "new-pane":
+			started++
+		}
+	}
+	// The first focus is the new tab's own.
+	if focused != 3 || started != 1 {
+		t.Fatalf("focused the pane %d times, opened %d panes", focused, started)
+	}
+	if b, _ := os.ReadFile(log); strings.Contains(string(b), "start|") {
+		t.Fatalf("a second Neovim started in the same directory:\n%s", b)
+	}
+
+	// From another Zellij session the pane cannot be reached; it is named
+	// instead of opening a second editor.
+	changeOnLoop(a, func() {
+		other := *a.multiplexer
+		other.Session = "elsewhere"
+		a.multiplexer = &other
+	})
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "test-session")
+	if b, _ := os.ReadFile(log); strings.Contains(string(b), "start|") {
+		t.Fatalf("a second Neovim started from another session:\n%s", b)
 	}
 }

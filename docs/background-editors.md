@@ -89,15 +89,16 @@ sessions` lists the editors in the background too.
 
 The socket is a channel into the editor, so unagit can tell it things:
 
-- **`:checktime` after a review worktree is reset** - a force push followed,
-  or Ctrl-R narrowed it to one commit. Without it the buffers in an editor
-  aside are the old files and the gutter is wrong.
+- **`:checktime` after a review worktree is reset** - built: every attach
+  (and every focus of a Neovim's Zellij pane) asks the server to
+  `checktime` first, which covers a reset, a pull and a rebase alike,
+  whoever made them.
 - **Open a file at a line** in the editor that is already running - from a
   comment of a merge request, from Incomm.
 - **Deleting a worktree** sees an editor running in it and offers to close
   that first, rather than pulling the directory from under it.
 
-These are follow-ups, not part of the first change.
+The other two are follow-ups.
 
 ## Where the code changes
 

@@ -37,6 +37,9 @@ func (a *App) zoxideRemove(dir string) {
 
 // A list holds one snapshot until the next tab switch, so recording a visit
 // cannot move the row out from under the cursor. Slow tools stay off the loop.
+// The scores are read only when something shows them, and not as a job: it
+// is a local file, read in milliseconds, and a spinner on every tab switch
+// says nothing but that one was pressed.
 func (a *App) refreshZoxide() {
 	on := a.zoxideOn()
 	a.zoxideEnabled.Store(on)
@@ -44,25 +47,36 @@ func (a *App) refreshZoxide() {
 	gen := a.zoxideGen
 	if !on {
 		if a.zoxideScores != nil {
-			a.zoxideScores = nil
+			a.zoxideScores, a.zoxideParents = nil, nil
 			a.afterZoxide()
 		}
 		return
 	}
-	job := a.startJob("Reading zoxide visits")
+	if !a.zoxideShown() {
+		return
+	}
 	go func() {
 		scores, err := a.zoxideTool().Scores()
 		a.tv.QueueUpdateDraw(func() {
-			a.endJob(job)
 			if gen != a.zoxideGen {
 				return
 			}
 			if err == nil {
-				a.zoxideScores = scores
+				a.zoxideScores, a.zoxideParents = scores, nil
 			}
 			a.afterZoxide()
 		})
 	}()
+}
+
+// zoxideShown says whether anything on screen uses the scores: a list in
+// the frecency order, or Settings, whose card counts them.
+func (a *App) zoxideShown() bool {
+	if a.currentTab() == pageSettings {
+		return true
+	}
+	return a.order(config.ListRepositories) == config.SortFrecency ||
+		a.order(config.ListWorktrees) == config.SortFrecency
 }
 
 func (a *App) afterZoxide() {
@@ -86,16 +100,10 @@ func underDirectory(path, dir string) bool {
 func (a *App) repositoryScore(key projectKey) (float64, bool) {
 	m := a.pathManager(key.Instance, key.Path)
 	best, known := a.zoxideScores[zoxide.Path(m.ProjectDir(key.Path))]
-	roots := m.WorktreeRoots(key.Path)
-	for i := range roots {
-		roots[i] = zoxide.Path(roots[i])
-	}
-	for path, score := range a.zoxideScores {
-		for _, root := range roots {
-			if filepath.Dir(path) == root {
-				best, known = max(best, score), true
-				break
-			}
+	parents := a.zoxideByParent()
+	for _, root := range m.WorktreeRoots(key.Path) {
+		if score, ok := parents[zoxide.Path(root)]; ok {
+			best, known = max(best, score), true
 		}
 	}
 	for _, row := range a.worktrees {
@@ -110,6 +118,22 @@ func (a *App) repositoryScore(key projectKey) (float64, bool) {
 		}
 	}
 	return best, known
+}
+
+// zoxideByParent is the best score among the directories of each parent: a
+// repository's worktrees are the directories of its worktree roots, and the
+// sort looks each root up instead of walking every score for every row.
+func (a *App) zoxideByParent() map[string]float64 {
+	if a.zoxideParents == nil && a.zoxideScores != nil {
+		a.zoxideParents = make(map[string]float64, len(a.zoxideScores))
+		for path, score := range a.zoxideScores {
+			parent := filepath.Dir(path)
+			if best, ok := a.zoxideParents[parent]; !ok || score > best {
+				a.zoxideParents[parent] = score
+			}
+		}
+	}
+	return a.zoxideParents
 }
 
 type visitScore struct {

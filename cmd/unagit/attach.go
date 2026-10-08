@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/ui"
@@ -20,10 +19,7 @@ func attachCmd() *cobra.Command {
 		Use: "attach [query]", Short: "Return to a running Neovim, including one left by another unagit",
 		Args: cobra.ArbitraryArgs, SilenceUsage: true, SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
+			cfg, readable := sessionsConfig()
 			open := session.New(cfg.Dir()).Running()
 			if query := strings.Join(args, " "); query != "" {
 				open = ui.MatchPlaces(open, query)
@@ -49,7 +45,7 @@ func attachCmd() *cobra.Command {
 			if err := os.Chdir(chosen.Dir); err != nil {
 				return err
 			}
-			if tool := zoxide.New(); tool.Enabled(cfg.Integrations.Zoxide) {
+			if tool := zoxide.New(); readable && tool.Enabled(cfg.Integrations.Zoxide) {
 				_ = tool.Add(chosen.Dir)
 			}
 			return syscall.Exec(remote.Path, remote.Args, environ(map[string]string{"PWD": chosen.Dir}))
