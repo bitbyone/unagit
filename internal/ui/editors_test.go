@@ -60,9 +60,9 @@ func TestEditorCardsChooseTheFavourite(t *testing.T) {
 	useFavourite(a, editors.Nvim)
 	resizeApp(a, sc, 160, 44)
 	openSection(t, a, sc, sectionIntegrations)
-	waitFor(t, a, sc, "Neovim "+glyphFavourite)
+	waitFor(t, a, sc, "Neovim (default)")
 	text := a.screenText(sc)
-	for _, want := range []string{"╭ Neovim " + glyphFavourite + " ─", "╭ IntelliJ IDEA ─", "╭ VS Code ─", "╭ Zed ─", "╭ Custom ─", "not set up", "Review"} {
+	for _, want := range []string{"╭ Neovim (default) ─", "╭ IntelliJ IDEA ─", "╭ VS Code ─", "╭ Zed ─", "╭ Custom ─", "not set up", "Review"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q is not on the page:\n%s", want, text)
 		}
@@ -82,15 +82,15 @@ func TestEditorCardsChooseTheFavourite(t *testing.T) {
 	}
 	focusCard(t, a, sc, "Zed")
 	typeRunes(sc, "f")
-	waitFor(t, a, sc, "Zed "+glyphFavourite)
-	if strings.Contains(a.screenText(sc), "Neovim "+glyphFavourite) {
+	waitFor(t, a, sc, "Zed (default)")
+	if strings.Contains(a.screenText(sc), "Neovim (default)") {
 		t.Error("two favourites")
 	}
 	if got := saved(); got != editors.Zed {
 		t.Errorf("favourite saved as %q", got)
 	}
 	typeRunes(sc, "f")
-	waitGone(t, a, sc, "Zed "+glyphFavourite)
+	waitGone(t, a, sc, "Zed (default)")
 	if got := saved(); got != askEveryTime {
 		t.Errorf("no favourite saved as %q", got)
 	}
@@ -187,7 +187,7 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	sc.InjectKey(tcell.KeyRune, 'o', tcell.ModAlt)
 	waitFor(t, a, sc, "Open with")
 	text := a.screenText(sc)
-	if !strings.Contains(text, "★ Neovim") || !strings.Contains(text, "Zed") {
+	if !strings.Contains(text, "Neovim (default)") || !strings.Contains(text, "Zed") {
 		t.Fatalf("the editors are not offered, favourite first:\n%s", text)
 	}
 	if strings.Contains(text, "by name") {

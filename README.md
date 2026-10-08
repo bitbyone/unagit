@@ -854,8 +854,8 @@ a card for each editor - Neovim, IntelliJ IDEA, VS Code, Zed and a custom
 one - saying whether it was found: a launcher on `PATH` or in JetBrains
 Toolbox's scripts folder first, then, on macOS, the application in
 `/Applications`. `e` turns an editor off, and it is then offered nowhere;
-`f` makes it the favourite, starred in its title, and `f` on the favourite
-leaves none. Without a favourite that is installed and on, every open asks,
+`f` makes it the default, marked `(default)` in its title - with a cursor
+icon under a Nerd Font - and `f` on the default leaves none. Without a favourite that is installed and on, every open asks,
 the way Alt does. A command of your own is the Custom card's: `o` sets its
 command, its arguments and whether it opens a window.
 

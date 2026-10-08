@@ -187,7 +187,7 @@ func (a *App) openTools() []openTool {
 	var tools []openTool
 	all := a.editorsOn()
 	if fav, ok := editors.Favourite(all, a.cfg.FavouriteEditor); ok {
-		tools = append(tools, openTool{key: "editor:" + fav.ID, label: fav.Name + " " + glyphFavourite, editor: &fav})
+		tools = append(tools, openTool{key: "editor:" + fav.ID, label: fav.Name + " (default)", editor: &fav})
 	}
 	for _, e := range all {
 		if e.ID != a.cfg.FavouriteEditor {

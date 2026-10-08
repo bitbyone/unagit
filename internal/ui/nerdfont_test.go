@@ -334,3 +334,25 @@ func TestTheTerminalsBackgroundCanStayUnderATheme(t *testing.T) {
 		t.Errorf("the theme's background did not come back: %v", got)
 	}
 }
+
+// TestTheDefaultEditorIsMarkedByAnIcon: with the icons on, the default
+// editor's card says so with a cursor icon and the muted word. Serial: the
+// glyphs are the process's.
+func TestTheDefaultEditorIsMarkedByAnIcon(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	fakeEditors(t)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "Neovim \U000F01BF (default)")
+	text := a.screenText(sc)
+	line := lineAt(text, "(default)")
+	x := len([]rune(line[:strings.Index(line, "(default)")]))
+	if _, style := cellAt(a, sc, x, lineOf(text, "(default)")); fg(style).Hex() != colMuted.Hex() {
+		t.Errorf("the word is %v, not muted", fg(style))
+	}
+	assertLegible(t, a, sc, "the default editor's mark")
+}

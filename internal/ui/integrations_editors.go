@@ -15,7 +15,7 @@ const editorCommand = "editor:"
 
 // editorCards are a card for each editor things open in, Neovim to the
 // custom one. Each is turned on and off as any integration is, and f makes
-// it the favourite - the star in its title - or, on the favourite, leaves
+// it the favourite - "(default)" in its title - or, on the favourite, leaves
 // none, so every open asks.
 func (v *integrationsView) editorCards() []*integrationCard {
 	a := v.settings.app
@@ -35,7 +35,7 @@ func (v *integrationsView) editorCards() []*integrationCard {
 			keys:    "f favourite",
 			title: func() string {
 				if a.cfg.FavouriteEditor == e.id {
-					return e.name + " " + glyphFavourite
+					return e.name + " " + defaultMark()
 				}
 				return e.name
 			},

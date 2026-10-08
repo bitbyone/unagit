@@ -328,7 +328,7 @@ func drawCardState(screen tcell.Screen, c *integrationCard) {
 	colour := role(colourRole)
 	// " ■ word " ending one rule cell short of the corner.
 	start := x + w - 2 - (len(word) + 4)
-	if start <= x+2+cells(c.title())+3 {
+	if start <= x+2+cells(plainText(c.title()))+3 {
 		return
 	}
 	style := baseStyle().Background(colCard).Foreground(colText)

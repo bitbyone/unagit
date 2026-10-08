@@ -76,11 +76,11 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 	}
 	var items []pickItem
 	if hasFav {
-		items = append(items, pickItem{Label: glyphFavourite + " " + fav.Name, Sub: kindOf(fav), Data: fav})
+		items = append(items, pickItem{Label: fav.Name + " " + defaultMark(), Sub: kindOf(fav), Data: fav})
 	}
 	for _, e := range all {
 		if e.Found && (!hasFav || e.ID != fav.ID) {
-			items = append(items, pickItem{Label: "  " + e.Name, Sub: kindOf(e), Data: e})
+			items = append(items, pickItem{Label: e.Name, Sub: kindOf(e), Data: e})
 		}
 	}
 	if len(items) == 0 {
@@ -105,6 +105,16 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 		ed := it.Data.(editors.Editor)
 		then(&ed)
 	})
+}
+
+// defaultMark follows the default editor's name: its icon, where the
+// terminal can draw it, and the word, muted.
+func defaultMark() string {
+	mark := tag(colMuted) + "(default)" + tagEnd
+	if glyphDefaultEditor != "" {
+		mark = tag(colAccent) + esc(glyphDefaultEditor) + tagEnd + " " + mark
+	}
+	return mark
 }
 
 func kindOf(e editors.Editor) string {
