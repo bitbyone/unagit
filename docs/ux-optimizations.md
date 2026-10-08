@@ -162,7 +162,7 @@ Open….
 - In the configuration as the agents are: an editor not named is on
   whenever it is installed.
 
-## 9. An agent's action carries the agent's icon
+## 9. An agent's action carries the agent's icon (done)
 
 Every action in the action pickers that opens an agent - today's "Open in
 \<agent\>…" (`agentActions`), and 2's "Open with \<agent\>…", "Review with

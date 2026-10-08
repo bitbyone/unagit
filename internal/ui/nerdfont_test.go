@@ -212,6 +212,36 @@ func TestActionIconsKeepTheNamesInLine(t *testing.T) {
 	assertLegible(t, a, sc, "the actions with icons")
 }
 
+// TestAnAgentsActionsWearItsIcon: with the icons on, Open in <agent>… has
+// that agent's icon before it, the one the Agents tab draws, in line with
+// the other actions. Serial: the glyphs are the process's.
+func TestAnAgentsActionsWearItsIcon(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	_, prepareAgents := fakeAgents(t, "", "claude", "codex")
+	a, sc, _ := newTestAppSrv(t, prepareAgents)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · acme/gateway")
+	for _, ag := range []struct{ id, name string }{{"claude", "Claude Code"}, {"codex", "Codex"}} {
+		icon := onLoop(a, func() string { return agentIcons[ag.id] })
+		if icon == "" {
+			t.Fatalf("%s has no icon in the default theme", ag.name)
+		}
+		waitFor(t, a, sc, icon+" Open in "+ag.name+"…")
+	}
+	text := a.screenText(sc)
+	in := func(name string) int {
+		line := lineAt(text, name)
+		return len([]rune(line[:strings.Index(line, name)]))
+	}
+	if in("Open in Claude Code…") != in("Open in Editor") {
+		t.Errorf("the agent's action is out of line with the others:\n%s", text)
+	}
+	assertLegible(t, a, sc, "the agents' actions with their icons")
+}
+
 // TestADraftsIconStandsForItsWord: with the icons on, a draft merge request
 // has the draft icon before its title and its own "Draft:" is not drawn.
 func TestADraftsIconStandsForItsWord(t *testing.T) {

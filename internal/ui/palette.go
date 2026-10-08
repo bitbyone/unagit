@@ -32,6 +32,10 @@ type uiAction struct {
 	// when says whether it can be done now; nil is always.
 	when func() bool
 	run  func()
+	// icon goes before the name in the pickers in place of the theme's
+	// icon for the name: an action about one thing of several, like an
+	// agent, wears that thing's icon. Empty without a Nerd Font.
+	icon string
 }
 
 // available is the actions that can be done now, the most wanted first.
@@ -133,6 +137,9 @@ func (a *App) showActions(title string, actions []uiAction) {
 			icon := " "
 			if ic := actionIcons[act.name]; ic != "" {
 				icon = ic
+			}
+			if act.icon != "" {
+				icon = act.icon
 			}
 			label = tag(colMuted) + esc(icon) + tagEnd + " " + esc(label)
 		}

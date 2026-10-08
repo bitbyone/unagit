@@ -211,6 +211,7 @@ func (a *App) agentActions(open func(editorPlace)) []uiAction {
 			name:  "Open in " + ag.Name + "…",
 			about: "Start " + ag.Name + " in this directory: in this terminal, or in a tab, split or window - of herdr, Zellij or Ghostty, whichever are here.",
 			rank:  21,
+			icon:  agentIcons[ag.ID],
 			when:  func() bool { return a.agentOn(ag) },
 			run: func() {
 				if !a.agentOn(ag) {
