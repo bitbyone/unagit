@@ -34,9 +34,11 @@ func TestLabelsAreAColumnAndAreChosenAndSavedOnEsc(t *testing.T) {
 		assertLegible(t, a, sc, "the labels column")
 	}
 	resizeApp(a, sc, 120, 34)
-	if line := lineAt(a.screenText(sc), "!7"); !strings.Contains(line, "bug") || !strings.Contains(line, "ux") {
-		t.Fatalf("the labels are not on the row: %q", line)
-	}
+	// The columns are laid out again a frame after the resize.
+	waitTrue(t, "the labels are not on the row", func() bool {
+		line := lineAt(a.screenText(sc), "!7")
+		return strings.Contains(line, "bug") && strings.Contains(line, "ux")
+	})
 	typeRunes(sc, "g ") // marked: the pills on the marked row's band
 	waitTrue(t, "the row was not marked", func() bool { return onLoop(a, func() int { return len(a.mrsPane.marks) }) == 1 })
 	assertLegible(t, a, sc, "the labels on a marked row")
