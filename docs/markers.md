@@ -17,6 +17,7 @@ sessions`.
   | --- | --- | --- | --- |
   | watched | `󱣾` (U+F18FE) | `◎` | `mark.watched` → `text.accent` |
   | open in Neovim | `` (U+E6AE, `editor_neovim`) | `▣` | `mark.editor` → `state.on` |
+  | an agent works here | the agent's own icon | `✦` (`agent`) | `mark.agent` → `mark.editor`; waiting `mark.agent_waiting`, at work `mark.agent_working` |
 
   The plain characters are not used for anything else (`○ ● ◐ ◉ ◆` are the
   disk and group marks), and both read without a Nerd Font. Each goes into

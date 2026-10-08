@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -375,4 +376,53 @@ func TestOpenMarksStandFurthestOut(t *testing.T) {
 		t.Errorf("the open worktree's row: %q", line)
 	}
 	assertLegible(t, a, sc, "marks before the state")
+}
+
+// TestAgentsAreMarkedWhereTheyWork: an agent unagit started marks its
+// directory's row after Neovim's mark, in the colour of what it is doing -
+// waiting, at work - and the row stands out; one that ended is not there.
+func TestAgentsAreMarkedWhereTheyWork(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	marks := onLoop(a, func() []openMark {
+		a.openDirs = map[string]session.Record{filepath.Clean(p.clone): {Dir: p.clone, Editor: editors.Nvim}}
+		a.agentRows = []agentRow{
+			{Kind: "claude", Status: "blocked", Dir: p.clone},
+			{Kind: "codex", Status: "working", Dir: p.clone + "/"},
+			{Kind: "claude", Status: "ended", Dir: p.clone},
+		}
+		return a.openMarks(p.clone)
+	})
+	want := onLoop(a, func() []openMark {
+		return []openMark{{glyphEditor, role("mark.editor")}, {glyphAgent, role("mark.agent_waiting")}, {glyphAgent, role("mark.agent_working")}}
+	})
+	if !reflect.DeepEqual(marks, want) {
+		t.Fatalf("marks = %+v, want %+v", marks, want)
+	}
+
+	// An agent started here, as the Agents tab reads it.
+	changeOnLoop(a, func() { a.openDirs, a.agentRows = nil, nil })
+	if _, err := a.sessions.Add(session.Record{Project: "acme/gateway", Mode: session.ModeRepository, Dir: p.clone, Editor: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	changeOnLoop(a, a.refreshAgents)
+	waitFor(t, a, sc, "│ "+onLoop(a, func() string { return glyphAgent })+" ● acme/gateway")
+	text := a.screenText(sc)
+	y := lineOf(text, "acme/gateway main")
+	x := len([]rune(lineAt(text, "acme/gateway main")[:strings.Index(lineAt(text, "acme/gateway main"), glyphAgent)]))
+	typeRunes(sc, "j") // the cursor's band off the row
+	deadline := time.Now().Add(patience)
+	for _, style := cellAt(a, sc, x, y); bgOf(style) != colOpen; _, style = cellAt(a, sc, x, y) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the row with an agent is drawn on %v, not %v", bgOf(style), colOpen)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, style := cellAt(a, sc, x, y); fg(style).Hex() != onLoop(a, func() tcell.Color { return role("mark.agent") }).Hex() {
+		t.Errorf("an idle agent's mark is %v", fg(style))
+	}
+	assertLegible(t, a, sc, "an agent's mark")
 }

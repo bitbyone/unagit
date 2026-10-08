@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/session"
 )
 
 // openTagSettings opens Settings › Tags with the keyboard in the table.
@@ -76,6 +79,24 @@ func TestTagsOnRepositories(t *testing.T) {
 	pillKept("marked")
 	typeRunes(sc, "k")
 	pillKept("marked, under the cursor")
+	// A row with something open in it has a background of its own as well.
+	typeRunes(sc, " ") // unmarks it, and moves off
+	waitGone(t, a, sc, "SELECT 1")
+	changeOnLoop(a, func() {
+		dir := a.projectDir(inst, "acme/gateway")
+		a.openDirs = map[string]session.Record{filepath.Clean(dir): {Dir: dir, Editor: editors.Nvim}}
+		a.projectsPane.reload()
+	})
+	waitFor(t, a, sc, "▣")
+	// The marks column moved the row on.
+	line = lineAt(a.screenText(sc), "acme/gateway")
+	x = len([]rune(line[:strings.Index(line, "oss")]))
+	pillKept("open")
+	if _, style := cellAt(a, sc, len([]rune(line[:strings.Index(line, "acme/gateway")])), lineOf(a.screenText(sc), "acme/gateway")); bgOf(style) != colOpen {
+		t.Errorf("the open row is drawn on %v, not %v", bgOf(style), colOpen)
+	}
+	typeRunes(sc, "k")
+	pillKept("open, under the cursor")
 	assertLegible(t, a, sc, "tagged repositories")
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
@@ -96,6 +117,11 @@ func TestTagsOnRepositories(t *testing.T) {
 	}
 	typeRunes(sc, "F")
 	waitFor(t, a, sc, "acme/billing")
+}
+
+func bgOf(s tcell.Style) tcell.Color {
+	_, bg, _ := s.Decompose()
+	return bg
 }
 
 // TestTagSettings: the default tags are there, a new one is made with a

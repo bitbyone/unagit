@@ -225,9 +225,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	// The marks of what is open stand furthest out, and take the row's
 	// leading space; the row's own mark - the star, what is on disk - stays
 	// against the name.
-	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string {
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) []openMark {
 		pr := a.projects[idx]
-		return a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
+		return a.openMarks(a.projectDir(pr.Instance, pr.PathWithNamespace))
 	})
 	var cols []*listColumn
 	// The row's leading space goes to the marks; with a star column it was
@@ -375,10 +375,17 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			wtCount = fmt.Sprintf("%d", info.Worktrees)
 		}
 
+		open := a.openMarks(a.projectDir(pr.Instance, pr.PathWithNamespace))
+		band := bandNone
+		switch {
+		case p.marks[idx]:
+			band = bandMarked
+		case len(open) > 0:
+			band = bandOpen
+		}
 		var fields []field
 		nameX := markW + 1
 		if marksCol.shown() {
-			open := a.editorMark(a.projectDir(pr.Instance, pr.PathWithNamespace))
 			fields = append(fields, editorField(open, marksCol.width))
 			keepEditorMark(p, row, 0, open, p.marks[idx])
 			nameX += marksCol.width + 1
@@ -394,7 +401,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			if pr.Starred {
 				starred = &pr
 			}
-			tags, pills := a.tagsField(tagsOf(pr), tagsW, p.marks[idx], managed(pr), starred)
+			tags, pills := a.tagsField(tagsOf(pr), tagsW, band, managed(pr), starred)
 			pills.x += nameX + nameW + 1
 			p.kept.keep(row, pills)
 			fields = append(fields, field{raw: tags})
@@ -422,9 +429,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			field{text: humanAge(pr.LastActivityAt), width: actW, colour: role("repositories.activity")})
 
 		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
-		if p.marks[idx] {
-			cell.SetBackgroundColor(colMarked).SetSelectedStyle(styleMarkedSelected)
-		}
+		band.paint(cell)
 		p.table.SetCell(row, 0, cell)
 	}
 

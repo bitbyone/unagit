@@ -116,6 +116,11 @@ func (a *App) refreshAgents() {
 			a.agentRows = rows
 			a.agentsPane.reload()
 			a.drawTabs()
+			// The lists mark the directories the agents work in, in the
+			// colour of what each is doing.
+			a.projectsPane.reload()
+			a.mrsPane.reload()
+			a.worktreesPane.reload()
 		})
 	}()
 }

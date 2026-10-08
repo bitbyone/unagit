@@ -180,7 +180,7 @@ func TestChezmoiBadgeGivesWayToTags(t *testing.T) {
 	})
 	field := func(width int) string {
 		return onLoop(a, func() string {
-			markup, _ := a.tagsField([]string{"oss", "work"}, width, false, true, nil)
+			markup, _ := a.tagsField([]string{"oss", "work"}, width, bandNone, true, nil)
 			return stripTags(markup)
 		})
 	}

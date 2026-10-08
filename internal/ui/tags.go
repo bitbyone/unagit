@@ -126,13 +126,18 @@ func (a *App) pills(names []string, room int, behind string) (string, int) {
 // tagsField is the tags of a row as pills, in exactly width cells, after the
 // chezmoi badge when the row is the repository chezmoi keeps. The pills come
 // back as well, to be drawn again over the selection band, at where they
-// start in the field. A marked row has a band of its own under both.
-func (a *App) tagsField(tags []string, width int, marked, managed bool, starred *forge.Project) (string, keptMarkup) {
+// start in the field. A marked row, or one with something open in it, has a
+// background of its own under them, drawn again over that too.
+func (a *App) tagsField(tags []string, width int, row rowBand, managed bool, starred *forge.Project) (string, keptMarkup) {
 	behind, band := behindList, behindBand()
-	if marked {
+	switch row {
+	case bandMarked:
 		_, bg, _ := styleMarkedSelected.Decompose()
 		behind, band = colMarked.String(), bg.String()
+	case bandOpen:
+		behind = colOpen.String()
 	}
+	marked := row != bandNone
 	// A badge is the chezmoi one, or the star of a repository cloned from
 	// the stars; both say where the row comes from, not a tag of the user's.
 	badgeOn := func(room int, behind string) (string, int) {

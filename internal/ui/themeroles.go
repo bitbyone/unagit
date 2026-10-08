@@ -116,6 +116,8 @@ var colourRoles = []colourRole{
 	// Integrations: a card stands out from the page, and says whether it is
 	// on.
 	{"card.background", "picker.background", "a card's background on the terminal's own; on a theme's, that a tenth darker"},
+	// A row with something open in it - Neovim, an agent - in the lists.
+	{"row.open", "card.background", "its background on the terminal's own; on a theme's, that a twentieth lighter"},
 	{"integration.enabled", "state.good", "an integration that is on"},
 	{"integration.disabled", "state.bad", "one installed but turned off"},
 	{"integration.missing", "text.dim", "one not installed"},
@@ -132,6 +134,10 @@ var colourRoles = []colourRole{
 	{"agents.title", "column.name", "what the agent calls its conversation"},
 	{"agents.where", "text.muted", "where it runs"},
 	{"agents.path", "column.path", ""},
+	// An agent's mark in the lists, in the colour of what it is doing.
+	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
+	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},
+	{"mark.agent_working", "agents.working", "the agent there is at work"},
 }
 
 // roleColours is every role as the theme on resolves it (setTheme).

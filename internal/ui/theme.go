@@ -62,7 +62,7 @@ var (
 	actionIcons                                             map[string]string
 	glyphCheck, glyphCross, glyphDot, glyphRing             string
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried string
-	glyphUser, glyphStarred                                 string
+	glyphUser, glyphStarred, glyphAgent                     string
 	glyphCIDone, glyphCIIdle, glyphApproved                 string
 	glyphAhead, glyphBehind                                 string
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator  string
@@ -166,6 +166,7 @@ func setTheme(t Theme) {
 	roleColours = resolveRoles(t)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
+	colOpen = openRowBackground(colBackground)
 	heatScale = legibleOn(heatShades(t.Heat), colour(t.Background), colour(t.Text.Muted))
 
 	g := t.Glyphs
@@ -186,7 +187,7 @@ func setTheme(t Theme) {
 	}
 	glyphCheck, glyphCross, glyphDot, glyphRing = g.Check, g.Cross, g.Dot, g.Ring
 	glyphManual, glyphScheduled, glyphTrigger, glyphRetried = g.Manual, g.Scheduled, g.Trigger, g.Retried
-	glyphUser, glyphStarred = g.User, g.Starred
+	glyphUser, glyphStarred, glyphAgent = g.User, g.Starred, g.Agent
 	glyphCIDone, glyphCIIdle, glyphApproved = g.CIDone, g.CIIdle, g.Approved
 	glyphAhead, glyphBehind = g.Ahead, g.Behind
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
@@ -392,6 +393,26 @@ func pickerBackground(bg tcell.Color) tcell.Color {
 	}
 	scale := func(v int32) int32 { return int32(float64(v) * factor) }
 	return tcell.NewRGBColor(scale(r), scale(g), scale(b))
+}
+
+// colOpen is the background of a row with something open in it - Neovim
+// or an agent - a step off the page's.
+var colOpen tcell.Color
+
+// openRowBackground is the theme's background a twentieth of the way to
+// white - to black on a light theme. The terminal's own background cannot
+// be shifted, so there it is the role row.open.
+func openRowBackground(bg tcell.Color) tcell.Color {
+	if bg == tcell.ColorDefault || !bg.Valid() {
+		return role("row.open")
+	}
+	r, g, b := bg.RGB()
+	towards := int32(255)
+	if 0.299*float64(r)+0.587*float64(g)+0.114*float64(b) > 128 {
+		towards = 0
+	}
+	step := func(v int32) int32 { return v + (towards-v)/20 }
+	return tcell.NewRGBColor(step(r), step(g), step(b))
 }
 
 // colCard is a card's background: it stands out from the page it is on.

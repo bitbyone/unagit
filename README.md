@@ -840,9 +840,12 @@ there again. With unsaved changes, closing
 attaches first and asks about saving in Neovim. The list shows the repository,
 branch or merge request, directory, age and unsaved changes (`?` when the
 editor is too busy to answer). `▣` at the start of a row marks its
-directory open in Neovim - before the star and what is on disk, which stay
-against the name; Nerd Fonts use Neovim's icon, and `v` can hide the marks
-column.
+directory open in Neovim, and `✦` each coding agent unagit started there -
+waiting for an answer in the warning colour, at work in the accent - before
+the star and what is on disk, which stay against the name. Nerd Fonts use
+Neovim's and each agent's own icon. Such a row is a shade lighter than the
+rest; a window editor does not count, since nothing says when its window
+closes. `v` can hide the marks column.
 Opening the same directory in Neovim again attaches to it. Before it is
 shown, Neovim reads again whatever changed on disk while it was aside - a
 review reset for a force push, a branch pulled - so its buffers and gutter

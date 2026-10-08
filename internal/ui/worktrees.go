@@ -426,7 +426,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	hide := func(id string) bool { return a.hidesColumn(config.ListWorktrees, id) }
 	// The marks of what is open stand furthest out and take the row's
 	// leading space; the worktree's own mark stays against the name.
-	marksCol := editorColumn(filtered, hide("marks"), func(idx int) string { return a.editorMark(a.worktrees[idx].Dir) })
+	marksCol := editorColumn(filtered, hide("marks"), func(idx int) []openMark { return a.openMarks(a.worktrees[idx].Dir) })
 	var cols []*listColumn
 	if marksCol.shown() {
 		cols = append(cols, marksCol)
@@ -533,10 +533,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 				branchColour = colMuted
 			}
 		}
+		open := a.openMarks(r.Dir)
 		var cells []field
 		if marksCol.shown() {
-			cells = append(cells, editorField(a.editorMark(r.Dir), marksCol.width))
-			keepEditorMark(p, row+1, 0, a.editorMark(r.Dir), false)
+			cells = append(cells, editorField(open, marksCol.width))
+			keepEditorMark(p, row+1, 0, open, false)
 		}
 		cells = append(cells, field{raw: mark})
 		if withServer {
@@ -580,7 +581,11 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			cells = append(cells, field{text: humanAge(r.Created), width: createdW, colour: role("worktrees.created")})
 		}
 		cells = append(cells, field{text: humanAge(r.Moved), width: actW, colour: role("worktrees.activity")})
-		p.table.SetCell(row+1, 0, tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1))
+		cell := tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1)
+		if len(open) > 0 {
+			bandOpen.paint(cell)
+		}
+		p.table.SetCell(row+1, 0, cell)
 	}
 
 	first := 0

@@ -116,7 +116,7 @@ The cell of colour before the state is too wide. With a Nerd Font it is
 `Zellij ──── ◉ enabled ─╮`. Without one, the cell of colour stays. A key
 under `nerd_glyphs` in the theme, like the agents' icons.
 
-## 6. Rows open in an editor or an agent stand out
+## 6. Rows open in an editor or an agent stand out (done)
 
 - The marks column shows the editor's icon and after it the icon of every
   agent unagit started in that directory; both when both. The column takes

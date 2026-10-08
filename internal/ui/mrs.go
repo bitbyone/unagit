@@ -173,9 +173,9 @@ func (a *App) mrColumns(room int, rows []int, markW int, withServer, grouped boo
 	hide := func(id string) bool { return a.hidesColumn(config.ListMergeRequests, id) }
 	// The marks of what is open stand furthest out and take the row's
 	// leading space; the star and what is on disk stay against the rest.
-	marksCol := editorColumn(rows, hide("marks"), func(idx int) string {
+	marksCol := editorColumn(rows, hide("marks"), func(idx int) []openMark {
 		mr := a.mrs[idx]
-		return a.mrEditorMark(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
+		return a.mrOpenMarks(a.diskOf(mr.Instance, a.projectPathOfMR(mr)).MRs[mr.IID])
 	})
 	// The row's leading space goes to the marks; with a star column it was
 	// never there, the star standing first.
@@ -378,10 +378,18 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 			pending = fmt.Sprintf("%d", disk.Pending)
 		}
 
+		open := a.mrOpenMarks(disk)
+		band := bandNone
+		switch {
+		case p.marks[idx]:
+			band = bandMarked
+		case len(open) > 0:
+			band = bandOpen
+		}
 		var fields []field
 		if c.marks > 0 {
-			fields = append(fields, editorField(a.mrEditorMark(disk), c.marks))
-			keepEditorMark(p, row, 0, a.mrEditorMark(disk), p.marks[idx])
+			fields = append(fields, editorField(open, c.marks))
+			keepEditorMark(p, row, 0, open, p.marks[idx])
 		}
 		fields = append(fields, field{raw: mark})
 		if withServer {
@@ -413,9 +421,7 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		fields = append(fields, field{text: humanAge(mr.UpdatedAt), width: c.updated, colour: role("merge_requests.updated")})
 
 		cell := tview.NewTableCell(rowText(fields)).SetReference(idx).SetExpansion(1)
-		if p.marks[idx] {
-			cell.SetBackgroundColor(colMarked).SetSelectedStyle(styleMarkedSelected)
-		}
+		band.paint(cell)
 		p.table.SetCell(row, 0, cell)
 	}
 

@@ -16,6 +16,27 @@ type keptMarkup struct {
 	banded string
 }
 
+// rowBand is the background a row of a list has of its own: none, a
+// marked row's, or that of a row with something open in it. The cursor's
+// band is over either, and a mark's over what is open.
+type rowBand int
+
+const (
+	bandNone rowBand = iota
+	bandMarked
+	bandOpen
+)
+
+// paint gives a row's cell its background.
+func (b rowBand) paint(cell *tview.TableCell) {
+	switch b {
+	case bandMarked:
+		cell.SetBackgroundColor(colMarked).SetSelectedStyle(styleMarkedSelected)
+	case bandOpen:
+		cell.SetBackgroundColor(colOpen)
+	}
+}
+
 // keptTable is a table whose painted rows keep some of their colours. tview
 // paints a cell's background over everything in it - the selected row in the
 // selection's ink and band, a row with a background of its own in that -

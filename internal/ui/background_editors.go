@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -294,14 +295,89 @@ func editorContext(r session.Record) string {
 	return r.Branch
 }
 
-// Marks keep the same place and width in every list, and take no room when
-// nobody has one. They stand first in a row, so the column starts with the
-// row's leading space; it is as wide as the most marks a row has.
-func editorColumn(rows []int, hidden bool, mark func(int) string) *listColumn {
+// openMark is one mark of something open in a row's directory: Neovim, or
+// an agent unagit started there, each in a colour of its own.
+type openMark struct {
+	glyph  string
+	colour tcell.Color
+}
+
+// openMarks are what is open in dir that unagit can tell still runs:
+// Neovim, then every agent it started there. An agent waiting for an
+// answer is in the warning colour and one at work in the accent, so it is
+// seen in the lists and not only on the Agents tab. A window editor is not
+// among them: nothing says when its window closes.
+func (a *App) openMarks(dir string) []openMark {
+	if dir == "" {
+		return nil
+	}
+	dir = filepath.Clean(dir)
+	var marks []openMark
+	if r, ok := a.openDirs[dir]; ok {
+		marks = append(marks, openMark{editorGlyph(r.Editor), role("mark.editor")})
+	}
+	for _, r := range a.agentRows {
+		if r.Status == "ended" || filepath.Clean(r.Dir) != dir {
+			continue
+		}
+		glyph := agentIcons[r.Kind]
+		if glyph == "" {
+			glyph = glyphAgent
+		}
+		colour := role("mark.agent")
+		switch r.Status {
+		case "blocked":
+			colour = role("mark.agent_waiting")
+		case "working":
+			colour = role("mark.agent_working")
+		}
+		marks = append(marks, openMark{glyph, colour})
+	}
+	return marks
+}
+
+// mrOpenMarks are what is open in a merge request's worktrees, its branch's
+// and its review's.
+func (a *App) mrOpenMarks(disk mrDisk) []openMark {
+	return append(a.openMarks(disk.BranchDir), a.openMarks(disk.ReviewDir)...)
+}
+
+// marksWidth is how many cells marks take, a space between each.
+func marksWidth(marks []openMark) int {
+	w := 0
+	for i, m := range marks {
+		if i > 0 {
+			w++
+		}
+		w += cells(m.glyph)
+	}
+	return w
+}
+
+// marksMarkup draws marks in their colours, ink giving the colour each is
+// drawn in.
+func marksMarkup(marks []openMark, ink func(tcell.Color) string) string {
+	var b strings.Builder
+	for i, m := range marks {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString("[" + ink(m.colour) + "]" + esc(m.glyph))
+	}
+	if len(marks) > 0 {
+		b.WriteString("[-:-]")
+	}
+	return b.String()
+}
+
+// Marks keep the same place in every list, and take no room when nobody
+// has one. They stand first in a row, so the column starts with the row's
+// leading space; it is as wide as the most marks a row has.
+func editorColumn(rows []int, hidden bool, marks func(int) []openMark) *listColumn {
 	width := 0
 	if !hidden {
 		for _, idx := range rows {
-			width = max(width, cells(mark(idx)))
+			width = max(width, marksWidth(marks(idx)))
 		}
 	}
 	if width == 0 {
@@ -310,15 +386,16 @@ func editorColumn(rows []int, hidden bool, mark func(int) string) *listColumn {
 	return fixedColumn(1 + width)
 }
 
-func editorField(mark string, width int) field {
-	return field{text: " " + mark, width: width, colour: role("mark.editor")}
+func editorField(marks []openMark, width int) field {
+	markup := marksMarkup(marks, func(c tcell.Color) string { return c.String() })
+	return field{raw: " " + markup + strings.Repeat(" ", max(0, width-1-marksWidth(marks)))}
 }
 
-// A selection repaints the glyph in the band's ink. Keep its theme colour
+// A selection repaints the glyphs in the band's ink. Keep their colours
 // after the table, as the tags do, with enough contrast on that band. x is
-// where the marks' field starts; the glyph is after its leading space.
-func keepEditorMark(p *pane, row, x int, mark string, marked bool) {
-	if mark == "" {
+// where the marks' field starts; the glyphs are after its leading space.
+func keepEditorMark(p *pane, row, x int, marks []openMark, marked bool) {
+	if len(marks) == 0 {
 		return
 	}
 	style := styleSelected
@@ -326,7 +403,8 @@ func keepEditorMark(p *pane, row, x int, mark string, marked bool) {
 		style = styleMarkedSelected
 	}
 	_, bg, _ := style.Decompose()
-	ink := legibleOn([]tcell.Color{role("mark.editor")}, bg, colText)[0]
-	markup := "[" + ink.String() + ":" + bg.String() + "]" + esc(mark) + "[-:-]"
-	p.kept.keep(row, keptMarkup{x: x + 1, markup: markup, width: cells(mark)})
+	markup := marksMarkup(marks, func(c tcell.Color) string {
+		return legibleOn([]tcell.Color{c}, bg, colText)[0].String() + ":" + bg.String()
+	})
+	p.kept.keep(row, keptMarkup{x: x + 1, markup: markup, width: marksWidth(marks)})
 }
