@@ -120,6 +120,9 @@ func serve(socket string) {
 		_, err = os.Stat(socket + ".dirty")
 		dirty := err == nil
 		switch {
+		case strings.Contains(expr, "bufmodified") && strings.Contains(expr, "qa!") && dirty:
+			// Close: the edits are checked inside Neovim first.
+			fmt.Fprintln(c, "1")
 		case strings.Contains(expr, "qa!"):
 			c.Close()
 			return

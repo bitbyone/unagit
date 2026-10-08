@@ -204,7 +204,7 @@ func (a *App) openEditorIn(dir string, what session.Record, ed *editors.Editor, 
 		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
-	a.editorReturned(what)
+	a.editorReturned(what, false)
 }
 
 // runInTerminal records the original directory for shell jumps while a
@@ -266,7 +266,7 @@ func (a *App) attachEditorLocked(r session.Record, confirmClose bool) {
 		a.runTerminalEditor(cmd, editors.Editor{Name: "Neovim"})
 	}
 	a.refreshAfterTerminal(r)
-	a.editorReturned(r)
+	a.editorReturned(r, confirmClose)
 }
 
 func (a *App) runTerminalEditor(cmd *exec.Cmd, ed editors.Editor) error {
@@ -306,7 +306,10 @@ func (a *App) refreshAfterTerminal(r session.Record) {
 	})
 }
 
-func (a *App) editorReturned(r session.Record) {
+// editorReturned says where an editor stands once the terminal is back:
+// aside, open elsewhere, closed - when closing it was what was asked - or
+// ended.
+func (a *App) editorReturned(r session.Record, closing bool) {
 	aside := editors.SocketAlive(r.Socket)
 	// Attached as a second window, it is not aside: its pane still has it.
 	elsewhere := false
@@ -319,6 +322,8 @@ func (a *App) editorReturned(r session.Record) {
 			a.note(r.Label() + " stays open in its other window")
 		} else if aside {
 			a.note("nvim aside: " + r.Label() + " · E lists the running editors")
+		} else if closing {
+			a.done("closed nvim: " + r.Label())
 		} else {
 			a.done("opened " + r.Dir)
 		}

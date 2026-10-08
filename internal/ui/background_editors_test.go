@@ -134,7 +134,7 @@ func TestClosingAnEditorWithChangesAttachesInstead(t *testing.T) {
 // cursor and leaves the list in front, without it, for the next one; the
 // user closes the list.
 func TestRunningEditorsStayOpenWhileClosingThem(t *testing.T) {
-	editortest.Install(t)
+	_, log := editortest.Install(t)
 	a, sc, _ := newTestAppSrv(t, func(a *App) { shortSessions(t, a) })
 	waitFor(t, a, sc, "acme/gateway")
 	useFavourite(a, editors.Nvim)
@@ -165,6 +165,10 @@ func TestRunningEditorsStayOpenWhileClosingThem(t *testing.T) {
 	waitEditorState(t, a, func() bool { return len(a.sessions.Running()) == 0 })
 	if !strings.Contains(a.screenText(sc), "Running Editors") {
 		t.Fatal("the list closed with the last editor")
+	}
+	// Without edits nothing is attached to: the terminal stays unagit's.
+	if n := countIn(log, "attach|"); n != 0 {
+		t.Fatalf("closing attached %d times", n)
 	}
 }
 

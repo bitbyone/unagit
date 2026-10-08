@@ -110,9 +110,12 @@ func AttachCommand(launcher, socket, dir string) *exec.Cmd {
 }
 
 // Close asks through RPC only after the caller has checked for edits.
-// Rechecking inside Neovim closes the race with another attached UI.
+// Rechecking inside Neovim closes the race with another attached UI. With
+// no edits it quits without asking: a question - a terminal's job still
+// running - would wait for an answer where nobody can see it, and the
+// caller would have to attach to it after all.
 func Close(launcher, socket string) (bool, error) {
-	out, err := RemoteExpr(launcher, socket, "len(getbufinfo({'bufmodified': 1})) ? 1 : execute('confirm qa')")
+	out, err := RemoteExpr(launcher, socket, "len(getbufinfo({'bufmodified': 1})) ? 1 : execute('qa!')")
 	if out == "1" {
 		return false, nil
 	}
