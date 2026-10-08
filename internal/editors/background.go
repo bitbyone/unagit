@@ -94,8 +94,13 @@ func RemoteExpr(launcher, socket, expr string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// unsaved counts the buffers with edits not written. A terminal's buffer
+// counts as modified while its job runs, but holds nothing to save: closing
+// ends the job, and asking about it would attach to Neovim for nothing.
+const unsaved = "len(filter(getbufinfo({'bufmodified': 1}), {_, b -> getbufvar(b.bufnr, '&buftype') !=# 'terminal'}))"
+
 func Modified(launcher, socket string) (bool, error) {
-	out, err := RemoteExpr(launcher, socket, "len(getbufinfo({'bufmodified': 1}))")
+	out, err := RemoteExpr(launcher, socket, unsaved)
 	if err != nil {
 		return false, err
 	}
@@ -113,9 +118,10 @@ func AttachCommand(launcher, socket, dir string) *exec.Cmd {
 // Rechecking inside Neovim closes the race with another attached UI. With
 // no edits it quits without asking: a question - a terminal's job still
 // running - would wait for an answer where nobody can see it, and the
-// caller would have to attach to it after all.
+// caller would have to attach to it after all. A terminal's job ends
+// with it.
 func Close(launcher, socket string) (bool, error) {
-	out, err := RemoteExpr(launcher, socket, "len(getbufinfo({'bufmodified': 1})) ? 1 : execute('qa!')")
+	out, err := RemoteExpr(launcher, socket, unsaved+" ? 1 : execute('qa!')")
 	if out == "1" {
 		return false, nil
 	}

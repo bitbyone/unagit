@@ -198,3 +198,27 @@ func (out *editorOutput) String() string {
 	defer out.Unlock()
 	return out.buffer.String()
 }
+
+// TestATerminalJobIsNotAnUnsavedChange: a terminal's buffer is modified
+// while its job runs, but closing an editor with one is not a question of
+// saving: it closes without being attached to.
+func TestATerminalJobIsNotAnUnsavedChange(t *testing.T) {
+	t.Parallel()
+	bin, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("Neovim is not installed")
+	}
+	socket := filepath.Join(editortest.ShortDir(t), "t.sock")
+	cmd := exec.Command(bin, "--headless", "--clean", "--listen", socket, "-c", "terminal sleep 100")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	waitEditor(t, func() bool { _, err := RemoteExpr(bin, socket, "1"); return err == nil })
+	if dirty, err := Modified(bin, socket); err != nil || dirty {
+		t.Fatalf("a running terminal counted as unsaved: %v, %v", dirty, err)
+	}
+	if closed, err := Close(bin, socket); !closed {
+		t.Fatalf("not closed: %v", err)
+	}
+}
