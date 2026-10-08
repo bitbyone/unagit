@@ -48,6 +48,10 @@ func (a *App) applyFilters() {
 		a.errorf("cannot save the filters: %v", err)
 		return
 	}
+	// A SIZE column or an order by size shown again wants what was not
+	// measured while hidden.
+	a.loadRepoSizes(false)
+	a.loadWorktreeSizes(false)
 	a.projectsPane.reload()
 	a.mrsPane.reload()
 	if a.worktreesPane != nil {

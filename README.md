@@ -178,7 +178,9 @@ all and live only there.
   Repositories also pulls every favourite at once.
 - Repositories' `SIZE` is what a clone takes on disk with all its
   worktrees - its merge requests', reviews', branches', grouped ones' -
-  measured behind the list at the start and again as the last step of `R`.
+  measured behind the list at the start and again as the last step of `R`,
+  or on its own by `:` › Measure Sizes Again. With `SIZE` hidden and the
+  list not ordered by size, nothing is measured until it is shown again.
 - With a GitHub account, `:` in Repositories › View Starred Repositories…
   lists what you starred, with its language and stars: `Enter` reads the
   README, drawn from its markdown (`O` opens it in your editor), `w` the

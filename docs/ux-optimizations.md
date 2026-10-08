@@ -193,7 +193,7 @@ the closed row gone at once, the wait in its bottom edge with the spinner
 (`waitInDialog`); the user closes it. One with unsaved changes is still
 attached to be closed there, and the list is read again when it is back.
 
-## 12. Sizes only while the SIZE column is shown
+## 12. Sizes only while the SIZE column is shown (done)
 
 Measuring every clone at start costs a small lag while moving in
 Repositories, for a column the user may have hidden. Sizes are measured

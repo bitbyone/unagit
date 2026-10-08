@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/config"
 )
 
 // TestMarkedRepositoriesActTogether: with rows marked, x hides them all at
@@ -110,6 +112,27 @@ func TestARepositorysSizeCountsItsWorktrees(t *testing.T) {
 	if line := lineAt(a.screenText(sc), "acme/billing"); strings.Contains(line, " KB") {
 		t.Errorf("a repository not cloned has a size: %q", line)
 	}
+}
+
+// TestSizesWaitForTheirColumn: with SIZE hidden nothing is measured, and
+// showing it again measures what is on disk.
+func TestSizesWaitForTheirColumn(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() { a.cfg.Filters.ToggleColumn(config.ListRepositories, "size"); a.applyFilters() })
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	waitFor(t, a, sc, "BRANCH")
+	measured := func() bool {
+		return onLoop(a, func() bool { _, ok := a.repoSize[projectKey{a.cfg.Instances[0].ID, "acme/gateway"}]; return ok })
+	}
+	if measured() || strings.Contains(a.screenText(sc), "SIZE") {
+		t.Fatal("measured with SIZE hidden")
+	}
+	changeOnLoop(a, func() { a.cfg.Filters.ToggleColumn(config.ListRepositories, "size"); a.applyFilters() })
+	waitFor(t, a, sc, "SIZE")
+	waitEditorState(t, a, func() bool { _, ok := a.repoSize[projectKey{a.cfg.Instances[0].ID, "acme/gateway"}]; return ok })
 }
 
 // TestCloningAClonedRepositorySaysSo: C on a clone says so in passing, at

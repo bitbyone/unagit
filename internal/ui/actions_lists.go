@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/workspace"
@@ -136,6 +137,14 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 		a.runningAgentsAction("Alt-A"),
 		{name: "Refresh All", about: "Ask the servers for the repositories again, and the pipelines of the clones' branches; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
+		{name: "Measure Sizes Again", about: "Measure what every clone takes on disk, its worktrees counted; otherwise only a refresh measures them again.", rank: 40,
+			when: func() bool { return a.wantsSizes(config.ListRepositories) }, run: func() {
+				if !a.wantsSizes(config.ListRepositories) {
+					a.flash("the SIZE column is hidden - show it in View Options (v)")
+					return
+				}
+				a.loadRepoSizes(true)
+			}},
 		{name: "Pull All Clones", about: "Fetch every clone and fast-forward those origin has moved past.", keys: "Alt-P", rank: 30, run: a.updateAllClones},
 		{name: "View Starred Repositories…", about: "The repositories you starred on GitHub: read a README, open one in the browser, or clone it.", rank: 35,
 			when: a.hasGitHub, run: a.showStarred},

@@ -1098,6 +1098,9 @@ func (a *App) loadWorktreeSizes(again bool) {
 	if a.wtSize == nil {
 		a.wtSize, a.wtSizing = map[string]int64{}, map[string]bool{}
 	}
+	if !a.wantsSizes(config.ListWorktrees) {
+		return
+	}
 	var dirs []string
 	for _, r := range a.worktrees {
 		members := []worktreeRow{r}

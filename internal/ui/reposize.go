@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/workspace"
 )
@@ -12,7 +13,10 @@ import (
 // merge request's, a review's, a branch's, one in a grouped folder - is a
 // folder of its own beside it, sharing the clone's objects. Repositories'
 // SIZE is all of it together, measured behind the interface when the disk
-// is first looked at and again as the last step of a refresh.
+// is first looked at and again as the last step of a refresh - but only
+// while the list shows it, in its SIZE column or its order: measuring every
+// clone costs a stutter while moving through the list, for nothing when
+// nobody looks.
 
 // repoDirs is the folders a repository takes: the clone, and each worktree
 // that is not inside a folder already counted.
@@ -47,6 +51,9 @@ func repoUsage(clone string) int64 {
 func (a *App) loadRepoSizes(again bool) {
 	if a.repoSize == nil {
 		a.repoSize, a.repoSizing = map[projectKey]int64{}, map[projectKey]bool{}
+	}
+	if !a.wantsSizes(config.ListRepositories) {
+		return
 	}
 	type job struct {
 		key projectKey
@@ -89,6 +96,12 @@ func (a *App) loadRepoSizes(again bool) {
 			}()
 		}
 	}()
+}
+
+// wantsSizes says whether a list shows what its rows take on disk, in its
+// SIZE column or its order.
+func (a *App) wantsSizes(list string) bool {
+	return !a.hidesColumn(list, "size") || a.order(list) == config.SortSize
 }
 
 // repoSizeWords is the SIZE column of a repository: what it takes on disk,
