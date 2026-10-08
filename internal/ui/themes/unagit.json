@@ -78,6 +78,8 @@
   "colours": {
     "ci.running": "74",
     "picker.background": "233",
+    "card.background": "234",
+    "integration.disabled": "166",
     "starred.stars": "222",
     "column.branch": "74",
     "column.mr": "110",

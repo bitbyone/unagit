@@ -15,10 +15,10 @@ func TestHerdrIsFoundInsideItAndFromOutside(t *testing.T) {
 	t.Parallel()
 	lookup := func(string) (string, error) { return "/bin/herdr", nil }
 	inside := map[string]string{"HERDR_ENV": "1", "HERDR_PANE_ID": "w1:p2", "HERDR_WORKSPACE_ID": "w1", "HERDR_SOCKET_PATH": "/run/h.sock"}
-	if c := mux.Detect(func(k string) string { return inside[k] }, lookup, false); c != nil {
+	if c := mux.Detect(func(k string) string { return inside[k] }, lookup, true, false); c != nil {
 		t.Fatalf("herdr turned off was used: %+v", c)
 	}
-	c := mux.Detect(func(k string) string { return inside[k] }, lookup, true)
+	c := mux.Detect(func(k string) string { return inside[k] }, lookup, true, true)
 	if c == nil || c.Kind != mux.Herdr || c.Session != "/run/h.sock" || c.SourcePane != "w1:p2" || c.Workspace != "w1" {
 		t.Fatalf("inside herdr: %+v", c)
 	}
@@ -34,7 +34,7 @@ func TestHerdrIsFoundInsideItAndFromOutside(t *testing.T) {
 	}
 	// Zellij inside herdr is the nearer of the two.
 	both := map[string]string{"ZELLIJ": "0", "ZELLIJ_SESSION_NAME": "s", "HERDR_ENV": "1", "HERDR_PANE_ID": "w1:p2", "HERDR_WORKSPACE_ID": "w1"}
-	if c := mux.Detect(func(k string) string { return both[k] }, lookup, true); c == nil || c.Kind != mux.Zellij {
+	if c := mux.Detect(func(k string) string { return both[k] }, lookup, true, true); c == nil || c.Kind != mux.Zellij {
 		t.Fatalf("zellij in herdr: %+v", c)
 	}
 }

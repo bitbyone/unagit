@@ -14,6 +14,16 @@ import (
 	"github.com/tobola/unagit/internal/workspace"
 )
 
+// zellijOn says whether Zellij may be used: what the user chose, or, unset,
+// whether it is installed.
+func (a *App) zellijOn() bool {
+	if on := a.cfg.Integrations.Zellij; on != nil {
+		return *on
+	}
+	_, err := a.executable(mux.Zellij)
+	return err == nil
+}
+
 // herdrOn says whether herdr may be used: what the user chose, or, unset,
 // whether it is installed.
 func (a *App) herdrOn() bool {
@@ -56,7 +66,7 @@ func (a *App) detectMultiplexer() {
 		a.multiplexer = a.findMux()
 		return
 	}
-	a.multiplexer = mux.Detect(os.Getenv, a.executable, a.herdrOn())
+	a.multiplexer = mux.Detect(os.Getenv, a.executable, a.zellijOn(), a.herdrOn())
 }
 
 // herdr is the herdr server agents are started in: the one unagit runs in,

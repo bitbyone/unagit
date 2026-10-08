@@ -113,6 +113,13 @@ var colourRoles = []colourRole{
 	{"worktrees.created", "column.age", ""},
 	{"worktrees.activity", "column.age", ""},
 
+	// Integrations: a card stands out from the page, and says whether it is
+	// on.
+	{"card.background", "picker.background", "a card's background on the terminal's own; on a theme's, that a tenth darker"},
+	{"integration.enabled", "state.good", "an integration that is on"},
+	{"integration.disabled", "state.bad", "one installed but turned off"},
+	{"integration.missing", "text.dim", "one not installed"},
+
 	// Agents.
 	{"agents.header", "column.header", ""},
 	{"agents.working", "text.accent", "an agent at work"},

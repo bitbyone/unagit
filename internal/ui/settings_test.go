@@ -672,6 +672,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	openSection(t, a, sc, sectionIntegrations)
+	focusCard(t, a, sc, "Incomm")
 	waitFor(t, a, sc, "not installed")
 	typeRunes(sc, "e")
 	if onLoop(a, func() bool { return a.cfg.Integrations.Incomm }) {
@@ -681,11 +682,11 @@ func TestIncommIntegrationSetting(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeRunes(sc, "c")
-	waitFor(t, a, sc, "● disabled")
+	waitFor(t, a, sc, " disabled ")
 	waitFor(t, a, sc, "e toggle")
 	assertLegible(t, a, sc, "disabled integration")
 	typeRunes(sc, "e")
-	waitFor(t, a, sc, "● enabled")
+	waitFor(t, a, sc, " enabled ")
 	saved, err := config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
@@ -695,7 +696,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "enabled integration")
 	typeRunes(sc, "e")
-	waitFor(t, a, sc, "● disabled")
+	waitFor(t, a, sc, " disabled ")
 	saved, err = config.LoadFrom(a.cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
@@ -705,7 +706,8 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	deadline := time.Now().Add(patience)
-	for onLoop(a, func() bool { return strings.Contains(a.settings.integrations.cards[0].view.GetText(true), "e toggle") }) {
+	incomm := onLoop(a, func() *integrationCard { return a.settings.integrations.card("Incomm") })
+	for onLoop(a, func() bool { return strings.Contains(incomm.view.GetText(true), "e toggle") }) {
 		if time.Now().After(deadline) {
 			t.Fatal("unfocused integration still shows action keys")
 		}
@@ -748,4 +750,21 @@ func TestTheGroupTreeCursorIsTheListBand(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// focusCard puts the cursor on an integration's card, wherever the grid
+// has it.
+func focusCard(t *testing.T, a *App, sc tcell.SimulationScreen, name string) {
+	t.Helper()
+	changeOnLoop(a, func() {
+		v := a.settings.integrations
+		for i, card := range v.cards {
+			if card.name == name {
+				v.current = i
+			}
+		}
+		a.tv.SetFocus(v)
+		v.paintFocus(true)
+	})
+	waitFor(t, a, sc, name)
 }

@@ -375,7 +375,14 @@ answered; until then it says it is reading.
 ## Integrations
 
 Configure integrations in **Settings → Integrations**. Each integration has
-its own card: press `e` to enable or disable it and `c` to check installation.
+its own card - Zellij included - with its state at the right of its title:
+**enabled**, **disabled** or **not installed**. Press `e` to enable or
+disable it and `c` to check installation. The cards stand under the kind of
+integration they are - Editors & Review, Terminals, AI Agents, Files &
+Navigation - three across on a large screen, two on an ordinary one, one on
+a narrow one; `h` `j` `k` `l` and the arrows move between them as they are
+drawn, `Tab` through all of them in order, and `h` from the first column
+goes back to the sections.
 
 ### [Incomm](https://github.com/bitbyone/incomm)
 

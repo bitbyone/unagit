@@ -28,20 +28,33 @@ type integrationCard struct {
 	onKey  func(r rune) bool
 }
 
+// integrationCategory is a heading and the cards under it.
+type integrationCategory struct {
+	title string
+	cards []*integrationCard
+}
+
+// integrationsView lays the cards out as tiles, under the heading of what
+// kind of integration they are, as many across as the width allows. cards
+// is every card in reading order, current the one with the cursor.
 type integrationsView struct {
-	*tview.Flex
-	settings *settingsView
-	cards    []*integrationCard
-	current  int
-	active   bool
-	editors  []editors.Editor // as last detected
-	width    int              // inside a card, as last drawn
+	*tview.Box
+	settings   *settingsView
+	categories []integrationCategory
+	cards      []*integrationCard
+	current    int
+	active     bool
+	editors    []editors.Editor // as last detected
+	width      int              // inside a card, as last drawn
+	columns    int              // across, as last drawn
+	offset     int              // the rows scrolled past, as last drawn
 }
 
 func (s *settingsView) newIntegrationsView() *integrationsView {
-	v := &integrationsView{Flex: tview.NewFlex().SetDirection(tview.FlexRow), settings: s}
+	v := &integrationsView{Box: tview.NewBox(), settings: s, columns: 1}
 	box(v.Box, "Integrations").SetBorderPadding(1, 0, 1, 1)
-	v.cards = []*integrationCard{{
+	byName := map[string]*integrationCard{}
+	for _, card := range []*integrationCard{{
 		name: "Incomm", command: "incomm",
 		description: "Show merge request comments in your editor.\nCtrl-R imports comments before opening the review.",
 		enabled:     func() bool { return s.app.cfg.Integrations.Incomm },
@@ -78,17 +91,29 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.refreshZoxide()
 		},
 		found: s.app.zoxideFound,
-	}}
+	}} {
+		byName[card.name] = card
+	}
 	hint := ""
-	v.cards = append(v.cards, &integrationCard{
+	byName["Yazi"] = &integrationCard{
 		name: "Yazi", command: "yazi",
 		description: "Browse Files opens the selected directory in Yazi. Choose a file to open it in your favourite editor.",
 		enabled:     s.app.yaziOn,
 		toggle:      func() { on := !s.app.yaziOn(); s.app.cfg.Integrations.Yazi = &on },
 		found:       func() string { return hint },
 		check:       func() { hint = s.app.yaziFound() },
-	})
-	v.cards = append(v.cards, &integrationCard{
+	}
+	byName["Zellij"] = &integrationCard{
+		name: "Zellij", command: "zellij",
+		description: "Inside Zellij, open editors and agents in a new tab or beside unagit in a split. A Neovim in a pane can be put aside with Ctrl-Z and brought back.",
+		enabled:     s.app.zellijOn,
+		toggle: func() {
+			on := !s.app.zellijOn()
+			s.app.cfg.Integrations.Zellij = &on
+			s.app.detectMultiplexer()
+		},
+	}
+	byName["Herdr"] = &integrationCard{
 		name: "Herdr", command: "herdr",
 		description: "Inside herdr, open editors in its tabs and splits as in Zellij. From anywhere, start agents in a herdr workspace, where herdr follows what they do.",
 		enabled:     s.app.herdrOn,
@@ -97,7 +122,8 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.cfg.Integrations.Herdr = &on
 			s.app.detectMultiplexer()
 		},
-	}, &integrationCard{
+	}
+	byName["Ghostty"] = &integrationCard{
 		name: "Ghostty", command: "ghostty",
 		description: "Open editors and agents in a Ghostty window or tab, or beside unagit in a split when it runs in Ghostty. macOS asks once to let unagit control Ghostty.",
 		enabled:     s.app.ghosttyOn,
@@ -105,66 +131,260 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			on := !s.app.ghosttyOn()
 			s.app.cfg.Integrations.Ghostty = &on
 		},
-	})
+	}
+	var agentCards []*integrationCard
 	for _, ag := range agents.All {
 		ag := ag
-		v.cards = append(v.cards, &integrationCard{
+		agentCards = append(agentCards, &integrationCard{
 			name: ag.Name, command: ag.Command,
 			description: "Open in " + ag.Name + "… starts it in the selected repository, merge request or worktree: in this terminal, or in a tab, split or window of herdr, Zellij or Ghostty.",
 			enabled:     func() bool { return s.app.agentOn(ag) },
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
 		})
 	}
+	// By what they are for: what opens the code and reviews it, where
+	// things open beside unagit, the agents, and the rest of the desk.
+	v.categories = []integrationCategory{
+		{"Editors & Review", []*integrationCard{byName["Editors"], byName["Incomm"], byName["Hunk"]}},
+		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"]}},
+		{"AI Agents", agentCards},
+		{"Files & Navigation", []*integrationCard{byName["Zoxide"], byName["Yazi"], byName["Chezmoi"]}},
+	}
+	for _, c := range v.categories {
+		v.cards = append(v.cards, c.cards...)
+	}
 	for _, card := range v.cards {
 		card.view = tview.NewTextView().SetDynamicColors(true).SetScrollable(false).SetTextColor(colText)
-		box(card.view.Box, card.name).SetBorderPadding(0, 0, 2, 2)
+		box(card.view.Box, card.name).SetBorderPadding(1, 0, 2, 2)
+		// A card stands out from the page, as a tile on it.
+		card.view.SetBackgroundColor(colCard)
 		card.view.SetInputCapture(v.keys)
-		v.AddItem(card.view, 9, 0, false)
 	}
-	v.AddItem(nil, 0, 1, false)
 	v.check()
 	return v
 }
 
-// Keep the shortcuts visible when a narrow terminal wraps the description.
+// integrationColumns is how many cards stand side by side in a panel this
+// wide inside: three on a large screen, two on an ordinary one, one on a
+// narrow one.
+func integrationColumns(width int) int {
+	switch {
+	case width >= 135:
+		return 3
+	case width >= 80:
+		return 2
+	}
+	return 1
+}
+
+// cardSpot is where a card stands in the grid: its category, and its row and
+// column across the whole page - the rows run on from one category to the
+// next, so j and k move between them as within one.
+type cardSpot struct{ category, row, column int }
+
+func (v *integrationsView) spots(columns int) []cardSpot {
+	var out []cardSpot
+	row := 0
+	for c, cat := range v.categories {
+		for i := range cat.cards {
+			out = append(out, cardSpot{c, row + i/columns, i % columns})
+		}
+		row += (len(cat.cards) + columns - 1) / columns
+	}
+	return out
+}
+
+// Draw lays the categories out: a heading with a rule across, then the
+// cards in rows, each row as tall as its tallest card so the descriptions
+// keep their shortcuts. What does not fit scrolls, keeping the card with the
+// cursor whole and its heading in view when there is room.
 func (v *integrationsView) Draw(screen tcell.Screen) {
-	_, _, width, _ := v.GetInnerRect()
-	if inner := width - 6; inner != v.width {
-		// The editors card fits its lines to the width; paint it again for
-		// the width it now has.
+	v.Box.DrawForSubclass(screen, v)
+	x, y, width, room := v.GetInnerRect()
+	// The panel's last row stays empty, as every panel's does.
+	room = max(1, room-1)
+	v.columns = integrationColumns(width)
+	const gap = 1
+	cardW := (width - gap*(v.columns-1)) / v.columns
+	if inner := cardW - 6; inner != v.width {
+		// The cards fit their lines to the width; paint them again for it.
 		v.width = inner
 		v.paintFocus(v.active)
 	}
-	_, _, _, room := v.GetInnerRect()
-	heights := make([]int, len(v.cards))
-	for i, card := range v.cards {
-		heights[i] = max(9, len(tview.WordWrap(card.view.GetText(false), max(1, width-6)))+2)
+	type placed struct {
+		top, height int
 	}
-	// A Flex draws an item of fixed height whole, past its own frame when the
-	// room runs out; the cards that do not fit are left out instead, starting
-	// far enough down for the one with the cursor to be whole.
-	first, used := 0, 0
-	for i := 0; i <= v.current; i++ {
-		used += heights[i]
+	spots := v.spots(v.columns)
+	cardAt := make([]placed, len(v.cards))
+	type heading struct {
+		title string
+		top   int
 	}
-	for used > room && first < v.current {
-		used -= heights[first]
-		first++
-	}
-	used = 0
-	for i, card := range v.cards {
-		height := heights[i]
-		if i < first || used+height > room && i != v.current {
-			height = 0
+	var headings []heading
+	top, card := 0, 0
+	for c, cat := range v.categories {
+		if c > 0 {
+			top++ // a blank line between categories
 		}
-		used += height
-		v.ResizeItem(card.view, height, 0)
+		headings = append(headings, heading{cat.title, top})
+		top++
+		for first := 0; first < len(cat.cards); first += v.columns {
+			height := 7
+			for i := first; i < min(first+v.columns, len(cat.cards)); i++ {
+				lines := len(tview.WordWrap(cat.cards[i].view.GetText(false), max(1, cardW-6)))
+				// The frame, and the blank line under the top edge.
+				height = max(height, lines+3)
+			}
+			for i := first; i < min(first+v.columns, len(cat.cards)); i++ {
+				cardAt[card+i] = placed{top, height}
+			}
+			top += height
+		}
+		card += len(cat.cards)
 	}
-	v.Flex.Draw(screen)
+	// Scroll just enough: up to the cursor's heading when it is the first
+	// row of its category, down to the cursor's bottom edge.
+	cur := cardAt[v.current]
+	want := cur.top
+	if spots[v.current].row == spots[firstOfCategory(spots, v.current)].row {
+		want = headings[spots[v.current].category].top
+	}
+	if want < v.offset {
+		v.offset = want
+	}
+	if cur.top+cur.height > v.offset+room {
+		v.offset = cur.top + cur.height - room
+	}
+	v.offset = max(0, min(v.offset, max(0, top-room)))
+
+	visible := func(t, h int) bool { return t >= v.offset && t+h <= v.offset+room }
+	for _, h := range headings {
+		if !visible(h.top, 1) {
+			continue
+		}
+		row := y + h.top - v.offset
+		_, w := tview.Print(screen, tag(colAccent)+"[::b]"+tview.Escape(h.title)+"[::-]"+tagEnd, x, row, width, tview.AlignLeft, colAccent)
+		if rest := width - w - 1; rest > 0 {
+			tview.Print(screen, tag(colDim)+strings.Repeat(string(tview.Borders.Horizontal), rest)+tagEnd, x+w+1, row, rest, tview.AlignLeft, colDim)
+		}
+	}
+	for i, c := range v.cards {
+		at := cardAt[i]
+		if !visible(at.top, at.height) {
+			// Left out whole rather than drawn past the panel's edge.
+			c.view.SetRect(0, 0, 0, 0)
+			continue
+		}
+		c.view.SetRect(x+spots[i].column*(cardW+gap), y+at.top-v.offset, cardW, at.height)
+		c.view.Draw(screen)
+		drawCardState(screen, c)
+	}
+}
+
+// cardState is whether an integration is on, and the role it is drawn in.
+func cardState(c *integrationCard) (string, string) {
+	switch {
+	case c.binary == "":
+		return "not installed", "integration.missing"
+	case c.enabled():
+		return "enabled", "integration.enabled"
+	}
+	return "disabled", "integration.disabled"
+}
+
+// drawCardState puts the state at the right end of the card's top edge: a
+// cell filled with its colour, then the word, so it reads at a glance down
+// a column of cards. The editors card has no state of its own.
+func drawCardState(screen tcell.Screen, c *integrationCard) {
+	if c.render != nil || c.enabled == nil {
+		return
+	}
+	x, y, w, _ := c.view.GetRect()
+	word, colourRole := cardState(c)
+	colour := role(colourRole)
+	// " ■ word " ending one rule cell short of the corner.
+	start := x + w - 2 - (len(word) + 4)
+	if start <= x+2+len([]rune(c.name))+3 {
+		return
+	}
+	style := baseStyle().Background(colCard).Foreground(colText)
+	screen.SetContent(start, y, ' ', nil, style)
+	screen.SetContent(start+1, y, ' ', nil, style.Background(colour))
+	screen.SetContent(start+2, y, ' ', nil, style)
+	for i, r := range word {
+		screen.SetContent(start+3+i, y, r, nil, style.Foreground(colour))
+	}
+	screen.SetContent(start+3+len(word), y, ' ', nil, style)
+}
+
+// card is the card of an integration by its name.
+func (v *integrationsView) card(name string) *integrationCard {
+	for _, c := range v.cards {
+		if c.name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// firstOfCategory is the first card of the category card i is in.
+func firstOfCategory(spots []cardSpot, i int) int {
+	for i > 0 && spots[i-1].category == spots[i].category {
+		i--
+	}
+	return i
 }
 
 func (v *integrationsView) Focus(delegate func(tview.Primitive)) {
 	delegate(v.cards[v.current].view)
+}
+
+func (v *integrationsView) HasFocus() bool {
+	for _, c := range v.cards {
+		if c.view.HasFocus() {
+			return true
+		}
+	}
+	return v.Box.HasFocus()
+}
+
+// InputHandler hands the keys to the card that has the focus: tview passes
+// them down from the root, and the cards are drawn here, not held by a
+// container that would pass them on.
+func (v *integrationsView) InputHandler() func(*tcell.EventKey, func(tview.Primitive)) {
+	return v.WrapInputHandler(func(ev *tcell.EventKey, setFocus func(tview.Primitive)) {
+		for _, c := range v.cards {
+			if c.view.HasFocus() {
+				if handler := c.view.InputHandler(); handler != nil {
+					handler(ev, setFocus)
+				}
+				return
+			}
+		}
+	})
+}
+
+// neighbour is the card a move by rows and columns lands on: along a row,
+// the next one or none; across rows, the same column, or the last card of a
+// shorter row.
+func (v *integrationsView) neighbour(rows, columns int) int {
+	spots := v.spots(v.columns)
+	here := spots[v.current]
+	if rows == 0 {
+		for i, s := range spots {
+			if s.row == here.row && s.column == here.column+columns {
+				return i
+			}
+		}
+		return -1
+	}
+	best := -1
+	for i, s := range spots {
+		if s.row == here.row+rows && (best < 0 || s.column <= here.column) {
+			best = i
+		}
+	}
+	return best
 }
 
 func (v *integrationsView) check() {
@@ -189,13 +409,7 @@ func (v *integrationsView) paintFocus(active bool) {
 			card.view.SetText(card.render(focused))
 			continue
 		}
-		state, color := "disabled", colMuted
-		if card.binary == "" {
-			state = "not installed"
-		} else if card.enabled() {
-			state, color = "enabled", colOn
-		}
-		text := tag(color) + glyphDot + " " + state + tagEnd + "\n\n" + card.description + "\n"
+		text := card.description + "\n"
 		if card.found != nil && card.binary != "" {
 			if found := card.found(); found != "" {
 				text += found + "\n"
@@ -223,14 +437,27 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	if v.settings.settingsPickers(ev) {
 		return nil
 	}
-	move := 0
+	target, move := -1, 0
+	// h, j, k and l move through the grid as they read; Tab through every
+	// card in order. Left of the first column is the list of sections.
 	switch ev.Key() {
-	case tcell.KeyEsc, tcell.KeyLeft:
+	case tcell.KeyEsc:
 		v.settings.focusList()
 		return nil
-	case tcell.KeyTab, tcell.KeyDown:
+	case tcell.KeyLeft:
+		if target = v.neighbour(0, -1); target < 0 {
+			v.settings.focusList()
+			return nil
+		}
+	case tcell.KeyRight:
+		target = v.neighbour(0, 1)
+	case tcell.KeyDown:
+		target = v.neighbour(1, 0)
+	case tcell.KeyUp:
+		target = v.neighbour(-1, 0)
+	case tcell.KeyTab:
 		move = 1
-	case tcell.KeyBacktab, tcell.KeyUp:
+	case tcell.KeyBacktab:
 		move = -1
 	case tcell.KeyRune:
 		if card := v.cards[v.current]; card.onKey != nil && card.onKey(ev.Rune()) {
@@ -238,10 +465,17 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 		switch ev.Rune() {
+		case 'h':
+			if target = v.neighbour(0, -1); target < 0 {
+				v.settings.focusList()
+				return nil
+			}
+		case 'l':
+			target = v.neighbour(0, 1)
 		case 'j':
-			move = 1
+			target = v.neighbour(1, 0)
 		case 'k':
-			move = -1
+			target = v.neighbour(-1, 0)
 		case 'e':
 			card := v.cards[v.current]
 			if card.toggle == nil {
@@ -279,7 +513,10 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 	if move != 0 {
-		v.current = (v.current + move + len(v.cards)) % len(v.cards)
+		target = (v.current + move + len(v.cards)) % len(v.cards)
+	}
+	if target >= 0 && target != v.current {
+		v.current = target
 		v.settings.app.tv.SetFocus(v)
 		v.paintFocus(true)
 	}

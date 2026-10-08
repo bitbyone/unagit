@@ -57,10 +57,10 @@ func (c Connection) Name() string {
 	return c.Kind
 }
 
-// Detect finds the multiplexer unagit runs in: Zellij, or herdr when herdr
-// may be used.
-func Detect(getenv func(string) string, lookPath func(string) (string, error), herdr bool) *Client {
-	if getenv("ZELLIJ") != "" && getenv("ZELLIJ_SESSION_NAME") != "" {
+// Detect finds the multiplexer unagit runs in, of those it may use: Zellij
+// or herdr.
+func Detect(getenv func(string) string, lookPath func(string) (string, error), zellij, herdr bool) *Client {
+	if zellij && getenv("ZELLIJ") != "" && getenv("ZELLIJ_SESSION_NAME") != "" {
 		bin, err := lookPath(Zellij)
 		if err != nil {
 			return nil

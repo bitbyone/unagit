@@ -56,7 +56,6 @@ func TestEditorsCardChoosesTheFavourite(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	useFavourite(a, editors.Nvim)
 	openSection(t, a, sc, sectionIntegrations)
-	typeRunes(sc, "j") // from Incomm to Editors
 	waitFor(t, a, sc, "f favourite")
 	text := a.screenText(sc)
 	for _, want := range []string{"★ Neovim", "terminal", "Zed", "window", "IntelliJ IDEA  not found", "VS Code"} {
@@ -91,7 +90,6 @@ func TestEditorsCardFits(t *testing.T) {
 			useFavourite(a, "")
 			resizeApp(a, sc, size.w, size.h)
 			openSection(t, a, sc, sectionIntegrations)
-			typeRunes(sc, "j")
 			waitFor(t, a, sc, "f favourite")
 			text := a.screenText(sc)
 			for _, want := range []string{"Neovim", "IntelliJ IDEA", "VS Code", "Zed", "c check", "No favourite"} {
@@ -104,7 +102,7 @@ func TestEditorsCardFits(t *testing.T) {
 			inside := onLoop(a, func() bool {
 				v := a.settings.integrations
 				px, py, pw, ph := v.GetInnerRect()
-				x, y, w, h := v.cards[len(v.cards)-1].view.GetRect()
+				x, y, w, h := v.card("Editors").view.GetRect()
 				return rect{x, y, w, h}.within(rect{px, py, pw, ph})
 			})
 			if !inside {
@@ -115,7 +113,8 @@ func TestEditorsCardFits(t *testing.T) {
 				t.Errorf("the status line was drawn over: %q\n%s", last, text)
 			}
 			for _, line := range lines {
-				if strings.Contains(line, "Neovim") && !strings.Contains(line, "terminal") {
+				// The editor's own line, not a description mentioning it.
+				if strings.Contains(line, "Neovim  ") && !strings.Contains(line, "terminal") && !strings.Contains(line, "not found") {
 					t.Errorf("an editor's line wraps: %q", line)
 				}
 			}

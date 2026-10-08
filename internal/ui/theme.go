@@ -164,6 +164,7 @@ func setTheme(t Theme) {
 
 	roleColours = resolveRoles(t)
 	colPicker = pickerBackground(colBackground)
+	colCard = cardBackground(colBackground)
 	heatScale = legibleOn(heatShades(t.Heat), colour(t.Background), colour(t.Text.Muted))
 
 	g := t.Glyphs
@@ -387,6 +388,21 @@ func pickerBackground(bg tcell.Color) tcell.Color {
 		factor = 0.92
 	}
 	scale := func(v int32) int32 { return int32(float64(v) * factor) }
+	return tcell.NewRGBColor(scale(r), scale(g), scale(b))
+}
+
+// colCard is a card's background: it stands out from the page it is on.
+var colCard tcell.Color
+
+// cardBackground is the theme's background a tenth darker. The terminal's
+// own background cannot be darkened, so there it is the role
+// card.background.
+func cardBackground(bg tcell.Color) tcell.Color {
+	if bg == tcell.ColorDefault || !bg.Valid() {
+		return role("card.background")
+	}
+	r, g, b := bg.RGB()
+	scale := func(v int32) int32 { return int32(float64(v) * 0.9) }
 	return tcell.NewRGBColor(scale(r), scale(g), scale(b))
 }
 

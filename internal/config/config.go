@@ -512,6 +512,9 @@ type Integrations struct {
 	// chezmoi has it, instead of cloning it again. Unset, it is on whenever
 	// chezmoi is installed.
 	Chezmoi *bool `yaml:"chezmoi,omitempty"`
+	// Zellij opens editors and agents in Zellij's tabs and splits while
+	// unagit runs in it. Unset, it is on whenever zellij is installed.
+	Zellij *bool `yaml:"zellij,omitempty"`
 	// Herdr opens editors in herdr's tabs and splits while unagit runs in
 	// it, and starts agents there from anywhere. Unset, it is on whenever
 	// herdr is installed.

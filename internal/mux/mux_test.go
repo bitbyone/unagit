@@ -17,16 +17,16 @@ func TestDetectionRequiresZellijAndItsSession(t *testing.T) {
 	t.Parallel()
 	lookup := func(string) (string, error) { return "/bin/zellij", nil }
 	for _, env := range []map[string]string{{}, {"TMUX": "inside"}, {"ZELLIJ": "1"}, {"ZELLIJ_SESSION_NAME": "test"}} {
-		if found := mux.Detect(func(k string) string { return env[k] }, lookup, true); found != nil {
+		if found := mux.Detect(func(k string) string { return env[k] }, lookup, true, true); found != nil {
 			t.Fatalf("outside Zellij: %+v", found)
 		}
 	}
 	env := map[string]string{"ZELLIJ": "1", "ZELLIJ_SESSION_NAME": "test", "ZELLIJ_PANE_ID": "4"}
-	found := mux.Detect(func(k string) string { return env[k] }, lookup, true)
+	found := mux.Detect(func(k string) string { return env[k] }, lookup, true, true)
 	if found == nil || found.Session != "test" || found.SourcePane != "4" {
 		t.Fatalf("detection: %+v", found)
 	}
-	if found := mux.Detect(func(k string) string { return env[k] }, func(string) (string, error) { return "", exec.ErrNotFound }, true); found != nil {
+	if found := mux.Detect(func(k string) string { return env[k] }, func(string) (string, error) { return "", exec.ErrNotFound }, true, true); found != nil {
 		t.Fatal("missing launcher was detected")
 	}
 }
