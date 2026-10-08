@@ -226,8 +226,15 @@ type Glyphs struct {
 	Draft       string `json:"draft"`
 	ForgeGitHub string `json:"forge_github"`
 	ForgeGitLab string `json:"forge_gitlab"`
-	Hidden      string `json:"hidden"`
-	Favourite   string `json:"favourite"`
+	// The coding agents' own icons, before an agent's name; icons alone,
+	// like the forges'.
+	AgentClaude   string `json:"agent_claude"`
+	AgentCodex    string `json:"agent_codex"`
+	AgentCopilot  string `json:"agent_copilot"`
+	AgentOpencode string `json:"agent_opencode"`
+	AgentAgy      string `json:"agent_agy"`
+	Hidden        string `json:"hidden"`
+	Favourite     string `json:"favourite"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
 	Check string `json:"check"`
 	Cross string `json:"cross"`

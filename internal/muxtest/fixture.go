@@ -233,3 +233,15 @@ func (s Stand) Calls(t *testing.T, out any) {
 		t.Fatal(err)
 	}
 }
+
+// SetAgents says which agents herdr knows, as herdr's agent list gives them.
+func (s Stand) SetAgents(t *testing.T, agents []map[string]any) {
+	t.Helper()
+	data, err := json.Marshal(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.dir, "agents"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -59,7 +59,21 @@ func main() {
 		if label, err := os.ReadFile(filepath.Join(dir, "workspace")); err == nil {
 			workspaces = append(workspaces, map[string]string{"workspace_id": "wN", "label": string(label)})
 		}
+		workspaces = append(workspaces, map[string]string{"workspace_id": "wA", "label": "work"})
 		reply(map[string]any{"type": "workspace_list", "workspaces": workspaces})
+	case "tab list":
+		reply(map[string]any{"type": "tab_list", "tabs": []map[string]string{{"tab_id": "wA:t1", "workspace_id": "wA", "label": "gateway !7"}}})
+	case "agent list":
+		// The agents are what the test wrote, in herdr's own words.
+		var agents []map[string]any
+		data, _ := os.ReadFile(filepath.Join(dir, "agents"))
+		json.Unmarshal(data, &agents)
+		if agents == nil {
+			agents = []map[string]any{}
+		}
+		reply(map[string]any{"type": "agent_list", "agents": agents})
+	case "pane close":
+		reply(map[string]any{"type": "ok"})
 	case "workspace create":
 		p := add("wN", "wN:t1")
 		os.WriteFile(filepath.Join(dir, "workspace"), []byte(args[5]), 0o600)

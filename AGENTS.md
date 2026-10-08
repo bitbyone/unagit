@@ -141,7 +141,8 @@ select (`styleDropDown`), it just was not reused. The rules:
 
 In `internal/ui`: `app.go` holds the `App` and the refresh fan-out, `pane.go`
 the table+filter+detail widget both lists are made of, `projects.go` / `mrs.go`
-their contents, `detail.go` the right-hand column, `settings.go` the whole
+their contents, `detail.go` the right-hand column, `agents.go` / `agents_tab.go` the coding
+agents and the Agents tab, `settings.go` the whole
 configuration UI, `comments.go` the conversation, `filters.go` the shared
 filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
 the `?` screen as data.

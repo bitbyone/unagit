@@ -180,6 +180,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 func (a *App) globalActions() []uiAction {
 	return []uiAction{
 		a.runningEditorsAction(""),
+		a.runningAgentsAction(""),
 		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
 			rank: 900, run: a.showThemePicker},
 	}

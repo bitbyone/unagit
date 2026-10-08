@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Settings
+ [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Agents │ [5] Settings
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **[4] Settings** you add servers (`a`), paste a
+Nothing to edit by hand. In **[5] Settings** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -505,6 +505,18 @@ suspended until the agent ends), a tab or split of the Zellij or herdr
 unagit runs in, a tab of herdr's Unagit Agents workspace, or a Ghostty
 window, tab or split. The place chosen last is offered first next time.
 
+**[4] Agents** lists the agents started from unagit - never the others herdr
+runs - with what each works on, where it runs, and, for those in herdr, what
+it is doing: **waiting** for an answer first, then **working**, **idle**, and
+**ended** when the agent left only its shell. The number waiting is on the
+tab from every screen. `Enter` goes to the agent: its herdr tab, its Zellij
+pane or its Ghostty terminal; with Ghostty on and unagit outside herdr, the
+Ghostty terminal herdr runs in comes forward too - a quick terminal included
+- found by the title herdr gives it, `<host>: <workspace>`. `d` closes an
+agent in herdr after asking, `Ctrl-O` opens its directory in the editor, and
+`Alt-A` lists the agents over any screen. In herdr the agent's icon is drawn
+from the Nerd Font where the terminal has one.
+
 ### [Yazi](https://yazi-rs.github.io)
 
 With `yazi` on PATH, **Browse Files** appears in the selection action picker
@@ -869,7 +881,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | --- | --- |
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
-| `1` `2` `3` `4` | Repositories · Merge requests · Worktrees · Settings |
+| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Agents · Settings |
+| `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |

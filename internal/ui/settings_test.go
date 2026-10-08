@@ -581,7 +581,7 @@ func TestSettingsShowsWhichHalfHasTheKeyboard(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "4")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "GitLab servers")
 
 	sidebar, content := borderColours(t, a, sc)

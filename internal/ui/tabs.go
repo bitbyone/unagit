@@ -7,28 +7,48 @@ import (
 	"github.com/rivo/tview"
 )
 
-// tab describes one of the top level views.
+// tab describes one of the top level views. short is its title where the
+// terminal is too narrow for them all.
 type tab struct {
-	page  string
-	key   rune
-	title string
+	page         string
+	key          rune
+	title, short string
 }
 
 // The tabs are numbered: letters are the lists' own, and R refreshes.
 var tabs = []tab{
-	{pageProjects, '1', "Repositories"},
-	{pageMRs, '2', "Merge requests"},
-	{pageWorktrees, '3', "Worktrees"},
-	{pageSettings, '4', "Settings"},
+	{pageProjects, '1', "Repositories", "Repos"},
+	{pageMRs, '2', "Merge requests", "MRs"},
+	{pageWorktrees, '3', "Worktrees", "Worktrees"},
+	{pageAgents, '4', "Agents", "Agents"},
+	{pageSettings, '5', "Settings", "Settings"},
 }
 
 // drawTabs renders the tab bar, highlighting the visible page.
 func (a *App) drawTabs() {
 	current := a.currentTab()
+	short := false
+	if a.tabsWidth > 0 {
+		full := 1
+		for _, t := range tabs {
+			full += len([]rune(t.title)) + 7
+		}
+		// The waiting agents' count takes a few cells more.
+		short = full+4 > a.tabsWidth
+	}
 	var parts []string
 	for _, t := range tabs {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
-		label := tview.Escape(fmt.Sprintf(" [%c] %s ", t.key, t.title))
+		title := t.title
+		if short {
+			title = t.short
+		}
+		// The agents waiting for an answer are counted where they show from
+		// every screen.
+		if t.page == pageAgents && a.agentsWaiting() > 0 {
+			title += fmt.Sprintf(" %s%d", glyphManual, a.agentsWaiting())
+		}
+		label := tview.Escape(fmt.Sprintf(" [%c] %s ", t.key, title))
 		if t.page == current {
 			parts = append(parts, fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), label))
 			continue
@@ -49,6 +69,7 @@ func (a *App) currentTab() string {
 // switchTab shows one of the main pages.
 func (a *App) switchTab(page string) {
 	a.tab = page
+	a.agentsInFront.Store(page == pageAgents)
 	a.pages.SwitchToPage(page)
 	a.refreshZoxide()
 	switch page {
@@ -61,6 +82,9 @@ func (a *App) switchTab(page string) {
 	case pageWorktrees:
 		a.tv.SetFocus(a.worktreesPane.focusTarget())
 		a.refreshLocal()
+	case pageAgents:
+		a.tv.SetFocus(a.agentsPane.focusTarget())
+		a.agentsNowAsk()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

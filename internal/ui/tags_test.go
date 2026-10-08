@@ -15,7 +15,7 @@ import (
 // openTagSettings opens Settings › Tags with the keyboard in the table.
 func openTagSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
-	typeRunes(sc, "4")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionTags)
@@ -234,7 +234,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "4")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionGroups)
@@ -321,7 +321,7 @@ func TestServerTagsReachEveryRepository(t *testing.T) {
 	a, sc := newTestApp(t)
 	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "4")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "Default root")
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionGroups)

@@ -269,3 +269,91 @@ func (c *Client) FocusAgent(name string) error {
 	_, err := c.herdr(ctx, "agent", "focus", name)
 	return err
 }
+
+// HerdrAgent is one agent herdr knows, wherever it was started from.
+type HerdrAgent struct {
+	// Kind is the agent as herdr names it: claude, codex, copilot...
+	Kind string
+	// Status is idle, working, blocked or unknown, as herdr reads it.
+	Status string
+	// Title is what the agent calls its conversation, from its terminal.
+	Title string
+	Dir   string
+	Pane  string
+	// Workspace and Tab are the labels of where it runs.
+	Workspace, Tab string
+}
+
+// Agents lists every agent the herdr server knows, with the workspace and
+// tab each is in. A server that is not running has none.
+func (c *Client) Agents() ([]HerdrAgent, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := c.herdr(ctx, "agent", "list")
+	if err != nil {
+		var he *herdrError
+		if errors.As(err, &he) && he.Code == "server_not_running" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var list struct {
+		Agents []struct {
+			Agent       string `json:"agent"`
+			Status      string `json:"agent_status"`
+			Cwd         string `json:"cwd"`
+			Foreground  string `json:"foreground_cwd"`
+			PaneID      string `json:"pane_id"`
+			TabID       string `json:"tab_id"`
+			WorkspaceID string `json:"workspace_id"`
+			Title       string `json:"terminal_title_stripped"`
+		} `json:"agents"`
+	}
+	if err := json.Unmarshal(result, &list); err != nil {
+		return nil, fmt.Errorf("cannot read herdr's agents; use herdr 0.9 or newer")
+	}
+	labels := map[string]string{}
+	for _, what := range []string{"workspace", "tab"} {
+		result, err := c.herdr(ctx, what, "list")
+		if err != nil {
+			return nil, err
+		}
+		type label struct {
+			Workspace string `json:"workspace_id"`
+			Tab       string `json:"tab_id"`
+			Label     string `json:"label"`
+		}
+		var named struct {
+			Workspaces []label `json:"workspaces"`
+			Tabs       []label `json:"tabs"`
+		}
+		if err := json.Unmarshal(result, &named); err != nil {
+			return nil, fmt.Errorf("cannot read herdr's %ss; use herdr 0.9 or newer", what)
+		}
+		for _, n := range append(named.Workspaces, named.Tabs...) {
+			id := n.Workspace
+			if what == "tab" {
+				id = n.Tab
+			}
+			labels[id] = n.Label
+		}
+	}
+	var out []HerdrAgent
+	for _, a := range list.Agents {
+		dir := a.Foreground
+		if dir == "" {
+			dir = a.Cwd
+		}
+		out = append(out, HerdrAgent{Kind: a.Agent, Status: a.Status, Title: a.Title, Dir: dir, Pane: a.PaneID,
+			Workspace: labels[a.WorkspaceID], Tab: labels[a.TabID]})
+	}
+	return out, nil
+}
+
+// ClosePane closes a herdr pane, and whatever runs in it.
+func (c *Client) ClosePane(pane string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := c.herdr(ctx, "pane", "close", pane)
+	return err
+}

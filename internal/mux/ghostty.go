@@ -52,6 +52,10 @@ const ghosttyListScript = `tell application "Ghostty"
 	return out
 end tell`
 
+const ghosttyFocusEndingScript = `on run argv
+	tell application "Ghostty" to focus (first terminal whose name ends with (item 1 of argv))
+end run`
+
 const ghosttyNamedScript = `on run argv
 	tell application "Ghostty" to return id of (first terminal whose name is (item 1 of argv))
 end run`
@@ -171,4 +175,13 @@ func (c *Client) FindSelf(title string) (*Client, error) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// FocusEndingWith brings forward the Ghostty terminal whose title ends so -
+// herdr's, which it titles "<host>: <workspace>" - quick terminal or window.
+func (c *Client) FocusEndingWith(suffix string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := c.osascript(ctx, ghosttyFocusEndingScript, suffix)
+	return err
 }

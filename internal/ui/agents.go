@@ -233,18 +233,22 @@ func (a *App) startHerdrAgent(what session.Record, place editorPlace, ag agents.
 		a.tv.QueueUpdateDraw(func() { a.errorf("%v", err) })
 		return
 	}
-	if err := c.StartAgent(pane, agentName(what), ag.HerdrKind, nil); err != nil {
+	if err := c.StartAgent(pane, herdrAgentName(what), ag.HerdrKind, nil); err != nil {
 		a.tv.QueueUpdateDraw(func() { a.errorf("%s did not start in herdr: %v", ag.Name, err) })
 		return
 	}
 	a.recordPane(what, c, pane, nil, "started "+ag.Name+" in herdr: ")
+	if place.where == mux.Window {
+		a.bringHerdrForward(mux.AgentsWorkspace)
+	}
+	a.agentsNowAsk()
 }
 
 var notName = regexp.MustCompile(`[^a-z0-9]+`)
 
-// agentName is how herdr is to call the agent: readable, from what it
+// herdrAgentName is how herdr is to call the agent: readable, from what it
 // works on, and never the same twice.
-func agentName(what session.Record) string {
+func herdrAgentName(what session.Record) string {
 	name := strings.Trim(notName.ReplaceAllString(strings.ToLower(muxTabName(what)), "-"), "-")
 	if name == "" {
 		name = "agent"

@@ -12,7 +12,7 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 	a, sc := newTestApp(t)
 	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "4")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "Default root")
 	for _, section := range []int{sectionGeneral, sectionGitLab, sectionGitHub, sectionGroups, sectionTags, sectionSecurity, sectionIntegrations} {
 		a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })

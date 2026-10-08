@@ -36,6 +36,7 @@ const (
 	pageProjects  = "projects"
 	pageMRs       = "mrs"
 	pageWorktrees = "worktrees"
+	pageAgents    = "agents"
 	pageSettings  = "settings"
 	pageHelp      = "help"
 	pageTask      = "task"
@@ -214,6 +215,17 @@ type App struct {
 	// which agents and editors can be opened in from outside them too.
 	findHerdr   func() *mux.Client
 	findGhostty func() *mux.Client
+	// The Agents tab: the rows as last read, whether a read is under way,
+	// what went wrong with the last, whether the tab is in front - read
+	// from the watcher's goroutine - and a nudge for a read now.
+	agentsPane *pane
+	// tabsWidth is the terminal's width the tab bar was last laid out for.
+	tabsWidth     int
+	agentRows     []agentRow
+	agentsReading bool
+	agentsError   string
+	agentsInFront atomic.Bool
+	agentsNow     chan struct{}
 	// repoSync is where each main clone's branch stands against origin, read
 	// from the refs on disk; r fetches first. fetchFailed says why a fetch did
 	// not get through, and fetching counts the fetches still running.
@@ -311,11 +323,12 @@ func newApp(cfg *config.Config, vault tokenVault) *App {
 	// of every other application made in parallel.
 	applyTheme()
 	a := &App{
-		tv:       tview.NewApplication(),
-		pages:    tview.NewPages(),
-		cfg:      cfg,
-		sessions: session.New(cfg.Dir()),
-		disk:     map[projectKey]diskInfo{},
+		tv:        tview.NewApplication(),
+		pages:     tview.NewPages(),
+		cfg:       cfg,
+		sessions:  session.New(cfg.Dir()),
+		disk:      map[projectKey]diskInfo{},
+		agentsNow: make(chan struct{}, 1),
 	}
 	a.vault = vault
 	a.rebuildClients()
@@ -327,11 +340,12 @@ func newApp(cfg *config.Config, vault tokenVault) *App {
 func NewLocked(cfg *config.Config) *App {
 	applyTheme()
 	return &App{
-		tv:       tview.NewApplication(),
-		pages:    tview.NewPages(),
-		cfg:      cfg,
-		sessions: session.New(cfg.Dir()),
-		disk:     map[projectKey]diskInfo{},
+		tv:        tview.NewApplication(),
+		pages:     tview.NewPages(),
+		cfg:       cfg,
+		sessions:  session.New(cfg.Dir()),
+		disk:      map[projectKey]diskInfo{},
+		agentsNow: make(chan struct{}, 1),
 	}
 }
 
@@ -397,6 +411,10 @@ func (a *App) Run() error {
 	a.tv.SetInputCapture(a.globalKeys)
 	a.tv.SetBeforeDrawFunc(func(screen tcell.Screen) bool {
 		a.screen = screen
+		if w, _ := screen.Size(); w != a.tabsWidth && a.tabs != nil {
+			a.tabsWidth = w
+			a.drawTabs()
+		}
 		return false
 	})
 	// A form in NORMAL types nothing, so no cursor blinks in its field.
@@ -420,6 +438,7 @@ func (a *App) Run() error {
 	stopWatching := make(chan struct{})
 	go a.watchTheme(stopWatching)
 	go a.watchEditors(stopWatching)
+	go a.watchAgents(stopWatching)
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 	close(stopWatching)
 	// Window editors outlive unagit, but nothing vouches for them any more.
@@ -439,11 +458,13 @@ func (a *App) buildInterface() tview.Primitive {
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()
 	a.worktreesPane = a.newWorktreesPane()
+	a.agentsPane = a.newAgentsPane()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
 	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
+	a.pages.AddPage(pageAgents, a.agentsPane.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -583,6 +604,8 @@ func (a *App) restoreFocus() {
 		a.tv.SetFocus(a.mrsPane.focusTarget())
 	case pageWorktrees:
 		a.tv.SetFocus(a.worktreesPane.focusTarget())
+	case pageAgents:
+		a.tv.SetFocus(a.agentsPane.focusTarget())
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

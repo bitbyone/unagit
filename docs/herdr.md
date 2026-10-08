@@ -15,8 +15,14 @@ open until a key, whatever `wait after command` says, so the launcher
 closes it; `line` cannot name an AppleScript variable; Ghostty refuses
 `new tab` when tabs are turned off in its configuration.
 
-Not yet: the agents' state in the lists, a picker of the running agents,
-bringing herdr's window forward, and everything about containers below.
+Then the Agents tab ([4]; Settings moved to [5]): the agents unagit started
+- herdr's others are not shown - with herdr's state, the count waiting on
+the tab, Alt-A for a picker of them, and herdr's Ghostty terminal brought
+forward by the title herdr gives it, "<host>: <workspace>". Whether
+Ghostty's `focus` slides a hidden quick terminal out is still to be seen
+in use.
+
+Not yet: everything about containers below.
 
 ## The plan
 

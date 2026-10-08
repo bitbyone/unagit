@@ -25,7 +25,9 @@ func (a *App) listActions(p *pane) []uiAction {
 			run: func() { a.switchTab(pageMRs) }},
 		{name: "Go to Worktrees", about: "Every worktree on disk, plain and grouped.", keys: "3", rank: 900, when: func() bool { return a.currentTab() != pageWorktrees },
 			run: func() { a.switchTab(pageWorktrees) }},
-		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "4", rank: 910, run: func() { a.switchTab(pageSettings) }},
+		{name: "Go to Agents", about: "Every coding agent at work, and what each is doing.", keys: "4", rank: 905, when: func() bool { return a.currentTab() != pageAgents },
+			run: func() { a.switchTab(pageAgents) }},
+		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "5", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	}
@@ -131,6 +133,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 func (a *App) repositoriesActions(p *pane) []uiAction {
 	acts := []uiAction{
 		a.runningEditorsAction("E"),
+		a.runningAgentsAction("Alt-A"),
 		{name: "Refresh All", about: "Ask the servers for the repositories again, and the pipelines of the clones' branches; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
 		{name: "Pull All Clones", about: "Fetch every clone and fast-forward those origin has moved past.", keys: "Alt-P", rank: 30, run: a.updateAllClones},
@@ -213,6 +216,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 func (a *App) mergeRequestsActions(p *pane) []uiAction {
 	acts := []uiAction{
 		a.runningEditorsAction("E"),
+		a.runningAgentsAction("Alt-A"),
 		{name: "Refresh All", about: "Ask the servers for the open merge requests again, with their pipelines, approvals and threads.", keys: "R", rank: 10, run: a.refreshMRs},
 		{name: "Filter by Repository…", about: "Show only the merge requests of one repository.", keys: "f", rank: 20, run: a.showProjectScopePicker},
 		{name: "Clear Repository Filter", about: "Show the merge requests of every repository again.", keys: "F", rank: 25, when: func() bool { return a.mrProjectScope.Path != "" },
@@ -308,6 +312,7 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 func (a *App) worktreesActions(p *pane) []uiAction {
 	acts := []uiAction{
 		a.runningEditorsAction("E"),
+		a.runningAgentsAction("Alt-A"),
 		{name: "Refresh All", about: "Look at the disk again - what each worktree takes measured anew - fetch origin for every worktree, read the pipelines of their branches and bring in new comments.", keys: "R", rank: 10, run: func() {
 			a.refreshDisk()
 			a.loadWorktreeSizes(true)

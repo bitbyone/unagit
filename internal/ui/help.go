@@ -20,6 +20,7 @@ const (
 	helpMRDetail
 	helpWorktreeList
 	helpWorktreeDetail
+	helpAgentList
 	helpSettingsList
 	helpServers
 	helpGroups
@@ -33,7 +34,7 @@ const (
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
+	helpNavigation    = helpLists | helpWorktrees | helpAgentList | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -58,6 +59,8 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpWorktreeDetail, "Worktree detail"
 		}
 		return helpWorktreeList, "Worktrees"
+	case pageAgents:
+		return helpAgentList, "Agents"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -137,7 +140,7 @@ func helpRows() []helpLine {
 	applyTheme()
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
-		key("1  2  3  4", "Repositories · Merge requests · Worktrees · Settings"),
+		key("1 2 3 4 5", "Repos · MRs · Worktrees · Agents · Settings"),
 		key("Alt-Enter", "every action on the selection, with its key"),
 		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
 		key(":", "every action of the screen, with its key"),
@@ -184,6 +187,7 @@ func helpRows() []helpLine {
 		key("r", "refresh the row: fetch it, ask the server about it"),
 		key("R", "refresh the whole list from the servers"),
 		key("E", "running editors: Enter attach · x close"),
+		key("Alt-A", "running agents: Enter goes to one"),
 		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
 		key(glyphEditor, "this directory is open in Neovim"),
 		blank(),
@@ -247,6 +251,15 @@ func helpRows() []helpLine {
 		key("COM", "Incomm comments; amber while some wait for P"),
 		key("SIZE", "what it takes on disk; R measures again"),
 		key("CREATED", "when the worktree was made"),
+		blank(),
+
+		section("Agents", helpAgentList),
+		key("Enter", "go to the agent: its herdr tab, pane or window"),
+		key("d", "close an agent in herdr, after asking"),
+		key("r", "ask herdr again what each agent is doing"),
+		key("Ctrl-O", "open its directory in the editor"),
+		key(glyphManual+" waiting", "it asks you something; counted on the tab"),
+		key(glyphDot+" idle", "done with its turn, ready for the next"),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail),

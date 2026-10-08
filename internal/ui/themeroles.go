@@ -112,6 +112,19 @@ var colourRoles = []colourRole{
 	{"worktrees.size", "column.size", ""},
 	{"worktrees.created", "column.age", ""},
 	{"worktrees.activity", "column.age", ""},
+
+	// Agents.
+	{"agents.header", "column.header", ""},
+	{"agents.working", "text.accent", "an agent at work"},
+	{"agents.waiting", "state.warning", "an agent waiting for an answer"},
+	{"agents.idle", "state.good", "an agent done, waiting for the next thing to do"},
+	{"agents.unknown", "text.dim", "an agent whose state nothing can tell"},
+	{"agents.agent", "column.name", ""},
+	{"agents.repository", "column.server", "what it works on, as the lists name it"},
+	{"agents.branch", "column.branch", ""},
+	{"agents.title", "column.name", "what the agent calls its conversation"},
+	{"agents.where", "text.muted", "where it runs"},
+	{"agents.path", "column.path", ""},
 }
 
 // roleColours is every role as the theme on resolves it (setTheme).

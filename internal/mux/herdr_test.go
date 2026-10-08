@@ -204,3 +204,19 @@ func TestPlacesOfTheirOwnShareOneWorkspace(t *testing.T) {
 		t.Fatalf("made %v\nwant %v", made, want)
 	}
 }
+
+func TestHerdrAgentsSayWhereTheyRun(t *testing.T) {
+	t.Parallel()
+	h := muxtest.NewHerdr(t)
+	h.SetAgents(t, []map[string]any{{"agent": "claude", "agent_status": "blocked", "cwd": "/w/a", "foreground_cwd": "/w/a/sub",
+		"pane_id": "wA:p1", "tab_id": "wA:t1", "workspace_id": "wA", "terminal_title_stripped": "Fix the login"}})
+	got, err := h.HerdrClient(false).Agents()
+	want := []mux.HerdrAgent{{Kind: "claude", Status: "blocked", Title: "Fix the login", Dir: "/w/a/sub", Pane: "wA:p1", Workspace: "work", Tab: "gateway !7"}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("agents: %+v, %v", got, err)
+	}
+	h.Fail(t, "server_not_running")
+	if got, err := h.HerdrClient(false).Agents(); err != nil || len(got) != 0 {
+		t.Fatalf("no server: %v, %v", got, err)
+	}
+}
