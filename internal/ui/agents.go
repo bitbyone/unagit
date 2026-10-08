@@ -140,13 +140,24 @@ func (a *App) clientPlaces(c *mux.Client) []pickItem {
 }
 
 // agentPlaces are everywhere an agent can be opened, this terminal first.
+// herdr is among them from anywhere: it runs as a service, and keeps the
+// agents in a workspace of their own.
 func (a *App) agentPlaces(ag agents.Agent) []pickItem {
-	items := []pickItem{{Label: "This Terminal", Data: editorPlace{},
-		About: "Suspend unagit and run " + ag.Name + " here; unagit comes back when it ends."}}
+	return a.places("Suspend unagit and run "+ag.Name+" here; unagit comes back when it ends.", true)
+}
+
+// editorPlaces are everywhere a terminal editor can be opened or brought
+// back. herdr only from inside it: elsewhere herdr is the agents'.
+func (a *App) editorPlaces(here string) []pickItem {
+	return a.places(here, false)
+}
+
+func (a *App) places(here string, herdr bool) []pickItem {
+	items := []pickItem{{Label: "This Terminal", Data: editorPlace{}, About: here}}
 	if c := a.multiplexer; c != nil {
 		items = append(items, a.clientPlaces(c)...)
 	}
-	if c := a.herdr(); c != nil && (a.multiplexer == nil || a.multiplexer.Kind != mux.Herdr) {
+	if c := a.herdr(); herdr && c != nil && (a.multiplexer == nil || a.multiplexer.Kind != mux.Herdr) {
 		items = append(items, a.clientPlaces(c)...)
 	}
 	if c := a.ghostty(); c != nil {
@@ -155,17 +166,38 @@ func (a *App) agentPlaces(ag agents.Agent) []pickItem {
 	return items
 }
 
-// pickPlace asks where something opens, the cursor on where the last agent
-// went when that place is still offered.
-func (a *App) pickPlace(title string, items []pickItem, then func(editorPlace)) {
-	start := 0
+// Place pickers are told apart by what goes to the place, each counting
+// its own choices.
+const (
+	placeOfAgent  = "agent"
+	placeOfEditor = "editor"
+	placeOfAttach = "attach"
+)
+
+// pickPlace asks where something opens, the cursor on the place chosen
+// most often for the same kind of thing - on a tie the one chosen last, so
+// the first choice is offered again at once - and counts the choice.
+func (a *App) pickPlace(what, title string, items []pickItem, then func(editorPlace)) {
+	uses := a.cfg.Integrations.PlaceUses[what]
+	last := ""
+	if what == placeOfAgent {
+		last = a.cfg.Integrations.AgentPlace
+	}
+	start, most := 0, 0
 	for i, it := range items {
-		if placeKeyOf(it.Data.(editorPlace)) == a.cfg.Integrations.AgentPlace {
-			start = i
+		key := placeKeyOf(it.Data.(editorPlace))
+		if n := uses[key]; n > most || n == most && n > 0 && key == last {
+			start, most = i, n
 		}
 	}
 	a.showPickerWith(title, items, pickerOptions{start: start, pack: true, explain: true}, func(it pickItem) {
-		then(it.Data.(editorPlace))
+		place := it.Data.(editorPlace)
+		a.cfg.Integrations.UsePlace(what, placeKeyOf(place))
+		if what == placeOfAgent {
+			a.cfg.Integrations.AgentPlace = placeKeyOf(place)
+		}
+		a.saveConfig()
+		then(place)
 	})
 }
 
@@ -185,9 +217,7 @@ func (a *App) agentActions(open func(editorPlace)) []uiAction {
 					a.flash(ag.Name + " is off - turn it on in Settings › Integrations")
 					return
 				}
-				a.pickPlace("Open in "+ag.Name+" · where", a.agentPlaces(ag), func(place editorPlace) {
-					a.cfg.Integrations.AgentPlace = placeKeyOf(place)
-					a.saveConfig()
+				a.pickPlace(placeOfAgent, "Open in "+ag.Name+" · where", a.agentPlaces(ag), func(place editorPlace) {
 					place.agent = &ag
 					open(place)
 				})

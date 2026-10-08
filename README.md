@@ -828,7 +828,10 @@ does. A command of your own goes in Settings › General as the custom editor.
 Neovim takes the terminal. With Neovim 0.12 or newer, **Ctrl-Z** (or
 `:detach`) puts it aside and returns to unagit, keeping the buffers and
 unsaved changes. **E** on a main list, or **Running Editors…** in `:`, lists
-these editors: Enter attaches, `x` closes. With unsaved changes, closing
+these editors: Enter attaches, `x` closes. Inside Zellij or herdr, or with
+Ghostty on, Enter first asks where - this terminal, or a tab, split or
+window - starting on the place chosen most often, so Enter Enter goes
+there again. With unsaved changes, closing
 attaches first and asks about saving in Neovim. The list shows the repository,
 branch or merge request, directory, age and unsaved changes (`?` when the
 editor is too busy to answer). `▣` beside a row marks its directory open in
@@ -895,7 +898,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `C` | clone without opening the editor; a merge request's review worktree |
 | `Ctrl-O` | open the editor as it is on disk; clones only what is missing |
-| `E` | running Neovims: Enter attaches, x closes |
+| `E` | running Neovims: Enter attaches (asking where), x closes |
 | `Ctrl-Z` in Neovim | put it aside and return to unagit (0.12+) |
 | `p` | update: a fast-forward, or a rebase of your work; never a conflict |
 | `Alt-O` `Alt-R` … | the same, in an editor you choose |

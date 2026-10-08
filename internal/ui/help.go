@@ -186,7 +186,7 @@ func helpRows() []helpLine {
 		key("yy", "copy the link"),
 		key("r", "refresh the row: fetch it, ask the server about it"),
 		key("R", "refresh the whole list from the servers"),
-		key("E", "running editors: Enter attach · x close"),
+		key("E", "running editors: Enter attach… · x close"),
 		key("Alt-A", "running agents: Enter goes to one"),
 		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
 		key(glyphEditor, "this directory is open in Neovim"),

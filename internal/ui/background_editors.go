@@ -59,9 +59,31 @@ func (a *App) drawRunningEditors(rows []session.Record, modified []string) {
 	header := labelRunningEditors(items, rows, modified, 100)
 	picker = a.showPickerWith("Running Editors", items, pickerOptions{
 		wide: true, explain: true, header: header, enterHint: "attach", relabel: label,
-		enterName: "Attach to Editor", enterAbout: "Return to this Neovim with its files and unsaved changes intact.",
+		enterName: "Attach to Editor…", enterAbout: "Return to this Neovim with its files and unsaved changes intact - here, or in a tab, split or window.",
 		keys: []pickKey{{keys: "x", hint: "close editor", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record)) }}},
-	}, func(it pickItem) { a.attachEditor(it.Data.(session.Record)) })
+	}, func(it pickItem) { a.attachWhere(it.Data.(session.Record)) })
+}
+
+// attachWhere brings a Neovim put aside back where the user chooses: this
+// terminal, or a tab, split or window of what is here. One in a pane goes
+// to that pane, and with nowhere else to go there is nothing to ask.
+func (a *App) attachWhere(r session.Record) {
+	places := a.editorPlaces("Suspend unagit and bring Neovim back here; unagit returns when it is put aside or closed.")
+	if r.Pane != "" || len(places) == 1 {
+		a.attachEditor(r)
+		return
+	}
+	a.pickPlace(placeOfAttach, "Attach "+r.Label()+" · where", places, func(place editorPlace) {
+		if place.client == nil {
+			a.attachEditor(r)
+			return
+		}
+		go func() {
+			a.editorMu.Lock()
+			defer a.editorMu.Unlock()
+			a.reachRunning(r, "", place)
+		}()
+	})
 }
 
 func (a *App) closeRunningEditor(r session.Record) {

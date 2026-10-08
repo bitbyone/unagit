@@ -452,6 +452,69 @@ func TestNeovimInAPaneCanBePutAsideAndBroughtBack(t *testing.T) {
 	}
 }
 
+// TestRunningEditorsAskWhereToBringNeovimBack: Enter in E asks where - this
+// terminal or a tab or split of the multiplexer - and the next time starts
+// on the place chosen most, so Enter Enter goes there again.
+func TestRunningEditorsAskWhereToBringNeovimBack(t *testing.T) {
+	_, log := editortest.Install(t)
+	tool, prepare := fakeMux(t)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { shortSessions(t, a) })
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	p := newRealProject(t, a, "acme/gateway")
+	r := paneNeovim(t, a, sc, p.path)
+	tabs := func() (n int, last string) {
+		for _, call := range tool.Calls(t) {
+			if call.Args[3] == "new-tab" {
+				n, last = n+1, strings.Join(call.Args, " ")
+			}
+		}
+		return n, last
+	}
+	putAside := func() {
+		t.Helper()
+		tool.SetPanes(t, nil)
+		waitEditorState(t, a, func() bool {
+			rows := a.sessions.Running()
+			return len(rows) == 1 && rows[0].Pane == ""
+		})
+		changeOnLoop(a, a.clearSaid)
+		typeRunes(sc, "E")
+		waitFor(t, a, sc, "Enter attach")
+		sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+		waitFor(t, a, sc, "Attach acme/gateway · where")
+		for _, want := range []string{"This Terminal", "Zellij Tab", "Zellij Split Right", "Zellij Split Below"} {
+			waitFor(t, a, sc, want)
+		}
+		waitFor(t, a, sc, "NORMAL")
+	}
+
+	putAside()
+	assertLegible(t, a, sc, "where to bring Neovim back")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
+	waitEditorIdle(t, a)
+	if n, last := tabs(); n != 2 || !strings.Contains(last, "--remote-ui") || !strings.Contains(last, r.Socket) {
+		t.Fatalf("the tab did not attach to the Neovim aside: %d tabs, last %s", n, last)
+	}
+
+	// The tab is now the usual place: Enter alone goes there.
+	putAside()
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "attached in Zellij: "+p.path) })
+	waitEditorIdle(t, a)
+	if n, _ := tabs(); n != 3 {
+		t.Fatalf("Enter Enter did not go to the tab again: %d tabs", n)
+	}
+	if got := onLoop(a, func() int { return a.cfg.Integrations.PlaceUses[placeOfAttach]["zellij-tab"] }); got != 2 {
+		t.Fatalf("the tab counted %d times", got)
+	}
+	if n := countIn(log, "attach|"); n != 0 {
+		t.Fatal("attached in unagit's own terminal as well")
+	}
+}
+
 func TestANeovimPaneElsewhereCanBeAttachedOrTakenOver(t *testing.T) {
 	// The fake Neovim changes PATH; Zellij itself is local to this app.
 	_, log := editortest.Install(t)

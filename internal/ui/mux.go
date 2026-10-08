@@ -57,7 +57,7 @@ func (a *App) muxActions(open func(*editors.Editor, editorPlace)) []uiAction {
 			a.flash("Ghostty is not on - see Settings › Integrations")
 			return
 		}
-		a.pickPlace("Open in Ghostty · where", a.clientPlaces(g), func(place editorPlace) {
+		a.pickPlace(placeOfEditor, "Open in Ghostty · where", a.clientPlaces(g), func(place editorPlace) {
 			a.withEditorKind(false, true, func(ed *editors.Editor) { open(ed, place) })
 		})
 	}})
@@ -183,7 +183,7 @@ func (a *App) besideUnagit(place editorPlace) (*mux.Client, error) {
 func (a *App) attachInPane(r session.Record, place editorPlace) {
 	_ = editors.Checktime(r.Launcher, r.Socket)
 	a.sessions.Remove(r)
-	a.openInPane(r, place, editors.AttachCommand(r.Launcher, r.Socket, r.Dir), "attached in Zellij: ")
+	a.openInPane(r, place, editors.AttachCommand(r.Launcher, r.Socket, r.Dir), "attached in "+place.client.Name()+": ")
 }
 
 // reachRunning takes an open of a directory to the Neovim that already runs

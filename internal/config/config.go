@@ -528,6 +528,21 @@ type Integrations struct {
 	// AgentPlace is where an agent was last opened, which the next one is
 	// offered first.
 	AgentPlace string `yaml:"agent_place,omitempty"`
+	// PlaceUses counts the places things were opened in - by what went
+	// there (agent, attach), then by place - so a picker of places starts
+	// on the usual one rather than the one used last.
+	PlaceUses map[string]map[string]int `yaml:"place_uses,omitempty"`
+}
+
+// UsePlace counts one more opening of what in place.
+func (i *Integrations) UsePlace(what, place string) {
+	if i.PlaceUses == nil {
+		i.PlaceUses = map[string]map[string]int{}
+	}
+	if i.PlaceUses[what] == nil {
+		i.PlaceUses[what] = map[string]int{}
+	}
+	i.PlaceUses[what][place]++
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
