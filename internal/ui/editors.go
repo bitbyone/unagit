@@ -348,11 +348,14 @@ func closeWindowSessions() {
 	windowSessions.close = nil
 }
 
-func (a *App) attachEditorToClose(r session.Record) {
+// attachEditorToClose attaches to a Neovim to close it there, and runs back
+// when it has the terminal back.
+func (a *App) attachEditorToClose(r session.Record, back func()) {
 	go func() {
 		a.editorMu.Lock()
 		defer a.editorMu.Unlock()
 		a.attachEditorLocked(r, true)
+		a.tv.QueueUpdateDraw(back)
 	}()
 }
 

@@ -22,17 +22,7 @@ func (a *App) showRunningEditors() {
 	var rows []session.Record
 	var modified []string
 	a.loadThen("Reading running editors", func(step func(string)) (string, error) {
-		rows = a.sessions.Running()
-		for i := range rows {
-			rows[i].Branch, _ = workspace.WorktreeHead(rows[i].Dir)
-			mark := ""
-			if dirty, err := editors.Modified(rows[i].Launcher, rows[i].Socket); err != nil {
-				mark = "?"
-			} else if dirty {
-				mark = "modified"
-			}
-			modified = append(modified, mark)
-		}
+		rows, modified = a.readRunningEditors()
 		return "", nil
 	}, func(string) {
 		if len(rows) == 0 {
@@ -44,23 +34,76 @@ func (a *App) showRunningEditors() {
 	})
 }
 
+// readRunningEditors lists the editors aside, each with whether it holds
+// unsaved changes. It asks every editor, so it runs off the event loop.
+func (a *App) readRunningEditors() ([]session.Record, []string) {
+	rows := a.sessions.Running()
+	modified := make([]string, len(rows))
+	for i := range rows {
+		rows[i].Branch, _ = workspace.WorktreeHead(rows[i].Dir)
+		if dirty, err := editors.Modified(rows[i].Launcher, rows[i].Socket); err != nil {
+			modified[i] = "?"
+		} else if dirty {
+			modified[i] = "modified"
+		}
+	}
+	return rows, modified
+}
+
+// drawRunningEditors lists the editors aside. It stays open while editors
+// are closed from it, one after another, and the user closes it.
 func (a *App) drawRunningEditors(rows []session.Record, modified []string) {
-	items := make([]pickItem, len(rows))
-	for i, r := range rows {
-		items[i] = pickItem{About: r.Dir, Data: r}
+	itemsOf := func() []pickItem {
+		items := make([]pickItem, len(rows))
+		for i, r := range rows {
+			items[i] = pickItem{About: r.Dir, Data: r}
+		}
+		return items
 	}
 	var picker *livePicker
-	label := func(items []pickItem, width int) {
-		header := labelRunningEditors(items, rows, modified, width)
+	width := 100
+	label := func(items []pickItem, w int) {
+		width = w
+		header := labelRunningEditors(items, rows, modified, w)
 		if picker != nil {
 			picker.setHeader(header)
 		}
 	}
-	header := labelRunningEditors(items, rows, modified, 100)
+	put := func() {
+		items := itemsOf()
+		label(items, width)
+		picker.set("Running Editors", items)
+	}
+	// reread puts the list again once an editor has closed, or come back
+	// from being attached to close it: the closed one goes at once, so the
+	// next x cannot land on it, and the rest are asked again.
+	reread := func(gone session.Record) {
+		for i, r := range rows {
+			if r.Socket == gone.Socket && r.Dir == gone.Dir {
+				rows = append(rows[:i:i], rows[i+1:]...)
+				modified = append(modified[:i:i], modified[i+1:]...)
+				put()
+				break
+			}
+		}
+		go func() {
+			next, marks := a.readRunningEditors()
+			a.tv.QueueUpdateDraw(func() {
+				if !picker.open() {
+					return
+				}
+				rows, modified = next, marks
+				put()
+			})
+		}()
+	}
+	items := itemsOf()
+	header := labelRunningEditors(items, rows, modified, width)
 	picker = a.showPickerWith("Running Editors", items, pickerOptions{
 		wide: true, explain: true, header: header, enterHint: "attach", relabel: label,
 		enterName: "Attach to Editor…", enterAbout: "Return to this Neovim with its files and unsaved changes intact - here, or in a tab, split or window.",
-		keys: []pickKey{{keys: "x", hint: "close editor", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record)) }}},
+		keys: []pickKey{{keys: "x", hint: "close editor", name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", stay: true,
+			run: func(it pickItem) { a.closeRunningEditor(it.Data.(session.Record), reread) }}},
 	}, func(it pickItem) { a.attachWhere(it.Data.(session.Record)) })
 }
 
@@ -86,32 +129,32 @@ func (a *App) attachWhere(r session.Record) {
 	})
 }
 
-func (a *App) closeRunningEditor(r session.Record) {
+// closeRunningEditor closes a Neovim aside, waiting in the edge of the
+// dialog it was closed from, which stays. One with unsaved changes, or too
+// busy to answer, is attached instead, so they are dealt with in its own UI.
+// closed runs once it is gone or back from being attached.
+func (a *App) closeRunningEditor(r session.Record, closed func(session.Record)) {
 	attach := false
-	a.loadThen("Closing editor", func(step func(string)) (string, error) {
+	a.waitInDialog("Closing "+r.Label(), func() error {
 		dirty, err := editors.Modified(r.Launcher, r.Socket)
-		if err != nil {
-			// A prompt or a busy editor is best dealt with in its own UI.
+		if err != nil || dirty {
 			attach = true
-			return "", nil
+			return nil
 		}
-		if dirty {
-			attach = true
-			return "", nil
-		}
-		closed, err := editors.Close(r.Launcher, r.Socket)
-		attach = !closed
-		if closed {
+		gone, err := editors.Close(r.Launcher, r.Socket)
+		attach = !gone
+		if gone {
 			a.sessions.Remove(r)
 		}
-		return "", err
-	}, func(string) {
+		return err
+	}, func(bool) {
 		a.refreshOpenEditors()
 		if attach {
-			a.attachEditorToClose(r)
-		} else {
-			a.done("closed nvim: " + r.Label())
+			a.attachEditorToClose(r, func() { closed(r) })
+			return
 		}
+		a.done("closed nvim: " + r.Label())
+		closed(r)
 	})
 }
 

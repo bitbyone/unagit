@@ -185,6 +185,21 @@ column taking room only when a row has one. Repositories, Merge requests
 and Worktrees alike, and the kept markup of the cursor's band and marked
 rows (`keepEditorMark`, the star's) moves with them.
 
+## 11. Running Editors stays open while editors are closed (done)
+
+`x` in `E` closed the list with the editor: it flashed up and went, and
+closing several meant opening it again for each. The list stays in front,
+the closed row gone at once, the wait in its bottom edge with the spinner
+(`waitInDialog`); the user closes it. One with unsaved changes is still
+attached to be closed there, and the list is read again when it is back.
+
+## 12. Sizes only while the SIZE column is shown
+
+Measuring every clone at start costs a small lag while moving in
+Repositories, for a column the user may have hidden. Sizes are measured
+only while SIZE is shown, and when it is shown again; and they can be
+measured again on request, since nothing else brings them up to date.
+
 ## Order of work
 
 1, 3, 4, 5 and 9 are small and independent; 2's new agent actions take 9's

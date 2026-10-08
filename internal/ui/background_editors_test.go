@@ -129,6 +129,44 @@ func TestClosingAnEditorWithChangesAttachesInstead(t *testing.T) {
 	}
 }
 
+// TestRunningEditorsStayOpenWhileClosingThem: x closes the editor under the
+// cursor and leaves the list in front, without it, for the next one; the
+// user closes the list.
+func TestRunningEditorsStayOpenWhileClosingThem(t *testing.T) {
+	editortest.Install(t)
+	a, sc, _ := newTestAppSrv(t, func(a *App) { shortSessions(t, a) })
+	waitFor(t, a, sc, "acme/gateway")
+	useFavourite(a, editors.Nvim)
+	newRealProject(t, a, "acme/gateway")
+	newRealProject(t, a, "acme/billing")
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "nvim aside: acme/gateway")
+	waitEditorIdle(t, a)
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "nvim aside: acme/billing")
+	waitEditorIdle(t, a)
+	if rows := a.sessions.Running(); len(rows) != 2 {
+		t.Fatalf("two editors aside: %+v", rows)
+	}
+	typeRunes(sc, "E")
+	waitFor(t, a, sc, "Enter attach")
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "closed nvim: ")
+	waitEditorState(t, a, func() bool { return len(a.sessions.Running()) == 1 })
+	left := a.sessions.Running()[0].Project
+	if !strings.Contains(a.screenText(sc), "Running Editors") {
+		t.Fatal("the list closed with the editor")
+	}
+	assertLegible(t, a, sc, "the list after closing one editor")
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "closed nvim: "+left)
+	waitEditorState(t, a, func() bool { return len(a.sessions.Running()) == 0 })
+	if !strings.Contains(a.screenText(sc), "Running Editors") {
+		t.Fatal("the list closed with the last editor")
+	}
+}
+
 func TestRunningEditorsPickerFitsItsFrame(t *testing.T) {
 	t.Parallel()
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 26}, {60, 20}} {
