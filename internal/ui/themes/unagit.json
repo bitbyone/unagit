@@ -328,10 +328,10 @@
       "LATEST": "\uf0a1",
       "LABELS": "\uf02c",
       "MR": "\uea64",
-      "NEW": "\uf417",
+      "NEW": "\ue676",
       "PATH": "\uf07b",
       "PIPELINE": "\ueb9e",
-      "PUB": "\uf1d8",
+      "PUB": "\uf50e",
       "REPO": "\uea62",
       "REPOS": "\udb83\udccf",
       "REPOSITORY": "\uea62",
@@ -345,6 +345,7 @@
       "UPDATED": "\uf017",
       "WHAT": "\uf06e",
       "WHERE": "\uf2d0",
+      "WORKTREE": "\uec7d",
       "WT": "\uec7d"
   },
   "borders": {

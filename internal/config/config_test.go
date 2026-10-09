@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestSaveLoadRoundTrip(t *testing.T) {
@@ -628,5 +631,24 @@ integrations:
 	}
 	if again.State.PersonUses("gl", RoleAssignee)["mike"] != 3 || again.State.PlaceUses["agent"]["ghostty-tab"] != 1 {
 		t.Errorf("state.json was not read back: %+v", again.State)
+	}
+}
+
+// TestOneToastLengthOfAnOlderFileIsEachSeverity: toast_seconds was once one
+// number for every toast; read now, it is each severity's.
+func TestOneToastLengthOfAnOlderFileIsEachSeverity(t *testing.T) {
+	var c Config
+	if err := yaml.Unmarshal([]byte("toast_seconds: 8\n"), &c); err != nil {
+		t.Fatal(err)
+	}
+	if c.ToastSeconds != (ToastSeconds{8, 8, 8, 8}) || c.ToastLife(ToastDanger) != 8*time.Second {
+		t.Fatalf("read %+v", c.ToastSeconds)
+	}
+	c = Config{}
+	if err := yaml.Unmarshal([]byte("toast_seconds:\n  danger: 20\n"), &c); err != nil {
+		t.Fatal(err)
+	}
+	if c.ToastLife(ToastDanger) != 20*time.Second || c.ToastLife(ToastInfo) != DefaultToastSeconds*time.Second {
+		t.Fatalf("read %+v", c.ToastSeconds)
 	}
 }

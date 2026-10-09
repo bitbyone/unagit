@@ -749,9 +749,9 @@ Every change - a pipeline that began, passed, failed, was cancelled or
 waits for a manual job, a merge request merged or closed - is a toast in
 the bottom right corner, the newest in the corner and older ones stacked
 above, for five seconds of your looking at it - Settings › Notifications
-sets how long. A toast is filled with the colour of how it went (info,
-success, warning, danger), worked out from the theme unless the theme
-names it (`toast.danger.background`, `.border`, `.text`, `.about`), and
+sets how long, for each severity on its own. A toast is filled with the
+colour of how it went (info, always blue, success, warning, danger),
+worked out from the theme unless the theme names it (`toast.danger.background`, `.border`, `.text`, `.about`), and
 headed by that severity's icon and a few words of what happened -
 "Pipeline failed", "New commit in MR" - over a sentence of where and how
 (`!334 has a new commit by Jane Doe: "Refill the bucket…"`) and a quieter

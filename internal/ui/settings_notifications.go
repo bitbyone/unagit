@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/rivo/tview"
+
 	"github.com/tobola/unagit/internal/config"
 )
 
@@ -20,33 +22,46 @@ func (s *settingsView) fillNotifications() {
 	focused := form.HasFocus()
 	item, button := form.GetFocusedItemIndex()
 	form.Clear(true)
-	seconds := cfg.ToastSeconds
-	if seconds <= 0 {
-		seconds = config.DefaultToastSeconds
+	// One select a severity, each of the lengths offered and, written
+	// into the file by hand, its own.
+	type length struct {
+		level    string
+		choices  []int
+		dropdown *tview.DropDown
 	}
-	options := make([]string, len(toastChoices))
-	for i, n := range toastChoices {
-		options[i] = fmt.Sprintf("%d s", n)
+	var lengths []length
+	for _, level := range config.ToastLevels {
+		seconds := *cfg.ToastSeconds.Of(level)
+		if seconds <= 0 {
+			seconds = config.DefaultToastSeconds
+		}
+		choices := slices.Clone(toastChoices)
+		if !slices.Contains(choices, seconds) {
+			choices = append(choices, seconds)
+		}
+		options := make([]string, len(choices))
+		for i, n := range choices {
+			options[i] = fmt.Sprintf("%d s", n)
+		}
+		label := toastLevelLabel(level)
+		lengths = append(lengths, length{level, choices, addSelect(form, label, options, slices.Index(choices, seconds))})
 	}
-	chosen := max(slices.Index(toastChoices, seconds), 0)
-	if !slices.Contains(toastChoices, seconds) {
-		// A length written into the file by hand is kept as it is.
-		options = append(options, fmt.Sprintf("%d s", seconds))
-		chosen = len(options) - 1
-	}
-	length := addSelect(form, "Toasts stay", options, chosen)
 	form.AddTextView("", "How long a toast - a watched pipeline that\n"+
 		"began, passed or failed - stays in the corner,\n"+
-		"counted only while the terminal is in front.", 46, 3, true, false)
+		"by how it went, counted only while the\n"+
+		"terminal is in front.", 46, 4, true, false)
 	form.AddTextView("", "Desktop notifications are a card of\n"+
 		"Integrations.", 46, 2, true, false)
 	form.AddButton("Save", func() {
-		i, _ := length.GetCurrentOption()
-		if i >= 0 && i < len(toastChoices) {
-			cfg.ToastSeconds = toastChoices[i]
-		}
-		if cfg.ToastSeconds == config.DefaultToastSeconds {
-			cfg.ToastSeconds = 0
+		for _, l := range lengths {
+			seconds := config.DefaultToastSeconds
+			if i, _ := l.dropdown.GetCurrentOption(); i >= 0 && i < len(l.choices) {
+				seconds = l.choices[i]
+			}
+			if seconds == config.DefaultToastSeconds {
+				seconds = 0
+			}
+			*cfg.ToastSeconds.Of(l.level) = seconds
 		}
 		s.app.saveConfig()
 		s.reload()
@@ -64,4 +79,12 @@ func (s *settingsView) fillNotifications() {
 		form.SetFocus(item)
 		s.app.tv.SetFocus(form)
 	}
+}
+
+// toastLevelLabel is a severity's select in Settings › Notifications.
+func toastLevelLabel(level string) string {
+	return map[string]string{
+		config.ToastInfo: "Info stays", config.ToastSuccess: "Success stays",
+		config.ToastWarning: "Warning stays", config.ToastDanger: "Danger stays",
+	}[level]
 }

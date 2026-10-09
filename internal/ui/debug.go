@@ -36,7 +36,9 @@ func (a *App) WithDebug(on bool) *App {
 // debugTrigger is one row of the section: what it fires.
 type debugTrigger struct {
 	group, name string
-	fire        func()
+	// levels are the severities of the news it fires, in their order.
+	levels []watch.Level
+	fire   func()
 }
 
 // debugView is the section: what unagit knows of the terminal, and the
@@ -60,7 +62,7 @@ func (s *settingsView) newDebugView() *debugView {
 	box(v.Box, debugSectionName).SetBorderPadding(0, 0, 1, 1)
 
 	news := debugNewsCases()
-	v.triggers = []debugTrigger{{"Toast", "six at once", func() {
+	v.triggers = []debugTrigger{{"Toast", "six at once", nil, func() {
 		var evs []watch.Event
 		for i := range 6 {
 			evs = append(evs, news[i%len(news)].events...)
@@ -68,20 +70,20 @@ func (s *settingsView) newDebugView() *debugView {
 		a.sayWatchEvents(evs[:6])
 	}}}
 	for _, c := range news {
-		v.triggers = append(v.triggers, debugTrigger{"Watched", c.name, func() { a.debugNews(c.events...) }})
+		v.triggers = append(v.triggers, debugTrigger{"Watched", c.name, eventLevels(c.events), func() { a.debugNews(c.events...) }})
 	}
 	failed := news[slices.IndexFunc(news, func(c debugNewsCase) bool { return c.name == "Pipeline failed" })]
 	v.triggers = append(v.triggers,
-		debugTrigger{"Watched", "Pipeline failed, in 4 s - switch away to see the desktop", func() {
+		debugTrigger{"Watched", "Pipeline failed, in 4 s - switch away to see the desktop", eventLevels(failed.events), func() {
 			a.afterDebugDelay("pipeline failed", func() { a.debugNews(failed.events...) })
 		}},
 		// Each after a while to switch to another program in: the way is
 		// chosen when it is sent, from where the user then is.
-		debugTrigger{"Desktop", "as Settings › Integrations chooses, in 4 s", func() {
+		debugTrigger{"Desktop", "as Settings › Integrations chooses, in 4 s", nil, func() {
 			a.testNotification(a.cfg.Integrations.Notifications, a.debugDelayOr())
 		}},
-		debugTrigger{"Desktop", "through the system, in 4 s", func() { a.testNotification(notify.System, a.debugDelayOr()) }},
-		debugTrigger{"Desktop", "through the terminal, in 4 s", func() { a.testNotification(notify.Terminal, a.debugDelayOr()) }},
+		debugTrigger{"Desktop", "through the system, in 4 s", nil, func() { a.testNotification(notify.System, a.debugDelayOr()) }},
+		debugTrigger{"Desktop", "through the terminal, in 4 s", nil, func() { a.testNotification(notify.Terminal, a.debugDelayOr()) }},
 	)
 	v.table.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev, handled := s.contentKeys(ev); handled {
@@ -150,7 +152,12 @@ func (v *debugView) fill(a *App) {
 	v.table.Clear()
 	for i, t := range v.triggers {
 		v.table.SetCell(i, 0, tview.NewTableCell(tag(colMuted)+esc(t.group)+tagEnd).SetSelectable(true))
-		v.table.SetCell(i, 1, tview.NewTableCell(esc(t.name)).SetTextColor(colText).SetExpansion(1))
+		var levels []string
+		for _, l := range t.levels {
+			levels = append(levels, tag(toastRole(levelSeverity(l), "border"))+string(l)+tagEnd)
+		}
+		v.table.SetCell(i, 1, tview.NewTableCell(strings.Join(levels, tag(colMuted)+" + "+tagEnd)))
+		v.table.SetCell(i, 2, tview.NewTableCell(esc(t.name)).SetTextColor(colText).SetExpansion(1))
 	}
 	v.table.Select(max(row, 0), 0)
 }
@@ -166,6 +173,15 @@ func (a *App) debugNews(events ...watch.Event) {
 	for _, e := range events {
 		go a.notifyWatch(context.Background(), e)
 	}
+}
+
+// eventLevels are the severities of events, in their order.
+func eventLevels(events []watch.Event) []watch.Level {
+	var out []watch.Level
+	for _, e := range events {
+		out = append(out, e.Level)
+	}
+	return out
 }
 
 // debugNewsCase is a situation a watch tells of, and what it says of it.

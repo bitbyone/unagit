@@ -60,7 +60,7 @@ func columnChoices(list string) []columnChoice {
 		return []columnChoice{
 			{id: "marks", heading: "MARKS"},
 			{id: "server", heading: "SERVER", offered: multiServer},
-			{id: "repository", heading: "REPOSITORY", always: true},
+			{id: "repository", heading: "WORKTREE", always: true},
 			{id: "repos", heading: "REPOS"},
 			{id: "branch", heading: "BRANCH"},
 			{id: "ci", heading: "CI"},

@@ -174,11 +174,21 @@ func init() {
 	}
 }
 
+// toastInfoBlue is the hue an info toast is worked out of, unless the
+// theme names toast.info.
+var toastInfoBlue = tcell.NewRGBColor(0x3b, 0x82, 0xf6)
+
 // toastRoles works out each severity's toast colours the theme does not
 // name, from its severity's colour and the background.
 func toastRoles(t Theme, roles map[string]tcell.Color) {
 	for _, level := range toastLevels {
-		ink := deriveToastInk(colour(t.Background), roles["toast."+level])
+		accent := roles["toast."+level]
+		if level == "info" && t.Roles["toast.info"] == "" {
+			// Info is blue whatever the theme's accent is - an orange one
+			// read as a warning.
+			accent = toastInfoBlue
+		}
+		ink := deriveToastInk(colour(t.Background), accent)
 		for part, c := range map[string]tcell.Color{"background": ink.fill, "border": ink.border, "text": ink.text, "about": ink.about} {
 			if key := "toast." + level + "." + part; t.Roles[key] == "" {
 				roles[key] = c

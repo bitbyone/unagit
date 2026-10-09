@@ -255,7 +255,7 @@ func worktreeHeaderAt(t *testing.T, a *App, sc tcell.SimulationScreen, w int) []
 	resizeApp(a, sc, w, 30)
 	changeOnLoop(a, func() { a.worktreesPane.reload() })
 	for _, line := range strings.Split(a.screenText(sc), "\n") {
-		if strings.Contains(line, "REPOSITORY") {
+		if strings.Contains(line, "WORKTREE") {
 			return strings.Fields(strings.Trim(line, "│ "))
 		}
 	}
@@ -599,7 +599,7 @@ func TestWorktreesUseTheWholeWidth(t *testing.T) {
 	waitFor(t, a, sc, branch)
 	waitFor(t, a, sc, tildePath(dir))
 	text := a.screenText(sc)
-	header := lineAt(text, "REPOSITORY")
+	header := lineAt(text, "WORKTREE")
 	edits := onLoop(a, func() string { return glyphEdits })
 	if strings.Index(header, "PATH") > strings.Index(header, edits) {
 		t.Errorf("PATH does not come before EDITS: %q", header)

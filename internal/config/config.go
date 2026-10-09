@@ -575,12 +575,59 @@ type OpenChoice struct {
 // DefaultToastSeconds is how long a toast stays unless the user chose.
 const DefaultToastSeconds = 5
 
-// ToastLife is how long a toast stays.
-func (c *Config) ToastLife() time.Duration {
-	if c.ToastSeconds <= 0 {
-		return DefaultToastSeconds * time.Second
+// The severities of a toast, as ToastSeconds and ToastLife name them.
+const (
+	ToastInfo    = "info"
+	ToastSuccess = "success"
+	ToastWarning = "warning"
+	ToastDanger  = "danger"
+)
+
+// ToastLevels are the severities, in the order Settings lists them.
+var ToastLevels = []string{ToastInfo, ToastSuccess, ToastWarning, ToastDanger}
+
+// ToastSeconds is how long a toast of each severity stays; 0 is
+// DefaultToastSeconds. An older config.yaml says one number for all, which
+// is read as each.
+type ToastSeconds struct {
+	Info    int `yaml:"info,omitempty"`
+	Success int `yaml:"success,omitempty"`
+	Warning int `yaml:"warning,omitempty"`
+	Danger  int `yaml:"danger,omitempty"`
+}
+
+func (t *ToastSeconds) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		var all int
+		if err := n.Decode(&all); err != nil {
+			return err
+		}
+		*t = ToastSeconds{all, all, all, all}
+		return nil
 	}
-	return time.Duration(c.ToastSeconds) * time.Second
+	type plain ToastSeconds
+	return n.Decode((*plain)(t))
+}
+
+// Of is the seconds chosen for a severity, 0 when none were.
+func (t *ToastSeconds) Of(level string) *int {
+	switch level {
+	case ToastSuccess:
+		return &t.Success
+	case ToastWarning:
+		return &t.Warning
+	case ToastDanger:
+		return &t.Danger
+	}
+	return &t.Info
+}
+
+// ToastLife is how long a toast of a severity stays.
+func (c *Config) ToastLife(level string) time.Duration {
+	if n := *c.ToastSeconds.Of(level); n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return DefaultToastSeconds * time.Second
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
@@ -605,11 +652,11 @@ type Config struct {
 	// readable by the unagit binary alone, so it opens without asking. The
 	// user's choice, off unless they make it.
 	RememberPassphrase bool `yaml:"remember_passphrase,omitempty"`
-	// ToastSeconds is how long a toast stays in front of the user; 0 is
-	// DefaultToastSeconds.
-	ToastSeconds int        `yaml:"toast_seconds,omitempty"`
-	Filters      Filters    `yaml:"filters,omitempty"`
-	Instances    []Instance `yaml:"instances"`
+	// ToastSeconds is how long a toast stays in front of the user, by its
+	// severity.
+	ToastSeconds ToastSeconds `yaml:"toast_seconds,omitempty"`
+	Filters      Filters      `yaml:"filters,omitempty"`
+	Instances    []Instance   `yaml:"instances"`
 	// Tags are the user's own labels for repositories - the default ones
 	// until a configuration says otherwise, an empty list included. A server
 	// passes its tags down to everything on it and a group to its subgroups

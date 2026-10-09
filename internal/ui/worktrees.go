@@ -409,7 +409,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 	// once it is down to minPath, the server, when it was made, its size,
 	// the merge request, the comments, then the edits. RMT stays. The
 	// comments are counted only with Incomm on.
-	repoCol := flexColumn("REPOSITORY", repos, 20, 2)
+	repoCol := flexColumn("WORKTREE", repos, 20, 2)
 	branchCol := flexColumn("BRANCH", branches, 10, 1)
 	remoteCol := flexColumn("RMT", remotes, 12, 1.2)
 	pathCol := gistColumn("PATH", paths, minPath, 0.8)
@@ -488,7 +488,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("worktrees.header")})
 	}
 	header = append(header,
-		field{text: "REPOSITORY", width: repoW, colour: role("worktrees.header")},
+		field{text: "WORKTREE", width: repoW, colour: role("worktrees.header")},
 		field{text: "REPOS", width: reposW, colour: role("worktrees.header"), right: true},
 		field{text: "BRANCH", width: branchW, colour: role("worktrees.header")})
 	if ciW > 0 {

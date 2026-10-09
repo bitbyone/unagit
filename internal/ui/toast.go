@@ -69,7 +69,7 @@ func (a *App) showToast(sev severity, title, body string) { a.showToastAbout(sev
 
 // showToastAbout is showToast with a line saying what it is about.
 func (a *App) showToastAbout(sev severity, title, about, body string) {
-	a.toasts = append(a.toasts, &toast{sev: sev, title: title, about: about, body: body, left: a.cfg.ToastLife()})
+	a.toasts = append(a.toasts, &toast{sev: sev, title: title, about: about, body: body, left: a.cfg.ToastLife(toastLevel(sev))})
 	if over := len(a.toasts) - toastsKept; over > 0 {
 		a.toasts = append([]*toast(nil), a.toasts[over:]...)
 	}

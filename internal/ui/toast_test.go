@@ -103,40 +103,44 @@ func TestToastsStackAndGo(t *testing.T) {
 }
 
 // TestToastsStayAsLongAsSettingsSay: five seconds unless Settings ›
-// Notifications says otherwise, and what it says is saved.
+// Notifications says otherwise for the toast's severity, and what it says
+// is saved.
 func TestToastsStayAsLongAsSettingsSay(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
-	life := func() time.Duration {
+	life := func(sev severity) time.Duration {
 		return onLoop(a, func() time.Duration {
 			a.toasts = nil
-			a.showToast(sevInfo, "Pipeline running", "Pipeline #8 of !42 started")
+			a.showToast(sev, "Pipeline running", "Pipeline #8 of !42 started")
 			left := a.toasts[0].left
 			a.toasts = nil
 			return left
 		})
 	}
-	if got := life(); got != 5*time.Second {
+	if got := life(sevError); got != 5*time.Second {
 		t.Fatalf("a toast stays %v by default, want 5s", got)
 	}
 	openSection(t, a, sc, sectionNotifications)
-	waitFor(t, a, sc, "Toasts stay")
+	waitFor(t, a, sc, "Danger stays")
 	for _, size := range []struct{ w, h int }{{120, 34}, {80, 24}} {
 		resizeApp(a, sc, size.w, size.h)
-		waitFor(t, a, sc, "Toasts stay")
+		waitFor(t, a, sc, "Danger stays")
 		assertLegible(t, a, sc, "Settings › Notifications")
 	}
 	changeOnLoop(a, func() {
-		a.settings.notices.GetFormItemByLabel("Toasts stay").(*tview.DropDown).SetCurrentOption(slices.Index(toastChoices, 10))
+		a.settings.notices.GetFormItemByLabel("Danger stays").(*tview.DropDown).SetCurrentOption(slices.Index(toastChoices, 10))
 	})
 	pressButton(t, a, sc, a.settings.notices, "Save")
-	waitTrue(t, "the length was not saved", func() bool { return onLoop(a, func() int { return a.cfg.ToastSeconds }) == 10 })
-	if got := life(); got != 10*time.Second {
-		t.Fatalf("a toast stays %v, want 10s", got)
+	waitTrue(t, "the length was not saved", func() bool { return onLoop(a, func() int { return a.cfg.ToastSeconds.Danger }) == 10 })
+	if got := life(sevError); got != 10*time.Second {
+		t.Fatalf("a danger toast stays %v, want 10s", got)
+	}
+	if got := life(sevInfo); got != 5*time.Second {
+		t.Fatalf("an info toast stays %v, want the 5s it was left at", got)
 	}
 	saved, err := config.LoadFrom(a.cfg.Dir())
-	if err != nil || saved.ToastSeconds != 10 {
-		t.Fatalf("the file says %d (%v)", saved.ToastSeconds, err)
+	if err != nil || saved.ToastSeconds != (config.ToastSeconds{Danger: 10}) {
+		t.Fatalf("the file says %+v (%v)", saved.ToastSeconds, err)
 	}
 }
