@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -544,46 +543,6 @@ func activityWatchesOf(items []activityItem) []watch.Watch {
 		if it.kind == activityWatch {
 			out = append(out, it.watch)
 		}
-	}
-	return out
-}
-
-// watchCounts counts what is watched by kind, the most first.
-func (a *App) watchCounts() []string {
-	mrs, branches := 0, 0
-	for _, w := range a.watches {
-		if w.IID > 0 {
-			mrs++
-		} else {
-			branches++
-		}
-	}
-	var out []string
-	if mrs > 0 {
-		out = append(out, fmt.Sprintf("%d %s", mrs, plural(mrs, "merge request", "merge requests")))
-	}
-	if branches > 0 {
-		out = append(out, fmt.Sprintf("%d %s", branches, plural(branches, "branch", "branches")))
-	}
-	return slices.Clip(out)
-}
-
-// watchCountsShort is watchCounts for one line.
-func (a *App) watchCountsShort() []string {
-	mrs, branches := 0, 0
-	for _, w := range a.watches {
-		if w.IID > 0 {
-			mrs++
-		} else {
-			branches++
-		}
-	}
-	var out []string
-	if mrs > 0 {
-		out = append(out, fmt.Sprintf("%d MR", mrs))
-	}
-	if branches > 0 {
-		out = append(out, fmt.Sprintf("%d %s", branches, plural(branches, "branch", "branches")))
 	}
 	return out
 }

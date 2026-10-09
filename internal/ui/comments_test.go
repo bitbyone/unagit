@@ -65,7 +65,7 @@ func TestCommentsModalShowsTheWholeConversation(t *testing.T) {
 	if strings.Contains(a.screenText(sc), "changed title") {
 		t.Error("a system note leaked into the conversation")
 	}
-	waitFor(t, a, sc, "i  write a comment")
+	waitFor(t, a, sc, "i write a comment")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Comments · acme/gateway !7")

@@ -452,13 +452,14 @@ func (v *integrationsView) paintFocus(active bool) {
 		}
 		text += "\n\n"
 		if focused {
+			var hints []string
 			if card.keys != "" {
-				text += tag(colDim) + card.keys + " · " + tagEnd
+				hints = append(hints, card.keys)
 			}
 			if card.binary != "" {
-				text += tag(colDim) + "e toggle · " + tagEnd
+				hints = append(hints, "e toggle")
 			}
-			text += tag(colDim) + "c check" + tagEnd
+			text += litHint(strings.Join(append(hints, "c check"), " · "))
 		}
 		card.view.SetText(text)
 	}

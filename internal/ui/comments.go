@@ -48,8 +48,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	box(view.Box, title).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	footer.SetText(" " + tag(colDim) +
-		"i  write a comment   ·   A  approve   ·   r  reload" + tagEnd)
+	footer.SetText(" " + litHint("i write a comment · A approve · r reload"))
 
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(view, 0, 1, true).

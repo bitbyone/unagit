@@ -96,7 +96,7 @@ func (a *App) newPane(title string) *pane {
 	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth, listWeight: 1, detailWeight: 1}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
-	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
+	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(litHint("? help")).SetTextAlign(tview.AlignRight)
 	p.headerRow = newStatusLine(p.header, p.helpHint)
 
 	p.filter = filterField(tview.NewInputField())

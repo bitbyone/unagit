@@ -56,9 +56,10 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 					line.WriteRune(cell.Runes[0])
 				}
 				if len(cell.Runes) > 0 && cell.Runes[0] != ' ' {
+					// The keys are lit, what they do is quiet: nothing else.
 					fg, _, _ := cell.Style.Decompose()
-					if fg != colDim {
-						t.Errorf("section %d panel %d: hint is not dim", section, i)
+					if fg.Hex() != colDim.Hex() && fg.Hex() != role("hint.key").Hex() {
+						t.Errorf("section %d panel %d: hint %q is neither quiet nor a key", section, i, string(cell.Runes[0]))
 					}
 				}
 			}

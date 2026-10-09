@@ -340,3 +340,35 @@ func TestTheFirstVisitLightsTheList(t *testing.T) {
 		})
 	})
 }
+
+// TestWatchingSumsUpWhatIsFollowedAndOpen: the panel counts the watched
+// merge requests and branches, the agents and the editors open, in the
+// middle of its height, and names no key its title does not.
+func TestWatchingSumsUpWhatIsFollowedAndOpen(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := activityFixture(t)
+	resizeApp(a, sc, 150, 42)
+	waitFor(t, a, sc, "3 editors open")
+	text := a.screenText(sc)
+	for _, want := range []string{"2 merge requests", "1 repository branch", "3 editors open"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("Watching does not say %q", want)
+		}
+	}
+	if strings.Contains(text, "all of them") {
+		t.Error("Watching names its key again")
+	}
+	// With one line left - the editors closed, the agents none - it stands
+	// in the middle of the four.
+	onLoop(a, func() bool {
+		a.watches = a.watches[:1]
+		a.editorsOpen = nil
+		a.activityPane.reload()
+		return true
+	})
+	waitGone(t, a, sc, "editors open")
+	lines := strings.Split(onLoop(a, func() string { return a.activity.watching.GetText(true) }), "\n")
+	if len(lines) != 2 || strings.TrimSpace(lines[0]) != "" || !strings.Contains(lines[1], "1 merge request") {
+		t.Errorf("one line is not in the middle of four: %q", lines)
+	}
+}

@@ -137,13 +137,18 @@ func assertMutedHint(t *testing.T, a *App, sc tcell.SimulationScreen, hint strin
 			if !matches {
 				continue
 			}
+			// The key is lit, what it does is quiet.
+			key, _, _ := strings.Cut(hint, " ")
 			for i, r := range needle {
 				if r == ' ' {
 					continue
 				}
-				fg, _, _ := cells[y*width+x+i].Style.Decompose()
-				if fg != colDim {
-					t.Fatalf("hint %q is not dim: %v", hint, fg)
+				want := colDim
+				if i < len([]rune(key)) {
+					want = onLoop(a, func() tcell.Color { return role("hint.key") })
+				}
+				if fg, _, _ := cells[y*width+x+i].Style.Decompose(); fg.Hex() != want.Hex() {
+					t.Fatalf("hint %q: %q is %v, want %v", hint, string(r), fg, want)
 				}
 			}
 			return

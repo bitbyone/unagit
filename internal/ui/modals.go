@@ -457,12 +457,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		hint := ""
 		if len(hints) > 0 {
-			hint = "   " + strings.Join(hints, " · ")
+			hint = "   " + litHint(strings.Join(hints, " · "))
 		}
-		return " " + tag(colMuted) + "NORMAL" + tagEnd + tag(colDim) + hint + tagEnd
+		return " " + tag(colMuted) + "NORMAL" + tagEnd + hint
 	}
 	filterHint := func() {
-		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + tag(colDim) + "   Enter select" + tagEnd)
+		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + "   " + litHint("Enter select"))
 	}
 	if opts.filter {
 		typed = func() {
@@ -960,12 +960,61 @@ type confirmationHint struct {
 func (m *confirmationHint) Draw(screen tcell.Screen) {
 	m.Modal.Draw(screen)
 	x, y, w, h := m.GetRect()
-	tview.Print(screen, m.hint, x+2, y+h-2, max(0, w-4), tview.AlignCenter, colDim)
+	tview.Print(screen, litHint(m.hint), x+2, y+h-2, max(0, w-4), tview.AlignCenter, colDim)
 }
 
 // Forms keep their hints outside the scrollable fields and button row.
 func (a *App) hintForm(form *tview.Form) {
 	hintPanel(form.Box, func() string { return a.formButtonHint(form) }, 1, 1, 2, 2)
+}
+
+// litHint writes a hint - "Enter open · x stop · z log in front" - with
+// each key in the keys' colour and what it does in the quiet one, so the
+// keys are found at a glance. Every hint goes through it; a part that does
+// not start with a key - a state, a note - stays quiet whole.
+func litHint(text string) string {
+	parts := strings.Split(text, "·")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, litHintPart(part))
+		}
+	}
+	return strings.Join(out, tag(colDim)+" · "+tagEnd)
+}
+
+// litHintPart is one part of a hint: its key lit, and the key after a
+// ", then " - "Esc stop typing, then s save" - lit too.
+func litHintPart(part string) string {
+	before, after, then := strings.Cut(part, ", then ")
+	key, rest, _ := strings.Cut(before, " ")
+	lit := tag(colDim) + esc(before) + tagEnd
+	if hintKey(key) {
+		lit = tag(role("hint.key")) + esc(key) + tagEnd
+		if rest = strings.TrimSpace(rest); rest != "" {
+			lit += " " + tag(colDim) + esc(rest) + tagEnd
+		}
+	}
+	if then {
+		lit += tag(colDim) + ", then " + tagEnd + litHintPart(after)
+	}
+	return lit
+}
+
+// hintKey reports whether a hint's word is a key: a letter or a sign, a
+// named key, or one held with Ctrl, Alt or Shift.
+func hintKey(word string) bool {
+	switch {
+	case len([]rune(word)) == 1:
+		return true
+	case strings.HasPrefix(word, "Ctrl-"), strings.HasPrefix(word, "Alt-"), strings.HasPrefix(word, "Shift-"):
+		return true
+	}
+	switch word {
+	case "Enter", "Esc", "Tab", "Space", "Backspace", "Del", "PgUp", "PgDn":
+		return true
+	}
+	return false
 }
 
 // Reserve space inside the border so scrolling content cannot overwrite hints.
@@ -974,7 +1023,7 @@ func hintPanel(panel *tview.Box, hint func() string, top, bottom, left, right in
 		width := max(0, w-2-left-right)
 		lines := tview.WordWrap(hint(), max(1, width))
 		for i, line := range lines {
-			tview.Print(screen, line, x+1+left, y+h-1-len(lines)+i, width, tview.AlignLeft, colDim)
+			tview.Print(screen, litHint(line), x+1+left, y+h-1-len(lines)+i, width, tview.AlignLeft, colDim)
 		}
 		return x + 1 + left, y + 1 + top, width, max(0, h-2-top-bottom-len(lines))
 	})

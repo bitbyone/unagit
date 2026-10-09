@@ -136,7 +136,7 @@ func (a *App) switchTab(page string) {
 	a.drawTabs()
 	if a.helpHint != nil {
 		if page == pageSettings {
-			a.helpHint.SetText(tag(colDim) + "? help" + tagEnd)
+			a.helpHint.SetText(litHint("? help"))
 		} else {
 			a.helpHint.SetText("")
 		}

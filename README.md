@@ -735,8 +735,9 @@ on one screen:
 
 - **Open** - the editors open, as cards: `e` goes to them, `h`/`l` between
   them, `Enter` back into one.
-- **Watching** - how many merge requests and branches are watched; `W`,
-  from any screen, lists every watch, `x` there stops one and `X` all.
+- **Watching** - how many merge requests and branches are watched, how
+  many agents run and editors are open; `W`, from any screen, lists every
+  watch, `x` there stops one and `X` all.
 - **The list** - the watches and the agents in sections: *needs you* (a
   pipeline failed or waiting for a hand, news that wants a look, an agent
   waiting for an answer), *under way*, *quiet*. A bar at a row's edge is a

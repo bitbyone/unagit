@@ -244,7 +244,7 @@ func (v *activityView) layout(h int) {
 	a := v.app
 	rows := h - 2
 	band := 0
-	if len(a.editorsOpen) > 0 || len(a.watches) > 0 {
+	if len(a.editorsOpen) > 0 || len(a.watches) > 0 || len(a.agentRows) > 0 {
 		band = 6
 		if h < activityTall {
 			band = 3
@@ -592,28 +592,49 @@ func (v *activityView) showDetail(it activityItem, focus bool) {
 	}
 }
 
-// drawBand fills the cards and the Watching panel.
+// drawBand fills the Watching panel: how much is followed and open, each
+// on a line of its own, the lines in the middle of the panel's height -
+// as many as fit, from its top once they fill it. On one line where the
+// band is folded. Its key is in its title and Enter is its one action, so
+// it says neither.
 func (v *activityView) drawBand() {
 	a := v.app
-	counts := a.watchCounts()
-	var b strings.Builder
+	type count struct {
+		n           int
+		one, many   string
+		glyph, role string
+	}
+	mrs, branches := 0, 0
+	for _, w := range a.watches {
+		if w.IID > 0 {
+			mrs++
+		} else {
+			branches++
+		}
+	}
+	all := []count{
+		{mrs, "merge request", "merge requests", glyphWatched, "activity.watching"},
+		{branches, "repository branch", "repository branches", glyphWatched, "activity.watching"},
+		{len(a.agentRows), "agent", "agents", glyphAgent, "mark.agent"},
+		{len(a.editorsOpen), "editor open", "editors open", glyphEditor, "mark.editor"},
+	}
+	var lines, short []string
+	for _, c := range all {
+		if c.n == 0 {
+			continue
+		}
+		lines = append(lines, tag(role(c.role))+c.glyph+tagEnd+" "+fmt.Sprintf("%d %s", c.n, plural(c.n, c.one, c.many)))
+		short = append(short, fmt.Sprintf("%d %s", c.n, strings.Fields(plural(c.n, c.one, c.many))[0]))
+	}
 	switch {
-	case len(counts) == 0:
-		b.WriteString(tag(colMuted) + "Nothing watched." + tagEnd)
+	case len(lines) == 0:
+		lines = []string{tag(colMuted) + "Nothing watched or open." + tagEnd}
 	case v.cards.compact:
-		b.WriteString(tag(role("activity.watching")) + glyphWatched + tagEnd + " " + tag(role("activity.what")) + esc(strings.Join(a.watchCountsShort(), " · ")) + tagEnd)
-	default:
-		for _, c := range counts {
-			b.WriteString(tag(role("activity.watching")) + glyphWatched + tagEnd + " " + esc(c) + "\n")
-		}
+		lines = []string{esc(strings.Join(short, " · "))}
 	}
-	if !v.cards.compact {
-		for range 2 - min(2, len(counts)) {
-			b.WriteString("\n")
-		}
-		b.WriteString(tag(role("activity.key")) + "W" + tagEnd + tag(colMuted) + " all of them…" + tagEnd)
-	}
-	v.watching.SetText(b.String())
+	inner := max(1, v.bandH-2)
+	text := strings.Repeat("\n", max(0, (inner-len(lines))/2)) + strings.Join(lines, "\n")
+	v.watching.SetText(text)
 }
 
 // drawLog fills the log: every event, newest first, the line of the last
@@ -1104,10 +1125,8 @@ func (a *App) visitActivity() {
 // what can be done there, never how to move.
 func (v *activityView) hint() (tview.Primitive, string) {
 	p := v.pane
-	key := func(k, what string) string {
-		return tag(role("activity.key")) + k + tagEnd + " " + tag(colDim) + what + tagEnd
-	}
-	join := func(parts ...string) string { return strings.Join(parts, tag(colDim)+" · "+tagEnd) }
+	key := func(k, what string) string { return k + " " + what }
+	join := func(parts ...string) string { return strings.Join(parts, " · ") }
 	switch {
 	case p.table.HasFocus():
 		return p.table, join(key("Enter", "open"), key("x", "stop or close"), key("z", "log in front"), key("Tab", "panels"))
@@ -1141,7 +1160,7 @@ func (a *App) drawActivityHint(screen tcell.Screen) {
 	if w < 12 || h < 2 {
 		return
 	}
-	text = " " + text + " "
+	text = " " + litHint(text) + " "
 	tview.Print(screen, "["+":"+colBackground.String()+"]"+text, x+2, y+h-1, w-4, tview.AlignLeft, colDim)
 }
 

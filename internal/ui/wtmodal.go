@@ -171,7 +171,7 @@ func (a *App) readWorktreeFacts() {
 func (a *App) renderWorktreeView() {
 	v := a.wtView
 	v.body.lit = v.at
-	v.footer.SetText(worktreeViewHint(v.lit()))
+	v.footer.SetText(litHint(worktreeViewHint(v.lit())))
 	if !v.loaded {
 		v.body.blocks = nil
 		return

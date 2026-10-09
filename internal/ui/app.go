@@ -527,7 +527,7 @@ func (a *App) buildInterface() tview.Primitive {
 	a.pages = tview.NewPages()
 	a.tabs = tview.NewTextView().SetDynamicColors(true)
 	a.status = tview.NewTextView().SetDynamicColors(true)
-	a.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
+	a.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(litHint("? help")).SetTextAlign(tview.AlignRight)
 
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()

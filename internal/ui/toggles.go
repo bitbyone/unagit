@@ -95,7 +95,7 @@ func (a *App) showToggles(t toggles) {
 		if t.status != nil {
 			status = " · " + t.status()
 		}
-		footer.SetText(fmt.Sprintf(" %s%s%s%s", tag(colDim), keys, tagEnd, status))
+		footer.SetText(" " + litHint(keys) + status)
 	}
 
 	var shown []toggleItem
