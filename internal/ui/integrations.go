@@ -105,7 +105,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Zellij"] = &integrationCard{
 		name: "Zellij", command: "zellij",
-		description: "When unagit runs in Zellij, editors and agents open in a new Zellij tab or in a split beside unagit.",
+		description: "When unagit runs in Zellij, editors and agents can also be opened in a new Zellij tab or in a split beside unagit.",
 		enabled:     s.app.zellijOn,
 		toggle: func() {
 			on := !s.app.zellijOn()
@@ -115,7 +115,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Herdr"] = &integrationCard{
 		name: "Herdr", command: "herdr",
-		description: "Starts coding agents in a herdr workspace, where herdr reports what each is doing. When unagit runs in herdr, editors open in its tabs and splits.",
+		description: "Coding agents can be started in a herdr workspace, where herdr reports what each is doing. When unagit runs in herdr, editors can also be opened in its tabs and splits.",
 		enabled:     s.app.herdrOn,
 		toggle: func() {
 			on := !s.app.herdrOn()
@@ -125,7 +125,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Ghostty"] = &integrationCard{
 		name: "Ghostty", command: "ghostty",
-		description: "Opens editors and agents in a new Ghostty window or tab, or in a split beside unagit when it runs in Ghostty. macOS asks once for permission.",
+		description: "Editors and agents can also be opened in a new Ghostty window or tab, or in a split beside unagit when it runs in Ghostty. macOS asks once for permission.",
 		enabled:     s.app.ghosttyOn,
 		toggle: func() {
 			on := !s.app.ghosttyOn()
@@ -139,7 +139,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		ag := ag
 		agentCards = append(agentCards, &integrationCard{
 			name: ag.Name, command: ag.Command,
-			description: "Open with " + ag.Name + "… starts " + ag.Name + " in the selected repository, merge request or worktree, in this terminal or in a new tab, split or window.",
+			description: "Open with " + ag.Name + "… starts " + ag.Name + " in the selected repository, merge request or worktree: in this terminal, or wherever else it can be opened.",
 			enabled:     func() bool { return s.app.agentOn(ag) },
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
 		})
