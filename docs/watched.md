@@ -358,4 +358,9 @@ Still to do:
 - The other sections of "Later sections": a watch on a query (asked to
   review), releases and tags.
 - A dashboard: the activity and the pipelines of what is watched read
-  better than as one row each.
+  better than as one row each. Chosen (2026-10-09): tiles in columns by
+  what each wants - FAILED, RUNNING, WAITING (a manual job, a review),
+  DONE - each tile the thing, its title, its pipeline and its latest news,
+  mixed with a detail of the tile chosen (who, the stages, the activity as
+  a timeline). The layout is still to be designed with the user; the
+  timeline wants more than the 50 newest events state.json keeps for all.
