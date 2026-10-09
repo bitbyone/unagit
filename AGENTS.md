@@ -153,7 +153,10 @@ select (`styleDropDown`), it just was not reused. The rules:
 In `internal/ui`: `app.go` holds the `App` and the refresh fan-out, `pane.go`
 the table+filter+detail widget both lists are made of, `projects.go` / `mrs.go`
 their contents, `detail.go` the right-hand column, `agents.go` / `agents_tab.go` the coding
-agents, `activity.go` / `activity_screen.go` the Activity screen - the watches and the agents, the editors open, the histories ([docs/activity.md](docs/activity.md)) - `settings.go` the whole
+agents, `changes.go` the Changes dialog and `diffdraw.go` the diff it draws (chroma
+for the code, the theme's `diff.*` and `syntax.*` roles for the colours),
+`commit.go` the commit dialog,
+`activity.go` / `activity_screen.go` the Activity screen - the watches and the agents, the editors open, the histories ([docs/activity.md](docs/activity.md)) - `settings.go` the whole
 configuration UI, `comments.go` the conversation, `watch.go` / `watched.go` the
 watches' follower and what is done with a watch, `filters.go` the shared
 filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
@@ -344,8 +347,12 @@ copy as last fetched (`UpstreamTip`) as the lease. Nothing else forces.
 **Commits are IntelliJ's, not git's.** A file is versioned or unversioned;
 a change to a versioned file is committed as it is on disk, staged or not
 (`CommitVersioned`, `commit --all`), and an unversioned one only when it is
-chosen. Nothing in unagit stages, and no count or dialog speaks of the
-index. EDITS reads `versioned/unversioned`. A review worktree is never
+chosen in the Changes dialog (`CommitPaths`: `commit --only` of exactly
+those paths, the unversioned added first and taken back if the commit
+fails). Nothing in unagit stages, and no count or dialog speaks of the
+index. Rollback (`Rollback`) never deletes: an added file becomes
+unversioned again; only `DeleteUnversioned` deletes, and it refuses a
+versioned file. EDITS reads `versioned/unversioned`. A review worktree is never
 committed: its HEAD is the merge base on purpose. Rewriting a commit
 (`RewordCommit`) is for commits no remote has (`LocalCommits`).
 

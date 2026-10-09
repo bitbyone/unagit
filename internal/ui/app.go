@@ -219,10 +219,12 @@ type App struct {
 	// The Activity screen (activity.go): its list, the rest of it, the
 	// rows as last laid out, the histories as last read, and when the
 	// screen was visited before this visit.
-	activityPane  *pane
-	activity      *activityView
-	activityRows  []activityItem
-	activityLog   []watch.Event
+	activityPane *pane
+	activity     *activityView
+	activityRows []activityItem
+	activityLog  []watch.Event
+	// changes is the Changes dialog while it is open.
+	changes       *changesView
 	activitySince time.Time
 	// activityLeft is when the screen was last left: what came before it
 	// was seen there, whatever the last visit began with.
@@ -664,7 +666,7 @@ func (a *App) closeModal(page string) {
 func isModalPage(name string) bool {
 	switch name {
 	case pageTask, pageConfirm, pageHelp, pagePicker, pageActions, pageUnlock, pageForm, pageComments, pageToggles, pageWorktree,
-		pageMessage, pageCommit:
+		pageMessage, pageCommit, pageChanges:
 		return true
 	}
 	return false

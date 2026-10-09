@@ -92,6 +92,7 @@ func actionLists(a *App) map[string][]uiAction {
 			"grouped worktree":  append(a.worktreeListActions(a.worktreesPane, group), a.worktreesActions(a.worktreesPane)...),
 			"a view's member":   append(a.worktreeViewActions(v), a.worktreeViewScreenActions()...),
 			"marked repository": a.markedRepositoryActions(a.projectsPane, a.projects),
+			"changes":           append(a.changesActions(&changesView{}), a.globalActions()...),
 		}
 		s := a.settings
 		was := s.current

@@ -144,6 +144,23 @@ all and live only there.
   pushed yet) or **Commit and Force Push** (`f`: origin's copy is replaced,
   but only what was last fetched of it). `P` pushes the commits the clone
   has and origin lacks, without committing. Every push asks first.
+- `Ctrl-K` opens **Changes**, IntelliJ's commit window: on the left the
+  files not committed in two groups - *Changes*, the versioned ones, and
+  *Unversioned Files* - each name in the colour of what happened to it
+  (changed blue, added green, deleted grey, unversioned red-brown); on the
+  right the diff of the file under the cursor, only the places that
+  changed with the old and new line numbers, added lines on green, deleted
+  on red, the code coloured by its language. `space` picks a file - or a
+  whole group on its heading - for the commit, `a` all or none; the
+  versioned files start picked, the unversioned not. `c` opens the commit
+  dialog with the picked files, an unversioned one added on the way. `u`
+  rolls changes back to the last commit and `d` deletes unversioned files,
+  each after asking: on the picked files when the cursor is on one of them,
+  on the file under the cursor otherwise. A rolled back added file stays
+  on disk, unversioned; an unversioned file is never rolled back, only
+  deleted. `Tab` goes into the diff to scroll it. The same dialog opens on
+  a worktree, a repository of a group's view, and a merge request's branch
+  worktree - never on a review, whose changes are the merge request's.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
   rebase of your commits and uncommitted edits onto origin when there is. If
   that would conflict - your edits touch a file origin changed, or your commits
@@ -1096,6 +1113,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `c` `P` | in Repositories and Worktrees: commit the versioned files, push with it if you like · push, asking first |
+| `Ctrl-K` | the changes: files not committed and their diffs; `space` picks, `c` commits, `u` rolls back, `d` deletes |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
 | `n` | in branches: a new branch from the one under the cursor |

@@ -63,6 +63,26 @@ var colourRoles = []colourRole{
 	// A file not committed, by what git knows of it.
 	{"files.changed", "ci.running", "a versioned file with changes not committed, and how many"},
 	{"files.unversioned", "state.bad", "a file git does not track yet, and how many"},
+	{"files.added", "state.good", "a file added since the last commit"},
+	{"files.deleted", "text.dim", "a file deleted since the last commit"},
+	{"files.renamed", "files.changed", "a file moved since the last commit"},
+	{"files.conflicted", "state.bad", "a file git stopped on in a merge or a rebase"},
+	{"files.folder", "text.dim", "the folder after a file's name"},
+	// A file's diff in the Changes dialog. Unless a theme names them, the
+	// fills are the success and the danger toasts' (diffRoles).
+	{"diff.added", "state.good", "the mark of a line added"},
+	{"diff.deleted", "state.bad", "the mark of a line deleted"},
+	{"diff.added_fill", "surface.raised", "the background of a line added"},
+	{"diff.deleted_fill", "surface.raised", "the background of a line deleted"},
+	{"diff.hunk", "text.dim", "where a part of a diff begins"},
+	{"diff.line_number", "text.dim", "a line's number beside it"},
+	// Code in a diff, by what each word of it is.
+	{"syntax.keyword", "text.key", "a keyword of the language"},
+	{"syntax.string", "state.good", "a string"},
+	{"syntax.comment", "text.dim", "a comment"},
+	{"syntax.number", "text.accent", "a number"},
+	{"syntax.function", "text.branch", "a function's name"},
+	{"syntax.type", "text.accent", "a type's name"},
 
 	// The list of starred repositories.
 	{"starred.description", "text.muted", "what a starred repository says it is"},
@@ -209,7 +229,8 @@ func init() {
 
 // activityRoles works out the Activity screen's colours a theme does not
 // name: what is under way in the info toast's blue, what needs you in the
-// danger toast's colours. It runs after toastRoles.
+// danger toast's colours - and a diff's lines in the success and danger
+// toasts' fills. It runs after toastRoles.
 func activityRoles(t Theme, roles map[string]tcell.Color) {
 	derived := map[string]tcell.Color{
 		"activity.needs":          roles["toast.danger.border"],
@@ -217,6 +238,8 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"activity.under_way":      roles["toast.info.border"],
 		"activity.under_way_fill": roles["toast.info.background"],
 		"tabs.new":                roles["toast.info.border"],
+		"diff.added_fill":         roles["toast.success.background"],
+		"diff.deleted_fill":       roles["toast.danger.background"],
 		"activity.lit":            shade(colour(t.Background), 0.035),
 	}
 	for key, c := range derived {

@@ -78,6 +78,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
 		{name: "Pull", about: "Fetch origin and fast-forward the clone's branch when nothing local is in the way.", keys: "p", rank: 30, when: cloned, run: func() { a.updateProject(pr) }},
 		{name: "Commit…", about: "Commit the clone's changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: "c", rank: 32, when: cloned, run: func() { a.commitProject(pr) }},
+		{name: "Changes…", about: "The files not committed and their diffs: pick some to commit, roll changes back, delete unversioned files.", keys: "Ctrl-K", rank: 31, when: cloned, run: func() { a.showProjectChanges(pr) }},
 		{name: "Push", about: "Push the clone's branch to origin once it has commits origin lacks; asks first.", keys: "P", rank: 33, when: cloned, run: func() { a.pushProject(pr) }},
 		{name: "Show Merge Requests", about: "Switch to Merge requests, narrowed to this repository.", keys: "m", rank: 40, run: func() {
 			a.mrProjectScope = key
@@ -211,6 +212,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		}},
 		{name: "Open With…", about: "Choose the editor, then open the worktree of the source branch here.", keys: "Alt-O", rank: 55, run: func() { p.onOpen(true) }},
 		{name: "Pull Branch", about: "Fetch and fast-forward the branch worktree to the source branch.", keys: "p", rank: 60, run: func() { a.updateMR(mr) }},
+		{name: "Changes…", about: "The branch worktree's files not committed and their diffs: pick some to commit, roll back, delete.", keys: "Ctrl-K", rank: 61, run: func() { a.showMRChanges(mr) }},
 		{name: "Prepare Review", about: "Make the review worktree without starting an editor.", keys: "C", rank: 65, run: func() { a.cloneMRReview(mr) }},
 		{name: "Show Changes", about: "Show the whole merge request in Hunk, making its review first when nothing is on disk; one commit is the commit log's.", keys: "D", rank: 70, run: func() { a.diffMR(mr) }},
 		{name: "Copy…", about: "Copy the web link, the !reference or the source branch to the clipboard.", keys: "y", rank: 80, run: func() { a.yankMR(mr) }},
@@ -264,6 +266,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,
 			when: func() bool { return r.Branch == "(detached)" }, run: func() { a.backToBranch(a.worktreeProject(r), r.Dir) }},
 		{name: "Pull", about: "Bring the branch up to origin; a branch not yet pushed is rebased onto its base.", keys: "p", rank: 20, run: func() { a.updateWorktree(r) }},
+		{name: "Changes…", about: "The files not committed and their diffs: pick some to commit, roll changes back, delete unversioned files.", keys: "Ctrl-K", rank: 24, run: func() { a.showWorktreeChanges(r) }},
 		{name: "Commit…", about: "Commit the changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: commitKey, rank: 25, run: func() { a.commitWorktree(r) }},
 		{name: "Push", about: "Push the branch to origin, setting up its upstream the first time; asks first.", keys: "P", rank: 30, run: func() {
 			if r.grouped() {

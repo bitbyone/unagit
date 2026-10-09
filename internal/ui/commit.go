@@ -23,6 +23,9 @@ type commitTarget struct {
 	instance, path, dir string
 	name                string // its folder in a group, or its repository
 	edits               int    // its versioned files with changes
+	// changes are the files picked in the Changes dialog; nil commits
+	// every versioned file.
+	changes []gitx.Change
 }
 
 // commitWorktree commits a worktree, or every repository of a grouped one.
@@ -211,7 +214,14 @@ func (a *App) runCommit(title string, targets []commitTarget, messages []string,
 		var done, failed []string
 		var committed []commitTarget
 		for i, t := range targets {
-			sha, err := a.newManager(t.instance, t.path, log).Git().CommitVersioned(t.dir, messages[i])
+			git := a.newManager(t.instance, t.path, log).Git()
+			var sha string
+			var err error
+			if t.changes != nil {
+				sha, err = git.CommitPaths(t.dir, messages[i], t.changes)
+			} else {
+				sha, err = git.CommitVersioned(t.dir, messages[i])
+			}
 			switch {
 			case err != nil:
 				failed = append(failed, t.name+": "+firstLine(err.Error()))
@@ -245,6 +255,7 @@ func (a *App) runCommit(title string, targets []commitTarget, messages []string,
 // afterGitChange reads the working trees again after a commit or a push,
 // so the lists show where they stand now.
 func (a *App) afterGitChange() {
+	a.reloadChanges()
 	a.refreshDisk()
 	if a.projectsPane != nil && a.projectsPane.reload != nil {
 		a.projectsPane.reload()
