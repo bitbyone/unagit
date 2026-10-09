@@ -57,6 +57,29 @@ func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool, en
 	}()
 }
 
+// fetchMRQuietly is fetchMR for what follows the background - a watched
+// merge request that changed - which says nothing, a failure included:
+// the next change or refresh asks again.
+func (a *App) fetchMRQuietly(client forge.Provider, mr forge.MergeRequest) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		det, err := client.MergeRequestDetail(ctx, mr)
+		if err != nil {
+			return
+		}
+		fresh := []forge.MergeRequest{withDetail(mr, det)}
+		mrExtras(ctx, fresh, []int{0}, map[string]forge.Provider{mr.Instance: client}, nil)
+		a.tv.QueueUpdateDraw(func() {
+			// Only an open one comes in quietly; one merged or closed goes
+			// with the next refresh, which tidies its worktrees.
+			if fresh[0].State == "" || fresh[0].State == "opened" || fresh[0].State == "open" {
+				a.applyMRRefresh(fresh[0], false)
+			}
+		})
+	}()
+}
+
 // applyMRRefresh puts one merge request as the server now has it into the
 // list, or takes it out when it is no longer open.
 func (a *App) applyMRRefresh(fresh forge.MergeRequest, say bool) {

@@ -87,7 +87,7 @@ so how much is followed can be seen without counting rows.
   its kind, the thing, its title, since when it is watched, its state
   now. `x` stops watching the row under the cursor (Space marks several,
   `x` then stops them all, after a confirmation), Enter goes to the thing
-  in the list, `o` opens it in the browser.
+  in the list, `w` opens it in the browser.
 - The action is the panel's own when the panel is focused (Tab reaches
   it, Enter runs it), and global too - from any tab, `:` lists it - since
   "what am I watching" is asked from anywhere. Its key is still to be

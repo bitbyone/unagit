@@ -35,6 +35,8 @@ type watchServer struct {
 	comments  int
 	approvers []string
 	commits   int
+	// assignee, when set, is whom the merge request is assigned to.
+	assignee string
 	// remaining, when set, is what the rate limit headers say is left of
 	// a hundred, resetting in ten minutes.
 	remaining int
@@ -60,9 +62,14 @@ func newWatchServer(t *testing.T) *watchServer {
 		s.details.Add(1)
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		assignees := "[]"
+		if s.assignee != "" {
+			assignees = fmt.Sprintf(`[{"username":%q,"name":%q}]`, s.assignee, s.assignee+" Doe")
+		}
 		json(w, fmt.Sprintf(`{"iid":7,"title":"Rate limiting","state":%q,"sha":%q,"source_branch":"feat/rate",
-			"target_branch":"main","project_id":1,"user_notes_count":%d,"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`,
-			s.state, s.sha, s.comments))
+			"target_branch":"main","project_id":1,"user_notes_count":%d,"web_url":"https://gl.test/acme/gateway/-/merge_requests/7",
+			"assignees":%s}`,
+			s.state, s.sha, s.comments, assignees))
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approvals", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -365,6 +372,10 @@ func TestPipelineChanges(t *testing.T) {
 		st.Head, st.Commits, st.Comments, st.Approvers, st.Known = head, commits, comments, approvers, true
 		return st
 	}
+	meta := func(st watch.State, assignees, reviewers, labels []string, title string, draft bool) watch.State {
+		st.Assignees, st.Reviewers, st.Labels, st.Title, st.Draft, st.Meta = assignees, reviewers, labels, title, draft, true
+		return st
+	}
 	jobs := func(st watch.State, again bool, js ...watch.JobState) watch.State {
 		st.Jobs, st.Again = js, again
 		return st
@@ -409,6 +420,15 @@ func TestPipelineChanges(t *testing.T) {
 			"Manual job started: deploy in pipeline #1 of !42 was started by Jane Doe, by hand (info)"},
 		{"the job run by hand passed", byHand, doneAgain, true, "",
 			"Job passed: deploy in pipeline #1 of !42 passed · the pipeline has passed (success)"},
+		{"the first reading of who it is for is no news", active(running, "a1", 3, 0), meta(active(running, "a1", 3, 0), []string{"Jane"}, nil, nil, "T", false), true, "", ""},
+		{"assigned to another", meta(active(running, "a1", 3, 0), []string{"Jane"}, nil, nil, "T", false), meta(active(running, "a1", 3, 0), []string{"John"}, nil, nil, "T", false), true, "",
+			"Assignee changed: !42 was reassigned from Jane to John (info)"},
+		{"a reviewer asked and one let go", meta(active(running, "a1", 3, 0), nil, []string{"Ann"}, nil, "T", false), meta(active(running, "a1", 3, 0), nil, []string{"Bob"}, nil, "T", false), true, "",
+			"Reviewer added: !42 asks Bob for a review (info) | Reviewer removed: Ann no longer reviews !42 (info)"},
+		{"labelled", meta(active(running, "a1", 3, 0), nil, nil, []string{"bug"}, "T", false), meta(active(running, "a1", 3, 0), nil, nil, []string{"ready"}, "T", false), true, "",
+			"Labels changed: !42 is labelled ready, no longer bug (info)"},
+		{"retitled and ready", meta(active(running, "a1", 3, 0), nil, nil, nil, "Draft: T", true), meta(active(running, "a1", 3, 0), nil, nil, nil, "T", false), true, "",
+			"MR retitled: !42 is now \"T\" (info) | MR marked ready: !42 was marked ready (success)"},
 		{"a first run says the pipeline, not its jobs", firstRun, donePipeline, true, "", "Pipeline passed: Pipeline #1 of !42 passed (success)"},
 	}
 	for _, c := range cases {

@@ -618,6 +618,7 @@ func (a *App) applyWatchState(watches []watch.Watch, snap watch.Snapshot) {
 	if events := snap.After(a.watchShown); len(events) > 0 {
 		a.watchShown = snap.Seq
 		a.sayWatchEvents(events)
+		a.followWatchedRows(events)
 	}
 	if a.currentTab() == pageActivity {
 		a.markWatchesSeen()
@@ -716,6 +717,31 @@ func newsHeading(e watch.Event) (heading, about string) {
 		about += " · " + e.Title
 	}
 	return e.Heading, about
+}
+
+// followWatchedRows asks again about the merge requests in the list that a
+// change was found on - their assignees, labels, title - so the list says
+// what the news does, without waiting for a refresh.
+func (a *App) followWatchedRows(events []watch.Event) {
+	asked := map[string]bool{}
+	for _, e := range events {
+		if asked[e.Key] {
+			continue
+		}
+		asked[e.Key] = true
+		for _, w := range a.watches {
+			if w.Key() != e.Key || w.IID == 0 {
+				continue
+			}
+			for _, mr := range a.mrs {
+				if mr.Instance == w.Instance && mr.IID == w.IID && a.projectPathOfMR(mr) == w.Project {
+					if client := a.client(mr.Instance); client != nil {
+						a.fetchMRQuietly(client, mr)
+					}
+				}
+			}
+		}
+	}
 }
 
 // levelSeverity is an event's level as a message's severity.

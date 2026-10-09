@@ -33,7 +33,8 @@ func (c *Client) BranchExists(ctx context.Context, p forge.Project, branch strin
 }
 
 // Fingerprints asks GraphQL about every watch in one query: for a merge
-// request its state, head, comments, approvals and head pipeline, for a
+// request its state, title, draft, head, comments, approvals, assignees,
+// reviewers, labels and head pipeline, for a
 // branch its newest pipeline. Each watch's part of the answer, as it came,
 // is its fingerprint.
 func (c *Client) Fingerprints(ctx context.Context, refs []forge.WatchRef) ([]string, error) {
@@ -46,8 +47,9 @@ func (c *Client) Fingerprints(ctx context.Context, refs []forge.WatchRef) ([]str
 	for i, r := range refs {
 		path, _ := json.Marshal(r.Project.PathWithNamespace)
 		if r.IID > 0 {
-			fmt.Fprintf(&q, ` w%d: project(fullPath: %s) { mergeRequest(iid: "%d") { state diffHeadSha userNotesCount `+
-				`approvedBy { nodes { username } } headPipeline { id status } } }`, i, path, r.IID)
+			fmt.Fprintf(&q, ` w%d: project(fullPath: %s) { mergeRequest(iid: "%d") { state title draft diffHeadSha userNotesCount `+
+				`approvedBy { nodes { username } } assignees { nodes { username } } reviewers { nodes { username } } `+
+				`labels { nodes { title } } headPipeline { id status } } }`, i, path, r.IID)
 			continue
 		}
 		branch, _ := json.Marshal(r.Branch)

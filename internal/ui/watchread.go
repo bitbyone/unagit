@@ -319,6 +319,18 @@ func jobChanges(w watch.Watch, before, after watch.State, news func(watch.Level,
 // approved it. What cannot be read keeps what was read before.
 func readActivity(ctx context.Context, client forge.Provider, mr forge.MergeRequest, det *forge.MergeRequestDetail, before watch.State, st *watch.State) {
 	st.Head, st.Comments, st.Known = det.SHA, det.UserNotesCount, true
+	people := func(us []forge.User) []string {
+		out := []string{}
+		for _, u := range us {
+			out = append(out, cmp.Or(u.Name, u.Username))
+		}
+		return out
+	}
+	st.Assignees, st.Reviewers, st.Draft, st.Meta = people(det.Assignees), people(det.Reviewers), det.Draft, true
+	st.Labels = []string{}
+	for _, l := range det.Labels {
+		st.Labels = append(st.Labels, l.Name)
+	}
 	st.Commits, st.Approvers = before.Commits, before.Approvers
 	st.HeadBy, st.HeadTitle = before.HeadBy, before.HeadTitle
 	if st.Head != before.Head || !before.Known {
@@ -393,6 +405,11 @@ func watchChanges(w watch.Watch, before, after watch.State, known bool, ended st
 		case n > 1:
 			out = append(out, ev(watch.Info, "New comments in MR", fmt.Sprintf("%s has %d new comments", who, n)))
 		}
+		if before.Meta && after.Meta {
+			metaChanges(who, before, after, func(level watch.Level, heading, line string) {
+				out = append(out, ev(level, heading, line))
+			})
+		}
 		if added := missing(after.Approvers, before.Approvers); len(added) > 0 {
 			out = append(out, ev(watch.Success, "MR approved", who+" was approved by "+strings.Join(added, ", ")))
 		}
@@ -405,6 +422,54 @@ func watchChanges(w watch.Watch, before, after watch.State, known bool, ended st
 			who, after.Behind, plural(after.Behind, "commit", "commits"), after.Base)))
 	}
 	return append(out, pipelineChanges(w, before, after, known, "")...)
+}
+
+// metaChanges says what changed of who a merge request is for and what it
+// is called: its assignees and reviewers, its labels, its title, whether
+// it is a draft, handing each to say.
+func metaChanges(who string, before, after watch.State, say func(watch.Level, string, string)) {
+	names := func(xs []string) string {
+		if len(xs) > 2 {
+			return fmt.Sprintf("%s, %s and %d more", xs[0], xs[1], len(xs)-2)
+		}
+		return strings.Join(xs, " and ")
+	}
+	if added, gone := missing(after.Assignees, before.Assignees), missing(before.Assignees, after.Assignees); len(added)+len(gone) > 0 {
+		switch {
+		case len(added) > 0 && len(gone) > 0:
+			say(watch.Info, "Assignee changed", fmt.Sprintf("%s was reassigned from %s to %s", who, names(gone), names(added)))
+		case len(added) > 0:
+			say(watch.Info, "Assignee changed", fmt.Sprintf("%s is now assigned to %s", who, names(added)))
+		default:
+			say(watch.Info, "Assignee changed", fmt.Sprintf("%s is no longer assigned to %s", who, names(gone)))
+		}
+	}
+	if added := missing(after.Reviewers, before.Reviewers); len(added) > 0 {
+		say(watch.Info, "Reviewer added", fmt.Sprintf("%s asks %s for a review", who, names(added)))
+	}
+	if gone := missing(before.Reviewers, after.Reviewers); len(gone) > 0 {
+		say(watch.Info, "Reviewer removed", fmt.Sprintf("%s no longer reviews %s", names(gone), who))
+	}
+	if added, gone := missing(after.Labels, before.Labels), missing(before.Labels, after.Labels); len(added)+len(gone) > 0 {
+		var parts []string
+		if len(added) > 0 {
+			parts = append(parts, "labelled "+names(added))
+		}
+		if len(gone) > 0 {
+			parts = append(parts, "no longer "+names(gone))
+		}
+		say(watch.Info, "Labels changed", who+" is "+strings.Join(parts, ", "))
+	}
+	if after.Title != before.Title && before.Title != "" && after.Title != "" {
+		say(watch.Info, "MR retitled", fmt.Sprintf("%s is now %q", who, trunc(after.Title, headCommitMax)))
+	}
+	if after.Draft != before.Draft {
+		if after.Draft {
+			say(watch.Warning, "MR marked draft", who+" was marked a draft")
+		} else {
+			say(watch.Success, "MR marked ready", who+" was marked ready")
+		}
+	}
 }
 
 // newsOf makes a watch's events.

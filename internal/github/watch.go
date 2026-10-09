@@ -49,8 +49,10 @@ func (c *Client) Fingerprints(ctx context.Context, refs []forge.WatchRef) ([]str
 		o, _ := json.Marshal(owner)
 		n, _ := json.Marshal(name)
 		if r.IID > 0 {
-			fmt.Fprintf(&q, ` w%d: repository(owner: %s, name: %s) { pullRequest(number: %d) { state headRefOid `+
+			fmt.Fprintf(&q, ` w%d: repository(owner: %s, name: %s) { pullRequest(number: %d) { state title isDraft headRefOid `+
 				`comments { totalCount } reviewThreads { totalCount } reviews(states: APPROVED) { totalCount } `+
+				`assignees(first: 20) { nodes { login } } reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } `+
+				`labels(first: 30) { nodes { name } } `+
 				`commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`, i, o, n, r.IID)
 			continue
 		}

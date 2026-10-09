@@ -1091,7 +1091,7 @@ func (a *App) showWatches() {
 				}},
 			{keys: "X", hint: "stop all", name: "Stop Watching All…", about: "Let every watch go, after asking.",
 				run: func(pickItem) { a.stopWatchingAll(a.activityPane) }},
-			a.browserKey("o", "browser", "Open in Browser", "The merge request's page, or the pipeline's, on the forge; the list stays open.",
+			a.browserKey("w", "browser", "Open in Browser", "The merge request's page, or the pipeline's, on the forge; the list stays open.",
 				func(it pickItem) string {
 					st := a.watchSnap.States[it.Data.(watch.Watch).Key()]
 					if st.URL != "" {

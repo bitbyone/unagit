@@ -76,6 +76,37 @@ func TestAMergeRequestsActivityIsNews(t *testing.T) {
 	waitTrue(t, "the activity was not notified", func() bool { return notified.Load() >= 3 })
 }
 
+// TestWhomAMergeRequestIsForIsNews: an assignee changed on the server is
+// news, and the merge request's row in the list takes it without a
+// refresh.
+func TestWhomAMergeRequestIsForIsNews(t *testing.T) {
+	t.Parallel()
+	srv := newWatchServer(t)
+	cfg := writeTestConfig(t, srv.URL)
+	w := watchMR7(t, cfg)
+	var notified atomic.Int64
+	a, sc, _ := watchApp(t, cfg, &notified)
+	waitState(t, cfg, w.Key(), "running")
+	waitTrue(t, "who it is for was not read", func() bool {
+		snap, _ := watch.Open(cfg.WatchDir()).State()
+		return snap.States[w.Key()].Meta
+	})
+	srv.mu.Lock()
+	srv.assignee = "jane"
+	srv.mu.Unlock()
+	waitFor(t, a, sc, "is now assigned to jane Doe")
+	waitTrue(t, "the list's row did not take the assignee", func() bool {
+		return onLoop(a, func() bool {
+			for _, mr := range a.mrs {
+				if mr.IID == 7 && len(mr.Assignees) == 1 && mr.Assignees[0].Username == "jane" {
+					return true
+				}
+			}
+			return false
+		})
+	})
+}
+
 // TestAServerShortOfItsLimitIsLeftAlone: once the rate limit's headers say
 // little is left, the watches stop asking until it resets, and the row
 // says why.

@@ -119,6 +119,15 @@ type State struct {
 	Comments  int      `json:"comments,omitempty"`
 	Approvers []string `json:"approvers,omitempty"`
 	Known     bool     `json:"known,omitempty"`
+	// Assignees, Reviewers and Labels are a merge request's as last read,
+	// by name, and Draft whether it was one; Meta says they were read - an
+	// older state.json has none of them, and their first reading is no
+	// news.
+	Assignees []string `json:"assignees,omitempty"`
+	Reviewers []string `json:"reviewers,omitempty"`
+	Labels    []string `json:"labels,omitempty"`
+	Draft     bool     `json:"draft,omitempty"`
+	Meta      bool     `json:"meta,omitempty"`
 	// HeadBy and HeadTitle are the head commit's author and subject line.
 	HeadBy    string `json:"head_by,omitempty"`
 	HeadTitle string `json:"head_title,omitempty"`
