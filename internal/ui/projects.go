@@ -380,7 +380,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		switch {
 		case p.marks[idx]:
 			band = bandMarked
-		case len(open) > 0:
+		case len(open) > 0 || a.projectWatched(pr):
 			band = bandOpen
 		}
 		var fields []field

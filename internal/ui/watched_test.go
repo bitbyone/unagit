@@ -287,6 +287,12 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 		return false
 	})
 
+	// Watched, the row stands out as one with something open in it does -
+	// off the cursor, which paints its own band.
+	typeRunes(sc, "j")
+	open := onLoop(a, func() tcell.Color { return colOpen })
+	waitTrue(t, "the watched row is not tinted", func() bool { return rowBackground(a, sc, "Rate limiting").Hex() == open.Hex() })
+
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "acme/gateway !7")
 	waitFor(t, a, sc, "running")
@@ -297,6 +303,9 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 	if text := a.screenText(sc); strings.Contains(text, mark) {
 		t.Fatalf("the mark stayed after the watch went:\n%s", text)
+	}
+	if bg := rowBackground(a, sc, "Rate limiting"); bg.Hex() == open.Hex() {
+		t.Fatal("the row stayed tinted after the watch went")
 	}
 	if ws, _ := watch.Open(cfg.WatchDir()).Watches(); len(ws) != 0 {
 		t.Fatalf("watches.json still holds %+v", ws)
@@ -557,4 +566,26 @@ func tabBadge(a *App, sc tcell.SimulationScreen, badge string) bool {
 	line, _, _ := strings.Cut(a.screenText(sc), "\n")
 	_, after, ok := strings.Cut(line, "Activity")
 	return ok && strings.Contains(strings.Split(after, "Settings")[0], badge)
+}
+
+// rowBackground is the background under the first cell of text on screen.
+func rowBackground(a *App, sc tcell.SimulationScreen, text string) tcell.Color {
+	cells, width, height := onLoopCells(a, sc)
+	needle := []rune(text)
+	for y := 0; y < height; y++ {
+		for x := 0; x+len(needle) <= width; x++ {
+			match := true
+			for i, r := range needle {
+				if c := cells[y*width+x+i]; len(c.Runes) == 0 || c.Runes[0] != r {
+					match = false
+					break
+				}
+			}
+			if match {
+				_, bg, _ := cells[y*width+x].Style.Decompose()
+				return bg
+			}
+		}
+	}
+	return tcell.ColorDefault
 }

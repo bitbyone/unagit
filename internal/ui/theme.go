@@ -407,7 +407,7 @@ func pickerBackground(bg tcell.Color) tcell.Color {
 }
 
 // colOpen is the background of a row with something open in it - Neovim
-// or an agent - a step off the page's.
+// or an agent - or watched, a step off the page's.
 var colOpen tcell.Color
 
 // openRowBackground is the theme's background a twentieth of the way to

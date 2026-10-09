@@ -438,7 +438,9 @@ func (a *App) drawMRs(p *pane, filtered []int) {
 		switch {
 		case p.marks[idx]:
 			band = bandMarked
-		case len(open) > 0:
+		case len(open) > 0 || a.mrWatched(mr):
+			// Something open in it - Neovim, an agent - or watched: what
+			// is followed stands out of the list alike.
 			band = bandOpen
 		}
 		var fields []field

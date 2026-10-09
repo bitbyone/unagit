@@ -586,7 +586,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		cells = append(cells, field{text: humanAge(r.Moved), width: actW, colour: role("worktrees.activity")})
 		cell := tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1)
-		if len(open) > 0 {
+		if len(open) > 0 || a.worktreeWatched(r) {
 			bandOpen.paint(cell)
 		}
 		p.table.SetCell(row+1, 0, cell)
