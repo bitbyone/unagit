@@ -793,13 +793,7 @@ func (a *App) sendNotificationAs(mode, title, subtitle, body string) (string, er
 	term := notify.Detect(os.Getenv)
 	toTerminal, toSystem := notify.Route(mode, term, free, away)
 	if toTerminal {
-		line := body
-		if subtitle != "" {
-			// A terminal's notification has no line between; the title of
-			// what it is about follows what happened.
-			line += " · " + subtitle
-		}
-		seq := term.Sequence(title, line)
+		seq := term.SequenceAbout(title, subtitle, body)
 		a.tv.QueueUpdate(func() {
 			if q == nil || q.suspended.Load() {
 				return

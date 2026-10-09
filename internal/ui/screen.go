@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/notify"
 )
 
 // quietScreen is the terminal, kept from being drawn on while an editor has it.
@@ -51,7 +53,7 @@ func (s *quietScreen) Init() error {
 		return err
 	}
 	s.Screen.EnableFocus()
-	s.Screen.SetTitle("unagit")
+	s.Screen.SetTitle(notify.WindowTitle)
 	return nil
 }
 

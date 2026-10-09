@@ -137,6 +137,30 @@ func (t TerminalInfo) Sequence(title, body string) []byte {
 	return []byte(seq)
 }
 
+// WindowTitle is the title unagit gives its terminal window.
+const WindowTitle = "unagit"
+
+// SequenceAbout is Sequence with a line of what the news is about. Ghostty
+// shows the window's title between a notification's heading and its body,
+// so there the title is set to that line for the notification and back to
+// WindowTitle after it - the terminal reads the sequences in order. Where
+// the title is not shown, or under tmux, whose window it would name, the
+// line follows the body.
+func (t TerminalInfo) SequenceAbout(title, about, body string) []byte {
+	if about == "" {
+		return t.Sequence(title, body)
+	}
+	if t.Name != "Ghostty" || t.Tmux || t.Protocol != OSC777 {
+		return t.Sequence(title, body+" · "+about)
+	}
+	seq := t.Sequence(title, body)
+	if seq == nil {
+		return nil
+	}
+	name := func(s string) string { return "\x1b]2;" + clean(s) + "\x1b\\" }
+	return []byte(name(about) + string(seq) + name(WindowTitle))
+}
+
 // clean keeps what a sequence can carry: no control characters, which
 // would end it early or start another.
 func clean(s string) string {

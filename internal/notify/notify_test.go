@@ -1,6 +1,9 @@
 package notify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func env(vars map[string]string) func(string) string {
 	return func(k string) string { return vars[k] }
@@ -100,5 +103,26 @@ func TestAMultiplexerThatKeepsThemGoesToTheSystem(t *testing.T) {
 		if app := info.App(env(vars)); app != "Ghostty" {
 			t.Fatalf("%v: the terminal's application is %q", vars, app)
 		}
+	}
+}
+
+// TestWhatItIsAboutIsGhosttysTitleLine: Ghostty shows the window's title
+// under a notification's heading, so what the news is about goes there for
+// the notification and the title is put back after; elsewhere it follows
+// the body.
+func TestWhatItIsAboutIsGhosttysTitleLine(t *testing.T) {
+	ghostty := TerminalInfo{Name: "Ghostty", Protocol: OSC777}
+	got := string(ghostty.SequenceAbout("Pipeline failed", "acme/api · Rate limits", "Pipeline #8 of !42 failed"))
+	want := "\x1b]2;acme/api · Rate limits\x1b\\" + "\x1b]777;notify;Pipeline failed;Pipeline #8 of !42 failed\a" + "\x1b]2;unagit\x1b\\"
+	if got != want {
+		t.Fatalf("Ghostty got %q, want %q", got, want)
+	}
+	iterm := TerminalInfo{Name: "iTerm2", Protocol: OSC9}
+	if got := string(iterm.SequenceAbout("Pipeline failed", "acme/api", "failed")); got != "\x1b]9;Pipeline failed: failed · acme/api\a" {
+		t.Fatalf("iTerm2 got %q", got)
+	}
+	ghostty.Tmux = true
+	if got := string(ghostty.SequenceAbout("Pipeline failed", "acme/api", "failed")); strings.Contains(got, "]2;") {
+		t.Fatalf("under tmux the title was set: %q", got)
 	}
 }
