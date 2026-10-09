@@ -19,12 +19,12 @@ What it answers, top to bottom:
 
 ```
  [1] Repos │ [2] MRs │ [3] Worktrees │ [4] Activity ●3 │ [5] Settings
-╭ Open ─────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────┐               │
-│ │  nvim  unagit       │ │  nvim  incomm       │ │  idea  acme/api     │ │  +2  │               │
-│ │ wt-ci · fix/ci    3h │ │ main              1d │ │ review !341      20m │ │      │               │
-│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────┘               │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ Open ─────────────────────────────────────────────────────────────────────╮╭ Watching ──────────────╮
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ││  3 merge requests     │
+│ │  nvim  unagit       │ │  nvim  incomm       │ │  idea  acme/api     │ ││  2 branches' pipelines│
+│ │ wt-ci · fix/ci    3h │ │ main              1d │ │ review !341      20m │ ││                        │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ ││ Enter all of them…     │
+╰───────────────────────────────────────────────────────────────────────────╯╰────────────────────────╯
 ╭ Activity ──────────────────────────────────────┬ !334 · Rate limiting for the public API ─────────╮
 │ NEEDS YOU                                      │ acme/gateway · Jane Doe → main · watched 2d      │
 │●✗ !334    acme/gateway   Pipeline failed    2m │ CI   ✗ #8121 failed in test:unit · 12m run       │
@@ -66,6 +66,26 @@ it.
 - Below 30 rows the cards lose their border and become one line each
   (`[ nvim unagit wt-ci 3h]`), the band two rows instead of six.
 
+### Watching: what is subscribed to
+
+A small panel beside Open counts the watches by kind - merge requests,
+branches' pipelines, and later kinds as they come (a query, releases) -
+so how much is followed can be seen without counting rows.
+
+- Its action, **Watches…**, opens a dialog with every watch in one list:
+  its kind, the thing, its title, since when it is watched, its state
+  now. `x` stops watching the row under the cursor (Space marks several,
+  `x` then stops them all, after a confirmation), Enter goes to the thing
+  in the list, `o` opens it in the browser.
+- The action is the panel's own when the panel is focused (Tab reaches
+  it, Enter runs it), and global too - from any tab, `:` lists it - since
+  "what am I watching" is asked from anywhere. Its key is still to be
+  chosen; `W` is free.
+- With nothing watched the panel says so and offers how to start
+  (`w` on a merge request or a branch).
+- When the cards fold to one line below 30 rows, the panel folds with
+  them to one line: `watching 3 MR · 2 branches`.
+
 ### The list: what wants the user
 
 Watches and agents together, in sections by how much they want the
@@ -105,6 +125,13 @@ last visit. It is what happened while the user was away.
   line first and then the log goes down to its 3.
 - It scrolls: Tab focuses it, j/k move, g/G go to the newest and the
   oldest.
+- **It can be brought to the front**: `z` - or Enter on the log's
+  title - opens the log as a dialog over the screen, most of its height
+  and width, with the same rows and the same line of the last visit, and
+  room for the whole sentence of each event. There it also filters (`/`)
+  and narrows to one kind of thing (merge requests, branches, agents);
+  Enter on an event closes the dialog and chooses its thing in the list.
+  Esc goes back to the screen as it was.
 - It follows the list both ways: a row of the log chooses its thing in
   the list and the detail; a thing chosen in the list lights its rows in
   the log.
