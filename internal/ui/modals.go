@@ -887,14 +887,24 @@ func humanAge(t time.Time) string {
 	}
 }
 
+// buttonKeyOf is the key of a button whose name would otherwise light a
+// letter nobody would guess - "Commit and Push" is pressed by its push, not
+// by the m its own letters come to. The same name has the same key in every
+// dialog.
+var buttonKeyOf = map[string]rune{
+	"Cancel":                'c',
+	"Commit and Push":       'p',
+	"Commit and Force Push": 'f',
+}
+
 // Reserve c for Cancel even when an earlier action also starts with c.
 func buttonKeys(labels []string) []rune {
 	keys := make([]rune, len(labels))
 	used := map[rune]bool{}
 	for i, label := range labels {
-		if label == "Cancel" {
-			keys[i] = 'c'
-			used['c'] = true
+		if key, ok := buttonKeyOf[label]; ok && !used[key] {
+			keys[i] = key
+			used[key] = true
 		}
 	}
 	// The keys a form moves and starts typing with are no button's.

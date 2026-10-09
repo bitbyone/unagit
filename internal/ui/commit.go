@@ -159,29 +159,49 @@ func (a *App) showCommitForm(title string, grouped bool, targets []commitTarget)
 				a.closeModal(pageForm)
 				a.runCommit(title, targets, texts, push)
 			}
+			// The push takes the branch whole: the commits made before and
+			// not pushed yet go with the new one.
+			with := ""
+			if earlier := a.unpushedOf(targets); earlier > 0 {
+				with = fmt.Sprintf(", with the %d earlier commit(s) not pushed yet", earlier)
+			}
 			switch push {
 			case commitAndPush:
 				a.confirmWith("Commit and push",
-					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and push to origin?", files, esc(title)), "Push", nil, run)
+					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and push to origin%s?", files, esc(title), with), "Push", nil, run)
 			case commitAndForce:
 				a.confirmWith("Commit and force push",
-					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and force push to origin?\n\n"+
+					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and force push to origin%s?\n\n"+
 						"Origin's copy of the branch is replaced by yours. Only what was last fetched of it is replaced: "+
-						"if anyone pushed since, git refuses.", files, esc(title)), "Force push", nil, run)
+						"if anyone pushed since, git refuses.", files, esc(title), with), "Force push", nil, run)
 			default:
 				run()
 			}
 		}
 	}
 	form.AddButton("Commit", commit(commitOnly))
-	form.AddButton("Push", commit(commitAndPush))
-	form.AddButton("Force Push", commit(commitAndForce))
+	form.AddButton("Commit and Push", commit(commitAndPush))
+	form.AddButton("Commit and Force Push", commit(commitAndForce))
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	height := 10
 	if len(targets) > 1 {
 		height += 3 + 2*len(targets)
 	}
 	a.showFormModalSized(fmt.Sprintf("Commit · %s · %d file(s)", title, files), form, 84, height)
+}
+
+// unpushedOf counts the commits the working trees have and origin lacks,
+// as the lists last read them.
+func (a *App) unpushedOf(targets []commitTarget) int {
+	n := 0
+	for _, t := range targets {
+		if st, ok := a.wtRemote[t.dir]; ok {
+			n += st.Upstream.Ahead
+		} else if t.dir == a.projectDir(t.instance, t.path) {
+			n += a.repoSync[projectKey{t.instance, t.path}].Upstream.Ahead
+		}
+	}
+	return n
 }
 
 // runCommit commits each working tree under its message, then pushes those

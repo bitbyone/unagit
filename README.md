@@ -139,10 +139,11 @@ all and live only there.
   does not have yet.
 - `c` commits the clone's versioned files as they are on disk, staged or
   not - git's index is never something to think about - while unversioned
-  files stay out. The dialog asks only for the message: **Commit**, **Push**
-  (commit, then push) or **Force Push** (commit, then replace origin's copy,
-  but only what was last fetched of it). `P` pushes commits the clone has
-  and origin lacks. Every push asks first.
+  files stay out. The dialog asks only for the message: **Commit**,
+  **Commit and Push** (`p`: the new commit goes with every earlier one not
+  pushed yet) or **Commit and Force Push** (`f`: origin's copy is replaced,
+  but only what was last fetched of it). `P` pushes the commits the clone
+  has and origin lacks, without committing. Every push asks first.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
   rebase of your commits and uncommitted edits onto origin when there is. If
   that would conflict - your edits touch a file origin changed, or your commits
@@ -363,7 +364,7 @@ conflict; otherwise nothing changes. A pushed branch then differs from origin's
 copy and its row says **force push required**: `P` asks, then pushes with
 `--force-with-lease` set to exactly what origin had before the rebase, so a
 commit someone pushed in the meantime makes git refuse instead of being lost.
-The commit dialog's **Force Push** is the only other: its lease is origin's
+The commit dialog's **Commit and Force Push** is the only other: its lease is origin's
 copy as last fetched, and it asks first.
 
 The edits column (`✎`) counts the files not committed - versioned, then

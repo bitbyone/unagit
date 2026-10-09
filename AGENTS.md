@@ -338,7 +338,7 @@ once pushed, rebasing would need a force push. `Ctrl-R` (`RebaseOntoBase`)
 does it anyway on request and notes the upstream it moved away from in
 `branch.<name>.unagitRebasedFrom`; `P` force-pushes only with that as the
 lease, so nothing pushed since can be overwritten. The commit dialog's
-Force Push is the one other path that forces: after asking, with origin's
+Commit and Force Push is the one other path that forces: after asking, with origin's
 copy as last fetched (`UpstreamTip`) as the lease. Nothing else forces.
 
 **Commits are IntelliJ's, not git's.** A file is versioned or unversioned;

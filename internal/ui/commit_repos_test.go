@@ -39,7 +39,7 @@ func TestCommitAndPushFromRepositories(t *testing.T) {
 		form.GetFormItemByLabel("Message").(*tview.TextArea).SetText("Say it again", false)
 		return true
 	})
-	pressButton(t, a, sc, form, "Push")
+	pressButton(t, a, sc, form, "Commit and Push")
 	waitFor(t, a, sc, "Commit and push")
 	typeRunes(sc, "p")
 	waitFor(t, a, sc, "and pushed")
