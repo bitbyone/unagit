@@ -41,12 +41,17 @@ type quietScreen struct {
 }
 
 // Init asks the terminal to report focus; most do (iTerm2, Ghostty, kitty,
-// WezTerm), and the rest simply never say.
+// WezTerm), and the rest simply never say. It names the window unagit: a
+// terminal's notification carries the window's title, which was otherwise
+// the command the shell ran - an alias, with its flags. tcell keeps the
+// title the shell had and puts it back on the way out, and sets unagit's
+// again after an editor.
 func (s *quietScreen) Init() error {
 	if err := s.Screen.Init(); err != nil {
 		return err
 	}
 	s.Screen.EnableFocus()
+	s.Screen.SetTitle("unagit")
 	return nil
 }
 

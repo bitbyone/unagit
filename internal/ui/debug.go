@@ -266,7 +266,7 @@ func (a *App) testNotification(mode string, after time.Duration) {
 		case <-a.stopFollowing:
 			return
 		}
-		way, err := a.sendNotificationAs(mode, "unagit · test", "Rate limiting for the public API", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
+		way, err := a.sendNotificationAs(mode, "Test notification", "Rate limiting for the public API", fmt.Sprintf("A notification through %s.", notificationModeName(mode)))
 		a.tv.QueueUpdateDraw(func() {
 			switch {
 			case err != nil:
