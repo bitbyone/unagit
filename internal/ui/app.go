@@ -228,6 +228,9 @@ type App struct {
 	// the last read of them found, kept by its goroutine.
 	editorsOpen []session.Record
 	editorsSeen atomic.Pointer[[]session.Record]
+	// titleGen counts the notifications that named the window, so only
+	// the last gives the title back.
+	titleGen atomic.Uint64
 	// The agents: the rows as last read, whether a read is under way,
 	// what went wrong with the last, whether Activity is in front - read
 	// from the watcher's goroutine - and a nudge for a read now.

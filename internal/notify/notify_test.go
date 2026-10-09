@@ -112,17 +112,17 @@ func TestAMultiplexerThatKeepsThemGoesToTheSystem(t *testing.T) {
 // the body.
 func TestWhatItIsAboutIsGhosttysTitleLine(t *testing.T) {
 	ghostty := TerminalInfo{Name: "Ghostty", Protocol: OSC777}
-	got := string(ghostty.SequenceAbout("Pipeline failed", "acme/api · Rate limits", "Pipeline #8 of !42 failed"))
-	want := "\x1b]2;acme/api · Rate limits\x1b\\" + "\x1b]777;notify;Pipeline failed;Pipeline #8 of !42 failed\a" + "\x1b]2;unagit\x1b\\"
-	if got != want {
-		t.Fatalf("Ghostty got %q, want %q", got, want)
+	seq, restore := ghostty.SequenceAbout("Pipeline failed", "acme/api · Rate limits", "Pipeline #8 of !42 failed")
+	want := "\x1b]2;acme/api · Rate limits\x1b\\" + "\x1b]777;notify;Pipeline failed;Pipeline #8 of !42 failed\a"
+	if string(seq) != want || string(restore) != "\x1b]2;unagit\x1b\\" {
+		t.Fatalf("Ghostty got %q then %q", seq, restore)
 	}
 	iterm := TerminalInfo{Name: "iTerm2", Protocol: OSC9}
-	if got := string(iterm.SequenceAbout("Pipeline failed", "acme/api", "failed")); got != "\x1b]9;Pipeline failed: failed · acme/api\a" {
+	if got, restore := iterm.SequenceAbout("Pipeline failed", "acme/api", "failed"); string(got) != "\x1b]9;Pipeline failed: failed · acme/api\a" || restore != nil {
 		t.Fatalf("iTerm2 got %q", got)
 	}
 	ghostty.Tmux = true
-	if got := string(ghostty.SequenceAbout("Pipeline failed", "acme/api", "failed")); strings.Contains(got, "]2;") {
+	if got, restore := ghostty.SequenceAbout("Pipeline failed", "acme/api", "failed"); strings.Contains(string(got), "]2;") || restore != nil {
 		t.Fatalf("under tmux the title was set: %q", got)
 	}
 }

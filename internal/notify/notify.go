@@ -140,26 +140,34 @@ func (t TerminalInfo) Sequence(title, body string) []byte {
 // WindowTitle is the title unagit gives its terminal window.
 const WindowTitle = "unagit"
 
+// TitleBack is how long the window keeps the title a notification set
+// before it is given back: Ghostty reads the title when it shows the
+// notification, not when it reads the sequence, and a title given back at
+// once was the one shown.
+const TitleBack = 2 * time.Second
+
 // SequenceAbout is Sequence with a line of what the news is about. Ghostty
 // shows the window's title between a notification's heading and its body,
-// so there the title is set to that line for the notification and back to
-// WindowTitle after it - the terminal reads the sequences in order. Where
-// the title is not shown, or under tmux, whose window it would name, the
-// line follows the body.
-func (t TerminalInfo) SequenceAbout(title, about, body string) []byte {
+// so there the title is set to that line, and back - the restore, written
+// TitleBack later - to WindowTitle. Where the title is not shown, or
+// under tmux, whose window it would name, the line follows the body and
+// there is nothing to restore.
+func (t TerminalInfo) SequenceAbout(title, about, body string) (seq, restore []byte) {
 	if about == "" {
-		return t.Sequence(title, body)
+		return t.Sequence(title, body), nil
 	}
 	if t.Name != "Ghostty" || t.Tmux || t.Protocol != OSC777 {
-		return t.Sequence(title, body+" · "+about)
+		return t.Sequence(title, body+" · "+about), nil
 	}
-	seq := t.Sequence(title, body)
-	if seq == nil {
-		return nil
+	notice := t.Sequence(title, body)
+	if notice == nil {
+		return nil, nil
 	}
-	name := func(s string) string { return "\x1b]2;" + clean(s) + "\x1b\\" }
-	return []byte(name(about) + string(seq) + name(WindowTitle))
+	return []byte(WindowTitleSequence(about) + string(notice)), []byte(WindowTitleSequence(WindowTitle))
 }
+
+// WindowTitleSequence names the terminal's window.
+func WindowTitleSequence(title string) string { return "\x1b]2;" + clean(title) + "\x1b\\" }
 
 // clean keeps what a sequence can carry: no control characters, which
 // would end it early or start another.
