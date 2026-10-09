@@ -223,7 +223,10 @@ const (
 // deriveToastInk works a toast's colours out of the theme's background and
 // the severity's colour, keeping the hue and the theme's lightness: a dark
 // theme gets a dark tint of the colour, a light one a pale one.
-func deriveToastInk(background, accent tcell.Color) toastInk {
+//
+// own, when it is a colour, is the fill the theme already has for it - the
+// highlight's blue for info - and the hue the rest is worked out of.
+func deriveToastInk(background, accent, own tcell.Color) toastInk {
 	bg := oklab{l: 0.2}
 	if background != tcell.ColorDefault && background.Valid() {
 		bg = toOklab(background)
@@ -239,6 +242,10 @@ func deriveToastInk(background, accent tcell.Color) toastInk {
 		fillL, borderL, textL, toward = bg.l-0.1, 0.5, 0.25, -0.01
 	}
 	fill := fromOklch(fillL, clamp(chroma*0.55, 0.03, 0.1), hue, 0, 0)
+	if own != tcell.ColorDefault && own.Valid() {
+		lab := toOklab(own)
+		fill, fillL, hue = own, lab.l, math.Atan2(lab.b, lab.a)*180/math.Pi
+	}
 	// Each moved away from the fill until it reads, a step at a time.
 	away := func(l, c, want float64) tcell.Color {
 		col := fromOklch(l, c, hue, 0, 0)

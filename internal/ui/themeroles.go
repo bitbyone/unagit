@@ -175,20 +175,38 @@ func init() {
 }
 
 // toastInfoBlue is the hue an info toast is worked out of, unless the
-// theme names toast.info.
-var toastInfoBlue = tcell.NewRGBColor(0x3b, 0x82, 0xf6)
+// theme names toast.info or its highlight is blue.
+var toastInfoBlue = tcell.NewRGBColor(0x4a, 0x6f, 0xa5)
+
+// bluish is c when it is a blue with some colour to it, ColorDefault
+// otherwise.
+func bluish(c tcell.Color) tcell.Color {
+	if c == tcell.ColorDefault || !c.Valid() {
+		return tcell.ColorDefault
+	}
+	lab := toOklab(c)
+	hue := math.Atan2(lab.b, lab.a) * 180 / math.Pi
+	if hue < 0 {
+		hue += 360
+	}
+	if math.Hypot(lab.a, lab.b) < 0.04 || hue < 220 || hue > 280 {
+		return tcell.ColorDefault
+	}
+	return c
+}
 
 // toastRoles works out each severity's toast colours the theme does not
 // name, from its severity's colour and the background.
 func toastRoles(t Theme, roles map[string]tcell.Color) {
 	for _, level := range toastLevels {
-		accent := roles["toast."+level]
+		accent, own := roles["toast."+level], tcell.ColorDefault
 		if level == "info" && t.Roles["toast.info"] == "" {
 			// Info is blue whatever the theme's accent is - an orange one
-			// read as a warning.
-			accent = toastInfoBlue
+			// read as a warning: the theme's own highlight where that is
+			// blue, a quiet blue otherwise.
+			accent, own = toastInfoBlue, bluish(colour(t.Selection.Background))
 		}
-		ink := deriveToastInk(colour(t.Background), accent)
+		ink := deriveToastInk(colour(t.Background), accent, own)
 		for part, c := range map[string]tcell.Color{"background": ink.fill, "border": ink.border, "text": ink.text, "about": ink.about} {
 			if key := "toast." + level + "." + part; t.Roles[key] == "" {
 				roles[key] = c
