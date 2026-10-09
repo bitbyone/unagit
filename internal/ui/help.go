@@ -22,8 +22,7 @@ const (
 	helpMRDetail
 	helpWorktreeList
 	helpWorktreeDetail
-	helpAgentList
-	helpWatchedList
+	helpActivity
 	helpSettingsList
 	helpServers
 	helpGroups
@@ -37,7 +36,7 @@ const (
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpAgentList | helpWatchedList | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
+	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -62,10 +61,8 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpWorktreeDetail, "Worktree detail"
 		}
 		return helpWorktreeList, "Worktrees"
-	case pageAgents:
-		return helpAgentList, "Agents"
-	case pageWatched:
-		return helpWatchedList, "Watched"
+	case pageActivity:
+		return helpActivity, "Activity"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -263,22 +260,17 @@ func helpRows() []helpLine {
 		key("CREATED", "when the worktree was made"),
 		blank(),
 
-		section("Agents", helpAgentList),
-		key("Enter", "go to the agent: its herdr tab, pane or window"),
-		key("d", "close an agent in herdr, after asking"),
-		key("r", "ask herdr again what each agent is doing"),
-		key("Ctrl-O", "open its directory in the editor"),
-		key(glyphManual+" waiting", "it asks you something; counted on the tab"),
-		key(glyphDot+" idle", "done with its turn, ready for the next"),
-		blank(),
-
-		section("Watched", helpWatchedList),
-		key("Enter", "the pipeline's jobs"),
-		key("x", "stop watching; every marked one with space"),
-		key("w", "the pipeline in the browser"),
-		key("m", "go to the merge request or repository"),
-		key("r  R", "read this one, or every one, now"),
-		key(glyphDot, "a change not seen yet; counted on the tab"),
+		section("Activity", helpActivity),
+		key("Enter", "a pipeline's jobs · go to the agent"),
+		key("Tab", "next panel: detail, log, editors, watching"),
+		key("d  L  e", "the detail · the log · the editors open"),
+		key("z", "the log in front, every event in full"),
+		key("W", "everything watched; x stops one"),
+		key("x", "stop watching · close an agent in herdr"),
+		key("w  m", "the pipeline in the browser · go to its row"),
+		key("r  R", "read this one, or everything, now"),
+		key("Ctrl-O", "open an agent's directory in the editor"),
+		key(glyphDot, "new since your last visit; counted on the tab"),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail),

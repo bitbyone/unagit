@@ -131,8 +131,8 @@ func (a *App) ciPane() *pane {
 		return a.projectsPane
 	case pageWorktrees:
 		return a.worktreesPane
-	case pageWatched:
-		return a.watchedPane
+	case pageActivity:
+		return a.activityPane
 	}
 	return nil
 }

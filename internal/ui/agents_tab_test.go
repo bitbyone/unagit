@@ -62,20 +62,20 @@ func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	a, sc, h, g, p, pane := agentsFixture(t)
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Fix the login")
-	waitFor(t, a, sc, "1 waiting for you")
-	waitFor(t, a, sc, "[4] Agents "+glyphManual+"1")
+	waitFor(t, a, sc, "1 need you")
+	waitFor(t, a, sc, "[4] Activity "+glyphManual+"1")
 	lines := strings.Split(a.screenText(sc), "\n")
 	login, parser := -1, -1
 	for i, line := range lines {
-		if strings.Contains(line, "Fix the login") {
+		if strings.Contains(line, "Claude Code") && strings.Contains(line, "waits") {
 			login = i
-			for _, want := range []string{"waiting", "Claude Code", p.path, "herdr · Unagit Agents"} {
+			for _, want := range []string{"waits", "Claude Code", "acme/gateway"} {
 				if !strings.Contains(line, want) {
 					t.Fatalf("%q missing from %q", want, line)
 				}
 			}
 		}
-		if strings.Contains(line, "Rewrite the parser") {
+		if strings.Contains(line, "Codex") && strings.Contains(line, "working") {
 			parser = i
 			if !strings.Contains(line, "working") || !strings.Contains(line, "Codex") {
 				t.Fatalf("working agent: %q", line)
@@ -88,7 +88,9 @@ func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	if login < 0 || parser < 0 || login > parser {
 		t.Fatalf("the waiting agent is not first:\n%s", a.screenText(sc))
 	}
-	assertLegible(t, a, sc, "Agents tab")
+	// Where it runs is in its detail, beside the list.
+	waitFor(t, a, sc, "herdr · Unagit Agents")
+	assertLegible(t, a, sc, "Activity with agents")
 
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to Claude Code · "+p.path) })
@@ -108,13 +110,13 @@ func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	}
 }
 
-// TestAnAgentIsClosedOnlyAfterAsking: d asks, and closing closes its pane.
+// TestAnAgentIsClosedOnlyAfterAsking: x asks, and closing closes its pane.
 func TestAnAgentIsClosedOnlyAfterAsking(t *testing.T) {
 	t.Parallel()
 	a, sc, h, _, _, pane := agentsFixture(t)
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Fix the login")
-	typeRunes(sc, "d")
+	typeRunes(sc, "x")
 	waitFor(t, a, sc, "Close Claude Code in")
 	typeRunes(sc, "y")
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "closed Claude Code") })
@@ -182,7 +184,7 @@ func TestTheAgentsTabFits(t *testing.T) {
 		resizeApp(a, sc, size.w, size.h)
 		waitFor(t, a, sc, "Settings")
 		text := a.screenText(sc)
-		t.Logf("Agents at %dx%d:\n%s", size.w, size.h, text)
+		t.Logf("Activity at %dx%d:\n%s", size.w, size.h, text)
 		lines := strings.Split(text, "\n")
 		if !strings.HasSuffix(strings.TrimSpace(lines[0]), "Settings") {
 			t.Fatalf("the tab bar is cut at %d:\n%s", size.w, lines[0])
@@ -192,6 +194,6 @@ func TestTheAgentsTabFits(t *testing.T) {
 				t.Fatalf("row over its frame: %q", line)
 			}
 		}
-		assertLegible(t, a, sc, "Agents tab")
+		assertLegible(t, a, sc, "Activity with agents")
 	}
 }

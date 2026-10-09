@@ -206,7 +206,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	if pa, pb := polling(); pa == pb {
 		t.Fatalf("polling: a %v, b %v - exactly one should", pa, pb)
 	}
-	waitFor(t, a, sc, "[5] Watched")
+	waitFor(t, a, sc, "[4] Activity")
 	// Each said it was in front at its start, before the test turned its
 	// terminal away; a notification waits for both to have said it is not.
 	waitTrue(t, "an instance still says it is in front", func() bool {
@@ -224,7 +224,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	if n := notified.Load(); n != 1 {
 		t.Fatalf("the failure was notified %d times, want once", n)
 	}
-	waitFor(t, a, sc, "Watched "+onLoop(a, func() string { return glyphDot })+"1")
+	waitTrue(t, "the tab does not count the change", func() bool { return tabBadge(a, sc, onLoop(a, func() string { return glyphDot })+"1") })
 	for _, app := range []*App{a, b} {
 		if front := onLoop(app, func() string { name, _ := app.pages.GetFrontPage(); return name }); front == pageMessage {
 			t.Fatal("a background failure opened a message box")
@@ -280,12 +280,12 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 		return false
 	})
 
-	typeRunes(sc, "5")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "acme/gateway !7")
 	waitFor(t, a, sc, "running")
 	typeRunes(sc, "x")
 	waitFor(t, a, sc, "stopped watching acme/gateway !7")
-	waitFor(t, a, sc, "Nothing watched")
+	waitFor(t, a, sc, "Nothing under way")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	if text := a.screenText(sc); strings.Contains(text, mark) {
@@ -328,9 +328,9 @@ func TestTheWatchedTabFits(t *testing.T) {
 	srv.set("failed", 90, "aaaa1111")
 	waitState(t, cfg, w.Key(), "failed")
 	waitFor(t, a, sc, "Pipeline failed")
-	typeRunes(sc, "5")
+	typeRunes(sc, "4")
 	waitFor(t, a, sc, "failed · unit tests")
-	assertLegible(t, a, sc, "Watched tab under a toast")
+	assertLegible(t, a, sc, "Activity under a toast")
 	// The toast stands over the rows' ends; they are measured without it.
 	onLoop(a, func() bool { a.toasts = nil; return true })
 	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
@@ -339,7 +339,7 @@ func TestTheWatchedTabFits(t *testing.T) {
 		text := a.screenText(sc)
 		t.Logf("Watched at %dx%d:\n%s", size.w, size.h, text)
 		for _, line := range strings.Split(text, "\n") {
-			if strings.Contains(line, "acme/gateway !7") && !strings.HasSuffix(strings.TrimRight(line, " "), "│") {
+			if end := strings.TrimRight(line, " "); strings.Contains(line, "acme/gateway !7") && !strings.HasSuffix(end, "│") && !strings.HasSuffix(end, "╮") {
 				t.Fatalf("row over its frame at %d: %q", size.w, line)
 			}
 		}
@@ -347,7 +347,7 @@ func TestTheWatchedTabFits(t *testing.T) {
 	}
 	// Opened, the change is seen: the tab no longer counts it.
 	dot := onLoop(a, func() string { return glyphDot })
-	waitGone(t, a, sc, "Watched "+dot+"1")
+	waitTrue(t, "the tab still counts the change seen", func() bool { return !tabBadge(a, sc, dot+"1") })
 }
 
 func TestPipelineChanges(t *testing.T) {
@@ -461,7 +461,7 @@ func TestAWatchMovesTheListsCIColumn(t *testing.T) {
 		t.Fatalf("%d watches running, want 1", n)
 	}
 	waitTrue(t, "the tab does not count the running pipeline", func() bool {
-		return strings.Contains(a.screenText(sc), "Watched ") && onLoop(a, func() bool { return a.ciWatching })
+		return strings.Contains(a.screenText(sc), "Activity ") && onLoop(a, func() bool { return a.ciWatching })
 	})
 	srv.set("failed", 90, "aaaa1111")
 	waitTrue(t, "the list never took the failure", func() bool { return pipeline() == "failed" })
@@ -518,4 +518,11 @@ func TestAPipelineStartedOnTheServerIsNotified(t *testing.T) {
 	if !strings.Contains(string(log), "Pipeline #91 of !7 started") || !strings.Contains(string(log), "->  sent through the notifier") {
 		t.Errorf("notify.log says:\n%s", log)
 	}
+}
+
+// tabBadge reports whether the tab bar shows a count after Activity.
+func tabBadge(a *App, sc tcell.SimulationScreen, badge string) bool {
+	line, _, _ := strings.Cut(a.screenText(sc), "\n")
+	_, after, ok := strings.Cut(line, "Activity")
+	return ok && strings.Contains(strings.Split(after, "Settings")[0], badge)
 }

@@ -16,7 +16,7 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 	t.Parallel()
 	plain, plainSc := newTestApp(t)
 	waitFor(t, plain, plainSc, "acme/gateway")
-	typeRunes(plainSc, "6")
+	typeRunes(plainSc, "5")
 	waitFor(t, plain, plainSc, "Integrations")
 	if strings.Contains(plain.screenText(plainSc), debugSectionName) {
 		t.Fatal("Debug is listed without --debug")
@@ -29,7 +29,7 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 		a.notifier = func(title, body string) { notified.Add(1) }
 	})
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "6")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, debugSectionName)
 	changeOnLoop(a, func() {
 		a.settings.selectSection(sectionDebug)

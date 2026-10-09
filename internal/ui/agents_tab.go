@@ -8,11 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rivo/tview"
-
 	"github.com/tobola/unagit/internal/agents"
-	"github.com/tobola/unagit/internal/editors"
-	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/watch"
@@ -111,14 +107,14 @@ func (a *App) refreshAgents() {
 				a.agentsError = err.Error()
 			}
 			if reflect.DeepEqual(rows, a.agentRows) {
-				a.agentsPane.updateHeader()
+				a.activityPane.updateHeader()
 				return
 			}
 			if changes := a.agentChanges(a.agentRows, rows); len(changes) > 0 && a.watchStore != nil {
 				go a.watchStore.AppendHistory(true, changes...)
 			}
 			a.agentRows = rows
-			a.agentsPane.reload()
+			a.redrawActivity()
 			a.drawTabs()
 			// The lists mark the directories the agents work in, in the
 			// colour of what each is doing.
@@ -298,64 +294,6 @@ func agentState(status string, frame int) (string, string, string) {
 	return glyphRing, status, "agents.unknown"
 }
 
-// newAgentsPane lists the agents.
-func (a *App) newAgentsPane() *pane {
-	p := a.newPane("Agents")
-	var filtered []int
-
-	p.headline = func() string {
-		text := fmt.Sprintf("%s%d/%d agents", tag(colMuted), len(filtered), len(a.agentRows))
-		if n := a.agentsWaiting(); n > 0 {
-			text += tagEnd + " · " + tag(role("agents.waiting")) + fmt.Sprintf("%d waiting for you", n) + tagEnd + tag(colMuted)
-		}
-		switch {
-		case a.herdr() == nil:
-			text += " · herdr is off: where they run, not what they do"
-		case a.agentsError != "":
-			text += tagEnd + " · " + tag(colWarn) + esc(a.agentsError) + tagEnd + tag(colMuted)
-		}
-		return text + tagEnd
-	}
-	render := func(query string) {
-		filtered = a.filterAgents(query)
-		a.drawAgents(p, filtered)
-		p.updateHeader()
-	}
-	p.onQuery = render
-	p.reload = func() { render(p.query) }
-
-	selected := func() (agentRow, bool) {
-		i := p.selectedIndex()
-		if i < 0 || i >= len(a.agentRows) {
-			return agentRow{}, false
-		}
-		return a.agentRows[i], true
-	}
-	// Enter goes to the agent: there is nothing about it to read here that
-	// its own terminal does not show better.
-	p.onDetail = func(idx int, focus bool) {
-		if idx >= 0 && idx < len(a.agentRows) {
-			a.goToAgent(a.agentRows[idx])
-		}
-	}
-	p.onOpen = func(ask bool) {
-		r, ok := selected()
-		if !ok {
-			return
-		}
-		a.withEditor(ask, func(ed *editors.Editor) { a.openNow(r.Dir, a.agentRecord(r), ed) })
-	}
-	p.selection = func() (string, []uiAction) {
-		r, ok := selected()
-		if !ok {
-			return "", nil
-		}
-		return "Actions · " + agentName(r.Kind), a.agentActionsOf(p, r)
-	}
-	p.screen = func() (string, []uiAction) { return "Agents", a.agentsScreenActions(p) }
-	return p
-}
-
 // agentRecord is what an editor opened in the agent's directory records.
 func (a *App) agentRecord(r agentRow) session.Record {
 	if r.Record != nil {
@@ -364,104 +302,6 @@ func (a *App) agentRecord(r agentRow) session.Record {
 		return rec
 	}
 	return session.Record{Project: a.agentWhat(r), Title: r.Branch, Mode: session.ModeBranch}
-}
-
-func (a *App) filterAgents(query string) []int {
-	var hits []scored
-	for i, r := range a.agentRows {
-		hay := strings.Join([]string{agentName(r.Kind), r.Status, r.Title, a.agentWhat(r), r.Branch, r.Where, r.Dir}, " ")
-		score, ok := fuzzy.Match(query, hay)
-		if !ok {
-			continue
-		}
-		hits = append(hits, scored{idx: i, score: score})
-	}
-	if strings.TrimSpace(query) != "" {
-		sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
-	}
-	out := make([]int, len(hits))
-	for i, h := range hits {
-		out[i] = h.idx
-	}
-	return out
-}
-
-func (a *App) drawAgents(p *pane, filtered []int) {
-	previous := p.selectedIndex()
-	p.table.Clear()
-	stateW, agentW := headingWidth("STATE"), headingWidth("AGENT")
-	var titles, whats, branches, wheres []int
-	var paths []string
-	for _, idx := range filtered {
-		r := a.agentRows[idx]
-		_, word, _ := agentState(r.Status, 0)
-		stateW = max(stateW, 2+len(word))
-		agentW = max(agentW, iconWidth(agentIcons[r.Kind])+len([]rune(agentName(r.Kind))))
-		titles = append(titles, len([]rune(r.Title)))
-		whats = append(whats, len([]rune(a.agentWhat(r))))
-		branches = append(branches, len([]rune(r.Branch)))
-		wheres = append(wheres, len([]rune(r.Where)))
-		paths = append(paths, tildePath(r.Dir))
-	}
-	const markW = 1
-	stateCol, agentCol := fixedColumn(stateW), fixedColumn(agentW)
-	whatCol := flexColumn("REPOSITORY", whats, 10, 1.5)
-	branchCol := flexColumn("BRANCH", branches, 8, 1)
-	titleCol := flexColumn("TITLE", titles, 12, 2)
-	whereCol := flexColumn("WHERE", wheres, 8, 1)
-	pathCol := gistColumn("PATH", paths, minPath, 0.8)
-	pathCol.drop, whereCol.drop, branchCol.drop = 1, 2, 3
-	spare := layoutColumns(p.contentWidth()-1, fixedColumn(markW), stateCol, agentCol, whatCol, branchCol, titleCol, whereCol, pathCol)
-	titleCol.width += spare
-
-	header := []field{{width: markW},
-		{text: "STATE", width: stateCol.width, colour: role("agents.header")},
-		{text: "AGENT", width: agentCol.width, colour: role("agents.header")},
-		{text: "REPOSITORY", width: whatCol.width, colour: role("agents.header")}}
-	if branchCol.shown() {
-		header = append(header, field{text: "BRANCH", width: branchCol.width, colour: role("agents.header")})
-	}
-	header = append(header, field{text: "TITLE", width: titleCol.width, colour: role("agents.header")})
-	if whereCol.shown() {
-		header = append(header, field{text: "WHERE", width: whereCol.width, colour: role("agents.header")})
-	}
-	if pathCol.shown() {
-		header = append(header, field{text: "PATH", width: pathCol.width, colour: role("agents.header")})
-	}
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
-
-	for row, idx := range filtered {
-		r := a.agentRows[idx]
-		glyph, word, colourRole := agentState(r.Status, a.spinFrame)
-		state := glyph
-		if word != "" {
-			state += " " + word
-		}
-		cells := []field{{width: markW},
-			{text: state, width: stateCol.width, colour: role(colourRole)},
-			{icon: agentIcons[r.Kind], text: agentName(r.Kind), width: agentCol.width, colour: role("agents.agent")},
-			{text: a.agentWhat(r), width: whatCol.width, colour: role("agents.repository"), shorten: shortenRepo}}
-		if branchCol.shown() {
-			cells = append(cells, field{text: r.Branch, width: branchCol.width, colour: role("agents.branch"), shorten: shortenBranch})
-		}
-		cells = append(cells, field{text: r.Title, width: titleCol.width, colour: role("agents.title")})
-		if whereCol.shown() {
-			cells = append(cells, field{text: r.Where, width: whereCol.width, colour: role("agents.where")})
-		}
-		if pathCol.shown() {
-			cells = append(cells, field{text: tildePath(r.Dir), width: pathCol.width, colour: role("agents.path"), shorten: shortenPath})
-		}
-		p.table.SetCell(row+1, 0, tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1))
-	}
-	if len(filtered) == 0 {
-		hint := "No agents started from unagit. Open in Claude Code… - or another agent - on a repository starts one."
-		p.table.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+esc(hint)+tagEnd).SetSelectable(false).SetExpansion(1))
-	}
-	first := 0
-	if len(filtered) > 0 {
-		first = 1
-	}
-	p.selectRow(previous, first)
 }
 
 // goToAgent brings an agent forward where it runs: in herdr, and herdr's
@@ -574,18 +414,9 @@ func (a *App) agentActionsOf(p *pane, r agentRow) []uiAction {
 		{name: "Go to Agent", about: "Bring the agent forward where it runs: its herdr tab - and herdr's Ghostty terminal with it - or its Zellij pane or Ghostty terminal.", keys: "Enter", rank: 10, run: p.enter},
 		{name: "Open", about: "Open the agent's directory in your favourite editor, here.", keys: "Ctrl-O", rank: 20, run: func() { p.onOpen(false) }},
 		{name: "Open With…", about: "Choose the editor, then open the agent's directory here.", keys: "Alt-O", rank: 25, run: func() { p.onOpen(true) }},
-		{name: "Close Agent…", about: "End the agent in herdr: its pane closes, and what it was doing stops. Asks first.", keys: "d", rank: 60,
+		{name: "Close Agent…", about: "End the agent in herdr: its pane closes, and what it was doing stops. Asks first.", keys: "x", rank: 60,
 			when: r.herdrAgent, run: func() { a.closeAgent(r) }},
 	}
-}
-
-// agentsScreenActions are what the Agents screen itself can do.
-func (a *App) agentsScreenActions(p *pane) []uiAction {
-	acts := []uiAction{
-		{name: "Refresh", about: "Ask herdr again what every agent is doing.", keys: "r", rank: 10, run: a.agentsNowAsk},
-		a.runningAgentsAction("Alt-A"),
-	}
-	return append(acts, a.listActions(p)...)
 }
 
 func (a *App) runningAgentsAction(keys string) uiAction {

@@ -148,6 +148,39 @@ var colourRoles = []colourRole{
 	{"watched.changed", "column.age", "when the pipeline last changed"},
 	{"watched.latest", "text.normal", "what was last said of a watch"},
 	{"watched.error", "state.warning", "why the last reading failed"},
+	// The Activity screen. A section's heading is a pill of its colour on
+	// its fill; what is under way is blue, as an info toast is, unless a
+	// theme names it (activityRoles), and so are the cards' borders, a
+	// shade off their fill.
+	{"activity.needs", "state.bad", "the heading of what needs you, and its count on the tab"},
+	{"activity.needs_fill", "surface.raised", "its pill's fill"},
+	{"activity.under_way", "text.accent", "the heading of what is under way"},
+	{"activity.under_way_fill", "surface.raised", "its pill's fill"},
+	{"activity.quiet", "text.muted", "the heading of what is quiet"},
+	{"activity.quiet_fill", "surface.raised", "its pill's fill"},
+	{"activity.rule", "border.normal", "the rule after a heading, between new and old"},
+	{"activity.new", "state.good", "the mark of what came since the last visit"},
+	{"activity.visit", "state.good", "the line of the last visit"},
+	{"activity.what", "column.name", "what a row is: a merge request, a branch, an agent"},
+	{"activity.what_quiet", "text.muted", "the same, in the quiet section"},
+	{"activity.about", "text.muted", "what it is about, and an event's sentence"},
+	{"activity.state", "text.muted", "a state with no colour of its own"},
+	{"activity.age", "column.age", "how long ago it changed"},
+	{"activity.label", "text.dim", "the names of the detail's lines"},
+	{"activity.when", "text.dim", "when an event came"},
+	{"activity.lit", "selection.marked", "the log's rows of the thing chosen in the list"},
+	{"activity.watching", "mark.watched", "the mark of what is watched"},
+	{"activity.key", "text.key", "a key named in a panel"},
+	{"activity.card", "surface.raised", "an editor's card"},
+	{"activity.card_border", "border.normal", "its border"},
+	{"activity.card_text", "text.normal", "its repository"},
+	{"activity.card_muted", "text.muted", "where it is open, and for how long"},
+	{"activity.card_icon", "text.accent", "the editor's icon and name"},
+	{"activity.card_chosen", "border.focus", "the border of the card chosen"},
+	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
+	{"tabs.running", "text.accent", "pipelines under way"},
+	{"tabs.new", "state.good", "changes not seen yet"},
+
 	// A toast is filled with its severity's colour. Unless a theme names
 	// them, its colours are worked out of the severity's and the
 	// background (toastRoles); the fallbacks are for a theme of an older
@@ -172,6 +205,39 @@ func init() {
 			colourRole{"toast." + level + ".text", "toast.text", "its heading and what it says"},
 			colourRole{"toast." + level + ".about", "toast.about", "the line of what it is about"})
 	}
+}
+
+// activityRoles works out the Activity screen's colours a theme does not
+// name: what is under way in the info toast's blue, what needs you in the
+// danger toast's colours, the cards' borders a shade off their fill. It
+// runs after toastRoles.
+func activityRoles(t Theme, roles map[string]tcell.Color) {
+	derived := map[string]tcell.Color{
+		"activity.needs":          roles["toast.danger.border"],
+		"activity.needs_fill":     roles["toast.danger.background"],
+		"activity.under_way":      roles["toast.info.border"],
+		"activity.under_way_fill": roles["toast.info.background"],
+		"tabs.running":            roles["toast.info.border"],
+		"activity.card_border":    shade(roles["activity.card"], colour(t.Background), 0.1),
+	}
+	for key, c := range derived {
+		if t.Roles[key] == "" && c != tcell.ColorDefault {
+			roles[key] = c
+		}
+	}
+}
+
+// shade is c moved away from the background by a step of lightness:
+// lighter on a dark theme, darker on a light one.
+func shade(c, background tcell.Color, step float64) tcell.Color {
+	if c == tcell.ColorDefault || !c.Valid() {
+		return tcell.ColorDefault
+	}
+	lab := toOklab(c)
+	if background != tcell.ColorDefault && background.Valid() && toOklab(background).l >= 0.6 {
+		step = -step
+	}
+	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // toastInfoBlue is the hue an info toast is worked out of, unless the

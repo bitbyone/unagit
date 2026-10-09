@@ -1,5 +1,8 @@
 # Watched
 
+The Watched screen named here has since become part of the Activity
+screen, `[4]`, with the agents ([activity.md](activity.md)).
+
 Built, as below; [Where it stands](#where-it-stands) at the end says where
 the code went another way and what is still to do. Before it, a running
 pipeline was followed only while it was in front of the user: the lists ask again about the pipelines they show as

@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Agents │ [5] Watched │ [6] Settings
+ [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Activity │ [5] Settings
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **[6] Settings** you add servers (`a`), paste a
+Nothing to edit by hand. In **[5] Settings** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -546,14 +546,15 @@ picker: `cc` and `claude` for Claude Code, `cx` and `codex` for Codex,
 horizontal one, `tab`, and `rev` for a review - so `cc split` puts Claude
 Code in a vertical split first.
 
-**[4] Agents** lists the agents started from unagit - never the others herdr
-runs - with what each works on, where it runs, and, for those in herdr, what
-it is doing: **waiting** for an answer first, then **working**, **idle**, and
-**ended** when the agent left only its shell. The number waiting is on the
-tab from every screen. `Enter` goes to the agent: its herdr tab, its Zellij
+**[4] Activity** lists the agents started from unagit - never the others
+herdr runs - beside the watches (below): what each works on and, for those
+in herdr, what it is doing - **waiting** for an answer is under *needs you*,
+**working** under *under way*, **idle** and **ended** (the agent left only
+its shell) under *quiet* - and its detail says where it runs. The number
+waiting is on the tab from every screen. `Enter` goes to the agent: its herdr tab, its Zellij
 pane or its Ghostty terminal; with Ghostty on and unagit outside herdr, the
 Ghostty terminal herdr runs in comes forward too - a quick terminal included
-- found by the title herdr gives it, `<host>: <workspace>`. `d` closes an
+- found by the title herdr gives it, `<host>: <workspace>`. `x` closes an
 agent in herdr after asking, `Ctrl-O` opens its directory in the editor, and
 `Alt-A` lists the agents over any screen. In herdr the agent's icon is drawn
 from the Nerd Font where the terminal has one.
@@ -727,11 +728,32 @@ the watch on to the new one - or a branch's newest. A grouped worktree asks
 which of its repositories. The row wears `◎` in every list, and on
 something watched the same action is **Stop Watching Pipelines**.
 
-**[5] Watched** lists every watch with how its pipeline stands, the job it
-failed on, who started it and when it last changed. `Enter` opens the jobs,
-`x` stops watching - `space` marks several, `x` then lets them all go -
-`w` opens the pipeline in the browser, `m` goes to the merge request or the
-repository, `r` and `R` read one or every one now.
+**[4] Activity** is what runs in the background and what waits for you,
+on one screen:
+
+- **Open** - the editors open, as cards: `e` goes to them, `h`/`l` between
+  them, `Enter` back into one.
+- **Watching** - how many merge requests and branches are watched; `W`,
+  from any screen, lists every watch, `x` there stops one and `X` all.
+- **The list** - the watches and the agents in sections: *needs you* (a
+  pipeline failed or waiting for a hand, news that wants a look, an agent
+  waiting for an answer), *under way*, *quiet*. A bar at a row's edge is a
+  change since your last visit. `Enter` opens a pipeline's jobs or goes to
+  an agent, `x` stops watching - `space` marks several - `w` opens the
+  pipeline in the browser, `m` goes to the merge request or the
+  repository, `r` and `R` read one or everything now.
+- **The detail** of the row under the cursor, beside the list where the
+  terminal is 120 wide (`d` elsewhere): how it stands now - the pipeline,
+  approvals, comments, head, how far behind its base - and its story, the
+  newest first, a line setting apart what came since your last visit.
+- **The log** under them, everything in time with the same line, taking
+  about a third of the height and never fewer than three lines; `L` goes
+  into it, where a row chooses its thing in the list, and `z` brings it to
+  the front at full length.
+
+`Tab` goes round the panels and `Esc` comes back to the list. Each
+watched thing and each agent keeps its story for a month or 200 events,
+under `~/.config/unagit/watch/history/`.
 
 A watched merge request is followed for more than its pipeline: new
 commits, new comments and an approval given or withdrawn are news too. A
@@ -743,7 +765,7 @@ of its rate limit is left alone until it resets, and the row says so.
 
 What a watch reads is the lists' CI column too: a watched row's mark turns
 while its pipeline runs and changes when it ends, without a refresh, and
-the tab turns a mark of its own with how many run (`[5] Watched ⠋1`).
+the tab turns a mark of its own with how many run (`[4] Activity ⠋1`).
 
 Every change - a pipeline that began, passed, failed, was cancelled or
 waits for a manual job, a merge request merged or closed - is a toast in
@@ -757,7 +779,7 @@ headed by that severity's icon and a few words of what happened -
 (`!334 has a new commit by Jane Doe: "Refill the bucket…"`) and a quieter
 line with the repository and the merge request's title. It never takes the keys
 from whatever you are typing. The tab counts the changes not seen yet
-(`[5] Watched ●2`) until you open it, and a merged or closed merge request's
+(`[4] Activity ●2`) until you open it, and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor
 running in unagit's terminal - a desktop notification goes out, through
 Notification Centre or `notify-send`: a terminal's own notification is never

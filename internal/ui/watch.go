@@ -141,10 +141,10 @@ func (a *App) watchUnseen() int {
 // not every day.
 func (a *App) watchPipelinesAction(w watch.Watch) uiAction {
 	if a.isWatched(w) {
-		return uiAction{name: "Stop Watching Pipelines", about: "Stop following its pipelines in the background; the Watched tab lets it go.", rank: 64,
+		return uiAction{name: "Stop Watching Pipelines", about: "Stop following its pipelines in the background; the Activity screen lets it go.", rank: 64,
 			run: func() { a.setWatched(w, false) }}
 	}
-	return uiAction{name: "Watch Pipelines", about: "Follow its pipelines in the background, while unagit runs: the Watched tab lists them, and a failure or a success is said - with a desktop notification when unagit is not in front.", rank: 64,
+	return uiAction{name: "Watch Pipelines", about: "Follow its pipelines in the background, while unagit runs: the Activity screen lists them, and a failure or a success is said - with a desktop notification when unagit is not in front.", rank: 64,
 		run: func() { a.setWatched(w, true) }}
 }
 
@@ -272,9 +272,7 @@ func (a *App) setWatches(watches []watch.Watch) {
 // redrawWatches draws the Watched screen and the tab again, and the lists'
 // marks when what is watched changed.
 func (a *App) redrawWatches(marks bool) {
-	if a.watchedPane != nil {
-		a.watchedPane.reload()
-	}
+	a.redrawActivity()
 	a.drawTabs()
 	if marks {
 		a.projectsPane.reload()
@@ -327,6 +325,8 @@ type watchFollower struct {
 	printsOff map[string]time.Time
 	presence  watch.Presence
 	askSeq    uint64
+	// historyStamp is when the histories were last read.
+	historyStamp time.Time
 	// delivered is what the interface was last handed, so a quiet turn
 	// draws nothing.
 	delivered struct {
@@ -395,6 +395,23 @@ func (f *watchFollower) turn() {
 		}
 	}
 	f.deliver()
+	f.readHistory()
+}
+
+// activityLogKept is how many of the newest events of all the Activity
+// screen holds: its log, and each thing's story in the detail.
+const activityLogKept = 500
+
+// readHistory hands the histories to the interface when any of them moved.
+func (f *watchFollower) readHistory() {
+	stamp := f.store.HistoryStamp()
+	if stamp.IsZero() || stamp.Equal(f.historyStamp) {
+		return
+	}
+	f.historyStamp = stamp
+	events := f.store.AllHistory(activityLogKept)
+	a := f.app
+	a.tv.QueueUpdateDraw(func() { a.setActivityLog(events) })
 }
 
 // moved reports whether a file was written since the last look.
@@ -596,7 +613,7 @@ func (a *App) applyWatchState(watches []watch.Watch, snap watch.Snapshot) {
 		a.watchShown = snap.Seq
 		a.sayWatchEvents(events)
 	}
-	if a.currentTab() == pageWatched {
+	if a.currentTab() == pageActivity {
 		a.markWatchesSeen()
 	}
 	if !same {
@@ -658,7 +675,7 @@ func (a *App) watchesRunning() int {
 
 // watchHeard is told what a list read of something's pipeline: when it is
 // watched and the watch holds something else, the watch is read now rather
-// than at its next turn, so the Watched tab and the toasts keep up.
+// than at its next turn, so the Activity screen and the toasts keep up.
 func (a *App) watchHeard(w watch.Watch, status string) {
 	if !a.isWatched(w) {
 		return
@@ -669,10 +686,10 @@ func (a *App) watchHeard(w watch.Watch, status string) {
 }
 
 // sayWatchEvents shows the news as toasts, the newest few; the rest are on
-// the Watched tab.
+// the Activity screen.
 func (a *App) sayWatchEvents(events []watch.Event) {
 	if over := len(events) - toastsKept; over > 0 {
-		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "They are on the Watched tab ([5]).")
+		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "They are on the Activity screen ([4]).")
 		events = events[over:]
 	}
 	for _, e := range events {

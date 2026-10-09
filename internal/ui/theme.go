@@ -171,6 +171,7 @@ func setTheme(t Theme) {
 	labelColoursMu.Unlock()
 	roleColours = resolveRoles(t)
 	toastRoles(t, roleColours)
+	activityRoles(t, roleColours)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
 	colOpen = openRowBackground(colBackground)

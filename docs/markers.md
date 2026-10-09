@@ -1,5 +1,8 @@
 # Watched and open in Neovim: marks in the lists
 
+The Watched screen named here has since become part of the Activity
+screen, `[4]`, with the agents ([activity.md](activity.md)).
+
 Built: the watched mark, Neovim's and the agents' stand in the lists'
 MARKS column, and x on the Watched screen lets watches go. The rest of
 this page is the plan as it was. It belongs with [watched.md](watched.md) and

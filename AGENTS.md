@@ -140,7 +140,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/workspace` | clones, worktrees, the review arrangement |
 | `internal/gitx` | the git command line, credentials, error hints |
 | `internal/session` | what is open in an editor, files named by pid |
-| `internal/watch` | what is watched and what was last seen of it, the poller's lock, each instance's presence |
+| `internal/watch` | what is watched and what was last seen of it, the poller's lock, each instance's presence, each thing's history |
 | `internal/notify` | desktop notifications: the terminals' escape sequences, the system's notifiers |
 | `internal/editors` | which editors are installed, and the command that opens one |
 | `internal/mux` | Zellij, herdr and Ghostty: tabs, splits and windows, pane IDs and liveness; `unagit launch` |
@@ -153,9 +153,9 @@ select (`styleDropDown`), it just was not reused. The rules:
 In `internal/ui`: `app.go` holds the `App` and the refresh fan-out, `pane.go`
 the table+filter+detail widget both lists are made of, `projects.go` / `mrs.go`
 their contents, `detail.go` the right-hand column, `agents.go` / `agents_tab.go` the coding
-agents and the Agents tab, `settings.go` the whole
+agents, `activity.go` / `activity_screen.go` the Activity screen - the watches and the agents, the editors open, the histories ([docs/activity.md](docs/activity.md)) - `settings.go` the whole
 configuration UI, `comments.go` the conversation, `watch.go` / `watched.go` the
-watches' follower and the Watched tab, `filters.go` the shared
+watches' follower and what is done with a watch, `filters.go` the shared
 filters, `modals.go` the overlay machinery, `theme.go` the palette, `help.go`
 the `?` screen as data.
 
@@ -192,7 +192,7 @@ comes up in a small box over whatever is in front (`message.go`), headed by
 its severity in its colour, and holds the keys until Esc. The one exception
 is a watched pipeline's news (`watch.go`): it arrives while the user types
 into something else, so even a failure is a toast (`toast.go`) in the
-bottom right corner that takes no key and goes by itself, counted on the Watched
+bottom right corner that takes no key and goes by itself, counted on the Activity
 tab ([docs/watched.md](docs/watched.md)). A toast is for news from the
 background alone, never for the answer to something the user did. A note or a
 success is a passing word: on a main screen it goes to the right-hand end of

@@ -191,7 +191,7 @@ func cellStyleAt(a *App, sc tcell.SimulationScreen, x, y int) tcell.Style {
 // openSection walks the Settings sidebar to a section and moves into it.
 func openSection(t *testing.T, a *App, sc tcell.SimulationScreen, section int) {
 	t.Helper()
-	typeRunes(sc, "6")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, sectionNames[section])
 	a.tv.QueueUpdateDraw(func() { a.settings.selectSection(section) })
 	waitFor(t, a, sc, sectionNames[section])

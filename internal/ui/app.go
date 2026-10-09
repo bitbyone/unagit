@@ -37,8 +37,7 @@ const (
 	pageProjects  = "projects"
 	pageMRs       = "mrs"
 	pageWorktrees = "worktrees"
-	pageAgents    = "agents"
-	pageWatched   = "watched"
+	pageActivity  = "activity"
 	pageSettings  = "settings"
 	pageHelp      = "help"
 	pageTask      = "task"
@@ -217,10 +216,21 @@ type App struct {
 	// which agents and editors can be opened in from outside them too.
 	findHerdr   func() *mux.Client
 	findGhostty func() *mux.Client
-	// The Agents tab: the rows as last read, whether a read is under way,
-	// what went wrong with the last, whether the tab is in front - read
+	// The Activity screen (activity.go): its list, the rest of it, the
+	// rows as last laid out, the histories as last read, and when the
+	// screen was visited before this visit.
+	activityPane  *pane
+	activity      *activityView
+	activityRows  []activityItem
+	activityLog   []watch.Event
+	activitySince time.Time
+	// editorsOpen are the editors open, for the cards; editorsSeen what
+	// the last read of them found, kept by its goroutine.
+	editorsOpen []session.Record
+	editorsSeen atomic.Pointer[[]session.Record]
+	// The agents: the rows as last read, whether a read is under way,
+	// what went wrong with the last, whether Activity is in front - read
 	// from the watcher's goroutine - and a nudge for a read now.
-	agentsPane *pane
 	// tabsWidth is the terminal's width the tab bar was last laid out for.
 	tabsWidth     int
 	agentRows     []agentRow
@@ -246,7 +256,6 @@ type App struct {
 	watchAskMu     sync.Mutex
 	watchAskSeq    uint64
 	watchAskKeys   []string
-	watchedPane    *pane
 	stopFollowing  chan struct{}
 	followDone     chan struct{}
 	watchLookEvery time.Duration
@@ -519,15 +528,13 @@ func (a *App) buildInterface() tview.Primitive {
 	a.projectsPane = a.newProjectsPane()
 	a.mrsPane = a.newMRsPane()
 	a.worktreesPane = a.newWorktreesPane()
-	a.agentsPane = a.newAgentsPane()
-	a.watchedPane = a.newWatchedPane()
+	a.activityPane = a.newActivityPane()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
 	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
-	a.pages.AddPage(pageAgents, a.agentsPane.root, true, false)
-	a.pages.AddPage(pageWatched, a.watchedPane.root, true, false)
+	a.pages.AddPage(pageActivity, a.activityPane.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -668,8 +675,8 @@ func (a *App) restoreFocus() {
 		a.tv.SetFocus(a.mrsPane.focusTarget())
 	case pageWorktrees:
 		a.tv.SetFocus(a.worktreesPane.focusTarget())
-	case pageAgents:
-		a.tv.SetFocus(a.agentsPane.focusTarget())
+	case pageActivity:
+		a.tv.SetFocus(a.activityPane.focusTarget())
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

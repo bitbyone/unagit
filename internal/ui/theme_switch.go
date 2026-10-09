@@ -139,7 +139,7 @@ func (a *App) remakeInterface(disk func()) {
 	disk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()
-	a.agentsPane.reload()
+	a.activityPane.reload()
 	a.settings.reload()
 	a.switchTab(tab)
 	if tab == pageSettings {

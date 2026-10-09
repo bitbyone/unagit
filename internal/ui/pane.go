@@ -59,6 +59,12 @@ type pane struct {
 	screen    func() (string, []uiAction)
 	headline  func() string // header text
 	reload    func()        // rebuild rows from the current data
+	// listWeight and detailWeight share the body between the list and
+	// the detail, 1 and 1 unless a screen says otherwise.
+	listWeight, detailWeight int
+	// extraKeys, when set, hears the keys of the list and the detail
+	// first: a screen with more panels than the pane's.
+	extraKeys func(*tcell.EventKey) bool
 
 	// detailFor is the data index the detail column currently shows, and
 	// debounce delays following the cursor so holding j does not fire a
@@ -79,7 +85,7 @@ const detailDebounce = 300 * time.Millisecond
 const narrowBodyWidth = 100
 
 func (a *App) newPane(title string) *pane {
-	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth}
+	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth, listWeight: 1, detailWeight: 1}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(tag(colDim) + "? help" + tagEnd).SetTextAlign(tview.AlignRight)
@@ -287,7 +293,7 @@ func (p *pane) openDetail(title, text string, focus bool) {
 // showDetail reveals the right hand column and moves focus into it.
 func (p *pane) showDetail(title, text string) {
 	if !p.detailShown {
-		p.body.AddItem(p.detail, 0, 1, false)
+		p.body.AddItem(p.detail, 0, p.detailWeight, false)
 		p.detailShown = true
 	}
 	p.detail.SetTitle(" " + title + " ")
@@ -416,6 +422,9 @@ func opensPicker(ev *tcell.EventKey) bool {
 
 // tableKeys implements NORMAL mode.
 func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if p.extraKeys != nil && p.extraKeys(ev) {
+		return nil
+	}
 	if opensPicker(ev) && p.actionKeys(ev) {
 		return nil
 	}
@@ -493,6 +502,9 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 // detailKeys handles the right hand column. Scrolling itself (j/k/g/G/Ctrl-F/
 // Ctrl-B/arrows) is already implemented by tview's TextView.
 func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
+	if p.extraKeys != nil && p.extraKeys(ev) {
+		return nil
+	}
 	if opensPicker(ev) && p.actionKeys(ev) {
 		return nil
 	}

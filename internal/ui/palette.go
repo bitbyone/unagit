@@ -200,6 +200,7 @@ func (a *App) globalActions() []uiAction {
 	return []uiAction{
 		a.runningEditorsAction(""),
 		a.runningAgentsAction(""),
+		{name: "Watches…", about: "Everything watched in one list, from any screen: go to one, or stop watching it.", keys: "W", rank: 510, run: a.showWatches},
 		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
 			rank: 900, run: a.showThemePicker},
 	}

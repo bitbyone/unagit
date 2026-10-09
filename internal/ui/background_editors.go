@@ -10,6 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
@@ -187,9 +188,19 @@ func (a *App) refreshOpenEditors() {
 		for _, r := range a.sessions.InEditor(editors.Nvim) {
 			open[filepath.Clean(r.Dir)] = r
 		}
-		a.openCount.Store(int64(len(open)))
+		// Every editor open, for the Activity screen's cards: not the
+		// agents, which are rows of their own.
+		editorsOpen := a.sessions.Where(func(r session.Record) bool {
+			_, agent := agents.ByID(r.Editor)
+			return r.Editor != "" && !agent
+		})
+		a.openCount.Store(int64(max(len(open), len(editorsOpen))))
 		apply := func() {
 			a.openReading = false
+			if !reflect.DeepEqual(editorsOpen, a.editorsOpen) {
+				a.editorsOpen = editorsOpen
+				a.redrawActivity()
+			}
 			if reflect.DeepEqual(open, a.openDirs) {
 				return
 			}
@@ -198,11 +209,14 @@ func (a *App) refreshOpenEditors() {
 			a.mrsPane.reload()
 			a.worktreesPane.reload()
 		}
-		if seen := a.openSeen.Load(); seen != nil && reflect.DeepEqual(open, *seen) {
+		seenEditors := a.editorsSeen.Load()
+		if seen := a.openSeen.Load(); seen != nil && reflect.DeepEqual(open, *seen) &&
+			seenEditors != nil && reflect.DeepEqual(editorsOpen, *seenEditors) {
 			a.tv.QueueUpdate(apply)
 			return
 		}
 		a.openSeen.Store(&open)
+		a.editorsSeen.Store(&editorsOpen)
 		a.tv.QueueUpdateDraw(apply)
 	}()
 }
@@ -314,7 +328,7 @@ type openMark struct {
 // openMarks are what is open in dir that unagit can tell still runs:
 // Neovim, then every agent it started there. An agent waiting for an
 // answer is in the warning colour and one at work in the accent, so it is
-// seen in the lists and not only on the Agents tab. A window editor is not
+// seen in the lists and not only on the Activity screen. A window editor is not
 // among them: nothing says when its window closes.
 func (a *App) openMarks(dir string) []openMark {
 	if dir == "" {

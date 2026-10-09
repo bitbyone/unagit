@@ -3,8 +3,15 @@
 The Watched and the Agents tabs become one screen, Activity: what runs in
 the background and what is waiting for the user, in one place to look at
 when a notification comes or after time away. Designed with the user on
-2026-10-09; not built yet. It builds on the watches of
+2026-10-09 and built the same day; it builds on the watches of
 [watched.md](watched.md).
+
+Where the building differs from the drawing below: the Watches dialog
+stops one watch with `x` and all of them with `X` (a picker has no
+marks); an agent is closed with `x`, as a watch is stopped, so `d` is free
+for the detail; below 120 columns `d` opens the detail under the list,
+since Enter does what the row is for - a pipeline's jobs, going to an
+agent.
 
 What it answers, top to bottom:
 

@@ -196,6 +196,18 @@ func (s *Store) InEditor(id string) []Record {
 	return unique(out)
 }
 
+// Where is what is open and keep says yes to, filtered before
+// deduplication as InEditor is.
+func (s *Store) Where(keep func(Record) bool) []Record {
+	var out []Record
+	for _, r := range s.records(false) {
+		if keep(r) {
+			out = append(out, r)
+		}
+	}
+	return unique(out)
+}
+
 func (s *Store) records(backgroundOnly bool) []Record {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
