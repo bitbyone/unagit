@@ -206,9 +206,13 @@ func readWatch(ctx context.Context, client forge.Provider, w watch.Watch, before
 func readActivity(ctx context.Context, client forge.Provider, mr forge.MergeRequest, det *forge.MergeRequestDetail, before watch.State, st *watch.State) {
 	st.Head, st.Comments, st.Known = det.SHA, det.UserNotesCount, true
 	st.Commits, st.Approvers = before.Commits, before.Approvers
+	st.HeadBy, st.HeadTitle = before.HeadBy, before.HeadTitle
 	if st.Head != before.Head || !before.Known {
-		if _, n, err := client.MergeRequestCommits(ctx, mr, 1); err == nil {
+		if newest, n, err := client.MergeRequestCommits(ctx, mr, 1); err == nil {
 			st.Commits = n
+			if len(newest) > 0 {
+				st.HeadBy, st.HeadTitle = newest[0].AuthorName, newest[0].Title
+			}
 		}
 	}
 	if ap, err := client.MergeRequestApprovals(ctx, mr); err == nil && ap != nil {
@@ -230,17 +234,24 @@ func firstFailed(jobs []forge.Job) string {
 // merge request's activity, a branch falling behind its base, the
 // pipeline. The first reading is never news - only a change from what was
 // last held.
+//
+// Each says what happened in a heading of a few words and a sentence of
+// where and how, which names the watch by its number or branch alone: the
+// repository and the merge request's title go beside it wherever it is
+// shown.
 func watchChanges(w watch.Watch, before, after watch.State, known bool, ended string) []watch.Event {
-	title := cmp.Or(after.Title, before.Title, w.Title)
-	ev := func(line string, level watch.Level) watch.Event {
-		return watch.Event{Key: w.Key(), What: w.Label(), Line: line, Level: level, Title: title}
-	}
-	if ended != "" {
-		level := watch.Warning
-		if ended == "merge request merged" {
-			level = watch.Success
-		}
-		return []watch.Event{ev(ended+" · no longer watched", level)}
+	ev := newsOf(w, before, after)
+	who := w.Subject()
+	switch ended {
+	case "":
+	case "merge request merged":
+		return []watch.Event{ev(watch.Success, "MR merged", who+" was merged · no longer watched")}
+	case "merge request closed":
+		return []watch.Event{ev(watch.Warning, "MR closed", who+" was closed without merging · no longer watched")}
+	case "branch deleted on origin":
+		return []watch.Event{ev(watch.Warning, "Branch deleted", who+" was deleted on origin · no longer watched")}
+	default:
+		return []watch.Event{ev(watch.Warning, "No longer watched", who+": "+ended)}
 	}
 	if !known {
 		return nil
@@ -248,37 +259,67 @@ func watchChanges(w watch.Watch, before, after watch.State, known bool, ended st
 	var out []watch.Event
 	if before.Known && after.Known {
 		if after.Head != before.Head && after.Head != "" {
-			n := after.Commits - before.Commits
-			switch {
-			case n > 0:
-				out = append(out, ev(fmt.Sprintf("%d new %s · head %s", n, plural(n, "commit", "commits"), shortSHA(after.Head)), watch.Info))
+			commit := headCommit(after)
+			switch n := after.Commits - before.Commits; {
+			case n == 1:
+				out = append(out, ev(watch.Info, "New commit in MR", who+" has a new commit"+commit))
+			case n > 1:
+				line := fmt.Sprintf("%s has %d new commits", who, n)
+				if commit != "" {
+					line += ", the last" + commit
+				}
+				out = append(out, ev(watch.Info, "New commits in MR", line))
 			default:
-				out = append(out, ev("head rewritten · "+shortSHA(after.Head), watch.Warning))
+				out = append(out, ev(watch.Warning, "MR force-pushed", fmt.Sprintf("%s was rewritten, its head now %s%s", who, shortSHA(after.Head), commit)))
 			}
 		}
-		if n := after.Comments - before.Comments; n > 0 {
-			out = append(out, ev(fmt.Sprintf("%d new %s", n, plural(n, "comment", "comments")), watch.Info))
+		switch n := after.Comments - before.Comments; {
+		case n == 1:
+			out = append(out, ev(watch.Info, "New comment in MR", who+" has a new comment"))
+		case n > 1:
+			out = append(out, ev(watch.Info, "New comments in MR", fmt.Sprintf("%s has %d new comments", who, n)))
 		}
 		if added := missing(after.Approvers, before.Approvers); len(added) > 0 {
-			out = append(out, ev("approved by "+strings.Join(added, ", "), watch.Success))
+			out = append(out, ev(watch.Success, "MR approved", who+" was approved by "+strings.Join(added, ", ")))
 		}
 		if gone := missing(before.Approvers, after.Approvers); len(gone) > 0 {
-			out = append(out, ev("approval withdrawn by "+strings.Join(gone, ", "), watch.Warning))
+			out = append(out, ev(watch.Warning, "Approval withdrawn", strings.Join(gone, ", ")+" withdrew the approval of "+who))
 		}
 	}
 	if before.Base != "" && after.Base == before.Base && after.Behind > before.Behind {
-		out = append(out, ev(fmt.Sprintf("%s moved on · %d behind it", after.Base, after.Behind), watch.Info))
+		out = append(out, ev(watch.Info, "Base moved on", fmt.Sprintf("%s is %d %s behind %s",
+			who, after.Behind, plural(after.Behind, "commit", "commits"), after.Base)))
 	}
 	return append(out, pipelineChanges(w, before, after, known, "")...)
+}
+
+// newsOf makes a watch's events.
+func newsOf(w watch.Watch, before, after watch.State) func(watch.Level, string, string) watch.Event {
+	title := cmp.Or(after.Title, before.Title, w.Title)
+	return func(level watch.Level, heading, line string) watch.Event {
+		return watch.Event{Key: w.Key(), What: w.Label(), Heading: heading, Line: line, Project: w.Project, Level: level, Title: title}
+	}
+}
+
+// headCommitMax is how much of a commit's subject a sentence quotes.
+const headCommitMax = 40
+
+// headCommit is the head commit's author and subject, as the end of a
+// sentence about it: ` by Jane Doe: "Fix the…"`.
+func headCommit(st watch.State) string {
+	out := ""
+	if st.HeadBy != "" {
+		out = " by " + st.HeadBy
+	}
+	if st.HeadTitle != "" {
+		out += `: "` + trunc(st.HeadTitle, headCommitMax) + `"`
+	}
+	return out
 }
 
 // pipelineChanges is what changed in a watch's pipeline, as events: one
 // for each change, a pipeline that began as much as one that ended.
 func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended string) []watch.Event {
-	title := cmp.Or(after.Title, before.Title, w.Title)
-	ev := func(line string, level watch.Level) []watch.Event {
-		return []watch.Event{{Key: w.Key(), What: w.Label(), Line: line, Level: level, Title: title}}
-	}
 	if ended != "" {
 		return watchChanges(w, before, after, known, ended)
 	}
@@ -289,24 +330,39 @@ func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended
 	if !fresh && after.Status == before.Status {
 		return nil
 	}
+	news := newsOf(w, before, after)
+	ev := func(level watch.Level, heading, how string) []watch.Event {
+		pipeline := "Pipeline"
+		if after.Pipeline > 0 {
+			pipeline += fmt.Sprintf(" #%d", after.Pipeline)
+		}
+		return []watch.Event{news(level, heading, pipeline+" of "+w.Subject()+" "+how)}
+	}
 	switch after.Status {
 	case "manual":
-		return ev("pipeline waits for a manual job", watch.Warning)
+		return ev(watch.Warning, "Manual job waiting", "waits for a manual job to be started")
 	case "canceled", "cancelled":
-		return ev("pipeline cancelled", watch.Warning)
+		return ev(watch.Warning, "Pipeline cancelled", "was cancelled")
 	}
 	switch ciStateOf(after.Status) {
 	case ciPassed:
-		return ev("pipeline passed", watch.Success)
+		return ev(watch.Success, "Pipeline passed", "passed")
 	case ciFailed:
-		line := "pipeline failed"
+		how := "failed"
 		if after.Failed != "" {
-			line += " · " + after.Failed
+			how += " in " + after.Failed
 		}
-		return ev(line, watch.Danger)
+		return ev(watch.Danger, "Pipeline failed", how)
 	case ciRunning:
 		if fresh || ciStateOf(before.Status) != ciRunning {
-			return ev("pipeline started", watch.Info)
+			how := "started"
+			if after.User != "" {
+				how += " by " + after.User
+			}
+			if after.SHA != "" {
+				how += " for " + shortSHA(after.SHA)
+			}
+			return ev(watch.Info, "Pipeline running", how)
 		}
 	}
 	return nil

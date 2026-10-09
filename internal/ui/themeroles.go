@@ -148,13 +148,43 @@ var colourRoles = []colourRole{
 	{"watched.changed", "column.age", "when the pipeline last changed"},
 	{"watched.latest", "text.normal", "what was last said of a watch"},
 	{"watched.error", "state.warning", "why the last reading failed"},
-	{"toast.background", "surface.raised", "a toast: news from the background, in the top right corner"},
+	// A toast is filled with its severity's colour. Unless a theme names
+	// them, its colours are worked out of the severity's and the
+	// background (toastRoles); the fallbacks are for a theme of an older
+	// unagit that named the general ones.
+	{"toast.background", "surface.raised", "a toast: news from the background, in the bottom right corner"},
 	{"toast.text", "text.normal", "what a toast says"},
-	{"toast.about", "text.muted", "what a toast is about: a merge request's title"},
-	{"toast.info", "text.accent", "a toast's border and title: something began"},
-	{"toast.success", "state.good", "something passed"},
-	{"toast.warning", "state.warning", "something was cancelled or waits for a hand"},
-	{"toast.danger", "state.bad", "something failed"},
+	{"toast.about", "text.muted", "what a toast is about: the repository, a merge request's title"},
+	{"toast.info", "text.accent", "the colour of a toast of something that began or came"},
+	{"toast.success", "state.good", "of something that passed"},
+	{"toast.warning", "state.warning", "of something cancelled, or waiting for a hand"},
+	{"toast.danger", "state.bad", "of something that failed"},
+}
+
+// toastLevels are the toasts' severities by the names of their roles.
+var toastLevels = []string{"info", "success", "warning", "danger"}
+
+func init() {
+	for _, level := range toastLevels {
+		colourRoles = append(colourRoles,
+			colourRole{"toast." + level + ".background", "toast.background", "the fill of a toast of " + level},
+			colourRole{"toast." + level + ".border", "toast." + level, "its border"},
+			colourRole{"toast." + level + ".text", "toast.text", "its heading and what it says"},
+			colourRole{"toast." + level + ".about", "toast.about", "the line of what it is about"})
+	}
+}
+
+// toastRoles works out each severity's toast colours the theme does not
+// name, from its severity's colour and the background.
+func toastRoles(t Theme, roles map[string]tcell.Color) {
+	for _, level := range toastLevels {
+		ink := deriveToastInk(colour(t.Background), roles["toast."+level])
+		for part, c := range map[string]tcell.Color{"background": ink.fill, "border": ink.border, "text": ink.text, "about": ink.about} {
+			if key := "toast." + level + "." + part; t.Roles[key] == "" {
+				roles[key] = c
+			}
+		}
+	}
 }
 
 // roleColours is every role as the theme on resolves it (setTheme).

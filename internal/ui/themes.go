@@ -296,6 +296,12 @@ type Glyphs struct {
 	ElidedGroup string `json:"elided_group"`
 	// Edits heads the column counting the files not committed.
 	Edits string `json:"edits"`
+	// ToastInfo, ToastSuccess, ToastWarning and ToastDanger head a toast
+	// of each severity, which no word names.
+	ToastInfo    string `json:"toast_info"`
+	ToastSuccess string `json:"toast_success"`
+	ToastWarning string `json:"toast_warning"`
+	ToastDanger  string `json:"toast_danger"`
 	// Shown and Hidden mark a column of a list as shown or left out, in
 	// View options: an eye and the eye struck through.
 	ColumnShown  string `json:"column_shown"`
@@ -588,6 +594,8 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
 		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden,
+		"glyphs.toast_info": g.ToastInfo, "glyphs.toast_success": g.ToastSuccess,
+		"glyphs.toast_warning": g.ToastWarning, "glyphs.toast_danger": g.ToastDanger,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,
 		"borders.top_left": t.Borders.TopLeft, "borders.top_right": t.Borders.TopRight,
 		"borders.bottom_left": t.Borders.BottomLeft, "borders.bottom_right": t.Borders.BottomRight,

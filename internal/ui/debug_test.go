@@ -43,14 +43,6 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 	}
 	resizeApp(a, sc, 120, 34)
 
-	// The fourth row is the danger toast.
-	for range 3 {
-		typeRunes(sc, "j")
-	}
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Debug · danger")
-	assertLegible(t, a, sc, "a danger toast over Settings")
-
 	// A watched failure, while in front: a toast and no notification.
 	pick := func(name string) {
 		changeOnLoop(a, func() {
@@ -61,13 +53,40 @@ func TestDebugIsThereOnlyWithTheFlag(t *testing.T) {
 			}
 		})
 	}
-	pick("pipeline failed · unit tests")
+	pick("Pipeline failed")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "pipeline failed · unit tests")
+	waitFor(t, a, sc, "failed in test:unit")
+	assertLegible(t, a, sc, "a danger toast over Settings")
 	if n := notified.Load(); n != 0 {
 		t.Fatalf("news in front was notified %d times", n)
 	}
 	pick("through the system, in 4 s")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitTrue(t, "the desktop notification never went", func() bool { return notified.Load() == 1 })
+}
+
+// TestDebugShowsEverySituationAsItWillCome: each situation Debug fires is
+// news the poller makes, with a heading and a sentence that names the
+// watch, and no situation is left out.
+func TestDebugShowsEverySituationAsItWillCome(t *testing.T) {
+	t.Parallel()
+	headings := map[string]bool{}
+	for _, c := range debugNewsCases() {
+		if len(c.events) == 0 {
+			t.Fatalf("%s makes no news", c.name)
+		}
+		for _, e := range c.events {
+			if e.Heading == "" || !strings.Contains(e.Line, "!334") && !strings.Contains(e.Line, "feature/token-bucket") {
+				t.Errorf("%s: %q, %q does not say what and where", c.name, e.Heading, e.Line)
+			}
+			headings[e.Heading] = true
+		}
+	}
+	for _, want := range []string{"Pipeline running", "Pipeline passed", "Pipeline failed", "Pipeline cancelled",
+		"Manual job waiting", "New commit in MR", "New commits in MR", "MR force-pushed", "New comment in MR",
+		"New comments in MR", "MR approved", "Approval withdrawn", "Base moved on", "MR merged", "MR closed", "Branch deleted"} {
+		if !headings[want] {
+			t.Errorf("no situation says %q", want)
+		}
+	}
 }

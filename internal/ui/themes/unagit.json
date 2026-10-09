@@ -124,6 +124,10 @@
     "edits": "✎",
     "column_shown": "◉",
     "column_hidden": "◌",
+    "toast_info": "i",
+    "toast_success": "✓",
+    "toast_warning": "!",
+    "toast_danger": "✗",
     "spinner": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",
     "ci_running": "◐◓◑◒",
     "ci_done": "●",
@@ -152,7 +156,11 @@
     "elided_group": "\uef81",
     "edits": "\uea73",
     "column_shown": "\uea70",
-    "column_hidden": "\ueae7"
+    "column_hidden": "\ueae7",
+    "toast_info": "\uf05a",
+    "toast_success": "\uf058",
+    "toast_warning": "\uf071",
+    "toast_danger": "\uf057"
   },
   "action_icons": {
       "Add Repository\u2026": "\uea60",

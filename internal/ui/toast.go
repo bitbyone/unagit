@@ -8,19 +8,25 @@ import (
 )
 
 // A toast is news from the background - a watched pipeline that began,
-// passed or failed - shown in the top right corner over whatever is in
-// front, for a few seconds. It takes no key and no focus: it arrives while
-// the user types into something else, and must not take the keyboard from
-// them, which is why it is not a message box. Several stack, the newest on
-// top. Its time runs only while the terminal is in front, so what came
-// while the user was away is still there when they come back.
+// passed or failed, a merge request approved - shown in the bottom right
+// corner over whatever is in front, for a few seconds. It takes no key and
+// no focus: it arrives while the user types into something else, and must
+// not take the keyboard from them, which is why it is not a message box.
+// Several stack upwards, the newest in the corner. Its time runs only while
+// the terminal is in front, so what came while the user was away is still
+// there when they come back.
+//
+// Its severity is never written: it is the toast's colour - the whole of
+// it filled, the border brighter - and the icon before its heading.
 
 // toast is one on screen.
 type toast struct {
-	sev         severity
+	sev severity
+	// title is what happened in a few words, bold; body the sentence of
+	// where and how.
 	title, body string
-	// about is what the news is about - a merge request's title - on a
-	// line of its own under the heading, muted.
+	// about is what the news is about - the repository, a merge request's
+	// title - on a quieter line under it.
 	about string
 	left  time.Duration
 }
@@ -31,33 +37,31 @@ const (
 	// toastsKept is how many stack at most; an older one gives way.
 	toastsKept = 4
 	// toastWidth is the widest a toast is, its border included.
-	toastWidth = 48
+	toastWidth = 56
+	// toastBodyLines is as many lines as its sentence takes at most.
+	toastBodyLines = 3
 )
 
-// toastMark is the first line's mark for a severity.
-func toastMark(sev severity) string {
+// toastIcons head a toast of each severity (setTheme).
+var toastIcons map[severity]string
+
+// toastLevel is a severity's name among the toast roles.
+func toastLevel(sev severity) string {
 	switch sev {
 	case sevSuccess:
-		return glyphCheck
+		return "success"
 	case sevWarning:
-		return "!"
+		return "warning"
 	case sevError:
-		return glyphCross
+		return "danger"
 	}
-	return "i"
+	return "info"
 }
 
-// toastColour is a severity's colour on a toast: its border and its title.
-func toastColour(sev severity) tcell.Color {
-	switch sev {
-	case sevSuccess:
-		return role("toast.success")
-	case sevWarning:
-		return role("toast.warning")
-	case sevError:
-		return role("toast.danger")
-	}
-	return role("toast.info")
+// toastRole is a toast's colour of a severity: its background, border,
+// text or about.
+func toastRole(sev severity, part string) tcell.Color {
+	return role("toast." + toastLevel(sev) + "." + part)
 }
 
 // showToast puts a toast up. It runs on the event loop.
@@ -115,61 +119,70 @@ func (a *App) countToasts() {
 }
 
 // drawToasts paints the toasts after everything else, so they stand over
-// dialogs too, at the top right, inside the frame of the screen beneath.
+// dialogs too, at the bottom right, inside the frame of the screen beneath
+// and above its status line.
 func (a *App) drawToasts(screen tcell.Screen) {
 	if len(a.toasts) == 0 {
 		return
 	}
 	sw, sh := screen.Size()
 	width := min(toastWidth, sw-4)
-	if width < 16 {
+	if width < 20 {
 		return
 	}
 	// Inside the frames of the screen under them, which stay whole.
-	x, y := sw-width-2, 2
-	fill := tcell.StyleDefault.Background(role("toast.background"))
+	x, bottom := sw-width-2, sh-3
+	// The icon, then two cells, then the words.
+	indent := 5
+	inner := width - indent - 2
 	for i := len(a.toasts) - 1; i >= 0; i-- {
 		t := a.toasts[i]
-		lines := tview.WordWrap(t.body, width-4)
-		if len(lines) > 3 {
-			lines = lines[:3]
+		lines := tview.WordWrap(t.body, inner)
+		if len(lines) > toastBodyLines {
+			lines = lines[:toastBodyLines]
+			lines[len(lines)-1] = trunc(lines[len(lines)-1]+" …", inner)
 		}
 		height := 3 + len(lines)
 		if t.about != "" {
 			height++
 		}
-		if y+height > sh-1 {
+		top := bottom - height + 1
+		if top < 1 {
 			return
 		}
-		colour := toastColour(t.sev)
-		border := fill.Foreground(colour)
-		for row := y; row < y+height; row++ {
+		fillColour, text := toastRole(t.sev, "background"), toastRole(t.sev, "text")
+		fill := tcell.StyleDefault.Background(fillColour)
+		border := fill.Foreground(toastRole(t.sev, "border"))
+		for row := top; row <= bottom; row++ {
 			for col := x; col < x+width; col++ {
 				screen.SetContent(col, row, ' ', nil, fill)
 			}
 		}
 		for col := x + 1; col < x+width-1; col++ {
-			screen.SetContent(col, y, tview.Borders.Horizontal, nil, border)
-			screen.SetContent(col, y+height-1, tview.Borders.Horizontal, nil, border)
+			screen.SetContent(col, top, tview.Borders.Horizontal, nil, border)
+			screen.SetContent(col, bottom, tview.Borders.Horizontal, nil, border)
 		}
-		for row := y + 1; row < y+height-1; row++ {
+		for row := top + 1; row < bottom; row++ {
 			screen.SetContent(x, row, tview.Borders.Vertical, nil, border)
 			screen.SetContent(x+width-1, row, tview.Borders.Vertical, nil, border)
 		}
-		screen.SetContent(x, y, tview.Borders.TopLeft, nil, border)
-		screen.SetContent(x+width-1, y, tview.Borders.TopRight, nil, border)
-		screen.SetContent(x, y+height-1, tview.Borders.BottomLeft, nil, border)
-		screen.SetContent(x+width-1, y+height-1, tview.Borders.BottomRight, nil, border)
-		head := tag(colour) + "[::b]" + esc(toastMark(t.sev)+" "+t.title) + "[::-]" + tagEnd
-		tview.Print(screen, head, x+2, y+1, width-4, tview.AlignLeft, colour)
-		first := y + 2
+		screen.SetContent(x, top, tview.Borders.TopLeft, nil, border)
+		screen.SetContent(x+width-1, top, tview.Borders.TopRight, nil, border)
+		screen.SetContent(x, bottom, tview.Borders.BottomLeft, nil, border)
+		screen.SetContent(x+width-1, bottom, tview.Borders.BottomRight, nil, border)
+		on := ":" + fillColour.String()
+		icon := toastRole(t.sev, "border")
+		tview.Print(screen, "["+icon.String()+on+":b]"+esc(toastIcons[t.sev])+"[-:-:-]", x+2, top+1, 2, tview.AlignLeft, icon)
+		tview.Print(screen, "["+text.String()+on+":b]"+esc(trunc(t.title, inner))+"[-:-:-]", x+indent, top+1, inner, tview.AlignLeft, text)
+		row := top + 2
+		for _, line := range lines {
+			tview.Print(screen, "["+text.String()+on+"]"+esc(line)+"[-:-:-]", x+indent, row, inner, tview.AlignLeft, text)
+			row++
+		}
 		if t.about != "" {
-			tview.Print(screen, tag(role("toast.about"))+esc(trunc(t.about, width-4))+tagEnd, x+2, first, width-4, tview.AlignLeft, role("toast.about"))
-			first++
+			about := toastRole(t.sev, "about")
+			tview.Print(screen, "["+about.String()+on+"]"+esc(trunc(t.about, inner))+"[-:-:-]", x+indent, row, inner, tview.AlignLeft, about)
 		}
-		for j, line := range lines {
-			tview.Print(screen, tag(role("toast.text"))+esc(line)+tagEnd, x+2, first+j, width-4, tview.AlignLeft, role("toast.text"))
-		}
-		y += height
+		bottom = top - 1
 	}
 }

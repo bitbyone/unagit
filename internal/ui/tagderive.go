@@ -203,3 +203,53 @@ func gamma(v float64) float64 {
 func cube(v float64) float64 { return v * v * v }
 
 func clamp(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
+
+// toastInk is a toast's colours: the whole of it filled with its
+// severity's colour, the border in the same hue but brighter - or, on a
+// light theme, deeper - so it stands off what is under it, and text that
+// reads on the fill.
+type toastInk struct {
+	fill, border, text, about tcell.Color
+}
+
+// Contrasts a worked out toast keeps: its text, its quieter line, and its
+// border against its fill.
+const (
+	toastTextContrast   = 7.0
+	toastAboutContrast  = 4.5
+	toastBorderContrast = 2.2
+)
+
+// deriveToastInk works a toast's colours out of the theme's background and
+// the severity's colour, keeping the hue and the theme's lightness: a dark
+// theme gets a dark tint of the colour, a light one a pale one.
+func deriveToastInk(background, accent tcell.Color) toastInk {
+	bg := oklab{l: 0.2}
+	if background != tcell.ColorDefault && background.Valid() {
+		bg = toOklab(background)
+	}
+	hue, chroma := 250.0, 0.1
+	if accent != tcell.ColorDefault && accent.Valid() {
+		lab := toOklab(accent)
+		hue, chroma = math.Atan2(lab.b, lab.a)*180/math.Pi, math.Hypot(lab.a, lab.b)
+	}
+	dark := bg.l < 0.6
+	fillL, borderL, textL, toward := bg.l+0.15, 0.8, 0.96, 0.01
+	if !dark {
+		fillL, borderL, textL, toward = bg.l-0.1, 0.5, 0.25, -0.01
+	}
+	fill := fromOklch(fillL, clamp(chroma*0.55, 0.03, 0.1), hue, 0, 0)
+	// Each moved away from the fill until it reads, a step at a time.
+	away := func(l, c, want float64) tcell.Color {
+		col := fromOklch(l, c, hue, 0, 0)
+		for contrast(col, fill) < want && l > 0 && l < 1 {
+			l += toward
+			col = fromOklch(l, c, hue, 0, 0)
+		}
+		return col
+	}
+	text := away(textL, 0.02, toastTextContrast)
+	about := away(fillL+(textL-fillL)*0.6, 0.03, toastAboutContrast)
+	border := away(borderL, clamp(chroma, 0.08, 0.2), toastBorderContrast)
+	return toastInk{fill: fill, border: border, text: text, about: about}
+}

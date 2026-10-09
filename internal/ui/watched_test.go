@@ -218,8 +218,8 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	}
 
 	srv.set("failed", 90, "aaaa1111")
-	waitFor(t, a, sc, "pipeline failed · unit tests")
-	waitFor(t, b, scB, "pipeline failed · unit tests")
+	waitFor(t, a, sc, "failed in unit tests")
+	waitFor(t, b, scB, "failed in unit tests")
 	waitTrue(t, "the failure was never notified", func() bool { return notified.Load() >= 1 })
 	if n := notified.Load(); n != 1 {
 		t.Fatalf("the failure was notified %d times, want once", n)
@@ -247,7 +247,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 		t.Fatalf("taking over notified the failure again: %d", n)
 	}
 	srv.set("success", 91, "bbbb2222")
-	waitFor(t, survivor, survivorScreen, "pipeline passed")
+	waitFor(t, survivor, survivorScreen, "Pipeline passed")
 	// A new head is news of its own, besides the pipeline's.
 	waitTrue(t, "the success was never notified", func() bool { return notified.Load() >= 2 })
 }
@@ -309,7 +309,7 @@ func TestAMergedMergeRequestLetsItsWatchGo(t *testing.T) {
 	srv.mu.Lock()
 	srv.state = "merged"
 	srv.mu.Unlock()
-	waitFor(t, a, sc, "merge request merged · no longer watched")
+	waitFor(t, a, sc, "was merged · no longer watched")
 	waitTrue(t, "the watch of a merged merge request stayed", func() bool {
 		ws, _ := watch.Open(cfg.WatchDir()).Watches()
 		return len(ws) == 0
@@ -327,7 +327,7 @@ func TestTheWatchedTabFits(t *testing.T) {
 	waitState(t, cfg, w.Key(), "running")
 	srv.set("failed", 90, "aaaa1111")
 	waitState(t, cfg, w.Key(), "failed")
-	waitFor(t, a, sc, "pipeline failed")
+	waitFor(t, a, sc, "Pipeline failed")
 	typeRunes(sc, "5")
 	waitFor(t, a, sc, "failed · unit tests")
 	assertLegible(t, a, sc, "Watched tab under a toast")
@@ -358,7 +358,7 @@ func TestPipelineChanges(t *testing.T) {
 	lines := func(evs []watch.Event) string {
 		var out []string
 		for _, e := range evs {
-			out = append(out, e.Line+" ("+string(e.Level)+")")
+			out = append(out, e.Heading+": "+e.Line+" ("+string(e.Level)+")")
 		}
 		return strings.Join(out, " | ")
 	}
@@ -379,23 +379,23 @@ func TestPipelineChanges(t *testing.T) {
 	}{
 		{"the first reading is not news", watch.State{}, failed, false, "", ""},
 		{"nothing changed", running, running, true, "", ""},
-		{"it failed", running, failed, true, "", "pipeline failed · lint (danger)"},
-		{"it passed", running, watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, "", "pipeline passed (success)"},
-		{"another began on the same head", watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, watch.State{Pipeline: 2, Status: "running", SHA: "a1"}, true, "", "pipeline started (info)"},
+		{"it failed", running, failed, true, "", "Pipeline failed: Pipeline #1 of !42 failed in lint (danger)"},
+		{"it passed", running, watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, "", "Pipeline passed: Pipeline #1 of !42 passed (success)"},
+		{"another began on the same head", watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, watch.State{Pipeline: 2, Status: "running", SHA: "a1"}, true, "", "Pipeline running: Pipeline #2 of !42 started for a1 (info)"},
 		{"pending began to run", watch.State{Pipeline: 1, Status: "pending", SHA: "a1"}, running, true, "", ""},
-		{"it waits for a hand", running, watch.State{Pipeline: 1, Status: "manual", SHA: "a1"}, true, "", "pipeline waits for a manual job (warning)"},
-		{"cancelled", running, watch.State{Pipeline: 1, Status: "canceled", SHA: "a1"}, true, "", "pipeline cancelled (warning)"},
-		{"merged", running, running, true, "merge request merged", "merge request merged · no longer watched (success)"},
-		{"closed", running, running, true, "merge request closed", "merge request closed · no longer watched (warning)"},
-		{"the branch went", running, running, true, "branch deleted on origin", "branch deleted on origin · no longer watched (warning)"},
+		{"it waits for a hand", running, watch.State{Pipeline: 1, Status: "manual", SHA: "a1"}, true, "", "Manual job waiting: Pipeline #1 of !42 waits for a manual job to be started (warning)"},
+		{"cancelled", running, watch.State{Pipeline: 1, Status: "canceled", SHA: "a1"}, true, "", "Pipeline cancelled: Pipeline #1 of !42 was cancelled (warning)"},
+		{"merged", running, running, true, "merge request merged", "MR merged: !42 was merged · no longer watched (success)"},
+		{"closed", running, running, true, "merge request closed", "MR closed: !42 was closed without merging · no longer watched (warning)"},
+		{"the branch went", running, running, true, "branch deleted on origin", "Branch deleted: !42 was deleted on origin · no longer watched (warning)"},
 		{"a push started another", active(failed, "a1", 3, 0), active(watch.State{Pipeline: 2, Status: "pending", SHA: "b2"}, "b2", 5, 0), true, "",
-			"2 new commits · head b2 (info) | pipeline started (info)"},
-		{"a force push", active(running, "a1", 3, 0), active(running, "c3", 3, 0), true, "", "head rewritten · c3 (warning)"},
-		{"comments", active(running, "a1", 3, 1), active(running, "a1", 3, 2), true, "", "1 new comment (info)"},
-		{"approved", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0, "jane", "john"), true, "", "approved by john (success)"},
-		{"withdrawn", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0), true, "", "approval withdrawn by jane (warning)"},
+			"New commits in MR: !42 has 2 new commits (info) | Pipeline running: Pipeline #2 of !42 started for b2 (info)"},
+		{"a force push", active(running, "a1", 3, 0), active(running, "c3", 3, 0), true, "", "MR force-pushed: !42 was rewritten, its head now c3 (warning)"},
+		{"comments", active(running, "a1", 3, 1), active(running, "a1", 3, 2), true, "", "New comment in MR: !42 has a new comment (info)"},
+		{"approved", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0, "jane", "john"), true, "", "MR approved: !42 was approved by john (success)"},
+		{"withdrawn", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0), true, "", "Approval withdrawn: jane withdrew the approval of !42 (warning)"},
 		{"activity first read", running, active(running, "a1", 3, 2, "jane"), true, "", ""},
-		{"the base moved on", behind(running, "main", 0), behind(running, "main", 3), true, "", "main moved on · 3 behind it (info)"},
+		{"the base moved on", behind(running, "main", 0), behind(running, "main", 3), true, "", "Base moved on: !42 is 3 commits behind main (info)"},
 		{"caught up", behind(running, "main", 3), behind(running, "main", 0), true, "", ""},
 		{"the base first read", running, behind(running, "main", 3), true, "", ""},
 	}
@@ -465,7 +465,7 @@ func TestAWatchMovesTheListsCIColumn(t *testing.T) {
 	})
 	srv.set("failed", 90, "aaaa1111")
 	waitTrue(t, "the list never took the failure", func() bool { return pipeline() == "failed" })
-	waitFor(t, a, sc, "pipeline failed · unit tests")
+	waitFor(t, a, sc, "failed in unit tests")
 	waitTrue(t, "the marks still turn with nothing running", func() bool { return !onLoop(a, func() bool { return a.ciWatching }) })
 }
 
@@ -487,7 +487,7 @@ func TestAPipelineStartedOnTheServerIsNotified(t *testing.T) {
 	app.watchLookEvery = 20 * time.Millisecond
 	app.notifier = func(title, body string) {
 		mu.Lock()
-		bodies = append(bodies, body)
+		bodies = append(bodies, title)
 		mu.Unlock()
 		notified.Add(1)
 	}
@@ -501,12 +501,12 @@ func TestAPipelineStartedOnTheServerIsNotified(t *testing.T) {
 
 	srv.set("running", 91, "aaaa1111") // Run pipeline, on the server
 	waitTrue(t, "the start was never notified", func() bool { return notified.Load() >= 1 })
-	waitFor(t, a, sc, "pipeline started")
+	waitFor(t, a, sc, "Pipeline running")
 	srv.set("success", 91, "aaaa1111")
 	waitTrue(t, "the end was never notified", func() bool { return notified.Load() >= 2 })
 	mu.Lock()
 	defer mu.Unlock()
-	if strings.Join(bodies, " | ") != "pipeline started | pipeline passed" {
+	if strings.Join(bodies, " | ") != "Pipeline running | Pipeline passed" {
 		t.Fatalf("notified %q", bodies)
 	}
 	// Each says what it is about, and what became of it is in notify.log.
@@ -515,7 +515,7 @@ func TestAPipelineStartedOnTheServerIsNotified(t *testing.T) {
 		t.Errorf("the news is not about the merge request: %+v", e)
 	}
 	log, _ := os.ReadFile(filepath.Join(cfg.WatchDir(), "notify.log"))
-	if !strings.Contains(string(log), "pipeline started  ->  sent through the notifier") {
+	if !strings.Contains(string(log), "Pipeline #91 of !7 started") || !strings.Contains(string(log), "->  sent through the notifier") {
 		t.Errorf("notify.log says:\n%s", log)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,45 +59,21 @@ func (s *settingsView) newDebugView() *debugView {
 	v.AddItem(v.state, 6, 0, false).AddItem(v.table, 0, 1, true)
 	box(v.Box, debugSectionName).SetBorderPadding(0, 0, 1, 1)
 
-	event := func(what, line string, level watch.Level) watch.Event {
-		return watch.Event{Key: "debug", What: what, Line: line, Level: level, Title: "Rate limiting for the public API, with a token bucket per client"}
+	news := debugNewsCases()
+	v.triggers = []debugTrigger{{"Toast", "six at once", func() {
+		var evs []watch.Event
+		for i := range 6 {
+			evs = append(evs, news[i%len(news)].events...)
+		}
+		a.sayWatchEvents(evs[:6])
+	}}}
+	for _, c := range news {
+		v.triggers = append(v.triggers, debugTrigger{"Watched", c.name, func() { a.debugNews(c.events...) }})
 	}
-	mr, branch := "acme/gateway !7", "acme/gateway main"
-	news := []watch.Event{
-		event(mr, "pipeline started", watch.Info),
-		event(mr, "new head 1a2b3c4d · pipeline started", watch.Info),
-		event(mr, "pipeline passed", watch.Success),
-		event(mr, "pipeline failed · unit tests", watch.Danger),
-		event(branch, "pipeline cancelled", watch.Warning),
-		event(branch, "pipeline waits for a manual job", watch.Warning),
-		event(mr, "merge request merged · no longer watched", watch.Success),
-		event(mr, "merge request closed · no longer watched", watch.Warning),
-	}
-	toast := func(sev severity, word string) debugTrigger {
-		return debugTrigger{"Toast", word, func() {
-			a.showToast(sev, "Debug · "+word, "A toast of this severity, as news from the background shows.")
-		}}
-	}
-	v.triggers = []debugTrigger{
-		toast(sevInfo, "info"),
-		toast(sevSuccess, "success"),
-		toast(sevWarning, "warning"),
-		toast(sevError, "danger"),
-		{"Toast", "six at once", func() {
-			var evs []watch.Event
-			for i := range 6 {
-				evs = append(evs, news[i%len(news)])
-			}
-			a.sayWatchEvents(evs)
-		}},
-	}
-	for _, e := range news {
-		v.triggers = append(v.triggers, debugTrigger{"Watched", e.Line, func() { a.debugNews(e) }})
-	}
+	failed := news[slices.IndexFunc(news, func(c debugNewsCase) bool { return c.name == "Pipeline failed" })]
 	v.triggers = append(v.triggers,
-		debugTrigger{"Watched", "pipeline failed, in 4 s - switch away to see the desktop", func() {
-			e := news[3]
-			a.afterDebugDelay("pipeline failed", func() { a.debugNews(e) })
+		debugTrigger{"Watched", "Pipeline failed, in 4 s - switch away to see the desktop", func() {
+			a.afterDebugDelay("pipeline failed", func() { a.debugNews(failed.events...) })
 		}},
 		// Each after a while to switch to another program in: the way is
 		// chosen when it is sent, from where the user then is.
@@ -178,15 +155,86 @@ func (v *debugView) fill(a *App) {
 	v.table.Select(max(row, 0), 0)
 }
 
-// debugNews is a watched change as it arrives: a toast here, and a desktop
-// notification when this unagit is not in front - the poller asks every
+// debugNews is watched changes as they arrive: toasts here, and desktop
+// notifications when this unagit is not in front - the poller asks every
 // instance, this asks this one alone.
-func (a *App) debugNews(e watch.Event) {
-	a.sayWatchEvents([]watch.Event{e})
+func (a *App) debugNews(events ...watch.Event) {
+	a.sayWatchEvents(events)
 	if a.terminalInFront() {
 		return
 	}
-	go a.notifyWatch(context.Background(), e)
+	for _, e := range events {
+		go a.notifyWatch(context.Background(), e)
+	}
+}
+
+// debugNewsCase is a situation a watch tells of, and what it says of it.
+type debugNewsCase struct {
+	name   string
+	events []watch.Event
+}
+
+// debugNewsCases is every situation a watch tells of, each as the poller
+// would say it: made by the same watchChanges out of two readings, so
+// what Debug shows is what will come.
+func debugNewsCases() []debugNewsCase {
+	mr := watch.Watch{Project: "acme/gateway", IID: 334, Title: "Rate limiting for the public API, with a token bucket per client"}
+	branch := watch.Watch{Project: "acme/gateway", Branch: "feature/token-bucket"}
+	was := watch.State{
+		Title: mr.Title, Known: true, Head: "1a2b3c4d5e6f", Commits: 4, Comments: 2, Approvers: []string{"jdoe"},
+		Pipeline: 8120, Status: "success", SHA: "1a2b3c4d5e6f", User: "Jane Doe",
+		HeadBy: "Jane Doe", HeadTitle: "Count the tokens per client, not per route",
+	}
+	onBranch := watch.State{Pipeline: 8120, Status: "success", SHA: "1a2b3c4d5e6f", User: "Jane Doe", Base: "main", Behind: 1}
+	pushed := func(st watch.State, commits int) watch.State {
+		st.Head, st.Commits = "9f8e7d6c5b4a", st.Commits+commits
+		st.HeadBy, st.HeadTitle = "John Smith", "Refill the bucket lazily on the next request instead of on a timer"
+		return st
+	}
+	pipeline := func(st watch.State, status, failed string) watch.State {
+		st.Pipeline, st.Status, st.SHA, st.Failed, st.User = 8121, status, "9f8e7d6c5b4a", failed, "John Smith"
+		return st
+	}
+	running := pipeline(was, "running", "")
+	with := func(st watch.State, change func(*watch.State)) watch.State {
+		st.Approvers = slices.Clone(st.Approvers)
+		change(&st)
+		return st
+	}
+	cases := []struct {
+		name          string
+		w             watch.Watch
+		before, after watch.State
+		ended         string
+	}{
+		{"Pipeline running", mr, was, running, ""},
+		{"Pipeline passed", mr, running, pipeline(was, "success", ""), ""},
+		{"Pipeline failed", mr, running, pipeline(was, "failed", "test:unit"), ""},
+		{"Pipeline cancelled", branch, pipeline(onBranch, "running", ""), pipeline(onBranch, "canceled", ""), ""},
+		{"Manual job waiting", branch, pipeline(onBranch, "running", ""), pipeline(onBranch, "manual", ""), ""},
+		{"Pipeline running on a branch", branch, onBranch, pipeline(onBranch, "running", ""), ""},
+		{"New commit in MR", mr, was, pushed(was, 1), ""},
+		{"New commits in MR", mr, was, pushed(was, 3), ""},
+		{"A push: its commit and its pipeline", mr, was, pipeline(pushed(was, 1), "running", ""), ""},
+		{"MR force-pushed", mr, was, pushed(was, 0), ""},
+		{"New comment in MR", mr, was, with(was, func(s *watch.State) { s.Comments++ }), ""},
+		{"New comments in MR", mr, was, with(was, func(s *watch.State) { s.Comments += 3 }), ""},
+		{"MR approved", mr, was, with(was, func(s *watch.State) { s.Approvers = append(s.Approvers, "msmith") }), ""},
+		{"Approval withdrawn", mr, was, with(was, func(s *watch.State) { s.Approvers = nil }), ""},
+		{"Base moved on", branch, onBranch, with(onBranch, func(s *watch.State) { s.Behind = 4 }), ""},
+		{"MR merged", mr, was, was, "merge request merged"},
+		{"MR closed", mr, was, was, "merge request closed"},
+		{"Branch deleted", branch, onBranch, onBranch, "branch deleted on origin"},
+	}
+	out := make([]debugNewsCase, 0, len(cases))
+	for _, c := range cases {
+		events := watchChanges(c.w, c.before, c.after, true, c.ended)
+		for i := range events {
+			events[i].Key = "debug"
+		}
+		out = append(out, debugNewsCase{c.name, events})
+	}
+	return out
 }
 
 // testNotification sends a desktop notification the way a mode chooses,

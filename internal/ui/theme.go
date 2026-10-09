@@ -170,6 +170,7 @@ func setTheme(t Theme) {
 	labelPillMaker, labelColours = newPillMaker(t), map[string]tagColour{}
 	labelColoursMu.Unlock()
 	roleColours = resolveRoles(t)
+	toastRoles(t, roleColours)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
 	colOpen = openRowBackground(colBackground)
@@ -201,6 +202,7 @@ func setTheme(t Theme) {
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
 	glyphElided, glyphElidedGroup, glyphEdits = g.Elided, g.ElidedGroup, g.Edits
 	glyphColumnShown, glyphColumnHidden = g.ColumnShown, g.ColumnHidden
+	toastIcons = map[severity]string{sevInfo: g.ToastInfo, sevSuccess: g.ToastSuccess, sevWarning: g.ToastWarning, sevError: g.ToastDanger}
 	glyphMask = rune0(g.Mask)
 	selectMarker = " " + g.Select
 

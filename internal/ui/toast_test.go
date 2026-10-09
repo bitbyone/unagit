@@ -11,10 +11,10 @@ import (
 	"github.com/tobola/unagit/internal/config"
 )
 
-// TestToastsStackAndGo: toasts of every severity stack in the top right
-// corner, the newest on top, each bordered in its severity's colour, take
-// no key, and go once their time is up - counted only while the terminal is
-// in front.
+// TestToastsStackAndGo: toasts of every severity stack upwards from the
+// bottom right corner, the newest in the corner, each filled with its
+// severity's colour and headed by its icon, take no key, and go once their
+// time is up - counted only while the terminal is in front.
 func TestToastsStackAndGo(t *testing.T) {
 	t.Parallel()
 	// The toasts' ticks alone: a spinner's would take them otherwise.
@@ -30,36 +30,45 @@ func TestToastsStackAndGo(t *testing.T) {
 	})
 	waitFor(t, a, sc, "acme/gateway")
 	onLoop(a, func() bool {
-		a.showToast(sevInfo, "acme/api !42", "pipeline started")
-		a.showToast(sevSuccess, "acme/api !42", "pipeline passed")
-		a.showToast(sevWarning, "acme/web main", "pipeline cancelled")
-		a.showToast(sevError, "acme/web main", "pipeline failed · unit tests")
+		a.showToastAbout(sevInfo, "Pipeline running", "acme/api · Rate limits", "Pipeline #8 of !42 started")
+		a.showToastAbout(sevSuccess, "Pipeline passed", "acme/api · Rate limits", "Pipeline #8 of !42 passed")
+		a.showToastAbout(sevWarning, "Pipeline cancelled", "acme/web", "Pipeline #9 of main was cancelled")
+		a.showToastAbout(sevError, "Pipeline failed", "acme/web", "Pipeline #9 of main failed in unit tests")
 		return true
 	})
-	waitFor(t, a, sc, "pipeline failed · unit tests")
+	waitFor(t, a, sc, "failed in unit tests")
 	for _, size := range []struct{ w, h int }{{120, 34}, {80, 24}, {60, 20}} {
 		resizeApp(a, sc, size.w, size.h)
-		waitFor(t, a, sc, "pipeline failed · unit tests")
+		waitFor(t, a, sc, "failed in unit tests")
 		text := a.screenText(sc)
 		lines := strings.Split(text, "\n")
 		failed, started := -1, -1
 		for i, line := range lines {
-			if strings.Contains(line, "pipeline failed") {
+			if strings.Contains(line, "Pipeline failed") {
 				failed = i
 			}
-			if strings.Contains(line, "pipeline started") {
+			if strings.Contains(line, "Pipeline running") {
 				started = i
 			}
 		}
-		if size.h >= 24 && (started < 0 || failed > started) {
-			t.Fatalf("at %dx%d the newest is not on top:\n%s", size.w, size.h, text)
+		if failed < size.h/2 {
+			t.Fatalf("at %dx%d the newest is not at the bottom:\n%s", size.w, size.h, text)
+		}
+		if size.h >= 34 && (started < 0 || started > failed) {
+			t.Fatalf("at %dx%d the older do not stack above the newest:\n%s", size.w, size.h, text)
 		}
 		assertLegible(t, a, sc, "toasts")
 	}
 	resizeApp(a, sc, 120, 34)
-	_, style := cellAt(a, sc, 120-3, 2)
-	if fg, _, _ := style.Decompose(); fg != onLoop(a, func() any { return toastColour(sevError) }) {
-		t.Fatalf("the newest toast's border is %v, not the danger colour", fg)
+	waitFor(t, a, sc, "failed in unit tests")
+	// The newest ends three rows above the bottom, in the danger colours.
+	_, style := cellAt(a, sc, 120-3, 34-3)
+	want := onLoop(a, func() [2]any { return [2]any{toastRole(sevError, "border"), toastRole(sevError, "background")} })
+	if fg, bg, _ := style.Decompose(); fg != want[0] || bg != want[1] {
+		t.Fatalf("the newest toast's corner is %v on %v, not the danger border on its fill", fg, bg)
+	}
+	if text := a.screenText(sc); !strings.Contains(text, onLoop(a, func() string { return toastIcons[sevError] })+"  Pipeline failed") {
+		t.Fatalf("the danger toast is not headed by its icon:\n%s", text)
 	}
 	// A key goes to the list, not to a toast.
 	typeRunes(sc, "2")
@@ -90,7 +99,7 @@ func TestToastsStackAndGo(t *testing.T) {
 		}
 		return onLoop(a, func() int { return len(a.toasts) }) == 0
 	})
-	waitGone(t, a, sc, "pipeline failed · unit tests")
+	waitGone(t, a, sc, "failed in unit tests")
 }
 
 // TestToastsStayAsLongAsSettingsSay: five seconds unless Settings ›
@@ -102,7 +111,7 @@ func TestToastsStayAsLongAsSettingsSay(t *testing.T) {
 	life := func() time.Duration {
 		return onLoop(a, func() time.Duration {
 			a.toasts = nil
-			a.showToast(sevInfo, "acme/api !42", "pipeline started")
+			a.showToast(sevInfo, "Pipeline running", "Pipeline #8 of !42 started")
 			left := a.toasts[0].left
 			a.toasts = nil
 			return left

@@ -61,6 +61,15 @@ func (w Watch) Label() string {
 	return w.Project + " · " + w.Branch
 }
 
+// Subject is how a sentence names the watch where its repository is said
+// beside it: "!42" for a merge request, the branch's name for a branch.
+func (w Watch) Subject() string {
+	if w.IID > 0 {
+		return fmt.Sprintf("!%d", w.IID)
+	}
+	return w.Branch
+}
+
 // State is what was last read of a watch.
 type State struct {
 	// Pipeline is the newest pipeline's id, Status its status in GitLab's
@@ -94,6 +103,9 @@ type State struct {
 	Comments  int      `json:"comments,omitempty"`
 	Approvers []string `json:"approvers,omitempty"`
 	Known     bool     `json:"known,omitempty"`
+	// HeadBy and HeadTitle are the head commit's author and subject line.
+	HeadBy    string `json:"head_by,omitempty"`
+	HeadTitle string `json:"head_title,omitempty"`
 	// Base and Behind are a watched branch's base and how many of its
 	// commits the branch lacks, read from the clone on disk.
 	Base   string `json:"base,omitempty"`
@@ -109,10 +121,14 @@ type State struct {
 type Event struct {
 	Seq uint64 `json:"seq"`
 	Key string `json:"key"`
-	// What names the watch, Line says what happened: "acme/api !42",
-	// "pipeline failed · test:unit".
-	What string `json:"what"`
-	Line string `json:"line"`
+	// What names the watch: "acme/api !42". Heading is what happened in a
+	// few words, "Pipeline failed", and Line the sentence that says where
+	// and how: "Pipeline #81 of !42 failed in test:unit". Project is the
+	// repository it is in. An older state.json has no Heading.
+	What    string `json:"what"`
+	Heading string `json:"heading,omitempty"`
+	Line    string `json:"line"`
+	Project string `json:"project,omitempty"`
 	// Title is the merge request's title, when the watch is on one.
 	Title string `json:"title,omitempty"`
 	// Level is how it reads: a pipeline that passed is a success, one that

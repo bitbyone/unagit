@@ -747,9 +747,15 @@ the tab turns a mark of its own with how many run (`[5] Watched ⠋1`).
 
 Every change - a pipeline that began, passed, failed, was cancelled or
 waits for a manual job, a merge request merged or closed - is a toast in
-the top right corner, coloured by how it went (info, success, warning,
-danger), for five seconds of your looking at it - Settings › Notifications
-sets how long. It never takes the keys
+the bottom right corner, the newest in the corner and older ones stacked
+above, for five seconds of your looking at it - Settings › Notifications
+sets how long. A toast is filled with the colour of how it went (info,
+success, warning, danger), worked out from the theme unless the theme
+names it (`toast.danger.background`, `.border`, `.text`, `.about`), and
+headed by that severity's icon and a few words of what happened -
+"Pipeline failed", "New commit in MR" - over a sentence of where and how
+(`!334 has a new commit by Jane Doe: "Refill the bucket…"`) and a quieter
+line with the repository and the merge request's title. It never takes the keys
 from whatever you are typing. The tab counts the changes not seen yet
 (`[5] Watched ●2`) until you open it, and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor
@@ -757,15 +763,15 @@ running in unagit's terminal - a desktop notification goes out, through
 Notification Centre or `notify-send`: a terminal's own notification is never
 answered, and is dropped unseen when the terminal thinks its window in
 front or has no leave to notify, so it is used only when chosen, or where
-the system has no notifier. A toast and a notification both carry the start
-of the merge request's title. A terminal that does not say whether it has
+the system has no notifier. A notification is the toast's heading, its
+repository and title, and its sentence. A terminal that does not say whether it has
 focus is taken to be in front when its application is. Settings ›
 Integrations › Notifications chooses the system, the terminal, or neither,
 and `t` there sends a test. What became of each notification - sent, which
 way, or why not - is noted in `~/.config/unagit/watch/notify.log`.
 
 `unagit --debug` adds Settings › Debug, which fires each of these by hand -
-a toast of every severity, every kind of watched news, a desktop
+every kind of watched news, exactly as it will come, a desktop
 notification as Settings chooses, through the system or through the
 terminal, each four seconds after it is fired, to switch to another
 program in - and says whether the

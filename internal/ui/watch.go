@@ -646,12 +646,27 @@ func (a *App) watchHeard(w watch.Watch, status string) {
 // the Watched tab.
 func (a *App) sayWatchEvents(events []watch.Event) {
 	if over := len(events) - toastsKept; over > 0 {
-		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "on the Watched tab ([5])")
+		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "They are on the Watched tab ([5]).")
 		events = events[over:]
 	}
 	for _, e := range events {
-		a.showToastAbout(levelSeverity(e.Level), e.What, noticeTitle(e.Title), e.Line)
+		heading, about := newsHeading(e)
+		a.showToastAbout(levelSeverity(e.Level), heading, about, e.Line)
 	}
+}
+
+// newsHeading is an event's heading, and the line of what it is about:
+// the repository and the merge request's title. An event of an older
+// unagit has no heading; its watch's name stands for one.
+func newsHeading(e watch.Event) (heading, about string) {
+	if e.Heading == "" {
+		return e.What, e.Title
+	}
+	about = e.Project
+	if e.Title != "" {
+		about += " · " + e.Title
+	}
+	return e.Heading, about
 }
 
 // levelSeverity is an event's level as a message's severity.
@@ -707,7 +722,8 @@ const frontAskEvery = 3 * time.Second
 // terminal where it can show one, the system otherwise. It runs off the
 // loop; the sequence is written on it, between two draws.
 func (a *App) notifyWatch(ctx context.Context, e watch.Event) {
-	way, err := a.sendNotification(ctx, "unagit · "+e.What, noticeTitle(e.Title), e.Line)
+	heading, about := newsHeading(e)
+	way, err := a.sendNotification(ctx, heading, noticeTitle(about), e.Line)
 	switch {
 	case err != nil:
 		a.logNotice(e, "failed through the "+way+": "+err.Error())
@@ -758,7 +774,7 @@ func (a *App) sendNotification(ctx context.Context, title, subtitle, body string
 
 // noticeTitleMax is how much of a merge request's title a toast and a
 // notification carry: enough to know which one, not the whole of it.
-const noticeTitleMax = 48
+const noticeTitleMax = 64
 
 // noticeTitle is a merge request's title cut to what a notice carries.
 func noticeTitle(title string) string { return trunc(strings.TrimSpace(title), noticeTitleMax) }

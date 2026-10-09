@@ -44,8 +44,9 @@ the user - become new sections later rather than new screens.
 - **A background change is a toast, not a box.** AGENTS.md says a
   warning comes up in a box that holds the keys until Esc. A failure the user
   is not looking at must not take the keyboard from whatever they are typing
-  into, so a watch's news is a toast in the top right corner, coloured by
-  its level, that takes no key and goes by itself; the tab's title gains a count of unseen changes
+  into, so a watch's news is a toast in the bottom right corner, filled
+  with its level's colour and headed by its icon - the level is never
+  written - that takes no key and goes by itself; the tab's title gains a count of unseen changes
   (`[5] Watched ●2`), and the row stays marked until the screen has been
   opened. This is a deliberate exception, and this is where it is written
   down.
@@ -344,7 +345,11 @@ another way than above:
   missing so, while its end came. Automatic goes through the system
   wherever it has a notifier, the terminal only when chosen or where it has
   none. What became of each notification is noted in `watch/notify.log`.
-  A toast and a notification carry the start of the merge request's title.
+  Each change has a heading of a few words ("Pipeline failed", "MR
+  approved") and a sentence that names the watch by its number or branch
+  ("Pipeline #8121 of !334 failed in test:unit"); the repository and the
+  merge request's title go on a line of their own. Settings › Debug makes
+  every kind with the same `watchChanges` the poller uses.
 - **The rows keep their mark for the visit.** Opening the screen counts the
   changes as seen on the tab at once, and the rows changed since the last
   visit keep their `●` while it is open, so it can be told which they were.

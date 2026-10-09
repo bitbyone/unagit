@@ -67,12 +67,12 @@ func TestAMergeRequestsActivityIsNews(t *testing.T) {
 	srv.mu.Lock()
 	srv.comments, srv.approvers = 2, []string{"john"}
 	srv.mu.Unlock()
-	waitFor(t, a, sc, "2 new comments")
-	waitFor(t, a, sc, "approved by john")
+	waitFor(t, a, sc, "has 2 new comments")
+	waitFor(t, a, sc, "was approved by john")
 	srv.mu.Lock()
 	srv.commits, srv.sha = 5, "cccc3333"
 	srv.mu.Unlock()
-	waitFor(t, a, sc, "2 new commits · head cccc333")
+	waitFor(t, a, sc, "has 2 new commits")
 	waitTrue(t, "the activity was not notified", func() bool { return notified.Load() >= 3 })
 }
 
@@ -126,7 +126,7 @@ func TestABranchDeletedOnOriginEndsItsWatch(t *testing.T) {
 	srv.mu.Lock()
 	srv.branches = map[string]bool{}
 	srv.mu.Unlock()
-	waitFor(t, a, sc, "branch deleted on origin · no longer watched")
+	waitFor(t, a, sc, "was deleted on origin · no longer watched")
 	waitTrue(t, "the watch of a deleted branch stayed", func() bool {
 		ws, _ := watch.Open(cfg.WatchDir()).Watches()
 		return len(ws) == 0

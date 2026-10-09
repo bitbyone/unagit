@@ -191,8 +191,8 @@ way to say something. A warning or an error asks for attention: it always
 comes up in a small box over whatever is in front (`message.go`), headed by
 its severity in its colour, and holds the keys until Esc. The one exception
 is a watched pipeline's news (`watch.go`): it arrives while the user types
-into something else, so even a failure is a toast (`toast.go`) in the top
-right corner that takes no key and goes by itself, counted on the Watched
+into something else, so even a failure is a toast (`toast.go`) in the
+bottom right corner that takes no key and goes by itself, counted on the Watched
 tab ([docs/watched.md](docs/watched.md)). A toast is for news from the
 background alone, never for the answer to something the user did. A note or a
 success is a passing word: on a main screen it goes to the right-hand end of
