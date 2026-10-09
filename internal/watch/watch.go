@@ -10,6 +10,8 @@
 //	state.json     what was last seen - written by the poller alone
 //	poller.lock    held by the instance that polls
 //	present/<id>   each running instance: whether its terminal is in front
+//	history/       what happened to each watched thing and each agent, a
+//	               file of events apiece (history.go)
 package watch
 
 import (
@@ -136,6 +138,8 @@ type Event struct {
 	// that began an info. Every event is news - counted on the tab until
 	// seen, and shown, in unagit or on the desktop.
 	Level Level `json:"level,omitempty"`
+	// At is when it was found; an older state.json has none.
+	At time.Time `json:"at,omitzero"`
 }
 
 // Level is an event's severity.
@@ -172,6 +176,9 @@ func (s *Snapshot) Add(events ...Event) uint64 {
 	s.Seq++
 	for _, e := range events {
 		e.Seq = s.Seq
+		if e.At.IsZero() {
+			e.At = time.Now()
+		}
 		s.Events = append(s.Events, e)
 	}
 	if over := len(s.Events) - keptEvents; over > 0 {

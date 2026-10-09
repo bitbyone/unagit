@@ -15,6 +15,7 @@ import (
 	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/watch"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -113,6 +114,9 @@ func (a *App) refreshAgents() {
 				a.agentsPane.updateHeader()
 				return
 			}
+			if changes := a.agentChanges(a.agentRows, rows); len(changes) > 0 && a.watchStore != nil {
+				go a.watchStore.AppendHistory(true, changes...)
+			}
 			a.agentRows = rows
 			a.agentsPane.reload()
 			a.drawTabs()
@@ -123,6 +127,64 @@ func (a *App) refreshAgents() {
 			a.worktreesPane.reload()
 		})
 	}()
+}
+
+// agentKey names an agent in the histories: where it was started, and
+// when.
+func agentKey(r agentRow) string {
+	if r.Record == nil {
+		return "agent:" + r.Dir
+	}
+	return fmt.Sprintf("agent:%s@%s@%d", r.Record.Dir, r.Record.Pane, r.Record.Since.Unix())
+}
+
+// agentChanges are the events of what the agents did between two
+// readings: a new state, an agent gone. They go to the agents' histories
+// only - an agent's wait is drawn on the tab, never a toast.
+func (a *App) agentChanges(before, after []agentRow) []watch.Event {
+	was := map[string]agentRow{}
+	for _, r := range before {
+		was[agentKey(r)] = r
+	}
+	var out []watch.Event
+	for _, r := range after {
+		key := agentKey(r)
+		old, seen := was[key]
+		delete(was, key)
+		if seen && old.Status == r.Status {
+			continue
+		}
+		out = append(out, a.agentEvent(r, r.Status))
+	}
+	for _, r := range was {
+		out = append(out, a.agentEvent(r, "closed"))
+	}
+	return out
+}
+
+// agentEvent says an agent is in a state, as its history keeps it.
+func (a *App) agentEvent(r agentRow, status string) watch.Event {
+	what := a.agentWhat(r)
+	if what == "" {
+		what = tildePath(r.Dir)
+	}
+	name := agentName(r.Kind)
+	heading, how, level := "Agent started", "was started in "+what, watch.Info
+	switch status {
+	case "working":
+		heading, how = "Agent working", "is at work in "+what
+	case "blocked":
+		heading, how, level = "Agent waiting", "waits for an answer in "+what, watch.Warning
+	case "done":
+		heading, how, level = "Agent done", "is done in "+what, watch.Success
+	case "idle":
+		heading, how = "Agent idle", "is idle in "+what
+	case "ended":
+		heading, how = "Agent ended", "ended in "+what
+	case "closed":
+		heading, how = "Agent closed", "was closed in "+what
+	}
+	return watch.Event{Key: agentKey(r), What: name, Heading: heading, Line: name + " " + how, Project: what, Title: r.Title, Level: level}
 }
 
 // readAgents lists the agents unagit started - those it wrote down - with

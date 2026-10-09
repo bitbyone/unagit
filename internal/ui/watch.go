@@ -203,6 +203,9 @@ func (a *App) setWatched(w watch.Watch, on bool) {
 			}
 			return ws
 		})
+		if err == nil {
+			a.watchStore.AppendHistory(false, watchBegun(w, on))
+		}
 		a.tv.QueueUpdateDraw(func() {
 			if err != nil {
 				a.errorf("%v", err)
@@ -219,12 +222,32 @@ func (a *App) setWatched(w watch.Watch, on bool) {
 	}()
 }
 
+// watchBegun is the event of a watch begun or let go, for its history
+// alone: it is the user's doing, not news.
+func watchBegun(w watch.Watch, on bool) watch.Event {
+	heading, line := "Watching", w.Subject()+" is watched"
+	if !on {
+		heading, line = "Not watched", w.Subject()+" is no longer watched"
+	}
+	return watch.Event{Key: w.Key(), What: w.Label(), Heading: heading, Line: line, Project: w.Project, Title: w.Title, Level: watch.Info}
+}
+
 // stopWatching lets several watches go at once.
 func (a *App) stopWatching(keys []string, then func()) {
+	var stopped []watch.Event
+	for _, w := range a.watches {
+		if slices.Contains(keys, w.Key()) {
+			w.Title = a.watchTitle(w)
+			stopped = append(stopped, watchBegun(w, false))
+		}
+	}
 	go func() {
 		watches, err := a.watchStore.Change(func(ws []watch.Watch) []watch.Watch {
 			return slices.DeleteFunc(ws, func(w watch.Watch) bool { return slices.Contains(keys, w.Key()) })
 		})
+		if err == nil {
+			a.watchStore.AppendHistory(false, stopped...)
+		}
 		a.tv.QueueUpdateDraw(func() {
 			if err != nil {
 				a.errorf("%v", err)
@@ -507,7 +530,10 @@ func (f *watchFollower) poll() {
 			gone = append(gone, w.Key())
 		}
 	}
+	seq := snap.Seq
 	snap.Add(events...)
+	// Each thing's story keeps the news for longer than state.json does.
+	f.store.AppendHistory(false, snap.After(seq)...)
 	if len(gone) > 0 {
 		if ws, err := f.store.Change(func(ws []watch.Watch) []watch.Watch {
 			return slices.DeleteFunc(ws, func(w watch.Watch) bool { return slices.Contains(gone, w.Key()) })

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // State is what unagit learns by being used on this machine - where things
@@ -28,6 +29,9 @@ type State struct {
 	// then by role (RoleAssignee, RoleReviewer), then by user name - so the
 	// lists of people start with the usual ones.
 	PeopleUses map[string]map[string]map[string]int `json:"people_uses,omitempty"`
+	// ActivityVisit is when the Activity screen was last opened: what
+	// happened since is set apart there.
+	ActivityVisit time.Time `json:"activity_visit,omitzero"`
 }
 
 // The roles PeopleUses counts by.
