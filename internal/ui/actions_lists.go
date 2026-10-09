@@ -72,7 +72,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 	notCloned := func() bool { return !cloned() }
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseProject(pr) }),
-		{name: "Open", about: "Open the clone in your favourite editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
+		{name: "Open", about: "Open the clone in your default editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
 		a.openAction("repository", pr.PathWithNamespace, openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }}),
 		{name: "Open With…", about: "Choose the editor, then open the clone here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
@@ -183,7 +183,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseMR(mr) }),
 		{name: "Review", about: "Open a review worktree: the whole change as unstaged edits on the merge base, so the editor's gutter shows it.", keys: "Ctrl-R", rank: 10, run: func() { a.openMRReview(mr, nil) }},
-		{name: "Open", about: "Open a worktree of the source branch in your favourite editor, here, for committing to it.", keys: "Ctrl-O", rank: 11, run: func() { p.onOpen(false) }},
+		{name: "Open", about: "Open a worktree of the source branch in your default editor, here, for committing to it.", keys: "Ctrl-O", rank: 11, run: func() { p.onOpen(false) }},
 		a.openAction("merge_request", fmt.Sprintf("%s !%d", path, mr.IID),
 			openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) }},
 			openTarget{"Review", func(ed *editors.Editor, place editorPlace) { a.openMRReviewIn(mr, ed, place) }}),
@@ -257,7 +257,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 	single := func() bool { return !r.grouped() }
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseWorktree(r) }),
-		{name: "Open", about: "Open the worktree in your favourite editor, here.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
+		{name: "Open", about: "Open the worktree in your default editor, here.", keys: "Ctrl-O", rank: 10, run: func() { open(false) }},
 		{name: "Open With…", about: "Choose the editor, then open the worktree here.", keys: "Alt-O", rank: 15, run: func() { open(true) }},
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,
 			when: func() bool { return r.Branch == "(detached)" }, run: func() { a.backToBranch(a.worktreeProject(r), r.Dir) }},

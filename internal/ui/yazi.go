@@ -35,7 +35,7 @@ func (a *App) yaziBinary() (string, bool) {
 }
 
 func (a *App) browseFilesAction(run func()) uiAction {
-	return uiAction{name: "Browse Files", about: "Browse in Yazi; choose a file to open it in your favourite editor.", rank: 17, when: a.yaziOn, run: run}
+	return uiAction{name: "Browse Files", about: "Browse in Yazi; choose a file to open it in your default editor.", rank: 17, when: a.yaziOn, run: run}
 }
 
 func (a *App) browseProject(pr forge.Project) {

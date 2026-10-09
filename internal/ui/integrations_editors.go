@@ -14,8 +14,8 @@ import (
 const editorCommand = "editor:"
 
 // editorCards are a card for each editor things open in, Neovim to the
-// custom one. Each is turned on and off as any integration is, and f makes
-// it the favourite - "(default)" in its title - or, on the favourite, leaves
+// custom one. Each is turned on and off as any integration is, and d makes
+// it the default - "(default)" in its title - or, on the default, leaves
 // none, so every open asks.
 func (v *integrationsView) editorCards() []*integrationCard {
 	a := v.settings.app
@@ -32,7 +32,7 @@ func (v *integrationsView) editorCards() []*integrationCard {
 			name: e.name, command: editorCommand + e.id, description: e.about,
 			enabled: func() bool { return a.editorOn(e.id) },
 			toggle:  func() { a.setEditorOn(e.id, !a.editorOn(e.id)) },
-			keys:    "f favourite",
+			keys:    "d set as default",
 			title: func() string {
 				if a.cfg.FavouriteEditor == e.id {
 					return e.name + " " + defaultMark()
@@ -41,8 +41,8 @@ func (v *integrationsView) editorCards() []*integrationCard {
 			},
 			onKey: func(r rune) bool {
 				switch {
-				case r == 'f':
-					v.favourite(e.id, e.name)
+				case r == 'd':
+					v.setDefault(e.id, e.name)
 					return true
 				case r == 'o' && e.id == editors.Custom:
 					v.showCustomEditorForm()
@@ -52,7 +52,7 @@ func (v *integrationsView) editorCards() []*integrationCard {
 			},
 		}
 		if e.id == editors.Custom {
-			card.keys = "o set up · f favourite"
+			card.keys = "o set up · d set as default"
 			unset := func() bool { return strings.TrimSpace(a.cfg.Editor) == "" }
 			card.missing = func() string {
 				if unset() {
@@ -75,14 +75,14 @@ func (v *integrationsView) editorCards() []*integrationCard {
 	return cards
 }
 
-// favourite makes an editor the one everything opens in, or - pressed on
-// the favourite - leaves none, and every open asks.
-func (v *integrationsView) favourite(id, name string) {
+// setDefault makes an editor the one everything opens in, or - pressed on
+// the default - leaves none, and every open asks.
+func (v *integrationsView) setDefault(id, name string) {
 	a := v.settings.app
 	switch e, found := editors.Pick(v.editors, id); {
 	case a.cfg.FavouriteEditor == id:
 		a.cfg.FavouriteEditor = askEveryTime
-		a.note("no favourite editor: every open asks which")
+		a.note("no default editor: every open asks which")
 	case !found || !e.Found:
 		a.flash(name + " is not installed - nothing can open in it")
 		return
@@ -91,7 +91,7 @@ func (v *integrationsView) favourite(id, name string) {
 		return
 	default:
 		a.cfg.FavouriteEditor = id
-		a.done(name + " is the favourite editor")
+		a.done(name + " is the default editor")
 	}
 	a.saveConfig()
 	v.paintFocus(true)

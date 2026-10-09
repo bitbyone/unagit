@@ -361,7 +361,7 @@ func helpRows() []helpLine {
 		blank(),
 		section("Settings · integrations", helpIntegrations),
 		key("e", "toggle the selected integration"),
-		key("f", "on an editor: the favourite, or none"),
+		key("d", "on an editor: set it as default, or none"),
 		key("o", "on Custom: its command, arguments, kind"),
 		key("c", "check installation"),
 		key("Tab / j k", "move between integrations"),

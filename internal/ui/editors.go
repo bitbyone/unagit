@@ -38,7 +38,7 @@ func (a *App) setEditorOn(id string, on bool) {
 }
 
 // editorsOn are the editors that can be opened in: installed and on. A
-// favourite among the rest counts as none, so opening asks.
+// default among the rest counts as none, so opening asks.
 func (a *App) editorsOn() []editors.Editor {
 	var out []editors.Editor
 	for _, e := range a.detectEditors() {
@@ -50,10 +50,10 @@ func (a *App) editorsOn() []editors.Editor {
 }
 
 // withEditor runs then with the editor to open in. Without ask, and with a
-// favourite that is installed, that is nil: the favourite, looked up when the
+// default that is installed, that is nil: the default, looked up when the
 // editor is actually started. Otherwise - Alt with an opening key, or no
-// usable favourite - one is chosen first from the editors this machine has,
-// the favourite on top. There is no quiet fallback to some other editor.
+// usable default - one is chosen first from the editors this machine has,
+// the default on top. There is no quiet fallback to some other editor.
 func (a *App) withEditor(ask bool, then func(ed *editors.Editor)) {
 	a.withEditorKind(ask, false, then)
 }
@@ -97,9 +97,9 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 		title += " · terminal editors"
 	case hasFav, chosen == askEveryTime:
 	case chosen == "":
-		title += " · no favourite yet: f on an editor in Settings › Integrations"
+		title += " · no default yet: d on an editor in Settings › Integrations"
 	default:
-		title += " · the favourite, " + chosen + ", is not installed or is off"
+		title += " · the default, " + chosen + ", is not installed or is off"
 	}
 	a.showPicker(title, items, func(it pickItem) {
 		ed := it.Data.(editors.Editor)
@@ -110,11 +110,7 @@ func (a *App) withEditorKind(ask, terminalOnly bool, then func(ed *editors.Edito
 // defaultMark follows the default editor's name: its icon, where the
 // terminal can draw it, and the word, muted.
 func defaultMark() string {
-	mark := tag(colMuted) + "(default)" + tagEnd
-	if glyphDefaultEditor != "" {
-		mark = tag(colAccent) + esc(glyphDefaultEditor) + tagEnd + " " + mark
-	}
-	return mark
+	return tag(colMuted) + "(default)" + tagEnd
 }
 
 func kindOf(e editors.Editor) string {

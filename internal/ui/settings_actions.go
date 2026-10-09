@@ -90,7 +90,7 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 		card := v.cards[v.current]
 		return card.name, []uiAction{
 			a.keyIn(v, "Enable or Disable", "Turn this integration on or off.", "e", 10, func() bool { return card.toggle != nil }),
-			a.keyIn(v, "Toggle Favourite Editor", "Make this the editor everything opens in unless you ask for another; on the favourite, leave none, so every open asks.", "f", 10,
+			a.keyIn(v, "Set as Default Editor", "Make this the editor everything opens in unless you ask for another; on the default, leave none, so every open asks.", "d", 10,
 				func() bool { return strings.HasPrefix(card.command, editorCommand) }),
 			a.keyIn(v, "Set Up Custom Editor…", "The command of your own, its arguments, and whether it takes the terminal or opens a window.", "o", 15,
 				func() bool { return card.command == editorCommand+editors.Custom }),

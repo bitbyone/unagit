@@ -99,7 +99,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	hint := ""
 	byName["Yazi"] = &integrationCard{
 		name: "Yazi", command: "yazi",
-		description: "Browse Files opens the selected directory in Yazi. A file chosen there opens in your favourite editor.",
+		description: "Browse Files opens the selected directory in Yazi. A file chosen there opens in your default editor.",
 		enabled:     s.app.yaziOn,
 		toggle:      func() { on := !s.app.yaziOn(); s.app.cfg.Integrations.Yazi = &on },
 		found:       func() string { return hint },
@@ -572,8 +572,8 @@ func (v *integrationsView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	return nil
 }
 
-// askEveryTime is the favourite of someone who wants to be asked. It is not
-// an editor, so it is never found; an empty favourite would instead be taken
+// askEveryTime is the default of someone who wants to be asked. It is not
+// an editor, so it is never found; an empty default would instead be taken
 // for a configuration from before there was a choice.
 const askEveryTime = "ask"
 

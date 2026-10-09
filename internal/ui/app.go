@@ -1669,7 +1669,7 @@ func (a *App) runTask(title string, fn func(log func(string)) (string, error)) {
 
 // runTaskOpening is runTask for the tasks that end in an editor: what they
 // are opening is written down while it is open, so another terminal can find
-// the directory. ed is the editor chosen for it; nil is the favourite.
+// the directory. ed is the editor chosen for it; nil is the default.
 func (a *App) runTaskOpening(title string, what session.Record, ed *editors.Editor, fn func(log func(string)) (string, error)) {
 	a.runTaskEnding(title, what, ed, nil, fn)
 }

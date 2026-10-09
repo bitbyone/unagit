@@ -253,9 +253,6 @@ type Glyphs struct {
 	// Watched marks what has its pipelines watched, in the lists and on
 	// the Watched screen.
 	Watched string `json:"watched"`
-	// DefaultEditor marks the default editor, before the word "default";
-	// an icon alone.
-	DefaultEditor string `json:"default_editor"`
 	// IntegrationState goes before an integration's state on its card, in
 	// the state's colour; an icon alone, without which a cell of the colour
 	// stands there.

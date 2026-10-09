@@ -239,7 +239,7 @@ func (a *App) showReadme(pr forge.Project, back func()) {
 	})
 }
 
-// openReadme opens a README in the favourite editor: the clone's own when
+// openReadme opens a README in the default editor: the clone's own when
 // the repository is cloned, else a copy kept beside the configuration.
 func (a *App) openReadme(pr forge.Project, text string) {
 	path := ""
@@ -266,7 +266,7 @@ func (a *App) openReadme(pr forge.Project, text string) {
 	a.withEditor(false, func(ed *editors.Editor) { go a.openFile(path, ed) })
 }
 
-// openFile opens one file in an editor - nil for the favourite - with no
+// openFile opens one file in an editor - nil for the default - with no
 // session recorded: a file is not a place to cd into.
 func (a *App) openFile(path string, ed *editors.Editor) {
 	if ed == nil {

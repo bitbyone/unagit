@@ -449,8 +449,8 @@ Inside Zellij, the selection action picker (`Alt-Enter` or `Ctrl-A`) has
 **Open in Zellij Tab**, **Open in Zellij Vertical Split** (beside unagit)
 and **Open in Zellij Horizontal Split** (below it), and a merge request the
 same with **Review**. They are found by typing - `tab`, `split` or `vs`,
-`hs` - and use the favourite terminal editor, or ask among terminal editors
-when the favourite opens a window. `O` (**Open…**) chooses the editor and
+`hs` - and use the default terminal editor, or ask among terminal editors
+when the default opens a window. `O` (**Open…**) chooses the editor and
 the place in one form. The opening keys keep using unagit's own terminal.
 
 A repository is cloned if needed; a merge request gets its branch worktree,
@@ -500,7 +500,7 @@ off. Requires herdr 0.9 or newer.
 ### [Ghostty](https://ghostty.org)
 
 On a Mac, **Open in Ghostty Window** and **Open in Ghostty Tab** open the
-favourite terminal editor in a new Ghostty window or tab, and - when unagit
+default terminal editor in a new Ghostty window or tab, and - when unagit
 runs in Ghostty itself, not in a multiplexer inside it - the Ghostty splits
 open it beside unagit; agents can be opened in the same places. Ghostty is scripted through AppleScript: macOS asks once
 whether unagit may control it. Ghostty keeps a terminal whose program has
@@ -527,14 +527,14 @@ Opening is three questions: what - the clone, a merge request's branch or
 its review, a worktree - with what, and where. The action pickers answer
 them in three tiers:
 
-- at the top, **Open** (`Ctrl-O`) and **Review** (`Ctrl-R`) in the favourite
+- at the top, **Open** (`Ctrl-O`) and **Review** (`Ctrl-R`) in the default
   editor here, **Open With…** (`Alt-O`) in an editor you choose, and
   **Open…** (`O`), a form of all three questions - Branch or Review on a
   merge request, an editor or an agent that is on, and the places that one
   can go - filled in as it was last used for that kind of row;
 - at the bottom, **Open with <agent>…** and **Review with <agent>…**, which
   ask where;
-- found only by typing, and run at once: every place for the favourite
+- found only by typing, and run at once: every place for the default
   editor - **Open in Zellij Vertical Split**, **Review in herdr Tab**,
   **Open in Ghostty Window** - and every agent in every place - **Open with
   Claude Code in Zellij Vertical Split**, **Open with Codex in herdr**.
@@ -569,8 +569,8 @@ worktree first, its branch worktree otherwise, or prepares a review when
 neither exists. Groups open their folder.
 
 Yazi gets the terminal until you leave. Choosing a file opens it in the
-favourite editor with the original repository as its working directory;
-without a usable favourite, unagit asks which editor to use. An existing
+default editor with the original repository as its working directory;
+without a usable default, unagit asks which editor to use. An existing
 Neovim server opens the file in a new tab, keeping unsaved buffers. Quitting
 without choosing a file returns to unagit. While browsing, the directory is
 listed by `unagit sessions` and `unagit cd`.
@@ -974,14 +974,14 @@ scale - in sixteen shades worked out between them, as faded as the ends.
 ## Editors
 
 Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -
-opens it in your favourite editor. Hold Alt with the same key (`Alt-O`,
+opens it in your default editor. Hold Alt with the same key (`Alt-O`,
 `Alt-R`, ...) and unagit asks which one first. Settings › Integrations has
 a card for each editor - Neovim, IntelliJ IDEA, VS Code, Zed and a custom
 one - saying whether it was found: a launcher on `PATH` or in JetBrains
 Toolbox's scripts folder first, then, on macOS, the application in
 `/Applications`. `e` turns an editor off, and it is then offered nowhere;
 `f` makes it the default, marked `(default)` in its title - with a cursor
-icon under a Nerd Font - and `f` on the default leaves none. Without a favourite that is installed and on, every open asks,
+icon under a Nerd Font - and `f` on the default leaves none. Without a default that is installed and on, every open asks,
 the way Alt does. A command of your own is the Custom card's: `o` sets its
 command, its arguments and whether it opens a window.
 

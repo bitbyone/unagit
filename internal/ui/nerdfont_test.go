@@ -336,10 +336,11 @@ func TestTheTerminalsBackgroundCanStayUnderATheme(t *testing.T) {
 	}
 }
 
-// TestTheDefaultEditorIsMarkedByAnIcon: with the icons on, the default
-// editor's card says so with a cursor icon and the muted word. Serial: the
+// TestTheDefaultEditorIsMarkedByAWord: with the icons on, the default
+// editor's card says so in the muted word alone, after the editor's own
+// icon - no mark of its own, which only cluttered the title. Serial: the
 // glyphs are the process's.
-func TestTheDefaultEditorIsMarkedByAnIcon(t *testing.T) {
+func TestTheDefaultEditorIsMarkedByAWord(t *testing.T) {
 	restoreDefaultTheme(t)
 	t.Cleanup(func() { nerdFont = false })
 	fakeEditors(t)
@@ -348,7 +349,7 @@ func TestTheDefaultEditorIsMarkedByAnIcon(t *testing.T) {
 	useFavourite(a, editors.Nvim)
 	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
 	openSection(t, a, sc, sectionIntegrations)
-	waitFor(t, a, sc, "Neovim \U000F01BF (default)")
+	waitFor(t, a, sc, "\ue6ae Neovim (default)")
 	text := a.screenText(sc)
 	line := lineAt(text, "(default)")
 	x := len([]rune(line[:strings.Index(line, "(default)")]))

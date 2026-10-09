@@ -13,8 +13,8 @@ Three actions appear in the selection action picker (`Alt-Enter` or
 - **Open in Horizontal Split** opens below unagit.
 
 They have no keys and no setting. Existing opening keys still give the
-editor unagit's own terminal. These actions use the favourite terminal
-editor; if the favourite is missing or opens a window, the shared picker
+editor unagit's own terminal. These actions use the default terminal
+editor; if the default is missing or opens a window, the shared picker
 asks among installed terminal editors.
 
 A repository opens its clone, cloning first if needed. A merge request

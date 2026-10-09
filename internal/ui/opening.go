@@ -16,13 +16,13 @@ import (
 // Review, Open… and Open With… at the top (actions_lists.go); "Open with
 // <agent>…" for every agent that is on, at the bottom, asking where; and,
 // listed only once something is typed and run at once, every place for the
-// favourite editor and every place for every agent. "with" names the tool,
+// default editor and every place for every agent. "with" names the tool,
 // "in" names the place, and … ends a name exactly when another choice
 // follows.
 
 // openTarget is one thing a row opens, by the verb its actions use: a
 // clone or a worktree is opened, a merge request's branch opened and its
-// review reviewed. open takes the editor - nil for the favourite - and the
+// review reviewed. open takes the editor - nil for the default - and the
 // place, which carries the agent when one is to start instead.
 type openTarget struct {
 	verb string
@@ -162,7 +162,7 @@ func (a *App) openingActions(targets ...openTarget) []uiAction {
 		for _, place := range editorPlaces {
 			acts = append(acts, uiAction{
 				name:  t.verb + " in " + placeName(place),
-				about: "Open " + object + " in the favourite terminal editor, in " + placeAbout(place) + ".",
+				about: "Open " + object + " in the default terminal editor, in " + placeAbout(place) + ".",
 				rank:  650, filterOnly: true, prefer: placePrefer(place.where),
 				aliases: append(placeAliases(place.where), verbAliases(t.verb)...),
 				run: func() {
@@ -181,7 +181,7 @@ type openTool struct {
 	agent      *agents.Agent
 }
 
-// openTools are the editors and the agents that are on, the favourite
+// openTools are the editors and the agents that are on, the default
 // editor first.
 func (a *App) openTools() []openTool {
 	var tools []openTool

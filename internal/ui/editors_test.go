@@ -50,8 +50,8 @@ func fakeEditorsOnPath(t *testing.T) (marker string) {
 }
 
 // TestEditorCardsChooseTheFavourite: every editor has a card saying whether
-// it is here, f makes one the favourite - the star moves to its title, and
-// it is saved - f on the favourite leaves none, and e turns an editor off,
+// it is here, d makes it the default - the star moves to its title, and
+// it is saved - d on the default leaves none, and e turns an editor off,
 // so it is offered nowhere.
 func TestEditorCardsChooseTheFavourite(t *testing.T) {
 	fakeEditors(t)
@@ -81,7 +81,7 @@ func TestEditorCardsChooseTheFavourite(t *testing.T) {
 		return cfg.FavouriteEditor
 	}
 	focusCard(t, a, sc, "Zed")
-	typeRunes(sc, "f")
+	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Zed (default)")
 	if strings.Contains(a.screenText(sc), "Neovim (default)") {
 		t.Error("two favourites")
@@ -89,7 +89,7 @@ func TestEditorCardsChooseTheFavourite(t *testing.T) {
 	if got := saved(); got != editors.Zed {
 		t.Errorf("favourite saved as %q", got)
 	}
-	typeRunes(sc, "f")
+	typeRunes(sc, "d")
 	waitGone(t, a, sc, "Zed (default)")
 	if got := saved(); got != askEveryTime {
 		t.Errorf("no favourite saved as %q", got)
@@ -103,7 +103,7 @@ func TestEditorCardsChooseTheFavourite(t *testing.T) {
 			t.Fatal("Zed is offered while off")
 		}
 	}
-	typeRunes(sc, "f")
+	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Zed is off")
 }
 
@@ -228,9 +228,9 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 func TestOpeningWithoutAFavouriteAsks(t *testing.T) {
 	fakeEditors(t)
 	for favourite, says := range map[string]string{
-		"":           "no favourite yet",
+		"":           "no default yet",
 		askEveryTime: "Open with",
-		editors.Code: "the favourite, code, is not installed",
+		editors.Code: "the default, code, is not installed",
 	} {
 		t.Run("favourite="+favourite, func(t *testing.T) {
 			a, sc := newTestApp(t)
