@@ -57,6 +57,11 @@ type changesView struct {
 	shown   string
 	reading int
 	loaded  bool
+	// inDiff is whether the diff pane has the focus. It is noted by the
+	// panes' focus functions rather than asked of them: a TextView answers
+	// HasFocus under the lock its Focus holds while it calls them, and
+	// asking from there hung unagit for good.
+	inDiff bool
 }
 
 // changesKey is how a file is known in the picks and the diffs.
@@ -139,8 +144,8 @@ func (a *App) showChanges(place changesPlace) {
 	v.table.SetSelectionChangedFunc(func(int, int) { a.showChangeDiff(v) })
 	v.table.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey { return a.changesListKeys(v, ev) })
 	v.diff.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey { return a.changesDiffKeys(v, ev) })
-	v.table.SetFocusFunc(func() { a.changesFocus(v) })
-	v.diff.SetFocusFunc(func() { a.changesFocus(v) })
+	v.table.SetFocusFunc(func() { v.inDiff = false; a.changesFocus(v) })
+	v.diff.SetFocusFunc(func() { v.inDiff = true; a.changesFocus(v) })
 	a.changes = v
 	a.pages.AddPage(pageChanges, modalPct(v.frame, 94, 92), true, true)
 	a.tv.SetFocus(v.table)
@@ -418,12 +423,14 @@ func (a *App) showChangeDiff(v *changesView) {
 // pane does not wrap and cuts what is beyond its edge.
 const diffWidth = 400
 
-// changesFocus marks the pane with the focus and says its keys.
+// changesFocus marks the pane with the focus and says its keys. It runs
+// inside a pane's Focus, so it touches only what takes no lock of the
+// panes: their borders, and the hint.
 func (a *App) changesFocus(v *changesView) {
 	for _, pane := range []*tview.Box{v.table.Box, v.diff.Box} {
 		pane.SetBorderColor(colBorder).SetTitleColor(colTitle)
 	}
-	if v.diff.HasFocus() {
+	if v.inDiff {
 		v.diff.SetBorderColor(colBorderFocus).SetTitleColor(colBorderFocus)
 		v.hint.SetText(litHint("c commit"))
 		return
@@ -447,16 +454,23 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 		if !ok {
 			return nil
 		}
-		if r.change == nil {
-			unfold := ev.Key() == tcell.KeyRune && ev.Rune() == 'l'
-			fold := ev.Key() == tcell.KeyRune && ev.Rune() == 'h'
-			if !unfold && !fold || fold != v.folded[r.group] {
-				v.folded[r.group] = !v.folded[r.group]
-				a.renderChanges(v)
+		// h and l are the tree's while it has a use for them - a group to
+		// fold or unfold, a file's group to go up to - and otherwise l goes
+		// on to the diff, as h and l go between panels everywhere.
+		enter := ev.Key() == tcell.KeyEnter
+		right := !enter && ev.Rune() == 'l'
+		left := !enter && ev.Rune() == 'h'
+		switch {
+		case r.change == nil && (enter || right && v.folded[r.group] || left && !v.folded[r.group]):
+			v.folded[r.group] = !v.folded[r.group]
+			a.renderChanges(v)
+		case r.change != nil && left:
+			at, _ := v.table.GetSelection()
+			for at > 0 && v.rows[at].change != nil {
+				at--
 			}
-			return nil
-		}
-		if ev.Key() == tcell.KeyEnter || ev.Rune() == 'l' {
+			v.table.Select(at, 0)
+		case enter || right:
 			a.tv.SetFocus(v.diff)
 		}
 		return nil
@@ -477,11 +491,18 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 	return nil
 }
 
-// changesDiffKeys answers the diff pane: it scrolls, and goes back.
+// changesDiffKeys answers the diff pane: it scrolls, and goes back. h
+// scrolls a diff moved right back to the left first, and goes back to the
+// list only from there.
 func (a *App) changesDiffKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKey {
 	switch {
-	case ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyTab || ev.Key() == tcell.KeyBacktab,
-		ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'h':
+	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'h':
+		if _, column := v.diff.GetScrollOffset(); column > 0 {
+			return ev
+		}
+		a.tv.SetFocus(v.table)
+		return nil
+	case ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyTab || ev.Key() == tcell.KeyBacktab:
 		a.tv.SetFocus(v.table)
 		return nil
 	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'c':

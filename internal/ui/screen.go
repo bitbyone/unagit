@@ -104,8 +104,16 @@ func (s *quietScreen) Sync() {
 func (a *App) SetScreen(s tcell.Screen) {
 	a.screenGiven = true
 	a.quiet = &quietScreen{Screen: s, onFocus: func() {
-		// Back from another window, where the files may have changed.
-		go a.tv.QueueUpdateDraw(func() { a.refreshLocal() })
+		// Back from another window, where the files may have changed - and
+		// where the terminal may have lost what it showed: a window that
+		// slept, a display taken away, a multiplexer that drew over it.
+		// tcell sends only the cells it thinks changed, so what the
+		// terminal dropped stayed dropped, and the rest of the frame drew
+		// over the remains. The whole screen is sent again.
+		go func() {
+			a.tv.Sync()
+			a.tv.QueueUpdateDraw(func() { a.refreshLocal() })
+		}()
 	}}
 	a.quiet.focused.Store(true)
 	a.tv.SetScreen(a.quiet)

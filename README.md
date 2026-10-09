@@ -158,7 +158,10 @@ all and live only there.
   each after asking: on the picked files when the cursor is on one of them,
   on the file under the cursor otherwise. A rolled back added file stays
   on disk, unversioned; an unversioned file is never rolled back, only
-  deleted. `Tab` goes into the diff to scroll it. The same dialog opens on
+  deleted. `Tab` goes into the diff to scroll it, and so do `l` and `Enter`
+  where the tree has no use for them; `h` folds a group or goes up from a
+  file to its group, and from the diff - scrolled back to its left edge -
+  back to the list. The same dialog opens on
   a worktree, a repository of a group's view, and a merge request's branch
   worktree - never on a review, whose changes are the merge request's.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
@@ -921,6 +924,11 @@ can be done with its item. Over a main screen that list tries each theme as
 the cursor comes to it: the screen behind is drawn in it, undimmed, the list
 on a darker background of its own, and only `Enter` keeps it - `Esc` puts
 back the one that was on.
+
+Coming back to unagit's window draws the whole screen again: a terminal
+that slept, lost a display or was drawn over by its multiplexer while
+unagit was away would otherwise keep the remains, since only the cells
+unagit changed are sent. `:` › Redraw Screen does the same at any time.
 
 `b` in Settings › Theme leaves the terminal's own background under every
 theme, so a translucent or blurred terminal shows through; every other

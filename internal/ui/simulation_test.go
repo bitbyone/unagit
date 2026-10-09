@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +27,13 @@ type observedScreen struct {
 	last     sync.Once
 	receipts sync.Map
 	pending  chan struct{}
+	// syncs counts the times the whole screen was sent again.
+	syncs atomic.Int32
+}
+
+func (s *observedScreen) Sync() {
+	s.syncs.Add(1)
+	s.SimulationScreen.Sync()
 }
 
 // A sequence longer than tcell's event queue must be delivered in order,

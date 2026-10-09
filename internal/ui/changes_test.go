@@ -218,3 +218,79 @@ func TestChangesIsLegibleInEachKindOfTheme(t *testing.T) {
 		})
 	}
 }
+
+// TestChangesTabGoesIntoTheDiffAndBack: Tab gives the diff the focus - its
+// border lit, the hint its own - and Tab or Esc gives it back. Going into
+// the diff once hung unagit for good: the pane's focus function asked the
+// TextView whether it had the focus, under the lock its Focus held.
+func TestChangesTabGoesIntoTheDiffAndBack(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+	lit := func(box *tview.Box) bool {
+		return onLoop(a, func() bool { return box.GetBorderColor() == colBorderFocus })
+	}
+
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitGone(t, a, sc, "space pick")
+	if !lit(a.changes.diff.Box) || lit(a.changes.table.Box) {
+		t.Error("the diff's border is not the one lit")
+	}
+	if !onLoop(a, func() bool { return a.changes.inDiff && a.tv.GetFocus() == a.changes.diff }) {
+		t.Error("the diff does not have the focus")
+	}
+	typeRunes(sc, "j")
+
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitFor(t, a, sc, "space pick")
+	if !lit(a.changes.table.Box) || lit(a.changes.diff.Box) {
+		t.Error("the list's border is not the one lit")
+	}
+	typeRunes(sc, "l")
+	waitGone(t, a, sc, "space pick")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "space pick")
+	if !onLoop(a, func() bool { return a.tv.GetFocus() == a.changes.table }) {
+		t.Error("Esc in the diff did not give the list the focus")
+	}
+}
+
+// TestChangesHAndL: h and l fold and unfold a group and go up to a file's
+// group while the tree has a use for them, and otherwise go between the
+// list and the diff, as they go between panels everywhere.
+func TestChangesHAndL(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+	inDiff := func() bool { return onLoop(a, func() bool { return a.tv.GetFocus() == a.changes.diff }) }
+	cursor := func() int { return onLoop(a, func() int { at, _ := a.changes.table.GetSelection(); return at }) }
+
+	typeRunes(sc, "l")
+	waitGone(t, a, sc, "space pick")
+	typeRunes(sc, "h")
+	waitFor(t, a, sc, "space pick")
+
+	// From a file, h goes up to its group; there it folds, l unfolds, and
+	// l again, with nothing to unfold, goes on to the diff.
+	typeRunes(sc, "jh")
+	if at := cursor(); at != 0 {
+		t.Errorf("h from a file left the cursor on row %d, not on its group", at)
+	}
+	typeRunes(sc, "h")
+	waitFor(t, a, sc, glyphFolded+" "+glyphPicked+" Changes")
+	waitGone(t, a, sc, "main.go ")
+	typeRunes(sc, "l")
+	waitFor(t, a, sc, glyphUnfolded+" "+glyphPicked+" Changes")
+	if inDiff() {
+		t.Error("l unfolding a group also went to the diff")
+	}
+	typeRunes(sc, "l")
+	waitGone(t, a, sc, "space pick")
+	if !inDiff() {
+		t.Error("l on an open group did not go to the diff")
+	}
+}
