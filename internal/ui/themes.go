@@ -157,7 +157,9 @@ type Theme struct {
 	ActionIcons map[string]string `json:"action_icons,omitempty"`
 	// ColumnIcons go before the headings of the lists' columns, by the
 	// heading - Nerd Font icons drawn only where the terminal can, and only
-	// where the column has room for them beside its heading.
+	// where the column has room for them beside its heading - and before
+	// the titles of the Activity screen's panels, by the title as it is
+	// written ("Log", "Open").
 	ColumnIcons map[string]string `json:"column_icons,omitempty"`
 	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
 	// Nerd Font (Settings › Theme): only the ones it names, the rest as

@@ -109,6 +109,7 @@ func (a *App) newActivityPane() *pane {
 		a.activityRows = a.activityItems()
 		filtered = filterActivity(a, a.activityRows, query)
 		a.drawActivity(p, a.activityRows, filtered)
+		v.setTitles()
 		v.drawBand()
 		v.drawLog()
 		v.followDetail()
@@ -289,9 +290,27 @@ func runPanelKey(acts []uiAction, ev *tcell.EventKey) bool {
 	return runKey(acts, ev)
 }
 
-// panelTitle is a panel's name with the key that goes to it, lit.
+// panelTitle is a panel's icon, where the terminal has a Nerd Font, its
+// name, and the key that goes to it, in brackets and quieter than the
+// name: it is there to be found, not read.
 func panelTitle(name, key string) string {
-	return " " + name + "  " + tag(role("activity.key")) + "[::b]" + key + "[::-]" + tagEnd + " "
+	title := " "
+	if icon := columnIcons[name]; icon != "" {
+		title += icon + " "
+	}
+	if name != "" {
+		title += name + " "
+	}
+	return title + tag(role("activity.panel_key")) + esc("["+key+"]") + tagEnd + " "
+}
+
+// setTitles names the panels: again on every draw, since the icons are
+// the theme's and the terminal's.
+func (v *activityView) setTitles() {
+	v.pane.table.SetTitle(panelTitle("Activity", "a"))
+	v.watching.SetTitle(panelTitle("Watching", "W"))
+	v.log.SetTitle(panelTitle("Log", "L"))
+	v.cards.SetTitle(panelTitle("Open", "e"))
 }
 
 // paneKeys are the screen's keys over the list and the detail, heard
@@ -563,7 +582,11 @@ func (v *activityView) showDetail(it activityItem, focus bool) {
 		p.body.AddItem(p.detail, 0, p.detailWeight, false)
 		p.detailShown = true
 	}
-	p.setDetailFunc(strings.TrimSpace(esc(trunc(title, 56))+panelTitle("", "d")), func(width int) string { return a.activityDetail(it, width) })
+	icon := ""
+	if ic := columnIcons["Details"]; ic != "" {
+		icon = ic + " "
+	}
+	p.setDetailFunc(icon+esc(trunc(title, 56))+" "+tag(role("activity.panel_key"))+esc("[d]")+tagEnd, func(width int) string { return a.activityDetail(it, width) })
 	if focus {
 		v.focus(p.detail)
 	}
@@ -1120,4 +1143,15 @@ func (a *App) drawActivityHint(screen tcell.Screen) {
 	}
 	text = " " + text + " "
 	tview.Print(screen, "["+":"+colBackground.String()+"]"+text, x+2, y+h-1, w-4, tview.AlignLeft, colDim)
+}
+
+// focusAgain gives the focus back to the panel that had it, lit - the
+// list on the first visit. Setting the focus alone left every border
+// unlit.
+func (v *activityView) focusAgain() {
+	to := v.current
+	if to == nil || to == v.pane.detail && !v.pane.detailShown {
+		to = v.pane.table
+	}
+	v.focus(to)
 }

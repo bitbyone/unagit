@@ -178,7 +178,7 @@ func TestActivityPanelsAreReachedByKeys(t *testing.T) {
 	}
 	// The panels name their keys in their titles.
 	text := a.screenText(sc)
-	for _, title := range []string{"Activity  a", "Open  e", "Watching  W", "Log  L"} {
+	for _, title := range []string{"Activity [a]", "Open [e]", "Watching [W]", "Log [L]"} {
 		if !strings.Contains(text, title) {
 			t.Errorf("no title %q", title)
 		}
@@ -324,4 +324,19 @@ func TestOnePanelHasTheFocusAfterADialog(t *testing.T) {
 	waitTrue(t, "d did not go to the detail", func() bool { return onLoop(a, func() bool { return a.activityPane.detail.HasFocus() }) })
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitTrue(t, "Enter in the detail did nothing", func() bool { return onLoop(a, a.modalOpen) || onLoop(a, func() bool { return a.transient != "" }) })
+}
+
+// TestTheFirstVisitLightsTheList: opening Activity puts the focus on the
+// list, its border lit, as moving to it would.
+func TestTheFirstVisitLightsTheList(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "4")
+	waitTrue(t, "the list is not focused and lit", func() bool {
+		return onLoop(a, func() bool {
+			p := a.activityPane
+			return p.table.HasFocus() && p.table.GetBorderColor() == colBorderFocus
+		})
+	})
 }

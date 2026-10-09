@@ -129,7 +129,7 @@ func (a *App) switchTab(page string) {
 		a.refreshLocal()
 	case pageActivity:
 		a.visitActivity()
-		a.tv.SetFocus(a.activityPane.focusTarget())
+		a.activity.focusAgain()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	}

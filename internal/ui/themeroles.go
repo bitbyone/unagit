@@ -171,6 +171,7 @@ var colourRoles = []colourRole{
 	{"activity.watching", "mark.watched", "the mark of what is watched"},
 	{"activity.lit", "selection.marked", "the log's rows of the thing under the list's cursor, faintly"},
 	{"activity.key", "text.key", "a key named in a panel"},
+	{"activity.panel_key", "text.dim", "the key in a panel's title that goes to it"},
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
 	{"tabs.running", "text.accent", "pipelines under way"},

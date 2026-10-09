@@ -316,6 +316,11 @@
       "Watch Merge Request": "\uf06e"
   },
   "column_icons": {
+      "Activity": "\uf21e",
+      "Details": "\uf15c",
+      "Log": "\uf1da",
+      "Open": "\uf044",
+      "Watching": "\uf06e",
       "ABOUT": "\uf0f6",
       "ACTIVITY": "\uf017",
       "AGENT": "\uf544",
