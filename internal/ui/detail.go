@@ -520,7 +520,7 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 		d.kv("Reviewers", users(a.namedAll(mr.Instance, det.Reviewers)))
 		d.kv("Assignees", users(a.namedAll(mr.Instance, det.Assignees)))
 		if len(det.Labels) > 0 {
-			pills, _ := a.labelPills(det.Labels, math.MaxInt, behindList)
+			pills, _ := a.labelPills(a.colouredLabels(mr.Instance, det.Labels), math.MaxInt, behindList)
 			d.kv("Labels", pills)
 		}
 		d.kv("Milestone", esc(det.Milestone))

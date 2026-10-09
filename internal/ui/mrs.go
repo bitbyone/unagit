@@ -632,6 +632,7 @@ func samePeople(a, b []forge.User) bool {
 // when it shows this request. keepOrder shows the fresh time without moving the
 // row (see sortHold); opening a request lets it move. It runs on the event loop.
 func (a *App) applyMRUpdate(fresh forge.MergeRequest, redetail, keepOrder bool) {
+	fresh.Labels = a.colouredLabels(fresh.Instance, fresh.Labels)
 	for i := range a.mrs {
 		if a.mrs[i].Instance != fresh.Instance || a.mrs[i].IID != fresh.IID || a.mrs[i].ID != fresh.ID {
 			continue

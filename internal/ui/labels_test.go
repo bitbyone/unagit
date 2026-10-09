@@ -99,3 +99,29 @@ func mathAtan2Deg(y, x float64) float64 { return math.Atan2(y, x) * 180 / math.P
 
 // hueDistance is how far apart two hues are on the wheel, 0 to 180.
 func hueDistance(x, y float64) float64 { return math.Abs(math.Mod(x-y+540, 360) - 180) }
+
+// TestALabelKeepsItsColourWhenARowIsAskedAbout: GitLab names a merge
+// request's labels without their colours when asked about it alone; the
+// colour another merge request of the server has for the label stands in.
+func TestALabelKeepsItsColourWhenARowIsAskedAbout(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	got := onLoop(a, func() []forge.Label {
+		inst := a.mrs[0].Instance
+		a.mrs[0].Labels = []forge.Label{{Name: "DoNotMerge", Color: "#FF0000"}}
+		fresh := a.mrs[1]
+		fresh.Labels = []forge.Label{{Name: "DoNotMerge"}, {Name: "nowhere else"}}
+		fresh.Instance = inst
+		a.applyMRUpdate(fresh, false, true)
+		for _, mr := range a.mrs {
+			if keyOfMR(mr) == keyOfMR(fresh) {
+				return mr.Labels
+			}
+		}
+		return nil
+	})
+	if len(got) != 2 || got[0].Color != "#FF0000" || got[1].Color != "" {
+		t.Fatalf("labels after the row was asked about: %+v", got)
+	}
+}

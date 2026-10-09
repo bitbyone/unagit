@@ -264,3 +264,52 @@ func (a *App) saveLabels(client forge.Provider, mr forge.MergeRequest, path stri
 		})
 	}()
 }
+
+// colouredLabels gives labels that came without their colour the colour
+// the same label has on another merge request of the server. GitLab tells
+// a label's colour in its lists of merge requests but not when asked about
+// one, and a row refreshed on its own lost it: the same label came out red
+// on one row and in the colour of its name on the next.
+func (a *App) colouredLabels(instance string, labels []forge.Label) []forge.Label {
+	var out []forge.Label
+	for i, l := range labels {
+		if l.Color != "" {
+			continue
+		}
+		if c := a.labelColourOf(instance, l.Name); c != "" {
+			if out == nil {
+				out = slices.Clone(labels)
+			}
+			out[i].Color = c
+		}
+	}
+	if out == nil {
+		return labels
+	}
+	return out
+}
+
+// labelColourOf is the colour a label has on any merge request of the
+// server, "" when none says.
+func (a *App) labelColourOf(instance, name string) string {
+	for _, mr := range a.mrs {
+		if mr.Instance != instance {
+			continue
+		}
+		for _, l := range mr.Labels {
+			if l.Name == name && l.Color != "" {
+				return l.Color
+			}
+		}
+	}
+	return ""
+}
+
+// colourAllLabels gives every label of the list its colour where another
+// merge request knows it - an index written after a row was refreshed on
+// its own holds labels without one.
+func (a *App) colourAllLabels() {
+	for i := range a.mrs {
+		a.mrs[i].Labels = a.colouredLabels(a.mrs[i].Instance, a.mrs[i].Labels)
+	}
+}

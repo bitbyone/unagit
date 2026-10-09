@@ -824,6 +824,7 @@ func (a *App) loadIndexes() {
 	}
 	if m, err := index.Load[index.MergeRequests](a.cfg.IndexPath("mrs")); err == nil {
 		a.mrs, a.mrsUpdated, a.me = m.Items, m.UpdatedAt, m.Me
+		a.colourAllLabels()
 		a.loadSeen()
 		a.staleMRs = index.Stale(m.Version, len(m.Items))
 	}
@@ -1306,6 +1307,7 @@ func (a *App) refreshMRs() {
 		return index.Save(a.cfg.IndexPath("mrs"), idx)
 	}, func() {
 		a.mrs, a.mrsUpdated, a.staleMRs, a.me = all, idx.UpdatedAt, false, idx.Me
+		a.colourAllLabels()
 		// The marks point into the list that was.
 		a.mrsPane.marks = nil
 		a.people = people
