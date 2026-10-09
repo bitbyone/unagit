@@ -13,7 +13,8 @@ import (
 )
 
 // TestCommitEverythingInAGroup: c commits every repository of a grouped
-// worktree, new files included, under one message or a repository's own.
+// worktree, under one message or a repository's own: its versioned files,
+// while a file git does not track yet stays out and on disk.
 func TestCommitEverythingInAGroup(t *testing.T) {
 	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
@@ -28,8 +29,8 @@ func TestCommitEverythingInAGroup(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(dir, "billing", "a.txt"), []byte("changed\n"), 0o644))
 
 	typeRunes(sc, "c")
-	waitFor(t, a, sc, "Commit · feat-c · 3 file(s)")
-	waitFor(t, a, sc, "gateway 2 files")
+	waitFor(t, a, sc, "Commit · feat-c · 2 file(s)")
+	waitFor(t, a, sc, "gateway 1 file")
 	waitFor(t, a, sc, "billing message")
 	commitForm := onLoop(a, func() *tview.Form {
 		_, primitive := a.pages.GetFrontPage()
@@ -47,15 +48,15 @@ func TestCommitEverythingInAGroup(t *testing.T) {
 	if got := gitIn(t, filepath.Join(dir, "gateway"), "log", "-1", "--format=%B"); got != "Count and bill\n\nBoth sides." {
 		t.Errorf("gateway's message: %q", got)
 	}
-	if got := gitIn(t, filepath.Join(dir, "gateway"), "show", "--name-only", "--format=", "HEAD"); !strings.Contains(got, "new.txt") {
-		t.Errorf("the new file was not committed: %q", got)
+	if got := gitIn(t, filepath.Join(dir, "gateway"), "show", "--name-only", "--format=", "HEAD"); got != "a.txt" {
+		t.Errorf("gateway's commit took %q", got)
 	}
 	if got := gitIn(t, filepath.Join(dir, "billing"), "log", "-1", "--format=%s"); got != "Bill what was counted" {
 		t.Errorf("billing's message: %q", got)
 	}
-	for _, name := range []string{"gateway", "billing"} {
-		if st := gitIn(t, filepath.Join(dir, name), "status", "--porcelain"); st != "" {
-			t.Errorf("%s still has %q", name, st)
+	for name, want := range map[string]string{"gateway": "?? new.txt", "billing": ""} {
+		if st := gitIn(t, filepath.Join(dir, name), "status", "--porcelain"); st != want {
+			t.Errorf("%s has %q, want %q", name, st, want)
 		}
 	}
 }
@@ -67,7 +68,7 @@ func TestCommitFormFitsItsFrame(t *testing.T) {
 	// Committing the group is exercised above. Here the form only needs the
 	// rows and counts it is given, and each size must draw that same form.
 	a.tv.QueueUpdateDraw(func() {
-		a.showCommitForm(worktreeRow{Path: "feat-c", Members: []worktreeRow{}}, []commitTarget{
+		a.showCommitForm("feat-c", true, []commitTarget{
 			{name: "gateway", edits: 1}, {name: "billing", edits: 1},
 		})
 	})

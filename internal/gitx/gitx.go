@@ -52,6 +52,12 @@ func (g *Git) WithUser(user string) *Git {
 
 // Run executes git in dir and returns its combined output.
 func (g *Git) Run(dir string, args ...string) (string, error) {
+	return g.runEnv(dir, nil, args...)
+}
+
+// runEnv is Run with more of the environment: an author kept, an editor
+// that must not open.
+func (g *Git) runEnv(dir string, env []string, args ...string) (string, error) {
 	full := append([]string{
 		"-c", "credential.helper=",
 		"-c", "credential.helper=" + credentialHelper,
@@ -69,6 +75,7 @@ func (g *Git) Run(dir string, args ...string) (string, error) {
 		// that into an immediate, legible refusal; the agent still works.
 		"GIT_SSH_COMMAND=ssh -o BatchMode=yes",
 	)
+	cmd.Env = append(cmd.Env, env...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -99,6 +106,12 @@ func hint(out string) string {
 	case strings.Contains(out, "Host key verification failed"):
 		return "\n\nThe host is not in your known_hosts yet. Connect once by hand to accept it:" +
 			"\n    ssh -T git@<host>"
+	case strings.Contains(out, "(stale info)"):
+		return "\n\nOrigin's copy moved since it was last fetched: someone pushed to it. " +
+			"Refresh, look at what came, and pull it in before pushing again."
+	case strings.Contains(out, "[rejected]") || strings.Contains(out, "non-fast-forward"):
+		return "\n\nOrigin has commits this branch lacks. Pull first (p), or force push " +
+			"if you rewrote commits that were already pushed."
 	case strings.Contains(out, "could not read Username"), strings.Contains(out, "Authentication failed"):
 		return "\n\nThe token was refused. Check it in [4] Settings, or clone over ssh instead."
 	}
@@ -445,18 +458,6 @@ func (g *Git) OperationInProgress(dir string) string {
 		}
 	}
 	return ""
-}
-
-// Edits counts the files with uncommitted changes, untracked ones too; -1 when
-// git cannot say.
-func (g *Git) Edits(dir string) int {
-	// Without the index lock: it is read in the background, and a lock taken
-	// to refresh the index fails a commit or a checkout running beside it.
-	out, err := g.Run(dir, "--no-optional-locks", "status", "--porcelain")
-	if err != nil {
-		return -1
-	}
-	return strings.Count(out, "\n")
 }
 
 // baseKey is where unagit notes the branch a new branch was made from, so it

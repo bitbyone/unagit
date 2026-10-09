@@ -50,7 +50,7 @@ const (
 	// activityLogShare is the part of the rows under the band the log
 	// takes; activityLogLeast its fewest lines of events, activityListLeast
 	// the fewest rows the list and the detail keep.
-	activityLogShare  = 0.3
+	activityLogShare  = 0.4
 	activityLogLeast  = 3
 	activityListLeast = 8
 	// activityStackedLeast is the height from which a narrow screen puts
@@ -157,8 +157,10 @@ func (a *App) newActivityPane() *pane {
 				}
 			}
 			return fmt.Sprintf("Actions · %d marked", len(ws)), []uiAction{
-				{name: "Stop Watching", about: "Let every marked watch go; their rows leave the list and their marks the other lists.", keys: "x", rank: 10,
-					when: func() bool { return len(ws) > 0 }, run: func() { a.unwatch(p, ws) }},
+				{
+					name: "Stop Watching", about: "Let every marked watch go; their rows leave the list and their marks the other lists.", keys: "x", rank: 10,
+					when: func() bool { return len(ws) > 0 }, run: func() { a.unwatch(p, ws) },
+				},
 			}
 		}
 		it, ok := a.activityItemAt(p.selectedIndex())
@@ -683,9 +685,14 @@ func (v *activityView) drawLog() {
 		}
 	}
 	head := role("activity.label")
-	header := []field{{width: 1}, {text: "WHEN", width: whenW, colour: head}, {width: 1},
-		{text: "WHAT", width: whatW, colour: head}, {text: "WHAT HAPPENED", width: headW, colour: head},
-		{text: "DETAILS", width: max(8, width-whenW-whatW-headW-8), colour: head}}
+	header := []field{
+		{width: 1},
+		{text: "WHEN", width: whenW, colour: head},
+		{width: 1},
+		{text: "WHAT", width: whatW, colour: head},
+		{text: "WHAT HAPPENED", width: headW, colour: head},
+		{text: "DETAILS", width: max(8, width-whenW-whatW-headW-8), colour: head},
+	}
 	t.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
 	v.logKeys = append(v.logKeys, "")
 	r := 1
@@ -701,11 +708,13 @@ func (v *activityView) drawLog() {
 			mark = field{text: glyphNew, width: 1, colour: role("activity.new")}
 		}
 		heading := field{text: eventHeading(e), width: headW, colour: role("activity.what")}
-		cells := []field{mark,
+		cells := []field{
+			mark,
 			{text: eventTime(e.At), width: whenW, colour: role("activity.when")},
 			{text: glyph, width: 1, colour: role(colour)},
 			{text: e.What, width: whatW, colour: role("activity.what"), shorten: shortenRepo},
-			heading}
+			heading,
+		}
 		if e.Heading != "" {
 			cells = append(cells, field{text: e.Line, width: max(8, width-whenW-whatW-headW-8), colour: role("activity.about")})
 		}
@@ -965,14 +974,20 @@ func (c *cardsView) selection() (string, []uiAction) {
 	}
 	nvim := r.Socket != "" || r.Pane != ""
 	return "Actions · " + editorShortName(r.Editor) + " · " + r.Label(), []uiAction{
-		{name: "Attach to Editor", about: "Return to this editor: its pane, or this terminal for a Neovim put aside.", keys: "Enter", rank: 10,
-			run: func() { a.goToEditor(r) }},
-		{name: "Attach In…", about: "Return to this Neovim in a tab, split or window, chosen from where it can go.", keys: "a", rank: 20,
-			when: func() bool { return nvim }, run: func() { a.attachWhere(r) }},
-		{name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", keys: "x", rank: 30,
+		{
+			name: "Attach to Editor", about: "Return to this editor: its pane, or this terminal for a Neovim put aside.", keys: "Enter", rank: 10,
+			run: func() { a.goToEditor(r) },
+		},
+		{
+			name: "Attach In…", about: "Return to this Neovim in a tab, split or window, chosen from where it can go.", keys: "a", rank: 20,
+			when: func() bool { return nvim }, run: func() { a.attachWhere(r) },
+		},
+		{
+			name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", keys: "x", rank: 30,
 			when: func() bool { return r.Socket != "" }, run: func() {
 				a.closeRunningEditor(r, func(session.Record) { a.refreshOpenEditors() })
-			}},
+			},
+		},
 		a.runningEditorsAction("E"),
 	}
 }
@@ -992,13 +1007,18 @@ func (a *App) goToEditor(r session.Record) {
 func (a *App) activityScreenActions(p *pane) []uiAction {
 	v := a.activity
 	acts := []uiAction{
-		{name: "Refresh All", about: "Ask the servers about every watch, and herdr about every agent, now.", keys: "R", rank: 10,
-			run: func() { a.watchAsk(nil); a.agentsNowAsk() }},
+		{
+			name: "Refresh All", about: "Ask the servers about every watch, and herdr about every agent, now.", keys: "R", rank: 10,
+			run: func() { a.watchAsk(nil); a.agentsNowAsk() },
+		},
 		{name: "Show Log", about: "The log in front, over the screen: every event at full length, to filter and to go to.", keys: "z", rank: 20, run: a.showActivityLog},
 		{name: "Go to List", about: "Move to the list of the watches and the agents.", keys: "a", rank: 28, run: func() { v.focus(p.table) }},
-		{name: "Go to Open Editors", about: "Move to the cards of the editors open: h and l between them, Enter goes to one.", keys: "e", rank: 30,
-			when: func() bool { return v.bandH > 0 && len(a.editorsOpen) > 0 }, run: func() { v.focus(v.cards) }},
-		{name: "Go to Detail", about: "Move into the detail of the row under the cursor, to read its whole story; where the screen is narrow, open it under the list.", keys: "d", rank: 32,
+		{
+			name: "Go to Open Editors", about: "Move to the cards of the editors open: h and l between them, Enter goes to one.", keys: "e", rank: 30,
+			when: func() bool { return v.bandH > 0 && len(a.editorsOpen) > 0 }, run: func() { v.focus(v.cards) },
+		},
+		{
+			name: "Go to Detail", about: "Move into the detail of the row under the cursor, to read its whole story; where the screen is narrow, open it under the list.", keys: "d", rank: 32,
 			run: func() {
 				if p.detailShown {
 					v.focus(p.detail)
@@ -1008,11 +1028,16 @@ func (a *App) activityScreenActions(p *pane) []uiAction {
 					v.autoDetail, v.closedDetail = false, false
 					v.showDetail(it, true)
 				}
-			}},
-		{name: "Go to Log", about: "Move into the log: a row of it chooses its thing in the list.", keys: "L", rank: 34,
-			when: func() bool { return v.logH > 0 }, run: func() { v.focus(v.log) }},
-		{name: "Stop Watching All…", about: "Let every watch go, after asking.", keys: "", rank: 60, when: func() bool { return len(a.watches) > 0 },
-			run: func() { a.stopWatchingAll(p) }},
+			},
+		},
+		{
+			name: "Go to Log", about: "Move into the log: a row of it chooses its thing in the list.", keys: "L", rank: 34,
+			when: func() bool { return v.logH > 0 }, run: func() { v.focus(v.log) },
+		},
+		{
+			name: "Stop Watching All…", about: "Let every watch go, after asking.", keys: "", rank: 60, when: func() bool { return len(a.watches) > 0 },
+			run: func() { a.stopWatchingAll(p) },
+		},
 		a.runningAgentsAction("Alt-A"),
 	}
 	return append(acts, a.listActions(p)...)
@@ -1041,8 +1066,10 @@ func (a *App) showActivityLog() {
 		if a.activityUnseen(e) {
 			mark = tag(role("activity.new")) + glyphNew + tagEnd
 		}
-		table[i] = []string{mark, tag(role("activity.when")) + esc(eventTime(e.At)) + tagEnd, tag(role(colour)) + esc(glyph) + tagEnd,
-			tag(role("activity.what")) + esc(e.What) + tagEnd, "[::b]" + esc(eventHeading(e)) + "[::-]", esc(e.Line)}
+		table[i] = []string{
+			mark, tag(role("activity.when")) + esc(eventTime(e.At)) + tagEnd, tag(role(colour)) + esc(glyph) + tagEnd,
+			tag(role("activity.what")) + esc(e.What) + tagEnd, "[::b]" + esc(eventHeading(e)) + "[::-]", esc(e.Line),
+		}
 		about := e.Line
 		if e.Project != "" {
 			about += " · " + e.Project
@@ -1056,8 +1083,10 @@ func (a *App) showActivityLog() {
 	for i := range items {
 		items[i].Label = labels[i]
 	}
-	a.showPickerWith("Log", items, pickerOptions{wide: true, explain: true, header: header, enterHint: "go to",
-		enterName: "Go to Its Row", enterAbout: "Close the log and put the list's cursor on what the event is about."}, func(it pickItem) {
+	a.showPickerWith("Log", items, pickerOptions{
+		wide: true, explain: true, header: header, enterHint: "go to",
+		enterName: "Go to Its Row", enterAbout: "Close the log and put the list's cursor on what the event is about.",
+	}, func(it pickItem) {
 		e := it.Data.(watch.Event)
 		if a.currentTab() != pageActivity {
 			a.switchTab(pageActivity)
@@ -1084,9 +1113,11 @@ func (a *App) showWatches() {
 				kind = "merge request"
 			}
 			glyph, colour := ciMark(st.Status)
-			table[i] = []string{tag(colMuted) + kind + tagEnd, tag(role("activity.what")) + esc(w.Label()) + tagEnd,
+			table[i] = []string{
+				tag(colMuted) + kind + tagEnd, tag(role("activity.what")) + esc(w.Label()) + tagEnd,
 				tag(colour) + glyph + tagEnd + " " + tag(stateColour2(st.Status)) + esc(watchPipelineWords(st)) + tagEnd,
-				tag(colMuted) + humanAge(w.Since) + tagEnd, esc(trunc(a.watchTitle(w), 50))}
+				tag(colMuted) + humanAge(w.Since) + tagEnd, esc(trunc(a.watchTitle(w), 50)),
+			}
 			items[i] = pickItem{About: strings.TrimSpace(a.watchTitle(w) + " · watched since " + w.Since.Format("Jan 2 15:04")), Data: w}
 		}
 		header, labels := pickTable([]string{"KIND", "WHAT", "STATE", "SINCE", "TITLE"}, table)
@@ -1104,19 +1135,24 @@ func (a *App) showWatches() {
 		picker.set("Watches", items)
 	}
 	items, header := itemsOf()
-	picker = a.showPickerWith("Watches", items, pickerOptions{wide: true, explain: true, header: header, enterHint: "go to",
+	picker = a.showPickerWith("Watches", items, pickerOptions{
+		wide: true, explain: true, header: header, enterHint: "go to",
 		enterName: "Go to Its Row", enterAbout: "Close the list and put the Activity screen's cursor on the watch.",
 		keys: []pickKey{
-			{keys: "x", hint: "stop", name: "Stop Watching", about: "Let the watch go; the list stays open for the next.", stay: true,
+			{
+				keys: "x", hint: "stop", name: "Stop Watching", about: "Let the watch go; the list stays open for the next.", stay: true,
 				run: func(it pickItem) {
 					w := it.Data.(watch.Watch)
 					a.stopWatching([]string{w.Key()}, func() {
 						a.done("stopped watching " + w.Label())
 						refresh()
 					})
-				}},
-			{keys: "X", hint: "stop all", name: "Stop Watching All…", about: "Let every watch go, after asking.",
-				run: func(pickItem) { a.stopWatchingAll(a.activityPane) }},
+				},
+			},
+			{
+				keys: "X", hint: "stop all", name: "Stop Watching All…", about: "Let every watch go, after asking.",
+				run: func(pickItem) { a.stopWatchingAll(a.activityPane) },
+			},
 			a.browserKey("w", "browser", "Open in Browser", "The merge request's page, or the pipeline's, on the forge; the list stays open.",
 				func(it pickItem) string {
 					st := a.watchSnap.States[it.Data.(watch.Watch).Key()]

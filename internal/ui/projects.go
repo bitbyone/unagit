@@ -186,7 +186,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		words, _ := a.syncWords(projectKey{pr.Instance, pr.PathWithNamespace})
 		syncW = max(syncW, len([]rune(words)))
-		editsW = max(editsW, len(a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace})))
+		editsW = max(editsW, len(editsText(a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}))))
 		info := a.diskOf(pr.Instance, pr.PathWithNamespace)
 		branch := info.Branch
 		if branch == "" {
@@ -415,7 +415,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		}
 		fields = append(fields,
 			field{text: words, width: syncW, colour: wordsColour},
-			field{text: a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace}), width: editsW, colour: role("repositories.edits"), right: true})
+			editsField(editsW, role("repositories.edits"))(a.projectEdits(projectKey{pr.Instance, pr.PathWithNamespace})))
 		if pathW > 0 {
 			fields = append(fields, field{text: path, width: pathW, colour: pathColour, shorten: shortenPath})
 		}

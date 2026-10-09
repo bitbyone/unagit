@@ -196,8 +196,8 @@ func (a *App) groupBlock(r worktreeRow) textBlock {
 		kvRow("Branch", tag(colBranch)+esc(a.worktreeBranch(r))+tagEnd),
 		kvRow("Origin", tag(colour)+esc(plain)+tagEnd),
 	}
-	if edits := a.worktreeEdits(r); edits != "" {
-		rows = append(rows, kvRow("Work tree", tag(colWarn)+edits+" uncommitted"+tagEnd))
+	if plain, edits := editsMarkup(a.worktreeEdits(r)); plain != "" {
+		rows = append(rows, kvRow("Work tree", edits+tag(colWarn)+" uncommitted"+tagEnd))
 	} else {
 		rows = append(rows, kvRow("Work tree", tag(colOn)+"clean"+tagEnd))
 	}

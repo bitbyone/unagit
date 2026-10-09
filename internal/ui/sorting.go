@@ -103,7 +103,7 @@ func (a *App) sortProjects(hits []scored, projects []forge.Project) {
 			if !a.disk[key].Cloned {
 				return []int{0}
 			}
-			return []int{a.repoSync[key].Edits}
+			return []int{a.repoSync[key].Edits + a.repoSync[key].Unversioned}
 		}, newest)
 	case config.SortSize:
 		rankThenNewest(hits, func(idx int) []int {

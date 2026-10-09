@@ -5,54 +5,96 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 )
 
-// c in Worktrees commits everything a worktree has not committed, or every
-// repository of a grouped one: staged or not, new files and deletions alike.
-// One message serves all of them; a repository can be given its own.
+// A commit is made as IntelliJ makes one: of the versioned files, as they
+// are on disk, staged or not; a file git does not track yet stays out until
+// it is chosen. One dialog makes it wherever it is asked for - a clone, a
+// worktree, every repository of a grouped one - and pushes it on request.
+// One message serves all the repositories; each can be given its own.
 
 // commitTarget is one working tree about to be committed.
 type commitTarget struct {
-	row   worktreeRow
-	name  string // its folder in a group, or its repository
-	edits int
+	instance, path, dir string
+	name                string // its folder in a group, or its repository
+	edits               int    // its versioned files with changes
 }
 
+// commitWorktree commits a worktree, or every repository of a grouped one.
 func (a *App) commitWorktree(r worktreeRow) {
 	members := []worktreeRow{r}
 	if r.grouped() {
 		members = r.Members
 	}
-	// Counted afresh: what the list last read may be a moment old.
-	gits := make([]func() int, len(members))
+	targets := make([]commitTarget, len(members))
 	for i, m := range members {
-		git := a.pathManager(m.Instance, m.Path).Git()
-		gits[i] = func() int { return git.Edits(m.Dir) }
+		name := m.Path
+		if r.grouped() {
+			name = filepath.Base(m.Dir)
+		}
+		targets[i] = commitTarget{instance: m.Instance, path: m.Path, dir: m.Dir, name: name}
+	}
+	a.startCommit(r.Path, r.grouped(), targets)
+}
+
+// commitProject commits the clone of a repository.
+func (a *App) commitProject(pr forge.Project) {
+	if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		a.flash(pr.PathWithNamespace + " is not cloned - there is nothing of yours to commit")
+		return
+	}
+	a.startCommit(pr.PathWithNamespace, false, []commitTarget{{instance: pr.Instance, path: pr.PathWithNamespace,
+		dir: a.projectDir(pr.Instance, pr.PathWithNamespace), name: pr.PathWithNamespace}})
+}
+
+// startCommit counts each working tree afresh - what a list last read may
+// be a moment old - and asks for the message of those with something
+// versioned to commit.
+func (a *App) startCommit(title string, grouped bool, candidates []commitTarget) {
+	gits := make([]*gitx.Git, len(candidates))
+	for i, c := range candidates {
+		gits[i] = a.pathManager(c.instance, c.path).Git()
 	}
 	go func() {
 		var targets []commitTarget
-		for i, m := range members {
-			if n := gits[i](); n > 0 {
-				name := m.Path
-				if r.grouped() {
-					name = filepath.Base(m.Dir)
-				}
-				targets = append(targets, commitTarget{row: m, name: name, edits: n})
+		unversioned := 0
+		for i, c := range candidates {
+			v, u := editCounts(gits[i], c.dir)
+			unversioned += u
+			if v > 0 {
+				c.edits = v
+				targets = append(targets, c)
 			}
 		}
 		a.tv.QueueUpdateDraw(func() {
-			if len(targets) == 0 {
-				a.flash("nothing to commit in " + r.Path)
-				return
+			switch {
+			case len(targets) == 0 && unversioned > 0:
+				a.flash(fmt.Sprintf("nothing versioned to commit in %s: its %d unversioned file(s) are not committed until chosen", title, unversioned))
+			case len(targets) == 0:
+				a.flash("nothing to commit in " + title)
+			default:
+				a.showCommitForm(title, grouped, targets)
 			}
-			a.showCommitForm(r, targets)
 		})
 	}()
 }
 
+// commitPush is what follows a commit: nothing, a push, or a force push.
+type commitPush int
+
+const (
+	commitOnly commitPush = iota
+	commitAndPush
+	commitAndForce
+)
+
 // showCommitForm asks for the message, and lets a repository have its own.
-func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
+func (a *App) showCommitForm(title string, grouped bool, targets []commitTarget) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.SetItemPadding(1)
@@ -65,7 +107,7 @@ func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
 	switch {
 	case len(targets) > 1:
 		label = "Message for all"
-	case r.grouped():
+	case grouped:
 		label = targets[0].name + " message"
 	}
 	message := addTextArea(form, label, "", 4)
@@ -82,54 +124,158 @@ func (a *App) showCommitForm(r worktreeRow, targets []commitTarget) {
 			own[i] = form.GetFormItemByLabel(field).(*tview.InputField)
 		}
 	}
-	commit := func() {
-		shared := strings.TrimSpace(message.GetText())
-		messages := make([]string, len(targets))
-		for i, t := range targets {
-			messages[i] = shared
-			if own[i] != nil {
-				if m := strings.TrimSpace(own[i].GetText()); m != "" {
-					messages[i] = m
-				}
-			}
-			if messages[i] == "" {
-				a.flash("enter a message for " + t.name)
-				return
-			}
-		}
-		a.closeModal(pageForm)
-		a.runTaskNoting("Committing "+r.Path, func(log func(string)) (string, error) {
-			var done, failed []string
-			for i, t := range targets {
-				sha, err := a.newManager(t.row.Instance, t.row.Path, log).CommitAll(t.row.Dir, messages[i])
-				switch {
-				case err != nil:
-					failed = append(failed, t.name+": "+firstLine(err.Error()))
-				case sha != "":
-					done = append(done, t.name+" "+sha)
-					log(fmt.Sprintf("%s: committed %s", t.name, sha))
-				}
-			}
-			if len(failed) > 0 {
-				return "", fmt.Errorf("committed %d, not %d:\n%s", len(done), len(failed), strings.Join(failed, "\n"))
-			}
-			return "committed " + strings.Join(done, ", "), nil
-		})
-	}
-	form.AddButton("Commit", commit)
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	files := 0
 	for _, t := range targets {
 		files += t.edits
 	}
+	// A group with one repository changed says which one is committed.
+	if grouped && len(targets) == 1 {
+		title += " · " + targets[0].name
+	}
+	messages := func() ([]string, bool) {
+		shared := strings.TrimSpace(message.GetText())
+		out := make([]string, len(targets))
+		for i, t := range targets {
+			out[i] = shared
+			if own[i] != nil {
+				if m := strings.TrimSpace(own[i].GetText()); m != "" {
+					out[i] = m
+				}
+			}
+			if out[i] == "" {
+				a.flash("enter a message for " + t.name)
+				return nil, false
+			}
+		}
+		return out, true
+	}
+	commit := func(push commitPush) func() {
+		return func() {
+			texts, ok := messages()
+			if !ok {
+				return
+			}
+			run := func() {
+				a.closeModal(pageForm)
+				a.runCommit(title, targets, texts, push)
+			}
+			switch push {
+			case commitAndPush:
+				a.confirmWith("Commit and push",
+					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and push to origin?", files, esc(title)), "Push", nil, run)
+			case commitAndForce:
+				a.confirmWith("Commit and force push",
+					fmt.Sprintf("Commit %d file(s) of [::b]%s[::-] and force push to origin?\n\n"+
+						"Origin's copy of the branch is replaced by yours. Only what was last fetched of it is replaced: "+
+						"if anyone pushed since, git refuses.", files, esc(title)), "Force push", nil, run)
+			default:
+				run()
+			}
+		}
+	}
+	form.AddButton("Commit", commit(commitOnly))
+	form.AddButton("Push", commit(commitAndPush))
+	form.AddButton("Force Push", commit(commitAndForce))
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	height := 10
 	if len(targets) > 1 {
 		height += 3 + 2*len(targets)
 	}
-	// A group with one repository changed says which one is committed.
-	title := r.Path
-	if r.grouped() && len(targets) == 1 {
-		title += " · " + targets[0].name
-	}
 	a.showFormModalSized(fmt.Sprintf("Commit · %s · %d file(s)", title, files), form, 84, height)
+}
+
+// runCommit commits each working tree under its message, then pushes those
+// committed when asked, all under one log; the lists read what changed.
+func (a *App) runCommit(title string, targets []commitTarget, messages []string, push commitPush) {
+	a.runTaskThen("Committing "+title, func(log func(string)) (string, error) {
+		var done, failed []string
+		var committed []commitTarget
+		for i, t := range targets {
+			sha, err := a.newManager(t.instance, t.path, log).Git().CommitVersioned(t.dir, messages[i])
+			switch {
+			case err != nil:
+				failed = append(failed, t.name+": "+firstLine(err.Error()))
+			case sha != "":
+				done = append(done, t.name+" "+sha)
+				committed = append(committed, t)
+				log(fmt.Sprintf("%s: committed %s", t.name, sha))
+			}
+		}
+		if len(failed) > 0 {
+			return "", fmt.Errorf("committed %d, not %d:\n%s", len(done), len(failed), strings.Join(failed, "\n"))
+		}
+		said := "committed " + strings.Join(done, ", ")
+		if push == commitOnly {
+			return said, nil
+		}
+		for _, t := range committed {
+			branch, err := a.newManager(t.instance, t.path, log).Git().PushHead(t.dir, push == commitAndForce)
+			if err != nil {
+				return "", fmt.Errorf("%s, but %s was not pushed: %w", said, t.name, err)
+			}
+			log(fmt.Sprintf("%s: pushed %s", t.name, branch))
+		}
+		return said + " and pushed", nil
+	}, func(said string) {
+		a.afterGitChange()
+		a.done(said)
+	})
+}
+
+// afterGitChange reads the working trees again after a commit or a push,
+// so the lists show where they stand now.
+func (a *App) afterGitChange() {
+	a.refreshDisk()
+	if a.projectsPane != nil && a.projectsPane.reload != nil {
+		a.projectsPane.reload()
+	}
+}
+
+// editCounts reads a working tree's versioned files with changes and its
+// unversioned ones, none when git cannot say.
+func editCounts(git *gitx.Git, dir string) (versioned, unversioned int) {
+	versioned, unversioned = git.EditCounts(dir)
+	return max(versioned, 0), max(unversioned, 0)
+}
+
+// editsText is what an EDITS column says: the versioned files not
+// committed, then after a slash the unversioned ones - "12/3", "12", "/3" -
+// and nothing when there are neither.
+func editsText(versioned, unversioned int) string {
+	text := ""
+	if versioned > 0 {
+		text = fmt.Sprint(versioned)
+	}
+	if unversioned > 0 {
+		text += fmt.Sprintf("/%d", unversioned)
+	}
+	return text
+}
+
+// editsMarkup is editsText with each count in its colour, the versioned in
+// changed's.
+func editsMarkup(versioned, unversioned int, changed ...tcell.Color) (plain, markup string) {
+	ink := role("files.changed")
+	if len(changed) > 0 {
+		ink = changed[0]
+	}
+	if versioned > 0 {
+		markup = tag(ink) + fmt.Sprint(versioned) + tagEnd
+	}
+	if unversioned > 0 {
+		markup += tag(role("files.unversioned")) + fmt.Sprintf("/%d", unversioned) + tagEnd
+	}
+	return editsText(versioned, unversioned), markup
+}
+
+// editsField is a list's EDITS cell, right-aligned in width: what
+// editsMarkup says, the versioned count in the list's own colour.
+func editsField(width int, changed tcell.Color) func(versioned, unversioned int) field {
+	return func(versioned, unversioned int) field {
+		plain, markup := editsMarkup(versioned, unversioned, changed)
+		if width <= 0 || plain == "" {
+			return field{width: width}
+		}
+		return field{raw: strings.Repeat(" ", max(width-len(plain), 0)) + markup}
+	}
 }

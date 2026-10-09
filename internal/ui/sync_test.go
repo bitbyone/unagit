@@ -67,8 +67,8 @@ func TestRepositoriesShowTheCloneItself(t *testing.T) {
 	gw.rescan()
 	waitFor(t, a, sc, "RMT")
 	waitFor(t, a, sc, "✓")
-	if row := rowWith(a, sc, "acme/gateway"); !containsField(row, "2") {
-		t.Errorf("EDITS does not count the two files: %q", row)
+	if row := rowWith(a, sc, "acme/gateway"); !containsField(row, "1/1") {
+		t.Errorf("EDITS does not count one versioned file and one unversioned: %q", row)
 	}
 
 	typeRunes(sc, "g")
@@ -122,14 +122,14 @@ func TestEditsShowOnFocusAndOnSwitchingTabs(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(gw.clone, "one.txt"), []byte("1\n"), 0o644))
 	stale()
 	must(t, sc.PostEvent(tcell.NewEventFocus(true)))
-	waitForRow(t, a, sc, "acme/gateway", "1")
+	waitForRow(t, a, sc, "acme/gateway", "/1")
 
 	must(t, os.WriteFile(filepath.Join(gw.clone, "two.txt"), []byte("2\n"), 0o644))
 	stale()
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Merge requests")
 	typeRunes(sc, "1")
-	waitForRow(t, a, sc, "acme/gateway", "2")
+	waitForRow(t, a, sc, "acme/gateway", "/2")
 }
 
 // waitForRow waits until the screen line holding text has want as a word.

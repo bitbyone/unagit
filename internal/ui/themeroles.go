@@ -39,7 +39,7 @@ var colourRoles = []colourRole{
 	{"column.count", "state.warning", "a count of things to look at"},
 	{"column.mr", "text.accent", "merge requests: their number, or how many"},
 	{"column.wt", "column.count", "worktrees: how many"},
-	{"column.edits", "column.count", "files not committed"},
+	{"column.edits", "files.changed", "versioned files with changes not committed"},
 	{"column.new", "column.count", "commits since the last review"},
 	{"column.pending", "column.count", "comments waiting to be published"},
 	{"column.hidden", "text.dim", "the mark of something hidden"},
@@ -60,6 +60,9 @@ var colourRoles = []colourRole{
 	{"ci.running", "text.accent", "one under way, or waiting its turn"},
 	{"ci.idle", "text.dim", "one skipped or canceled"},
 	{"ci.manual", "text.accent", "one waiting to be started by hand, or for its time"},
+	// A file not committed, by what git knows of it.
+	{"files.changed", "ci.running", "a versioned file with changes not committed, and how many"},
+	{"files.unversioned", "state.bad", "a file git does not track yet, and how many"},
 
 	// The list of starred repositories.
 	{"starred.description", "text.muted", "what a starred repository says it is"},

@@ -1,8 +1,6 @@
 package workspace
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,28 +31,5 @@ func TestChangePatchReadsAsPartOfOne(t *testing.T) {
 	}
 	if f.m.ChangeBase(f.clone, "") != "HEAD" {
 		t.Error("without a base the change is what is not committed")
-	}
-}
-
-// TestCommitAllTakesEverything: modified, new and deleted files go into one
-// commit; a clean tree commits nothing.
-func TestCommitAllTakesEverything(t *testing.T) {
-	t.Parallel()
-	f := newUpdateFixture(t)
-	write(t, f.clone, "a.txt", "changed\n")
-	write(t, f.clone, "new.txt", "new\n")
-	if err := os.Remove(filepath.Join(f.clone, "b.txt")); err != nil {
-		t.Fatal(err)
-	}
-	sha, err := f.m.CommitAll(f.clone, "Do it all\n\nIn one go.")
-	if err != nil || sha == "" {
-		t.Fatalf("got %q, %v", sha, err)
-	}
-	if got := git(t, f.clone, "show", "--name-status", "--format=%s%n%b", "HEAD"); !strings.Contains(got, "Do it all") ||
-		!strings.Contains(got, "In one go.") || !strings.Contains(got, "A\tnew.txt") || !strings.Contains(got, "M\ta.txt") || !strings.Contains(got, "D\tb.txt") {
-		t.Errorf("the commit:\n%s", got)
-	}
-	if again, err := f.m.CommitAll(f.clone, "nothing"); err != nil || again != "" {
-		t.Errorf("a clean tree: %q, %v", again, err)
 	}
 }

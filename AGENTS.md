@@ -337,7 +337,17 @@ A branch unagit makes records its base in `branch.<name>.unagitBase`;
 once pushed, rebasing would need a force push. `Ctrl-R` (`RebaseOntoBase`)
 does it anyway on request and notes the upstream it moved away from in
 `branch.<name>.unagitRebasedFrom`; `P` force-pushes only with that as the
-lease, so nothing pushed since can be overwritten. No other path forces.
+lease, so nothing pushed since can be overwritten. The commit dialog's
+Force Push is the one other path that forces: after asking, with origin's
+copy as last fetched (`UpstreamTip`) as the lease. Nothing else forces.
+
+**Commits are IntelliJ's, not git's.** A file is versioned or unversioned;
+a change to a versioned file is committed as it is on disk, staged or not
+(`CommitVersioned`, `commit --all`), and an unversioned one only when it is
+chosen. Nothing in unagit stages, and no count or dialog speaks of the
+index. EDITS reads `versioned/unversioned`. A review worktree is never
+committed: its HEAD is the merge base on purpose. Rewriting a commit
+(`RewordCommit`) is for commits no remote has (`LocalCommits`).
 
 **The review arrangement** is the feature the whole tool exists for, and it is
 easy to get subtly wrong:

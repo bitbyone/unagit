@@ -30,6 +30,7 @@ type logCommit struct {
 	WebURL   string
 	New      bool // a merge request's, not yet given a review
 	Unpushed bool // not on the branch's upstream yet
+	Local    bool // on no branch of any remote: its message may be edited
 	// CI is the pipeline status, where the forge said it: a merge request's
 	// head has one.
 	CI string
@@ -78,7 +79,8 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 		{keys: "Alt-D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
-		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }})
+		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }},
+			pickKey{keys: "e", hint: "edit message", name: "Edit Commit Message…", about: "Write the message of a commit not pushed yet again; the commits after it are replayed onto it.", run: func(it pickItem) { a.editCommitMessage(place, at(it), again(it)) }})
 	}
 	if place.mr != nil {
 		mr := *place.mr
@@ -456,6 +458,54 @@ func (a *App) askName(title, value string, create func(name string), back func()
 	a.showFormModalSized(title, form, 60, 7)
 }
 
+// editCommitMessage asks for a commit's message again and rewrites the
+// commit with it. Only a commit no remote has: one already pushed would need
+// a force push, and other people may have built on it.
+func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
+	// A refusal keeps the log, the warning over it.
+	if !c.Local {
+		back()
+		a.flash(shortSHA(c.SHA) + " is on origin already - only a commit not pushed yet can have its message edited")
+		return
+	}
+	git := gitx.New("", nil)
+	message, err := git.Message(place.dir, c.SHA)
+	if err != nil {
+		back()
+		a.errorf("reading the message of %s: %v", shortSHA(c.SHA), err)
+		return
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	field := addTextArea(form, "Message", message, 8)
+	form.AddButton("Save", func() {
+		text := strings.TrimSpace(field.GetText())
+		if text == "" {
+			a.flash("enter a message")
+			return
+		}
+		a.closeModal(pageForm)
+		if text == strings.TrimSpace(message) {
+			back()
+			return
+		}
+		var rewritten string
+		a.runTaskThen("Editing the message of "+shortSHA(c.SHA), func(log func(string)) (string, error) {
+			var err error
+			rewritten, err = a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git().RewordCommit(place.dir, c.SHA, text)
+			return "", err
+		}, func(string) {
+			a.afterGitChange()
+			place.reload(rewritten, "the message of "+shortSHA(rewritten)+" is edited")
+		})
+	})
+	form.AddButton("Cancel", func() {
+		a.closeModal(pageForm)
+		back()
+	})
+	a.showFormModalSized("Edit Commit Message · "+shortSHA(c.SHA), form, 84, 14)
+}
+
 // commitURL is a commit's page on the server, "" without one.
 func (a *App) commitURL(place logPlace, c logCommit) string {
 	if c.WebURL != "" {
@@ -549,6 +599,7 @@ func (a *App) localLog(place logPlace, focus, done string) {
 	go func() {
 		entries, err := git.History(place.dir, "HEAD", historyLimit)
 		unpushed := git.Unpushed(place.dir)
+		local := git.LocalCommits(place.dir)
 		a.tv.QueueUpdateDraw(func() {
 			if err != nil {
 				a.errorf("reading the log: %v", err)
@@ -557,7 +608,7 @@ func (a *App) localLog(place logPlace, focus, done string) {
 			commits := make([]logCommit, len(entries))
 			start := 0
 			for i, e := range entries {
-				commits[i] = logCommit{LogEntry: e, Unpushed: unpushed[e.SHA]}
+				commits[i] = logCommit{LogEntry: e, Unpushed: unpushed[e.SHA], Local: local[e.SHA]}
 				if e.SHA == focus {
 					start = i
 				}

@@ -64,7 +64,8 @@ func (a *App) loadRepoSync(fetch bool) {
 						failed = firstLine(err.Error())
 					}
 				}
-				st := remoteState{Edits: max(j.git.Edits(j.dir), 0), Busy: j.git.OperationInProgress(j.dir)}
+				st := remoteState{Busy: j.git.OperationInProgress(j.dir)}
+				st.Edits, st.Unversioned = editCounts(j.git, j.dir)
 				upstreams := j.git.BranchUpstreams(j.dir)
 				if u, ok := upstreams[j.branch]; ok {
 					st.Upstream = u
@@ -72,7 +73,8 @@ func (a *App) loadRepoSync(fetch bool) {
 					st.Unreadable = true
 				} else {
 					st = detachedState(j.git, j.dir)
-					st.Edits, st.Busy = max(j.git.Edits(j.dir), 0), j.git.OperationInProgress(j.dir)
+					st.Busy = j.git.OperationInProgress(j.dir)
+					st.Edits, st.Unversioned = editCounts(j.git, j.dir)
 				}
 				a.tv.QueueUpdateDraw(func() {
 					if a.repoSync == nil {
@@ -147,13 +149,15 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 	return glyphCheck, colOn
 }
 
-// projectEdits is the EDITS column of a repository: its clone's files with
-// uncommitted changes, nothing when there are none or it is not cloned.
-func (a *App) projectEdits(key projectKey) string {
-	if n := a.repoSync[key].Edits; n > 0 && a.disk[key].Cloned {
-		return fmt.Sprintf("%d", n)
+// projectEdits is the EDITS column of a repository: its clone's versioned
+// files with changes and its unversioned ones, nothing when there are none
+// or it is not cloned.
+func (a *App) projectEdits(key projectKey) (versioned, unversioned int) {
+	if !a.disk[key].Cloned {
+		return 0, 0
 	}
-	return ""
+	st := a.repoSync[key]
+	return st.Edits, st.Unversioned
 }
 
 // syncSentence says the same in full, for the detail column.

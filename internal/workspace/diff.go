@@ -84,23 +84,3 @@ func (m *Manager) commitLines(dir string, args []string) []CommitLine {
 	}
 	return lines
 }
-
-// CommitAll stages everything in a working tree - new files, deletions - and
-// commits it with message. It answers the new commit's short id, or "" when
-// there was nothing to commit.
-func (m *Manager) CommitAll(dir, message string) (string, error) {
-	status, err := m.trimmed(dir, "status", "--porcelain")
-	if err != nil {
-		return "", err
-	}
-	if status == "" {
-		return "", nil
-	}
-	if _, err := m.git.Run(dir, "add", "--all"); err != nil {
-		return "", err
-	}
-	if _, err := m.git.Run(dir, "commit", "--quiet", "--message", message); err != nil {
-		return "", err
-	}
-	return m.trimmed(dir, "rev-parse", "--short", "HEAD")
-}

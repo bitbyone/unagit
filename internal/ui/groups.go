@@ -506,7 +506,11 @@ func (a *App) pushGroup(r worktreeRow) {
 		})
 	}
 	if len(forced) == 0 {
-		run()
+		lines := make([]string, len(pushes))
+		for i, p := range pushes {
+			lines[i] = p.member.Path + "  (" + p.member.Branch + ")"
+		}
+		a.confirmWith("Push", fmt.Sprintf("Push these to origin?\n\n%s", esc(strings.Join(lines, "\n"))), "Push", nil, run)
 		return
 	}
 	body := fmt.Sprintf("These were rebased, so origin's copy has to be replaced:\n\n%s\n\n"+

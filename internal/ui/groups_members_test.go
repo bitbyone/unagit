@@ -132,6 +132,8 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 		time.Sleep(30 * time.Millisecond)
 	}
 	typeRunes(sc, "P")
+	waitFor(t, a, sc, "Push these to origin?")
+	typeRunes(sc, "p")
 	deadline = time.Now().Add(patience)
 	for !onOrigin(gw) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)

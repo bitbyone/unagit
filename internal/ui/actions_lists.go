@@ -77,6 +77,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Open With…", about: "Choose the editor, then open the clone here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
 		{name: "Pull", about: "Fetch origin and fast-forward the clone's branch when nothing local is in the way.", keys: "p", rank: 30, when: cloned, run: func() { a.updateProject(pr) }},
+		{name: "Commit…", about: "Commit the clone's changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: "c", rank: 32, when: cloned, run: func() { a.commitProject(pr) }},
+		{name: "Push", about: "Push the clone's branch to origin once it has commits origin lacks; asks first.", keys: "P", rank: 33, when: cloned, run: func() { a.pushProject(pr) }},
 		{name: "Show Merge Requests", about: "Switch to Merge requests, narrowed to this repository.", keys: "m", rank: 40, run: func() {
 			a.mrProjectScope = key
 			a.mrsPane.reload()
@@ -262,8 +264,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "B", rank: 18,
 			when: func() bool { return r.Branch == "(detached)" }, run: func() { a.backToBranch(a.worktreeProject(r), r.Dir) }},
 		{name: "Pull", about: "Bring the branch up to origin; a branch not yet pushed is rebased onto its base.", keys: "p", rank: 20, run: func() { a.updateWorktree(r) }},
-		{name: "Commit All…", about: "Commit every change in the worktree, with a message you write.", keys: commitKey, rank: 25, run: func() { a.commitWorktree(r) }},
-		{name: "Push", about: "Push the branch to origin, setting up its upstream the first time.", keys: "P", rank: 30, run: func() {
+		{name: "Commit…", about: "Commit the changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: commitKey, rank: 25, run: func() { a.commitWorktree(r) }},
+		{name: "Push", about: "Push the branch to origin, setting up its upstream the first time; asks first.", keys: "P", rank: 30, run: func() {
 			if r.grouped() {
 				a.pushGroup(r)
 			} else {

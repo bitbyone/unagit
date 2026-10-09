@@ -132,8 +132,17 @@ all and live only there.
   read on `R` (`r` for one row) and kept for the next start; one still
   running is asked about again until it ends.
 - the edits column, headed `✎` (a pencil with a Nerd Font), counts the
-  files not committed in the clone, and `Enter` lists them
-  with the clone's branch, HEAD and the commits origin does not have yet.
+  files not committed in the clone as IntelliJ sees them: `12/3` is twelve
+  versioned files with changes, in blue, and three unversioned ones git does
+  not track yet, in red-brown (`12` or `/3` when one of them is none).
+  `Enter` lists them with the clone's branch, HEAD and the commits origin
+  does not have yet.
+- `c` commits the clone's versioned files as they are on disk, staged or
+  not - git's index is never something to think about - while unversioned
+  files stay out. The dialog asks only for the message: **Commit**, **Push**
+  (commit, then push) or **Force Push** (commit, then replace origin's copy,
+  but only what was last fetched of it). `P` pushes commits the clone has
+  and origin lacks. Every push asks first.
 - `p` updates the clone: a fast-forward when nothing of yours is in the way, a
   rebase of your commits and uncommitted edits onto origin when there is. If
   that would conflict - your edits touch a file origin changed, or your commits
@@ -319,9 +328,11 @@ requests open from every worktree - `r` those of the one under the cursor - a gr
 counts what Incomm holds, amber while some of it waits to be published.
 Opening never waits for comments: on your own work they come second.
 
-`c` commits everything a worktree has not committed - staged or not, new
-files and deletions - and in a grouped worktree every repository at once.
-One message serves all of them; any repository can be given its own instead.
+`c` commits a worktree's versioned files as they are on disk - staged or
+not, deletions too - and leaves unversioned files out, as in Repositories;
+in a grouped worktree it commits every repository at once. One message
+serves all of them; any repository can be given its own instead, and the
+commit can be pushed with it.
 
 ### How old, how big
 
@@ -352,9 +363,11 @@ conflict; otherwise nothing changes. A pushed branch then differs from origin's
 copy and its row says **force push required**: `P` asks, then pushes with
 `--force-with-lease` set to exactly what origin had before the rebase, so a
 commit someone pushed in the meantime makes git refuse instead of being lost.
-That is the only force push unagit ever does.
+The commit dialog's **Force Push** is the only other: its lease is origin's
+copy as last fetched, and it asks first.
 
-The edits column (`✎`) counts the files with uncommitted changes, so work in progress shows
+The edits column (`✎`) counts the files not committed - versioned, then
+after a slash unversioned, as in Repositories - so work in progress shows
 before it is committed; a grouped worktree adds up its repositories.
 
 `CI` is the newest pipeline of the worktree's branch itself, read on `R` and
@@ -658,6 +671,9 @@ checks the commit out with a detached HEAD: the branch column then shows
 `@<commit>` and the RMT column how far behind the branch it left it is,
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
+`e` edits the message of a commit no remote has yet - the newest is
+amended, an older one written again and the commits after it replayed onto
+it; a pushed commit is refused, since changing it would need a force push.
 `w` opens the commit on the server, and `y` copies its id, its link, a
 markdown link, or a link with text for a chat: repository, branch, commit
 and subject followed by the link. `y` on a merge request or a repository
@@ -1071,12 +1087,14 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `y` | copy the link, reference, branch or directory |
 | `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` details |
 | `D` `Alt-D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
+| `e` | in the log: edit the message of a commit not pushed yet |
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `A` | read and write comments · approve |
 | `M` `Ctrl-D` `a` `s` `t` | in Merge requests: merge · draft · assignee · reviewer · labels |
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
+| `c` `P` | in Repositories and Worktrees: commit the versioned files, push with it if you like · push, asking first |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
 | `n` | in branches: a new branch from the one under the cursor |

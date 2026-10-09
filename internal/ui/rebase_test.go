@@ -31,8 +31,8 @@ func TestRebaseOntoBaseThenForcePush(t *testing.T) {
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "RMT")
 	waitFor(t, a, sc, "in sync")
-	if row := rowWith(a, sc, "feat/x"); !containsField(row, "2") {
-		t.Errorf("EDITS does not count the two files: %q", row)
+	if row := rowWith(a, sc, "feat/x"); !containsField(row, "1/1") {
+		t.Errorf("EDITS does not count one versioned file and one unversioned: %q", row)
 	}
 
 	sc.InjectKey(tcell.KeyCtrlR, 0, tcell.ModCtrl)

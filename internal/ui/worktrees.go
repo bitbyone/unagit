@@ -70,8 +70,9 @@ type remoteState struct {
 	// replace it. Anything pushed since leaves it empty, and the branch reads
 	// as diverged.
 	ForceFrom string
-	// Edits counts the files with uncommitted changes, untracked ones too.
-	Edits int
+	// Edits counts the versioned files with changes not committed, and
+	// Unversioned the files git does not track yet.
+	Edits, Unversioned int
 	// Busy is a rebase, merge, cherry-pick or revert git is in the middle of.
 	Busy string
 	// Comments counts what Incomm holds on this worktree's files, comments
@@ -217,7 +218,7 @@ func remoteStateOf(git *gitx.Git, r worktreeRow, upstreams map[string]gitx.Upstr
 			st.ForceFrom = mark
 		}
 	}
-	st.Edits = max(git.Edits(r.Dir), 0)
+	st.Edits, st.Unversioned = editCounts(git, r.Dir)
 	st.Busy = git.OperationInProgress(r.Dir)
 	if integrate {
 		place := incomm.Place{Dir: r.Dir}
@@ -395,7 +396,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			servers = append(servers, len([]rune(a.worktreeServer(r))))
 		}
 		paths = append(paths, tildePath(r.Dir))
-		editsW = max(editsW, len(a.worktreeEdits(r)))
+		editsW = max(editsW, len(editsText(a.worktreeEdits(r))))
 		plain, _ := a.worktreeRemoteWords(r)
 		remotes = append(remotes, len([]rune(plain)))
 		if mr := a.worktreeMR(r); mr != "" {
@@ -569,7 +570,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 			cells = append(cells, field{text: tildePath(r.Dir), width: pathW, colour: role("worktrees.path"), shorten: shortenPath})
 		}
 		if showEdits {
-			cells = append(cells, field{text: a.worktreeEdits(r), width: editsW, colour: role("worktrees.edits"), right: true})
+			cells = append(cells, editsField(editsW, role("worktrees.edits"))(a.worktreeEdits(r)))
 		}
 		if showMR {
 			cells = append(cells, field{text: mrs[idx], width: mrW, colour: role("worktrees.mr")})
@@ -621,27 +622,25 @@ func (a *App) worktreeComments(r worktreeRow) (string, tcell.Color) {
 	return fmt.Sprintf("%d", total), colMuted
 }
 
-// worktreeEdits is the EDITS column: how many files have uncommitted changes,
-// across every member of a grouped worktree; nothing when there are none.
-func (a *App) worktreeEdits(r worktreeRow) string {
-	if total := a.worktreeEditCount(r); total > 0 {
-		return fmt.Sprintf("%d", total)
-	}
-	return ""
-}
-
-// worktreeEditCount is the files with uncommitted changes in a worktree, in
-// every member of a grouped one.
-func (a *App) worktreeEditCount(r worktreeRow) int {
+// worktreeEdits is the EDITS column: the versioned files with changes and
+// the unversioned ones, across every member of a grouped worktree.
+func (a *App) worktreeEdits(r worktreeRow) (versioned, unversioned int) {
 	members := []worktreeRow{r}
 	if r.grouped() {
 		members = r.Members
 	}
-	total := 0
 	for _, m := range members {
-		total += a.wtRemote[m.Dir].Edits
+		versioned += a.wtRemote[m.Dir].Edits
+		unversioned += a.wtRemote[m.Dir].Unversioned
 	}
-	return total
+	return versioned, unversioned
+}
+
+// worktreeEditCount is every file not committed in a worktree, versioned
+// or not, in every member of a grouped one.
+func (a *App) worktreeEditCount(r worktreeRow) int {
+	versioned, unversioned := a.worktreeEdits(r)
+	return versioned + unversioned
 }
 
 // worktreeBranch is what the BRANCH column says: the branch, or for a grouped
@@ -837,7 +836,7 @@ func pushBlocked(st remoteState, known bool) string {
 	case st.Unreadable:
 		return "the clone of this repository cannot be read"
 	case st.Detached:
-		return "this worktree has a detached HEAD, there is no branch to push"
+		return "HEAD is detached: there is no branch to push"
 	case u.Gone:
 		return "the upstream is gone: the branch was deleted on origin. Push it again by hand if you want it back"
 	case st.ForceFrom != "":
@@ -876,8 +875,53 @@ func (a *App) pushWorktree(r worktreeRow) {
 		return
 	}
 	setUpstream := st.Upstream.Name == ""
-	a.runTask(fmt.Sprintf("Pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
-		return "", a.newManager(r.Instance, r.Path, log).Git().Push(r.Dir, r.Branch, setUpstream)
+	a.confirmWith("Push", pushQuestion(r.Path, r.Branch, st.Upstream), "Push", nil, func() {
+		a.runTask(fmt.Sprintf("Pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
+			return "", a.newManager(r.Instance, r.Path, log).Git().Push(r.Dir, r.Branch, setUpstream)
+		})
+	})
+}
+
+// pushQuestion asks whether to push a branch, saying what goes: its
+// commits origin lacks, or the branch itself when origin has none of it.
+func pushQuestion(where, branch string, u gitx.Upstream) string {
+	what := fmt.Sprintf("%d commit(s) of [::b]%s[::-]", u.Ahead, esc(branch))
+	if u.Name == "" {
+		what = "[::b]" + esc(branch) + "[::-], new to origin,"
+	}
+	return fmt.Sprintf("Push %s from %s to origin?", what, esc(where))
+}
+
+// pushProject sends the clone's branch to origin once it has commits origin
+// lacks, after asking.
+func (a *App) pushProject(pr forge.Project) {
+	key := projectKey{pr.Instance, pr.PathWithNamespace}
+	info := a.disk[key]
+	if !info.Cloned {
+		a.flash(pr.PathWithNamespace + " is not cloned - there is nothing of yours to push")
+		return
+	}
+	st, known := a.repoSync[key]
+	if why := pushBlocked(st, known); why != "" {
+		a.flash(why)
+		return
+	}
+	if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
+		a.flash(info.Branch + " has nothing to push: origin has all of it")
+		return
+	}
+	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
+	a.confirmWith("Push", pushQuestion(pr.PathWithNamespace, info.Branch, st.Upstream), "Push", nil, func() {
+		a.runTaskThen(fmt.Sprintf("Pushing %s (%s)", pr.PathWithNamespace, info.Branch), func(log func(string)) (string, error) {
+			branch, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).Git().PushHead(dir, false)
+			if err != nil {
+				return "", err
+			}
+			return "pushed " + branch, nil
+		}, func(said string) {
+			a.afterGitChange()
+			a.done(said)
+		})
 	})
 }
 

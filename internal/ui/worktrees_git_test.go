@@ -291,6 +291,8 @@ func TestPushSendsANewBranchWithItsUpstream(t *testing.T) {
 	waitFor(t, a, sc, "no upstream")
 
 	typeRunes(sc, "P")
+	waitFor(t, a, sc, "new to origin")
+	typeRunes(sc, "p")
 	waitFor(t, a, sc, "in sync")
 	if got, want := gitIn(t, p.origin, "rev-parse", "feat/new-thing"), gitIn(t, dir, "rev-parse", "HEAD"); got != want {
 		t.Errorf("origin has %s, the worktree is at %s", got, want)
@@ -316,6 +318,8 @@ func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "↑1 unpushed")
 	typeRunes(sc, "P")
+	waitFor(t, a, sc, "Push 1 commit(s) of feat/more")
+	typeRunes(sc, "p")
 	waitFor(t, a, sc, "in sync")
 	if got, want := gitIn(t, p.origin, "rev-parse", "feat/more"), gitIn(t, dir, "rev-parse", "HEAD"); got != want {
 		t.Errorf("origin has %s, the worktree is at %s", got, want)
