@@ -87,7 +87,10 @@ func (a *App) drawTabs() {
 		if t.page == current {
 			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), text)
 		} else {
-			text = fmt.Sprintf("[%s]%s[-]", colTabInactive.String(), text)
+			// The name in the tabs' accent, the key that reaches it in the
+			// quiet colour it had: the names are what is read.
+			key, name := tabKeyAndName(label(t, short, tight))
+			text = fmt.Sprintf("[%s]%s[-][%s]%s[-]", colTabInactive.String(), tview.Escape(key), role("tabs.name").String(), tview.Escape(name))
 		}
 		if t.page == pageActivity && len(badges) > 0 {
 			// Outside the tab's own band, a cell off it and from each other,
@@ -100,6 +103,15 @@ func (a *App) drawTabs() {
 		parts = append(parts, text)
 	}
 	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)))
+}
+
+// tabKeyAndName splits a tab's label after its key: " [1]" and
+// " Repositories ".
+func tabKeyAndName(label string) (key, name string) {
+	trimmed := strings.TrimLeft(label, " ")
+	lead := len(label) - len(trimmed)
+	k, rest, _ := strings.Cut(trimmed, " ")
+	return label[:lead] + k, " " + rest
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.

@@ -174,6 +174,7 @@ var colourRoles = []colourRole{
 	{"hint.key", "text.key", "a key in a hint, before what it does"},
 	{"activity.panel_key", "text.dim", "the key in a panel's title that goes to it"},
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
+	{"tabs.name", "tabs.active", "the name of a tab not in front, in the tabs' accent"},
 	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
 	{"tabs.running", "text.accent", "pipelines under way"},
 	{"tabs.new", "state.warning", "changes not seen yet"},

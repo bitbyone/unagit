@@ -76,6 +76,7 @@ func (a *App) newSettingsView() *settingsView {
 	if a.debug {
 		s.list.AddItem(" "+debugSectionName, "", 0, nil)
 	}
+	s.nameSections()
 	s.list.SetChangedFunc(func(i int, _, _ string, _ rune) { s.show(i) })
 	s.list.SetSelectedFunc(func(int, string, string, rune) { s.focusContent() })
 	s.list.SetInputCapture(s.listKeys)
@@ -131,7 +132,25 @@ func (a *App) newSettingsView() *settingsView {
 }
 
 // reload rebuilds every section from the current configuration.
+// nameSections writes the sections' names in the list, each after its
+// icon where the theme has one and the terminal a Nerd Font - again on a
+// reload, which a theme put on, or the font changed, brings.
+func (s *settingsView) nameSections() {
+	for i := 0; i < s.list.GetItemCount(); i++ {
+		name := debugSectionName
+		if i < len(sectionNames) {
+			name = sectionNames[i]
+		}
+		text := " " + name
+		if icon := sectionIcons[name]; icon != "" {
+			text = " " + icon + " " + name
+		}
+		s.list.SetItemText(i, text, "")
+	}
+}
+
 func (s *settingsView) reload() {
+	s.nameSections()
 	s.fillGeneral()
 	s.fillNotifications()
 	s.fillIntegrations()

@@ -161,6 +161,13 @@ type Theme struct {
 	// the titles of the Activity screen's panels, by the title as it is
 	// written ("Log", "Open").
 	ColumnIcons map[string]string `json:"column_icons,omitempty"`
+	// IntegrationIcons go before the names of Settings › Integrations'
+	// cards, by the name - a Nerd Font icon, for an integration the font
+	// has one of its own. An agent's is its glyph.
+	IntegrationIcons map[string]string `json:"integration_icons,omitempty"`
+	// SectionIcons go before the names of Settings' sections, by the
+	// name - Nerd Font icons drawn only where the terminal can.
+	SectionIcons map[string]string `json:"section_icons,omitempty"`
 	// NerdGlyphs are the glyphs drawn instead when the terminal's font is a
 	// Nerd Font (Settings › Theme): only the ones it names, the rest as
 	// Glyphs has them. A theme that wants an icon gives it here and a plain
@@ -340,6 +347,14 @@ func readTheme(data []byte, base Theme) (Theme, error) {
 	t.ColumnIcons = map[string]string{}
 	for name, icon := range base.ColumnIcons {
 		t.ColumnIcons[name] = icon
+	}
+	t.IntegrationIcons = map[string]string{}
+	for name, icon := range base.IntegrationIcons {
+		t.IntegrationIcons[name] = icon
+	}
+	t.SectionIcons = map[string]string{}
+	for name, icon := range base.SectionIcons {
+		t.SectionIcons[name] = icon
 	}
 	// A copy too: decoding into the base's own slice wrote every theme's
 	// heat over the one before it.
@@ -645,6 +660,16 @@ func (t Theme) validate() error {
 	for name, icon := range t.ColumnIcons {
 		if utf8.RuneCountInString(icon) > 1 {
 			problems = append(problems, fmt.Sprintf("column_icons.%s: %q is not one character", name, icon))
+		}
+	}
+	for name, icon := range t.SectionIcons {
+		if utf8.RuneCountInString(icon) > 1 {
+			problems = append(problems, fmt.Sprintf("section_icons.%s: %q is not one character", name, icon))
+		}
+	}
+	for name, icon := range t.IntegrationIcons {
+		if utf8.RuneCountInString(icon) > 1 {
+			problems = append(problems, fmt.Sprintf("integration_icons.%s: %q is not one character", name, icon))
 		}
 	}
 	if t.Glyphs.CIRunning == "" {

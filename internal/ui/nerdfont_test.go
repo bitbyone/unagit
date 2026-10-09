@@ -357,3 +357,27 @@ func TestTheDefaultEditorIsMarkedByAnIcon(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "the default editor's mark")
 }
+
+// TestIntegrationsWearTheirIcons: with a Nerd Font an integration that
+// has an icon of its own wears it before its name - Incomm a comment
+// bubble, an agent its glyph - and none without one. Serial: the glyphs
+// are the process's.
+func TestIntegrationsWearTheirIcons(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "╭ Neovim")
+	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]); a.settings.reload() })
+	waitFor(t, a, sc, " Neovim")
+	focusCard(t, a, sc, "Incomm")
+	waitFor(t, a, sc, " Incomm")
+	// Settings' sections wear theirs too.
+	waitFor(t, a, sc, "\uf1e6 Integrations")
+	focusCard(t, a, sc, "Claude Code")
+	waitFor(t, a, sc, onLoop(a, func() string { return agentIcons["claude"] })+" Claude Code")
+	changeOnLoop(a, func() { nerdFont = false; setTheme(loadThemes("").byName[defaultThemeName]); a.settings.reload() })
+	focusCard(t, a, sc, "Incomm")
+	waitFor(t, a, sc, "╭ Incomm")
+}

@@ -315,6 +315,24 @@
       "Watch Branch\u2026": "\uf06e",
       "Watch Merge Request": "\uf06e"
   },
+  "section_icons": {
+      "General": "\uf013",
+      "GitLab servers": "\uf296",
+      "GitHub accounts": "\uf09b",
+      "Groups & roots": "\uf0e8",
+      "Tags": "\uf02c",
+      "Theme": "\uf1fc",
+      "Security": "\uf023",
+      "Integrations": "\uf1e6",
+      "Notifications": "\uf0f3",
+      "Debug": "\uf188"
+  },
+  "integration_icons": {
+      "Neovim": "\ue6ae",
+      "IntelliJ IDEA": "\ue7b5",
+      "VS Code": "\ue8da",
+      "Incomm": "\uf075"
+  },
   "column_icons": {
       "Activity": "\uf21e",
       "Details": "\uf15c",

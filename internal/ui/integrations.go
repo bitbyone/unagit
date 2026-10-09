@@ -15,8 +15,10 @@ import (
 type integrationCard struct {
 	view                               *tview.TextView
 	name, command, description, binary string
-	enabled                            func() bool
-	toggle                             func()
+	// agent is the agent a card is, whose glyph is its icon.
+	agent   string
+	enabled func() bool
+	toggle  func()
 	// found, when set, is a line under the description saying what the
 	// integration found on this machine.
 	found func() string
@@ -138,7 +140,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	for _, ag := range agents.All {
 		ag := ag
 		agentCards = append(agentCards, &integrationCard{
-			name: ag.Name, command: ag.Command,
+			name: ag.Name, command: ag.Command, agent: ag.ID,
 			description: "Open with " + ag.Name + "… starts " + ag.Name + " in the selected repository, merge request or worktree: in this terminal, or wherever else it can be opened.",
 			enabled:     func() bool { return s.app.agentOn(ag) },
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
@@ -431,12 +433,25 @@ func (v *integrationsView) check() {
 	v.paintFocus(v.active)
 }
 
+// icon is what goes before a card's name: the integration's own icon,
+// where the theme has one and the terminal a Nerd Font, and a space.
+func (c *integrationCard) icon() string {
+	icon := integrationIcons[c.name]
+	if c.agent != "" && nerdFont {
+		icon = agentIcons[c.agent]
+	}
+	if icon == "" {
+		return ""
+	}
+	return icon + " "
+}
+
 func (v *integrationsView) paintFocus(active bool) {
 	v.active = active
 	for i, card := range v.cards {
 		focused := active && i == v.current
 		focusBox(card.view.Box, focused)
-		card.view.SetTitle(" " + card.title() + " ")
+		card.view.SetTitle(" " + card.icon() + card.title() + " ")
 		text := card.description + "\n"
 		if card.found != nil && card.binary != "" {
 			if found := card.found(); found != "" {
