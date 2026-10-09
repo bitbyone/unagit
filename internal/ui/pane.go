@@ -621,6 +621,31 @@ func (p *pane) selectRow(previous, first int) {
 	p.table.Select(target, 0)
 }
 
+// toTop puts the cursor on the first row, for a list read anew from the
+// servers: its rows are not the rows the cursor was among, and keeping its
+// place in them landed on another merge request. An open detail stays open
+// and follows; the focus leaves it for the list, so what is being read is
+// not changed under the reader.
+func (p *pane) toTop() {
+	if p.detailFocused {
+		p.detailFocused = false
+		focusBox(p.detail.Box, false)
+		focusBox(p.table.Box, true)
+		if p.detail.HasFocus() {
+			p.app.tv.SetFocus(p.table)
+		}
+		p.updateHeader()
+	}
+	for row := 1; row < p.table.GetRowCount(); row++ {
+		if _, ok := p.table.GetCell(row, 0).GetReference().(int); ok {
+			_, column := p.table.GetOffset()
+			p.table.SetOffset(0, column)
+			p.table.Select(row, 0)
+			return
+		}
+	}
+}
+
 // toggleMark marks the row under the cursor, or unmarks it, and moves on to the
 // next one, so that a run of rows is picked by holding space.
 func (p *pane) toggleMark() {

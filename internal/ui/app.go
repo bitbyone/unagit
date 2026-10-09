@@ -1190,6 +1190,7 @@ func (a *App) refreshProjects() {
 		// and the least pressing.
 		a.loadRepoSizes(true)
 		a.projectsPane.reload()
+		a.projectsPane.toTop()
 		a.mrsPane.reload()
 		a.settings.reload()
 		a.done(fmt.Sprintf("%d repositories indexed", len(all)))
@@ -1319,6 +1320,7 @@ func (a *App) refreshMRs() {
 			a.refreshDisk()
 		})
 		a.mrsPane.reload()
+		a.mrsPane.toTop()
 		a.worktreesPane.reload()
 		a.projectsPane.reload()
 		a.settings.reload()

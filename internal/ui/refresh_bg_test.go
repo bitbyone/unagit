@@ -343,3 +343,30 @@ func TestHidingKeepsTheCursorsPlace(t *testing.T) {
 		t.Errorf("after hiding !9's repository the cursor is on !%d, want !8, the next row", got)
 	}
 }
+
+// TestARefreshPutsTheCursorOnTheFirstRow: the rows a refresh brings are not
+// the rows the cursor was among, so it starts again at the top, an open
+// detail following it and the focus back in the list.
+func TestARefreshPutsTheCursorOnTheFirstRow(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	firstRow := onLoop(a, func() int { r, _ := a.mrsPane.table.GetSelection(); return r })
+	typeRunes(sc, "jj")
+	waitTrue(t, "the cursor did not move down", func() bool {
+		return onLoop(a, func() int { r, _ := a.mrsPane.table.GetSelection(); return r }) == firstRow+2
+	})
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "the detail did not open in focus", func() bool { return onLoop(a, func() bool { return a.mrsPane.detailFocused }) })
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "refreshing merge requests")
+	waitGone(t, a, sc, "refreshing merge requests")
+	waitTrue(t, "the cursor did not go to the first row", func() bool {
+		return onLoop(a, func() bool {
+			r, _ := a.mrsPane.table.GetSelection()
+			return r == firstRow && a.mrsPane.detailShown && !a.mrsPane.detailFocused && a.mrsPane.table.HasFocus()
+		})
+	})
+}
