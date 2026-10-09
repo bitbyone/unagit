@@ -19,14 +19,14 @@ const editorCommand = "editor:"
 // none, so every open asks.
 func (v *integrationsView) editorCards() []*integrationCard {
 	a := v.settings.app
-	window := "Opens the directory in a window of its own; unagit stays as it is."
+	window := "Opens the selected directory in a window of its own, beside unagit."
 	var cards []*integrationCard
 	for _, e := range []struct{ id, name, about string }{
-		{editors.Nvim, "Neovim", "Takes this terminal, or a tab or split beside unagit. Ctrl-Z puts it aside with its buffers; E brings it back."},
+		{editors.Nvim, "Neovim", "Opens in this terminal or in a new tab or split. Ctrl-Z sets it aside with its buffers intact; E returns to it."},
 		{editors.Idea, "IntelliJ IDEA", window},
 		{editors.Code, "VS Code", window},
 		{editors.Zed, "Zed", window},
-		{editors.Custom, "Custom", "A command of your own, with its arguments, taking this terminal or opening a window."},
+		{editors.Custom, "Custom", "An editor command of your own, with its arguments, run in this terminal or in a window of its own."},
 	} {
 		card := &integrationCard{
 			name: e.name, command: editorCommand + e.id, description: e.about,

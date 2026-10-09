@@ -60,12 +60,12 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	byName := map[string]*integrationCard{}
 	for _, card := range []*integrationCard{{
 		name: "Incomm", command: "incomm",
-		description: "Show merge request comments in your editor.\nCtrl-R imports comments before opening the review.",
+		description: "Shows a merge request's comments in your editor, beside the code they are about. Ctrl-R imports them before a review opens.",
 		enabled:     func() bool { return s.app.cfg.Integrations.Incomm },
 		toggle:      func() { s.app.cfg.Integrations.Incomm = !s.app.cfg.Integrations.Incomm },
 	}, {
 		name: "Hunk", command: "hunk",
-		description: "Review changes in the terminal: D opens what a row holds, and a grouped worktree as one review of all its repositories.",
+		description: "Reviews changes in the terminal. D opens the changes of the selected row; a grouped worktree opens as one review across its repositories.",
 		enabled:     s.app.hunkOn,
 		toggle: func() {
 			on := !s.app.hunkOn()
@@ -73,7 +73,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		},
 	}, {
 		name: "Chezmoi", command: "chezmoi",
-		description: "Open the dotfiles repository where chezmoi keeps it instead of cloning it again. Its worktrees and merge requests work as usual.",
+		description: "Uses chezmoi's checkout of your dotfiles repository instead of cloning it a second time. Its worktrees and merge requests work as for any repository.",
 		enabled:     s.app.chezmoiOn,
 		toggle: func() {
 			on := !s.app.chezmoiOn()
@@ -83,7 +83,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		found: s.app.chezmoiFound,
 	}, {
 		name: "Zoxide", command: "zoxide",
-		description: "Remember directories opened in an editor or a shell. Sort repositories and worktrees by frequent and recent visits.",
+		description: "Records the directories you work in and sorts repositories and worktrees by how often and how recently you visited them.",
 		enabled:     s.app.zoxideOn,
 		toggle: func() {
 			on := !s.app.zoxideOn()
@@ -97,7 +97,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	hint := ""
 	byName["Yazi"] = &integrationCard{
 		name: "Yazi", command: "yazi",
-		description: "Browse Files opens the selected directory in Yazi. Choose a file to open it in your favourite editor.",
+		description: "Browse Files opens the selected directory in Yazi. A file chosen there opens in your favourite editor.",
 		enabled:     s.app.yaziOn,
 		toggle:      func() { on := !s.app.yaziOn(); s.app.cfg.Integrations.Yazi = &on },
 		found:       func() string { return hint },
@@ -105,7 +105,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Zellij"] = &integrationCard{
 		name: "Zellij", command: "zellij",
-		description: "Inside Zellij, open editors and agents in a new tab or beside unagit in a split. A Neovim in a pane can be put aside with Ctrl-Z and brought back.",
+		description: "When unagit runs in Zellij, editors and agents open in a new Zellij tab or in a split beside unagit.",
 		enabled:     s.app.zellijOn,
 		toggle: func() {
 			on := !s.app.zellijOn()
@@ -115,7 +115,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Herdr"] = &integrationCard{
 		name: "Herdr", command: "herdr",
-		description: "Inside herdr, open editors in its tabs and splits as in Zellij. From anywhere, start agents in a herdr workspace, where herdr follows what they do.",
+		description: "Starts coding agents in a herdr workspace, where herdr reports what each is doing. When unagit runs in herdr, editors open in its tabs and splits.",
 		enabled:     s.app.herdrOn,
 		toggle: func() {
 			on := !s.app.herdrOn()
@@ -125,7 +125,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["Ghostty"] = &integrationCard{
 		name: "Ghostty", command: "ghostty",
-		description: "Open editors and agents in a Ghostty window or tab, or beside unagit in a split when it runs in Ghostty. macOS asks once to let unagit control Ghostty.",
+		description: "Opens editors and agents in a new Ghostty window or tab, or in a split beside unagit when it runs in Ghostty. macOS asks once for permission.",
 		enabled:     s.app.ghosttyOn,
 		toggle: func() {
 			on := !s.app.ghosttyOn()
@@ -139,7 +139,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		ag := ag
 		agentCards = append(agentCards, &integrationCard{
 			name: ag.Name, command: ag.Command,
-			description: "Open with " + ag.Name + "… starts it in the selected repository, merge request or worktree: in this terminal, or in a tab, split or window of herdr, Zellij or Ghostty.",
+			description: "Open with " + ag.Name + "… starts " + ag.Name + " in the selected repository, merge request or worktree, in this terminal or in a new tab, split or window.",
 			enabled:     func() bool { return s.app.agentOn(ag) },
 			toggle:      func() { s.app.setAgentOn(ag, !s.app.agentOn(ag)) },
 		})
@@ -171,10 +171,12 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 }
 
 // integrationColumns is how many cards stand side by side in a panel this
-// wide inside: three on a large screen, two on an ordinary one, one on a
-// narrow one.
+// wide inside: four on a very large screen - past 400 columns - three on a
+// large one, two on an ordinary one, one on a narrow one.
 func integrationColumns(width int) int {
 	switch {
+	case width >= 360:
+		return 4
 	case width >= 135:
 		return 3
 	case width >= 80:

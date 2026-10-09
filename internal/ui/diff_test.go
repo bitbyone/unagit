@@ -103,9 +103,9 @@ func TestIntegrationsKeepTheCardInView(t *testing.T) {
 			openSection(t, a, sc, sectionIntegrations)
 			focusCard(t, a, sc, "Hunk")
 			// Hunk's own line: the Incomm card says "e toggle" as well.
-			waitFor(t, a, sc, "D opens what")
+			waitFor(t, a, sc, "Reviews changes in")
 			text := a.screenText(sc)
-			for _, want := range []string{"Hunk", "D opens what", "c check"} {
+			for _, want := range []string{"Hunk", "Reviews changes in", "c check"} {
 				if !strings.Contains(text, want) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}

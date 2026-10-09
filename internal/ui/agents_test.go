@@ -214,7 +214,7 @@ func TestAgentsAreIntegrationsOfTheirOwn(t *testing.T) {
 		a.tv.SetFocus(v)
 		v.paintFocus(true)
 	})
-	waitFor(t, a, sc, "Open with Claude Code… starts it")
+	waitFor(t, a, sc, "Open with Claude Code…")
 	typeRunes(sc, "e")
 	waitEditorState(t, a, func() bool {
 		on, set := a.cfg.Integrations.Agents["claude"]

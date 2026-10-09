@@ -73,8 +73,8 @@ func TestACardAtTheEdgeSlidesUnderIt(t *testing.T) {
 	resizeApp(a, sc, 140, 30)
 	openSection(t, a, sc, sectionIntegrations)
 	waitFor(t, a, sc, "╭ Neovim")
-	focusCard(t, a, sc, "Ghostty")
-	waitFor(t, a, sc, "╭ Ghostty")
+	focusCard(t, a, sc, "Yazi")
+	waitFor(t, a, sc, "╭ Yazi")
 	r := onLoop(a, func() [4]int { x, y, w, h := a.settings.integrations.GetRect(); return [4]int{x, y, w, h} })
 	px, py, pw, ph := r[0], r[1], r[2], r[3]
 	lines := strings.Split(a.screenText(sc), "\n")
@@ -137,4 +137,15 @@ func TestACardStandsOutAndSaysWhetherItIsOn(t *testing.T) {
 		return
 	}
 	t.Fatalf("no Incomm card:\n%s", a.screenText(sc))
+}
+
+// TestAVeryWideScreenHasFourColumnsOfCards: past 400 columns of terminal
+// the integrations stand four abreast.
+func TestAVeryWideScreenHasFourColumnsOfCards(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ width, want int }{{60, 1}, {100, 2}, {200, 3}, {372, 4}} {
+		if got := integrationColumns(c.width); got != c.want {
+			t.Errorf("%d wide: %d columns, want %d", c.width, got, c.want)
+		}
+	}
 }

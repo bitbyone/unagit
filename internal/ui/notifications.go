@@ -35,7 +35,7 @@ func (a *App) notificationsCard() *integrationCard {
 	passes := true
 	return &integrationCard{
 		name: "Notifications", command: notify.SystemCommand(),
-		description: "When no unagit is in front, say a watched pipeline's news on the desktop.",
+		description: "Shows the news of watched merge requests and branches as desktop notifications while unagit is not in front.",
 		enabled:     func() bool { return cfg.Notifications != notify.Off },
 		toggle: func() {
 			if cfg.Notifications == notify.Off {

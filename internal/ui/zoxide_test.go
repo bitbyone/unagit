@@ -155,7 +155,7 @@ func TestZoxideCardAndSortPicker(t *testing.T) {
 		})
 		waitFor(t, a, sc, "1 directory known under your roots")
 		text := a.screenText(sc)
-		for _, want := range []string{"Zoxide", "Remember directories", "e toggle", "c check"} {
+		for _, want := range []string{"Zoxide", "Records the directories", "e toggle", "c check"} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("%s missing at %dx%d:\n%s", want, size.w, size.h, text)
 			}
