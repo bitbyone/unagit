@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rivo/tview"
 )
@@ -53,11 +54,12 @@ func (a *App) drawTabs() {
 		return " " + name + " " + key + " "
 	}
 	// One dot and a number after the Activity tab, from every screen: how
-	// much has happened since it was last opened. Always the colour of
-	// something under way, never a warning: it says there is news, not
-	// what kind, which the screen itself tells.
+	// much has happened since it was last looked at - a watch's news, a
+	// pipeline begun, an agent come to wait, all one count. Always the
+	// colour of something under way, never a warning: it says there is
+	// news, not what kind, which the screen itself tells.
 	badge := ""
-	if n := a.watchUnseen(); n > 0 {
+	if n := a.activityNews(); n > 0 {
 		badge = fmt.Sprintf("%s%d", glyphDot, n)
 	}
 	badgesWidth := 0
@@ -111,6 +113,9 @@ func (a *App) currentTab() string {
 
 // switchTab shows one of the main pages.
 func (a *App) switchTab(page string) {
+	if a.currentTab() == pageActivity && page != pageActivity {
+		a.activityLeft = time.Now()
+	}
 	a.tab = page
 	a.agentsInFront.Store(page == pageActivity)
 	a.pages.SwitchToPage(page)

@@ -224,6 +224,9 @@ type App struct {
 	activityRows  []activityItem
 	activityLog   []watch.Event
 	activitySince time.Time
+	// activityLeft is when the screen was last left: what came before it
+	// was seen there, whatever the last visit began with.
+	activityLeft time.Time
 	// editorsOpen are the editors open, for the cards; editorsSeen what
 	// the last read of them found, kept by its goroutine.
 	editorsOpen []session.Record

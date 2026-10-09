@@ -54,27 +54,27 @@ func agentsFixture(t *testing.T) (*App, tcell.SimulationScreen, muxtest.Stand, m
 	return a, sc, h, g, p, panes[0]
 }
 
-// TestTheAgentsTabShowsWhatEachIsDoing: the agent waiting for an answer
-// comes first, each says what it works on, and
+// TestTheAgentsTabShowsWhatEachIsDoing: the agents' news is counted on the
+// tab until the screen is opened, the agent waiting for an answer comes
+// first, each says what it works on, and
 // Enter goes to it - in herdr, and to herdr's Ghostty terminal.
 func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	t.Parallel()
 	a, sc, h, g, p, pane := agentsFixture(t)
+	waitTrue(t, "the tab does not count the agents' news", func() bool { return tabBadge(a, sc, glyphDot) })
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Fix the login")
 	waitFor(t, a, sc, "1 need you")
+	waitTrue(t, "the tab still counts the news on the screen itself", func() bool { return !tabBadge(a, sc, glyphDot) })
 	lines := strings.Split(a.screenText(sc), "\n")
 	login, parser := -1, -1
 	for i, line := range lines {
-		if strings.Contains(line, "Claude Code") && strings.Contains(line, "waits") {
+		// The list's rows, not the detail's or the log's: those say the
+		// same of the agents further down.
+		if login < 0 && strings.Contains(line, "Claude Code") && strings.Contains(line, "waits") && strings.Contains(line, "acme/gateway") {
 			login = i
-			for _, want := range []string{"waits", "Claude Code", "acme/gateway"} {
-				if !strings.Contains(line, want) {
-					t.Fatalf("%q missing from %q", want, line)
-				}
-			}
 		}
-		if strings.Contains(line, "Codex") && strings.Contains(line, "working") {
+		if parser < 0 && strings.Contains(line, "Codex") && strings.Contains(line, "working") {
 			parser = i
 			if !strings.Contains(line, "working") || !strings.Contains(line, "Codex") {
 				t.Fatalf("working agent: %q", line)

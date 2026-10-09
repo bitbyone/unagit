@@ -138,11 +138,33 @@ func (a *App) itemUnseen(it activityItem) bool {
 	return false
 }
 
+// activityNews counts what the log gained since the screen was last in
+// front - a watch's news, a pipeline begun, an agent come to wait - which
+// is what the tab says from every other screen. Nothing while it is in
+// front: what comes is seen there.
+func (a *App) activityNews() int {
+	if a.currentTab() == pageActivity {
+		return 0
+	}
+	since := a.cfg.State.ActivityVisit
+	if a.activityLeft.After(since) {
+		since = a.activityLeft
+	}
+	n := 0
+	for _, e := range a.activityLog {
+		if e.At.After(since) {
+			n++
+		}
+	}
+	return n
+}
+
 // setActivityLog puts the histories in place, as the follower read them.
 // It runs on the loop.
 func (a *App) setActivityLog(events []watch.Event) {
 	a.activityLog = events
 	a.redrawActivity()
+	a.drawTabs()
 }
 
 // redrawActivity draws the screen again where it is built.
