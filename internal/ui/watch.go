@@ -129,11 +129,11 @@ func (a *App) worktreeWatched(r worktreeRow) bool {
 	return false
 }
 
-// watchUnseen counts the watches whose last change nobody has looked at.
+// watchUnseen counts the news nobody has looked at, each change one.
 func (a *App) watchUnseen() int {
 	snap := a.watchSnap
 	snap.Seen = max(snap.Seen, a.watchSeen.Load())
-	return snap.Unseen(a.watches)
+	return snap.Unseen()
 }
 
 // watchPipelinesAction is Watch on something, or Stop Watching once it

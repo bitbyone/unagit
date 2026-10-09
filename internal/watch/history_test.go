@@ -58,3 +58,19 @@ func TestHistoryKeepsEachThingsStory(t *testing.T) {
 		t.Fatal("no stamp for the histories")
 	}
 }
+
+// TestUnseenCountsEachNews: three changes to one thing are three, and
+// what was seen is not counted.
+func TestUnseenCountsEachNews(t *testing.T) {
+	t.Parallel()
+	var s Snapshot
+	s.Add(Event{Key: "gl:a/b!1", Line: "one"})
+	s.Add(Event{Key: "gl:a/b!1", Line: "two"}, Event{Key: "gl:a/b!1", Line: "three"})
+	if n := s.Unseen(); n != 3 {
+		t.Fatalf("%d unseen, want 3", n)
+	}
+	s.Seen = 1
+	if n := s.Unseen(); n != 2 {
+		t.Fatalf("%d unseen after the first was seen, want 2", n)
+	}
+}

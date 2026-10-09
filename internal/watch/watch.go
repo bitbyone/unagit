@@ -210,11 +210,12 @@ func (s *Snapshot) Add(events ...Event) uint64 {
 	return s.Seq
 }
 
-// Unseen counts the watches whose last change has not been seen.
-func (s Snapshot) Unseen(watches []Watch) int {
+// Unseen counts the news not seen yet: each event, so three changes to one
+// merge request are three, as their notifications were.
+func (s Snapshot) Unseen() int {
 	n := 0
-	for _, w := range watches {
-		if st, ok := s.States[w.Key()]; ok && st.Seq > s.Seen {
+	for _, e := range s.Events {
+		if e.Seq > s.Seen {
 			n++
 		}
 	}
