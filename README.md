@@ -791,8 +791,8 @@ headed by that severity's icon and a few words of what happened -
 "Pipeline failed", "New commit in MR" - over a sentence of where and how
 (`!334 has a new commit by Jane Doe: "Refill the bucket…"`) and a quieter
 line with the repository and the merge request's title. It never takes the keys
-from whatever you are typing. The tab counts the changes not seen yet
-(`Activity [4] ●2`) until you open it, and a merged or closed merge request's
+from whatever you are typing. The tab counts, in blue, what happened since
+it was last opened (`Activity [4] ●2`), and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor
 running in unagit's terminal - a desktop notification goes out, through
 Notification Centre or `notify-send`: a terminal's own notification is never

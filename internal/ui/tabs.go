@@ -52,28 +52,17 @@ func (a *App) drawTabs() {
 		name, key := tabParts(t, short, tight)
 		return " " + name + " " + key + " "
 	}
-	// What waits on the Activity screen is counted where it shows from
-	// every screen, each count a still dot and its number in a colour of
-	// its own after the tab's name: the agents waiting for an answer, the
-	// watched pipelines under way, the changes nobody has seen. Still: a
-	// mark turning there only looked broken.
-	type badge struct {
-		text   string
-		colour string
-	}
-	var badges []badge
-	if n := a.agentsWaiting(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", glyphDot, n), "tabs.waiting"})
-	}
-	if n := a.watchesRunning(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", glyphDot, n), "tabs.running"})
-	}
+	// One dot and a number after the Activity tab, from every screen: how
+	// much has happened since it was last opened. Always the colour of
+	// something under way, never a warning: it says there is news, not
+	// what kind, which the screen itself tells.
+	badge := ""
 	if n := a.watchUnseen(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", glyphDot, n), "tabs.new"})
+		badge = fmt.Sprintf("%s%d", glyphDot, n)
 	}
 	badgesWidth := 0
-	for _, b := range badges {
-		badgesWidth += cells(b.text) + 1
+	if badge != "" {
+		badgesWidth = cells(badge) + 1
 	}
 	short, tight := false, false
 	fits := func(short, tight bool) bool {
@@ -102,13 +91,10 @@ func (a *App) drawTabs() {
 			name, key := tabParts(t, short, tight)
 			text = fmt.Sprintf(" [%s]%s[-] [%s]%s[-] ", role("tabs.name").String(), tview.Escape(name), role("tabs.key").String(), tview.Escape(key))
 		}
-		if t.page == pageActivity && len(badges) > 0 {
-			// Outside the tab's own band, a cell off it and from each other,
-			// each on the screen's background whatever the tab's style.
-			for _, b := range badges {
-				text += "[" + role(b.colour).String() + ":" + colBackground.String() + ":b] " + esc(b.text) + "[-:-:-]"
-			}
-			text += " "
+		if t.page == pageActivity && badge != "" {
+			// Outside the tab's own band, a cell off it, on the screen's
+			// background whatever the tab's style.
+			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
 		}
 		parts = append(parts, text)
 	}

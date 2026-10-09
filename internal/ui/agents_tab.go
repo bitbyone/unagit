@@ -238,17 +238,6 @@ func readAgents(herdr *mux.Client, sessions *session.Store) ([]agentRow, error) 
 	return rows, err
 }
 
-// agentsWaiting counts the agents waiting for an answer.
-func (a *App) agentsWaiting() int {
-	n := 0
-	for _, r := range a.agentRows {
-		if r.Status == "blocked" {
-			n++
-		}
-	}
-	return n
-}
-
 // agentWhat is what the agent works on, as the lists name it: the merge
 // request or worktree unagit opened it in, or the repository, worktree or
 // clone its directory is.

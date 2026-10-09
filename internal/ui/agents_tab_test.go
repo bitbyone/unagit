@@ -55,7 +55,7 @@ func agentsFixture(t *testing.T) (*App, tcell.SimulationScreen, muxtest.Stand, m
 }
 
 // TestTheAgentsTabShowsWhatEachIsDoing: the agent waiting for an answer
-// comes first and is counted on the tab, each says what it works on, and
+// comes first, each says what it works on, and
 // Enter goes to it - in herdr, and to herdr's Ghostty terminal.
 func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	t.Parallel()
@@ -63,7 +63,6 @@ func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Fix the login")
 	waitFor(t, a, sc, "1 need you")
-	waitTrue(t, "the tab does not count the waiting agent", func() bool { return tabBadge(a, sc, glyphDot+"1") })
 	lines := strings.Split(a.screenText(sc), "\n")
 	login, parser := -1, -1
 	for i, line := range lines {

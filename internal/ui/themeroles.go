@@ -176,9 +176,7 @@ var colourRoles = []colourRole{
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.name", "tabs.active", "the name of a tab not in front, in the tabs' accent"},
 	{"tabs.key", "text.dim", "the key after a tab's name that reaches it"},
-	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
-	{"tabs.running", "text.accent", "pipelines under way"},
-	{"tabs.new", "state.warning", "changes not seen yet"},
+	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
 	// them, its colours are worked out of the severity's and the
@@ -215,7 +213,7 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"activity.needs_fill":     roles["toast.danger.background"],
 		"activity.under_way":      roles["toast.info.border"],
 		"activity.under_way_fill": roles["toast.info.background"],
-		"tabs.running":            roles["toast.info.border"],
+		"tabs.new":                roles["toast.info.border"],
 		"activity.lit":            shade(colour(t.Background), 0.035),
 	}
 	for key, c := range derived {
