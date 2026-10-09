@@ -301,12 +301,10 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 	waitFor(t, a, sc, "Nothing under way")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	if text := a.screenText(sc); strings.Contains(text, mark) {
-		t.Fatalf("the mark stayed after the watch went:\n%s", text)
-	}
-	if bg := rowBackground(a, sc, "Rate limiting"); bg.Hex() == open.Hex() {
-		t.Fatal("the row stayed tinted after the watch went")
-	}
+	// The list's text was there before the watch went: wait for the
+	// redraw rather than look once.
+	waitTrue(t, "the mark stayed after the watch went", func() bool { return !strings.Contains(a.screenText(sc), mark) })
+	waitTrue(t, "the row stayed tinted after the watch went", func() bool { return rowBackground(a, sc, "Rate limiting").Hex() != open.Hex() })
 	if ws, _ := watch.Open(cfg.WatchDir()).Watches(); len(ws) != 0 {
 		t.Fatalf("watches.json still holds %+v", ws)
 	}
