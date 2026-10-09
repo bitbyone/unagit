@@ -481,6 +481,7 @@ func (a *App) Run() error {
 	a.tv.SetAfterDrawFunc(func(screen tcell.Screen) {
 		a.markFocusedField(screen)
 		a.drawDialogWord(screen)
+		a.drawActivityHint(screen)
 		a.drawToasts(screen)
 	})
 

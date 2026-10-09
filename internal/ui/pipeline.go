@@ -34,7 +34,7 @@ type ciTarget struct {
 	// pipelines, when set, lists the other pipelines of the same merge
 	// request, branch or commit, newest first, for P.
 	pipelines func(ctx context.Context, client forge.Provider) ([]forge.Pipeline, error)
-	// watch is what Watch Pipelines on the jobs watches: the merge request
+	// watch is what Watch on the jobs watches: the merge request
 	// or the branch; nil for one commit's pipelines.
 	watch *watch.Watch
 }

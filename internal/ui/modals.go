@@ -289,7 +289,7 @@ type pickKey struct {
 	// work happens elsewhere, like opening the browser.
 	stay bool
 	// named, when set, says the name and the about as they are now, for
-	// an action that turns into its opposite once done (Watch Pipelines).
+	// an action that turns into its opposite once done (Watch Merge Request).
 	named func() (string, string)
 }
 

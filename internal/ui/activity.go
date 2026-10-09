@@ -324,7 +324,7 @@ func (a *App) drawActivity(p *pane, items []activityItem, filtered []int) {
 		row++
 	}
 	if len(filtered) == 0 {
-		hint := "Nothing under way. Watch Pipelines - in the actions of a merge request, a repository or a worktree (Alt-Enter) - or an agent opened from unagit shows here."
+		hint := "Nothing under way. Watch Merge Request or Watch Branch - in the actions of a row (Alt-Enter) - or an agent opened from unagit shows here."
 		if len(items) > 0 {
 			hint = "Nothing matches the filter."
 		}

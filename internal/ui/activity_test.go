@@ -37,7 +37,7 @@ func activityFixture(t *testing.T) (*App, tcell.SimulationScreen, watch.Watch) {
 			{Key: br.Key(), What: br.Label(), Heading: "Pipeline passed", Line: "Pipeline #8000 of feature/x passed", Level: watch.Success, At: now.Add(-26 * time.Hour)},
 		}
 		a.editorsOpen = []session.Record{
-			{Dir: "/tmp/unagit", Project: "tobola/unagit", Editor: "nvim", Branch: "fix/ci", Since: now.Add(-3 * time.Hour)},
+			{Dir: "/tmp/unagit", Project: "tobola/unagit", Editor: "nvim", Branch: "fix/ci", Socket: "/tmp/unagit-test.sock", Since: now.Add(-3 * time.Hour)},
 			{Dir: "/tmp/incomm", Project: "tobola/incomm", Editor: "nvim", Branch: "main", Since: now.Add(-26 * time.Hour)},
 			{Dir: "/tmp/api", Project: "acme/api", Editor: "idea", IID: 341, Mode: "review", Since: now.Add(-20 * time.Minute)},
 		}
@@ -63,7 +63,12 @@ func TestActivityLaysOutItsPanels(t *testing.T) {
 		text := a.screenText(sc)
 		t.Logf("Activity at %dx%d:\n%s", size.w, size.h, text)
 		lines := strings.Split(text, "\n")
-		for _, want := range []string{"Open", "Watching", "NEEDS YOU", "UNDER WAY", "QUIET", "Log", "since your last visit", "Pipeline failed"} {
+		wants := []string{"Open", "Watching", "NEEDS YOU", "UNDER WAY", "QUIET", "Log", "Pipeline failed"}
+		if size.h >= activityTall {
+			// Below, the log has room for the newest events alone.
+			wants = append(wants, "since your last visit")
+		}
+		for _, want := range wants {
 			if !strings.Contains(text, want) {
 				t.Fatalf("%q is missing at %dx%d", want, size.w, size.h)
 			}
@@ -142,15 +147,14 @@ func TestActivityPanelsAreReachedByKeys(t *testing.T) {
 		typeRunes(sc, step.key)
 		waitTrue(t, step.key+" did not go to the "+step.want, func() bool { return focused() == step.want })
 	}
-	// In the log: the second row is the running pipeline; the first, the
-	// failed one, chooses !334 in the list.
+	// Moving in the log leaves the list where it is; Enter goes to the
+	// row's thing - the first, the failed !334.
+	before := onLoop(a, func() int { return a.activityPane.selectedIndex() })
 	typeRunes(sc, "j")
-	waitTrue(t, "the log's row did not choose its thing", func() bool {
-		return onLoop(a, func() string {
-			it, _ := a.activityItemAt(a.activityPane.selectedIndex())
-			return it.key()
-		}) != mr.Key()
-	})
+	time.Sleep(50 * time.Millisecond)
+	if after := onLoop(a, func() int { return a.activityPane.selectedIndex() }); after != before {
+		t.Fatal("moving in the log moved the list")
+	}
 	typeRunes(sc, "k")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitTrue(t, "Enter in the log did not go to the list on its thing", func() bool {
@@ -159,6 +163,33 @@ func TestActivityPanelsAreReachedByKeys(t *testing.T) {
 			return it.key()
 		}) == mr.Key()
 	})
+
+	// h j k l go on past the edge of what a panel holds: from the list's
+	// first row up to the cards, past the last card to Watching, down to
+	// the detail beneath it, back left to the list, past its last row down
+	// to the log, and up from the log's first row to the list again.
+	typeRunes(sc, "g")
+	for _, step := range []struct{ keys, want string }{
+		{"k", "cards"}, {"lll", "watching"}, {"j", "detail"}, {"h", "list"},
+		{"G", "list"}, {"j", "log"}, {"k", "list"},
+	} {
+		typeRunes(sc, step.keys)
+		waitTrue(t, step.keys+" did not reach the "+step.want, func() bool { return focused() == step.want })
+	}
+	// The panels name their keys in their titles.
+	text := a.screenText(sc)
+	for _, title := range []string{"Activity  a", "Open  e", "Watching  W", "Log  L"} {
+		if !strings.Contains(text, title) {
+			t.Errorf("no title %q", title)
+		}
+	}
+	// A card's actions are the editor's.
+	typeRunes(sc, "e")
+	waitTrue(t, "e did not go to the cards", func() bool { return focused() == "cards" })
+	typeRunes(sc, "hh") // the first card, a Neovim
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Attach In…")
+	waitFor(t, a, sc, "Close Editor")
 }
 
 // TestTheLogComesToTheFront: z opens every event at full length, and
@@ -172,7 +203,7 @@ func TestTheLogComesToTheFront(t *testing.T) {
 	assertLegible(t, a, sc, "the log in front")
 	typeRunes(sc, "G")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitGone(t, a, sc, "WHAT HAPPENED")
+	waitTrue(t, "the log in front did not close", func() bool { return !onLoop(a, a.modalOpen) })
 	waitTrue(t, "Enter did not go to the branch's row", func() bool {
 		return onLoop(a, func() bool {
 			it, _ := a.activityItemAt(a.activityPane.selectedIndex())

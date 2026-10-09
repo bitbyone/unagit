@@ -168,15 +168,9 @@ var colourRoles = []colourRole{
 	{"activity.age", "column.age", "how long ago it changed"},
 	{"activity.label", "text.dim", "the names of the detail's lines"},
 	{"activity.when", "text.dim", "when an event came"},
-	{"activity.lit", "selection.marked", "the log's rows of the thing chosen in the list"},
 	{"activity.watching", "mark.watched", "the mark of what is watched"},
 	{"activity.key", "text.key", "a key named in a panel"},
-	{"activity.card", "surface.raised", "an editor's card"},
-	{"activity.card_border", "border.normal", "its border"},
-	{"activity.card_text", "text.normal", "its repository"},
-	{"activity.card_muted", "text.muted", "where it is open, and for how long"},
-	{"activity.card_icon", "text.accent", "the editor's icon and name"},
-	{"activity.card_chosen", "border.focus", "the border of the card chosen"},
+	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
 	{"tabs.running", "text.accent", "pipelines under way"},
 	{"tabs.new", "state.good", "changes not seen yet"},
@@ -209,8 +203,7 @@ func init() {
 
 // activityRoles works out the Activity screen's colours a theme does not
 // name: what is under way in the info toast's blue, what needs you in the
-// danger toast's colours, the cards' borders a shade off their fill. It
-// runs after toastRoles.
+// danger toast's colours. It runs after toastRoles.
 func activityRoles(t Theme, roles map[string]tcell.Color) {
 	derived := map[string]tcell.Color{
 		"activity.needs":          roles["toast.danger.border"],
@@ -218,26 +211,12 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"activity.under_way":      roles["toast.info.border"],
 		"activity.under_way_fill": roles["toast.info.background"],
 		"tabs.running":            roles["toast.info.border"],
-		"activity.card_border":    shade(roles["activity.card"], colour(t.Background), 0.1),
 	}
 	for key, c := range derived {
 		if t.Roles[key] == "" && c != tcell.ColorDefault {
 			roles[key] = c
 		}
 	}
-}
-
-// shade is c moved away from the background by a step of lightness:
-// lighter on a dark theme, darker on a light one.
-func shade(c, background tcell.Color, step float64) tcell.Color {
-	if c == tcell.ColorDefault || !c.Valid() {
-		return tcell.ColorDefault
-	}
-	lab := toOklab(c)
-	if background != tcell.ColorDefault && background.Valid() && toOklab(background).l >= 0.6 {
-		step = -step
-	}
-	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // toastInfoBlue is the hue an info toast is worked out of, unless the

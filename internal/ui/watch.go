@@ -136,15 +136,21 @@ func (a *App) watchUnseen() int {
 	return snap.Unseen(a.watches)
 }
 
-// watchPipelinesAction is Watch Pipelines on something, or Stop Watching
-// Pipelines once it is. It has no key: watching is chosen now and then,
+// watchPipelinesAction is Watch on something, or Stop Watching once it
+// is: a merge request is followed whole - its pipelines, new commits,
+// comments, approvals - a branch for its pipelines, its base and whether
+// it is still on origin. It has no key: watching is chosen now and then,
 // not every day.
 func (a *App) watchPipelinesAction(w watch.Watch) uiAction {
+	what, follows := "Branch", "its pipelines, how far behind its base it is, whether it is deleted"
+	if w.IID > 0 {
+		what, follows = "Merge Request", "its pipelines, commits, comments and approvals"
+	}
 	if a.isWatched(w) {
-		return uiAction{name: "Stop Watching Pipelines", about: "Stop following its pipelines in the background; the Activity screen lets it go.", rank: 64,
+		return uiAction{name: "Stop Watching " + what, about: "Stop following it in the background; the Activity screen lets it go.", rank: 64,
 			run: func() { a.setWatched(w, false) }}
 	}
-	return uiAction{name: "Watch Pipelines", about: "Follow its pipelines in the background, while unagit runs: the Activity screen lists them, and a failure or a success is said - with a desktop notification when unagit is not in front.", rank: 64,
+	return uiAction{name: "Watch " + what, about: "Follow it in the background - " + follows + " - on the Activity screen, each change said as it comes.", rank: 64,
 		run: func() { a.setWatched(w, true) }}
 }
 
@@ -161,7 +167,7 @@ func (a *App) watchWorktreeAction(r worktreeRow) uiAction {
 	if !r.grouped() {
 		return a.watchPipelinesAction(a.worktreeWatch(r))
 	}
-	return uiAction{name: "Watch Pipelines…", about: "Choose a repository of the group whose branch's pipelines to follow in the background, or to stop following.", rank: 64,
+	return uiAction{name: "Watch Branch…", about: "Choose a repository of the group whose branch to follow in the background - its pipelines, its base - or to stop following.", rank: 64,
 		when: func() bool { return len(r.Members) > 0 }, run: func() {
 			items := make([]pickItem, len(r.Members))
 			for i, m := range r.Members {
@@ -213,7 +219,7 @@ func (a *App) setWatched(w watch.Watch, on bool) {
 			}
 			a.setWatches(watches)
 			if on {
-				a.done("watching the pipelines of " + w.Label())
+				a.done("watching " + w.Label())
 			} else {
 				a.done("stopped watching " + w.Label())
 			}

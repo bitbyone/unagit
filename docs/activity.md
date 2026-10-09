@@ -11,7 +11,11 @@ stops one watch with `x` and all of them with `X` (a picker has no
 marks); an agent is closed with `x`, as a watch is stopped, so `d` is free
 for the detail; below 120 columns `d` opens the detail under the list,
 since Enter does what the row is for - a pipeline's jobs, going to an
-agent.
+agent. The log does not light the rows of the thing chosen in the list:
+it lagged and lied, and the detail tells that thing's story anyway; a row
+of the log chooses its thing only on Enter. The panels' keys are in their
+titles - `a` for the list - and the focused one's keys in its bottom
+border; h j k l go from panel to panel past the edge of what one holds.
 
 What it answers, top to bottom:
 

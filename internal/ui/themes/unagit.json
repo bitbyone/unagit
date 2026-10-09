@@ -297,7 +297,8 @@
       "Star or Unstar All": "\ueb59",
       "Stop Watching": "\uf070",
       "Stop Watching All\u2026": "\uf070",
-      "Stop Watching Pipelines": "\uf070",
+      "Stop Watching Branch": "\uf070",
+      "Stop Watching Merge Request": "\uf070",
       "Switch Theme\u2026": "\ueac6",
       "Toggle Cloned Only": "\ueaf1",
       "Toggle Favourite": "\ueb59",
@@ -310,10 +311,12 @@
       "View Options\u2026": "\uea70",
       "View README": "\ueaa4",
       "View Starred Repositories\u2026": "\uea6a",
-      "Watch Pipelines": "\uf06e",
-      "Watch Pipelines\u2026": "\uf06e"
+      "Watch Branch": "\uf06e",
+      "Watch Branch\u2026": "\uf06e",
+      "Watch Merge Request": "\uf06e"
   },
   "column_icons": {
+      "ABOUT": "\uf0f6",
       "ACTIVITY": "\uf017",
       "AGENT": "\uf544",
       "APPR": "\uf00c",
@@ -325,6 +328,7 @@
       "CI": "\ueb9e",
       "COM": "\uf075",
       "CREATED": "\uf017",
+      "DETAILS": "\uf0f6",
       "LATEST": "\uf0a1",
       "LABELS": "\uf02c",
       "MR": "\uea64",
@@ -344,6 +348,8 @@
       "TITLE": "\uf0f6",
       "UPDATED": "\uf017",
       "WHAT": "\uf06e",
+      "WHAT HAPPENED": "\uf0a1",
+      "WHEN": "\uf017",
       "WHERE": "\uf2d0",
       "WORKTREE": "\uec7d",
       "WT": "\uec7d"

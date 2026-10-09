@@ -72,6 +72,14 @@ func (w Watch) Subject() string {
 	return w.Branch
 }
 
+// JobState is a job of a watched pipeline: its name, its status, and whom
+// it was started by.
+type JobState struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	User   string `json:"user,omitempty"`
+}
+
 // State is what was last read of a watch.
 type State struct {
 	// Pipeline is the newest pipeline's id, Status its status in GitLab's
@@ -80,6 +88,12 @@ type State struct {
 	Status   string `json:"status,omitempty"`
 	SHA      string `json:"sha,omitempty"`
 	WebURL   string `json:"web_url,omitempty"`
+	// Jobs are the pipeline's jobs as last read - their latest attempts -
+	// so a change within one pipeline can say which job it was.
+	Jobs []JobState `json:"jobs,omitempty"`
+	// Again is a pipeline that had finished and runs again, in part: a
+	// job started by hand, one run again. Its news is the jobs'.
+	Again bool `json:"again,omitempty"`
 	// Failed is the first job that failed, once the pipeline has.
 	Failed string `json:"failed,omitempty"`
 	// User is whom the pipeline was started by, Started when.

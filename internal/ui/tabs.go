@@ -89,9 +89,12 @@ func (a *App) drawTabs() {
 			text = fmt.Sprintf("[%s]%s[-]", colTabInactive.String(), text)
 		}
 		if t.page == pageActivity && len(badges) > 0 {
+			// Outside the tab's own band, a cell off it and from each other,
+			// each on the screen's background whatever the tab's style.
 			for _, b := range badges {
-				text += "[" + role(b.colour).String() + "::b]" + esc(b.text) + "[-:-:-] "
+				text += "[" + role(b.colour).String() + ":" + colBackground.String() + ":b] " + esc(b.text) + "[-:-:-]"
 			}
+			text += " "
 		}
 		parts = append(parts, text)
 	}

@@ -718,15 +718,17 @@ alike:
 After each the row is asked about again, so the list shows what the server
 now has.
 
-## Watching pipelines
+## Watching
 
-A pipeline you are waiting for need not be on screen. **Watch Pipelines**,
-in the actions (`Alt-Enter`) of a repository, a merge request, a worktree, a
-block of the worktree view or a pipeline's jobs, follows it in the
-background: a merge request's pipeline whatever its head ran - a push moves
-the watch on to the new one - or a branch's newest. A grouped worktree asks
-which of its repositories. The row wears `◎` in every list, and on
-something watched the same action is **Stop Watching Pipelines**.
+What you are waiting for need not be on screen. **Watch Merge Request**,
+in the actions (`Alt-Enter`) of a merge request or of its pipeline's jobs,
+follows the merge request in the background - its pipeline whatever its
+head ran, a push moving the watch on to the new one, its commits, comments
+and approvals. **Watch Branch**, in those of a repository, a worktree or a
+block of the worktree view, follows a branch: its newest pipeline, how far
+behind its base it is, whether it is still on origin. A grouped worktree
+asks which of its repositories. The row wears `◎` in every list, and on
+something watched the same action is **Stop Watching**.
 
 **[4] Activity** is what runs in the background and what waits for you,
 on one screen:
@@ -748,10 +750,19 @@ on one screen:
   newest first, a line setting apart what came since your last visit.
 - **The log** under them, everything in time with the same line, taking
   about a third of the height and never fewer than three lines; `L` goes
-  into it, where a row chooses its thing in the list, and `z` brings it to
-  the front at full length.
+  into it, `Enter` on a row goes to its thing in the list, and `z` brings
+  it to the front at full length. A pipeline that had finished and runs
+  again - a manual job started, a job run again - is told by its job:
+  *Manual job started · deploy:staging in pipeline #721566 of !5 was
+  started by Jane Doe, by hand*, then *Job passed*.
 
-`Tab` goes round the panels and `Esc` comes back to the list. Each
+Each panel names the key that goes to it in its title (`a` the list, `d`,
+`L`, `e`, `W`), and the one with the focus its keys in its bottom border.
+`h` `j` `k` `l` go on past the edge of what a panel holds - `j` on the
+list's last row into the log, `k` on its first up to the cards - `Tab`
+goes round the panels and `Esc` comes back to the list. On a card,
+`Alt-Enter` lists what can be done with that editor; `E`, from any
+screen, lists every editor open. Each
 watched thing and each agent keeps its story for a month or 200 events,
 under `~/.config/unagit/watch/history/`.
 

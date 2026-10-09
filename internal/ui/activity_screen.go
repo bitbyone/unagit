@@ -161,43 +161,47 @@ func (a *App) newActivityPane() *pane {
 		return "Actions · " + it.watch.Label(), a.watchedActions(p, it.watch)
 	}
 	p.screen = func() (string, []uiAction) { return "Activity", a.activityScreenActions(p) }
-	p.extraKeys = v.keys
+	p.extraKeys = v.paneKeys
+	p.table.SetTitle(panelTitle("Activity", "a"))
 
 	v.cards = newCardsView(a)
-	v.cards.SetInputCapture(v.panelKeys(func(ev *tcell.EventKey) bool { return v.cards.keys(ev) }))
-	v.watching = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
-	v.watching.SetTextColor(colText)
-	box(v.watching.Box, "Watching").SetBorderPadding(0, 0, 1, 1)
-	v.watching.SetInputCapture(v.panelKeys(func(ev *tcell.EventKey) bool {
-		if ev.Key() == tcell.KeyEnter {
-			a.showWatches()
+	v.cards.SetInputCapture(v.panelKeys(v.cards, func(ev *tcell.EventKey) bool {
+		if v.cards.keys(ev) {
 			return true
 		}
-		return false
-	}))
+		_, acts := v.cards.selection()
+		return runPanelKey(acts, ev)
+	}, v.cards.selection))
+	v.watching = tview.NewTextView().SetDynamicColors(true).SetWrap(false)
+	v.watching.SetTextColor(colText)
+	box(v.watching.Box, "").SetBorderPadding(0, 0, 1, 1)
+	v.watching.SetTitle(panelTitle("Watching", "W"))
+	watchingActs := func() (string, []uiAction) {
+		return "Watching", []uiAction{{name: "Watches…", about: "Everything watched in one list: go to one, or stop watching it.", keys: "Enter", rank: 10, run: a.showWatches}}
+	}
+	v.watching.SetInputCapture(v.panelKeys(v.watching, func(ev *tcell.EventKey) bool {
+		_, acts := watchingActs()
+		return runPanelKey(acts, ev)
+	}, watchingActs))
+
 	v.band = tview.NewFlex().
 		AddItem(v.cards, 0, 1, false).
 		AddItem(v.watching, watchingWidth, 0, false)
 
-	v.log = tview.NewTable().SetSelectable(true, false).SetSeparator(' ')
+	v.log = tview.NewTable().SetSelectable(true, false).SetSeparator(' ').SetFixed(1, 0)
 	v.log.SetSelectedStyle(styleSelected)
-	box(v.log.Box, "Log")
-	v.log.SetInputCapture(v.panelKeys(func(ev *tcell.EventKey) bool {
-		switch {
-		case ev.Key() == tcell.KeyEnter:
-			v.chooseLogRow(true)
-			return true
-		case ev.Key() == tcell.KeyRune && ev.Rune() == 'z':
-			a.showActivityLog()
-			return true
+	box(v.log.Box, "")
+	v.log.SetTitle(panelTitle("Log", "L"))
+	logActs := func() (string, []uiAction) {
+		return "Log", []uiAction{
+			{name: "Go to Its Row", about: "Put the list's cursor on what the event is about, and go there.", keys: "Enter", rank: 10, run: func() { v.chooseLogRow() }},
+			{name: "Show Log", about: "The log in front, over the screen: every event at full length.", keys: "z", rank: 20, run: a.showActivityLog},
 		}
-		return false
-	}))
-	v.log.SetSelectionChangedFunc(func(row, _ int) {
-		if v.log.HasFocus() {
-			v.chooseLogRow(false)
-		}
-	})
+	}
+	v.log.SetInputCapture(v.panelKeys(v.log, func(ev *tcell.EventKey) bool {
+		_, acts := logActs()
+		return runPanelKey(acts, ev)
+	}, logActs))
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(p.filter, 1, 0, false).
@@ -254,9 +258,80 @@ func (v *activityView) layout(h int) {
 	}
 }
 
-// keys are the screen's own keys over the list and the detail: Tab goes
-// round the panels.
-func (v *activityView) keys(ev *tcell.EventKey) bool {
+// runPanelKey is runKey with Enter too: runKey leaves Enter to the widget,
+// and a panel's Enter is its first action.
+func runPanelKey(acts []uiAction, ev *tcell.EventKey) bool {
+	if ev.Key() == tcell.KeyEnter && ev.Modifiers() == tcell.ModNone {
+		for _, act := range acts {
+			if act.keys == "Enter" && (act.when == nil || act.when()) {
+				act.run()
+				return true
+			}
+		}
+	}
+	return runKey(acts, ev)
+}
+
+// panelTitle is a panel's name with the key that goes to it, lit.
+func panelTitle(name, key string) string {
+	return " " + name + "  " + tag(role("activity.key")) + "[::b]" + key + "[::-]" + tagEnd + " "
+}
+
+// paneKeys are the screen's keys over the list and the detail, heard
+// before the pane's own: Tab round the panels, and j or k past the end of
+// what is in a panel on to the panel beyond it.
+func (v *activityView) paneKeys(ev *tcell.EventKey) bool {
+	if v.cycleKeys(ev) {
+		return true
+	}
+	p := v.pane
+	if p.detail.HasFocus() {
+		row, _ := p.detail.GetScrollOffset()
+		_, _, _, height := p.detail.GetInnerRect()
+		switch {
+		case isKey(ev, 'j', tcell.KeyDown) && row+height >= p.detail.GetWrappedLineCount():
+			return v.move(p.detail, 'j')
+		case isKey(ev, 'k', tcell.KeyUp) && row == 0:
+			return v.move(p.detail, 'k')
+		}
+		return false
+	}
+	first, last := selectableEnds(p.table)
+	row, _ := p.table.GetSelection()
+	switch {
+	case isKey(ev, 'j', tcell.KeyDown) && row >= last:
+		return v.move(p.table, 'j')
+	case isKey(ev, 'k', tcell.KeyUp) && row <= first:
+		return v.move(p.table, 'k')
+	case isKey(ev, 'l', tcell.KeyRight) && !p.detailShown:
+		return v.move(p.table, 'l')
+	}
+	return false
+}
+
+// isKey reports whether ev is the letter or the arrow.
+func isKey(ev *tcell.EventKey, r rune, k tcell.Key) bool {
+	return ev.Key() == k || ev.Key() == tcell.KeyRune && ev.Rune() == r && ev.Modifiers() == tcell.ModNone
+}
+
+// selectableEnds are a table's first and last rows that can be chosen.
+func selectableEnds(t *tview.Table) (first, last int) {
+	first, last = -1, -1
+	for row := 0; row < t.GetRowCount(); row++ {
+		cell := t.GetCell(row, 0)
+		if cell == nil || cell.NotSelectable {
+			continue
+		}
+		if first < 0 {
+			first = row
+		}
+		last = row
+	}
+	return first, last
+}
+
+// cycleKeys go round the panels with Tab.
+func (v *activityView) cycleKeys(ev *tcell.EventKey) bool {
 	switch ev.Key() {
 	case tcell.KeyTab:
 		v.cycle(1)
@@ -268,16 +343,93 @@ func (v *activityView) keys(ev *tcell.EventKey) bool {
 	return false
 }
 
-// panelKeys are the keys of the panels that are not the pane's: own first,
-// then Tab round, Esc back to the list, and the screen's actions.
-func (v *activityView) panelKeys(own func(*tcell.EventKey) bool) func(*tcell.EventKey) *tcell.EventKey {
+// move goes from a panel to the one beside it in a direction, h j k l as
+// they lie on the screen: the band above, the list and the detail side by
+// side, the log below. It reports whether there was one.
+func (v *activityView) move(from tview.Primitive, dir rune) bool {
+	p := v.pane
+	band := v.bandH > 0
+	cards := band && len(v.app.editorsOpen) > 0
+	log := v.logH > 0
+	var to tview.Primitive
+	switch from {
+	case p.table:
+		switch {
+		case dir == 'j' && log:
+			to = v.log
+		case dir == 'k' && cards:
+			to = v.cards
+		case dir == 'k' && band:
+			to = v.watching
+		case dir == 'l' && p.detailShown:
+			to = p.detail
+		}
+	case p.detail:
+		switch {
+		case dir == 'j' && log:
+			to = v.log
+		case dir == 'k' && band:
+			to = v.watching
+		case dir == 'h':
+			to = p.table
+		}
+	case v.log:
+		if dir == 'k' {
+			to = p.table
+		}
+	case v.cards:
+		switch {
+		case dir == 'j':
+			to = p.table
+		case dir == 'l':
+			to = v.watching
+		}
+	case v.watching:
+		switch {
+		case dir == 'h' && cards:
+			to = v.cards
+		case dir == 'j' && p.detailShown:
+			to = p.detail
+		case dir == 'j':
+			to = p.table
+		}
+	}
+	if to == nil {
+		return false
+	}
+	v.focus(to)
+	return true
+}
+
+// panelKeys are the keys of a panel that is not the pane's: its own first,
+// then going on to the panel beyond what it holds, Tab round, Esc back to
+// the list, its actions (Alt-Enter) and the screen's.
+func (v *activityView) panelKeys(self tview.Primitive, own func(*tcell.EventKey) bool, selection func() (string, []uiAction)) func(*tcell.EventKey) *tcell.EventKey {
 	return func(ev *tcell.EventKey) *tcell.EventKey {
 		a := v.app
-		if own(ev) || v.keys(ev) {
+		if own(ev) || v.cycleKeys(ev) {
 			return nil
 		}
-		if opensPicker(ev) && v.pane.actionKeys(ev) {
+		if a.actionKeys(ev, selection, v.pane.screen) {
 			return nil
+		}
+		if t, ok := self.(*tview.Table); ok {
+			first, last := selectableEnds(t)
+			row, _ := t.GetSelection()
+			if isKey(ev, 'k', tcell.KeyUp) && row <= first && v.move(self, 'k') ||
+				isKey(ev, 'j', tcell.KeyDown) && row >= last && v.move(self, 'j') {
+				return nil
+			}
+		} else {
+			for _, dir := range []struct {
+				r rune
+				k tcell.Key
+			}{{'h', tcell.KeyLeft}, {'j', tcell.KeyDown}, {'k', tcell.KeyUp}, {'l', tcell.KeyRight}} {
+				if isKey(ev, dir.r, dir.k) {
+					v.move(self, dir.r)
+					return nil
+				}
+			}
 		}
 		switch ev.Key() {
 		case tcell.KeyEsc:
@@ -291,17 +443,12 @@ func (v *activityView) panelKeys(own func(*tcell.EventKey) bool) func(*tcell.Eve
 			case '?':
 				a.showHelp()
 				return nil
-			case 'j', 'k', 'h', 'l', 'g', 'G':
+			case 'j', 'k', 'g', 'G':
 				return ev
 			}
 			if a.tabKey(ev.Rune()) {
 				return nil
 			}
-		}
-		// The screen's actions, not the row's: the list's cursor is not
-		// where the eye is.
-		if _, acts := v.pane.screen(); runKey(joinActions(acts, a.globalActions()), ev) {
-			return nil
 		}
 		return ev
 	}
@@ -393,7 +540,7 @@ func (v *activityView) showDetail(it activityItem, focus bool) {
 		p.body.AddItem(p.detail, 0, p.detailWeight, false)
 		p.detailShown = true
 	}
-	p.setDetailFunc(trunc(title, 60), func(width int) string { return a.activityDetail(it, width) })
+	p.setDetailFunc(strings.TrimSpace(esc(trunc(title, 56))+panelTitle("", "d")), func(width int) string { return a.activityDetail(it, width) })
 	if focus {
 		v.focus(p.detail)
 	}
@@ -424,18 +571,13 @@ func (v *activityView) drawBand() {
 }
 
 // drawLog fills the log: every event, newest first, the line of the last
-// visit after what came since; the rows of the thing chosen in the list
-// lit.
+// visit after what came since, under the names of its columns.
 func (v *activityView) drawLog() {
 	a := v.app
 	t := v.log
 	row, _ := t.GetSelection()
 	t.Clear()
 	v.logKeys = v.logKeys[:0]
-	chosen := ""
-	if it, ok := a.activityItemAt(v.pane.selectedIndex()); ok && !v.log.HasFocus() {
-		chosen = it.key()
-	}
 	_, _, width, _ := t.GetInnerRect()
 	newOnes := 0
 	for _, e := range a.activityLog {
@@ -443,14 +585,21 @@ func (v *activityView) drawLog() {
 			newOnes++
 		}
 	}
-	whatW, headW := 0, 0
+	whenW, whatW, headW := headingWidth("WHEN"), headingWidth("WHAT"), headingWidth("WHAT HAPPENED")
 	for _, e := range a.activityLog {
+		whenW = max(whenW, cells(eventTime(e.At)))
 		whatW = max(whatW, min(28, cells(e.What)))
 		if e.Heading != "" {
 			headW = max(headW, min(24, cells(e.Heading)))
 		}
 	}
-	r := 0
+	head := role("activity.label")
+	header := []field{{width: 1}, {text: "WHEN", width: whenW, colour: head}, {width: 1},
+		{text: "WHAT", width: whatW, colour: head}, {text: "WHAT HAPPENED", width: headW, colour: head},
+		{text: "DETAILS", width: max(8, width-whenW-whatW-headW-8), colour: head}}
+	t.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
+	v.logKeys = append(v.logKeys, "")
+	r := 1
 	for i, e := range a.activityLog {
 		if newOnes > 0 && i == newOnes {
 			t.SetCell(r, 0, tview.NewTableCell(a.visitLine(width-1)).SetSelectable(false).SetExpansion(1))
@@ -458,60 +607,57 @@ func (v *activityView) drawLog() {
 			r++
 		}
 		glyph, colour := levelGlyph(e)
-		mark := " "
+		mark := field{width: 1}
 		if a.activityUnseen(e) {
-			mark = tag(role("activity.new")) + glyphNew + tagEnd
+			mark = field{text: glyphNew, width: 1, colour: role("activity.new")}
 		}
-		text := mark + " " + tag(role("activity.when")) + esc(fmt.Sprintf("%-10s", eventTime(e.At))) + tagEnd +
-			tag(role(colour)) + esc(glyph) + tagEnd + "  " +
-			tag(role("activity.what")) + esc(padTo(trunc(e.What, 28), whatW)) + tagEnd + "  " +
-			"[::b]" + esc(padTo(trunc(eventHeading(e), 24), headW)) + "[::-]"
+		heading := field{text: eventHeading(e), width: headW, colour: role("activity.what")}
+		cells := []field{mark,
+			{text: eventTime(e.At), width: whenW, colour: role("activity.when")},
+			{text: glyph, width: 1, colour: role(colour)},
+			{text: e.What, width: whatW, colour: role("activity.what"), shorten: shortenRepo},
+			heading}
 		if e.Heading != "" {
-			text += tag(role("activity.about")) + "  " + esc(e.Line) + tagEnd
+			cells = append(cells, field{text: e.Line, width: max(8, width-whenW-whatW-headW-8), colour: role("activity.about")})
 		}
-		cell := tview.NewTableCell(text).SetExpansion(1)
-		if chosen != "" && e.Key == chosen {
-			cell.SetBackgroundColor(role("activity.lit"))
-		}
-		t.SetCell(r, 0, cell)
+		t.SetCell(r, 0, tview.NewTableCell(rowText(cells)).SetExpansion(1))
 		v.logKeys = append(v.logKeys, e.Key)
 		r++
 	}
 	if len(a.activityLog) == 0 {
-		t.SetCell(0, 0, tview.NewTableCell(" "+tag(colMuted)+"Nothing has happened yet: what the watches and the agents do comes here."+tagEnd).SetSelectable(false))
+		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+"Nothing has happened yet: what the watches and the agents do comes here."+tagEnd).SetSelectable(false))
 		v.logKeys = append(v.logKeys, "")
-	}
-	if row >= t.GetRowCount() {
-		row = t.GetRowCount() - 1
-	}
-	if row >= 0 && row < len(v.logKeys) && v.logKeys[row] == "" {
-		row++
 	}
 	if !t.HasFocus() {
 		// Read, not walked: the newest at the top, no cursor.
-		row = 0
 		t.SetOffset(0, 0)
-		t.SetSelectedStyle(baseStyle())
+		t.SetSelectable(false, false)
+		row = 1
 	} else {
-		t.SetSelectedStyle(styleSelected)
+		t.SetSelectable(true, false)
 	}
-	t.Select(max(row, 0), 0)
+	row = min(max(row, 1), t.GetRowCount()-1)
+	if row < len(v.logKeys) && v.logKeys[row] == "" && row+1 < t.GetRowCount() {
+		row++
+	}
+	t.Select(row, 0)
 }
 
-// chooseLogRow puts the list on the thing of the log's row, and with go
-// the focus too.
-func (v *activityView) chooseLogRow(goThere bool) {
+// chooseLogRow puts the list on the thing of the log's row, and the focus
+// with it.
+func (v *activityView) chooseLogRow() {
 	row, _ := v.log.GetSelection()
 	if row < 0 || row >= len(v.logKeys) || v.logKeys[row] == "" {
 		return
 	}
 	v.app.selectActivityKey(v.logKeys[row])
-	if goThere {
-		v.focus(v.pane.table)
-	}
+	v.focus(v.pane.table)
 }
 
-// cardsView draws the editors open as cards, side by side.
+// cardsView draws the editors open as cards, side by side, as Settings ›
+// Integrations draws its cards: each a box of the card background with
+// the editor's name in its border, the one chosen bordered in the focus
+// colour while the panel has the focus.
 type cardsView struct {
 	*tview.Box
 	app *App
@@ -526,7 +672,8 @@ const cardWidth = 28
 
 func newCardsView(a *App) *cardsView {
 	c := &cardsView{Box: tview.NewBox(), app: a}
-	box(c.Box, "Open")
+	box(c.Box, "")
+	c.SetTitle(panelTitle("Open", "e"))
 	return c
 }
 
@@ -560,44 +707,73 @@ func (c *cardsView) Draw(screen tcell.Screen) {
 		tview.Print(screen, tag(colMuted)+"No editor open."+tagEnd, x+1, y, w-2, tview.AlignLeft, colMuted)
 		return
 	}
+	// A cell in from the panel's border, a cell between cards.
+	x, w = x+1, w-1
 	shown, more := c.fit(w-1, len(recs))
 	c.at = min(c.at, len(recs)-1)
 	focused := c.HasFocus()
-	// A cell in from the panel's border, a cell between cards.
-	x, w = x+1, w-1
 	for i := range shown {
 		c.drawCard(screen, recs[i], x+i*(cardWidth+1), y, h, focused && i == c.at)
 	}
 	if more {
 		cx := x + shown*(cardWidth+1)
-		fill := tcell.StyleDefault.Background(role("activity.card")).Foreground(role("activity.card_text"))
-		width := min(8, x+w-cx)
-		lines := min(h, 4)
-		if c.compact {
-			lines = 1
+		label := fmt.Sprintf("+%d more", len(recs)-shown)
+		c.drawFrame(screen, cx, y, min(12, x+w-cx), h, "", focused && c.at >= shown)
+		row := y
+		if !c.compact {
+			row = y + 1
 		}
-		for row := y; row < y+lines; row++ {
-			for col := cx; col < cx+width; col++ {
-				screen.SetContent(col, row, ' ', nil, fill)
-			}
-		}
-		label := fmt.Sprintf("+%d", len(recs)-shown)
-		if focused && c.at >= shown {
-			label = "[::b]" + label
-		}
-		tview.Print(screen, "["+role("activity.card_text").String()+":"+role("activity.card").String()+"]"+label, cx, y+lines/2, width, tview.AlignCenter, role("activity.card_text"))
+		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+label, cx+1, row, min(12, x+w-cx)-2, tview.AlignCenter, colMuted)
 	}
 }
 
-// drawCard draws one card at x, y: on its own background, with a border a
-// shade stronger, the editor and the repository, then where and how long.
-func (c *cardsView) drawCard(screen tcell.Screen, r session.Record, x, y, h int, chosen bool) {
-	fillColour, ink, line := role("activity.card"), role("activity.card_text"), role("activity.card_border")
-	if chosen {
-		fillColour, line = colSelection(), role("activity.card_chosen")
+// drawFrame fills a card's box and draws its border with a title, as a
+// bordered box draws its own.
+func (c *cardsView) drawFrame(screen tcell.Screen, x, y, width, h int, title string, chosen bool) int {
+	fill := baseStyle().Background(colCard).Foreground(colText)
+	lines := min(h, 4)
+	if c.compact {
+		lines = 1
 	}
-	fill := tcell.StyleDefault.Background(fillColour).Foreground(ink)
-	on := ":" + fillColour.String()
+	for row := y; row < y+lines; row++ {
+		for col := x; col < x+width; col++ {
+			screen.SetContent(col, row, ' ', nil, fill)
+		}
+	}
+	if c.compact {
+		return lines
+	}
+	line := colBorder
+	if chosen {
+		line = colBorderFocus
+	}
+	border := fill.Foreground(line)
+	for col := x + 1; col < x+width-1; col++ {
+		screen.SetContent(col, y, tview.Borders.Horizontal, nil, border)
+		screen.SetContent(col, y+lines-1, tview.Borders.Horizontal, nil, border)
+	}
+	for row := y + 1; row < y+lines-1; row++ {
+		screen.SetContent(x, row, tview.Borders.Vertical, nil, border)
+		screen.SetContent(x+width-1, row, tview.Borders.Vertical, nil, border)
+	}
+	screen.SetContent(x, y, tview.Borders.TopLeft, nil, border)
+	screen.SetContent(x+width-1, y, tview.Borders.TopRight, nil, border)
+	screen.SetContent(x, y+lines-1, tview.Borders.BottomLeft, nil, border)
+	screen.SetContent(x+width-1, y+lines-1, tview.Borders.BottomRight, nil, border)
+	if title != "" {
+		titleColour := colTitle
+		if chosen {
+			titleColour = colBorderFocus
+		}
+		tview.Print(screen, "["+titleColour.String()+":"+colCard.String()+"] "+title+" ", x+1, y, width-2, tview.AlignLeft, titleColour)
+	}
+	return lines
+}
+
+// drawCard draws one card at x, y: the editor in its border, the
+// repository, then where it is open and for how long.
+func (c *cardsView) drawCard(screen tcell.Screen, r session.Record, x, y, h int, chosen bool) {
+	on := ":" + colCard.String()
 	glyph := editorGlyph(r.Editor)
 	project := r.Project
 	if project == "" {
@@ -608,68 +784,81 @@ func (c *cardsView) drawCard(screen tcell.Screen, r session.Record, x, y, h int,
 		where = tildePath(r.Dir)
 	}
 	age := humanAge(r.Since)
+	icon := "[" + role("activity.card_icon").String() + on + "]" + esc(glyph) + " " + esc(editorShortName(r.Editor))
 	if c.compact {
-		for col := x; col < x+cardWidth; col++ {
-			screen.SetContent(col, y, ' ', nil, fill)
+		c.drawFrame(screen, x, y, cardWidth, h, "", chosen)
+		ink := colText
+		if chosen {
+			ink = colBorderFocus
 		}
-		text := "[" + role("activity.card_icon").String() + on + "]" + esc(glyph) + "[" + ink.String() + on + ":b] " + esc(trunc(project, cardWidth-12)) +
-			"[" + role("activity.card_muted").String() + on + ":-] " + esc(age)
-		tview.Print(screen, text, x+1, y, cardWidth-2, tview.AlignLeft, ink)
+		text := icon + "[" + ink.String() + on + ":b] " + esc(trunc(project, cardWidth-16)) +
+			"[" + colMuted.String() + on + ":-] " + esc(age)
+		tview.Print(screen, text, x+1, y, cardWidth-2, tview.AlignLeft, colText)
 		return
 	}
-	lines := min(h, 4)
-	for row := y; row < y+lines; row++ {
-		for col := x; col < x+cardWidth; col++ {
-			screen.SetContent(col, row, ' ', nil, fill)
-		}
-	}
-	border := fill.Foreground(line)
-	for col := x + 1; col < x+cardWidth-1; col++ {
-		screen.SetContent(col, y, tview.Borders.Horizontal, nil, border)
-		screen.SetContent(col, y+lines-1, tview.Borders.Horizontal, nil, border)
-	}
-	for row := y + 1; row < y+lines-1; row++ {
-		screen.SetContent(x, row, tview.Borders.Vertical, nil, border)
-		screen.SetContent(x+cardWidth-1, row, tview.Borders.Vertical, nil, border)
-	}
-	screen.SetContent(x, y, tview.Borders.TopLeft, nil, border)
-	screen.SetContent(x+cardWidth-1, y, tview.Borders.TopRight, nil, border)
-	screen.SetContent(x, y+lines-1, tview.Borders.BottomLeft, nil, border)
-	screen.SetContent(x+cardWidth-1, y+lines-1, tview.Borders.BottomRight, nil, border)
+	lines := c.drawFrame(screen, x, y, cardWidth, h, icon, chosen)
 	inner := cardWidth - 4
-	name := editorShortName(r.Editor)
-	first := "[" + role("activity.card_icon").String() + on + "]" + esc(glyph) + " " + esc(name) +
-		"[" + ink.String() + on + ":b]  " + esc(trunc(project, max(4, inner-cells(name)-4))) + "[-:-:-]"
-	tview.Print(screen, first, x+2, y+1, inner, tview.AlignLeft, ink)
+	tview.Print(screen, "["+colText.String()+on+":b]"+esc(trunc(project, inner))+"[-:-:-]", x+2, y+1, inner, tview.AlignLeft, colText)
 	if lines >= 4 {
-		second := "[" + role("activity.card_muted").String() + on + "]" + esc(trunc(where, max(4, inner-cells(age)-1)))
-		tview.Print(screen, second, x+2, y+2, inner, tview.AlignLeft, ink)
-		tview.Print(screen, "["+role("activity.card_muted").String()+on+"]"+esc(age), x+2, y+2, inner, tview.AlignRight, ink)
+		tview.Print(screen, "["+colMuted.String()+on+"]"+esc(trunc(where, max(4, inner-cells(age)-1))), x+2, y+2, inner, tview.AlignLeft, colMuted)
+		tview.Print(screen, "["+colMuted.String()+on+"]"+esc(age), x+2, y+2, inner, tview.AlignRight, colMuted)
 	}
 }
 
-// keys move between the cards and go to the one chosen.
+// keys move between the cards; past the first or the last they are the
+// panels' to go on with.
 func (c *cardsView) keys(ev *tcell.EventKey) bool {
 	recs := c.app.editorsOpen
 	switch {
-	case ev.Key() == tcell.KeyLeft || ev.Key() == tcell.KeyRune && ev.Rune() == 'h':
-		c.at = max(0, c.at-1)
-		return true
-	case ev.Key() == tcell.KeyRight || ev.Key() == tcell.KeyRune && ev.Rune() == 'l':
-		c.at = min(len(recs)-1, c.at+1)
-		return true
-	case ev.Key() == tcell.KeyEnter:
-		if c.at >= 0 && c.at < len(recs) {
-			_, _, w, _ := c.GetInnerRect()
-			if shown, more := c.fit(w, len(recs)); more && c.at >= shown {
-				c.app.showRunningEditors()
-				return true
-			}
-			c.app.goToEditor(recs[c.at])
+	case isKey(ev, 'h', tcell.KeyLeft):
+		if c.at == 0 {
+			return false
 		}
+		c.at--
+		return true
+	case isKey(ev, 'l', tcell.KeyRight):
+		if c.at >= len(recs)-1 {
+			return false
+		}
+		c.at++
 		return true
 	}
 	return false
+}
+
+// chosen is the editor of the card chosen, false on the count of the rest.
+func (c *cardsView) chosen() (session.Record, bool) {
+	recs := c.app.editorsOpen
+	_, _, w, _ := c.GetInnerRect()
+	if shown, more := c.fit(w-2, len(recs)); more && c.at >= shown {
+		return session.Record{}, false
+	}
+	if c.at < 0 || c.at >= len(recs) {
+		return session.Record{}, false
+	}
+	return recs[c.at], true
+}
+
+// selection is what can be done with the card chosen: what Running
+// Editors… offers for an editor.
+func (c *cardsView) selection() (string, []uiAction) {
+	a := c.app
+	r, ok := c.chosen()
+	if !ok {
+		return "Open editors", []uiAction{a.runningEditorsAction("Enter")}
+	}
+	nvim := r.Socket != "" || r.Pane != ""
+	return "Actions · " + editorShortName(r.Editor) + " · " + r.Label(), []uiAction{
+		{name: "Attach to Editor", about: "Return to this editor: its pane, or this terminal for a Neovim put aside.", keys: "Enter", rank: 10,
+			run: func() { a.goToEditor(r) }},
+		{name: "Attach In…", about: "Return to this Neovim in a tab, split or window, chosen from where it can go.", keys: "a", rank: 20,
+			when: func() bool { return nvim }, run: func() { a.attachWhere(r) }},
+		{name: "Close Editor", about: "Close Neovim; with unsaved changes, attach and ask there.", keys: "x", rank: 30,
+			when: func() bool { return r.Socket != "" }, run: func() {
+				a.closeRunningEditor(r, func(session.Record) { a.refreshOpenEditors() })
+			}},
+		a.runningEditorsAction("E"),
+	}
 }
 
 // goToEditor brings an open editor forward: a Neovim is attached, in its
@@ -683,12 +872,6 @@ func (a *App) goToEditor(r session.Record) {
 	a.note(editorShortName(r.Editor) + " has a window of its own - go there")
 }
 
-// colSelection is the selection's background.
-func colSelection() tcell.Color {
-	_, bg, _ := styleSelected.Decompose()
-	return bg
-}
-
 // activityScreenActions are what the Activity screen itself can do.
 func (a *App) activityScreenActions(p *pane) []uiAction {
 	v := a.activity
@@ -696,6 +879,7 @@ func (a *App) activityScreenActions(p *pane) []uiAction {
 		{name: "Refresh All", about: "Ask the servers about every watch, and herdr about every agent, now.", keys: "R", rank: 10,
 			run: func() { a.watchAsk(nil); a.agentsNowAsk() }},
 		{name: "Show Log", about: "The log in front, over the screen: every event at full length, to filter and to go to.", keys: "z", rank: 20, run: a.showActivityLog},
+		{name: "Go to List", about: "Move to the list of the watches and the agents.", keys: "a", rank: 28, run: func() { v.focus(p.table) }},
 		{name: "Go to Open Editors", about: "Move to the cards of the editors open: h and l between them, Enter goes to one.", keys: "e", rank: 30,
 			when: func() bool { return v.bandH > 0 && len(a.editorsOpen) > 0 }, run: func() { v.focus(v.cards) }},
 		{name: "Go to Detail", about: "Move into the detail of the row under the cursor, to read its whole story; where the screen is narrow, open it under the list.", keys: "d", rank: 32,
@@ -770,7 +954,7 @@ func (a *App) showActivityLog() {
 // showWatches lists everything watched, to go to one or stop watching it.
 func (a *App) showWatches() {
 	if len(a.watches) == 0 {
-		a.note("nothing watched: w on a merge request or a branch, or Watch Pipelines in its actions")
+		a.note("nothing watched: Watch Merge Request or Watch Branch in the actions of a row (Alt-Enter)")
 		return
 	}
 	var picker *livePicker
@@ -845,4 +1029,49 @@ func (a *App) visitActivity() {
 	a.markWatchesSeen()
 	a.agentsNowAsk()
 	a.activityPane.reload()
+}
+
+// activityHints are the keys of each panel, for the one with the focus:
+// what can be done there, never how to move.
+func (v *activityView) hint() (tview.Primitive, string) {
+	p := v.pane
+	key := func(k, what string) string {
+		return tag(role("activity.key")) + k + tagEnd + " " + tag(colDim) + what + tagEnd
+	}
+	join := func(parts ...string) string { return strings.Join(parts, tag(colDim)+" · "+tagEnd) }
+	switch {
+	case p.table.HasFocus():
+		return p.table, join(key("Enter", "open"), key("x", "stop or close"), key("z", "log in front"), key("Tab", "panels"))
+	case p.detail.HasFocus():
+		return p.detail, join(key("Enter", "open"), key("x", "stop or close"), key("w", "browser"))
+	case v.log.HasFocus():
+		return v.log, join(key("Enter", "go to its row"), key("z", "in front"))
+	case v.cards.HasFocus():
+		if _, ok := v.cards.chosen(); !ok {
+			return v.cards, key("Enter", "every editor open")
+		}
+		return v.cards, join(key("Enter", "attach"), key("a", "attach in…"), key("x", "close"), key("E", "all"))
+	case v.watching.HasFocus():
+		return v.watching, key("Enter", "every watch")
+	}
+	return nil, ""
+}
+
+// drawActivityHint writes the keys of the Activity panel with the focus
+// into its bottom border, after everything is drawn: a panel as low as
+// the band of cards has no line to spare for them.
+func (a *App) drawActivityHint(screen tcell.Screen) {
+	if a.activity == nil || a.currentTab() != pageActivity || a.modalOpen() {
+		return
+	}
+	panel, text := a.activity.hint()
+	if panel == nil {
+		return
+	}
+	x, y, w, h := panel.GetRect()
+	if w < 12 || h < 2 {
+		return
+	}
+	text = " " + text + " "
+	tview.Print(screen, "["+":"+colBackground.String()+"]"+text, x+2, y+h-1, w-4, tview.AlignLeft, colDim)
 }

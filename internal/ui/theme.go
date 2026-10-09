@@ -487,21 +487,35 @@ func styleDropDown(d *tview.DropDown) *tview.DropDown {
 
 // openSelectKeys moves in the list of an open select with j and k, as in
 // every other list, and keeps other letters out of tview's search, which
-// would jump to whatever option they spell. Every select sits in a form in a
-// modal, so the one open is in the form at the front.
+// would jump to whatever option they spell. A select sits in a form: the
+// form of a modal at the front, or one of Settings' sections, which are no
+// modal - looking only at the modal once left Settings' selects deaf to j
+// and k.
 func (a *App) openSelectKeys(ev *tcell.EventKey) (*tcell.EventKey, bool) {
 	if ev.Key() != tcell.KeyRune {
 		return ev, false
 	}
-	_, front := a.pages.GetFrontPage()
-	box, ok := front.(*modalBox)
-	if !ok {
-		return ev, false
+	var forms []*tview.Form
+	if _, front := a.pages.GetFrontPage(); front != nil {
+		if box, ok := front.(*modalBox); ok {
+			if form, ok := box.content.(*tview.Form); ok {
+				forms = append(forms, form)
+			}
+		}
 	}
-	form, ok := box.content.(*tview.Form)
-	if !ok {
-		return ev, false
+	if form, _ := a.focusedForm(); form != nil {
+		forms = append(forms, form)
 	}
+	for _, form := range forms {
+		if out, ok := openSelectKey(form, ev); ok {
+			return out, true
+		}
+	}
+	return ev, false
+}
+
+// openSelectKey is openSelectKeys for one form.
+func openSelectKey(form *tview.Form, ev *tcell.EventKey) (*tcell.EventKey, bool) {
 	for i := 0; i < form.GetFormItemCount(); i++ {
 		if d, ok := form.GetFormItem(i).(*tview.DropDown); ok && d.IsOpen() {
 			switch ev.Rune() {

@@ -198,7 +198,7 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 // the screen's own.
 func (a *App) globalActions() []uiAction {
 	return []uiAction{
-		a.runningEditorsAction(""),
+		a.runningEditorsAction("E"),
 		a.runningAgentsAction(""),
 		{name: "Watches…", about: "Everything watched in one list, from any screen: go to one, or stop watching it.", keys: "W", rank: 510, run: a.showWatches},
 		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",

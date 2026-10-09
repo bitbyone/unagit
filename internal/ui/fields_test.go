@@ -217,3 +217,41 @@ func TestEscClosesAnOpenSelectAndNotTheDialog(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "New repository")
 }
+
+// TestJAndKMoveInAnOpenSelectInSettings: a select in a section of
+// Settings, which is no modal, moves with j and k once open, as one in a
+// dialog does.
+func TestJAndKMoveInAnOpenSelectInSettings(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionNotifications)
+	waitFor(t, a, sc, "Danger stays")
+	drop := onLoop(a, func() *tview.DropDown { return a.settings.notices.GetFormItemByLabel("Info stays").(*tview.DropDown) })
+	option := func() (int, bool) {
+		type state struct {
+			at   int
+			open bool
+		}
+		s := onLoop(a, func() state { at, _ := drop.GetCurrentOption(); return state{at, drop.IsOpen()} })
+		return s.at, s.open
+	}
+	changeOnLoop(a, func() { a.settings.notices.SetFocus(0); a.tv.SetFocus(a.settings.notices) })
+	start, _ := option()
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "Enter did not open the select", func() bool { _, open := option(); return open })
+	typeRunes(sc, "jj")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "j did not move in the open select", func() bool {
+		at, open := option()
+		return !open && at == start+2
+	})
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "Enter did not open the select again", func() bool { _, open := option(); return open })
+	typeRunes(sc, "k")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "k did not move in the open select", func() bool {
+		at, open := option()
+		return !open && at == start+1
+	})
+}

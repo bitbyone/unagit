@@ -185,19 +185,133 @@ func readWatch(ctx context.Context, client forge.Provider, w watch.Watch, before
 	if pipe.User != nil {
 		st.User = pipe.User.Username
 	}
-	if ciStateOf(st.Status) == ciFailed {
-		st.Failed = before.Failed
-		if before.Pipeline != st.Pipeline || before.Status != st.Status || before.SHA != st.SHA {
-			var jobs []forge.Job
-			if w.IID > 0 {
-				_, jobs, _ = client.PipelineJobs(ctx, mr)
-			} else {
-				_, jobs, _ = client.BranchPipelineJobs(ctx, pr, w.Branch)
-			}
+	// The jobs are read when the pipeline moved, so its news can say which
+	// job it was - one run by hand in a pipeline that had passed, say.
+	st.Failed, st.Jobs = before.Failed, before.Jobs
+	if before.Pipeline != st.Pipeline || before.Status != st.Status || before.SHA != st.SHA || before.Jobs == nil {
+		var jobs []forge.Job
+		var err error
+		if w.IID > 0 {
+			_, jobs, err = client.PipelineJobs(ctx, mr)
+		} else {
+			_, jobs, err = client.BranchPipelineJobs(ctx, pr, w.Branch)
+		}
+		if err == nil {
+			st.Jobs = jobStates(jobs)
 			st.Failed = firstFailed(jobs)
 		}
 	}
+	if ciStateOf(st.Status) != ciFailed {
+		st.Failed = ""
+	}
+	if before.Pipeline == st.Pipeline && before.SHA == st.SHA {
+		finished := ciStateOf(before.Status) != ciRunning && before.Status != ""
+		st.Again = before.Again || finished && ciStateOf(st.Status) == ciRunning
+	}
 	return watchReading{state: st}
+}
+
+// jobStates are the jobs as a watch keeps them: the latest attempt of
+// each, never nil once read.
+func jobStates(jobs []forge.Job) []watch.JobState {
+	out := []watch.JobState{}
+	for _, j := range jobs {
+		if j.Retried {
+			continue
+		}
+		js := watch.JobState{Name: j.Name, Status: j.Status}
+		if j.User != nil {
+			js.User = cmp.Or(j.User.Name, j.User.Username)
+		}
+		out = append(out, js)
+	}
+	return out
+}
+
+// jobMoves are the jobs whose status moved between two readings of one
+// pipeline, as they are now, each with what it was.
+func jobMoves(before, after []watch.JobState) (moved []watch.JobState, was []string) {
+	old := map[string]string{}
+	for _, j := range before {
+		old[j.Name] = j.Status
+	}
+	for _, j := range after {
+		if o, ok := old[j.Name]; ok && o != j.Status {
+			moved = append(moved, j)
+			was = append(was, o)
+		}
+	}
+	return moved, was
+}
+
+// jobNames lists jobs by name for a sentence: two in full, then how many
+// more.
+func jobNames(jobs []watch.JobState) string {
+	var names []string
+	for _, j := range jobs {
+		names = append(names, j.Name)
+	}
+	if len(names) > 2 {
+		return fmt.Sprintf("%s, %s and %d more", names[0], names[1], len(names)-2)
+	}
+	return strings.Join(names, " and ")
+}
+
+// jobChanges is the news of jobs moving in a pipeline that had finished
+// and runs again: a job started by hand, run again, passed or failed.
+// Nothing for a pipeline on its first run, when the jobs were not read or
+// none moved: the pipeline's own words stand.
+func jobChanges(w watch.Watch, before, after watch.State, news func(watch.Level, string, string) watch.Event) []watch.Event {
+	if !after.Again || before.Jobs == nil || after.Jobs == nil {
+		return nil
+	}
+	moved, was := jobMoves(before.Jobs, after.Jobs)
+	if len(moved) == 0 {
+		return nil
+	}
+	where := fmt.Sprintf("in pipeline #%d of %s", after.Pipeline, w.Subject())
+	var started, startedByHand, passed, failed []watch.JobState
+	by := ""
+	for i, j := range moved {
+		switch ciStateOf(j.Status) {
+		case ciRunning:
+			if j.Status == "manual" {
+				continue
+			}
+			if was[i] == "manual" {
+				startedByHand = append(startedByHand, j)
+			} else {
+				started = append(started, j)
+			}
+			by = cmp.Or(by, j.User)
+		case ciPassed:
+			passed = append(passed, j)
+		case ciFailed:
+			failed = append(failed, j)
+		}
+	}
+	byWhom := ""
+	if by != "" {
+		byWhom = " by " + by
+	}
+	var out []watch.Event
+	switch {
+	case len(startedByHand) > 0:
+		out = append(out, news(watch.Info, "Manual job started", fmt.Sprintf("%s %s was started%s, by hand", jobNames(startedByHand), where, byWhom)))
+	case len(started) > 0:
+		out = append(out, news(watch.Info, "Job started", fmt.Sprintf("%s %s was started%s", jobNames(started), where, byWhom)))
+	}
+	if len(failed) > 0 {
+		out = append(out, news(watch.Danger, "Job failed", fmt.Sprintf("%s %s failed", jobNames(failed), where)))
+	}
+	if len(passed) > 0 && len(failed) == 0 && ciStateOf(after.Status) != ciRunning {
+		line := fmt.Sprintf("%s %s passed", jobNames(passed), where)
+		if ciStateOf(after.Status) == ciPassed {
+			line += " · the pipeline has passed"
+		}
+		out = append(out, news(watch.Success, "Job passed", line))
+	}
+	return out
 }
 
 // readActivity reads what has happened to a merge request besides its
@@ -331,6 +445,12 @@ func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended
 		return nil
 	}
 	news := newsOf(w, before, after)
+	// The same pipeline moving again is a job in it: name the job.
+	if !fresh {
+		if evs := jobChanges(w, before, after, news); len(evs) > 0 {
+			return evs
+		}
+	}
 	ev := func(level watch.Level, heading, how string) []watch.Event {
 		pipeline := "Pipeline"
 		if after.Pipeline > 0 {

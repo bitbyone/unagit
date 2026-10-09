@@ -252,7 +252,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	waitTrue(t, "the success was never notified", func() bool { return notified.Load() >= 2 })
 }
 
-// TestAWatchStartsFromTheListAndStopsOnItsScreen: Watch Pipelines on a
+// TestAWatchStartsFromTheListAndStopsOnItsScreen: Watch Merge Request on a
 // merge request marks its row, the Watched tab lists it, and x there lets
 // it go and takes the mark away.
 func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
@@ -265,11 +265,11 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Watch Pipelines")
-	typeRunes(sc, "watch pip")
-	waitFor(t, a, sc, "Follow its pipelines")
+	waitFor(t, a, sc, "Watch Merge Request")
+	typeRunes(sc, "watch mer")
+	waitFor(t, a, sc, "Follow it in the background")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "watching the pipelines of acme/gateway !7")
+	waitFor(t, a, sc, "watching acme/gateway !7")
 	mark := onLoop(a, func() string { return glyphWatched })
 	waitTrue(t, "the merge request's row has no watched mark", func() bool {
 		for _, line := range strings.Split(a.screenText(sc), "\n") {
@@ -366,6 +366,14 @@ func TestPipelineChanges(t *testing.T) {
 		st.Head, st.Commits, st.Comments, st.Approvers, st.Known = head, commits, comments, approvers, true
 		return st
 	}
+	jobs := func(st watch.State, again bool, js ...watch.JobState) watch.State {
+		st.Jobs, st.Again = js, again
+		return st
+	}
+	firstRun := jobs(running, false, watch.JobState{Name: "test", Status: "running"}, watch.JobState{Name: "deploy", Status: "manual"})
+	donePipeline := jobs(watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, false, watch.JobState{Name: "test", Status: "success"}, watch.JobState{Name: "deploy", Status: "manual"})
+	byHand := jobs(running, true, watch.JobState{Name: "test", Status: "success"}, watch.JobState{Name: "deploy", Status: "running", User: "Jane Doe"})
+	doneAgain := jobs(watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, watch.JobState{Name: "test", Status: "success"}, watch.JobState{Name: "deploy", Status: "success", User: "Jane Doe"})
 	behind := func(st watch.State, base string, n int) watch.State {
 		st.Base, st.Behind = base, n
 		return st
@@ -398,6 +406,11 @@ func TestPipelineChanges(t *testing.T) {
 		{"the base moved on", behind(running, "main", 0), behind(running, "main", 3), true, "", "Base moved on: !42 is 3 commits behind main (info)"},
 		{"caught up", behind(running, "main", 3), behind(running, "main", 0), true, "", ""},
 		{"the base first read", running, behind(running, "main", 3), true, "", ""},
+		{"a job started by hand in a pipeline that had passed", donePipeline, byHand, true, "",
+			"Manual job started: deploy in pipeline #1 of !42 was started by Jane Doe, by hand (info)"},
+		{"the job run by hand passed", byHand, doneAgain, true, "",
+			"Job passed: deploy in pipeline #1 of !42 passed · the pipeline has passed (success)"},
+		{"a first run says the pipeline, not its jobs", firstRun, donePipeline, true, "", "Pipeline passed: Pipeline #1 of !42 passed (success)"},
 	}
 	for _, c := range cases {
 		if got := lines(watchChanges(w, c.before, c.after, c.known, c.ended)); got != c.want {
@@ -407,8 +420,8 @@ func TestPipelineChanges(t *testing.T) {
 }
 
 // TestTheJobsWatchTheirPipelines: the jobs of a merge request list Watch
-// Pipelines among their actions, with no key of its own in the hint, and
-// once watched it is Stop Watching Pipelines.
+// Merge Request among their actions, with no key of its own in the hint, and
+// once watched it is Stop Watching Merge Request.
 func TestTheJobsWatchTheirPipelines(t *testing.T) {
 	t.Parallel()
 	srv := newWatchServer(t)
@@ -425,14 +438,14 @@ func TestTheJobsWatchTheirPipelines(t *testing.T) {
 		t.Fatalf("a key-less action is in the hint:\n%s", text)
 	}
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Watch Pipelines")
-	typeRunes(sc, "watch pip")
-	waitFor(t, a, sc, "Follow its pipelines")
+	waitFor(t, a, sc, "Watch Merge Request")
+	typeRunes(sc, "watch mer")
+	waitFor(t, a, sc, "Follow it in the background")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "watching the pipelines of")
+	waitFor(t, a, sc, "watching acme/gateway")
 	waitFor(t, a, sc, "unit tests")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-	waitFor(t, a, sc, "Stop Watching Pipelines")
+	waitFor(t, a, sc, "Stop Watching Merge Request")
 }
 
 // TestAWatchMovesTheListsCIColumn: what a watch reads is the merge request

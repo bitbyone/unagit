@@ -212,6 +212,13 @@ func debugNewsCases() []debugNewsCase {
 		return st
 	}
 	running := pipeline(was, "running", "")
+	jobs := func(st watch.State, again bool, deploy, by string) watch.State {
+		st.Again = again
+		st.Jobs = []watch.JobState{{Name: "test:unit", Status: "success"}, {Name: "deploy:staging", Status: deploy, User: by}}
+		return st
+	}
+	done := jobs(pipeline(was, "success", ""), false, "manual", "")
+	byHand := jobs(pipeline(was, "running", ""), true, "running", "Jane Doe")
 	with := func(st watch.State, change func(*watch.State)) watch.State {
 		st.Approvers = slices.Clone(st.Approvers)
 		change(&st)
@@ -229,6 +236,9 @@ func debugNewsCases() []debugNewsCase {
 		{"Pipeline cancelled", branch, pipeline(onBranch, "running", ""), pipeline(onBranch, "canceled", ""), ""},
 		{"Manual job waiting", branch, pipeline(onBranch, "running", ""), pipeline(onBranch, "manual", ""), ""},
 		{"Pipeline running on a branch", branch, onBranch, pipeline(onBranch, "running", ""), ""},
+		{"Manual job started", mr, done, byHand, ""},
+		{"Job passed, run by hand", mr, byHand, jobs(pipeline(was, "success", ""), true, "success", "Jane Doe"), ""},
+		{"Job failed, run by hand", mr, byHand, jobs(pipeline(was, "failed", "deploy:staging"), true, "failed", "Jane Doe"), ""},
 		{"New commit in MR", mr, was, pushed(was, 1), ""},
 		{"New commits in MR", mr, was, pushed(was, 3), ""},
 		{"A push: its commit and its pipeline", mr, was, pipeline(pushed(was, 1), "running", ""), ""},
