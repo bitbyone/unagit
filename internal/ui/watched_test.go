@@ -213,7 +213,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	if pa, pb := polling(); pa == pb {
 		t.Fatalf("polling: a %v, b %v - exactly one should", pa, pb)
 	}
-	waitFor(t, a, sc, "[4] Activity")
+	waitFor(t, a, sc, "Activity [4]")
 	// Each said it was in front at its start, before the test turned its
 	// terminal away; a notification waits for both to have said it is not.
 	waitTrue(t, "an instance still says it is in front", func() bool {

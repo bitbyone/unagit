@@ -29,7 +29,7 @@ What it answers, top to bottom:
 ## The layout
 
 ```
- [1] Repos │ [2] MRs │ [3] Worktrees │ [4] Activity ●3 │ [5] Settings
+ Repos [1] │ MRs [2] │ Worktrees [3] │ Activity [4] ●3 │ Settings [5]
 ╭ Open ─────────────────────────────────────────────────────────────────────╮╭ Watching ──────────────╮
 │ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ││  3 merge requests     │
 │ │  nvim  unagit       │ │  nvim  incomm       │ │  idea  acme/api     │ ││  2 branches' pipelines│

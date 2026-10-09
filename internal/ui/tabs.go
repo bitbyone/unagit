@@ -25,22 +25,32 @@ var tabs = []tab{
 }
 
 // settingsTab is how a message points at Settings.
-const settingsTab = "[5] Settings"
+const settingsTab = "Settings [5]"
 
 // drawTabs renders the tab bar, highlighting the visible page. Where the
 // titles do not fit, the short ones stand in; where even those do not, the
 // keys lose their brackets.
 func (a *App) drawTabs() {
 	current := a.currentTab()
-	label := func(t tab, short, tight bool) string {
-		title := t.title
+	// A tab reads as a panel's title does: its icon where the terminal has
+	// a Nerd Font, its name, and the key that reaches it after the name, in
+	// brackets and quieter - or bare where the bar is tight.
+	tabParts := func(t tab, short, tight bool) (name, key string) {
+		name = t.title
 		if short {
-			title = t.short
+			name = t.short
+		}
+		if icon := columnIcons[t.title]; icon != "" {
+			name = icon + " " + name
 		}
 		if tight {
-			return fmt.Sprintf(" %c %s ", t.key, title)
+			return name, string(t.key)
 		}
-		return fmt.Sprintf(" [%c] %s ", t.key, title)
+		return name, "[" + string(t.key) + "]"
+	}
+	label := func(t tab, short, tight bool) string {
+		name, key := tabParts(t, short, tight)
+		return " " + name + " " + key + " "
 	}
 	// What waits on the Activity screen is counted where it shows from
 	// every screen, each count a still dot and its number in a colour of
@@ -83,14 +93,14 @@ func (a *App) drawTabs() {
 	var parts []string
 	for _, t := range tabs {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
-		text := tview.Escape(label(t, short, tight))
+		var text string
 		if t.page == current {
-			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), text)
+			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), tview.Escape(label(t, short, tight)))
 		} else {
-			// The name in the tabs' accent, the key that reaches it in the
-			// quiet colour it had: the names are what is read.
-			key, name := tabKeyAndName(label(t, short, tight))
-			text = fmt.Sprintf("[%s]%s[-][%s]%s[-]", colTabInactive.String(), tview.Escape(key), role("tabs.name").String(), tview.Escape(name))
+			// The name in the tabs' accent, the key quieter after it: the
+			// names are what is read.
+			name, key := tabParts(t, short, tight)
+			text = fmt.Sprintf(" [%s]%s[-] [%s]%s[-] ", role("tabs.name").String(), tview.Escape(name), role("tabs.key").String(), tview.Escape(key))
 		}
 		if t.page == pageActivity && len(badges) > 0 {
 			// Outside the tab's own band, a cell off it and from each other,
@@ -103,15 +113,6 @@ func (a *App) drawTabs() {
 		parts = append(parts, text)
 	}
 	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)))
-}
-
-// tabKeyAndName splits a tab's label after its key: " [1]" and
-// " Repositories ".
-func tabKeyAndName(label string) (key, name string) {
-	trimmed := strings.TrimLeft(label, " ")
-	lead := len(label) - len(trimmed)
-	k, rest, _ := strings.Cut(trimmed, " ")
-	return label[:lead] + k, " " + rest
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.

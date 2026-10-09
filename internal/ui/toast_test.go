@@ -72,7 +72,7 @@ func TestToastsStackAndGo(t *testing.T) {
 	}
 	// A key goes to the list, not to a toast.
 	typeRunes(sc, "2")
-	waitFor(t, a, sc, "[2] Merge requests")
+	waitFor(t, a, sc, "Merge requests [2]")
 
 	// Out of front, the time stands still.
 	onLoop(a, func() bool {

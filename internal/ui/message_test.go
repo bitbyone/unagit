@@ -120,8 +120,8 @@ func TestModalsDimEachCellOnce(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	tabs := func() tcell.Style {
 		text := a.screenText(sc)
-		row := lineOf(text, "[1] Repositories")
-		col := len([]rune(strings.Split(text, "\n")[row][:strings.Index(strings.Split(text, "\n")[row], "[1] Repositories")])) + 1
+		row := lineOf(text, "Repositories [1]")
+		col := len([]rune(strings.Split(text, "\n")[row][:strings.Index(strings.Split(text, "\n")[row], "Repositories [1]")])) + 1
 		return cellStyleAt(a, sc, col, row)
 	}
 	bright := tabs()

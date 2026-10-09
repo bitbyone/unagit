@@ -186,7 +186,7 @@ func TestTheAgentsTabFits(t *testing.T) {
 		text := a.screenText(sc)
 		t.Logf("Activity at %dx%d:\n%s", size.w, size.h, text)
 		lines := strings.Split(text, "\n")
-		if !strings.HasSuffix(strings.TrimSpace(lines[0]), "Settings") {
+		if !strings.HasSuffix(strings.TrimSpace(lines[0]), "5]") && !strings.HasSuffix(strings.TrimSpace(lines[0]), "Settings 5") {
 			t.Fatalf("the tab bar is cut at %d:\n%s", size.w, lines[0])
 		}
 		for _, line := range lines {

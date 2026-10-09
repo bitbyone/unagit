@@ -15,7 +15,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- [1] Repositories │ [2] Merge requests │ [3] Worktrees │ [4] Activity │ [5] Settings
+ Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Settings [5]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -51,7 +51,7 @@ make install     # -> ~/.local/bin/unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
-Nothing to edit by hand. In **[5] Settings** you add servers (`a`), paste a
+Nothing to edit by hand. In **Settings [5]** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -546,7 +546,7 @@ picker: `cc` and `claude` for Claude Code, `cx` and `codex` for Codex,
 horizontal one, `tab`, and `rev` for a review - so `cc split` puts Claude
 Code in a vertical split first.
 
-**[4] Activity** lists the agents started from unagit - never the others
+**Activity [4]** lists the agents started from unagit - never the others
 herdr runs - beside the watches (below): what each works on and, for those
 in herdr, what it is doing - **waiting** for an answer is under *needs you*,
 **working** under *under way*, **idle** and **ended** (the agent left only
@@ -730,7 +730,7 @@ behind its base it is, whether it is still on origin. A grouped worktree
 asks which of its repositories. The row wears `◎` in every list, and on
 something watched the same action is **Stop Watching**.
 
-**[4] Activity** is what runs in the background and what waits for you,
+**Activity [4]** is what runs in the background and what waits for you,
 on one screen:
 
 - **Open** - the editors open, as cards: `e` goes to them, `h`/`l` between
@@ -778,7 +778,7 @@ of its rate limit is left alone until it resets, and the row says so.
 
 What a watch reads is the lists' CI column too: a watched row's mark turns
 while its pipeline runs and changes when it ends, without a refresh, and
-the tab turns a mark of its own with how many run (`[4] Activity ⠋1`).
+the tab turns a mark of its own with how many run (`Activity [4] ●1`).
 
 Every change - a pipeline that began, passed, failed, was cancelled or
 waits for a manual job, a merge request merged or closed - is a toast in
@@ -792,7 +792,7 @@ headed by that severity's icon and a few words of what happened -
 (`!334 has a new commit by Jane Doe: "Refill the bucket…"`) and a quieter
 line with the repository and the merge request's title. It never takes the keys
 from whatever you are typing. The tab counts the changes not seen yet
-(`[4] Activity ●2`) until you open it, and a merged or closed merge request's
+(`Activity [4] ●2`) until you open it, and a merged or closed merge request's
 watch goes. When no unagit is in front - another window, or an editor
 running in unagit's terminal - a desktop notification goes out, through
 Notification Centre or `notify-send`: a terminal's own notification is never

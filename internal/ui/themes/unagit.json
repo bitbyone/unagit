@@ -333,6 +333,10 @@
       "Incomm": "\uf075"
   },
   "column_icons": {
+      "Repositories": "\uea62",
+      "Merge requests": "\uea64",
+      "Worktrees": "\uec7d",
+      "Settings": "\uf013",
       "Activity": "\uf21e",
       "Details": "\uf15c",
       "Log": "\uf1da",
