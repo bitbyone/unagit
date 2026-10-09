@@ -29,8 +29,11 @@ type activityView struct {
 	logKeys []string
 	// bandH and logH are the heights last laid out.
 	bandH, logH int
-	// autoDetail is a detail that opened by itself, for the room there was.
-	autoDetail bool
+	// autoDetail is a detail that opened by itself, for the room there was;
+	// closedDetail one the user closed, which does not open again by itself
+	// until they open it. bodyH is the list's and the detail's height.
+	autoDetail, closedDetail bool
+	bodyH                    int
 	// current is the panel with the focus, which alone is lit, and which
 	// the focus comes back to after a dialog.
 	current tview.Primitive
@@ -50,6 +53,9 @@ const (
 	activityLogShare  = 0.3
 	activityLogLeast  = 3
 	activityListLeast = 8
+	// activityStackedLeast is the height from which a narrow screen puts
+	// the detail under the list by itself.
+	activityStackedLeast = 22
 )
 
 func (a *App) newActivityPane() *pane {
@@ -258,11 +264,15 @@ func (v *activityView) layout(h int) {
 			logH = max(activityLogLeast+2, rows-band-activityListLeast)
 		}
 	}
-	if w := v.app.tabsWidth; w > 0 && w < activityWide && v.autoDetail && v.pane.detailShown {
+	v.bodyH = rows - band - logH
+	switch room := v.roomForDetail(); {
+	case !room && v.autoDetail && v.pane.detailShown:
 		// The detail opened by itself where there was room for it; where
-		// there is none, it waits for Enter.
+		// there is none, it waits for d.
 		v.autoDetail = false
 		go v.app.tv.QueueUpdateDraw(v.pane.hideDetail)
+	case room && !v.pane.detailShown && !v.closedDetail:
+		go v.app.tv.QueueUpdateDraw(v.followDetail)
 	}
 	if band != v.bandH {
 		v.bandH = band
@@ -335,6 +345,11 @@ func (v *activityView) paneKeys(ev *tcell.EventKey) bool {
 		case isKey(ev, 'k', tcell.KeyUp) && row == 0:
 			return v.move(p.detail, 'k')
 		}
+		return false
+	}
+	if ev.Key() == tcell.KeyEsc && p.query == "" && len(p.marks) == 0 && p.detailShown {
+		// Esc closes the detail, as in every list; it stays closed until d.
+		v.closedDetail = true
 		return false
 	}
 	first, last := selectableEnds(p.table)
@@ -560,10 +575,17 @@ func (v *activityView) followDetail() {
 	case !ok:
 	case p.detailShown:
 		v.showDetail(it, false)
-	case v.app.tabsWidth >= activityWide:
+	case v.roomForDetail() && !v.closedDetail:
 		v.showDetail(it, false)
 		v.autoDetail = true
 	}
+}
+
+// roomForDetail reports whether the detail opens by itself: beside the
+// list where the terminal is wide, under it where it is tall enough for
+// both, and only on d where it is neither.
+func (v *activityView) roomForDetail() bool {
+	return v.app.tabsWidth >= activityWide || v.bodyH >= activityStackedLeast
 }
 
 // showDetail fills the detail with a row's state and story.
@@ -782,12 +804,16 @@ func editorShortName(id string) string {
 // fit is how many cards are drawn in a width, and whether the last place
 // is the count of the rest.
 func (c *cardsView) fit(width, n int) (shown int, more bool) {
-	room := max(0, (width+1)/(cardWidth+1))
-	if n <= room {
+	if n*(cardWidth+1)-1 <= width {
 		return n, false
 	}
-	return max(0, room-1), true
+	// As many cards as leave room for the narrower count of the rest.
+	return min(n, max(0, (width-moreWidth)/(cardWidth+1))), true
 }
+
+// moreWidth is the count of the cards that do not fit, its border
+// included.
+const moreWidth = 12
 
 func (c *cardsView) Draw(screen tcell.Screen) {
 	c.Box.DrawForSubclass(screen, c)
@@ -808,12 +834,12 @@ func (c *cardsView) Draw(screen tcell.Screen) {
 	if more {
 		cx := x + shown*(cardWidth+1)
 		label := fmt.Sprintf("+%d more", len(recs)-shown)
-		c.drawFrame(screen, cx, y, min(12, x+w-cx), h, "", focused && c.at >= shown)
+		c.drawFrame(screen, cx, y, min(moreWidth, x+w-cx), h, "", focused && c.at >= shown)
 		row := y
 		if !c.compact {
 			row = y + 1
 		}
-		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+label, cx+1, row, min(12, x+w-cx)-2, tview.AlignCenter, colMuted)
+		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+label, cx+1, row, min(moreWidth, x+w-cx)-2, tview.AlignCenter, colMuted)
 	}
 }
 
@@ -979,7 +1005,7 @@ func (a *App) activityScreenActions(p *pane) []uiAction {
 					return
 				}
 				if it, ok := a.activityItemAt(p.selectedIndex()); ok {
-					v.autoDetail = false
+					v.autoDetail, v.closedDetail = false, false
 					v.showDetail(it, true)
 				}
 			}},

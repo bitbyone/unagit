@@ -746,7 +746,8 @@ on one screen:
   pipeline in the browser, `m` goes to the merge request or the
   repository, `r` and `R` read one or everything now.
 - **The detail** of the row under the cursor, beside the list where the
-  terminal is 120 wide (`d` elsewhere): how it stands now - the pipeline,
+  terminal is 120 wide, under it where it is narrower but tall enough,
+  and on `d` where it is neither; `Esc` closes it until `d`: how it stands now - the pipeline,
   approvals, comments, head, how far behind its base - and its story, the
   newest first, a line setting apart what came since your last visit.
 - **The log** under them, everything in time with the same line, taking

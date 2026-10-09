@@ -97,8 +97,8 @@ func TestActivityLaysOutItsPanels(t *testing.T) {
 		if logRows < activityLogLeast+2 {
 			t.Fatalf("the log has %d rows at %dx%d", logRows, size.w, size.h)
 		}
-		wide := onLoop(a, func() bool { return a.activityPane.detailShown })
-		if size.w >= activityWide && !wide {
+		shown := onLoop(a, func() bool { return a.activityPane.detailShown })
+		if size.w >= activityWide && !shown {
 			t.Fatalf("no detail beside the list at %d", size.w)
 		}
 		assertLegible(t, a, sc, "Activity")
@@ -370,5 +370,48 @@ func TestWatchingSumsUpWhatIsFollowedAndOpen(t *testing.T) {
 	lines := strings.Split(onLoop(a, func() string { return a.activity.watching.GetText(true) }), "\n")
 	if len(lines) != 2 || strings.TrimSpace(lines[0]) != "" || !strings.Contains(lines[1], "1 merge request") {
 		t.Errorf("one line is not in the middle of four: %q", lines)
+	}
+}
+
+// TestANarrowTallScreenPutsTheDetailUnderTheList: where the screen is too
+// narrow for the detail beside the list but tall enough, it opens under
+// it by itself; Esc closes it, and it stays closed until d.
+func TestANarrowTallScreenPutsTheDetailUnderTheList(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := activityFixture(t)
+	// Short and narrow, it waits for d.
+	resizeApp(a, sc, 90, 24)
+	waitTrue(t, "the detail is open on a short narrow screen", func() bool { return !onLoop(a, func() bool { return a.activityPane.detailShown }) })
+	resizeApp(a, sc, 90, 60)
+	waitTrue(t, "the detail did not open under the list", func() bool {
+		return onLoop(a, func() bool {
+			p := a.activityPane
+			_, ly, _, _ := p.table.GetRect()
+			_, dy, _, _ := p.detail.GetRect()
+			return p.detailShown && dy > ly
+		})
+	})
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitTrue(t, "Esc did not close the detail", func() bool { return !onLoop(a, func() bool { return a.activityPane.detailShown }) })
+	resizeApp(a, sc, 92, 60)
+	time.Sleep(100 * time.Millisecond)
+	if onLoop(a, func() bool { return a.activityPane.detailShown }) {
+		t.Fatal("the closed detail opened again by itself")
+	}
+	typeRunes(sc, "d")
+	waitTrue(t, "d did not open the detail", func() bool { return onLoop(a, func() bool { return a.activityPane.detailShown }) })
+}
+
+// TestCardsFitBesideTheirCount: a panel with room for one card and the
+// count of the rest draws the one.
+func TestCardsFitBesideTheirCount(t *testing.T) {
+	t.Parallel()
+	c := &cardsView{}
+	for _, tc := range []struct{ width, n, shown int }{
+		{50, 3, 1}, {58, 2, 2}, {41, 3, 1}, {39, 3, 0}, {100, 3, 3},
+	} {
+		if shown, _ := c.fit(tc.width, tc.n); shown != tc.shown {
+			t.Errorf("%d cards in %d: %d shown, want %d", tc.n, tc.width, shown, tc.shown)
+		}
 	}
 }
