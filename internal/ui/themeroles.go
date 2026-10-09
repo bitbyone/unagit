@@ -176,7 +176,7 @@ var colourRoles = []colourRole{
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
 	{"tabs.running", "text.accent", "pipelines under way"},
-	{"tabs.new", "state.good", "changes not seen yet"},
+	{"tabs.new", "state.warning", "changes not seen yet"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
 	// them, its colours are worked out of the severity's and the

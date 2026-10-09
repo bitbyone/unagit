@@ -231,7 +231,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	if n := notified.Load(); n != 1 {
 		t.Fatalf("the failure was notified %d times, want once", n)
 	}
-	waitTrue(t, "the tab does not count the change", func() bool { return tabBadge(a, sc, " 1 ") })
+	waitTrue(t, "the tab does not count the change", func() bool { return tabBadge(a, sc, glyphDot+"1") })
 	for _, app := range []*App{a, b} {
 		if front := onLoop(app, func() string { name, _ := app.pages.GetFrontPage(); return name }); front == pageMessage {
 			t.Fatal("a background failure opened a message box")
@@ -353,7 +353,7 @@ func TestTheWatchedTabFits(t *testing.T) {
 		assertLegible(t, a, sc, "Watched tab")
 	}
 	// Opened, the change is seen: the tab no longer counts it.
-	waitTrue(t, "the tab still counts the change seen", func() bool { return !tabBadge(a, sc, " 1 ") })
+	waitTrue(t, "the tab still counts the change seen", func() bool { return !tabBadge(a, sc, glyphDot+"1") })
 }
 
 func TestPipelineChanges(t *testing.T) {
