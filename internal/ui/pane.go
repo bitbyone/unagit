@@ -62,6 +62,14 @@ type pane struct {
 	// listWeight and detailWeight share the body between the list and
 	// the detail, 1 and 1 unless a screen says otherwise.
 	listWeight, detailWeight int
+	// focusElsewhere, when set, names a panel of the screen beside the
+	// pane's own that has the focus, for the focus to come back to after
+	// a dialog; nil when it is the list's or the detail's. focused hears
+	// the pane take the focus into its list or detail. onSelect hears the
+	// cursor move.
+	focusElsewhere func() tview.Primitive
+	focused        func(tview.Primitive)
+	onSelect       func()
 	// extraKeys, when set, hears the keys of the list and the detail
 	// first: a screen with more panels than the pane's.
 	extraKeys func(*tcell.EventKey) bool
@@ -157,6 +165,9 @@ func (a *App) newPane(title string) *pane {
 	p.table.SetSelectedFunc(func(int, int) { p.enter() })
 	p.table.SetSelectionChangedFunc(func(int, int) {
 		p.revealHeadings()
+		if p.onSelect != nil {
+			p.onSelect()
+		}
 		p.followSelection()
 	})
 	return p
@@ -231,6 +242,11 @@ func (p *pane) stopDebounce() {
 
 // focusTarget is the primitive that should receive focus when the tab is shown.
 func (p *pane) focusTarget() tview.Primitive {
+	if p.focusElsewhere != nil {
+		if other := p.focusElsewhere(); other != nil {
+			return other
+		}
+	}
 	if p.detailShown && p.detailFocused {
 		return p.detail
 	}
@@ -248,6 +264,9 @@ func (p *pane) focusTable() {
 	focusBox(p.table.Box, true)
 	focusBox(p.detail.Box, false)
 	p.app.tv.SetFocus(p.table)
+	if p.focused != nil {
+		p.focused(p.table)
+	}
 	p.updateHeader()
 }
 
@@ -260,6 +279,9 @@ func (p *pane) focusDetail() {
 	focusBox(p.table.Box, false)
 	focusBox(p.detail.Box, true)
 	p.app.tv.SetFocus(p.detail)
+	if p.focused != nil {
+		p.focused(p.detail)
+	}
 	p.updateHeader()
 }
 

@@ -31,6 +31,9 @@ type activityView struct {
 	bandH, logH int
 	// autoDetail is a detail that opened by itself, for the room there was.
 	autoDetail bool
+	// current is the panel with the focus, which alone is lit, and which
+	// the focus comes back to after a dialog.
+	current tview.Primitive
 }
 
 const (
@@ -162,6 +165,20 @@ func (a *App) newActivityPane() *pane {
 	}
 	p.screen = func() (string, []uiAction) { return "Activity", a.activityScreenActions(p) }
 	p.extraKeys = v.paneKeys
+	p.focusElsewhere = func() tview.Primitive {
+		if v.current == p.table || v.current == p.detail {
+			return nil
+		}
+		return v.current
+	}
+	p.focused = func(to tview.Primitive) {
+		v.current = to
+		focusBox(v.log.Box, false)
+		focusBox(v.cards.Box, false)
+		focusBox(v.watching.Box, false)
+		v.drawLog()
+	}
+	p.onSelect = v.lightLog
 	p.table.SetTitle(panelTitle("Activity", "a"))
 
 	v.cards = newCardsView(a)
@@ -286,6 +303,11 @@ func (v *activityView) paneKeys(ev *tcell.EventKey) bool {
 	}
 	p := v.pane
 	if p.detail.HasFocus() {
+		if ev.Key() == tcell.KeyEnter && ev.Modifiers() == tcell.ModNone {
+			// Enter in the detail does what it does on the row.
+			p.onDetail(p.selectedIndex(), true)
+			return true
+		}
 		row, _ := p.detail.GetScrollOffset()
 		_, _, _, height := p.detail.GetInnerRect()
 		switch {
@@ -500,6 +522,7 @@ func (v *activityView) focus(to tview.Primitive) {
 		p.filtering = false
 		v.app.tv.SetFocus(to)
 	}
+	v.current = to
 	focusBox(v.log.Box, to == v.log)
 	focusBox(v.cards.Box, to == v.cards)
 	focusBox(v.watching.Box, to == v.watching)
@@ -620,7 +643,7 @@ func (v *activityView) drawLog() {
 		if e.Heading != "" {
 			cells = append(cells, field{text: e.Line, width: max(8, width-whenW-whatW-headW-8), colour: role("activity.about")})
 		}
-		t.SetCell(r, 0, tview.NewTableCell(rowText(cells)).SetExpansion(1))
+		t.SetCell(r, 0, tview.NewTableCell(rowText(cells)).SetExpansion(1).SetReference(e.Key))
 		v.logKeys = append(v.logKeys, e.Key)
 		r++
 	}
@@ -641,6 +664,29 @@ func (v *activityView) drawLog() {
 		row++
 	}
 	t.Select(row, 0)
+	v.lightLog()
+}
+
+// lightLog lights, faintly, the log's rows of the thing under the list's
+// cursor. It is only a look at each row's key, so it follows the cursor at
+// once.
+func (v *activityView) lightLog() {
+	chosen := ""
+	if it, ok := v.app.activityItemAt(v.pane.selectedIndex()); ok {
+		chosen = it.key()
+	}
+	lit := role("activity.lit")
+	for row := 1; row < v.log.GetRowCount() && row < len(v.logKeys); row++ {
+		cell := v.log.GetCell(row, 0)
+		if cell == nil || v.logKeys[row] == "" {
+			continue
+		}
+		if chosen != "" && v.logKeys[row] == chosen {
+			cell.SetBackgroundColor(lit)
+		} else {
+			cell.SetBackgroundColor(colBackground)
+		}
+	}
 }
 
 // chooseLogRow puts the list on the thing of the log's row, and the focus

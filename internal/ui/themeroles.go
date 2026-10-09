@@ -169,6 +169,7 @@ var colourRoles = []colourRole{
 	{"activity.label", "text.dim", "the names of the detail's lines"},
 	{"activity.when", "text.dim", "when an event came"},
 	{"activity.watching", "mark.watched", "the mark of what is watched"},
+	{"activity.lit", "selection.marked", "the log's rows of the thing under the list's cursor, faintly"},
 	{"activity.key", "text.key", "a key named in a panel"},
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.waiting", "state.warning", "on the Activity tab: agents waiting for an answer"},
@@ -211,12 +212,28 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"activity.under_way":      roles["toast.info.border"],
 		"activity.under_way_fill": roles["toast.info.background"],
 		"tabs.running":            roles["toast.info.border"],
+		"activity.lit":            shade(colour(t.Background), 0.035),
 	}
 	for key, c := range derived {
 		if t.Roles[key] == "" && c != tcell.ColorDefault {
 			roles[key] = c
 		}
 	}
+}
+
+// shade is a background a step of lightness off itself - lighter on a dark
+// theme, darker on a light one - for what is set apart only faintly.
+// ColorDefault where the background is the terminal's, which cannot be
+// worked from.
+func shade(background tcell.Color, step float64) tcell.Color {
+	if background == tcell.ColorDefault || !background.Valid() {
+		return tcell.ColorDefault
+	}
+	lab := toOklab(background)
+	if lab.l >= 0.6 {
+		step = -step
+	}
+	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // toastInfoBlue is the hue an info toast is worked out of, unless the

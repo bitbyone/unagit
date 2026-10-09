@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -43,26 +44,26 @@ func (a *App) drawTabs() {
 		return fmt.Sprintf(" [%c] %s ", t.key, title)
 	}
 	// What waits on the Activity screen is counted where it shows from
-	// every screen, each count in a colour of its own after the tab's
-	// name: the agents waiting for an answer, the watched pipelines under
-	// way - their mark turning - and the changes nobody has seen.
+	// every screen, each count a still bubble of its own colour after the
+	// tab's name: the agents waiting for an answer, the watched pipelines
+	// under way, the changes nobody has seen.
 	type badge struct {
 		text   string
 		colour string
 	}
 	var badges []badge
 	if n := a.agentsWaiting(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", glyphManual, n), "tabs.waiting"})
+		badges = append(badges, badge{fmt.Sprint(n), "tabs.waiting"})
 	}
 	if n := a.watchesRunning(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", ciFrame(), n), "tabs.running"})
+		badges = append(badges, badge{fmt.Sprint(n), "tabs.running"})
 	}
 	if n := a.watchUnseen(); n > 0 {
-		badges = append(badges, badge{fmt.Sprintf("%s%d", glyphDot, n), "tabs.new"})
+		badges = append(badges, badge{fmt.Sprint(n), "tabs.new"})
 	}
 	badgesWidth := 0
 	for _, b := range badges {
-		badgesWidth += cells(b.text) + 1
+		badgesWidth += cells(b.text) + 3
 	}
 	short, tight := false, false
 	fits := func(short, tight bool) bool {
@@ -92,7 +93,8 @@ func (a *App) drawTabs() {
 			// Outside the tab's own band, a cell off it and from each other,
 			// each on the screen's background whatever the tab's style.
 			for _, b := range badges {
-				text += "[" + role(b.colour).String() + ":" + colBackground.String() + ":b] " + esc(b.text) + "[-:-:-]"
+				fill := role(b.colour)
+				text += "[:" + colBackground.String() + ":-] [" + inkOn(fill).String() + ":" + fill.String() + ":b] " + esc(b.text) + " [-:-:-]"
 			}
 			text += " "
 		}
@@ -151,4 +153,12 @@ func (a *App) tabKey(r rune) bool {
 		}
 	}
 	return false
+}
+
+// inkOn is the text that reads on a fill: the darkest or the lightest.
+func inkOn(fill tcell.Color) tcell.Color {
+	if relLuminance(fill) > 0.35 {
+		return tcell.NewRGBColor(0x1c, 0x1c, 0x1c)
+	}
+	return tcell.NewRGBColor(0xf4, 0xf4, 0xf4)
 }

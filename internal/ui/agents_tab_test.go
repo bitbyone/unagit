@@ -63,7 +63,7 @@ func TestTheAgentsTabShowsWhatEachIsDoing(t *testing.T) {
 	typeRunes(sc, "4")
 	waitFor(t, a, sc, "Fix the login")
 	waitFor(t, a, sc, "1 need you")
-	waitTrue(t, "the tab does not count the waiting agent", func() bool { return tabBadge(a, sc, glyphManual+"1") })
+	waitTrue(t, "the tab does not count the waiting agent", func() bool { return tabBadge(a, sc, " 1 ") })
 	lines := strings.Split(a.screenText(sc), "\n")
 	login, parser := -1, -1
 	for i, line := range lines {

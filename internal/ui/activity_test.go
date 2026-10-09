@@ -273,3 +273,55 @@ func TestAnAgentsStatesAreItsHistory(t *testing.T) {
 		return true
 	})
 }
+
+// TestTheLogLightsTheRowsOfTheChosenThing: the log's rows of the thing
+// under the list's cursor are lit, faintly, and follow the cursor at once.
+func TestTheLogLightsTheRowsOfTheChosenThing(t *testing.T) {
+	t.Parallel()
+	a, sc, mr := activityFixture(t)
+	lit := func() []string {
+		return onLoop(a, func() []string {
+			var out []string
+			v := a.activity
+			for row := 1; row < v.log.GetRowCount() && row < len(v.logKeys); row++ {
+				if _, bg, _ := v.log.GetCell(row, 0).Style.Decompose(); v.logKeys[row] != "" && bg == role("activity.lit") {
+					out = append(out, v.logKeys[row])
+				}
+			}
+			return out
+		})
+	}
+	waitTrue(t, "the failed merge request's rows are not lit", func() bool {
+		got := lit()
+		return len(got) == 2 && got[0] == mr.Key() && got[1] == mr.Key()
+	})
+	typeRunes(sc, "j")
+	waitTrue(t, "the lit rows did not follow the cursor", func() bool {
+		got := lit()
+		return len(got) == 1 && got[0] != mr.Key()
+	})
+}
+
+// TestOnePanelHasTheFocusAfterADialog: a dialog opened from a card and
+// closed gives the focus back to the cards, which alone are lit.
+func TestOnePanelHasTheFocusAfterADialog(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := activityFixture(t)
+	typeRunes(sc, "e")
+	waitTrue(t, "e did not go to the cards", func() bool { return onLoop(a, func() bool { return a.activity.cards.HasFocus() }) })
+	typeRunes(sc, "z")
+	waitFor(t, a, sc, "WHAT HAPPENED")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitTrue(t, "the focus did not come back to the cards alone", func() bool {
+		return onLoop(a, func() bool {
+			v := a.activity
+			return !a.modalOpen() && v.cards.HasFocus() && v.cards.GetBorderColor() == colBorderFocus &&
+				v.pane.table.GetBorderColor() != colBorderFocus
+		})
+	})
+	// Enter in the detail does what Enter on the row does.
+	typeRunes(sc, "d")
+	waitTrue(t, "d did not go to the detail", func() bool { return onLoop(a, func() bool { return a.activityPane.detail.HasFocus() }) })
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitTrue(t, "Enter in the detail did nothing", func() bool { return onLoop(a, a.modalOpen) || onLoop(a, func() bool { return a.transient != "" }) })
+}
