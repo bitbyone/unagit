@@ -224,3 +224,30 @@ func TestAssigneesTakeTheAuthorAndReplaceTheIssues(t *testing.T) {
 		t.Errorf("sent = %+v", sent)
 	}
 }
+
+// TestFingerprintsAskGraphQLOnceAndAGoneBranchIsNo: as GitLab's.
+func TestFingerprintsAskGraphQLOnceAndAGoneBranchIsNo(t *testing.T) {
+	s := newStub(t)
+	var sent []map[string]any
+	s.mux.HandleFunc("/graphql", capture(&sent, func(w http.ResponseWriter) {
+		fmt.Fprint(w, `{"data":{"w0":{"pullRequest":{"state":"OPEN","headRefOid":"abc"}},"w1":{"ref":null}}}`)
+	}))
+	s.mux.HandleFunc("/repos/acme/api/branches/gone", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) })
+	c := s.client()
+	p := forge.Project{PathWithNamespace: "acme/api"}
+	prints, err := c.Fingerprints(context.Background(), []forge.WatchRef{{Project: p, IID: 7}, {Project: p, Branch: "gone"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, _ := sent[0]["query"].(string)
+	if len(sent) != 1 || !strings.Contains(q, `w0: repository(owner: "acme", name: "api") { pullRequest(number: 7)`) ||
+		!strings.Contains(q, `ref(qualifiedName: "refs/heads/gone")`) {
+		t.Fatalf("sent %v", sent)
+	}
+	if prints[0] != `{"pullRequest":{"state":"OPEN","headRefOid":"abc"}}` || prints[1] != `{"ref":null}` {
+		t.Fatalf("prints %q", prints)
+	}
+	if ok, err := c.BranchExists(context.Background(), p, "gone"); ok || err != nil {
+		t.Errorf("a branch gone: %v %v", ok, err)
+	}
+}

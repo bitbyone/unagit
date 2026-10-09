@@ -25,14 +25,18 @@ type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
+	// pace follows the rate limit from every answer.
+	pace *forge.Transport
 }
 
 // New returns a client for baseURL authenticated with a personal access token.
 func New(baseURL, token string) *Client {
+	pace := &forge.Transport{Headers: forge.GitLabRates}
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
-		http:    &http.Client{Timeout: 60 * time.Second},
+		http:    &http.Client{Timeout: 60 * time.Second, Transport: pace},
+		pace:    pace,
 	}
 }
 

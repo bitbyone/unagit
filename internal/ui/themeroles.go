@@ -146,6 +146,7 @@ var colourRoles = []colourRole{
 	{"watched.what", "column.name", "what is watched: a merge request, a branch"},
 	{"watched.by", "column.author", "whom the pipeline was started by"},
 	{"watched.changed", "column.age", "when the pipeline last changed"},
+	{"watched.latest", "text.normal", "what was last said of a watch"},
 	{"watched.error", "state.warning", "why the last reading failed"},
 	{"toast.background", "surface.raised", "a toast: news from the background, in the top right corner"},
 	{"toast.text", "text.normal", "what a toast says"},

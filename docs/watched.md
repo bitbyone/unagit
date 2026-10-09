@@ -280,8 +280,10 @@ Each a `watchKind`, its row and its actions:
 ## Where it stands
 
 Built in `internal/watch` (the files), `internal/notify` (the sequences and
-the system notifiers), `internal/ui/watch.go` (the follower, the poller,
-the events) and `internal/ui/watched.go` (the screen). Where it went
+the system notifiers), `internal/forge/transport.go` (the rate limit, the
+ETags), `internal/ui/watch.go` (the follower, the poller),
+`internal/ui/watchread.go` (the reads and the events) and
+`internal/ui/watched.go` (the screen). Where it went
 another way than above:
 
 - **The poller's lock is tried, not waited for.** Each instance tries
@@ -289,9 +291,36 @@ another way than above:
   cannot be called off when unagit exits, and a look a second takes over
   within a second all the same. `Run` waits for the follower to let the
   lock and its presence file go.
-- **A merge request costs two requests a turn**, its detail - to notice it
-  merged, closed or pushed - and its pipeline. The jobs are read only when a
-  pipeline has newly failed.
+- **One GraphQL query a server and turn decides what is read.** It is not
+  `PipelineStates` handing over the pipelines: GitHub's pipeline is what its
+  check runs add up to over several REST calls, which GraphQL's rollup does
+  not match one for one. So `forge.Fingerprints` asks every watch due at
+  once for a fingerprint - a merge request's state, head, comments,
+  approvals and head pipeline, a branch's newest pipeline (on GitHub its
+  head and checks, null once it is gone) - and only a watch whose
+  fingerprint moved is read in full over REST, as before; every one is read
+  in full at least every five minutes all the same, and a server whose
+  GraphQL fails is read in full only for ten. Asked for by hand (`r`, `R`),
+  a watch is read in full.
+- **A full read of a merge request** is its detail - merged, closed,
+  pushed, its comments - its approvals, its pipeline, and its commits
+  counted when the head moved. The jobs are read only when a pipeline has
+  newly failed. A branch's is whether it is still on the server, and its
+  newest pipeline.
+- **Every client's requests go through `forge.Transport`.** It reads the
+  rate limit off every answer (GitLab's `RateLimit-*`, GitHub's
+  `X-RateLimit-*`); refused (429, or 403 with nothing left) or down to its
+  last tenth or fifty, the server is not asked by the watches until
+  `Retry-After` or the reset - what the user asks for still goes. The row
+  says so. On GitHub it asks again with `If-None-Match`, and a 304 hands
+  back the body kept from before.
+- **A merge request's activity is news**: new commits (and a head
+  rewritten), new comments, an approval given or withdrawn. A watched
+  branch that is on disk says how far it is behind its base - the branch
+  unagit made it from, or the default branch - by the refs the clone has,
+  no request; falling further behind is news. A branch deleted on origin
+  ends its watch, as a merge request merged or closed does. The screen's
+  LATEST column is what was last said of each.
 - **Every change is news**, with a level: a pipeline that began (info),
   passed (success), failed (danger), was cancelled or waits for a manual
   job (warning), a merge request merged or closed. Each is counted on the
@@ -309,10 +338,13 @@ another way than above:
   multiplexer that keeps them - is told from the application in front
   (`lsappinfo` on macOS, every 3 s at most). Zellij and herdr pass no
   notification sequence on, so the system's notifier stands in.
-- **The terminal's way only for a window away.** Ghostty and iTerm2 show
-  nothing for a sequence from a window in front; automatic sends one only
-  when the terminal has said it lost focus, and the system's notifier
-  otherwise - with an editor in front in unagit's own window, say.
+- **The system's notifier by default.** A terminal's sequence is written
+  and never answered: Ghostty and iTerm2 drop it for a window in front, and
+  without leave to notify it is dropped unseen - a pipeline's start went
+  missing so, while its end came. Automatic goes through the system
+  wherever it has a notifier, the terminal only when chosen or where it has
+  none. What became of each notification is noted in `watch/notify.log`.
+  A toast and a notification carry the start of the merge request's title.
 - **The rows keep their mark for the visit.** Opening the screen counts the
   changes as seen on the tab at once, and the rows changed since the last
   visit keep their `●` while it is open, so it can be told which they were.
@@ -323,6 +355,7 @@ another way than above:
 
 Still to do:
 
-- `If-None-Match` on GitHub, and the GraphQL batch (`PipelineStates`).
-- Backing off a server by its rate limit headers.
-- A branch deleted on origin does not end its watch yet.
+- The other sections of "Later sections": a watch on a query (asked to
+  review), releases and tags.
+- A dashboard: the activity and the pipelines of what is watched read
+  better than as one row each.

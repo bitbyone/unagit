@@ -2,7 +2,6 @@ package ui
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -292,17 +290,20 @@ func (a *App) markWatchesSeen() {
 type watchFollower struct {
 	// ctx ends when the interface does, so nothing waits on a loop that is
 	// gone.
-	ctx      context.Context
-	app      *App
-	store    *watch.Store
-	poller   *watch.Poller
-	watches  []watch.Watch
-	snap     watch.Snapshot
-	stamps   map[string]time.Time
-	asked    map[string]time.Time
-	askSeen  map[string]uint64 // each instance's last ask, as the poller saw it
-	presence watch.Presence
-	askSeq   uint64
+	ctx     context.Context
+	app     *App
+	store   *watch.Store
+	poller  *watch.Poller
+	watches []watch.Watch
+	snap    watch.Snapshot
+	stamps  map[string]time.Time
+	asked   map[string]time.Time
+	askSeen map[string]uint64 // each instance's last ask, as the poller saw it
+	// printsOff is, by server, until when its fingerprints are not asked
+	// for: they failed, and its watches are read in full meanwhile.
+	printsOff map[string]time.Time
+	presence  watch.Presence
+	askSeq    uint64
 	// delivered is what the interface was last handed, so a quiet turn
 	// draws nothing.
 	delivered struct {
@@ -321,7 +322,7 @@ func (a *App) followWatches(stop <-chan struct{}) {
 		cancel()
 	}()
 	f := &watchFollower{ctx: ctx, app: a, store: a.watchStore, stamps: map[string]time.Time{},
-		asked: map[string]time.Time{}, askSeen: map[string]uint64{}}
+		asked: map[string]time.Time{}, askSeen: map[string]uint64{}, printsOff: map[string]time.Time{}}
 	f.presence = watch.Presence{ID: a.watchID, PID: os.Getpid()}
 	defer func() {
 		f.poller.Release()
@@ -463,7 +464,8 @@ func (f *watchFollower) poll() {
 			ask = append(ask, w)
 		}
 	}
-	results := f.read(ask)
+	results := f.read(ask, due)
+	behind := f.readBehind(ask)
 	var events []watch.Event
 	var gone []string
 	for i, w := range ask {
@@ -471,16 +473,29 @@ func (f *watchFollower) poll() {
 		r := results[i]
 		before, known := snap.States[w.Key()]
 		after := r.state
-		if r.err != nil {
+		switch {
+		case r.err != nil:
 			after = before
 			after.Error = r.err.Error()
 			after.Read = time.Now()
 			snap.States[w.Key()] = after
 			continue
+		case !r.paused.IsZero():
+			// Short of its rate limit, the server is left alone; what was
+			// read stands, and the row says why it is not read now.
+			after = before
+			after.Error = "the server's rate limit is nearly spent - asking again at " + r.paused.Format("15:04")
+			snap.States[w.Key()] = after
+			continue
+		case r.same:
+			after.Read, after.Error = time.Now(), ""
 		}
-		evs := pipelineChanges(w, before, after, known, r.ended)
+		if d, ok := behind[w.Key()]; ok {
+			after.Base, after.Behind = d.Base, d.Behind
+		}
+		evs := watchChanges(w, before, after, known, r.ended)
 		after.Changed, after.Seq = before.Changed, before.Seq
-		if after.Status != before.Status || after.Pipeline != before.Pipeline || !known {
+		if after.Status != before.Status || after.Pipeline != before.Pipeline || !known || len(evs) > 0 {
 			after.Changed = time.Now()
 		}
 		if len(evs) > 0 {
@@ -650,167 +665,6 @@ func levelSeverity(l watch.Level) severity {
 		return sevError
 	}
 	return sevInfo
-}
-
-// watchReading is what one watch's read came to.
-type watchReading struct {
-	state watch.State
-	// ended is "merged" or "closed" for a merge request no longer open.
-	ended string
-	err   error
-}
-
-// read asks about the watches, several at a time as a refresh does.
-func (f *watchFollower) read(ws []watch.Watch) []watchReading {
-	out := make([]watchReading, len(ws))
-	if len(ws) == 0 {
-		return out
-	}
-	a := f.app
-	ctx, cancel := context.WithTimeout(f.ctx, time.Minute)
-	defer cancel()
-	sem := make(chan struct{}, extrasFanOut)
-	var wg sync.WaitGroup
-	for i, w := range ws {
-		client := a.watchClient(ctx, w.Instance)
-		if client == nil {
-			out[i].err = fmt.Errorf("%s has no token - set one in %s", w.Instance, settingsTab)
-			continue
-		}
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer func() { <-sem; wg.Done() }()
-			out[i] = readPipelineWatch(ctx, client, w, f.snap.States[w.Key()])
-		}()
-	}
-	wg.Wait()
-	return out
-}
-
-// watchClient is the server's client, read on the loop: the clients change
-// when Settings does.
-func (a *App) watchClient(ctx context.Context, instance string) forge.Provider {
-	ch := make(chan forge.Provider, 1)
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if !a.onLoopWait(ctx, func() { ch <- a.client(instance) }) {
-		return nil
-	}
-	return <-ch
-}
-
-// readPipelineWatch reads a watch's newest pipeline: a merge request's -
-// whatever its head ran, so a push moves the watch on - or a branch's. The
-// jobs are read only when a pipeline has newly failed, to name the job.
-func readPipelineWatch(ctx context.Context, client forge.Provider, w watch.Watch, before watch.State) watchReading {
-	st := watch.State{Read: time.Now()}
-	var pipe *forge.Pipeline
-	var err error
-	var mr forge.MergeRequest
-	pr := forge.Project{ID: w.ProjectID, PathWithNamespace: w.Project, Instance: w.Instance}
-	if w.IID > 0 {
-		mr = forge.MergeRequest{IID: w.IID, ProjectID: w.ProjectID, TargetProjectID: w.ProjectID, ProjectPath: w.Project, Instance: w.Instance}
-		det, err := client.MergeRequestDetail(ctx, mr)
-		if err != nil {
-			return watchReading{err: err}
-		}
-		mr = withDetail(mr, det)
-		st.Title, st.URL = det.Title, det.WebURL
-		switch state := strings.ToLower(det.State); state {
-		case "merged", "closed":
-			st.Status, st.Pipeline, st.SHA = before.Status, before.Pipeline, before.SHA
-			return watchReading{state: st, ended: state}
-		}
-		pipe, err = client.MergeRequestPipeline(ctx, mr)
-	} else {
-		pipe, err = client.LatestPipeline(ctx, pr, w.Branch)
-	}
-	if err != nil {
-		return watchReading{err: err}
-	}
-	if pipe == nil {
-		return watchReading{state: st}
-	}
-	st.Pipeline, st.Status, st.SHA, st.WebURL = pipe.ID, pipe.Status, pipe.SHA, pipe.WebURL
-	st.Started = pipe.StartedAt
-	if st.Started.IsZero() {
-		st.Started = pipe.CreatedAt
-	}
-	if pipe.User != nil {
-		st.User = pipe.User.Username
-	}
-	if ciStateOf(st.Status) == ciFailed {
-		st.Failed = before.Failed
-		if before.Pipeline != st.Pipeline || before.Status != st.Status || before.SHA != st.SHA {
-			var jobs []forge.Job
-			if w.IID > 0 {
-				_, jobs, _ = client.PipelineJobs(ctx, mr)
-			} else {
-				_, jobs, _ = client.BranchPipelineJobs(ctx, pr, w.Branch)
-			}
-			st.Failed = firstFailed(jobs)
-		}
-	}
-	return watchReading{state: st}
-}
-
-// firstFailed is the first job that failed and was not run again.
-func firstFailed(jobs []forge.Job) string {
-	for _, j := range jobs {
-		if !j.Retried && ciStateOf(j.Status) == ciFailed {
-			return j.Name
-		}
-	}
-	return ""
-}
-
-// pipelineChanges is what changed between two readings, as events: one
-// for each change, a pipeline that began as much as one that ended. The
-// first reading is never news - only a change from what was last held.
-func pipelineChanges(w watch.Watch, before, after watch.State, known bool, ended string) []watch.Event {
-	title := cmp.Or(after.Title, before.Title, w.Title)
-	ev := func(line string, level watch.Level) []watch.Event {
-		return []watch.Event{{Key: w.Key(), What: w.Label(), Line: line, Level: level, Title: title}}
-	}
-	if ended != "" {
-		if ended == "merged" {
-			return ev("merge request merged · no longer watched", watch.Success)
-		}
-		return ev("merge request "+ended+" · no longer watched", watch.Warning)
-	}
-	if !known || after.Status == "" {
-		return nil
-	}
-	fresh := after.Pipeline != before.Pipeline || after.SHA != before.SHA
-	if !fresh && after.Status == before.Status {
-		return nil
-	}
-	prefix := ""
-	if fresh && w.IID > 0 && before.SHA != "" && after.SHA != before.SHA {
-		prefix = "new head " + shortSHA(after.SHA) + " · "
-	}
-	switch after.Status {
-	case "manual":
-		return ev(prefix+"pipeline waits for a manual job", watch.Warning)
-	case "canceled", "cancelled":
-		return ev(prefix+"pipeline cancelled", watch.Warning)
-	}
-	switch ciStateOf(after.Status) {
-	case ciPassed:
-		return ev(prefix+"pipeline passed", watch.Success)
-	case ciFailed:
-		line := prefix + "pipeline failed"
-		if after.Failed != "" {
-			line += " · " + after.Failed
-		}
-		return ev(line, watch.Danger)
-	case ciRunning:
-		if fresh || ciStateOf(before.Status) != ciRunning {
-			return ev(prefix+"pipeline started", watch.Info)
-		}
-	}
-	return nil
 }
 
 // terminalInFront reports whether the user is looking at this unagit: its

@@ -40,6 +40,9 @@ type Client struct {
 	base  string
 	token string
 	http  *http.Client
+	// pace follows the rate limit from every answer and asks again with
+	// If-None-Match, which GitHub answers with a 304 that costs nothing.
+	pace *forge.Transport
 
 	once  sync.Once
 	login string // the authenticated account, cached
@@ -51,7 +54,8 @@ func New(token string) *Client { return newAt(APIBase, token) }
 
 // newAt points a client at another API root, for tests.
 func newAt(base, token string) *Client {
-	return &Client{base: base, token: token, http: &http.Client{Timeout: 60 * time.Second}}
+	pace := &forge.Transport{Headers: forge.GitHubRates, ETags: true}
+	return &Client{base: base, token: token, http: &http.Client{Timeout: 60 * time.Second, Transport: pace}, pace: pace}
 }
 
 // Kind identifies the forge.

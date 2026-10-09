@@ -1,6 +1,8 @@
 # Watched and open in Neovim: marks in the lists
 
-A plan, not yet built. It belongs with [watched.md](watched.md) and
+Built: the watched mark, Neovim's and the agents' stand in the lists'
+MARKS column, and x on the Watched screen lets watches go. The rest of
+this page is the plan as it was. It belongs with [watched.md](watched.md) and
 [background-editors.md](background-editors.md): both make something true of a
 row that the lists do not show today. A repository, a merge request or a
 worktree that is **watched**, or that is **open in Neovim** - in this

@@ -85,6 +85,24 @@ type State struct {
 	// Read is when it was last asked about, Error why that failed.
 	Read  time.Time `json:"read,omitzero"`
 	Error string    `json:"error,omitempty"`
+
+	// What a merge request's activity was when last read: its head, how
+	// many commits and comments it has, who has approved it. Known says
+	// they were read - an older state.json has none of them.
+	Head      string   `json:"head,omitempty"`
+	Commits   int      `json:"commits,omitempty"`
+	Comments  int      `json:"comments,omitempty"`
+	Approvers []string `json:"approvers,omitempty"`
+	Known     bool     `json:"known,omitempty"`
+	// Base and Behind are a watched branch's base and how many of its
+	// commits the branch lacks, read from the clone on disk.
+	Base   string `json:"base,omitempty"`
+	Behind int    `json:"behind,omitempty"`
+	// Print is the forge's fingerprint of what the watch follows when it
+	// was last read in full, and Full when that was: an unchanged print
+	// spares the full read, but never for long.
+	Print string    `json:"print,omitempty"`
+	Full  time.Time `json:"full,omitzero"`
 }
 
 // Event is one change worth saying: a pipeline failed, passed, began.

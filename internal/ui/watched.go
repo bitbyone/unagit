@@ -161,14 +161,27 @@ func watchPipelineWords(st watch.State) string {
 	if !st.Started.IsZero() {
 		words += " " + humanAge(st.Started)
 	}
+	if st.Behind > 0 {
+		words += fmt.Sprintf(" · %d behind %s", st.Behind, st.Base)
+	}
 	return words
+}
+
+// latestNews is, by watch, what was last said of it.
+func latestNews(snap watch.Snapshot) map[string]string {
+	out := map[string]string{}
+	for _, e := range snap.Events {
+		out[e.Key] = e.Line
+	}
+	return out
 }
 
 func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 	previous := p.selectedIndex()
 	p.table.Clear()
 	const markW, ciW = 1, 1
-	var whats, titles, pipes, bys []int
+	var whats, titles, pipes, bys, lasts []int
+	news := latestNews(a.watchSnap)
 	changedW := headingWidth("CHANGED")
 	for _, idx := range filtered {
 		w := rows[idx]
@@ -180,14 +193,16 @@ func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 		titles = append(titles, cells(a.watchTitle(w)))
 		pipes = append(pipes, cells(watchPipelineWords(st)))
 		bys = append(bys, cells(st.User))
+		lasts = append(lasts, cells(news[w.Key()]))
 	}
 	whatCol := flexColumn("WHAT", whats, 12, 1.5)
 	titleCol := flexColumn("TITLE", titles, 10, 2)
 	pipeCol := flexColumn("PIPELINE", pipes, 8, 1.2)
 	byCol := flexColumn("BY", bys, 4, 0.6)
+	lastCol := flexColumn("LATEST", lasts, 10, 1.2)
 	changedCol := fixedColumn(changedW)
-	titleCol.drop, byCol.drop = 2, 1
-	spare := layoutColumns(p.contentWidth()-1, fixedColumn(markW), fixedColumn(ciW), whatCol, pipeCol, byCol, changedCol, titleCol)
+	titleCol.drop, byCol.drop, lastCol.drop = 3, 1, 2
+	spare := layoutColumns(p.contentWidth()-1, fixedColumn(markW), fixedColumn(ciW), whatCol, pipeCol, lastCol, byCol, changedCol, titleCol)
 	if titleCol.shown() {
 		titleCol.width += spare
 	} else {
@@ -197,6 +212,9 @@ func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 	header := []field{{width: markW}, {width: ciW},
 		{text: "WHAT", width: whatCol.width, colour: head},
 		{text: "PIPELINE", width: pipeCol.width, colour: head}}
+	if lastCol.shown() {
+		header = append(header, field{text: "LATEST", width: lastCol.width, colour: head})
+	}
 	if byCol.shown() {
 		header = append(header, field{text: "BY", width: byCol.width, colour: head})
 	}
@@ -225,6 +243,9 @@ func (a *App) drawWatched(p *pane, rows []watch.Watch, filtered []int) {
 		cells := []field{mark, {text: ci, width: ciW, colour: colour},
 			{icon: a.forgeIcon(w.Instance), text: w.Label(), width: whatCol.width, colour: role("watched.what"), shorten: shortenRepo},
 			{text: watchPipelineWords(st), width: pipeCol.width, colour: pipeColour}}
+		if lastCol.shown() {
+			cells = append(cells, field{text: news[w.Key()], width: lastCol.width, colour: role("watched.latest")})
+		}
 		if byCol.shown() {
 			cells = append(cells, field{text: st.User, width: byCol.width, colour: role("watched.by")})
 		}

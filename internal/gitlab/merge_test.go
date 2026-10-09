@@ -250,3 +250,52 @@ func TestAssigneesAreSetByIDAndClearedWithZero(t *testing.T) {
 		t.Errorf("sent = %+v", sent)
 	}
 }
+
+// TestFingerprintsAreOneQueryForEveryWatch: one GraphQL query with an alias
+// a watch, each watch's part of the answer its fingerprint, a null one "";
+// a branch gone is a 404, not an error.
+func TestFingerprintsAreOneQueryForEveryWatch(t *testing.T) {
+	var query string
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.EscapedPath() {
+		case "/api/graphql":
+			posts++
+			var body struct {
+				Query string `json:"query"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			query = body.Query
+			if r.Header.Get("Authorization") != "Bearer t" {
+				t.Errorf("authorization %q", r.Header.Get("Authorization"))
+			}
+			fmt.Fprint(w, `{"data":{"w0":{"mergeRequest":{"state":"opened","diffHeadSha":"abc"}},"w1":null}}`)
+		case "/api/v4/projects/42/repository/branches/feat%2Fx":
+			http.NotFound(w, r)
+		case "/api/v4/projects/42/repository/branches/main":
+			fmt.Fprint(w, `{"name":"main"}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL)
+		}
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "t")
+	p := forge.Project{ID: 42, PathWithNamespace: "g/app"}
+	prints, err := c.Fingerprints(context.Background(), []forge.WatchRef{{Project: p, IID: 7}, {Project: p, Branch: "main"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posts != 1 || !strings.Contains(query, `w0: project(fullPath: "g/app") { mergeRequest(iid: "7")`) ||
+		!strings.Contains(query, `w1: project(fullPath: "g/app") { pipelines(ref: "main", first: 1)`) {
+		t.Fatalf("%d queries: %s", posts, query)
+	}
+	if prints[0] != `{"mergeRequest":{"state":"opened","diffHeadSha":"abc"}}` || prints[1] != "" {
+		t.Fatalf("prints %q", prints)
+	}
+	if ok, err := c.BranchExists(context.Background(), p, "feat/x"); ok || err != nil {
+		t.Errorf("a branch gone: %v %v", ok, err)
+	}
+	if ok, err := c.BranchExists(context.Background(), p, "main"); !ok || err != nil {
+		t.Errorf("a branch there: %v %v", ok, err)
+	}
+}

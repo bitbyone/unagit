@@ -125,6 +125,14 @@ type MergeRequest struct {
 	Instance    string `json:"instance,omitempty"`
 }
 
+// WatchRef names what a watch follows, for Fingerprints: a merge request
+// of a project (IID), or a branch of it.
+type WatchRef struct {
+	Project Project
+	IID     int
+	Branch  string
+}
+
 // Label is a label of the forge's, put on merge requests: its name, its
 // colour as "#rrggbb" ("" when the forge gave none), and what it is for.
 type Label struct {
@@ -500,6 +508,18 @@ type Provider interface {
 	// SetReviewers makes these user names the reviewers asked, adding and
 	// removing as needed.
 	SetReviewers(ctx context.Context, mr MergeRequest, usernames []string) error
+	// PausedUntil is when the server may be asked again by what polls in
+	// the background, by its rate limit; zero when it may be now.
+	PausedUntil() time.Time
+	// BranchExists reports whether a branch is still on the server.
+	BranchExists(ctx context.Context, p Project, branch string) (bool, error)
+	// Fingerprints says, for each watch at once, a string that changes
+	// whenever what a watch follows does - a merge request's state, head,
+	// comments, approvals and pipeline, a branch's newest pipeline - so the
+	// watches can be read in full only when something moved. One request
+	// for all of them where the forge can (GraphQL). "" for one it cannot
+	// tell; an error leaves every watch to be read in full.
+	Fingerprints(ctx context.Context, refs []WatchRef) ([]string, error)
 	// AssigneeCandidates lists who a merge request can be assigned to: the
 	// project's members on GitLab, whoever GitHub lets be assigned there,
 	// the author included.

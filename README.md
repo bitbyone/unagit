@@ -733,6 +733,14 @@ failed on, who started it and when it last changed. `Enter` opens the jobs,
 `w` opens the pipeline in the browser, `m` goes to the merge request or the
 repository, `r` and `R` read one or every one now.
 
+A watched merge request is followed for more than its pipeline: new
+commits, new comments and an approval given or withdrawn are news too. A
+watched branch on disk says how far it is behind its base - read from the
+clone, no request - and a branch deleted on origin ends its watch. The
+servers are asked once a turn about every watch at once (GraphQL), and a
+watch is read in full only when something about it moved; a server short
+of its rate limit is left alone until it resets, and the row says so.
+
 What a watch reads is the lists' CI column too: a watched row's mark turns
 while its pipeline runs and changes when it ends, without a refresh, and
 the tab turns a mark of its own with how many run (`[5] Watched ⠋1`).

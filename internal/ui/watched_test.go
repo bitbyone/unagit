@@ -28,6 +28,18 @@ type watchServer struct {
 	sha      string
 	state    string
 	asked    atomic.Int64
+	// details counts the merge request's full reads; print, when set, is
+	// what GraphQL answers as its fingerprint (else GraphQL is a 404).
+	details   atomic.Int64
+	print     string
+	comments  int
+	approvers []string
+	commits   int
+	// remaining, when set, is what the rate limit headers say is left of
+	// a hundred, resetting in ten minutes.
+	remaining int
+	// branches are the branches the server has.
+	branches map[string]bool
 }
 
 func (s *watchServer) set(status string, pipeline int, sha string) {
@@ -45,10 +57,51 @@ func newWatchServer(t *testing.T) *watchServer {
 		fmt.Fprint(w, body)
 	}
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7", func(w http.ResponseWriter, r *http.Request) {
+		s.details.Add(1)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		json(w, fmt.Sprintf(`{"iid":7,"title":"Rate limiting","state":%q,"sha":%q,"source_branch":"feat/rate",
-			"target_branch":"main","project_id":1,"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`, s.state, s.sha))
+			"target_branch":"main","project_id":1,"user_notes_count":%d,"web_url":"https://gl.test/acme/gateway/-/merge_requests/7"}`,
+			s.state, s.sha, s.comments))
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/approvals", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var by []string
+		for _, u := range s.approvers {
+			by = append(by, fmt.Sprintf(`{"user":{"username":%q}}`, u))
+		}
+		json(w, `{"approved_by":[`+strings.Join(by, ",")+`]}`)
+	})
+	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/commits", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		w.Header().Set("X-Total", fmt.Sprint(s.commits))
+		json(w, `[]`)
+	})
+	mux.HandleFunc("/api/graphql", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.print == "" {
+			http.NotFound(w, r)
+			return
+		}
+		json(w, fmt.Sprintf(`{"data":{"w0":{"print":%q}}}`, s.print))
+	})
+	mux.HandleFunc("/api/v4/projects/1/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		s.asked.Add(1)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		json(w, fmt.Sprintf(`[{"id":%d,"status":%q,"sha":%q,"ref":"main"}]`, s.pipeline, s.status, s.sha))
+	})
+	mux.HandleFunc("/api/v4/projects/1/repository/branches/{branch}", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.branches != nil && !s.branches[r.PathValue("branch")] {
+			http.NotFound(w, r)
+			return
+		}
+		json(w, fmt.Sprintf(`{"name":%q}`, r.PathValue("branch")))
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/pipelines", func(w http.ResponseWriter, r *http.Request) {
 		s.asked.Add(1)
@@ -63,7 +116,17 @@ func newWatchServer(t *testing.T) *watchServer {
 	mux.HandleFunc("/api/v4/projects/1/pipelines/{id}/bridges", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[]`)
 	})
-	s.Server = httptest.NewServer(mux)
+	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		left := s.remaining
+		s.mu.Unlock()
+		if left > 0 {
+			w.Header().Set("RateLimit-Limit", "100")
+			w.Header().Set("RateLimit-Remaining", fmt.Sprint(left))
+			w.Header().Set("RateLimit-Reset", fmt.Sprint(time.Now().Add(10*time.Minute).Unix()))
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(s.Close)
 	return s
 }
@@ -185,7 +248,8 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	}
 	srv.set("success", 91, "bbbb2222")
 	waitFor(t, survivor, survivorScreen, "pipeline passed")
-	waitTrue(t, "the success was never notified", func() bool { return notified.Load() == 2 })
+	// A new head is news of its own, besides the pipeline's.
+	waitTrue(t, "the success was never notified", func() bool { return notified.Load() >= 2 })
 }
 
 // TestAWatchStartsFromTheListAndStopsOnItsScreen: Watch Pipelines on a
@@ -298,6 +362,14 @@ func TestPipelineChanges(t *testing.T) {
 		}
 		return strings.Join(out, " | ")
 	}
+	active := func(st watch.State, head string, commits, comments int, approvers ...string) watch.State {
+		st.Head, st.Commits, st.Comments, st.Approvers, st.Known = head, commits, comments, approvers, true
+		return st
+	}
+	behind := func(st watch.State, base string, n int) watch.State {
+		st.Base, st.Behind = base, n
+		return st
+	}
 	cases := []struct {
 		name          string
 		before, after watch.State
@@ -309,16 +381,26 @@ func TestPipelineChanges(t *testing.T) {
 		{"nothing changed", running, running, true, "", ""},
 		{"it failed", running, failed, true, "", "pipeline failed · lint (danger)"},
 		{"it passed", running, watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, true, "", "pipeline passed (success)"},
-		{"a push started another", failed, watch.State{Pipeline: 2, Status: "pending", SHA: "b2"}, true, "", "new head b2 · pipeline started (info)"},
 		{"another began on the same head", watch.State{Pipeline: 1, Status: "success", SHA: "a1"}, watch.State{Pipeline: 2, Status: "running", SHA: "a1"}, true, "", "pipeline started (info)"},
 		{"pending began to run", watch.State{Pipeline: 1, Status: "pending", SHA: "a1"}, running, true, "", ""},
 		{"it waits for a hand", running, watch.State{Pipeline: 1, Status: "manual", SHA: "a1"}, true, "", "pipeline waits for a manual job (warning)"},
 		{"cancelled", running, watch.State{Pipeline: 1, Status: "canceled", SHA: "a1"}, true, "", "pipeline cancelled (warning)"},
-		{"merged", running, running, true, "merged", "merge request merged · no longer watched (success)"},
-		{"closed", running, running, true, "closed", "merge request closed · no longer watched (warning)"},
+		{"merged", running, running, true, "merge request merged", "merge request merged · no longer watched (success)"},
+		{"closed", running, running, true, "merge request closed", "merge request closed · no longer watched (warning)"},
+		{"the branch went", running, running, true, "branch deleted on origin", "branch deleted on origin · no longer watched (warning)"},
+		{"a push started another", active(failed, "a1", 3, 0), active(watch.State{Pipeline: 2, Status: "pending", SHA: "b2"}, "b2", 5, 0), true, "",
+			"2 new commits · head b2 (info) | pipeline started (info)"},
+		{"a force push", active(running, "a1", 3, 0), active(running, "c3", 3, 0), true, "", "head rewritten · c3 (warning)"},
+		{"comments", active(running, "a1", 3, 1), active(running, "a1", 3, 2), true, "", "1 new comment (info)"},
+		{"approved", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0, "jane", "john"), true, "", "approved by john (success)"},
+		{"withdrawn", active(running, "a1", 3, 0, "jane"), active(running, "a1", 3, 0), true, "", "approval withdrawn by jane (warning)"},
+		{"activity first read", running, active(running, "a1", 3, 2, "jane"), true, "", ""},
+		{"the base moved on", behind(running, "main", 0), behind(running, "main", 3), true, "", "main moved on · 3 behind it (info)"},
+		{"caught up", behind(running, "main", 3), behind(running, "main", 0), true, "", ""},
+		{"the base first read", running, behind(running, "main", 3), true, "", ""},
 	}
 	for _, c := range cases {
-		if got := lines(pipelineChanges(w, c.before, c.after, c.known, c.ended)); got != c.want {
+		if got := lines(watchChanges(w, c.before, c.after, c.known, c.ended)); got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
 	}
