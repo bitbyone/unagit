@@ -96,6 +96,10 @@ var colourRoles = []colourRole{
 	{"log.ref_tag.fill", "tags.apricot.fill", ""},
 	{"log.ref_detached.ink", "chezmoi.badge_ink", "a detached HEAD's pill"},
 	{"log.ref_detached.fill", "chezmoi.badge_fill", ""},
+	{"log.ref_more.ink", "chezmoi.badge_ink", "the pill counting what did not fit, +2"},
+	{"log.ref_more.fill", "chezmoi.badge_fill", ""},
+	{"log.ref_theirs.ink", "log.theirs", "any pill on a commit only origin has, dim as its row"},
+	{"log.ref_theirs.fill", "surface.raised", ""},
 	// Code in a diff, by what each word of it is.
 	{"syntax.keyword", "text.key", "a keyword of the language"},
 	{"syntax.string", "state.good", "a string"},

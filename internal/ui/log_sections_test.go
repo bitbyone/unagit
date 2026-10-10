@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/gitx"
 )
 
 // ruleWords finds the lines between a log's sections, not a frame's border.
@@ -84,6 +87,18 @@ func TestTheLogShowsWhereOriginStands(t *testing.T) {
 	inOrder(t, text, "── only here", "Count and bill requests", "── only on origin",
 		"Bill them", "Count requests", "── shared", "Add the limiter")
 	assertLegible(t, a, sc, "a log parted from origin")
+	// origin/main is on a commit only origin has: its pill is dim, on a
+	// fill of its own - not the text's colour, as a name that is no role
+	// once made it.
+	row := lineOf(text, "Bill them")
+	line := strings.Split(text, "\n")[row]
+	x := len([]rune(line[:strings.Index(line, "origin/main")]))
+	_, style := cellAt(a, sc, x, row)
+	_, bg, _ := style.Decompose()
+	want := onLoop(a, func() tcell.Color { return quieter(role("log.ref_theirs.fill")) })
+	if bg.Hex() != want.Hex() {
+		t.Errorf("origin/main on a commit only origin has is on %v, want %v", bg, want)
+	}
 }
 
 // TestTheLogsRefsArePills: what points at a commit is drawn as pills - HEAD
@@ -140,5 +155,27 @@ func TestTheLogsRefsArePills(t *testing.T) {
 	sha := onLoop(a, func() tcell.Color { return role("log.sha") })
 	if fg := fgAt(sx-10, sy); fg.Hex() != sha.Hex() {
 		t.Errorf("the id is in %v, want %v", fg, sha)
+	}
+}
+
+// TestPillsThatDoNotFitAreCounted: refs past the room left are a pill
+// counting them, +2, never a pill cut in half; the pane under the list
+// names every one.
+func TestPillsThatDoNotFitAreCounted(t *testing.T) {
+	t.Parallel()
+	c := logCommit{LogEntry: gitx.LogEntry{
+		Refs:     []string{"HEAD -> main", "feature/a-rather-long-name", "release/2026-10", "tag: v1.0"},
+		RefKinds: []gitx.RefKind{gitx.RefHeadOn, gitx.RefLocal, gitx.RefLocal, gitx.RefTag},
+	}}
+	markup, width := refPills(c, config.TagEndsSquare, behindList, 30)
+	plain := plainText(markup)
+	if width > 30 || !strings.Contains(plain, "HEAD→main") || !strings.Contains(plain, "+3") && !strings.Contains(plain, "+2") {
+		t.Errorf("in 30 cells: %q (%d)", plain, width)
+	}
+	if _, all := refPills(c, config.TagEndsSquare, behindList, 200); all <= 30 {
+		t.Errorf("with room every pill is drawn: %d cells", all)
+	}
+	if about := commitAbout(c, logPlace{}); !strings.Contains(about, "release/2026-10") || !strings.Contains(about, "v1.0") {
+		t.Errorf("the pane does not name every ref: %q", about)
 	}
 }

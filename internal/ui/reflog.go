@@ -65,7 +65,7 @@ func (a *App) listReflog(s reflogScope, entries []gitx.ReflogEntry, head string)
 	for i, e := range entries {
 		now := ""
 		if e.SHA == head {
-			now = tag(role("state.good")) + "now" + tagEnd
+			now = tag(colOn) + "now" + tagEnd
 		}
 		table[i] = []string{
 			tag(role("activity.when")) + esc(eventTime(e.At)) + tagEnd,

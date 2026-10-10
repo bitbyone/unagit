@@ -224,6 +224,10 @@ func refWords(refs []string) string {
 // what a review from a merge commit would bring in.
 func commitAbout(c logCommit, place logPlace) string {
 	about := c.Author + " · " + c.When.Format("2006-01-02 15:04")
+	// Every ref, those the row had no room for too.
+	if refs := refWords(c.Refs); refs != "" {
+		about += " · " + refs
+	}
 	if place.mr != nil && c.Merge {
 		about += " · merge commit: a review from here includes what it merged"
 	}
@@ -253,7 +257,7 @@ func isHead(c logCommit) bool {
 func labelLog(items []pickItem, commits []logCommit, width int, ends string) {
 	refsW := 0
 	for _, c := range commits {
-		prefix, _, pillsW := logSub(c, ends, behindList)
+		prefix, _, pillsW := logSub(c, ends, behindList, 1<<20)
 		refsW = max(refsW, tview.TaggedStringWidth(prefix)+2+pillsW)
 	}
 	// Who wrote each, in a column of its own after the subject.
@@ -302,7 +306,12 @@ func labelLog(items []pickItem, commits []logCommit, width int, ends string) {
 		if subject != "" {
 			label = subject + label + tagEnd
 		}
-		prefix, pills, pillsW := logSub(c, ends, behindList)
+		// The pills take what the row has left; those that do not fit are
+		// counted, not cut.
+		prefix, _, _ := logSub(c, ends, behindList, 0)
+		at := tview.TaggedStringWidth(label) + 3 + tview.TaggedStringWidth(prefix) + 2
+		room := max(width-at, 8)
+		_, pills, pillsW := logSub(c, ends, behindList, room)
 		items[n].Label = label
 		items[n].Sub = prefix
 		items[n].Pills, items[n].PillsAt = nil, 0
@@ -310,9 +319,8 @@ func labelLog(items []pickItem, commits []logCommit, width int, ends string) {
 			items[n].Sub += "  " + pills
 			// Drawn again over a band, where the list paints its fill over
 			// theirs (bandedList).
-			at := tview.TaggedStringWidth(label) + 3 + tview.TaggedStringWidth(prefix) + 2
 			items[n].Pills, items[n].PillsAt = func(behind string) string {
-				markup, _ := refPills(c, ends, behind)
+				markup, _ := refPills(c, ends, behind, room)
 				return markup
 			}, at
 		}
@@ -375,7 +383,7 @@ func logRules(place logPlace, commits []logCommit) map[int]string {
 // own, then the pipeline - its mark and its word in its colour, as every
 // list draws a pipeline - and then, apart, what points at the commit as
 // pills, drawn on behind, and how wide they are.
-func logSub(c logCommit, ends, behind string) (prefix, pills string, pillsW int) {
+func logSub(c logCommit, ends, behind string, room int) (prefix, pills string, pillsW int) {
 	ageInk := role("log.age")
 	if c.Theirs {
 		ageInk = role("log.theirs")
@@ -385,7 +393,7 @@ func logSub(c logCommit, ends, behind string) (prefix, pills string, pillsW int)
 		mark, status := painted(ci, c.CI)
 		prefix += "  " + strings.TrimSpace(mark+" "+status)
 	}
-	pills, pillsW = refPills(c, ends, behind)
+	pills, pillsW = refPills(c, ends, behind, room)
 	return prefix, pills, pillsW
 }
 
@@ -394,7 +402,7 @@ func logSub(c logCommit, ends, behind string) (prefix, pills string, pillsW int)
 // tag in a colour of its own. A branch and its copy on a remote at the
 // same commit share one pill, the branch's half green and the remote's
 // purple: in step, at a glance. On a commit only origin has they are dim.
-func refPills(c logCommit, ends, behind string) (string, int) {
+func refPills(c logCommit, ends, behind string, room int) (string, int) {
 	type ref struct {
 		text string
 		kind gitx.RefKind
@@ -421,29 +429,43 @@ func refPills(c logCommit, ends, behind string) (string, int) {
 		}
 	}
 	colour := func(kind gitx.RefKind) tagColour {
-		if c.Theirs {
-			return tagColour{ink: role("log.theirs").String(), fill: role("surface.raised").String()}
-		}
 		name := "log.ref_local"
-		switch kind {
-		case gitx.RefRemote:
+		switch {
+		case c.Theirs:
+			name = "log.ref_theirs"
+		case kind == gitx.RefRemote:
 			name = "log.ref_remote"
-		case gitx.RefTag:
+		case kind == gitx.RefTag:
 			name = "log.ref_tag"
-		case gitx.RefHead:
+		case kind == gitx.RefHead:
 			name = "log.ref_detached"
 		}
 		return tagColour{ink: quieter(role(name + ".ink")).String(), fill: quieter(role(name + ".fill")).String()}
 	}
 	var parts []string
-	width := 0
+	width, total, shown := 0, 0, 0
+	full := false
 	add := func(markup string, w int) {
+		total++
+		if full {
+			return
+		}
+		need := w
+		if width > 0 {
+			need++
+		}
+		// Room for this one and, when more may follow, a count of them.
+		if width+need > room {
+			full = true
+			return
+		}
 		if width > 0 {
 			parts = append(parts, " ")
 			width++
 		}
 		parts = append(parts, markup)
 		width += w
+		shown++
 	}
 	// A local branch takes its remote copy at the same commit into its pill.
 	branch := func(r ref, text string) {
@@ -472,6 +494,36 @@ func refPills(c logCommit, ends, behind string) (string, int) {
 	}
 	for _, t := range tags {
 		add(pillOf(t.text, colour(gitx.RefTag), ends, behind))
+	}
+	if left := total - shown; left > 0 {
+		// A pill of its own counts the rest; the pane under the list names
+		// them all (commitAbout). It takes the place of the last pill
+		// when it does not fit beside it.
+		more := func(n int) (string, int) {
+			if c.Theirs {
+				return pillOf(fmt.Sprintf("+%d", n), colour(gitx.RefLocal), ends, behind)
+			}
+			return pillOf(fmt.Sprintf("+%d", n), tagColour{ink: quieter(role("log.ref_more.ink")).String(),
+				fill: quieter(role("log.ref_more.fill")).String()}, ends, behind)
+		}
+		markup, w := more(left)
+		for width+1+w > room && len(parts) > 0 {
+			last := parts[len(parts)-1]
+			parts = parts[:len(parts)-1]
+			width -= tview.TaggedStringWidth(last)
+			if len(parts) > 0 && parts[len(parts)-1] == " " {
+				parts = parts[:len(parts)-1]
+				width--
+			}
+			left++
+			markup, w = more(left)
+		}
+		if width > 0 {
+			parts = append(parts, " ")
+			width++
+		}
+		parts = append(parts, markup)
+		width += w
 	}
 	return strings.Join(parts, ""), width
 }

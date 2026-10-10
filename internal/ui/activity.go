@@ -479,7 +479,7 @@ func (a *App) activityDetail(it activityItem, width int) string {
 			}
 		}
 		if st.Base != "" {
-			behind := tag(role("state.good")) + "up to date with " + esc(st.Base) + tagEnd
+			behind := tag(colOn) + "up to date with " + esc(st.Base) + tagEnd
 			if st.Behind > 0 {
 				behind = tag(colWarn) + fmt.Sprintf("%d behind %s", st.Behind, esc(st.Base)) + tagEnd
 			}
