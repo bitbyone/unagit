@@ -133,3 +133,28 @@ func TestTheDefaultBranchStandsApart(t *testing.T) {
 		t.Errorf("a branch of work is %06x", got)
 	}
 }
+
+// TestTheLogsPillsStandOut: in every built-in theme each pill of the
+// commit log is read off its fill, and a detached HEAD and the count of
+// what did not fit are coloured as the others are - they once borrowed a
+// badge's black on grey, and came out as a dark smudge beside them.
+func TestTheLogsPillsStandOut(t *testing.T) {
+	t.Parallel()
+	for name, th := range loadThemes("").byName {
+		roles := resolveRoles(th)
+		for _, pill := range []string{"ref_local", "ref_remote", "ref_tag", "ref_detached", "ref_more"} {
+			ink, fill := roles["log."+pill+".ink"], roles["log."+pill+".fill"]
+			if c := contrast(ink, fill); c < 3 {
+				t.Errorf("%s: %s is hard to read on its fill (%.1f)", name, pill, c)
+			}
+			if pill != "ref_detached" && pill != "ref_more" {
+				continue
+			}
+			// The badge's greys spread 16 at most between their channels;
+			// the quietest themes' coral and azure, 18.
+			if r, g, b := fill.RGB(); max(r, g, b)-min(r, g, b) < 18 {
+				t.Errorf("%s: %s's fill %06x is a grey", name, pill, fill.Hex())
+			}
+		}
+	}
+}
