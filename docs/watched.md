@@ -132,7 +132,7 @@ No forge pushes pipeline changes to a client like this one:
 
 So it is polling, made cheap:
 
-- a watch whose pipeline runs is asked every 15 s (`ciAskEvery`); one that
+- a watch whose pipeline runs is asked every 10 s (`ciAskEvery`); one that
   waits, every 20 s, to notice a push that starts a new pipeline;
 - one request per watch and turn - `MergeRequestPipeline` or
   `LatestPipeline`, no jobs. The jobs are read only when a pipeline has just
@@ -277,9 +277,10 @@ Each a `watchKind`, its row and its actions:
 - The second-long `stat` loop costs nothing measurable, but a test that
   waits on it waits up to a second; the interval is a field of the App like
   `ciAskEvery`, short in tests.
-- Twenty running pipelines at 15 s are under 5,000 requests an hour -
-  GitHub's limit for a token - but the lists' own refresh shares it.
-  GraphQL batching is what removes the ceiling.
+- Running pipelines are asked every 10 s, 360 requests an hour each:
+  thirteen of them stay under 5,000 an hour - GitHub's limit for a token -
+  and the lists' own refresh shares it. GraphQL batching is what removes
+  the ceiling.
 
 ## Where it stands
 

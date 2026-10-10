@@ -130,7 +130,11 @@ all and live only there.
 - `CI` is the newest pipeline of the clone's branch, drawn as in Merge
   requests; a repository not cloned has none, and costs no request. It is
   read on `R` (`r` for one row) and kept for the next start; one still
-  running is asked about again until it ends.
+  running is asked about again every 10 seconds until it ends, in every
+  list. When the server does not answer - out of the VPN - the status line
+  says so, never a box in front: it is asked again twice after 10 seconds,
+  then after 20, 30, 50 and 80, and from the third failure it shows `?`
+  (unknown); after the last it is left to a refresh.
 - the edits column, headed `✎` (a pencil with a Nerd Font), counts the
   files not committed in the clone as IntelliJ sees them: `12/3` is twelve
   versioned files with changes, in blue, and three unversioned ones git does
@@ -143,22 +147,43 @@ all and live only there.
   **Commit and Push** (`p`: the new commit goes with every earlier one not
   pushed yet) or **Commit and Force Push** (`f`: origin's copy is replaced,
   but only what was last fetched of it). `P` pushes the commits the clone
-  has and origin lacks, without committing. Every push asks first.
+  has and origin lacks, without committing. Every push asks first - its
+  question lists the commits that go - and
+  offers **Force Push** beside **Push**; a branch origin has moved past is
+  offered Force Push alone - or pull first, to keep both.
 - `Ctrl-K` opens **Changes**, IntelliJ's commit window: on the left the
   files not committed in two groups - *Changes*, the versioned ones, and
   *Unversioned Files* - each name in the colour of what happened to it
   (changed blue, added green, deleted grey, unversioned red-brown); on the
   right the diff of the file under the cursor, only the places that
   changed with the old and new line numbers, added lines on green, deleted
-  on red, the code coloured by its language. `space` picks a file - or a
-  whole group on its heading - for the commit, `a` all or none; the
-  versioned files start picked, the unversioned not. `c` opens the commit
-  dialog with the picked files, an unversioned one added on the way. `u`
-  rolls changes back to the last commit and `d` deletes unversioned files,
-  each after asking: on the picked files when the cursor is on one of them,
-  on the file under the cursor otherwise. A rolled back added file stays
-  on disk, unversioned; an unversioned file is never rolled back, only
-  deleted. `Tab` goes into the diff to scroll it, and so do `l` and `Enter`
+  on red, the code coloured by its language - all of it the theme's roles
+  (`diff.added_fill`, `diff.deleted_fill`, `syntax.keyword` …), which a
+  theme of your own sets under `colours`. Two things are kept apart, as
+  IntelliJ keeps its checkboxes apart from its selection. A file's box
+  (`■`/`□`) says whether it goes into the commit: `x` ticks or unticks it -
+  a whole group on its heading - and `a` all or none; the versioned files
+  start ticked, the unversioned not, and only `c` reads the boxes, opening
+  the commit dialog with the ticked files, an unversioned one added on the
+  way. `space` marks rows on the marks' band, as in every list, and every
+  other action takes the marked rows, or the row under the cursor when none
+  is marked: `R` rolls changes back to the last commit, `A` adds
+  unversioned files to git - they join the changes as added, ticked - `d` deletes
+  unversioned files - each after asking, and saying what of the marked it
+  leaves - and `x` ticks them. `d` therefore never deletes what is merely
+  ticked. `Esc` takes the marks away before it closes the dialog;
+  `Alt-Enter` lists what can be done with the marked rows or the one under
+  the cursor, `:` what the dialog can do. A rolled back added file stays on
+  disk, unversioned; an unversioned file is never rolled back, only
+  deleted. `Ctrl-O` opens the whole working tree in your editor with the
+  file under the cursor in front (`Alt-O` asks which editor). Each file says
+  how many of its lines were added and deleted (`+12 −3`, quieter than
+  its name). `/` narrows the list to the paths that match, `Esc` widens it
+  again. `y` copies the marked files' paths - from the repository's root
+  or in full - their folders, or their changes as a **patch** another
+  checkout applies (`git apply`, IntelliJ's Apply Patch); `D` shows them
+  in Hunk; `I` writes unversioned files into `.gitignore`, each by its own
+  path. Coming back to unagit's window reads the changes again. `Tab` goes into the diff to scroll it, and so do `l` and `Enter`
   where the tree has no use for them; `h` folds a group or goes up from a
   file to its group, and from the diff - scrolled back to its left edge -
   back to the list. The same dialog opens on
@@ -384,8 +409,9 @@ conflict; otherwise nothing changes. A pushed branch then differs from origin's
 copy and its row says **force push required**: `P` asks, then pushes with
 `--force-with-lease` set to exactly what origin had before the rebase, so a
 commit someone pushed in the meantime makes git refuse instead of being lost.
-The commit dialog's **Commit and Force Push** is the only other: its lease is origin's
-copy as last fetched, and it asks first.
+Every other force push is chosen in a question - **Force Push** beside
+**Push** in `P`'s, or the commit dialog's **Commit and Force Push** - and
+its lease is origin's copy as last fetched.
 
 The edits column (`✎`) counts the files not committed - versioned, then
 after a slash unversioned, as in Repositories - so work in progress shows
@@ -694,7 +720,10 @@ and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
 `e` edits the message of a commit no remote has yet - the newest is
 amended, an older one written again and the commits after it replayed onto
-it; a pushed commit is refused, since changing it would need a force push.
+it; a pushed commit is refused, since changing it would need a force push. `u` undoes
+the newest commit when no remote has it: the commit goes, its changes
+stay on disk to be committed again. Both are among a commit's actions
+(`Alt-Enter`), offered only where they can be done.
 `w` opens the commit on the server, and `y` copies its id, its link, a
 markdown link, or a link with text for a chat: repository, branch, commit
 and subject followed by the link. `y` on a merge request or a repository
@@ -855,7 +884,7 @@ Watching runs only while unagit does: the token is only ever in a running
 unagit's memory, and there is no background service. With several open, one
 asks the servers and the others read what it found, so each change is said
 once; when that one exits another carries on. A running pipeline is asked
-about every 15 seconds, a finished one every two minutes, to notice the next
+about every 10 seconds, a finished one every two minutes, to notice the next
 push. What is watched is kept under `~/.config/unagit/watch/`, beside the
 configuration but not in it: `config.yaml` is what you carry between
 machines, what you happen to wait for here is not.
@@ -1121,7 +1150,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
 | `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
 | `c` `P` | in Repositories and Worktrees: commit the versioned files, push with it if you like · push, asking first |
-| `Ctrl-K` | the changes: files not committed and their diffs; `space` picks, `c` commits, `u` rolls back, `d` deletes |
+| `Ctrl-K` | the changes: files not committed and their diffs; `x` ticks for the commit, `c` commits, `space` marks, `R` rolls back, `A` adds to git, `d` deletes |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
 | `n` | in branches: a new branch from the one under the cursor |

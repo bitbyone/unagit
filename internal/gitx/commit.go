@@ -153,3 +153,38 @@ func (g *Git) PushHead(dir string, force bool) (string, error) {
 func (g *Git) Message(dir, sha string) (string, error) {
 	return g.out(dir, "log", "-1", "--format=%B", sha)
 }
+
+// Outgoing are the commits a push would send, newest first, each its short
+// id and subject: those the upstream lacks, or - for a branch origin does
+// not have yet - those on no branch of any remote.
+func (g *Git) Outgoing(dir string) ([]string, error) {
+	args := []string{"log", "--format=%h %s", "@{upstream}..HEAD"}
+	if _, err := g.UpstreamTip(dir); err != nil {
+		args = []string{"log", "--format=%h %s", "HEAD", "--not", "--remotes"}
+	}
+	out, err := g.out(dir, args...)
+	if err != nil || out == "" {
+		return nil, err
+	}
+	return strings.Split(out, "\n"), nil
+}
+
+// UndoCommit takes the newest commit back, its changes left in the working
+// tree as they were - not one is lost, they are only not committed again.
+// A first commit has nothing to go back to, and a merge would bring what it
+// merged along, so both are refused.
+func (g *Git) UndoCommit(dir string) error {
+	parents, err := g.out(dir, "rev-list", "--parents", "-n", "1", "HEAD")
+	if err != nil {
+		return err
+	}
+	switch len(strings.Fields(parents)) {
+	case 1:
+		return fmt.Errorf("this is the first commit: there is nothing before it to go back to")
+	case 2:
+	default:
+		return fmt.Errorf("HEAD is a merge: undoing it would bring what it merged in as changes")
+	}
+	_, err = g.Run(dir, "reset", "--soft", "--quiet", "HEAD~1")
+	return err
+}

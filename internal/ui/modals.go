@@ -24,6 +24,19 @@ func (a *App) confirm(title, body string, warnings []string, onYes func()) {
 
 // confirmWith shows a yes/no dialog whose accepting button says what it does.
 func (a *App) confirmWith(title, body, accept string, warnings []string, onYes func()) {
+	a.confirmChoices(title, body, warnings, []choice{{accept, onYes}})
+}
+
+// choice is one of the buttons a confirmation accepts with.
+type choice struct {
+	label string
+	run   func()
+}
+
+// confirmChoices is a confirmation with more than one way to go on - Push
+// or Force Push - each its own button, Cancel before them. y accepts only
+// where there is a single choice.
+func (a *App) confirmChoices(title, body string, warnings []string, choices []choice) {
 	text := body
 	if len(warnings) > 0 {
 		text += "\n\n" + tag(colBad) + "Careful:" + tagEnd + "\n"
@@ -31,14 +44,22 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 			text += "  " + tag(colBad) + "!" + tagEnd + " " + tview.Escape(w) + "\n"
 		}
 	}
-	keys := buttonKeys([]string{"Cancel", accept})
+	labels := []string{"Cancel"}
+	for _, c := range choices {
+		labels = append(labels, c.label)
+	}
+	keys := buttonKeys(labels)
+	marked := make([]string, len(labels))
+	for i, label := range labels {
+		marked[i] = markKey(label, keys[i])
+	}
 	modal := tview.NewModal().
 		SetText(text).
-		AddButtons([]string{markKey("Cancel", keys[0]), markKey(accept, keys[1])}).
+		AddButtons(marked).
 		SetDoneFunc(func(i int, label string) {
 			a.closeModal(pageConfirm)
-			if i == 1 {
-				onYes()
+			if i >= 1 && i <= len(choices) {
+				choices[i-1].run()
 			}
 		})
 	modal.SetTextColor(colText)
@@ -53,19 +74,24 @@ func (a *App) confirmWith(title, body, accept string, warnings []string, onYes f
 			return ev
 		}
 		key := unicode.ToLower(ev.Rune())
-		switch {
-		case key == keys[0] || key == 'n' || key == 'q':
+		if key == keys[0] || key == 'n' || key == 'q' {
 			a.closeModal(pageConfirm)
 			return nil
-		case key == keys[1] || key == 'y':
-			a.closeModal(pageConfirm)
-			onYes()
-			return nil
+		}
+		for i, c := range choices {
+			if key == keys[i+1] || key == 'y' && len(choices) == 1 {
+				a.closeModal(pageConfirm)
+				c.run()
+				return nil
+			}
 		}
 		return ev
 	})
 
-	hint := fmt.Sprintf("c cancel · %c %s", keys[1], strings.ToLower(accept))
+	hint := "c cancel"
+	for i, c := range choices {
+		hint += fmt.Sprintf(" · %c %s", keys[i+1], strings.ToLower(c.label))
+	}
 	a.pages.AddPage(pageConfirm, modalFull(&confirmationHint{Modal: modal, hint: hint}), true, true)
 	a.tv.SetFocus(modal)
 }
@@ -291,7 +317,14 @@ type pickKey struct {
 	// named, when set, says the name and the about as they are now, for
 	// an action that turns into its opposite once done (Watch Merge Request).
 	named func() (string, string)
+	// when says whether the key can be done with an item: one that cannot
+	// is left out of the item's actions. The key still runs, so that it
+	// says why not. nil is always.
+	when func(pickItem) bool
 }
+
+// can reports whether a key can be done with an item.
+func (k pickKey) can(it pickItem) bool { return k.when == nil || k.when(it) }
 
 func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) *livePicker {
 	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
@@ -444,8 +477,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			hints = append(hints, "Enter select")
 		}
 		for _, k := range opts.keys {
-			// A key-less action is the actions picker's alone.
-			if k.keys != "" {
+			// A key-less action is the actions picker's alone, and one with
+			// no hint is looked for there: its key works, unnamed.
+			if k.keys != "" && k.hint != "" {
 				hints = append(hints, k.keys+" "+k.hint)
 			}
 		}
@@ -543,7 +577,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				if k.named != nil {
 					name, about = k.named()
 				}
-				if name == "" {
+				if name == "" || !k.can(it) {
 					continue
 				}
 				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, rank: 10 + n, run: func() {

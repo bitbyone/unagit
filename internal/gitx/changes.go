@@ -1,10 +1,12 @@
 package gitx
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -25,11 +27,15 @@ const (
 	Unversioned
 )
 
-// Change is one file not committed. From is where a renamed file was.
+// Change is one file not committed. From is where a renamed file was;
+// Added and Deleted count its lines that differ from HEAD, and Binary says
+// a file has no lines to count.
 type Change struct {
-	Path string
-	From string
-	Kind ChangeKind
+	Path           string
+	From           string
+	Kind           ChangeKind
+	Added, Deleted int
+	Binary         bool
 }
 
 // Versioned reports whether git tracks the file, or is about to.
@@ -89,6 +95,7 @@ func (g *Git) Changes(dir string) ([]Change, error) {
 		}
 		changes = append(changes, c)
 	}
+	g.countLines(dir, changes)
 	sort.SliceStable(changes, func(i, j int) bool {
 		vi, vj := changes[i].Versioned(), changes[j].Versioned()
 		if vi != vj {
@@ -97,6 +104,62 @@ func (g *Git) Changes(dir string) ([]Change, error) {
 		return changes[i].Path < changes[j].Path
 	})
 	return changes, nil
+}
+
+// countLines fills in how many lines of each file differ from HEAD: git's
+// numstat for the versioned, the lines of the file for an unversioned one.
+// A count git cannot give is left at nothing rather than failing the list.
+func (g *Git) countLines(dir string, changes []Change) {
+	out, _ := g.Run(dir, "--no-optional-locks", "diff", "--numstat", "-z", "-M", "--no-ext-diff", g.head(dir))
+	type count struct {
+		added, deleted int
+		binary         bool
+	}
+	counts := map[string]count{}
+	fields := strings.Split(out, "\x00")
+	for i := 0; i < len(fields); i++ {
+		parts := strings.SplitN(fields[i], "\t", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		path := parts[2]
+		// A rename leaves the path empty and gives both ends after it.
+		if path == "" && i+2 < len(fields) {
+			path = fields[i+2]
+			i += 2
+		}
+		added, errA := strconv.Atoi(parts[0])
+		deleted, errD := strconv.Atoi(parts[1])
+		counts[path] = count{added, deleted, errA != nil || errD != nil}
+	}
+	for i := range changes {
+		c := &changes[i]
+		if c.Kind == Unversioned {
+			c.Added, c.Binary = fileLines(filepath.Join(dir, c.Path))
+			continue
+		}
+		n := counts[c.Path]
+		c.Added, c.Deleted, c.Binary = n.added, n.deleted, n.binary
+	}
+}
+
+// fileLines counts a file's lines, or says it is binary: a zero byte in it,
+// or more than is worth reading to count.
+func fileLines(path string) (int, bool) {
+	const most = 4 << 20
+	info, err := os.Stat(path)
+	if err != nil || info.Size() > most {
+		return 0, err == nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || bytes.IndexByte(data, 0) >= 0 {
+		return 0, err == nil
+	}
+	n := bytes.Count(data, []byte("\n"))
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		n++
+	}
+	return n, false
 }
 
 // head is HEAD, or the empty tree in a repository with no commit yet.
@@ -205,4 +268,66 @@ func (g *Git) DeleteUnversioned(dir string, paths []string) error {
 		}
 	}
 	return nil
+}
+
+// AddFiles puts unversioned files under git, as IntelliJ's Add to VCS
+// does: each becomes an added file, a change of its own to commit.
+func (g *Git) AddFiles(dir string, paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	_, err := g.Run(dir, append([]string{"--literal-pathspecs", "add", "--"}, paths...)...)
+	return err
+}
+
+// Ignore writes files into the repository's .gitignore, each anchored to
+// its own path - "/docs/notes.md", not every notes.md - with what git would
+// read as a pattern escaped. The file is made when there is none.
+func (g *Git) Ignore(dir string, paths []string) error {
+	file := filepath.Join(dir, ".gitignore")
+	old, err := os.ReadFile(file)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	var b strings.Builder
+	b.Write(old)
+	if len(old) > 0 && old[len(old)-1] != '\n' {
+		b.WriteByte('\n')
+	}
+	for _, p := range paths {
+		b.WriteString("/" + ignorePattern(p) + "\n")
+	}
+	return os.WriteFile(file, []byte(b.String()), 0o644)
+}
+
+// ignorePattern is a path as .gitignore reads it literally: its pattern
+// characters, and a trailing space git would drop, escaped.
+func ignorePattern(path string) string {
+	var b strings.Builder
+	for _, r := range path {
+		if strings.ContainsRune(`\*?[!#`, r) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	out := b.String()
+	if strings.HasSuffix(out, " ") {
+		out = strings.TrimSuffix(out, " ") + "\\ "
+	}
+	return out
+}
+
+// Patch is the changes of files as one patch against HEAD - a new file for
+// an unversioned one - that another checkout can apply: git apply, or
+// IntelliJ's Apply Patch.
+func (g *Git) Patch(dir string, changes []Change) (string, error) {
+	var b strings.Builder
+	for _, c := range changes {
+		part, err := g.ChangeDiff(dir, c)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(part)
+	}
+	return b.String(), nil
 }

@@ -143,7 +143,8 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 }
 
 // TestCopyACommit: y offers the link, a line for a chat - repository,
-// branch, commit and subject, then the link - and the ids.
+// branch, commit and subject, then the link - and the ids; a commit no
+// remote has offers no link, since there is no page to link to.
 func TestCopyACommit(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -151,6 +152,7 @@ func TestCopyACommit(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	commitIn(t, p.clone, "b.txt", "Count requests per client")
+	gitIn(t, p.clone, "push", "-q", "origin", "main")
 	sha := gitIn(t, p.clone, "rev-parse", "HEAD")
 	onLoop(a, func() bool { a.projects[0].WebURL = "https://gl.test/acme/gateway"; return true })
 	p.rescan()
@@ -166,6 +168,21 @@ func TestCopyACommit(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q is not offered:\n%s", want, text)
 		}
+	}
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Copy · "+sha[:8])
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Commit Log ·")
+	commitIn(t, p.clone, "c.txt", "Bill them")
+	local := gitIn(t, p.clone, "rev-parse", "HEAD")
+	p.rescan()
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Copy · "+local[:8])
+	if text := a.screenText(sc); strings.Contains(text, "https://") || !strings.Contains(text, "Commit id") {
+		t.Errorf("a local commit's copy:\n%s", text)
 	}
 }
 

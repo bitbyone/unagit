@@ -303,7 +303,7 @@ func TestPushSendsANewBranchWithItsUpstream(t *testing.T) {
 
 	// A second P has nothing to send.
 	typeRunes(sc, "P")
-	waitFor(t, a, sc, "already on origin")
+	waitFor(t, a, sc, "has nothing to push")
 }
 
 func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
@@ -326,7 +326,10 @@ func TestPushSendsMoreCommitsWithoutChangingTheUpstream(t *testing.T) {
 	}
 }
 
-func TestPushIsRefusedWhenOriginIsAhead(t *testing.T) {
+// TestPushOfADivergedBranchOnlyForces: a branch origin has moved past is
+// not pushed plainly; P offers Force Push alone, Cancel leaves origin as it
+// was, and Force Push replaces origin's copy with the branch.
+func TestPushOfADivergedBranchOnlyForces(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
@@ -344,10 +347,22 @@ func TestPushIsRefusedWhenOriginIsAhead(t *testing.T) {
 	waitFor(t, a, sc, "diverged")
 
 	typeRunes(sc, "P")
-	waitFor(t, a, sc, "pull or rebase first")
-	time.Sleep(200 * time.Millisecond)
+	waitFor(t, a, sc, "Pull first to keep both")
+	if strings.Contains(a.screenText(sc), "p push") {
+		t.Errorf("a diverged branch is offered a plain push:\n%s", a.screenText(sc))
+	}
+	typeRunes(sc, "c")
+	waitGone(t, a, sc, "Pull first to keep both")
 	if got := gitIn(t, p.origin, "rev-parse", "feat/behind"); got != before {
-		t.Error("a refused push must not touch origin")
+		t.Error("a cancelled push touched origin")
+	}
+
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "Pull first to keep both")
+	typeRunes(sc, "f")
+	waitFor(t, a, sc, "in sync")
+	if got, want := gitIn(t, p.origin, "rev-parse", "feat/behind"), gitIn(t, dir, "rev-parse", "HEAD"); got != want {
+		t.Errorf("origin has %s, the worktree %s", got, want)
 	}
 }
 

@@ -829,6 +829,8 @@ func ciMark(status string) (string, tcell.Color) {
 		return glyphScheduled, role("ci.manual")
 	case "canceled", "cancelled", "skipped":
 		return glyphCIIdle, role("ci.idle")
+	case ciUnknown:
+		return glyphCIUnknown, role("ci.unknown")
 	}
 	switch ciStateOf(status) {
 	case ciNone:

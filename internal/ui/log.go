@@ -74,13 +74,23 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	at := func(it pickItem) logCommit { return commits[it.Data.(int)] }
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
 
+	// A commit no remote has is not on the server: it has no page there and
+	// no pipeline ran for it.
+	onServer := func(it pickItem) bool { return !at(it).Local }
+	browser := a.browserKey("w", "browser", "Open in Browser", "The commit's page on the forge; the log stays open.",
+		func(it pickItem) string { return a.commitURL(place, at(it)) })
+	browser.when = onServer
 	keys := []pickKey{
 		{keys: "D", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), false) }},
 		{keys: "Alt-D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
-		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) }},
-			pickKey{keys: "e", hint: "edit message", name: "Edit Commit Message…", about: "Write the message of a commit not pushed yet again; the commits after it are replayed onto it.", run: func(it pickItem) { a.editCommitMessage(place, at(it), again(it)) }})
+		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) },
+			when: func(it pickItem) bool { return !isHead(at(it)) }},
+			pickKey{keys: "e", name: "Edit Commit Message…", about: "Write the message of a commit not pushed yet again; the commits after it are replayed onto it.", run: func(it pickItem) { a.editCommitMessage(place, at(it), again(it)) },
+				when: func(it pickItem) bool { return at(it).Local }},
+			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back, not pushed yet: its changes stay on disk, to be committed again.", run: func(it pickItem) { a.undoCommit(place, at(it), it.Data.(int) == 0, again(it)) },
+				when: func(it pickItem) bool { return it.Data.(int) == 0 && at(it).Local }})
 	}
 	if place.mr != nil {
 		mr := *place.mr
@@ -100,9 +110,8 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 		pickKey{keys: "J", hint: "pipelines", name: "Show Pipelines…", about: "The pipelines that ran for this commit, and their jobs.", run: func(it pickItem) {
 			c := at(it)
 			a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
-		}},
-		a.browserKey("w", "browser", "Open in Browser", "The commit's page on the forge; the log stays open.",
-			func(it pickItem) string { return a.commitURL(place, at(it)) }),
+		}, when: onServer},
+		browser,
 		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference.", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
 
 	// Not packed: the rows are short, but the keys are many, and their hints
@@ -142,6 +151,16 @@ func commitAbout(c logCommit, place logPlace) string {
 }
 
 func shortSHA(sha string) string { return sha[:min(8, len(sha))] }
+
+// isHead reports whether a commit is the one checked out.
+func isHead(c logCommit) bool {
+	for _, ref := range c.Refs {
+		if ref == "HEAD" || strings.HasPrefix(ref, "HEAD -> ") {
+			return true
+		}
+	}
+	return false
+}
 
 // labelLog writes the rows of a log for a row of width cells. The subjects
 // make a column, so what comes after them lines up, and it takes what the row
@@ -506,6 +525,35 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 	a.showFormModalSized("Edit Commit Message · "+shortSHA(c.SHA), form, 84, 14)
 }
 
+// undoCommit takes the newest commit back, its changes left on disk as
+// they were: IntelliJ's Undo Commit. Only the newest, since one with
+// commits after it would take them too, and only one no remote has.
+func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) {
+	switch {
+	case !newest:
+		back()
+		a.flash(shortSHA(c.SHA) + " has commits after it - only the newest commit can be undone")
+		return
+	case !c.Local:
+		back()
+		a.flash(shortSHA(c.SHA) + " is on origin already - undoing it would need a force push")
+		return
+	}
+	git := a.pathManager(place.project.Instance, place.project.PathWithNamespace).Git()
+	go func() {
+		err := git.UndoCommit(place.dir)
+		a.tv.QueueUpdateDraw(func() {
+			if err != nil {
+				back()
+				a.errorf("%v", err)
+				return
+			}
+			a.afterGitChange()
+			place.reload("", "undid "+shortSHA(c.SHA)+": its changes wait to be committed again")
+		})
+	}()
+}
+
 // commitURL is a commit's page on the server, "" without one.
 func (a *App) commitURL(place logPlace, c logCommit) string {
 	if c.WebURL != "" {
@@ -521,7 +569,11 @@ func (a *App) commitURL(place logPlace, c logCommit) string {
 // reference is a line to paste into a chat: what and where in words, then
 // the link, which the chat makes clickable.
 func (a *App) yankCommit(place logPlace, c logCommit) {
-	url := a.commitURL(place, c)
+	// A commit no remote has has no page to link to.
+	url := ""
+	if !c.Local {
+		url = a.commitURL(place, c)
+	}
 	short := shortSHA(c.SHA)
 	reference := linkWithText(url, place.project.PathWithNamespace, place.branch, short, trim(c.Subject, 60))
 	markdown := ""

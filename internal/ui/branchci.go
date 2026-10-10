@@ -152,6 +152,13 @@ func (a *App) askBranchCI(keys []branchKey, title string) {
 			}
 			for i, q := range qs {
 				delete(a.ciAsking, q.key)
+				// What the polling asked counts towards its backoff; a
+				// refresh asked for is the user's, and says nothing here.
+				if title == "" {
+					a.ciOutcome(q.key, read[i], fmt.Sprintf("%s (%s)", q.key.path, q.key.branch), func() {
+						a.branchStatus[q.key] = ciUnknown
+					})
+				}
 				switch {
 				case !read[i]:
 				case status[i] == "":

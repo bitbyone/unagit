@@ -302,6 +302,9 @@ type App struct {
 	// ciAskEvery is how often they are asked about; 0 is the usual (cipoll.go).
 	ciWatching bool
 	ciAskEvery time.Duration
+	// ciRetries are the pipelines the server did not answer about, by an
+	// mrKey or a branchKey, and when each is asked next (cipoll.go).
+	ciRetries map[any]*ciRetry
 	// branchStatus is the newest pipeline of each branch the lists show that
 	// has no merge request, and ciAsking those being asked about
 	// (branchci.go).
@@ -610,8 +613,8 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 	// : in a dialog lists what can be done from anywhere. A main screen
-	// answers : itself, its own actions first, and so does the worktree
-	// view; what only a main screen can do is not offered over a dialog.
+	// answers : itself, its own actions first, and so do the worktree view
+	// and the Changes dialog; what only a main screen can do is not offered over a dialog.
 	if opensScreenActions(ev) && a.dialogTakesColon() {
 		a.showActions("Actions", a.globalActions())
 		return nil
@@ -628,7 +631,7 @@ func (a *App) dialogTakesColon() bool {
 	switch {
 	case !isModalPage(name):
 		return false
-	case name == pageWorktree, name == pageActions, name == pageMessage, name == pageUnlock:
+	case name == pageWorktree, name == pageChanges, name == pageActions, name == pageMessage, name == pageUnlock:
 		return false
 	}
 	switch a.tv.GetFocus().(type) {

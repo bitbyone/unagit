@@ -712,3 +712,61 @@ func TestJobsAreStartedByAName(t *testing.T) {
 		t.Errorf("the name the index learnt is not used: %q", got)
 	}
 }
+
+// TestARunningPipelineBacksOffWhenTheServerIsAway: a followed pipeline the
+// server stops answering about says so on the status line, never in front;
+// from the third failure in a row it is shown as unknown, it is asked about
+// at longer and longer waits, and after the last the following stops. A
+// refresh asked for brings it back.
+func TestARunningPipelineBacksOffWhenTheServerIsAway(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	changeOnLoop(a, func() { a.ciAskEvery = 150 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Invoice rounding")
+	srv.down.Store(true)
+	pipeline := func() string {
+		return onLoop(a, func() string {
+			for _, mr := range a.mrs {
+				if mr.IID == 9 {
+					return mr.Pipeline
+				}
+			}
+			return ""
+		})
+	}
+	changeOnLoop(a, func() {
+		for i := range a.mrs {
+			if a.mrs[i].IID == 9 {
+				a.mrs[i].Pipeline = "running"
+			}
+		}
+		a.mrsPane.reload()
+		a.watchCI()
+	})
+	waitFor(t, a, sc, "the server does not answer")
+	waitTrue(t, "the pipeline never turned unknown", func() bool { return pipeline() == ciUnknown })
+	if !strings.Contains(rowWith(a, sc, "Invoice rounding"), glyphCIUnknown) {
+		t.Errorf("the unknown pipeline is not drawn as %s: %q", glyphCIUnknown, rowWith(a, sc, "Invoice rounding"))
+	}
+	waitTrue(t, "the following never stopped", func() bool {
+		return onLoop(a, func() bool { return !a.ciWatching && len(a.ciRetries) == 0 })
+	})
+	if front := onLoop(a, func() string { name, _ := a.pages.GetFrontPage(); return name }); front == pageMessage {
+		t.Error("a failure in the background opened a message in front")
+	}
+	waitFor(t, a, sc, "not asked about again")
+
+	srv.down.Store(false)
+	for i := 0; i < 10 && onLoop(a, func() int {
+		if at := a.mrsPane.selectedIndex(); at >= 0 {
+			return a.mrs[at].IID
+		}
+		return 0
+	}) != 9; i++ {
+		typeRunes(sc, "j")
+	}
+	typeRunes(sc, "r")
+	waitTrue(t, "a refresh did not bring the pipeline back", func() bool { return pipeline() == "success" })
+}

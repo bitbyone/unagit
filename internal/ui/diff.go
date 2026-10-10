@@ -130,13 +130,19 @@ func (a *App) runView(bin string, v diffView) {
 		}
 		patch.WriteString(part)
 	}
-	if patch.Len() == 0 {
+	a.runHunkPatch(bin, v.dir, patch.String())
+}
+
+// runHunkPatch shows a patch in Hunk, through a file of its own that goes
+// once Hunk is closed.
+func (a *App) runHunkPatch(bin, dir, patch string) {
+	if patch == "" {
 		a.tv.QueueUpdateDraw(func() { a.note("nothing has changed here") })
 		return
 	}
 	file, err := os.CreateTemp("", "unagit-*.patch")
 	if err == nil {
-		_, err = file.WriteString(patch.String())
+		_, err = file.WriteString(patch)
 		if closeErr := file.Close(); err == nil {
 			err = closeErr
 		}
@@ -146,7 +152,7 @@ func (a *App) runView(bin string, v diffView) {
 		return
 	}
 	defer os.Remove(file.Name())
-	a.runHunk(bin, v.dir, "patch", file.Name())
+	a.runHunk(bin, dir, "patch", file.Name())
 }
 
 // projectDiff is a clone measured against its upstream: what is not on

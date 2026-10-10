@@ -340,9 +340,12 @@ A branch unagit makes records its base in `branch.<name>.unagitBase`;
 once pushed, rebasing would need a force push. `Ctrl-R` (`RebaseOntoBase`)
 does it anyway on request and notes the upstream it moved away from in
 `branch.<name>.unagitRebasedFrom`; `P` force-pushes only with that as the
-lease, so nothing pushed since can be overwritten. The commit dialog's
-Commit and Force Push is the one other path that forces: after asking, with origin's
-copy as last fetched (`UpstreamTip`) as the lease. Nothing else forces.
+lease, so nothing pushed since can be overwritten. Every other force is
+chosen by the user in a question - the commit dialog's Commit and Force
+Push, the Force Push button of `P`'s question (`offerPush`) - and leases
+origin's copy as last fetched (`UpstreamTip`), so whatever anyone pushed
+since makes git refuse. A branch origin has moved past is offered Force
+Push alone, never a plain push. Nothing forces without asking.
 
 **Commits are IntelliJ's, not git's.** A file is versioned or unversioned;
 a change to a versioned file is committed as it is on disk, staged or not

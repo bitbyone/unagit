@@ -57,7 +57,8 @@ func TestCommitAndPushFromRepositories(t *testing.T) {
 }
 
 // TestPushFromRepositories: P sends the clone's commits origin lacks, after
-// asking, and says so when there is nothing to send.
+// asking - Force Push offered beside Push - and says so when there is
+// nothing to send.
 func TestPushFromRepositories(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -69,6 +70,8 @@ func TestPushFromRepositories(t *testing.T) {
 
 	typeRunes(sc, "gP")
 	waitFor(t, a, sc, "Push 1 commit(s) of main")
+	waitFor(t, a, sc, "Count requests per client")
+	waitFor(t, a, sc, "f force push")
 	assertLegible(t, a, sc, "the question before a push")
 	typeRunes(sc, "p")
 	waitFor(t, a, sc, "pushed main")
@@ -95,7 +98,24 @@ func TestEditCommitMessage(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
-	typeRunes(sc, "jje")
+	// Found among a commit's actions, not in the hint, and only for a
+	// commit not pushed - though e on a pushed one still says why.
+	if strings.Contains(a.screenText(sc), "edit message") {
+		t.Errorf("the log's hint names editing a message:\n%s", a.screenText(sc))
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Edit Commit Message…")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Edit Commit Message…")
+	typeRunes(sc, "jj")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Show Pipelines…")
+	if strings.Contains(a.screenText(sc), "Edit Commit Message") {
+		t.Errorf("a pushed commit's actions offer to edit its message:\n%s", a.screenText(sc))
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Show Pipelines…")
+	typeRunes(sc, "e")
 	waitFor(t, a, sc, pushed[:8]+" is on origin already")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "is on origin already")
@@ -141,5 +161,43 @@ func TestEditCommitMessage(t *testing.T) {
 	}
 	if got := gitIn(t, p.clone, "rev-parse", "HEAD~2"); got != pushed {
 		t.Errorf("the pushed commit moved: %s, want %s", got, pushed)
+	}
+}
+
+// TestUndoCommit: u takes the newest commit back when no remote has it -
+// offered among its actions, its changes left to commit again - and is
+// not offered for a pushed one.
+func TestUndoCommit(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	pushed := gitIn(t, p.clone, "rev-parse", "HEAD")
+	commitIn(t, p.clone, "b.txt", "Count requests")
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Undo Commit")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Undo Commit")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Show Pipelines…")
+	if strings.Contains(a.screenText(sc), "Undo Commit") {
+		t.Error("a pushed commit offers to be undone")
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Show Pipelines…")
+
+	typeRunes(sc, "ku")
+	waitFor(t, a, sc, "its changes wait to be committed again")
+	if got := gitIn(t, p.clone, "rev-parse", "HEAD"); got != pushed {
+		t.Errorf("HEAD is %s, want %s", got, pushed)
+	}
+	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "A  b.txt" {
+		t.Errorf("the undone commit's changes: %q", got)
 	}
 }

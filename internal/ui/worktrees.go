@@ -829,6 +829,17 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 // exactly what origin had then; any other branch origin has moved past has to
 // be brought up to date first.
 func pushBlocked(st remoteState, known bool) string {
+	if why := pushImpossible(st, known); why != "" {
+		return why
+	}
+	if st.ForceFrom == "" && st.Upstream.Behind > 0 {
+		return fmt.Sprintf("origin has %d commit(s) this branch lacks: pull or rebase first, or force push it with P", st.Upstream.Behind)
+	}
+	return ""
+}
+
+// pushImpossible says why a branch cannot be pushed at all, forced or not.
+func pushImpossible(st remoteState, known bool) string {
 	u := st.Upstream
 	switch {
 	case !known:
@@ -839,19 +850,84 @@ func pushBlocked(st remoteState, known bool) string {
 		return "HEAD is detached: there is no branch to push"
 	case u.Gone:
 		return "the upstream is gone: the branch was deleted on origin. Push it again by hand if you want it back"
-	case st.ForceFrom != "":
-		return ""
-	case u.Behind > 0:
-		return fmt.Sprintf("origin has %d commit(s) this branch lacks: pull or rebase first, unagit forces only what Ctrl-R rebased", u.Behind)
 	}
 	return ""
+}
+
+// offerPush asks before a push and offers to force it: Push sends what
+// origin lacks, Force Push replaces origin's copy - but only what was last
+// fetched of it, so whatever anyone pushed since makes git refuse rather
+// than be lost. A branch origin has moved past can only be forced; one new
+// to origin has nothing to force.
+func (a *App) offerPush(where, branch string, u gitx.Upstream, sending []string, push func(force bool)) {
+	plain := choice{"Push", func() { push(false) }}
+	force := choice{"Force Push", func() { push(true) }}
+	switch {
+	case u.Name == "":
+		a.confirmChoices("Push", pushQuestion(where, branch, u)+outgoingList(sending), nil, []choice{plain})
+	case u.Behind > 0:
+		body := fmt.Sprintf("Origin has %d commit(s) [::b]%s[::-] lacks, and it has %d of its own.\n\n"+
+			"Pull first to keep both - or force push to replace origin's with yours. Only what was last fetched "+
+			"is replaced: if anyone pushed since, git refuses.", u.Behind, esc(branch), u.Ahead) + outgoingList(sending)
+		a.confirmChoices("Force push", body, nil, []choice{force})
+	default:
+		body := pushQuestion(where, branch, u) + outgoingList(sending) +
+			"\n\nForce Push replaces origin's copy instead, but only what was last fetched of it."
+		a.confirmChoices("Push", body, nil, []choice{plain, force})
+	}
+}
+
+// outgoingList is the commits a push sends, for its question: each id and
+// subject, a long run cut.
+func outgoingList(sending []string) string {
+	if len(sending) == 0 {
+		return ""
+	}
+	const most = 8
+	lines := make([]string, 0, most+1)
+	for i, line := range sending {
+		if i == most {
+			lines = append(lines, tag(colDim)+fmt.Sprintf("… and %d more", len(sending)-most)+tagEnd)
+			break
+		}
+		id, subject, _ := strings.Cut(line, " ")
+		lines = append(lines, tag(colDim)+esc(id)+tagEnd+" "+esc(trim(subject, 56)))
+	}
+	return "\n\n" + strings.Join(lines, "\n")
+}
+
+// withOutgoing reads what a push would send, off the event loop, and goes
+// on with it there.
+func (a *App) withOutgoing(git *gitx.Git, dir string, then func(sending []string)) {
+	go func() {
+		sending, _ := git.Outgoing(dir)
+		a.tv.QueueUpdateDraw(func() { then(sending) })
+	}()
+}
+
+// canPush reports whether a branch has something to push: commits its
+// upstream lacks, or no upstream yet.
+func canPush(st remoteState) bool {
+	return !st.Detached && (st.Upstream.Name == "" || st.Upstream.Ahead > 0)
+}
+
+// nothingToPush says why a branch with an upstream has nothing to push, or
+// "" when it has.
+func nothingToPush(branch string, u gitx.Upstream) string {
+	switch {
+	case u.Name == "" || u.Ahead > 0:
+		return ""
+	case u.Behind > 0:
+		return fmt.Sprintf("%s has nothing of its own to push: origin is %d commit(s) ahead - p pulls", branch, u.Behind)
+	}
+	return branch + " has nothing to push: origin has all of it"
 }
 
 // pushWorktree sends a worktree's branch to origin: with -u when it has no
 // upstream yet, plainly when it is ahead of one.
 func (a *App) pushWorktree(r worktreeRow) {
 	st, known := a.wtRemote[r.Dir]
-	if why := pushBlocked(st, known); why != "" {
+	if why := pushImpossible(st, known); why != "" {
 		a.flash(why)
 		return
 	}
@@ -866,19 +942,28 @@ func (a *App) pushWorktree(r worktreeRow) {
 		})
 		return
 	}
-	if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
-		a.flash(r.Branch + " is already on origin")
+	if why := nothingToPush(r.Branch, st.Upstream); why != "" {
+		a.flash(why)
 		return
 	}
 	if st.Upstream.Name == "" && st.Own == 0 {
 		a.flash(r.Branch + " has nothing of its own to push yet - commit first")
 		return
 	}
-	setUpstream := st.Upstream.Name == ""
-	a.confirmWith("Push", pushQuestion(r.Path, r.Branch, st.Upstream), "Push", nil, func() {
-		a.runTask(fmt.Sprintf("Pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
-			return "", a.newManager(r.Instance, r.Path, log).Git().Push(r.Dir, r.Branch, setUpstream)
-		})
+	a.withOutgoing(a.pathManager(r.Instance, r.Path).Git(), r.Dir, func(sending []string) {
+		a.offerPush(r.Path, r.Branch, st.Upstream, sending, func(force bool) { a.pushWorktreeNow(r, force) })
+	})
+}
+
+// pushWorktreeNow pushes a worktree's branch, forced or not, under a log.
+func (a *App) pushWorktreeNow(r worktreeRow, force bool) {
+	verb := "Pushing"
+	if force {
+		verb = "Force-pushing"
+	}
+	a.runTask(fmt.Sprintf("%s %s (%s)", verb, r.Path, r.Branch), func(log func(string)) (string, error) {
+		_, err := a.newManager(r.Instance, r.Path, log).Git().PushHead(r.Dir, force)
+		return "", err
 	})
 }
 
@@ -902,26 +987,35 @@ func (a *App) pushProject(pr forge.Project) {
 		return
 	}
 	st, known := a.repoSync[key]
-	if why := pushBlocked(st, known); why != "" {
+	if why := pushImpossible(st, known); why != "" {
 		a.flash(why)
 		return
 	}
-	if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
-		a.flash(info.Branch + " has nothing to push: origin has all of it")
+	if why := nothingToPush(info.Branch, st.Upstream); why != "" {
+		a.flash(why)
 		return
 	}
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
-	a.confirmWith("Push", pushQuestion(pr.PathWithNamespace, info.Branch, st.Upstream), "Push", nil, func() {
-		a.runTaskThen(fmt.Sprintf("Pushing %s (%s)", pr.PathWithNamespace, info.Branch), func(log func(string)) (string, error) {
-			branch, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).Git().PushHead(dir, false)
-			if err != nil {
-				return "", err
-			}
-			return "pushed " + branch, nil
-		}, func(said string) {
-			a.afterGitChange()
-			a.done(said)
-		})
+	a.withOutgoing(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), dir, func(sending []string) {
+		a.offerPush(pr.PathWithNamespace, info.Branch, st.Upstream, sending, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
+	})
+}
+
+// pushProjectNow pushes a clone's branch, forced or not, under a log.
+func (a *App) pushProjectNow(pr forge.Project, dir, branch string, force bool) {
+	verb, said := "Pushing", "pushed "
+	if force {
+		verb, said = "Force-pushing", "force-pushed "
+	}
+	a.runTaskThen(fmt.Sprintf("%s %s (%s)", verb, pr.PathWithNamespace, branch), func(log func(string)) (string, error) {
+		pushed, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).Git().PushHead(dir, force)
+		if err != nil {
+			return "", err
+		}
+		return said + pushed, nil
+	}, func(said string) {
+		a.afterGitChange()
+		a.done(said)
 	})
 }
 

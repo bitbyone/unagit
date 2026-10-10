@@ -288,13 +288,14 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 	}
 	acts := a.worktreeActions(r, open, "C")
 	acts = append(acts,
-		uiAction{name: "Show Conversation", about: "Read the threads of the merge request open from this branch and write a comment.", keys: "c", rank: 37, when: single, run: func() {
-			if mr, ok := a.openMRFor(r); ok {
-				a.showComments(mr)
-				return
-			}
-			a.flash("no merge request is open from " + r.Branch + " - n opens one")
-		}},
+		uiAction{name: "Show Conversation", about: "Read the threads of the merge request open from this branch and write a comment.", keys: "c", rank: 37,
+			when: func() bool { _, ok := a.openMRFor(r); return single() && ok }, run: func() {
+				if mr, ok := a.openMRFor(r); ok {
+					a.showComments(mr)
+					return
+				}
+				a.flash("no merge request is open from " + r.Branch + " - n opens one")
+			}},
 		uiAction{name: "Open in Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
 			run: func() { a.openWorktreeWeb(r) }},
 		uiAction{name: "Show Commit Log", about: "The lit repository's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: single,

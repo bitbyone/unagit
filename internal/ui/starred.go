@@ -119,7 +119,8 @@ func (a *App) listStarred(starred []forge.Project, start int) {
 		enterName: "View README", enterAbout: "Read the repository's README, drawn from its markdown.",
 		keys: []pickKey{
 			{keys: "C", hint: "clone", name: "Clone", about: "Clone it under its root; it then joins Repositories, with a badge saying it is starred.",
-				run: func(it pickItem) { a.cloneStarred(at(it), again(it)) }},
+				run:  func(it pickItem) { a.cloneStarred(at(it), again(it)) },
+				when: func(it pickItem) bool { return !a.diskOf(at(it).Instance, at(it).PathWithNamespace).Cloned }},
 			a.browserKey("w", "browser", "Open in Browser", "The repository's page on the forge; the list stays open.",
 				func(it pickItem) string { return at(it).WebURL }),
 		}}

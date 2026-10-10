@@ -58,12 +58,12 @@ func openChanges(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlK, 0, tcell.ModCtrl)
-	waitFor(t, a, sc, "2 of 3 picked")
+	waitFor(t, a, sc, "2 of 3 to commit")
 	waitFor(t, a, sc, "+ edited")
 }
 
-// TestChangesShowsEachFileAndItsDiff: the versioned files start picked and
-// the unversioned not, each name in the colour of what happened to it, and
+// TestChangesShowsEachFileAndItsDiff: the versioned files start ticked
+// for the commit and the unversioned not, each name in the colour of what happened to it, and
 // the file under the cursor's diff beside the list - its lines on their
 // fills, its code in its language's colours.
 func TestChangesShowsEachFileAndItsDiff(t *testing.T) {
@@ -75,7 +75,7 @@ func TestChangesShowsEachFileAndItsDiff(t *testing.T) {
 
 	text := a.screenText(sc)
 	for _, want := range []string{glyphUnfolded + " " + glyphPicked + " Changes  2 files", glyphPicked + " a.txt",
-		glyphPicked + " main.go", glyphUnpicked + " Unversioned Files  1 file", glyphUnpicked + " new.md  docs"} {
+		glyphPicked + " main.go", glyphUnpicked + " Unversioned Files  1 file", glyphUnpicked + " new.md +1  docs"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q is not in the list:\n%s", want, text)
 		}
@@ -102,17 +102,17 @@ func TestChangesShowsEachFileAndItsDiff(t *testing.T) {
 	assertLegible(t, a, sc, "the Changes dialog")
 }
 
-// TestChangesCommitsWhatIsPicked: an unversioned file picked goes into the
+// TestChangesCommitsWhatIsTicked: an unversioned file ticked goes into the
 // commit with the versioned ones, and the dialog then says nothing is left.
-func TestChangesCommitsWhatIsPicked(t *testing.T) {
+func TestChangesCommitsWhatIsTicked(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := changesFixture(t, a)
 	openChanges(t, a, sc)
 
-	typeRunes(sc, "G ")
-	waitFor(t, a, sc, "3 of 3 picked")
+	typeRunes(sc, "Gx")
+	waitFor(t, a, sc, "3 of 3 to commit")
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Commit · acme/gateway · 3 file(s)")
 	form := frontForm(a)
@@ -130,8 +130,9 @@ func TestChangesCommitsWhatIsPicked(t *testing.T) {
 	}
 }
 
-// TestChangesRollbackAndDelete: u rolls the file under the cursor back when
-// it is not picked, and d deletes an unversioned one, each after asking.
+// TestChangesRollbackAndDelete: R rolls back the file under the cursor -
+// not what is ticked for the commit - and d deletes an unversioned one,
+// each after asking.
 func TestChangesRollbackAndDelete(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -139,10 +140,8 @@ func TestChangesRollbackAndDelete(t *testing.T) {
 	p := changesFixture(t, a)
 	openChanges(t, a, sc)
 
-	// Unpicked, a.txt is the one rolled back; main.go, picked, stays.
-	typeRunes(sc, " k")
-	waitFor(t, a, sc, "1 of 3 picked")
-	typeRunes(sc, "u")
+	// a.txt is under the cursor; main.go, ticked as well, stays.
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "Roll back 1 file(s)")
 	assertLegible(t, a, sc, "the question before a rollback")
 	typeRunes(sc, "r")
@@ -152,12 +151,12 @@ func TestChangesRollbackAndDelete(t *testing.T) {
 	}
 	waitGone(t, a, sc, "a.txt")
 
-	typeRunes(sc, "u")
+	typeRunes(sc, "R")
 	waitFor(t, a, sc, "Roll back 1 file(s)")
 	typeRunes(sc, "c")
 	waitGone(t, a, sc, "Roll back 1 file(s)")
 
-	typeRunes(sc, "Gu")
+	typeRunes(sc, "GR")
 	waitFor(t, a, sc, "nothing to roll back to")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "nothing to roll back to")
@@ -168,6 +167,90 @@ func TestChangesRollbackAndDelete(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(p.clone, "docs", "new.md")); !os.IsNotExist(err) {
 		t.Errorf("new.md is still there: %v", err)
 	}
+}
+
+// TestChangesMarksAreForActionsTicksForTheCommit: space marks rows on a
+// band of their own, and the actions take the marked rows - a mix is split,
+// each action saying what it leaves - while the ticks stay as they were;
+// x ticks or unticks the marked rows, and Esc takes the marks away before
+// it closes anything.
+func TestChangesMarksAreForActionsTicksForTheCommit(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+
+	typeRunes(sc, "  ")
+	waitFor(t, a, sc, "2 of 3 to commit · 2 marked")
+	if bg := rowBackground(a, sc, "a.txt"); !sameColour(bg, colMarked) {
+		t.Errorf("a marked row is on %v, not the marks' band %v", bg, colMarked)
+	}
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "Roll back 2 file(s)")
+	typeRunes(sc, "c")
+	waitGone(t, a, sc, "Roll back 2 file(s)")
+
+	// The unversioned file marked too: d deletes it alone, and says so.
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "3 marked")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Delete 1 unversioned file(s)")
+	waitFor(t, a, sc, "R rolls them back")
+	typeRunes(sc, "c")
+	waitGone(t, a, sc, "Delete 1 unversioned file(s)")
+
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "3 of 3 to commit")
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "0 of 3 to commit")
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "marked")
+	waitFor(t, a, sc, "Changes · acme/gateway")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Changes · acme/gateway")
+}
+
+// TestChangesContextActions: Alt-Enter lists what can be done with the row
+// under the cursor, named after it, and : what the dialog can do.
+func TestChangesContextActions(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · a.txt")
+	for _, want := range []string{"Rollback Changes…", "Include or Exclude", "Open With…"} {
+		waitFor(t, a, sc, want)
+	}
+	if onLoop(a, func() bool { return a.tv.GetFocus() == a.changes.diff }) {
+		t.Error("Alt-Enter went into the diff as an Enter")
+	}
+	for _, offered := range []string{"Add to Git", "Add to .gitignore", "Delete…"} {
+		if strings.Contains(a.screenText(sc), offered) {
+			t.Errorf("a versioned file is offered %q", offered)
+		}
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · a.txt")
+
+	// An unversioned file is offered what is done with one, and no rollback.
+	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · docs/new.md")
+	waitFor(t, a, sc, "Add to Git")
+	if strings.Contains(a.screenText(sc), "Rollback Changes") {
+		t.Error("an unversioned file is offered a rollback")
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · docs/new.md")
+
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Refresh")
+	waitFor(t, a, sc, "Include All or None")
 }
 
 // TestChangesFitsItsFrame draws the dialog at several sizes.
@@ -234,7 +317,7 @@ func TestChangesTabGoesIntoTheDiffAndBack(t *testing.T) {
 	}
 
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-	waitGone(t, a, sc, "space pick")
+	waitGone(t, a, sc, "space mark")
 	if !lit(a.changes.diff.Box) || lit(a.changes.table.Box) {
 		t.Error("the diff's border is not the one lit")
 	}
@@ -244,14 +327,14 @@ func TestChangesTabGoesIntoTheDiffAndBack(t *testing.T) {
 	typeRunes(sc, "j")
 
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-	waitFor(t, a, sc, "space pick")
+	waitFor(t, a, sc, "space mark")
 	if !lit(a.changes.table.Box) || lit(a.changes.diff.Box) {
 		t.Error("the list's border is not the one lit")
 	}
 	typeRunes(sc, "l")
-	waitGone(t, a, sc, "space pick")
+	waitGone(t, a, sc, "space mark")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitFor(t, a, sc, "space pick")
+	waitFor(t, a, sc, "space mark")
 	if !onLoop(a, func() bool { return a.tv.GetFocus() == a.changes.table }) {
 		t.Error("Esc in the diff did not give the list the focus")
 	}
@@ -270,9 +353,9 @@ func TestChangesHAndL(t *testing.T) {
 	cursor := func() int { return onLoop(a, func() int { at, _ := a.changes.table.GetSelection(); return at }) }
 
 	typeRunes(sc, "l")
-	waitGone(t, a, sc, "space pick")
+	waitGone(t, a, sc, "space mark")
 	typeRunes(sc, "h")
-	waitFor(t, a, sc, "space pick")
+	waitFor(t, a, sc, "space mark")
 
 	// From a file, h goes up to its group; there it folds, l unfolds, and
 	// l again, with nothing to unfold, goes on to the diff.
@@ -289,8 +372,143 @@ func TestChangesHAndL(t *testing.T) {
 		t.Error("l unfolding a group also went to the diff")
 	}
 	typeRunes(sc, "l")
-	waitGone(t, a, sc, "space pick")
+	waitGone(t, a, sc, "space mark")
 	if !inDiff() {
 		t.Error("l on an open group did not go to the diff")
+	}
+}
+
+// TestChangesOpensTheFileInAnEditor: Ctrl-O opens the whole working tree
+// in the default editor with the file under the cursor in front, and the
+// dialog is there again after.
+func TestChangesOpensTheFileInAnEditor(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := changesFixture(t, a)
+	editor := yaziFavourite(t, a)
+	openChanges(t, a, sc)
+
+	sc.InjectKey(tcell.KeyCtrlO, 0, tcell.ModCtrl)
+	// Over a dialog the word goes to its bottom edge.
+	waitFor(t, a, sc, "opened ")
+	waitEditorIdle(t, a)
+	if got := editorLog(t, editor); got != p.clone+"\n--test\n"+filepath.Join(p.clone, "a.txt")+"\n" {
+		t.Errorf("editor arguments: %q", got)
+	}
+	waitFor(t, a, sc, "2 of 3 to commit")
+}
+
+// TestChangesAddToGit: A on the Unversioned Files heading puts every file
+// of it under git; they join the changes as added files, ticked for the
+// commit, and git has them as added.
+func TestChangesAddToGit(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := changesFixture(t, a)
+	openChanges(t, a, sc)
+
+	typeRunes(sc, "GkA")
+	waitFor(t, a, sc, "added 1 file(s) to git")
+	waitFor(t, a, sc, "3 of 3 to commit")
+	waitGone(t, a, sc, "Unversioned Files")
+	if got := gitIn(t, p.clone, "status", "--porcelain", "--untracked-files=all"); !strings.Contains(got, "A  docs/new.md") {
+		t.Errorf("git does not have new.md as added: %q", got)
+	}
+	if st, ok := textStyle(a, sc, "new.md "); !ok {
+		t.Error("new.md left the list")
+	} else if fg, _, _ := st.Decompose(); !sameColour(fg, role("files.added")) {
+		t.Errorf("new.md is not drawn as added: %v", fg)
+	}
+
+	// A versioned file has nothing to add.
+	typeRunes(sc, "gjA")
+	waitFor(t, a, sc, "nothing unversioned is marked")
+}
+
+// TestChangesHintFollowsTheRow: the hint names what can be done with the
+// row under the cursor - rollback for a versioned file, add and delete for
+// an unversioned one.
+func TestChangesHintFollowsTheRow(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+	waitFor(t, a, sc, "R rollback")
+	if strings.Contains(a.screenText(sc), "A add to git") {
+		t.Error("a versioned file is offered Add to Git")
+	}
+	typeRunes(sc, "G")
+	waitFor(t, a, sc, "A add to git")
+	waitFor(t, a, sc, "d delete")
+	waitGone(t, a, sc, "R rollback")
+}
+
+// TestChangesCountsFiltersAndIgnores: each file says how many of its lines
+// changed, quieter than its name; / narrows the list to the paths that
+// match and Esc takes it away; I writes an unversioned file into
+// .gitignore, which then is a change itself.
+func TestChangesCountsFiltersAndIgnores(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := changesFixture(t, a)
+	openChanges(t, a, sc)
+	waitFor(t, a, sc, "a.txt +1 −1")
+	waitFor(t, a, sc, "main.go +2 −2")
+	if st, ok := textStyle(a, sc, "+2 −2"); !ok {
+		t.Error("the counts are not drawn")
+	} else if fg, _, _ := st.Decompose(); !sameColour(fg, iconShade(role("files.lines_added"))) {
+		t.Errorf("the added count is in %v, not the quieter added colour", fg)
+	}
+
+	typeRunes(sc, "/main")
+	waitGone(t, a, sc, "a.txt")
+	waitFor(t, a, sc, "/ main")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "a.txt")
+
+	typeRunes(sc, "GI")
+	waitFor(t, a, sc, "ignored 1 file(s)")
+	waitGone(t, a, sc, "new.md")
+	waitFor(t, a, sc, ".gitignore")
+	if got := readFileUI(t, p.clone, ".gitignore"); got != "/docs/new.md\n" {
+		t.Errorf(".gitignore = %q", got)
+	}
+}
+
+// TestChangesCopiesPathsFoldersAndAPatch: y copies the marked files' paths,
+// their folders, or a patch of them that applies elsewhere. Serial: the
+// clipboard is swapped.
+func TestChangesCopiesPathsFoldersAndAPatch(t *testing.T) {
+	c := fakeClipboard(t, true)
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changesFixture(t, a)
+	openChanges(t, a, sc)
+
+	typeRunes(sc, "  y")
+	waitFor(t, a, sc, "Copy 2 marked files")
+	for _, want := range []string{"Paths from the repository root", "Absolute paths", "Folder from the repository root", "Patch"} {
+		waitFor(t, a, sc, want)
+	}
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "copied")
+	if got := c.get(); got != "a.txt\nmain.go" {
+		t.Errorf("paths = %q", got)
+	}
+
+	typeRunes(sc, "y")
+	waitFor(t, a, sc, "Copy 2 marked files")
+	typeRunes(sc, "jjjjy")
+	waitFor(t, a, sc, "copied")
+	patch := c.get()
+	for _, want := range []string{"diff --git a/a.txt b/a.txt", "+edited", "+// Count counts requests."} {
+		if !strings.Contains(patch, want) {
+			t.Errorf("the patch lacks %q:\n%s", want, patch)
+		}
 	}
 }

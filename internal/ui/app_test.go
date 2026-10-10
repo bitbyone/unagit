@@ -28,6 +28,8 @@ import (
 // closed detail column stays quiet and that the debounce coalesces movement.
 type fakeServer struct {
 	*httptest.Server
+	// down makes every request fail, as a server out of reach does.
+	down      atomic.Bool
 	requests  atomic.Int64
 	mrDetail  atomic.Int64
 	approvals atomic.Int64
@@ -472,6 +474,10 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	})
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)
+		if f.down.Load() {
+			http.Error(w, "the server is away", http.StatusBadGateway)
+			return
+		}
 		mux.ServeHTTP(w, r)
 	}))
 	t.Cleanup(f.Close)

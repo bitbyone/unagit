@@ -123,6 +123,7 @@
     "elided": "…",
     "elided_group": "…",
     "edits": "✎",
+    "ci_unknown": "?",
     "picked": "■",
     "unpicked": "□",
     "folded": "▸",
@@ -139,6 +140,7 @@
     "ci_idle": "○"
   },
   "nerd_glyphs": {
+    "ci_unknown": "\ueb32",
     "editor": "",
     "worktree": "\uec7d",
     "group": "\ueea8",

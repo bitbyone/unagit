@@ -141,3 +141,29 @@ func TestLocalCommits(t *testing.T) {
 		t.Errorf("upstream tip = %q, %v; want %s", tip, err, pushed)
 	}
 }
+
+// TestOutgoingAndUndoCommit: a push would send the commits the upstream
+// lacks; undoing the newest leaves its changes on disk, not committed.
+func TestOutgoingAndUndoCommit(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	g := New("", nil)
+	commit(t, clone, "b.txt", "two")
+	commit(t, clone, "c.txt", "three")
+	out, err := g.Outgoing(clone)
+	must(t, err)
+	if len(out) != 2 || !strings.HasSuffix(out[0], " three") || !strings.HasSuffix(out[1], " two") {
+		t.Errorf("outgoing = %q", out)
+	}
+	must(t, g.UndoCommit(clone))
+	if got := sh(t, clone, "log", "-1", "--format=%s"); got != "two" {
+		t.Errorf("HEAD is %q after the undo", got)
+	}
+	if got := sh(t, clone, "status", "--porcelain"); got != "A  c.txt" {
+		t.Errorf("the undone commit's changes: %q", got)
+	}
+	sh(t, clone, "reset", "-q", "--hard", "HEAD~1")
+	if err := g.UndoCommit(clone); err == nil {
+		t.Error("the first commit was undone")
+	}
+}

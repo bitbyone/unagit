@@ -112,7 +112,10 @@ func (a *App) SetScreen(s tcell.Screen) {
 		// over the remains. The whole screen is sent again.
 		go func() {
 			a.tv.Sync()
-			a.tv.QueueUpdateDraw(func() { a.refreshLocal() })
+			a.tv.QueueUpdateDraw(func() {
+				a.refreshLocal()
+				a.reloadChanges()
+			})
 		}()
 	}}
 	a.quiet.focused.Store(true)

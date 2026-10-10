@@ -57,6 +57,42 @@ func (a *App) fetchMR(client forge.Provider, mr forge.MergeRequest, say bool, en
 	}()
 }
 
+// pollMR asks about a merge request whose pipeline runs, for the CI
+// column: an answer goes into the list, and a failure is the backoff's to
+// count (ciOutcome), never a message in front - it comes from the
+// background, not from anything the user did.
+func (a *App) pollMR(client forge.Provider, mr forge.MergeRequest, ended func()) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		det, err := client.MergeRequestDetail(ctx, mr)
+		var fresh []forge.MergeRequest
+		if err == nil {
+			fresh = []forge.MergeRequest{withDetail(mr, det)}
+			mrExtras(ctx, fresh, []int{0}, map[string]forge.Provider{mr.Instance: client}, nil)
+		}
+		a.tv.QueueUpdateDraw(func() {
+			ended()
+			a.ciOutcome(keyOfMR(mr), err == nil, fmt.Sprintf("!%d", mr.IID), func() { a.setMRPipeline(keyOfMR(mr), ciUnknown) })
+			if err == nil {
+				a.applyMRRefresh(fresh[0], false)
+			}
+		})
+	}()
+}
+
+// setMRPipeline puts a pipeline state on a merge request of the list.
+func (a *App) setMRPipeline(key mrKey, status string) {
+	for i := range a.mrs {
+		if keyOfMR(a.mrs[i]) == key {
+			a.mrs[i].Pipeline = status
+		}
+	}
+	if a.mrsPane != nil && a.mrsPane.reload != nil {
+		a.mrsPane.reload()
+	}
+}
+
 // fetchMRQuietly is fetchMR for what follows the background - a watched
 // merge request that changed - which says nothing, a failure included:
 // the next change or refresh asks again.

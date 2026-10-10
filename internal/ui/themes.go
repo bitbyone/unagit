@@ -304,10 +304,13 @@ type Glyphs struct {
 	Edits string `json:"edits"`
 	// Picked and Unpicked say whether a file goes into a commit; Folded
 	// and Unfolded whether a group of files is open.
-	Picked   string `json:"picked"`
-	Unpicked string `json:"unpicked"`
-	Folded   string `json:"folded"`
-	Unfolded string `json:"unfolded"`
+	// CIUnknown stands for a pipeline whose state the server stopped
+	// telling.
+	CIUnknown string `json:"ci_unknown"`
+	Picked    string `json:"picked"`
+	Unpicked  string `json:"unpicked"`
+	Folded    string `json:"folded"`
+	Unfolded  string `json:"unfolded"`
 	// ToastInfo, ToastSuccess, ToastWarning and ToastDanger head a toast
 	// of each severity, which no word names.
 	ToastInfo    string `json:"toast_info"`
@@ -613,7 +616,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
-		"glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,
+		"glyphs.ci_unknown": g.CIUnknown, "glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,
 		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden,
 		"glyphs.toast_info": g.ToastInfo, "glyphs.toast_success": g.ToastSuccess,
 		"glyphs.toast_warning": g.ToastWarning, "glyphs.toast_danger": g.ToastDanger,

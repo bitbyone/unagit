@@ -234,17 +234,17 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 	}
 	opts := pickerOptions{start: start, keys: []pickKey{
 		{keys: "n", hint: "new", name: "New Branch…", about: "Start a branch of your own from this one.", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
-		{keys: "Ctrl-W", hint: "worktree", name: "New Worktree", about: "Check the branch out in a directory of its own beside the clone; one out somewhere already cannot be.", run: func(it pickItem) {
+		{keys: "Ctrl-W", hint: "worktree", name: "New Worktree", about: "Check the branch out in a directory of its own beside the clone; one out somewhere already cannot be.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.where == "" }, run: func(it pickItem) {
 			a.branchWorktree(pr, it.Data.(branchInfo), func(why string) {
 				next := scope
 				next.focus, next.done, next.warn = it.Data.(branchInfo).name, "", why
 				a.showBranchManager(next)
 			})
 		}},
-		{keys: "m", hint: "merge request", name: "New Merge Request…", about: "Propose this branch for merging, on the server.", run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
-		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone, and the worktree it is out in; origin keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
+		{keys: "m", hint: "merge request", name: "New Merge Request…", about: "Propose this branch for merging, on the server.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return !b.isDefault && b.mr == 0 }, run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
+		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone, and the worktree it is out in; origin keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.local }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
 		{keys: "D", hint: "everywhere", name: "Delete Everywhere…", about: "Delete the branch in the clone, the worktree it is out in, and on origin.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
-		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
+		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.remote }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
 	}}
 	var onSelect func(pickItem)
 	if scope.checkout {

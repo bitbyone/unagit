@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,5 +130,100 @@ func TestDeleteUnversionedRefusesAVersionedFile(t *testing.T) {
 		if gone := os.IsNotExist(err); gone != (name != "a.txt") {
 			t.Errorf("%s: gone %v", name, gone)
 		}
+	}
+}
+
+// TestAddFilesMakesThemAdded: an unversioned file added is a change of the
+// added kind, one name with a star in it no pattern.
+func TestAddFilesMakesThemAdded(t *testing.T) {
+	t.Parallel()
+	clone := changesFixture(t)
+	g := New("", nil)
+	write(t, clone, "*.go", "a star\n")
+	must(t, g.AddFiles(clone, []string{"dir/loose.txt", "*.txt"}))
+	changes, err := g.Changes(clone)
+	must(t, err)
+	kinds := map[string]ChangeKind{}
+	for _, c := range changes {
+		kinds[c.Path] = c.Kind
+	}
+	for path, want := range map[string]ChangeKind{"dir/loose.txt": Added, "*.txt": Added, "*.go": Unversioned} {
+		if kinds[path] != want {
+			t.Errorf("%s is %d, want %d", path, kinds[path], want)
+		}
+	}
+}
+
+// TestChangesCountLines: each file says how many of its lines differ from
+// HEAD - a rename by its moved content, an unversioned file all of it.
+func TestChangesCountLines(t *testing.T) {
+	t.Parallel()
+	clone := changesFixture(t)
+	write(t, clone, "a.txt", "changed\nand more\n")
+	write(t, clone, "bin.dat", "a\x00b")
+	changes, err := New("", nil).Changes(clone)
+	must(t, err)
+	got := map[string]string{}
+	for _, c := range changes {
+		got[c.Path] = fmt.Sprintf("+%d-%d %v", c.Added, c.Deleted, c.Binary)
+	}
+	for path, want := range map[string]string{
+		"a.txt": "+2-1 false", "added.txt": "+1-0 false", "gone.txt": "+0-1 false",
+		"new.txt": "+0-0 false", "dir/loose.txt": "+1-0 false", "bin.dat": "+0-0 true",
+	} {
+		if got[path] != want {
+			t.Errorf("%s: %s, want %s", path, got[path], want)
+		}
+	}
+}
+
+// TestIgnoreAnchorsEachPathLiterally: a file is ignored by its own path
+// alone, a star in its name no pattern, and what was there is kept.
+func TestIgnoreAnchorsEachPathLiterally(t *testing.T) {
+	t.Parallel()
+	clone := changesFixture(t)
+	write(t, clone, ".gitignore", "*.log")
+	write(t, clone, "notes.md", "n\n")
+	must(t, New("", nil).Ignore(clone, []string{"dir/loose.txt", "*.txt"}))
+	if got, _ := os.ReadFile(filepath.Join(clone, ".gitignore")); string(got) != "*.log\n/dir/loose.txt\n/\\*.txt\n" {
+		t.Errorf(".gitignore = %q", got)
+	}
+	status := sh(t, clone, "status", "--porcelain", "--untracked-files=all")
+	for _, gone := range []string{"loose.txt", "*.txt"} {
+		if strings.Contains(status, gone) {
+			t.Errorf("%s is still listed:\n%s", gone, status)
+		}
+	}
+	if !strings.Contains(status, "notes.md") {
+		t.Errorf("an ignore by path took another file too:\n%s", status)
+	}
+}
+
+// TestPatchAppliesElsewhere: the patch of a change, a rename and an
+// unversioned file, applied to a fresh clone, makes the same files.
+func TestPatchAppliesElsewhere(t *testing.T) {
+	t.Parallel()
+	clone := changesFixture(t)
+	g := New("", nil)
+	patch, err := g.Patch(clone, []Change{
+		{Path: "a.txt", Kind: Modified},
+		{Path: "new.txt", From: "old.txt", Kind: Renamed},
+		{Path: "dir/loose.txt", Kind: Unversioned},
+	})
+	must(t, err)
+	other := filepath.Join(t.TempDir(), "other")
+	sh(t, clone, "worktree", "add", "-q", "--detach", other, "HEAD")
+	file := filepath.Join(t.TempDir(), "change.patch")
+	must(t, os.WriteFile(file, []byte(patch), 0o644))
+	sh(t, other, "apply", file)
+	for _, name := range []string{"a.txt", "new.txt", "dir/loose.txt"} {
+		want, _ := os.ReadFile(filepath.Join(clone, name))
+		got, err := os.ReadFile(filepath.Join(other, name))
+		if err != nil || string(got) != string(want) {
+			t.Errorf("%s: %q, want %q (%v)", name, got, want, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(other, "old.txt")); !os.IsNotExist(err) {
+		t.Error("the rename left the old name behind")
 	}
 }

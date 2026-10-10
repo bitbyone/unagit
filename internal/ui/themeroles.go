@@ -60,6 +60,7 @@ var colourRoles = []colourRole{
 	{"ci.running", "text.accent", "one under way, or waiting its turn"},
 	{"ci.idle", "text.dim", "one skipped or canceled"},
 	{"ci.manual", "text.accent", "one waiting to be started by hand, or for its time"},
+	{"ci.unknown", "text.dim", "one the server stopped answering about"},
 	// A file not committed, by what git knows of it.
 	{"files.changed", "ci.running", "a versioned file with changes not committed, and how many"},
 	{"files.unversioned", "state.bad", "a file git does not track yet, and how many"},
@@ -68,6 +69,8 @@ var colourRoles = []colourRole{
 	{"files.renamed", "files.changed", "a file moved since the last commit"},
 	{"files.conflicted", "state.bad", "a file git stopped on in a merge or a rebase"},
 	{"files.folder", "text.dim", "the folder after a file's name"},
+	{"files.lines_added", "diff.added", "how many lines of a file were added, drawn quieter"},
+	{"files.lines_deleted", "diff.deleted", "how many were deleted"},
 	// A file's diff in the Changes dialog. Unless a theme names them, the
 	// fills are the success and the danger toasts' (diffRoles).
 	{"diff.added", "state.good", "the mark of a line added"},
@@ -238,8 +241,8 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"activity.under_way":      roles["toast.info.border"],
 		"activity.under_way_fill": roles["toast.info.background"],
 		"tabs.new":                roles["toast.info.border"],
-		"diff.added_fill":         roles["toast.success.background"],
-		"diff.deleted_fill":       roles["toast.danger.background"],
+		"diff.added_fill":         diffFill(roles["toast.success.background"]),
+		"diff.deleted_fill":       diffFill(roles["toast.danger.background"]),
 		"activity.lit":            shade(colour(t.Background), 0.035),
 	}
 	for key, c := range derived {
@@ -262,6 +265,17 @@ func shade(background tcell.Color, step float64) tcell.Color {
 		step = -step
 	}
 	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
+}
+
+// diffFill is a diff's line fill worked out of a toast's: darker and
+// quieter, since a diff has many such lines and is read for its code, not
+// noticed the way a toast is.
+func diffFill(toast tcell.Color) tcell.Color {
+	if toast == tcell.ColorDefault || !toast.Valid() {
+		return tcell.ColorDefault
+	}
+	lab := toOklab(toast)
+	return fromOklch(lab.l*0.85, math.Hypot(lab.a, lab.b)*0.9, math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // toastInfoBlue is the hue an info toast is worked out of, unless the

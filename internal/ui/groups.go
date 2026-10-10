@@ -444,18 +444,20 @@ func (a *App) confirmDeleteGroup(r worktreeRow) {
 
 // pushGroup pushes every member whose branch origin lacks, and says which it
 // had to leave alone and why. A member Ctrl-R rebased is force-pushed, after
-// one question for all of them.
+// one question for all of them. Otherwise the question offers Force Push
+// too, which also takes the members origin has moved past - each over what
+// was last fetched of it.
 func (a *App) pushGroup(r worktreeRow) {
 	type push struct {
 		member      worktreeRow
 		setUpstream bool
 		lease       string
 	}
-	var pushes []push
+	var pushes, diverged []push
 	var skipped, forced []string
 	for _, m := range r.Members {
 		st, known := a.wtRemote[m.Dir]
-		if why := pushBlocked(st, known); why != "" {
+		if why := pushImpossible(st, known); why != "" {
 			skipped = append(skipped, m.Path+": "+why)
 			continue
 		}
@@ -464,17 +466,22 @@ func (a *App) pushGroup(r worktreeRow) {
 			forced = append(forced, m.Path+"  ("+m.Branch+")")
 			continue
 		}
-		if st.Upstream.Name != "" && st.Upstream.Ahead == 0 {
+		u := st.Upstream
+		switch {
+		case u.Name != "" && u.Ahead == 0:
+			continue
+		case u.Behind > 0:
+			diverged = append(diverged, push{member: m})
 			continue
 		}
 		// A branch new to origin with no commits of its own would only put an
 		// empty branch there.
-		if st.Upstream.Name == "" && st.Own == 0 {
+		if u.Name == "" && st.Own == 0 {
 			continue
 		}
-		pushes = append(pushes, push{member: m, setUpstream: st.Upstream.Name == ""})
+		pushes = append(pushes, push{member: m, setUpstream: u.Name == ""})
 	}
-	if len(pushes) == 0 {
+	if len(pushes) == 0 && len(diverged) == 0 {
 		if len(skipped) > 0 {
 			a.flash(skipped[0])
 		} else {
@@ -482,19 +489,31 @@ func (a *App) pushGroup(r worktreeRow) {
 		}
 		return
 	}
-	run := func() {
+	run := func(force bool) {
 		a.runTask("Pushing "+r.Path, func(log func(string)) (string, error) {
 			for _, s := range skipped {
 				log("! " + s)
 			}
-			for _, p := range pushes {
+			all := pushes
+			if force {
+				all = append(append([]push(nil), pushes...), diverged...)
+			} else {
+				for _, d := range diverged {
+					log(fmt.Sprintf("! %s: origin has commits %s lacks - pull first, or Force Push", d.member.Path, d.member.Branch))
+				}
+			}
+			for _, p := range all {
 				m := p.member
 				git := a.newManager(m.Instance, m.Path, log).Git()
 				var err error
-				if p.lease != "" {
+				switch {
+				case p.lease != "":
 					log(fmt.Sprintf("Force-pushing %s (%s)", m.Path, m.Branch))
 					err = forcePush(git, m.Dir, m.Branch, p.lease)
-				} else {
+				case force:
+					log(fmt.Sprintf("Force-pushing %s (%s)", m.Path, m.Branch))
+					_, err = git.PushHead(m.Dir, true)
+				default:
 					log(fmt.Sprintf("Pushing %s (%s)", m.Path, m.Branch))
 					err = git.Push(m.Dir, m.Branch, p.setUpstream)
 				}
@@ -505,18 +524,27 @@ func (a *App) pushGroup(r worktreeRow) {
 			return "", nil
 		})
 	}
-	if len(forced) == 0 {
-		lines := make([]string, len(pushes))
-		for i, p := range pushes {
-			lines[i] = p.member.Path + "  (" + p.member.Branch + ")"
-		}
-		a.confirmWith("Push", fmt.Sprintf("Push these to origin?\n\n%s", esc(strings.Join(lines, "\n"))), "Push", nil, run)
+	if len(forced) > 0 {
+		body := fmt.Sprintf("These were rebased, so origin's copy has to be replaced:\n\n%s\n\n"+
+			"Force-push them? Only origin's copy as it was before the rebase is replaced: "+
+			"if anyone pushed since, git refuses.", esc(strings.Join(forced, "\n")))
+		a.confirmWith("Force push", body, "Force push", nil, func() { run(false) })
 		return
 	}
-	body := fmt.Sprintf("These were rebased, so origin's copy has to be replaced:\n\n%s\n\n"+
-		"Force-push them? Only origin's copy as it was before the rebase is replaced: "+
-		"if anyone pushed since, git refuses.", esc(strings.Join(forced, "\n")))
-	a.confirmWith("Force push", body, "Force push", nil, run)
+	lines := make([]string, 0, len(pushes)+len(diverged))
+	for _, p := range pushes {
+		lines = append(lines, p.member.Path+"  ("+p.member.Branch+")")
+	}
+	for _, p := range diverged {
+		lines = append(lines, p.member.Path+"  ("+p.member.Branch+") - origin has moved on: force push only")
+	}
+	body := fmt.Sprintf("Push these to origin?\n\n%s\n\nForce Push replaces origin's copies instead, but only what was last fetched of them.",
+		esc(strings.Join(lines, "\n")))
+	choices := []choice{{"Force Push", func() { run(true) }}}
+	if len(pushes) > 0 {
+		choices = append([]choice{{"Push", func() { run(false) }}}, choices...)
+	}
+	a.confirmChoices("Push", body, nil, choices)
 }
 
 // groupMembersOf lists the grouped worktrees that hold a worktree of the
