@@ -40,10 +40,10 @@ func TestSquashInTheLog(t *testing.T) {
 	offers := func() bool {
 		t.Helper()
 		sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
-		waitFor(t, a, sc, "Show Changes Since")
+		waitFor(t, a, sc, "Copy…")
 		has := strings.Contains(a.screenText(sc), "Squash Commits…")
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-		waitGone(t, a, sc, "Show Changes Since")
+		waitGone(t, a, sc, "Copy…")
 		return has
 	}
 	typeRunes(sc, "g")
@@ -70,6 +70,23 @@ func TestSquashInTheLog(t *testing.T) {
 	if !offers() {
 		t.Error("squashing is not offered for two commits next to each other")
 	}
+	// With commits marked, what works on one commit is neither offered nor
+	// hinted, and its key says why.
+	waitFor(t, a, sc, "s squash")
+	waitFor(t, a, sc, "y copy · space mark")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Copy…")
+	for _, single := range []string{"Show Details", "New Branch Here…", "Check Out Commit", "Edit Commit Message…", "Show Changes Since"} {
+		if strings.Contains(a.screenText(sc), single) {
+			t.Errorf("%q is offered for commits marked:\n%s", single, a.screenText(sc))
+		}
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Copy…")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New Branch Here… works on one item")
+	closeMessage(t, a, sc)
+	waitFor(t, a, sc, "· 2 marked")
 
 	// Esc takes the marks off, and the log stays.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

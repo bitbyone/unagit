@@ -125,7 +125,14 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 		func(it pickItem) string { return a.commitURL(place, at(it)) })
 	browser.when = onServer
 	keys := []pickKey{
-		{keys: "D", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), false) }},
+		{keys: "D", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk; with commits marked, what the run of them changed together.", marked: true,
+			run: func(it pickItem) {
+				if marked := markedNow(); len(marked) > 0 {
+					a.diffMarkedCommits(place, commits, marked, kept(it))
+					return
+				}
+				a.showCommitDiff(place, commits, it.Data.(int), false)
+			}},
 		{keys: "Alt-D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
@@ -135,7 +142,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 				when: func(it pickItem) bool { return !at(it).Theirs }},
 			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back: its changes stay on disk, to be committed again. One on origin asks first: a force push follows.", run: func(it pickItem) { a.undoCommit(place, at(it), isHead(at(it)), again(it)) },
 				when: func(it pickItem) bool { return isHead(at(it)) }},
-			pickKey{keys: "R", name: "Recover from Reflog…", about: "Every place the branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.",
+			pickKey{keys: "R", name: "Recover from Reflog…", about: "Every place the branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.", marked: true,
 				run: func(it pickItem) {
 					branch := place.branch
 					if strings.HasPrefix(branch, "@") || branch == "(detached)" {
@@ -143,9 +150,9 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 					}
 					a.showReflog(reflogScope{project: place.project, dir: place.dir, branch: branch})
 				}},
-			pickKey{keys: "H", name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.",
+			pickKey{keys: "H", name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.", marked: true,
 				run: func(it pickItem) { a.showRewrites(rewriteScope{project: place.project, dir: place.dir}) }},
-			pickKey{keys: "s", name: "Squash Commits…", about: "Make one commit of the commits marked with space, next to each other; asks first when origin has any of them.",
+			pickKey{keys: "s", hint: "squash", name: "Squash Commits…", about: "Make one commit of the commits marked with space, next to each other; asks first when origin has any of them.", marked: true, markedOnly: true,
 				run: func(it pickItem) {
 					if why := squashable(commits, markedNow()); why != "" {
 						kept(it)()
@@ -176,7 +183,14 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 			a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
 		}, when: onServer},
 		browser,
-		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference.", run: func(it pickItem) { a.yankCommit(place, at(it)) }})
+		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference; with commits marked, their ids or subjects, one a line.", marked: true,
+			run: func(it pickItem) {
+				if marked := markedNow(); len(marked) > 0 {
+					a.yankMarkedCommits(commits, marked)
+					return
+				}
+				a.yankCommit(place, at(it))
+			}})
 
 	// Not packed: the rows are short, but the keys are many, and their hints
 	// should fit on a line or two rather than wrap down the side.
@@ -711,6 +725,67 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 	}
 	a.withRewriteWarnings(place.project, place.branch, func(warnings []string) {
 		a.confirmChoicesBack("Undo Commit", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Undoing it"), warnings, []choice{{"Undo", undo}}, back)
+	})
+}
+
+// markedRun says why the commits marked are not one run of the branch's
+// history - next to each other, none only on origin - or "".
+func markedRun(commits []logCommit, marked []int) string {
+	pos := map[int]int{}
+	n := 0
+	for i, c := range commits {
+		if !c.Theirs {
+			pos[i] = n
+			n++
+		}
+	}
+	for k, i := range marked {
+		switch {
+		case commits[i].Theirs:
+			return shortSHA(commits[i].SHA) + " is only on origin - mark the branch's own commits"
+		case k > 0 && pos[i] != pos[marked[k-1]]+1:
+			return "the commits marked are not next to each other - mark a run of them"
+		}
+	}
+	return ""
+}
+
+// diffMarkedCommits shows in Hunk what a run of marked commits changed
+// together: from before the oldest to the newest.
+func (a *App) diffMarkedCommits(place logPlace, commits []logCommit, marked []int, back func()) {
+	if why := markedRun(commits, marked); why != "" {
+		back()
+		a.flash(why)
+		return
+	}
+	bin, ok := a.hunkBinary()
+	if !ok {
+		back()
+		return
+	}
+	newest, oldest := commits[marked[0]], commits[marked[len(marked)-1]]
+	go func() {
+		a.runView(bin, diffView{dir: place.dir, args: []string{"diff", oldest.SHA + "~1", newest.SHA}})
+		a.tv.QueueUpdateDraw(back)
+	}()
+}
+
+// yankMarkedCommits offers what can be copied of the marked commits, one
+// a line, newest first as the log has them.
+func (a *App) yankMarkedCommits(commits []logCommit, marked []int) {
+	var ids, short, lines, subjects []string
+	for _, i := range marked {
+		c := commits[i]
+		ids = append(ids, c.SHA)
+		short = append(short, shortSHA(c.SHA))
+		lines = append(lines, shortSHA(c.SHA)+" "+c.Subject)
+		subjects = append(subjects, c.Subject)
+	}
+	a.showYank(fmt.Sprintf("Copy · %d commits", len(marked)), []yankItem{
+		{"Short ids and subjects", strings.Join(lines, "\n")},
+		{"Commit ids", strings.Join(ids, "\n")},
+		{"Short ids", strings.Join(short, "\n")},
+		{"Subjects", strings.Join(subjects, "\n")},
 	})
 }
 

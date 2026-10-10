@@ -421,6 +421,14 @@ type pickKey struct {
 	// is left out of the item's actions. The key still runs, so that it
 	// says why not. nil is always.
 	when func(pickItem) bool
+	// marked is a key that acts on the items marked when some are, as
+	// well as on the one under the cursor. While any is marked, only such
+	// keys are offered and hinted; the others - and Enter - work on one
+	// item, and say so instead (pickerOptions.marks).
+	marked bool
+	// markedOnly is a key for the marked alone, like a squash: hinted
+	// only while something is marked.
+	markedOnly bool
 }
 
 // can reports whether a key can be done with an item.
@@ -622,6 +630,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		if i < 0 || i >= len(shown) || onSelect == nil || isRule(i) {
 			return
 		}
+		if marks.count() > 0 {
+			a.flash(oneItemOnly(opts.enterName))
+			return
+		}
 		it := shown[i]
 		leave()
 		dismiss()
@@ -635,6 +647,16 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		// Only what can be done: moving, filtering and closing are what
 		// every list does, and are not said.
 		var hints []string
+		if marks.count() > 0 {
+			// What can be done with the marked, and how to stop marking.
+			for _, k := range opts.keys {
+				if k.marked && k.keys != "" && k.hint != "" {
+					hints = append(hints, k.keys+" "+k.hint)
+				}
+			}
+			hints = append(hints, "space mark", "Esc unmark")
+			return " " + tag(colMuted) + "NORMAL" + tagEnd + "   " + litHint(strings.Join(hints, " · "))
+		}
 		switch {
 		case onSelect == nil:
 		case opts.enterHint != "":
@@ -650,7 +672,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		for _, k := range opts.keys {
 			// A key-less action is the actions picker's alone, and one with
 			// no hint is looked for there: its key works, unnamed.
-			if k.keys != "" && k.hint != "" {
+			if k.keys != "" && k.hint != "" && !k.markedOnly {
 				hints = append(hints, k.keys+" "+k.hint)
 			}
 		}
@@ -760,7 +782,8 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			it := shown[i]
 			var acts []uiAction
-			if onSelect != nil && opts.enterName != "" {
+			marking := marks.count() > 0
+			if onSelect != nil && opts.enterName != "" && !marking {
 				acts = append(acts, uiAction{name: opts.enterName, about: opts.enterAbout, keys: "Enter", rank: 1, run: func() {
 					leave()
 					dismiss()
@@ -772,7 +795,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				if k.named != nil {
 					name, about = k.named()
 				}
-				if name == "" || !k.can(it) {
+				if name == "" || !k.can(it) || marking && !k.marked {
 					continue
 				}
 				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, rank: 10 + n, run: func() {
@@ -792,6 +815,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		for _, k := range opts.keys {
 			if (uiAction{keys: k.keys}).matches(ev) {
+				if marks.count() > 0 && !k.marked {
+					a.flash(oneItemOnly(k.name))
+					return nil
+				}
 				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) && !isRule(i) {
 					it := shown[i]
 					if !k.stay {
@@ -977,6 +1004,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	})
 	flex.AddItem(footer, 1, 0, false)
 	retitle = func() {
+		// The hint follows the marks: what can be done changes with them.
+		if !filtering {
+			footer.SetText(normalHint())
+		}
 		if n := marks.count(); n > 0 {
 			box(flex.Box, fmt.Sprintf("%s · %d marked", title, n))
 			return
@@ -1095,6 +1126,14 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		},
 		setHeader: func(text string) { header.SetText(text) },
 	}
+}
+
+// oneItemOnly says why an action is not done while items are marked.
+func oneItemOnly(name string) string {
+	if name == "" {
+		return "that works on one item - Esc takes the marks off first"
+	}
+	return name + " works on one item - Esc takes the marks off first"
 }
 
 // visibleItems counts the items listed before anything is typed; a picker

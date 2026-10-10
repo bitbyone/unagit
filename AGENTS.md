@@ -184,7 +184,13 @@ guards the lists. A list in a dialog is the same idea at a smaller scale:
 each of its keys (`pickKey`) has a name and an about as an action has, and
 so has its Enter (`enterName`); Alt-Enter on an item lists them over the
 dialog (`pageActions`, so the dialog stays). A key that opens the browser is
-`browserKey`, which never closes the list (`TestBrowserKeysStay`). `:` over
+`browserKey`, which never closes the list (`TestBrowserKeysStay`).
+A picker with marks (`pickerOptions.marks`) offers, while something is
+marked, only the keys that act on the marked (`pickKey.marked`), as a
+list's Alt-Enter offers `markedRepositoryActions` then: an action on one
+item - its details, a branch from it, checking it out - is neither listed
+nor hinted, and its key says it works on one item. A key that only makes
+sense for the marked, like a squash, is `markedOnly`. `:` over
 any dialog lists `globalActions` alone - what can be done from anywhere, like the theme -
 never a main screen's own.
 
