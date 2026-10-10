@@ -175,7 +175,18 @@ func TestPillsThatDoNotFitAreCounted(t *testing.T) {
 	if _, all := refPills(c, config.TagEndsSquare, behindList, 200); all <= 30 {
 		t.Errorf("with room every pill is drawn: %d cells", all)
 	}
-	if about := commitAbout(c, logPlace{}); !strings.Contains(about, glyphRef+" release/2026-10") || !strings.Contains(about, glyphTag+" v1.0") {
+	if about := commitAbout(c, logPlace{}, false); !strings.Contains(about, glyphRef+" release/2026-10") || !strings.Contains(about, glyphTag+" v1.0") {
 		t.Errorf("the pane does not name every ref: %q", about)
+	}
+	// Coloured, each icon is in its pill's colour: HEAD's branch green, a
+	// tag in its own.
+	about := commitAbout(c, logPlace{}, true)
+	for _, want := range []string{
+		tag(role("log.ref_local.ink")) + esc(glyphRef) + tagEnd + " HEAD→main",
+		tag(role("log.ref_tag.ink")) + esc(glyphTag) + tagEnd + " v1.0",
+	} {
+		if !strings.Contains(about, want) {
+			t.Errorf("the coloured pane lacks %q: %q", want, about)
+		}
 	}
 }

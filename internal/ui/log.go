@@ -93,7 +93,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 		if marked[i] {
 			marks.toggle(len(items))
 		}
-		items = append(items, pickItem{About: commitAbout(c, place), Data: i})
+		items = append(items, pickItem{About: commitAbout(c, place, false), AboutMarkup: commitAbout(c, place, true), Data: i})
 	}
 	start = first
 	ends := a.cfg.Ends()
@@ -232,18 +232,10 @@ func refMarkup(c logCommit) string {
 		if i < len(c.RefKinds) {
 			kind = c.RefKinds[i]
 		}
-		ink := "log.ref_local.ink"
-		switch kind {
-		case gitx.RefRemote:
-			if strings.HasSuffix(ref, "/HEAD") {
-				continue
-			}
-			ink = "log.ref_remote.ink"
-		case gitx.RefTag:
-			ink = "log.ref_tag.ink"
-		case gitx.RefHead:
-			ink = "log.ref_detached.ink"
+		if strings.HasSuffix(ref, "/HEAD") {
+			continue
 		}
+		ink := refInk(kind)
 		glyph := glyphRef
 		if name, ok := strings.CutPrefix(ref, "tag: "); ok {
 			glyph, ref = glyphTag, name
@@ -256,19 +248,65 @@ func refMarkup(c logCommit) string {
 
 // commitAbout is the pane under the log: author and time, then the body, and
 // what a review from a merge commit would bring in.
-func commitAbout(c logCommit, place logPlace) string {
-	about := c.Author + " · " + c.When.Format("2006-01-02 15:04")
-	// Every ref, those the row had no room for too.
-	if refs := refWords(c.Refs); refs != "" {
+func commitAbout(c logCommit, place logPlace, coloured bool) string {
+	text := func(s string) string {
+		if coloured {
+			return esc(s)
+		}
+		return s
+	}
+	about := text(c.Author + " · " + c.When.Format("2006-01-02 15:04"))
+	// Every ref, those the row had no room for too; coloured, each icon in
+	// the colour of its pill.
+	refs := refWords(c.Refs)
+	if coloured {
+		refs = refIcons(c)
+	}
+	if refs != "" {
 		about += " · " + refs
 	}
 	if place.mr != nil && c.Merge {
 		about += " · merge commit: a review from here includes what it merged"
 	}
 	if body := strings.Join(strings.Fields(c.Body), " "); body != "" {
-		about += " · " + body
+		about += " · " + text(body)
 	}
 	return about
+}
+
+// refIcons is refWords with each icon in the colour of its pill, the
+// names as the text around them is.
+func refIcons(c logCommit) string {
+	var words []string
+	for i, ref := range c.Refs {
+		kind := gitx.RefOther
+		if i < len(c.RefKinds) {
+			kind = c.RefKinds[i]
+		}
+		if strings.HasSuffix(ref, "/HEAD") {
+			continue
+		}
+		glyph := glyphRef
+		if name, ok := strings.CutPrefix(ref, "tag: "); ok {
+			glyph, ref = glyphTag, name
+		}
+		ref = strings.Replace(ref, "HEAD -> ", "HEAD→", 1)
+		words = append(words, tag(role(refInk(kind)))+esc(glyph)+tagEnd+" "+esc(ref))
+	}
+	return strings.Join(words, "  ")
+}
+
+// refInk is the colour a ref of a kind is written in: its pill's ink.
+func refInk(kind gitx.RefKind) string {
+	switch kind {
+	case gitx.RefRemote:
+		return "log.ref_remote.ink"
+	case gitx.RefTag:
+		return "log.ref_tag.ink"
+	case gitx.RefHead:
+		return "log.ref_detached.ink"
+	}
+	return "log.ref_local.ink"
 }
 
 func shortSHA(sha string) string { return sha[:min(8, len(sha))] }

@@ -120,9 +120,11 @@ type pickItem struct {
 	Label string
 	Sub   string
 	// About is what the item is, in a sentence, for a picker that explains
-	// its items; it is searched as well.
-	About string
-	Data  any
+	// its items; it is searched as well. AboutMarkup, when set, is the
+	// same with colours, drawn in its place.
+	About       string
+	AboutMarkup string
+	Data        any
 	// Hidden keeps the item out of the list until something is typed: one
 	// of many alike, looked for by name rather than walked past.
 	Hidden bool
@@ -977,6 +979,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		about := tview.NewTextView().SetWrap(true).SetWordWrap(true).SetTextColor(colMuted)
 		explain = func(i int) {
 			if i >= 0 && i < len(shown) {
+				// A plain About may hold brackets that are no colours.
+				about.SetDynamicColors(shown[i].AboutMarkup != "")
+				if shown[i].AboutMarkup != "" {
+					about.SetText(shown[i].AboutMarkup)
+					return
+				}
 				about.SetText(shown[i].About)
 				return
 			}
