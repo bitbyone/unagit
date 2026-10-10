@@ -415,3 +415,44 @@ func TestCardsFitBesideTheirCount(t *testing.T) {
 		}
 	}
 }
+
+// TestAnEmptyListStillLeadsOn: with nothing under way the list has no row
+// to choose, and is at both its ends at once - j goes down to the log, k
+// up to the cards, as from its last and first rows.
+func TestAnEmptyListStillLeadsOn(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 150, 42)
+	waitFor(t, a, sc, "acme/gateway")
+	onLoop(a, func() bool {
+		now := time.Now()
+		a.activityLog = []watch.Event{{Key: "x", What: "acme/gateway !7", Heading: "Not watched", Line: "!7 is no longer watched", Level: watch.Info, At: now}}
+		a.editorsOpen = []session.Record{{Dir: "/tmp/unagit", Project: "tobola/unagit", Editor: "nvim", Branch: "main", Since: now.Add(-time.Hour)}}
+		a.switchTab(pageActivity)
+		return true
+	})
+	waitFor(t, a, sc, "Nothing under way")
+	focused := func() string {
+		return onLoop(a, func() string {
+			v := a.activity
+			switch {
+			case v.pane.table.HasFocus():
+				return "list"
+			case v.log.HasFocus():
+				return "log"
+			case v.cards.HasFocus():
+				return "cards"
+			case v.watching.HasFocus():
+				return "watching"
+			}
+			return "?"
+		})
+	}
+	if got := focused(); got != "list" {
+		t.Fatalf("Activity opens on the %s", got)
+	}
+	for _, step := range []struct{ key, want string }{{"k", "cards"}, {"j", "list"}, {"j", "log"}, {"k", "list"}} {
+		typeRunes(sc, step.key)
+		waitTrue(t, step.key+" did not reach the "+step.want, func() bool { return focused() == step.want })
+	}
+}

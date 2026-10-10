@@ -360,12 +360,14 @@ func (v *activityView) paneKeys(ev *tcell.EventKey) bool {
 		v.closedDetail = true
 		return false
 	}
+	// A list with nothing to choose is at both its ends at once.
 	first, last := selectableEnds(p.table)
 	row, _ := p.table.GetSelection()
+	empty := first < 0
 	switch {
-	case isKey(ev, 'j', tcell.KeyDown) && row >= last:
+	case isKey(ev, 'j', tcell.KeyDown) && (empty || row >= last):
 		return v.move(p.table, 'j')
-	case isKey(ev, 'k', tcell.KeyUp) && row <= first:
+	case isKey(ev, 'k', tcell.KeyUp) && (empty || row <= first):
 		return v.move(p.table, 'k')
 	case isKey(ev, 'l', tcell.KeyRight) && !p.detailShown:
 		return v.move(p.table, 'l')
