@@ -610,6 +610,7 @@ func (a *App) selectedGroups() []config.Group {
 
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
+	selectionInTable(a.tv.GetFocus())
 	// A key on a screen starts afresh: no dialog to go back to.
 	a.forgetReturn()
 	if ev, handled := a.openSelectKeys(ev); handled {

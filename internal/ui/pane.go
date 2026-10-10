@@ -412,9 +412,37 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 }
 
 func (p *pane) forwardToTable(ev *tcell.EventKey) {
+	selectionInTable(p.table)
 	if handler := p.table.InputHandler(); handler != nil {
 		handler(ev, func(tview.Primitive) {})
 	}
+}
+
+// selectionInTable puts a table's cursor back inside it when it is not.
+// tview looks for a cell to select from the cursor onwards and stops only
+// when it comes round to where it set out: in a table with nothing to
+// select - Activity with every watch stopped - a cursor left on a row or a
+// column that is gone is never come back to, and a key that moves it spins
+// for ever with the event loop. Every key goes through here first.
+func selectionInTable(p tview.Primitive) {
+	t, ok := p.(interface {
+		GetSelection() (int, int)
+		GetRowCount() int
+		GetColumnCount() int
+		Select(row, column int) *tview.Table
+	})
+	if !ok {
+		return
+	}
+	rows, columns := t.GetRowCount(), t.GetColumnCount()
+	if rows == 0 || columns == 0 {
+		return
+	}
+	row, column := t.GetSelection()
+	if row >= 0 && row < rows && column >= 0 && column < columns {
+		return
+	}
+	t.Select(min(max(row, 0), rows-1), min(max(column, 0), columns-1))
 }
 
 // altKeys handles Alt with a letter: an opening key that first asks which

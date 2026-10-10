@@ -299,6 +299,16 @@ func TestAWatchStartsFromTheListAndStopsOnItsScreen(t *testing.T) {
 	typeRunes(sc, "x")
 	waitFor(t, a, sc, "stopped watching acme/gateway !7")
 	waitFor(t, a, sc, "Nothing under way")
+	// Nothing left to select, and the cursor where a row was before more
+	// watches went: PgUp there once spun the event loop for ever.
+	for _, k := range []tcell.Key{tcell.KeyDown, tcell.KeyUp, tcell.KeyPgDn, tcell.KeyPgUp, tcell.KeyHome, tcell.KeyEnd, tcell.KeyCtrlN, tcell.KeyCtrlP} {
+		onLoop(a, func() bool { a.activityPane.table.Select(5, 0); return true })
+		sc.InjectKey(k, 0, tcell.ModNone)
+		onLoop(a, func() bool { return true })
+	}
+	typeRunes(sc, "j")
+	typeRunes(sc, "k")
+	typeRunes(sc, "G")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	// The list's text was there before the watch went: wait for the
