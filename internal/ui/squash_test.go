@@ -145,4 +145,14 @@ func TestSquashInTheLog(t *testing.T) {
 	if got := gitIn(t, p.clone, "config", "branch.main.unagitrebasedfrom"); got != pushed {
 		t.Errorf("the lease noted is %q, origin had %s", got, pushed)
 	}
+
+	// P on the clone offers the force push, naming what leaves origin.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Commit Log")
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "A force push takes these off origin:")
+	if text := a.screenText(sc); lineOf(text, pushed[:7]) < lineOf(text, "takes these off origin") {
+		t.Errorf("the pushed commit is not named as leaving origin:\n%s", text)
+	}
+	assertLegible(t, a, sc, "the force push question")
 }

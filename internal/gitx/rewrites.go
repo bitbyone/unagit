@@ -411,6 +411,16 @@ func (g *Git) UndoRewrite(dir, id string) (Rewrite, error) {
 	return undo, err
 }
 
+// ForceRemoves lists, newest first, the commits of origin's copy that a
+// force push would take off it - those of at, the upstream when "", that
+// HEAD lacks - each its short id and subject.
+func (g *Git) ForceRemoves(dir, at string) []string {
+	if at == "" {
+		at = "@{upstream}"
+	}
+	return g.RewriteCommits(dir, at, "HEAD")
+}
+
 // RewriteCommits lists, newest first, the commits of a state of a rewrite
 // that the other state lacks - before against after, or after against
 // before - each its short id and subject: what a squash made of what.

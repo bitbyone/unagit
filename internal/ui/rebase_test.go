@@ -43,6 +43,11 @@ func TestRebaseOntoBaseThenForcePush(t *testing.T) {
 
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "Force push")
+	// What leaves origin is named: the commit as it was before the rebase.
+	waitFor(t, a, sc, "A force push takes these off origin:")
+	if !strings.Contains(a.screenText(sc), "mine") {
+		t.Errorf("the question does not name the commit leaving origin:\n%s", a.screenText(sc))
+	}
 	typeRunes(sc, "f")
 	waitFor(t, a, sc, "in sync")
 	if gitIn(t, p.origin, "rev-parse", "feat/x") != gitIn(t, dir, "rev-parse", "HEAD") {

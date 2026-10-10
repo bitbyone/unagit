@@ -859,7 +859,7 @@ func pushImpossible(st remoteState, known bool) string {
 // fetched of it, so whatever anyone pushed since makes git refuse rather
 // than be lost. A branch origin has moved past can only be forced; one new
 // to origin has nothing to force.
-func (a *App) offerPush(where, branch string, u gitx.Upstream, sending []string, push func(force bool)) {
+func (a *App) offerPush(where, branch string, u gitx.Upstream, sending, removing []string, push func(force bool)) {
 	plain := choice{"Push", func() { push(false) }}
 	force := choice{"Force Push", func() { push(true) }}
 	switch {
@@ -868,13 +868,31 @@ func (a *App) offerPush(where, branch string, u gitx.Upstream, sending []string,
 	case u.Behind > 0:
 		body := fmt.Sprintf("Origin has %d commit(s) [::b]%s[::-] lacks, and it has %d of its own.\n\n"+
 			"Pull first to keep both - or force push to replace origin's with yours. Only what was last fetched "+
-			"is replaced: if anyone pushed since, git refuses.", u.Behind, esc(branch), u.Ahead) + outgoingList(sending)
+			"is replaced: if anyone pushed since, git refuses.", u.Behind, esc(branch), u.Ahead) + forcedList(sending) + removedList(removing)
 		a.confirmChoices("Force push", body, nil, []choice{force})
 	default:
 		body := pushQuestion(where, branch, u) + outgoingList(sending) +
 			"\n\nForce Push replaces origin's copy instead, but only what was last fetched of it."
 		a.confirmChoices("Push", body, nil, []choice{plain, force})
 	}
+}
+
+// forcedList is the commits a force push puts on origin, under a heading
+// that sets them apart from those it takes off.
+func forcedList(sending []string) string {
+	if len(sending) == 0 {
+		return ""
+	}
+	return "\n\n" + tag(colMuted) + "A force push puts these on origin:" + tagEnd + outgoingList(sending)
+}
+
+// removedList is the commits a force push takes off origin, for its
+// question: what would be lost there, said before it is.
+func removedList(removing []string) string {
+	if len(removing) == 0 {
+		return ""
+	}
+	return "\n\n" + tag(colBad) + "A force push takes these off origin:" + tagEnd + outgoingList(removing)
 }
 
 // outgoingList is the commits a push sends, for its question: each id and
@@ -898,10 +916,11 @@ func outgoingList(sending []string) string {
 
 // withOutgoing reads what a push would send, off the event loop, and goes
 // on with it there.
-func (a *App) withOutgoing(git *gitx.Git, dir string, then func(sending []string)) {
+func (a *App) withOutgoing(git *gitx.Git, dir string, then func(sending, removing []string)) {
 	go func() {
 		sending, _ := git.Outgoing(dir)
-		a.tv.QueueUpdateDraw(func() { then(sending) })
+		removing := git.ForceRemoves(dir, "")
+		a.tv.QueueUpdateDraw(func() { then(sending, removing) })
 	}()
 }
 
@@ -932,14 +951,20 @@ func (a *App) pushWorktree(r worktreeRow) {
 		return
 	}
 	if st.ForceFrom != "" {
-		body := fmt.Sprintf("[::b]%s[::-] was rewritten here - rebased or squashed - so origin's copy has to be replaced.\n\n"+
-			"Force-push it? Only origin's copy as it was before is replaced: "+
-			"if anyone pushed since, git refuses.", esc(r.Branch))
-		a.confirmWith("Force push", body, "Force push", nil, func() {
-			a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
-				return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)
+		git := a.pathManager(r.Instance, r.Path).Git()
+		go func() {
+			removing := git.ForceRemoves(r.Dir, st.ForceFrom)
+			a.tv.QueueUpdateDraw(func() {
+				body := fmt.Sprintf("[::b]%s[::-] was rewritten here - rebased or squashed - so origin's copy has to be replaced.\n\n"+
+					"Force-push it? Only origin's copy as it was before is replaced: "+
+					"if anyone pushed since, git refuses.", esc(r.Branch)) + removedList(removing)
+				a.confirmWith("Force push", body, "Force push", nil, func() {
+					a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
+						return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)
+					})
+				})
 			})
-		})
+		}()
 		return
 	}
 	if why := nothingToPush(r.Branch, st.Upstream); why != "" {
@@ -950,8 +975,8 @@ func (a *App) pushWorktree(r worktreeRow) {
 		a.flash(r.Branch + " has nothing of its own to push yet - commit first")
 		return
 	}
-	a.withOutgoing(a.pathManager(r.Instance, r.Path).Git(), r.Dir, func(sending []string) {
-		a.offerPush(r.Path, r.Branch, st.Upstream, sending, func(force bool) { a.pushWorktreeNow(r, force) })
+	a.withOutgoing(a.pathManager(r.Instance, r.Path).Git(), r.Dir, func(sending, removing []string) {
+		a.offerPush(r.Path, r.Branch, st.Upstream, sending, removing, func(force bool) { a.pushWorktreeNow(r, force) })
 	})
 }
 
@@ -996,8 +1021,8 @@ func (a *App) pushProject(pr forge.Project) {
 		return
 	}
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
-	a.withOutgoing(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), dir, func(sending []string) {
-		a.offerPush(pr.PathWithNamespace, info.Branch, st.Upstream, sending, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
+	a.withOutgoing(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), dir, func(sending, removing []string) {
+		a.offerPush(pr.PathWithNamespace, info.Branch, st.Upstream, sending, removing, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
 	})
 }
 
