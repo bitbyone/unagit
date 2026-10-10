@@ -345,9 +345,13 @@ func (g *Git) DeleteRemoteBranch(dir, branch, remoteBranch string) error {
 }
 
 // DeleteLocalBranch deletes a branch of the clone, merged or not: the caller
-// has said what would be lost (OnlyHere) and been told to go ahead.
+// has said what would be lost (OnlyHere) and been told to go ahead. It is
+// written down, so that the branch can be made again as it was.
 func (g *Git) DeleteLocalBranch(dir, branch string) error {
-	_, err := g.Run(dir, "branch", "-D", "--", branch)
+	_, err := g.rewritingBranch(dir, branch, RewriteChange{Kind: RewriteDelete, What: "deleted " + branch}, func() error {
+		_, err := g.Run(dir, "branch", "-D", "--", branch)
+		return err
+	})
 	return err
 }
 

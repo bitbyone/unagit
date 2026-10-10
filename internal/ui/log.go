@@ -619,11 +619,12 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 		var rewritten string
 		a.runTaskThen("Editing the message of "+shortSHA(c.SHA), func(log func(string)) (string, error) {
 			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
-			return "", git.Rewriting(place.dir, func() error {
+			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteReword, What: "edited the message of " + shortSHA(c.SHA)}, func() error {
 				var err error
 				rewritten, err = git.RewordCommit(place.dir, c.SHA, text)
 				return err
 			})
+			return "", err
 		}, func(string) {
 			a.afterGitChange()
 			place.reload(rewritten, "the message of "+shortSHA(rewritten)+" is edited")
@@ -675,7 +676,8 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 	git := a.pathManager(place.project.Instance, place.project.PathWithNamespace).Git()
 	undo := func() {
 		go func() {
-			err := git.Rewriting(place.dir, func() error { return git.UndoCommit(place.dir) })
+			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteUndoCommit, What: "undid commit " + shortSHA(c.SHA)},
+				func() error { return git.UndoCommit(place.dir) })
 			a.tv.QueueUpdateDraw(func() {
 				if err != nil {
 					back()
@@ -753,11 +755,12 @@ func (a *App) squashCommits(place logPlace, commits []logCommit, marked []int, b
 		var squashed string
 		a.runTaskThen(fmt.Sprintf("Squashing %d commits", len(marked)), func(log func(string)) (string, error) {
 			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
-			return "", git.Rewriting(place.dir, func() error {
+			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteSquash, What: fmt.Sprintf("squashed %d commits", len(marked))}, func() error {
 				var err error
 				squashed, err = git.SquashCommits(place.dir, oldest.SHA, newest.SHA, text)
 				return err
 			})
+			return "", err
 		}, func(string) {
 			a.afterGitChange()
 			place.reload(squashed, fmt.Sprintf("squashed %d commits into %s", len(marked), shortSHA(squashed)))

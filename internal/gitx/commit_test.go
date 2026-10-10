@@ -276,14 +276,16 @@ func TestRewritingNotesWhereOriginStood(t *testing.T) {
 	identify(t, clone)
 	g := New("", nil)
 	commit(t, clone, "1.txt", "one")
-	must(t, g.Rewriting(clone, func() error { return g.UndoCommit(clone) }))
+	_, err := g.Rewriting(clone, RewriteChange{Kind: RewriteUndoCommit}, func() error { return g.UndoCommit(clone) })
+	must(t, err)
 	if mark := g.RebasedFrom(clone)["main"]; mark != "" {
 		t.Errorf("a commit not pushed noted %q", mark)
 	}
 	sh(t, clone, "commit", "-q", "-m", "one")
 	sh(t, clone, "push", "-q")
 	pushed := sh(t, clone, "rev-parse", "HEAD")
-	must(t, g.Rewriting(clone, func() error { _, err := g.RewordCommit(clone, pushed, "One"); return err }))
+	_, err = g.Rewriting(clone, RewriteChange{Kind: RewriteReword}, func() error { _, err := g.RewordCommit(clone, pushed, "One"); return err })
+	must(t, err)
 	if mark := g.RebasedFrom(clone)["main"]; mark != pushed {
 		t.Errorf("noted %q, origin had %s", mark, pushed)
 	}

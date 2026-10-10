@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 )
 
 // Update outcomes, for the log and the status line.
@@ -128,15 +129,9 @@ func (m *Manager) rebaseOnto(dir, onto string, gone func(branch string) string) 
 	if target == "" {
 		return "", fmt.Errorf("%s: %w", gone(branch), ErrNothingDone)
 	}
-	upstreamAt, _ := m.trimmed(dir, "rev-parse", "--verify", "--quiet", "@{upstream}")
-	outcome, err := m.moveOnto(dir, branch, target)
-	if err != nil || outcome == UpdateCurrent || upstreamAt == "" {
-		return outcome, err
-	}
-	if !m.git.IsAncestor(dir, upstreamAt, "HEAD") {
-		_ = m.git.SetRebasedFrom(dir, branch, upstreamAt)
-	}
-	return outcome, nil
+	// A pushed branch moved off what origin has gets its lease noted on
+	// the way (gitx.Rewriting).
+	return m.moveOnto(dir, branch, target)
 }
 
 // moveOnto brings branch up to target: a fast-forward without local work, a
@@ -182,12 +177,24 @@ func (m *Manager) moveOnto(dir, branch, upstream string) (string, error) {
 	}
 
 	m.log("Rebasing %d local commit(s) and %d edited file(s) onto %s (%d new)", ahead, len(dirty), upstream, behind)
-	if _, err := m.git.Run(dir, "rebase", "--autostash", upstream); err != nil {
-		// The abort puts HEAD, the index and the stashed edits back.
-		if _, abortErr := m.git.Run(dir, "rebase", "--abort"); abortErr != nil {
-			return "", fmt.Errorf("the rebase onto %s failed and could not be aborted - run git rebase --abort: %w", upstream, err)
+	// Written down, so that the rebase can be undone.
+	onto := upstream
+	if len(onto) == 40 && !strings.Contains(onto, "/") {
+		onto = onto[:8]
+	}
+	change := gitx.RewriteChange{Kind: gitx.RewriteRebase, What: "rebased onto " + onto, Files: true}
+	_, err := m.git.Rewriting(dir, change, func() error {
+		if _, err := m.git.Run(dir, "rebase", "--autostash", upstream); err != nil {
+			// The abort puts HEAD, the index and the stashed edits back.
+			if _, abortErr := m.git.Run(dir, "rebase", "--abort"); abortErr != nil {
+				return fmt.Errorf("the rebase onto %s failed and could not be aborted - run git rebase --abort: %w", upstream, err)
+			}
+			return fmt.Errorf("your commits conflict with %s - rebase by hand (git pull --rebase): %w", upstream, ErrNothingDone)
 		}
-		return "", fmt.Errorf("your commits conflict with %s - rebase by hand (git pull --rebase): %w", upstream, ErrNothingDone)
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	return UpdateRebased, nil
 }

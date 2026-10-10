@@ -225,22 +225,6 @@ func (g *Git) SquashCommits(dir, oldest, newest, message string) (string, error)
 	return squashed, nil
 }
 
-// Rewriting runs rewrite, a change to the history of the branch checked
-// out, and when that moves the branch off what its upstream has, notes
-// where the upstream stood (SetRebasedFrom): P then force-pushes with
-// exactly that as the lease, so nothing pushed since can be lost.
-func (g *Git) Rewriting(dir string, rewrite func() error) error {
-	branch, _ := g.out(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	tip, tipErr := g.UpstreamTip(dir)
-	if err := rewrite(); err != nil {
-		return err
-	}
-	if branch != "" && tipErr == nil && !g.IsAncestor(dir, tip, "HEAD") {
-		return g.SetRebasedFrom(dir, branch, tip)
-	}
-	return nil
-}
-
 func shortID(sha string) string { return sha[:min(8, len(sha))] }
 
 // PushHead sends the branch checked out to origin, setting its upstream the
