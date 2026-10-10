@@ -58,6 +58,10 @@ type remoteState struct {
 	From       string
 	FromBehind int
 	Upstream   gitx.Upstream
+	// Conflicts are the files bringing the branch up to what it follows -
+	// its base, or an upstream it has parted from - would stop at, as git
+	// forecasts it; p refuses those.
+	Conflicts []string
 	// Base is the branch this one was made from, when unagit made it; Onto is
 	// what it is compared with and rebased onto (origin's copy when there is
 	// one), and BaseBehind how many commits that has which this branch lacks.
@@ -211,7 +215,11 @@ func remoteStateOf(git *gitx.Git, r worktreeRow, upstreams map[string]gitx.Upstr
 		if st.Onto != "" {
 			st.BaseBehind = git.Count(r.Dir, "HEAD.."+st.Onto)
 		}
+		if st.BaseBehind > 0 && st.Own > 0 {
+			st.Conflicts, _ = git.WouldConflict(r.Dir, st.Onto)
+		}
 	}
+	st.Conflicts = append(st.Conflicts, divergedConflicts(git, r.Dir, st.Upstream)...)
 	if mark := rebased[r.Branch]; mark != "" && st.Upstream.Name != "" && !st.Upstream.Gone {
 		at, _ := git.Run(r.Dir, "rev-parse", "refs/remotes/"+st.Upstream.Name)
 		if strings.TrimSpace(at) == mark && !git.IsAncestor(r.Dir, mark, "HEAD") {
@@ -251,10 +259,14 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 		return "upstream gone", "", colBad
 	case st.ForceFrom != "":
 		return "force push required", "", colForce
+	case u.Name == "" && st.BaseBehind > 0 && len(st.Conflicts) > 0:
+		return fmt.Sprintf("%s%d behind %s · conflicts", glyphBehind, st.BaseBehind, st.Base), "", colBad
 	case u.Name == "" && st.BaseBehind > 0:
 		return fmt.Sprintf("%s%d behind %s", glyphBehind, st.BaseBehind, st.Base), "", colWarn
 	case u.Name == "":
 		return "no upstream", "", colWarn
+	case u.Ahead > 0 && u.Behind > 0 && len(st.Conflicts) > 0:
+		return fmt.Sprintf("%s%d %s%d diverged · conflicts", glyphAhead, u.Ahead, glyphBehind, u.Behind), "", colBad
 	case u.Ahead > 0 && u.Behind > 0:
 		return fmt.Sprintf("%s%d %s%d diverged", glyphAhead, u.Ahead, glyphBehind, u.Behind), "", colWarn
 	case u.Behind > 0:
@@ -263,6 +275,26 @@ func remoteWords(st remoteState, known bool) (plain, name string, colour tcell.C
 		return fmt.Sprintf("%s%d unpushed", glyphAhead, u.Ahead), "", colWarn
 	}
 	return "in sync", u.Name, colOn
+}
+
+// divergedConflicts forecasts where pulling a branch that parted from its
+// upstream would stop, nil for one that has not parted. It runs off the
+// event loop.
+func divergedConflicts(git *gitx.Git, dir string, u gitx.Upstream) []string {
+	if u.Name == "" || u.Gone || u.Ahead == 0 || u.Behind == 0 {
+		return nil
+	}
+	files, _ := git.WouldConflict(dir, "refs/remotes/"+u.Name)
+	return files
+}
+
+// conflictFiles names the files of a forecast conflict, a long list cut.
+func conflictFiles(files []string) string {
+	const most = 3
+	if len(files) > most {
+		return strings.Join(files[:most], ", ") + fmt.Sprintf(" and %d more", len(files)-most)
+	}
+	return strings.Join(files, ", ")
 }
 
 // remoteCell is the REMOTE column of one row, padded to width.
@@ -810,10 +842,14 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 		return "upstream gone: the branch was deleted on origin"
 	case st.ForceFrom != "":
 		return "rewritten here - rebased or squashed - and origin still has the old commits · P force-pushes, asking first"
+	case u.Name == "" && st.BaseBehind > 0 && len(st.Conflicts) > 0:
+		return fmt.Sprintf("not on origin yet, %d behind %s · rebasing onto it would conflict in %s - rebase by hand", st.BaseBehind, st.Onto, conflictFiles(st.Conflicts))
 	case u.Name == "" && st.BaseBehind > 0:
 		return fmt.Sprintf("not on origin yet, %d behind %s · p rebases onto it · P pushes it", st.BaseBehind, st.Onto)
 	case u.Name == "":
 		return "no upstream: not on origin yet · P pushes it"
+	case u.Ahead > 0 && u.Behind > 0 && len(st.Conflicts) > 0:
+		return fmt.Sprintf("diverged: %d unpushed, %d behind origin · pulling would conflict in %s - rebase by hand", u.Ahead, u.Behind, conflictFiles(st.Conflicts))
 	case u.Ahead > 0 && u.Behind > 0:
 		return fmt.Sprintf("diverged: %d unpushed, %d behind origin", u.Ahead, u.Behind)
 	case u.Behind > 0:

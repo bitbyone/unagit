@@ -176,6 +176,12 @@ func (m *Manager) moveOnto(dir, branch, upstream string) (string, error) {
 		}
 	}
 
+	// Forecast in memory first, so a conflict is refused before anything
+	// moves, and the refusal can say where.
+	if files, ok := m.git.WouldConflict(dir, upstream); ok && len(files) > 0 {
+		return "", fmt.Errorf("your commits conflict with %s in %s - rebase by hand (git pull --rebase): %w",
+			upstream, strings.Join(files, ", "), ErrNothingDone)
+	}
 	m.log("Rebasing %d local commit(s) and %d edited file(s) onto %s (%d new)", ahead, len(dirty), upstream, behind)
 	// Written down, so that the rebase can be undone.
 	onto := upstream

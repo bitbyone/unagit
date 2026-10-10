@@ -137,6 +137,35 @@ func TestSetBaseThenRebaseOnto(t *testing.T) {
 	}
 }
 
+// TestAConflictIsForetold: a branch whose base changed the same file says
+// so in RMT before anything is tried, and p refuses, naming the file.
+func TestAConflictIsForetold(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 40)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	dir := p.worktree("feat/x")
+	gitIn(t, p.clone, "config", "branch.feat/x.unagitBase", "main")
+	must(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("mine\n"), 0o644))
+	gitIn(t, dir, "commit", "-q", "-am", "mine")
+	head := gitIn(t, dir, "rev-parse", "HEAD")
+	other := p.elsewhere("main")
+	must(t, os.WriteFile(filepath.Join(other, "a.txt"), []byte("theirs\n"), 0o644))
+	gitIn(t, other, "commit", "-q", "-am", "theirs")
+	gitIn(t, other, "push", "-q", "origin", "main")
+	gitIn(t, dir, "fetch", "-q")
+	p.rescan()
+
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "behind main · conflicts")
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "in a.txt")
+	if gitIn(t, dir, "rev-parse", "HEAD") != head {
+		t.Error("the branch moved")
+	}
+}
+
 func readFileUI(t *testing.T, dir, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, name))

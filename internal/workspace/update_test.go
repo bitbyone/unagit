@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -132,6 +133,9 @@ func TestUpdateRollsBackAConflictingRebase(t *testing.T) {
 	_, err := f.m.UpdateClone(f.clone)
 	if !errors.Is(err, ErrNothingDone) {
 		t.Fatalf("got %v, want a refusal", err)
+	}
+	if !strings.Contains(err.Error(), "in a.txt") {
+		t.Errorf("the refusal does not say where: %v", err)
 	}
 	assertUntouched(t, f, head, status)
 	if readFile(t, f.clone, "b.txt") != "an edit elsewhere\n" {

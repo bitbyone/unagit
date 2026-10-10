@@ -400,7 +400,11 @@ as a clone does in Repositories - a pushed branch is never rebased onto its
 base, since that would rewrite what origin has and need a force push, which
 unagit does not do. The same rules apply: a fast-forward when nothing local is
 in the way, a rebase otherwise, and nothing at all when that would conflict.
-`R` fetches first, `Alt-P` updates every worktree.
+`R` fetches first, `Alt-P` updates every worktree. Whether a rebase would
+stop on a conflict is forecast before anything is tried - git merges the two
+in memory - so `RMT` says `↓2 behind main · conflicts` (or `diverged ·
+conflicts`) ahead of time, the detail names the files, and `p` or `Ctrl-R`
+refuse saying where.
 
 `Ctrl-R` goes further: it puts the branch - its commits and its uncommitted
 edits - on top of its base as it is now, pushed or not, so that it reads as

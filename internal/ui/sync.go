@@ -69,6 +69,7 @@ func (a *App) loadRepoSync(fetch bool) {
 				upstreams := j.git.BranchUpstreams(j.dir)
 				if u, ok := upstreams[j.branch]; ok {
 					st.Upstream = u
+					st.Conflicts = divergedConflicts(j.git, j.dir, u)
 				} else if upstreams == nil {
 					st.Unreadable = true
 				} else {

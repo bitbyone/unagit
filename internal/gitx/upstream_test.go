@@ -205,3 +205,27 @@ func TestCommitFilesCountsLines(t *testing.T) {
 		t.Errorf("the merge brought %+v, %v; want c.txt", files, err)
 	}
 }
+
+// TestWouldConflict forecasts, without touching the checkout, the files a
+// rebase onto another branch would stop at.
+func TestWouldConflict(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	g := New("", nil)
+	sh(t, clone, "checkout", "-q", "-b", "other")
+	commit(t, clone, "a.txt", "theirs")
+	sh(t, clone, "checkout", "-q", "main")
+	commit(t, clone, "b.txt", "mine")
+	if files, ok := g.WouldConflict(clone, "other"); !ok || len(files) != 0 {
+		t.Errorf("separate files: %v, %v", files, ok)
+	}
+	commit(t, clone, "a.txt", "mine too")
+	head := sh(t, clone, "rev-parse", "HEAD")
+	files, ok := g.WouldConflict(clone, "other")
+	if !ok || len(files) != 1 || files[0] != "a.txt" {
+		t.Errorf("the same file: %v, %v", files, ok)
+	}
+	if sh(t, clone, "rev-parse", "HEAD") != head || sh(t, clone, "status", "--porcelain") != "" {
+		t.Error("the forecast touched the checkout")
+	}
+}
