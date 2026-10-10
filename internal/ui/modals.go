@@ -37,6 +37,18 @@ type choice struct {
 // or Force Push - each its own button, Cancel before them. y accepts only
 // where there is a single choice.
 func (a *App) confirmChoices(title, body string, warnings []string, choices []choice) {
+	a.confirmChoicesBack(title, body, warnings, choices, nil)
+}
+
+// confirmChoicesBack is confirmChoices for a question asked over a list
+// the user came from: Cancel, Esc, n and q go back to it with back.
+func (a *App) confirmChoicesBack(title, body string, warnings []string, choices []choice, back func()) {
+	cancel := func() {
+		a.closeModal(pageConfirm)
+		if back != nil {
+			back()
+		}
+	}
 	text := body
 	if len(warnings) > 0 {
 		text += "\n\n" + tag(colBad) + "Careful:" + tagEnd + "\n"
@@ -57,17 +69,19 @@ func (a *App) confirmChoices(title, body string, warnings []string, choices []ch
 		SetText(text).
 		AddButtons(marked).
 		SetDoneFunc(func(i int, label string) {
-			a.closeModal(pageConfirm)
-			if i >= 1 && i <= len(choices) {
-				choices[i-1].run()
+			if i < 1 || i > len(choices) {
+				cancel()
+				return
 			}
+			a.closeModal(pageConfirm)
+			choices[i-1].run()
 		})
 	modal.SetTextColor(colText)
 	modal.SetButtonActivatedStyle(styleSelected)
 	box(modal.Box, title)
 	modal.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc {
-			a.closeModal(pageConfirm)
+			cancel()
 			return nil
 		}
 		if ev.Key() != tcell.KeyRune || ev.Modifiers()&(tcell.ModCtrl|tcell.ModAlt) != 0 {
@@ -75,7 +89,7 @@ func (a *App) confirmChoices(title, body string, warnings []string, choices []ch
 		}
 		key := unicode.ToLower(ev.Rune())
 		if key == keys[0] || key == 'n' || key == 'q' {
-			a.closeModal(pageConfirm)
+			cancel()
 			return nil
 		}
 		for i, c := range choices {

@@ -128,6 +128,13 @@ func TestSquashInTheLog(t *testing.T) {
 	if !strings.Contains(a.screenText(sc), "force push") {
 		t.Errorf("the question does not name the force push:\n%s", a.screenText(sc))
 	}
+	// Cancel goes back to the log, the marks kept.
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "· 2 marked")
+	typeRunes(sc, "s")
+	waitFor(t, a, sc, "Squash 2 Commits")
+	pressButton(t, a, sc, frontForm(a), "Save")
+	waitFor(t, a, sc, "1 of these commits is on origin")
 	typeRunes(sc, "s")
 	waitFor(t, a, sc, "squashed 2 commits into")
 	waitFor(t, a, sc, "── only on origin")

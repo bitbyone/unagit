@@ -249,7 +249,7 @@ func (a *App) undoRewrite(s rewriteScope, r gitx.Rewrite, back func()) {
 				a.flash(plan.Blocked)
 				return
 			}
-			a.confirmChoices("Undo", undoQuestion(r, plan), nil, []choice{{"Undo", func() { a.runUndo(s, r) }}})
+			a.confirmChoicesBack("Undo", undoQuestion(r, plan), nil, []choice{{"Undo", func() { a.runUndo(s, r) }}}, back)
 		})
 	}()
 }
