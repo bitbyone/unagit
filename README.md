@@ -737,6 +737,10 @@ written again and the commits after it replayed onto it. `u` undoes the
 newest commit: the commit goes, its changes stay on disk to be committed
 again. Both are among a commit's actions (`Alt-Enter`), offered only where
 they can be done.
+`w` opens the commit on the server, and `y` copies its id, its link, a
+markdown link, or a link with text for a chat: repository, branch, commit
+and subject followed by the link. `y` on a merge request or a repository
+offers the same kind of line.
 
 Space marks commits in a clone's or a worktree's log, as it marks rows in
 the lists; `Esc` takes the marks off before it closes the log. With two or
@@ -799,10 +803,6 @@ The same changes come to the log of the Activity screen as its local
 history, beside the news from the servers; they are never counted as unseen.
 `H` there narrows the log to them, and `Enter` on one opens Rewrite History
 on it.
-`w` opens the commit on the server, and `y` copies its id, its link, a
-markdown link, or a link with text for a chat: repository, branch, commit
-and subject followed by the link. `y` on a merge request or a repository
-offers the same kind of line.
 
 ### The shelf
 
