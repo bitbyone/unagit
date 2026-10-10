@@ -135,6 +135,8 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 				when: func(it pickItem) bool { return !at(it).Theirs }},
 			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back: its changes stay on disk, to be committed again. One on origin asks first: a force push follows.", run: func(it pickItem) { a.undoCommit(place, at(it), isHead(at(it)), again(it)) },
 				when: func(it pickItem) bool { return isHead(at(it)) }},
+			pickKey{keys: "H", name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.",
+				run: func(it pickItem) { a.showRewrites(rewriteScope{project: place.project, dir: place.dir}) }},
 			pickKey{keys: "s", name: "Squash Commits…", about: "Make one commit of the commits marked with space, next to each other; asks first when origin has any of them.",
 				run: func(it pickItem) {
 					if why := squashable(commits, markedNow()); why != "" {
@@ -617,6 +619,7 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 	}
 	reword := func(text string) {
 		var rewritten string
+		since := time.Now()
 		a.runTaskThen("Editing the message of "+shortSHA(c.SHA), func(log func(string)) (string, error) {
 			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
 			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteReword, What: "edited the message of " + shortSHA(c.SHA)}, func() error {
@@ -627,6 +630,7 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 			return "", err
 		}, func(string) {
 			a.afterGitChange()
+			a.logRewrites(place.project, place.dir, since)
 			place.reload(rewritten, "the message of "+shortSHA(rewritten)+" is edited")
 		})
 	}
@@ -675,6 +679,7 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 	}
 	git := a.pathManager(place.project.Instance, place.project.PathWithNamespace).Git()
 	undo := func() {
+		since := time.Now()
 		go func() {
 			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteUndoCommit, What: "undid commit " + shortSHA(c.SHA)},
 				func() error { return git.UndoCommit(place.dir) })
@@ -685,6 +690,7 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 					return
 				}
 				a.afterGitChange()
+				a.logRewrites(place.project, place.dir, since)
 				place.reload("", "undid "+shortSHA(c.SHA)+": its changes wait to be committed again")
 			})
 		}()
@@ -753,6 +759,7 @@ func (a *App) squashCommits(place logPlace, commits []logCommit, marked []int, b
 	}
 	squash := func(text string) {
 		var squashed string
+		since := time.Now()
 		a.runTaskThen(fmt.Sprintf("Squashing %d commits", len(marked)), func(log func(string)) (string, error) {
 			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
 			_, err := git.Rewriting(place.dir, gitx.RewriteChange{Kind: gitx.RewriteSquash, What: fmt.Sprintf("squashed %d commits", len(marked))}, func() error {
@@ -763,6 +770,7 @@ func (a *App) squashCommits(place logPlace, commits []logCommit, marked []int, b
 			return "", err
 		}, func(string) {
 			a.afterGitChange()
+			a.logRewrites(place.project, place.dir, since)
 			place.reload(squashed, fmt.Sprintf("squashed %d commits into %s", len(marked), shortSHA(squashed)))
 		})
 	}

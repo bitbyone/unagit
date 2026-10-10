@@ -223,6 +223,9 @@ type App struct {
 	activity     *activityView
 	activityRows []activityItem
 	activityLog  []watch.Event
+	// activityLocal narrows the log to the local history: what was done
+	// to the branches here, which can be undone.
+	activityLocal bool
 	// changes is the Changes dialog while it is open.
 	changes       *changesView
 	activitySince time.Time

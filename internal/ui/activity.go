@@ -120,7 +120,7 @@ func (a *App) activityItems() []activityItem {
 
 // activityUnseen reports whether an event came after the last visit.
 func (a *App) activityUnseen(e watch.Event) bool {
-	return !e.At.IsZero() && e.At.After(a.activitySince)
+	return !e.Local && !e.At.IsZero() && e.At.After(a.activitySince)
 }
 
 // itemUnseen reports whether a row changed since the screen was last
@@ -152,7 +152,8 @@ func (a *App) activityNews() int {
 	}
 	n := 0
 	for _, e := range a.activityLog {
-		if e.At.After(since) {
+		// What the user did here is not news to them.
+		if !e.Local && e.At.After(since) {
 			n++
 		}
 	}
@@ -165,6 +166,33 @@ func (a *App) setActivityLog(events []watch.Event) {
 	a.activityLog = events
 	a.redrawActivity()
 	a.drawTabs()
+}
+
+// shownActivityLog is the log as the screen shows it: everything, or the
+// local history alone.
+func (a *App) shownActivityLog() []watch.Event {
+	if !a.activityLocal {
+		return a.activityLog
+	}
+	var local []watch.Event
+	for _, e := range a.activityLog {
+		if e.Local {
+			local = append(local, e)
+		}
+	}
+	return local
+}
+
+// toggleLocalHistory narrows the log to the local history, or widens it
+// to everything again.
+func (a *App) toggleLocalHistory() {
+	a.activityLocal = !a.activityLocal
+	a.redrawActivity()
+	if a.activityLocal {
+		a.note("the log shows the local history: what was done to the branches here")
+		return
+	}
+	a.note("the log shows everything again")
 }
 
 // redrawActivity draws the screen again where it is built.

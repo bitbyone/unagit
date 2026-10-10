@@ -335,7 +335,20 @@ func (a *App) rebaseWorktree(r worktreeRow) {
 // moveMany runs move - an update or a rebase - over working trees.
 func (a *App) moveMany(title string, items []updateItem, move func(*workspace.Manager, string, string) (string, error)) {
 	integrate := a.cfg.Integrations.Incomm
+	since := time.Now()
 	a.runTaskNoting(title, func(log func(string)) (string, error) {
+		// A rebase is written down; the Activity log hears of it, once a
+		// repository, whose worktrees share one record.
+		defer func() {
+			logged := map[projectKey]bool{}
+			for _, it := range items {
+				k := projectKey{it.instance, it.path}
+				if !logged[k] {
+					logged[k] = true
+					a.logRewrites(forge.Project{Instance: it.instance, PathWithNamespace: it.path}, it.dir, since)
+				}
+			}
+		}()
 		// The code moved under the comments: put them back on it, whatever
 		// came of the moves.
 		if integrate {
@@ -549,9 +562,13 @@ func (a *App) updateMR(mr forge.MergeRequest) {
 		return
 	}
 	integrate := a.cfg.Integrations.Incomm
+	since := time.Now()
 	a.runTaskNoting(fmt.Sprintf("Updating !%d", mr.IID), func(log func(string)) (string, error) {
 		mgr := a.newManager(mr.Instance, project.PathWithNamespace, log)
 		outcome, err := mgr.UpdateMR(mr, project)
+		if outcome == workspace.UpdateRebased {
+			a.logRewrites(project, mgr.MRDir(project.PathWithNamespace, mr.IID, mr.SourceBranch), since)
+		}
 		if err != nil {
 			return "", err
 		}

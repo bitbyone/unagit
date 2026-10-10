@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -138,10 +139,13 @@ func (a *App) setBase(s baseScope) {
 	a.chooseBase(s, "Base of "+s.branch, "set as base", "Set Base", "Record this branch as the one "+s.branch+" was made from.",
 		func(base string) {
 			git := a.newManager(s.project.Instance, s.project.PathWithNamespace, nil).Git()
-			if err := git.SetBranchBase(s.dir, s.branch, base); err != nil {
+			since := time.Now()
+			change := gitx.RewriteChange{Kind: gitx.RewriteBase, What: "set the base to " + base}
+			if _, err := git.Rewriting(s.dir, change, func() error { return git.SetBranchBase(s.dir, s.branch, base) }); err != nil {
 				a.errorf("recording the base of %s: %s", s.branch, firstLine(err.Error()))
 				return
 			}
+			a.logRewrites(s.project, s.dir, since)
 			// The rows read where they stand against the base again.
 			a.refreshDisk()
 			a.done(fmt.Sprintf("%s is now based on %s", s.branch, base))

@@ -25,8 +25,9 @@ type activityView struct {
 	watching *tview.TextView
 	log      *tview.Table
 	// logKeys is the key of the thing each row of the log is about, ""
-	// for the line of the last visit.
-	logKeys []string
+	// for the line of the last visit; logEvents is each row's event.
+	logKeys   []string
+	logEvents []watch.Event
 	// bandH and logH are the heights last laid out.
 	bandH, logH int
 	// autoDetail is a detail that opened by itself, for the room there was;
@@ -222,6 +223,7 @@ func (a *App) newActivityPane() *pane {
 		return "Log", []uiAction{
 			{name: "Go to Its Row", about: "Put the list's cursor on what the event is about, and go there.", keys: "Enter", rank: 10, run: func() { v.chooseLogRow() }},
 			{name: "Show Log", about: "The log in front, over the screen: every event at full length.", keys: "z", rank: 20, run: a.showActivityLog},
+			a.localHistoryAction(),
 		}
 	}
 	v.log.SetInputCapture(v.panelKeys(v.log, func(ev *tcell.EventKey) bool {
@@ -321,7 +323,11 @@ func panelTitle(name, key string) string {
 func (v *activityView) setTitles() {
 	v.pane.table.SetTitle(panelTitle("Activity", "a"))
 	v.watching.SetTitle(panelTitle("Watching", "W"))
-	v.log.SetTitle(panelTitle("Log", "L"))
+	if v.app.activityLocal {
+		v.log.SetTitle(panelTitle("Log · local history", "L"))
+	} else {
+		v.log.SetTitle(panelTitle("Log", "L"))
+	}
 	v.cards.SetTitle(panelTitle("Open", "e"))
 }
 
@@ -668,16 +674,17 @@ func (v *activityView) drawLog() {
 	t := v.log
 	row, _ := t.GetSelection()
 	t.Clear()
-	v.logKeys = v.logKeys[:0]
+	v.logKeys, v.logEvents = v.logKeys[:0], v.logEvents[:0]
 	_, _, width, _ := t.GetInnerRect()
+	shown := a.shownActivityLog()
 	newOnes := 0
-	for _, e := range a.activityLog {
+	for _, e := range shown {
 		if a.activityUnseen(e) {
 			newOnes++
 		}
 	}
 	whenW, whatW, headW := headingWidth("WHEN"), headingWidth("WHAT"), headingWidth("WHAT HAPPENED")
-	for _, e := range a.activityLog {
+	for _, e := range shown {
 		whenW = max(whenW, cells(eventTime(e.At)))
 		whatW = max(whatW, min(28, cells(e.What)))
 		if e.Heading != "" {
@@ -694,12 +701,12 @@ func (v *activityView) drawLog() {
 		{text: "DETAILS", width: max(8, width-whenW-whatW-headW-8), colour: head},
 	}
 	t.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
-	v.logKeys = append(v.logKeys, "")
+	v.logKeys, v.logEvents = append(v.logKeys, ""), append(v.logEvents, watch.Event{})
 	r := 1
-	for i, e := range a.activityLog {
+	for i, e := range shown {
 		if newOnes > 0 && i == newOnes {
 			t.SetCell(r, 0, tview.NewTableCell(a.visitLine(width-1)).SetSelectable(false).SetExpansion(1))
-			v.logKeys = append(v.logKeys, "")
+			v.logKeys, v.logEvents = append(v.logKeys, ""), append(v.logEvents, watch.Event{})
 			r++
 		}
 		glyph, colour := levelGlyph(e)
@@ -719,12 +726,16 @@ func (v *activityView) drawLog() {
 			cells = append(cells, field{text: e.Line, width: max(8, width-whenW-whatW-headW-8), colour: role("activity.about")})
 		}
 		t.SetCell(r, 0, tview.NewTableCell(rowText(cells)).SetExpansion(1).SetReference(e.Key))
-		v.logKeys = append(v.logKeys, e.Key)
+		v.logKeys, v.logEvents = append(v.logKeys, e.Key), append(v.logEvents, e)
 		r++
 	}
-	if len(a.activityLog) == 0 {
-		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+"Nothing has happened yet: what the watches and the agents do comes here."+tagEnd).SetSelectable(false))
-		v.logKeys = append(v.logKeys, "")
+	if len(shown) == 0 {
+		empty := "Nothing has happened yet: what the watches and the agents do comes here, and what is done to the branches here."
+		if a.activityLocal {
+			empty = "Nothing was done to the branches here yet: squashes, rebases, deleted branches come here, to be undone."
+		}
+		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+empty+tagEnd).SetSelectable(false))
+		v.logKeys, v.logEvents = append(v.logKeys, ""), append(v.logEvents, watch.Event{})
 	}
 	if !t.HasFocus() {
 		// Read, not walked: the newest at the top, no cursor.
@@ -769,6 +780,12 @@ func (v *activityView) lightLog() {
 func (v *activityView) chooseLogRow() {
 	row, _ := v.log.GetSelection()
 	if row < 0 || row >= len(v.logKeys) || v.logKeys[row] == "" {
+		return
+	}
+	// The local history's things are not in the list: its rows open the
+	// record they are of.
+	if row < len(v.logEvents) && v.logEvents[row].Local {
+		v.app.openLocalEvent(v.logEvents[row])
 		return
 	}
 	v.app.selectActivityKey(v.logKeys[row])
@@ -1012,6 +1029,7 @@ func (a *App) activityScreenActions(p *pane) []uiAction {
 			run: func() { a.watchAsk(nil); a.agentsNowAsk() },
 		},
 		{name: "Show Log", about: "The log in front, over the screen: every event at full length, to filter and to go to.", keys: "z", rank: 20, run: a.showActivityLog},
+		a.localHistoryAction(),
 		{name: "Go to List", about: "Move to the list of the watches and the agents.", keys: "a", rank: 28, run: func() { v.focus(p.table) }},
 		{
 			name: "Go to Open Editors", about: "Move to the cards of the editors open: h and l between them, Enter goes to one.", keys: "e", rank: 30,
@@ -1054,13 +1072,14 @@ func (a *App) stopWatchingAll(p *pane) {
 // showActivityLog opens the log in front: every event at full length, the
 // newest first; Enter goes to its thing in the list.
 func (a *App) showActivityLog() {
-	if len(a.activityLog) == 0 {
+	shown := a.shownActivityLog()
+	if len(shown) == 0 {
 		a.note("nothing has happened yet")
 		return
 	}
-	items := make([]pickItem, len(a.activityLog))
-	table := make([][]string, len(a.activityLog))
-	for i, e := range a.activityLog {
+	items := make([]pickItem, len(shown))
+	table := make([][]string, len(shown))
+	for i, e := range shown {
 		glyph, colour := levelGlyph(e)
 		mark := " "
 		if a.activityUnseen(e) {
@@ -1083,11 +1102,27 @@ func (a *App) showActivityLog() {
 	for i := range items {
 		items[i].Label = labels[i]
 	}
-	a.showPickerWith("Log", items, pickerOptions{
+	title := "Log"
+	if a.activityLocal {
+		title = "Log · local history"
+	}
+	a.showPickerWith(title, items, pickerOptions{
 		wide: true, explain: true, header: header, enterHint: "go to",
-		enterName: "Go to Its Row", enterAbout: "Close the log and put the list's cursor on what the event is about.",
+		enterName: "Go to Its Row", enterAbout: "Close the log and put the list's cursor on what the event is about; a change to a branch opens Rewrite History on it.",
+		keys: []pickKey{{keys: "H", hint: "local history", name: "Toggle Local History",
+			about: "Show only what was done to the branches here, which can be undone - or everything again.",
+			run: func(pickItem) {
+				// The title says it; a word under the dialog would not be seen.
+				a.activityLocal = !a.activityLocal
+				a.redrawActivity()
+				a.showActivityLog()
+			}}},
 	}, func(it pickItem) {
 		e := it.Data.(watch.Event)
+		if e.Local {
+			a.openLocalEvent(e)
+			return
+		}
 		if a.currentTab() != pageActivity {
 			a.switchTab(pageActivity)
 		}
@@ -1195,7 +1230,7 @@ func (v *activityView) hint() (tview.Primitive, string) {
 	case p.detail.HasFocus():
 		return p.detail, join(key("Enter", "open"), key("x", "stop or close"), key("w", "browser"))
 	case v.log.HasFocus():
-		return v.log, join(key("Enter", "go to its row"), key("z", "in front"))
+		return v.log, join(key("Enter", "go to its row"), key("z", "in front"), key("H", "local history"))
 	case v.cards.HasFocus():
 		if _, ok := v.cards.chosen(); !ok {
 			return v.cards, key("Enter", "every editor open")

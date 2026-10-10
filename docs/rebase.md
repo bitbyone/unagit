@@ -268,3 +268,35 @@ cancel callback.
 **4.** `e` is offered on every commit of the branch, `u` on HEAD
 (`isHead`, since the first row may now be one of origin's), each asking
 first when origin has the commit (`onOriginQuestion`).
+
+## 5. Rewrite History, and undoing it
+
+Agreed with the user on 2026-10-10, after parts 1 to 4 were in, and built
+the same day.
+
+- **The record** (`internal/gitx/rewrites.go`) is the repository's:
+  `<git-common-dir>/unagit/rewrites.json`, written under a lock, each
+  rewrite with the branch's tip before and after, its configuration before
+  (every `branch.<name>.*` key), and whether the files changed too. Refs
+  `refs/unagit/rewrites/<id>/before` and `/after` keep the commits from
+  git's collection. The newest 200, none older than 90 days.
+- **What is written down**: everything through `gitx.Rewriting` - squash,
+  edit message, undo commit, set base, the rebase in `moveOnto` (so `p`,
+  `Ctrl-R`, Rebase onto… and a merge request's update) - and a branch
+  deleted (`DeleteLocalBranch`, or `RecordDeletion` for one only origin
+  had). A rebase that only brought the branch forward rewrote nothing and is
+  left out. `Rewriting` also notes the lease, so `rebaseOnto` no longer does.
+- **Undo** (`PlanUndo`, `UndoRewrite`) goes back to before the rewrite and
+  the later ones of the same branch, as a stack: `reset --soft` when only
+  the history changed, `reset --keep` after a rebase, `branch --force` when
+  the branch is out nowhere; the configuration goes back too. Commits made
+  since are counted in the question; the undo is itself recorded, so
+  nothing it sets aside is lost. A deletion is undone by making the branch
+  again; a branch of that name made since blocks it.
+- **UI** (`internal/ui/rewrites.go`): Rewrite History… - `H` in a commit
+  log and in the branch manager, an action of a repository and of a
+  worktree - lists the record (`u` undo, `Enter` the commits before and
+  after, `D` the files in Hunk, `y` the commit before). Each change is an
+  event of the Activity log (`watch.Event.Local`, never unseen, never on
+  the tab's count); `H` there narrows the log to them, and `Enter` on one
+  opens Rewrite History on it.

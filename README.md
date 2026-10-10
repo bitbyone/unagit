@@ -755,6 +755,36 @@ elsewhere - the log is in three parts: **only here** (a force push puts these
 on origin), **only on origin**, dimmed (a force push removes these), and
 **shared**. The commits only on origin can be looked at, never rewritten.
 The cursor steps over the lines, and a filter hides them.
+
+### Undoing what was rewritten
+
+Everything unagit does to a branch's history is written down: a squash, an
+edited message, an undone commit, a rebase (`p` or `Ctrl-R`, Rebase onto…),
+a base set, a branch deleted. **Rewrite History…** - `H` in a commit log or
+the branch manager, or among the actions of a repository or a worktree -
+lists them for the repository, newest first. `u` undoes one, after saying
+what will happen: the branch goes back to where it was before, and the later
+changes of the same branch go back with it. After a squash or an edited
+message only the history goes back - the files are the same - and after a
+rebase the files go back too; what is not committed stays either way, and
+when it would collide nothing is done. A deleted branch is made again where
+it was, tracking what it tracked; one deleted only on origin is made again
+here, to push back if you want it there. If origin already has what the
+branch leaves, the question says a force push will be needed, and `P` then
+asks for it with the right lease. The undo is written down like the rest, so
+it can be undone in its turn. `Enter` shows the commits the branch had before
+and not after, and the other way round; `D` shows what the files went
+through in Hunk; `y` copies the commit before, for going back by hand.
+
+The record is the repository's own, in its git directory, shared by its
+worktrees, and refs under `refs/unagit/rewrites` keep both states so git does
+not collect them. It keeps the newest 200 changes and none older than 90
+days. The refs are never pushed.
+
+The same changes come to the log of the Activity screen as its local
+history, beside the news from the servers; they are never counted as unseen.
+`H` there narrows the log to them, and `Enter` on one opens Rewrite History
+on it.
 `w` opens the commit on the server, and `y` copies its id, its link, a
 markdown link, or a link with text for a chat: repository, branch, commit
 and subject followed by the link. `y` on a merge request or a repository

@@ -163,6 +163,13 @@ type Event struct {
 	Level Level `json:"level,omitempty"`
 	// At is when it was found; an older state.json has none.
 	At time.Time `json:"at,omitzero"`
+	// Local is a change the user made here, to a branch's history - a
+	// squash, a rebase, a branch deleted - not news from a server: never
+	// counted as unseen. Dir is a checkout of its repository and Ref the
+	// rewrite in that repository's record, which can be undone.
+	Local bool   `json:"local,omitempty"`
+	Dir   string `json:"dir,omitempty"`
+	Ref   string `json:"ref,omitempty"`
 }
 
 // Level is an event's severity.

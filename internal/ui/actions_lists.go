@@ -120,6 +120,10 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 				a.diffKey(dir, targets)
 			}
 		}},
+		{name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.", keys: "", rank: 97,
+			when: cloned, run: func() {
+				a.showRewrites(rewriteScope{project: pr, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
+			}},
 		{name: "Set Base…", about: "Choose the branch the clone's branch was made from, which the diffs since base go by.", keys: "", rank: 96,
 			when: func() bool {
 				branch := a.diskOf(pr.Instance, pr.PathWithNamespace).Branch
@@ -326,6 +330,8 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		}},
 		{name: "Rebase onto Base", about: "Rebase the branch onto its base even once pushed; P then force-pushes with a lease.", keys: "Ctrl-R", rank: 50, when: based, run: func() { a.rebaseWorktree(r) }},
 		{name: "Rebase onto…", about: "Rebase the branch onto a branch you pick, once, even once pushed; its base stays.", keys: "", rank: 51, when: single, run: func() { a.rebaseOnto(a.worktreeBase(r)) }},
+		{name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.", keys: "", rank: 54,
+			when: single, run: func() { a.showRewrites(rewriteScope{project: a.worktreeProject(r), dir: r.Dir}) }},
 		{name: "Set Base…", about: "Choose the branch this one was made from, which Pull, Rebase onto Base and the diffs since base go by.", keys: "", rank: 53,
 			when: func() bool { return single() && r.Branch != "(detached)" }, run: func() { a.setBase(a.worktreeBase(r)) }},
 		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline, as CI shows it; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},

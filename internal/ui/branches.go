@@ -244,6 +244,11 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		{keys: "m", hint: "merge request", name: "New Merge Request…", about: "Propose this branch for merging, on the server.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return !b.isDefault && b.mr == 0 }, run: func(it pickItem) { a.branchMergeRequest(pr, it.Data.(branchInfo)) }},
 		{keys: "d", hint: "delete here", name: "Delete Locally…", about: "Delete the branch in the clone, and the worktree it is out in; origin keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.local }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, false, again) }},
 		{keys: "D", hint: "everywhere", name: "Delete Everywhere…", about: "Delete the branch in the clone, the worktree it is out in, and on origin.", run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), true, true, again) }},
+		{keys: "H", name: "Rewrite History…", about: "What was done to the repository's branches - deleted ones too - in order: undo any of it, a deleted branch made again.",
+			when: func(pickItem) bool { return a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned },
+			run: func(pickItem) {
+				a.showRewrites(rewriteScope{project: pr, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
+			}},
 		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.remote }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
 	}}
 	var onSelect func(pickItem)
@@ -408,9 +413,18 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 	a.confirm("Delete branch", body, warnings, func() {
 		client := a.client(pr.Instance)
 		cloned := a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned
+		since := time.Now()
 		a.runTaskThen("Deleting "+b.name, func(log func(string)) (string, error) {
 			mgr := a.newManager(pr.Instance, pr.PathWithNamespace, log)
 			mainDir := mgr.ProjectDir(pr.PathWithNamespace)
+			// A branch only origin had leaves no trace here once deleted
+			// there: where it was is written down, so that it can be made
+			// again here.
+			originTip := ""
+			if there && !b.local && cloned {
+				originTip, _ = mgr.Git().Run(mainDir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+b.name)
+				originTip = strings.TrimSpace(originTip)
+			}
 			if worktree != "" {
 				if err := mgr.RemoveWorktreeDir(pr.PathWithNamespace, worktree); err != nil {
 					return "", err
@@ -427,6 +441,9 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 				if cloned {
 					mgr.Git().ForgetRemoteBranch(mainDir, b.name)
 				}
+				if originTip != "" {
+					_, _ = mgr.Git().RecordDeletion(mainDir, b.name, originTip, "deleted "+b.name+" on origin")
+				}
 			}
 			if here {
 				if err := mgr.Git().DeleteLocalBranch(mainDir, b.name); err != nil {
@@ -437,6 +454,9 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 			return "", nil
 		}, func(string) {
 			a.refreshDisk()
+			if cloned {
+				a.logRewrites(pr, a.projectDir(pr.Instance, pr.PathWithNamespace), since)
+			}
 			done := fmt.Sprintf("deleted %s %s", b.name, strings.Join(where, " and "))
 			if worktree != "" {
 				done += ", with its worktree"
