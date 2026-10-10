@@ -14,10 +14,11 @@ messages go through `flash`/`note`/`done`/`errorf` and never from the
 background into a box; every new dialog gets a layout test at several
 sizes and `assertLegible`; colours and glyphs come from the theme.
 
-**Commits.** The user commits and pushes through unagit for now: leave
-the changes in the working tree, do not commit, until they say otherwise.
-Stage only your own files when you do commit (`git add <paths>`, never
-`-A`): the user edits in IntelliJ beside the session.
+**Commits.** At first the user committed through unagit and the changes
+were left in the working tree; since part 5 the work is committed and
+pushed as it lands, as AGENTS.md says. Stage only your own files
+(`git add <paths>`, never `-A`): the user edits in IntelliJ beside the
+session.
 
 ## What is there already
 
@@ -226,8 +227,7 @@ file as parts land: what was built, and where it differs from the plan.
 
 ## What was built
 
-All four parts are in the working tree, not committed (see **Commits**
-above). `go test ./...`, `gofmt -l .` and `go vet ./...` are clean; the
+All four parts are in, committed and pushed. `go test ./...`, `gofmt -l .` and `go vet ./...` are clean; the
 base picker, the log with each kind of line, the marked log, the squash
 form and its question were drawn on the simulation screen and looked at.
 

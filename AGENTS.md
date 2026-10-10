@@ -347,6 +347,17 @@ origin's copy as last fetched (`UpstreamTip`), so whatever anyone pushed
 since makes git refuse. A branch origin has moved past is offered Force
 Push alone, never a plain push. Nothing forces without asking.
 
+**Every rewrite is written down.** A change to a branch's history - a
+squash, an edited message, an undone commit, a rebase, a base set, a branch
+deleted - goes through `gitx.Rewriting` (or `DeleteLocalBranch`,
+`RecordDeletion`), which records it in the repository's git directory with
+refs that keep both states, and notes the force push's lease. Rewrite
+History… (`internal/ui/rewrites.go`) undoes from that record, and
+`logRewrites` puts each change into the Activity log as local history. A
+new action that moves a branch backwards or sideways goes through
+`Rewriting` too, or it cannot be undone and nobody is told. See
+[docs/rebase.md](docs/rebase.md).
+
 **Commits are IntelliJ's, not git's.** A file is versioned or unversioned;
 a change to a versioned file is committed as it is on disk, staged or not
 (`CommitVersioned`, `commit --all`), and an unversioned one only when it is
