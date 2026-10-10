@@ -32,6 +32,19 @@ func (c *Client) BranchExists(ctx context.Context, p forge.Project, branch strin
 	return err == nil, err
 }
 
+// BranchProtected reports whether the server protects a branch.
+func (c *Client) BranchProtected(ctx context.Context, p forge.Project, branch string) (bool, error) {
+	var b struct {
+		Protected bool `json:"protected"`
+	}
+	_, err := c.get(ctx, projectPath(p)+"/repository/branches/"+url.PathEscape(branch), nil, &b)
+	var api *apiError
+	if errors.As(err, &api) && api.status == http.StatusNotFound {
+		return false, nil
+	}
+	return b.Protected, err
+}
+
 // Fingerprints asks GraphQL about every watch in one query: for a merge
 // request its state, title, draft, head, comments, approvals, assignees,
 // reviewers, labels and head pipeline, for a

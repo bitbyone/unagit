@@ -59,6 +59,8 @@ type fakeServer struct {
 	// deleteBranch, when set, is what deleting a branch on the server does:
 	// a test points it at the origin it made.
 	deleteBranch atomic.Value // func(project int, branch string)
+	// protected answers whether the server protects a branch.
+	protected atomic.Value // func(project int, branch string) bool
 	// liveBranches, when set, lists a project's branches instead of the
 	// fixture: a test points it at the origin it made.
 	liveBranches atomic.Value // func(project int) []string
@@ -115,6 +117,15 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	for _, id := range []int{1, 2} {
 		prefix := fmt.Sprintf("/api/v4/projects/%d/repository/branches/", id)
 		mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+			branch := strings.TrimPrefix(r.URL.Path, prefix)
+			if r.Method == http.MethodGet {
+				protected := false
+				if is, ok := f.protected.Load().(func(int, string) bool); ok {
+					protected = is(id, branch)
+				}
+				json(w, fmt.Sprintf(`{"name":%q,"protected":%v}`, branch, protected))
+				return
+			}
 			if r.Method != http.MethodDelete {
 				w.WriteHeader(http.StatusMethodNotAllowed)
 				return

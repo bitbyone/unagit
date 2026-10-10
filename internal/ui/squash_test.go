@@ -17,7 +17,8 @@ import (
 // only here and what only on origin.
 func TestSquashInTheLog(t *testing.T) {
 	t.Parallel()
-	a, sc := newTestApp(t)
+	a, sc, srv := newTestAppSrv(t)
+	srv.protected.Store(func(_ int, branch string) bool { return branch == "main" })
 	resizeApp(a, sc, 160, 44)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
@@ -128,6 +129,9 @@ func TestSquashInTheLog(t *testing.T) {
 	if !strings.Contains(a.screenText(sc), "force push") {
 		t.Errorf("the question does not name the force push:\n%s", a.screenText(sc))
 	}
+	// main is the default branch, and the server protects it.
+	waitFor(t, a, sc, "main is the default branch")
+	waitFor(t, a, sc, "origin protects main")
 	// Cancel goes back to the log, the marks kept.
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "· 2 marked")

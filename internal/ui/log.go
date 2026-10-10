@@ -652,8 +652,10 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 			reword(text)
 			return
 		}
-		a.confirmChoicesBack("Edit Commit Message", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Editing its message"),
-			nil, []choice{{"Edit", func() { reword(text) }}}, back)
+		a.withRewriteWarnings(place.project, place.branch, func(warnings []string) {
+			a.confirmChoicesBack("Edit Commit Message", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Editing its message"),
+				warnings, []choice{{"Edit", func() { reword(text) }}}, back)
+		})
 	})
 	form.AddButton("Cancel", func() {
 		a.closeModal(pageForm)
@@ -699,7 +701,9 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 		undo()
 		return
 	}
-	a.confirmChoicesBack("Undo Commit", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Undoing it"), nil, []choice{{"Undo", undo}}, back)
+	a.withRewriteWarnings(place.project, place.branch, func(warnings []string) {
+		a.confirmChoicesBack("Undo Commit", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Undoing it"), warnings, []choice{{"Undo", undo}}, back)
+	})
 }
 
 // squashable says why the commits marked cannot be squashed, or "": two
@@ -790,7 +794,9 @@ func (a *App) squashCommits(place logPlace, commits []logCommit, marked []int, b
 		}
 		body := fmt.Sprintf("%s on origin. Squashing them rewrites its history: a force push will be needed, "+
 			"and anyone who built on them has to rebase.", counted(pushed, "of these commits is", "of these commits are"))
-		a.confirmChoicesBack("Squash", body, nil, []choice{{"Squash", func() { squash(text) }}}, back)
+		a.withRewriteWarnings(place.project, place.branch, func(warnings []string) {
+			a.confirmChoicesBack("Squash", body, warnings, []choice{{"Squash", func() { squash(text) }}}, back)
+		})
 	})
 	form.AddButton("Cancel", func() {
 		a.closeModal(pageForm)

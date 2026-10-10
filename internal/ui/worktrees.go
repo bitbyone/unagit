@@ -859,7 +859,7 @@ func pushImpossible(st remoteState, known bool) string {
 // fetched of it, so whatever anyone pushed since makes git refuse rather
 // than be lost. A branch origin has moved past can only be forced; one new
 // to origin has nothing to force.
-func (a *App) offerPush(where, branch string, u gitx.Upstream, sending, removing []string, push func(force bool)) {
+func (a *App) offerPush(pr forge.Project, where, branch string, u gitx.Upstream, sending, removing []string, push func(force bool)) {
 	plain := choice{"Push", func() { push(false) }}
 	force := choice{"Force Push", func() { push(true) }}
 	switch {
@@ -869,7 +869,9 @@ func (a *App) offerPush(where, branch string, u gitx.Upstream, sending, removing
 		body := fmt.Sprintf("Origin has %d commit(s) [::b]%s[::-] lacks, and it has %d of its own.\n\n"+
 			"Pull first to keep both - or force push to replace origin's with yours. Only what was last fetched "+
 			"is replaced: if anyone pushed since, git refuses.", u.Behind, esc(branch), u.Ahead) + forcedList(sending) + removedList(removing)
-		a.confirmChoices("Force push", body, nil, []choice{force})
+		a.withRewriteWarnings(pr, branch, func(warnings []string) {
+			a.confirmChoices("Force push", body, warnings, []choice{force})
+		})
 	default:
 		body := pushQuestion(where, branch, u) + outgoingList(sending) +
 			"\n\nForce Push replaces origin's copy instead, but only what was last fetched of it."
@@ -958,9 +960,11 @@ func (a *App) pushWorktree(r worktreeRow) {
 				body := fmt.Sprintf("[::b]%s[::-] was rewritten here - rebased or squashed - so origin's copy has to be replaced.\n\n"+
 					"Force-push it? Only origin's copy as it was before is replaced: "+
 					"if anyone pushed since, git refuses.", esc(r.Branch)) + removedList(removing)
-				a.confirmWith("Force push", body, "Force push", nil, func() {
-					a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
-						return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)
+				a.withRewriteWarnings(a.worktreeProject(r), r.Branch, func(warnings []string) {
+					a.confirmWith("Force push", body, "Force push", warnings, func() {
+						a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
+							return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)
+						})
 					})
 				})
 			})
@@ -976,7 +980,7 @@ func (a *App) pushWorktree(r worktreeRow) {
 		return
 	}
 	a.withOutgoing(a.pathManager(r.Instance, r.Path).Git(), r.Dir, func(sending, removing []string) {
-		a.offerPush(r.Path, r.Branch, st.Upstream, sending, removing, func(force bool) { a.pushWorktreeNow(r, force) })
+		a.offerPush(a.worktreeProject(r), r.Path, r.Branch, st.Upstream, sending, removing, func(force bool) { a.pushWorktreeNow(r, force) })
 	})
 }
 
@@ -1022,7 +1026,7 @@ func (a *App) pushProject(pr forge.Project) {
 	}
 	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
 	a.withOutgoing(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), dir, func(sending, removing []string) {
-		a.offerPush(pr.PathWithNamespace, info.Branch, st.Upstream, sending, removing, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
+		a.offerPush(pr, pr.PathWithNamespace, info.Branch, st.Upstream, sending, removing, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
 	})
 }
 

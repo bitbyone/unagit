@@ -513,6 +513,10 @@ type Provider interface {
 	PausedUntil() time.Time
 	// BranchExists reports whether a branch is still on the server.
 	BranchExists(ctx context.Context, p Project, branch string) (bool, error)
+	// BranchProtected reports whether the server protects a branch - a
+	// force push to it would most likely be refused; false for one it
+	// does not have.
+	BranchProtected(ctx context.Context, p Project, branch string) (bool, error)
 	// Fingerprints says, for each watch at once, a string that changes
 	// whenever what a watch follows does - a merge request's state, head,
 	// comments, approvals and pipeline, a branch's newest pipeline - so the

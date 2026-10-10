@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -249,7 +250,14 @@ func (a *App) undoRewrite(s rewriteScope, r gitx.Rewrite, back func()) {
 				a.flash(plan.Blocked)
 				return
 			}
-			a.confirmChoicesBack("Undo", undoQuestion(r, plan), nil, []choice{{"Undo", func() { a.runUndo(s, r) }}}, back)
+			ask := func(warnings []string) {
+				a.confirmChoicesBack("Undo", undoQuestion(r, plan), warnings, []choice{{"Undo", func() { a.runUndo(s, r) }}}, back)
+			}
+			if !plan.Force {
+				ask(nil)
+				return
+			}
+			a.withRewriteWarnings(s.project, r.Branch, ask)
 		})
 	}()
 }
@@ -373,4 +381,35 @@ func (a *App) localHistoryAction() uiAction {
 		name, about = "Show Everything", "Show in the log everything again: the watches' news, the agents, and the local history."
 	}
 	return uiAction{name: name, about: about, keys: "H", rank: 22, run: a.toggleLocalHistory}
+}
+
+// withRewriteWarnings says what makes rewriting what origin has of a
+// branch more serious - the default branch, one the server protects, a
+// merge request open from it - and goes on with it on the loop. The
+// server is asked whether it protects the branch; when it cannot answer,
+// that warning is left out rather than the question held up.
+func (a *App) withRewriteWarnings(pr forge.Project, branch string, then func(warnings []string)) {
+	var warnings []string
+	if branch != "" && branch == pr.DefaultBranch {
+		warnings = append(warnings, branch+" is the default branch: rewriting what origin has of it rewrites the history everyone builds on")
+	}
+	if mr, ok := a.openMROn(pr, branch); ok {
+		warnings = append(warnings, fmt.Sprintf("!%d is open from %s: after the force push it shows the new commits, and comments on the old ones may be outdated", mr.IID, branch))
+	}
+	client := a.client(pr.Instance)
+	if client == nil || branch == "" {
+		then(warnings)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		protected, _ := client.BranchProtected(ctx, pr, branch)
+		a.tv.QueueUpdateDraw(func() {
+			if protected {
+				warnings = append(warnings, "origin protects "+branch+": the force push will most likely be refused")
+			}
+			then(warnings)
+		})
+	}()
 }
