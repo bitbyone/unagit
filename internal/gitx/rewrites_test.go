@@ -236,3 +236,35 @@ func TestUndoAfterAForcePushAsksForAnother(t *testing.T) {
 		t.Errorf("lease noted %q, origin has %s", mark, squashed)
 	}
 }
+
+// TestRecoverFromTheReflog: a commit a reset outside unagit threw away is
+// in the branch's reflog; going back to it is written down, and undone.
+func TestRecoverFromTheReflog(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	g := New("", nil)
+	commit(t, clone, "1.txt", "one")
+	lost := sh(t, clone, "rev-parse", "HEAD")
+	sh(t, clone, "reset", "-q", "--hard", "HEAD~1")
+	entries, err := g.Reflog(clone, "main", 10)
+	must(t, err)
+	if len(entries) < 2 || !strings.HasPrefix(entries[0].Action, "reset: moving to HEAD~1") || entries[1].SHA != lost || entries[0].At.IsZero() {
+		t.Fatalf("reflog = %+v", entries)
+	}
+	r, err := g.RecoverTo(clone, lost, "went back")
+	must(t, err)
+	if got := sh(t, clone, "rev-parse", "HEAD"); got != lost {
+		t.Errorf("HEAD = %s, want %s", got, lost)
+	}
+	if r.Kind != RewriteRecover || !r.Files {
+		t.Errorf("written down as %+v", r)
+	}
+	_, err = g.UndoRewrite(clone, r.ID)
+	must(t, err)
+	if got := sh(t, clone, "rev-parse", "HEAD"); got != entries[0].SHA {
+		t.Errorf("after the undo HEAD = %s, want %s", got, entries[0].SHA)
+	}
+	if got := sh(t, clone, "status", "--porcelain"); got != "" {
+		t.Errorf("the undo left %q", got)
+	}
+}

@@ -117,3 +117,43 @@ func TestADeletedBranchIsMadeAgain(t *testing.T) {
 		t.Errorf("mine = %s, want %s", got, tip)
 	}
 }
+
+// TestRecoverFromTheReflog: a commit a reset in a terminal threw away is
+// in the log's Recover from Reflog (R); u asks, and the branch is back on
+// it - which Rewrite History can undo.
+func TestRecoverFromTheReflog(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	commitIn(t, p.clone, "c.txt", "Count requests")
+	lost := gitIn(t, p.clone, "rev-parse", "HEAD")
+	gitIn(t, p.clone, "reset", "-q", "--hard", "HEAD~1")
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "Recover from Reflog · acme/gateway (main)")
+	waitFor(t, a, sc, "reset: moving to HEAD~1")
+	assertLegible(t, a, sc, "the reflog")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "THERE, NOT NOW")
+	inOrder(t, a.screenText(sc), "THERE, NOT NOW", lost[:7]+" Count requests", "NOW, NOT THERE")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Recover from Reflog")
+	typeRunes(sc, "u")
+	waitFor(t, a, sc, "back at "+lost[:8])
+	typeRunes(sc, "g")
+	waitFor(t, a, sc, "went back to "+lost[:8])
+	if got := gitIn(t, p.clone, "rev-parse", "HEAD"); got != lost {
+		t.Errorf("HEAD = %s, want %s", got, lost)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Commit Log")
+	typeRunes(sc, "H")
+	waitFor(t, a, sc, "went back to "+lost[:8]+" from the reflog")
+}

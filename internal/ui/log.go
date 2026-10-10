@@ -135,6 +135,14 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 				when: func(it pickItem) bool { return !at(it).Theirs }},
 			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back: its changes stay on disk, to be committed again. One on origin asks first: a force push follows.", run: func(it pickItem) { a.undoCommit(place, at(it), isHead(at(it)), again(it)) },
 				when: func(it pickItem) bool { return isHead(at(it)) }},
+			pickKey{keys: "R", name: "Recover from Reflog…", about: "Every place the branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.",
+				run: func(it pickItem) {
+					branch := place.branch
+					if strings.HasPrefix(branch, "@") || branch == "(detached)" {
+						branch = ""
+					}
+					a.showReflog(reflogScope{project: place.project, dir: place.dir, branch: branch})
+				}},
 			pickKey{keys: "H", name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.",
 				run: func(it pickItem) { a.showRewrites(rewriteScope{project: place.project, dir: place.dir}) }},
 			pickKey{keys: "s", name: "Squash Commits…", about: "Make one commit of the commits marked with space, next to each other; asks first when origin has any of them.",

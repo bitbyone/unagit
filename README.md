@@ -785,6 +785,16 @@ worktrees, and refs under `refs/unagit/rewrites` keep both states so git does
 not collect them. It keeps the newest 200 changes and none older than 90
 days. The refs are never pushed.
 
+Rewrite History knows only what unagit did. **Recover from Reflog…** - `R`
+in a commit log, or among the actions of a repository or a worktree - is the
+net under everything else: every place the branch has been, read from git's
+reflog, whatever moved it there - a rebase or a reset in a terminal, lazygit,
+unagit - with what moved it. `Enter` shows the commits the branch had there
+and has not now, `D` the files against now in Hunk, and `u` puts the branch
+back there, the files with it (what is not committed stays, or nothing is
+done). Going back is written down like any rewrite, so Rewrite History undoes
+it.
+
 The same changes come to the log of the Activity screen as its local
 history, beside the news from the servers; they are never counted as unseen.
 `H` there narrows the log to them, and `Enter` on one opens Rewrite History

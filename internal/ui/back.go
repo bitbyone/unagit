@@ -52,6 +52,18 @@ func (a *App) peekBack() func() {
 	return a.returnTo.reopen
 }
 
+// backOr is a way back for a dialog a picker opened: to the picker as it
+// was left when there is one, else fallback.
+func (a *App) backOr(fallback func()) func() {
+	return func() {
+		if back := a.peekBack(); back != nil {
+			back()
+			return
+		}
+		fallback()
+	}
+}
+
 // forgetReturn drops the way back, for a key pressed on a screen.
 func (a *App) forgetReturn() {
 	name, _ := a.pages.GetFrontPage()

@@ -81,11 +81,11 @@ func (a *App) listRewrites(s rewriteScope, all []gitx.Rewrite) {
 	}
 	at := func(it pickItem) gitx.Rewrite { return it.Data.(gitx.Rewrite) }
 	again := func(it pickItem) func() {
-		return func() {
+		return a.backOr(func() {
 			next := s
 			next.focus, next.done = at(it).ID, ""
 			a.showRewrites(next)
-		}
+		})
 	}
 	a.showPickerWith("Rewrite History · "+s.project.PathWithNamespace, items, pickerOptions{
 		start: start, wide: true, explain: true, header: header, enterHint: "details",
@@ -155,6 +155,8 @@ func rewriteHeading(r gitx.Rewrite) string {
 		return "Branch deleted"
 	case gitx.RewriteUndo:
 		return "Undone"
+	case gitx.RewriteRecover:
+		return "Recovered"
 	}
 	return r.Kind
 }

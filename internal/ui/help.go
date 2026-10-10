@@ -186,6 +186,7 @@ func helpRows() []helpLine {
 		key("u", "in the log: undo the newest commit"),
 		key("space  s", "in the log: mark commits · squash the marked"),
 		key("H", "in the log: rewrite history, to undo a change"),
+		key("R", "in the log: the reflog, to go back anywhere"),
 		key("n  Ctrl-W", "in the log: a branch · a worktree at the commit"),
 		key("w  y", "in the log: browser · copy id, link, reference"),
 		key("J", "in the log: the commit's pipelines"),

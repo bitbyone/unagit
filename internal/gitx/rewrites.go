@@ -36,6 +36,7 @@ const (
 	RewriteBase       = "set base"
 	RewriteDelete     = "delete"
 	RewriteUndo       = "undo"
+	RewriteRecover    = "recover"
 )
 
 // The record keeps the newest rewrites, and none older than this.
@@ -409,6 +410,59 @@ func (g *Git) UndoRewrite(dir, id string) (Rewrite, error) {
 	})
 	undo.Undid = ids
 	return undo, err
+}
+
+// ReflogEntry is one place a branch has been, as git's reflog keeps it.
+type ReflogEntry struct {
+	SHA string
+	At  time.Time
+	// Action is what moved it there, in git's words: "commit: …",
+	// "rebase (finish): …", "reset: moving to HEAD~1".
+	Action  string
+	Subject string
+}
+
+// Reflog is where the branch has been, newest first - whatever moved it,
+// unagit or anything else - at most limit places; HEAD's for "".
+func (g *Git) Reflog(dir, branch string, limit int) ([]ReflogEntry, error) {
+	ref := "HEAD"
+	if branch != "" {
+		ref = "refs/heads/" + branch
+	}
+	out, err := g.out(dir, "log", "-g", "-n", strconv.Itoa(limit), "--date=unix", "--format=%H%x1f%gd%x1f%gs%x1f%s", ref, "--")
+	if err != nil || out == "" {
+		return nil, err
+	}
+	var entries []ReflogEntry
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.SplitN(line, "\x1f", 4)
+		if len(f) < 4 {
+			continue
+		}
+		e := ReflogEntry{SHA: f[0], Action: f[2], Subject: f[3]}
+		if open := strings.LastIndex(f[1], "@{"); open >= 0 {
+			if unix, err := strconv.ParseInt(strings.TrimSuffix(f[1][open+2:], "}"), 10, 64); err == nil {
+				e.At = time.Unix(unix, 0)
+			}
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// RecoverTo puts the branch checked out in dir back where it was at sha,
+// the files with it: what is not committed stays, and when it would
+// collide nothing is done. It is written down, so it can be undone.
+func (g *Git) RecoverTo(dir, sha, what string) (Rewrite, error) {
+	return g.Rewriting(dir, RewriteChange{Kind: RewriteRecover, What: what, Files: true}, func() error {
+		if op := g.OperationInProgress(dir); op != "" {
+			return fmt.Errorf("a %s is in progress - finish or abort it first", op)
+		}
+		if _, err := g.Run(dir, "reset", "--keep", "--quiet", sha); err != nil {
+			return fmt.Errorf("what is not committed collides with the files going back - commit or stash it first: %w", err)
+		}
+		return nil
+	})
 }
 
 // ForceRemoves lists, newest first, the commits of origin's copy that a
