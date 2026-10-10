@@ -82,6 +82,20 @@ var colourRoles = []colourRole{
 	// The commit log.
 	{"log.boundary", "text.dim", "a line of the commit log where origin's copy of the branch stands, or a section begins"},
 	{"log.theirs", "text.dim", "a commit only origin has, once the branch and origin have parted"},
+	{"log.sha", "text.dim", "a commit's id in the commit log"},
+	{"log.author", "text.accent", "who wrote a commit, in the commit log"},
+	{"log.age", "text.dim", "how long ago a commit was made, in the commit log"},
+	// What points at a commit, as pills: a local branch, one of a remote,
+	// a tag, a detached HEAD. A branch and its origin at the same commit
+	// share one pill, half and half.
+	{"log.ref_local.ink", "tags.mint.ink", "a local branch's pill, and HEAD on it"},
+	{"log.ref_local.fill", "tags.mint.fill", ""},
+	{"log.ref_remote.ink", "tags.lavender.ink", "a remote branch's pill: origin/main"},
+	{"log.ref_remote.fill", "tags.lavender.fill", ""},
+	{"log.ref_tag.ink", "tags.apricot.ink", "a tag's pill"},
+	{"log.ref_tag.fill", "tags.apricot.fill", ""},
+	{"log.ref_detached.ink", "chezmoi.badge_ink", "a detached HEAD's pill"},
+	{"log.ref_detached.fill", "chezmoi.badge_fill", ""},
 	// Code in a diff, by what each word of it is.
 	{"syntax.keyword", "text.key", "a keyword of the language"},
 	{"syntax.string", "state.good", "a string"},

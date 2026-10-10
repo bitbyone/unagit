@@ -794,9 +794,41 @@ type LogEntry struct {
 	When    time.Time
 	Merge   bool // it has more than one parent
 	// Body is the message below the subject, and Refs the branches, tags
-	// and HEAD that point at the commit, when the list asked for them.
-	Body string
-	Refs []string
+	// and HEAD that point at the commit, when the list asked for them, as
+	// git writes them short; RefKinds says what each is.
+	Body     string
+	Refs     []string
+	RefKinds []RefKind
+}
+
+// RefKind is what a name pointing at a commit is.
+type RefKind int
+
+const (
+	RefHead   RefKind = iota // HEAD, detached
+	RefHeadOn                // HEAD -> a local branch
+	RefLocal                 // a local branch
+	RefRemote                // a branch of a remote
+	RefTag                   // a tag
+	RefOther                 // anything else git decorates with
+)
+
+// shortRef turns one of git's full decorations into the short name and
+// what it is: "HEAD -> refs/heads/main" is ("HEAD -> main", RefHeadOn).
+func shortRef(full string) (string, RefKind) {
+	switch {
+	case full == "HEAD":
+		return full, RefHead
+	case strings.HasPrefix(full, "HEAD -> "):
+		return "HEAD -> " + strings.TrimPrefix(strings.TrimPrefix(full, "HEAD -> "), "refs/heads/"), RefHeadOn
+	case strings.HasPrefix(full, "tag: "):
+		return "tag: " + strings.TrimPrefix(strings.TrimPrefix(full, "tag: "), "refs/tags/"), RefTag
+	case strings.HasPrefix(full, "refs/heads/"):
+		return strings.TrimPrefix(full, "refs/heads/"), RefLocal
+	case strings.HasPrefix(full, "refs/remotes/"):
+		return strings.TrimPrefix(full, "refs/remotes/"), RefRemote
+	}
+	return full, RefOther
 }
 
 // Commits lists the commits of to that from lacks, oldest first.
@@ -826,7 +858,7 @@ func (g *Git) Commits(dir, from, to string) ([]LogEntry, error) {
 // History lists the commits reachable from rev, newest first, at most limit, the
 // body of each message with them.
 func (g *Git) History(dir, rev string, limit int) ([]LogEntry, error) {
-	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--format=%H%x1f%P%x1f%aN%x1f%ct%x1f%D%x1f%s%x1f%b%x1e", rev, "--")
+	out, err := g.out(dir, "log", fmt.Sprintf("-%d", limit), "--decorate=full", "--format=%H%x1f%P%x1f%aN%x1f%ct%x1f%D%x1f%s%x1f%b%x1e", rev, "--")
 	if err != nil {
 		return nil, err
 	}
@@ -838,19 +870,22 @@ func (g *Git) History(dir, rev string, limit int) ([]LogEntry, error) {
 		}
 		unix, _ := strconv.ParseInt(f[3], 10, 64)
 		var refs []string
+		var kinds []RefKind
 		for _, ref := range strings.Split(f[4], ", ") {
 			if ref = strings.TrimSpace(ref); ref != "" {
-				refs = append(refs, ref)
+				short, kind := shortRef(ref)
+				refs, kinds = append(refs, short), append(kinds, kind)
 			}
 		}
 		entries = append(entries, LogEntry{
-			SHA:     f[0],
-			Merge:   len(strings.Fields(f[1])) > 1,
-			Author:  f[2],
-			When:    time.Unix(unix, 0),
-			Refs:    refs,
-			Subject: f[5],
-			Body:    strings.TrimSpace(f[6]),
+			SHA:      f[0],
+			Merge:    len(strings.Fields(f[1])) > 1,
+			Author:   f[2],
+			When:     time.Unix(unix, 0),
+			Refs:     refs,
+			RefKinds: kinds,
+			Subject:  f[5],
+			Body:     strings.TrimSpace(f[6]),
 		})
 	}
 	return entries, nil

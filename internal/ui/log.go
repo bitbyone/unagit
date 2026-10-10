@@ -96,7 +96,8 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 		items = append(items, pickItem{About: commitAbout(c, place), Data: i})
 	}
 	start = first
-	labelLog(items, commits, logRowWidth(a.screenWidth()))
+	ends := a.cfg.Ends()
+	labelLog(items, commits, logRowWidth(a.screenWidth()), ends)
 	at := func(it pickItem) logCommit { return commits[it.Data.(int)] }
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
 	// markedNow are the commits marked, by their place in commits, newest
@@ -196,7 +197,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 	// should fit on a line or two rather than wrap down the side.
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
 		enterName: "Show Details", enterAbout: "The whole commit: its message, refs and the files it changed.",
-		relabel: func(items []pickItem, width int) { labelLog(items, commits, width) }}
+		relabel: func(items []pickItem, width int) { labelLog(items, commits, width, ends) }}
 	// Commits are marked to be squashed, which only a checkout can do.
 	if place.checkout {
 		opts.marks = marks
@@ -249,10 +250,11 @@ func isHead(c logCommit) bool {
 // has left after the id, the age and the refs: a subject is cut only where
 // the dialog ends. The pane under the list has the rest of the message. A
 // rule between the sections runs across the row.
-func labelLog(items []pickItem, commits []logCommit, width int) {
+func labelLog(items []pickItem, commits []logCommit, width int, ends string) {
 	refsW := 0
 	for _, c := range commits {
-		refsW = max(refsW, tview.TaggedStringWidth(logSub(c)))
+		prefix, _, pillsW := logSub(c, ends, behindList)
+		refsW = max(refsW, tview.TaggedStringWidth(prefix)+2+pillsW)
 	}
 	// Who wrote each, in a column of its own after the subject.
 	authorW := 0
@@ -280,8 +282,6 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		}
 		i := it.Data.(int)
 		c := commits[i]
-		// The picker filters on the text as it is drawn, so the marks are
-		// plain characters, not colour tags.
 		mark := "  "
 		switch {
 		case c.New:
@@ -289,12 +289,33 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		case c.Unpushed:
 			mark = glyphAhead + " "
 		}
-		label := esc(fmt.Sprintf("%s%s  %-*s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i], authorW, trim(c.Author, authorW)))
+		// Each part in its colour: the id quiet, the subject as text is,
+		// the author apart; a commit only origin has is dim throughout.
+		sha, author := tag(role("log.sha")), tag(role("log.author"))
+		subject := ""
 		if c.Theirs {
-			label = tag(role("log.theirs")) + label + tagEnd
+			sha, author, subject = tag(role("log.theirs")), tag(role("log.theirs")), tag(role("log.theirs"))
 		}
+		label := esc(mark) + sha + esc(shortSHA(c.SHA)) + tagEnd + "  " +
+			subject + esc(fmt.Sprintf("%-*s", subjectW, subjects[i])) + "  " +
+			author + esc(fmt.Sprintf("%-*s", authorW, trim(c.Author, authorW))) + tagEnd
+		if subject != "" {
+			label = subject + label + tagEnd
+		}
+		prefix, pills, pillsW := logSub(c, ends, behindList)
 		items[n].Label = label
-		items[n].Sub = logSub(c)
+		items[n].Sub = prefix
+		items[n].Pills, items[n].PillsAt = nil, 0
+		if pillsW > 0 {
+			items[n].Sub += "  " + pills
+			// Drawn again over a band, where the list paints its fill over
+			// theirs (bandedList).
+			at := tview.TaggedStringWidth(label) + 3 + tview.TaggedStringWidth(prefix) + 2
+			items[n].Pills, items[n].PillsAt = func(behind string) string {
+				markup, _ := refPills(c, ends, behind)
+				return markup
+			}, at
+		}
 	}
 }
 
@@ -352,15 +373,128 @@ func logRules(place logPlace, commits []logCommit) map[int]string {
 
 // logSub is what follows a subject, as markup: the age in a column of its
 // own, then the pipeline - its mark and its word in its colour, as every
-// list draws a pipeline - and what points at the commit, where a varying
-// length disturbs nothing.
-func logSub(c logCommit) string {
-	rest := esc(refWords(c.Refs))
+// list draws a pipeline - and then, apart, what points at the commit as
+// pills, drawn on behind, and how wide they are.
+func logSub(c logCommit, ends, behind string) (prefix, pills string, pillsW int) {
+	ageInk := role("log.age")
+	if c.Theirs {
+		ageInk = role("log.theirs")
+	}
+	prefix = tag(ageInk) + esc(fmt.Sprintf("%-8s", humanAge(c.When))) + tagEnd
 	if ci, _ := ciMark(c.CI); ci != "" {
 		mark, status := painted(ci, c.CI)
-		rest = strings.TrimSpace(mark + " " + status + " " + rest)
+		prefix += "  " + strings.TrimSpace(mark+" "+status)
 	}
-	return strings.TrimSpace(esc(fmt.Sprintf("%-8s", humanAge(c.When))) + "  " + rest)
+	pills, pillsW = refPills(c, ends, behind)
+	return prefix, pills, pillsW
+}
+
+// refPills draws what points at a commit as pills, side by side: HEAD on
+// its branch first, the local branches green, those of a remote purple, a
+// tag in a colour of its own. A branch and its copy on a remote at the
+// same commit share one pill, the branch's half green and the remote's
+// purple: in step, at a glance. On a commit only origin has they are dim.
+func refPills(c logCommit, ends, behind string) (string, int) {
+	type ref struct {
+		text string
+		kind gitx.RefKind
+	}
+	var heads, locals, remotes, tags []ref
+	for i, name := range c.Refs {
+		kind := gitx.RefOther
+		if i < len(c.RefKinds) {
+			kind = c.RefKinds[i]
+		}
+		switch kind {
+		case gitx.RefHeadOn:
+			heads = append(heads, ref{strings.TrimPrefix(name, "HEAD -> "), kind})
+		case gitx.RefHead:
+			heads = append(heads, ref{name, kind})
+		case gitx.RefLocal:
+			locals = append(locals, ref{name, kind})
+		case gitx.RefRemote:
+			if !strings.HasSuffix(name, "/HEAD") {
+				remotes = append(remotes, ref{name, kind})
+			}
+		case gitx.RefTag:
+			tags = append(tags, ref{strings.TrimPrefix(name, "tag: "), kind})
+		}
+	}
+	colour := func(kind gitx.RefKind) tagColour {
+		if c.Theirs {
+			return tagColour{ink: role("log.theirs").String(), fill: role("surface.raised").String()}
+		}
+		name := "log.ref_local"
+		switch kind {
+		case gitx.RefRemote:
+			name = "log.ref_remote"
+		case gitx.RefTag:
+			name = "log.ref_tag"
+		case gitx.RefHead:
+			name = "log.ref_detached"
+		}
+		return tagColour{ink: quieter(role(name + ".ink")).String(), fill: quieter(role(name + ".fill")).String()}
+	}
+	var parts []string
+	width := 0
+	add := func(markup string, w int) {
+		if width > 0 {
+			parts = append(parts, " ")
+			width++
+		}
+		parts = append(parts, markup)
+		width += w
+	}
+	// A local branch takes its remote copy at the same commit into its pill.
+	branch := func(r ref, text string) {
+		for k, rem := range remotes {
+			remote, name, ok := strings.Cut(rem.text, "/")
+			if ok && name == r.text {
+				remotes = append(remotes[:k], remotes[k+1:]...)
+				add(splitPill(text, colour(gitx.RefLocal), remote, colour(gitx.RefRemote), ends, behind))
+				return
+			}
+		}
+		add(pillOf(text, colour(r.kind), ends, behind))
+	}
+	for _, h := range heads {
+		if h.kind == gitx.RefHead {
+			add(pillOf("HEAD", colour(gitx.RefHead), ends, behind))
+			continue
+		}
+		branch(h, "HEAD→"+h.text)
+	}
+	for _, l := range locals {
+		branch(l, l.text)
+	}
+	for _, r := range remotes {
+		add(pillOf(r.text, colour(gitx.RefRemote), ends, behind))
+	}
+	for _, t := range tags {
+		add(pillOf(t.text, colour(gitx.RefTag), ends, behind))
+	}
+	return strings.Join(parts, ""), width
+}
+
+// splitPill is one pill in two colours: left in one, right in the other,
+// with the ends of the style at its outer edges.
+func splitPill(left string, lc tagColour, right string, rc tagColour, style, behind string) (string, int) {
+	open, close := pillEnds(style)
+	left, right = left+" ", " "+right
+	if open == "" {
+		left, right = " "+left, right+" "
+	}
+	var b strings.Builder
+	if open != "" {
+		b.WriteString("[" + lc.fill + ":" + behind + "]" + open)
+	}
+	b.WriteString("[" + lc.ink + ":" + lc.fill + "]" + tview.Escape(left))
+	b.WriteString("[" + rc.ink + ":" + rc.fill + "]" + tview.Escape(right))
+	if close != "" {
+		b.WriteString("[" + rc.fill + ":" + behind + "]" + close)
+	}
+	b.WriteString("[-:-:-]")
+	return b.String(), len([]rune(left)) + len([]rune(right)) + len([]rune(open)) + len([]rune(close))
 }
 
 // logRowWidth is how wide a row of the log is on a screen so wide: the wide

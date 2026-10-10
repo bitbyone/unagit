@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -134,6 +135,11 @@ type pickItem struct {
 	// list, drawn as its Label is. The cursor steps over it, and a filter
 	// hides it, since what it parts is no longer in order.
 	Rule bool
+	// Pills, when set, draws again the pills of the row PillsAt cells in,
+	// on behind: on the cursor's band or a mark's, the list paints its own
+	// fill over theirs (bandedList).
+	Pills   func(behind string) string
+	PillsAt int
 }
 
 // wordsMatch says whether every word of the query is an alias of the item,
@@ -312,6 +318,8 @@ func (m *pickMarks) toggle(i int) {
 type bandedList struct {
 	*tview.List
 	banded func(row int) bool
+	// item is the item of a row, for its pills.
+	item func(row int) (pickItem, bool)
 }
 
 func (l *bandedList) Draw(screen tcell.Screen) {
@@ -321,16 +329,26 @@ func (l *bandedList) Draw(screen tcell.Screen) {
 	current := l.GetCurrentItem()
 	for line := 0; line < h && offset+line < l.GetItemCount(); line++ {
 		row := offset + line
-		if !l.banded(row) {
+		marked := l.banded(row)
+		var bg tcell.Color
+		switch {
+		case marked && row == current:
+			_, bg, _ = styleMarkedSelected.Decompose()
+		case marked:
+			bg = colMarked
+		case row == current:
+			_, bg, _ = styleSelected.Decompose()
+		default:
 			continue
 		}
-		bg := colMarked
-		if row == current {
-			_, bg, _ = styleMarkedSelected.Decompose()
+		if marked {
+			for col := x; col < x+w; col++ {
+				r, comb, style, _ := screen.GetContent(col, y+line)
+				screen.SetContent(col, y+line, r, comb, style.Background(bg))
+			}
 		}
-		for col := x; col < x+w; col++ {
-			r, comb, style, _ := screen.GetContent(col, y+line)
-			screen.SetContent(col, y+line, r, comb, style.Background(bg))
+		if it, ok := l.item(row); ok && it.Pills != nil && it.PillsAt < w {
+			tview.Print(screen, it.Pills(bg.String()), x+it.PillsAt, y+line, w-it.PillsAt, tview.AlignLeft, colText)
 		}
 	}
 }
@@ -490,7 +508,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				}
 				continue
 			}
-			score, ok := fuzzy.Match(query, it.Label+" "+it.Sub+" "+strings.Join(it.Aliases, " "))
+			score, ok := fuzzy.Match(query, searchable(it.Label+" "+it.Sub)+" "+strings.Join(it.Aliases, " "))
 			tier := 1
 			if !ok && it.About != "" {
 				score, ok = fuzzy.Match(query, it.About)
@@ -919,6 +937,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 	view := &bandedList{List: list, banded: func(row int) bool {
 		return marks != nil && row < len(shownAt) && marks.at[shownAt[row]]
+	}, item: func(row int) (pickItem, bool) {
+		if row < 0 || row >= len(shown) {
+			return pickItem{}, false
+		}
+		return shown[row], true
 	}}
 	flex.AddItem(view, 0, 1, true)
 
@@ -1127,6 +1150,31 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		setHeader: func(text string) { header.SetText(text) },
 	}
 }
+
+// searchable is a row as a filter reads it: the text drawn, not the colour
+// tags around it, whose letters would match what nobody sees. Read once a
+// row, since a filter reads every row at every key.
+func searchable(markup string) string {
+	if !strings.Contains(markup, "[") {
+		return markup
+	}
+	searchableMu.Lock()
+	defer searchableMu.Unlock()
+	if plain, ok := searchableCache[markup]; ok {
+		return plain
+	}
+	if len(searchableCache) > 4096 {
+		searchableCache = map[string]string{}
+	}
+	plain := plainText(markup)
+	searchableCache[markup] = plain
+	return plain
+}
+
+var (
+	searchableMu    sync.Mutex
+	searchableCache = map[string]string{}
+)
 
 // oneItemOnly says why an action is not done while items are marked.
 func oneItemOnly(name string) string {

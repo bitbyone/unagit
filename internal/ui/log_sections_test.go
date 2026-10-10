@@ -2,6 +2,7 @@ package ui
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -83,4 +84,61 @@ func TestTheLogShowsWhereOriginStands(t *testing.T) {
 	inOrder(t, text, "── only here", "Count and bill requests", "── only on origin",
 		"Bill them", "Count requests", "── shared", "Add the limiter")
 	assertLegible(t, a, sc, "a log parted from origin")
+}
+
+// TestTheLogsRefsArePills: what points at a commit is drawn as pills - HEAD
+// on main and origin/main at the same commit as one pill, half green, half
+// purple, which keep their fill under the cursor; a local branch alone and
+// a tag in pills of their own - and the id and the author in their colours.
+func TestTheLogsRefsArePills(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 40)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	commitIn(t, p.clone, "b.txt", "Add the limiter")
+	gitIn(t, p.clone, "tag", "v1.0")
+	gitIn(t, p.clone, "branch", "feat/x")
+	commitIn(t, p.clone, "c.txt", "Count requests")
+	gitIn(t, p.clone, "push", "-q")
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	waitFor(t, a, sc, "HEAD→main  origin")
+	text := a.screenText(sc)
+	for _, want := range []string{"feat/x", "v1.0"} {
+		if row := strings.Split(text, "\n")[lineOf(text, "Add the limiter")]; !strings.Contains(row, want) {
+			t.Errorf("%q is not on its commit's row: %q", want, row)
+		}
+	}
+	assertLegible(t, a, sc, "a log with pills")
+
+	// The cursor is on the newest commit: its pill keeps both fills.
+	cellOf := func(needle string) (int, int) {
+		text := a.screenText(sc)
+		row := lineOf(text, needle)
+		line := strings.Split(text, "\n")[row]
+		return len([]rune(line[:strings.Index(line, needle)])), row
+	}
+	bgAt := func(x, y int) tcell.Color { _, style := cellAt(a, sc, x, y); _, bg, _ := style.Decompose(); return bg }
+	fgAt := func(x, y int) tcell.Color { _, style := cellAt(a, sc, x, y); fg, _, _ := style.Decompose(); return fg }
+	x, y := cellOf("HEAD→main")
+	fills := onLoop(a, func() [2]tcell.Color {
+		return [2]tcell.Color{quieter(role("log.ref_local.fill")), quieter(role("log.ref_remote.fill"))}
+	})
+	local, remote := fills[0], fills[1]
+	if bg := bgAt(x, y); bg.Hex() != local.Hex() {
+		t.Errorf("HEAD→main on the cursor is on %v, want the local fill %v", bg, local)
+	}
+	ox, oy := cellOf("  origin")
+	if bg := bgAt(ox+2, oy); bg.Hex() != remote.Hex() {
+		t.Errorf("origin on the cursor is on %v, want the remote fill %v", bg, remote)
+	}
+	sx, sy := cellOf("Add the limiter")
+	sha := onLoop(a, func() tcell.Color { return role("log.sha") })
+	if fg := fgAt(sx-10, sy); fg.Hex() != sha.Hex() {
+		t.Errorf("the id is in %v, want %v", fg, sha)
+	}
 }

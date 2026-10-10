@@ -287,7 +287,7 @@ func TestALogsPipelineIsInItsColours(t *testing.T) {
 	t.Parallel()
 	for _, status := range []string{"success", "failed"} {
 		_, colour := ciMark(status)
-		sub := logSub(logCommit{CI: status})
+		sub, _, _ := logSub(logCommit{CI: status}, "", behindList)
 		if !strings.Contains(sub, tag(colour)+esc(status)) {
 			t.Errorf("%s is not in its colour: %q", status, sub)
 		}
