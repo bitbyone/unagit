@@ -79,6 +79,9 @@ var colourRoles = []colourRole{
 	{"diff.deleted_fill", "surface.raised", "the background of a line deleted"},
 	{"diff.hunk", "text.dim", "where a part of a diff begins"},
 	{"diff.line_number", "text.dim", "a line's number beside it"},
+	// The commit log.
+	{"log.boundary", "text.dim", "a line of the commit log where origin's copy of the branch stands, or a section begins"},
+	{"log.theirs", "text.dim", "a commit only origin has, once the branch and origin have parted"},
 	// Code in a diff, by what each word of it is.
 	{"syntax.keyword", "text.key", "a keyword of the language"},
 	{"syntax.string", "state.good", "a string"},

@@ -230,6 +230,59 @@ func TestRebaseOntoBaseOfAPushedBranch(t *testing.T) {
 	}
 }
 
+// TestRebaseOntoAnotherBranch: Rebase onto… puts the branch on top of a
+// branch other than its base, and the base recorded stays.
+func TestRebaseOntoAnotherBranch(t *testing.T) {
+	t.Parallel()
+	f := newUpdateFixture(t)
+	git(t, f.pusher, "checkout", "-q", "-b", "release")
+	write(t, f.pusher, "r.txt", "release\n")
+	git(t, f.pusher, "add", ".")
+	git(t, f.pusher, "commit", "-m", "release")
+	git(t, f.pusher, "push", "-q", "origin", "release")
+	git(t, f.clone, "checkout", "-q", "-b", "feat/x")
+	if err := f.m.git.SetBranchBase(f.clone, "feat/x", "main"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, f.clone, "b.txt", "mine\n")
+	git(t, f.clone, "commit", "-am", "mine")
+
+	got, err := f.m.RebaseOnto(f.clone, "release")
+	if err != nil || got != UpdateRebased {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if readFile(t, f.clone, "r.txt") != "release\n" || git(t, f.clone, "log", "-1", "--format=%s") != "mine" {
+		t.Error("the branch is not on top of release")
+	}
+	if base := f.m.git.BranchBases(f.clone)["feat/x"]; base != "main" {
+		t.Errorf("the base became %q", base)
+	}
+	if _, err := f.m.RebaseOnto(f.clone, "nowhere"); !errors.Is(err, ErrNothingDone) {
+		t.Errorf("a branch that does not exist: %v", err)
+	}
+}
+
+// TestRebaseOntoAConflictLeavesTheBranch: a rebase that would conflict is
+// refused, the branch exactly as it was.
+func TestRebaseOntoAConflictLeavesTheBranch(t *testing.T) {
+	t.Parallel()
+	f := newUpdateFixture(t)
+	git(t, f.pusher, "checkout", "-q", "-b", "release")
+	write(t, f.pusher, "a.txt", "theirs\n")
+	git(t, f.pusher, "commit", "-am", "theirs")
+	git(t, f.pusher, "push", "-q", "origin", "release")
+	git(t, f.clone, "checkout", "-q", "-b", "feat/x")
+	write(t, f.clone, "a.txt", "mine\n")
+	git(t, f.clone, "commit", "-am", "mine")
+	write(t, f.clone, "b.txt", "an edit\n")
+	head, status := git(t, f.clone, "rev-parse", "HEAD"), git(t, f.clone, "status", "--porcelain")
+
+	if _, err := f.m.RebaseOnto(f.clone, "release"); !errors.Is(err, ErrNothingDone) {
+		t.Fatalf("got %v, want a refusal", err)
+	}
+	assertUntouched(t, f, head, status)
+}
+
 // TestOpeningAMergeRequestLeavesItAndPUpdatesIt: opening an existing branch
 // worktree does not fetch; UpdateMR brings it to the published head.
 func TestOpeningAMergeRequestLeavesItAndPUpdatesIt(t *testing.T) {

@@ -31,6 +31,9 @@ type logCommit struct {
 	New      bool // a merge request's, not yet given a review
 	Unpushed bool // not on the branch's upstream yet
 	Local    bool // on no branch of any remote: its message may be edited
+	// Theirs is a commit of the upstream the branch does not have: what a
+	// pull would bring, or, once the two have parted, a force push remove.
+	Theirs bool
 	// CI is the pipeline status, where the forge said it: a merge request's
 	// head has one.
 	CI string
@@ -54,6 +57,9 @@ type logPlace struct {
 	// reload reads the log again, the cursor on focus, after something
 	// changed what it shows, and says done over it.
 	reload func(focus, done string)
+	// upstream is the branch's upstream as git names it, "" without one:
+	// the log says where it stands.
+	upstream string
 }
 
 // historyLimit is how far back a log goes; it is for looking around, not
@@ -62,17 +68,55 @@ const historyLimit = 200
 
 // showCommitLog lists commits, the cursor on start.
 func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
+	a.showMarkedLog(place, commits, start, nil)
+}
+
+// showMarkedLog is showCommitLog with the commits of marked marked, by
+// their place in commits: a log opened again after a dialog it led to was
+// left keeps what was marked.
+func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, marked map[int]bool) {
 	if len(commits) == 0 {
 		a.note("no commits to show")
 		return
 	}
-	items := make([]pickItem, len(commits))
+	rules := logRules(place, commits)
+	items := make([]pickItem, 0, len(commits)+len(rules))
+	marks := &pickMarks{}
+	first := 0
 	for i, c := range commits {
-		items[i] = pickItem{About: commitAbout(c, place), Data: i}
+		if words, ok := rules[i]; ok {
+			items = append(items, pickItem{Rule: true, Data: logRule(words)})
+		}
+		if i == start {
+			first = len(items)
+		}
+		if marked[i] {
+			marks.toggle(len(items))
+		}
+		items = append(items, pickItem{About: commitAbout(c, place), Data: i})
 	}
+	start = first
 	labelLog(items, commits, logRowWidth(a.screenWidth()))
 	at := func(it pickItem) logCommit { return commits[it.Data.(int)] }
 	again := func(it pickItem) func() { return func() { a.showCommitLog(place, commits, it.Data.(int)) } }
+	// markedNow are the commits marked, by their place in commits, newest
+	// first; kept opens the log again with them still marked.
+	markedNow := func() []int {
+		var at []int
+		for _, it := range marks.marked() {
+			at = append(at, it.Data.(int))
+		}
+		return at
+	}
+	kept := func(it pickItem) func() {
+		return func() {
+			set := map[int]bool{}
+			for _, i := range markedNow() {
+				set[i] = true
+			}
+			a.showMarkedLog(place, commits, it.Data.(int), set)
+		}
+	}
 
 	// A commit no remote has is not on the server: it has no page there and
 	// no pipeline ran for it.
@@ -87,10 +131,20 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	if place.checkout {
 		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) },
 			when: func(it pickItem) bool { return !isHead(at(it)) }},
-			pickKey{keys: "e", name: "Edit Commit Message…", about: "Write the message of a commit not pushed yet again; the commits after it are replayed onto it.", run: func(it pickItem) { a.editCommitMessage(place, at(it), again(it)) },
-				when: func(it pickItem) bool { return at(it).Local }},
-			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back, not pushed yet: its changes stay on disk, to be committed again.", run: func(it pickItem) { a.undoCommit(place, at(it), it.Data.(int) == 0, again(it)) },
-				when: func(it pickItem) bool { return it.Data.(int) == 0 && at(it).Local }})
+			pickKey{keys: "e", name: "Edit Commit Message…", about: "Write the message of a commit again; the commits after it are replayed onto it. One on origin asks first: a force push follows.", run: func(it pickItem) { a.editCommitMessage(place, at(it), again(it)) },
+				when: func(it pickItem) bool { return !at(it).Theirs }},
+			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back: its changes stay on disk, to be committed again. One on origin asks first: a force push follows.", run: func(it pickItem) { a.undoCommit(place, at(it), isHead(at(it)), again(it)) },
+				when: func(it pickItem) bool { return isHead(at(it)) }},
+			pickKey{keys: "s", name: "Squash Commits…", about: "Make one commit of the commits marked with space, next to each other; asks first when origin has any of them.",
+				run: func(it pickItem) {
+					if why := squashable(commits, markedNow()); why != "" {
+						kept(it)()
+						a.flash(why)
+						return
+					}
+					a.squashCommits(place, commits, markedNow(), kept(it))
+				},
+				when: func(pickItem) bool { return squashable(commits, markedNow()) == "" }})
 	}
 	if place.mr != nil {
 		mr := *place.mr
@@ -119,6 +173,10 @@ func (a *App) showCommitLog(place logPlace, commits []logCommit, start int) {
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
 		enterName: "Show Details", enterAbout: "The whole commit: its message, refs and the files it changed.",
 		relabel: func(items []pickItem, width int) { labelLog(items, commits, width) }}
+	// Commits are marked to be squashed, which only a checkout can do.
+	if place.checkout {
+		opts.marks = marks
+	}
 	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
 }
 
@@ -165,7 +223,8 @@ func isHead(c logCommit) bool {
 // labelLog writes the rows of a log for a row of width cells. The subjects
 // make a column, so what comes after them lines up, and it takes what the row
 // has left after the id, the age and the refs: a subject is cut only where
-// the dialog ends. The pane under the list has the rest of the message.
+// the dialog ends. The pane under the list has the rest of the message. A
+// rule between the sections runs across the row.
 func labelLog(items []pickItem, commits []logCommit, width int) {
 	refsW := 0
 	for _, c := range commits {
@@ -190,7 +249,13 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		subjects[i] = trim(subject, max(room, 24))
 		subjectW = max(subjectW, len([]rune(subjects[i])))
 	}
-	for i, c := range commits {
+	for n, it := range items {
+		if words, ok := it.Data.(logRule); ok {
+			items[n].Label = ruleLabel(string(words), width)
+			continue
+		}
+		i := it.Data.(int)
+		c := commits[i]
 		// The picker filters on the text as it is drawn, so the marks are
 		// plain characters, not colour tags.
 		mark := "  "
@@ -200,9 +265,65 @@ func labelLog(items []pickItem, commits []logCommit, width int) {
 		case c.Unpushed:
 			mark = glyphAhead + " "
 		}
-		items[i].Label = esc(fmt.Sprintf("%s%s  %-*s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i], authorW, trim(c.Author, authorW)))
-		items[i].Sub = logSub(c)
+		label := esc(fmt.Sprintf("%s%s  %-*s  %-*s", mark, shortSHA(c.SHA), subjectW, subjects[i], authorW, trim(c.Author, authorW)))
+		if c.Theirs {
+			label = tag(role("log.theirs")) + label + tagEnd
+		}
+		items[n].Label = label
+		items[n].Sub = logSub(c)
 	}
+}
+
+// logRule is the words of a line between the sections of a log.
+type logRule string
+
+// ruleLabel is a rule across a row of width cells, its words near the start.
+func ruleLabel(words string, width int) string {
+	line := "── " + words + " "
+	return tag(role("log.boundary")) + esc(line+strings.Repeat("─", max(2, width-len([]rune(line))))) + tagEnd
+}
+
+// logRules are the lines a log is parted by, each before the commit it is
+// keyed by. A branch ahead of its upstream has one where the upstream
+// stands; one parted from it - after a squash, an amend, a rebase of what
+// was pushed, or a push from elsewhere - has what is only here, what only
+// on origin, and what both have. A branch with no upstream has one where
+// the commits some remote has begin.
+func logRules(place logPlace, commits []logCommit) map[int]string {
+	rules := map[int]string{}
+	firstOf := func(of func(c logCommit) bool) int {
+		for i, c := range commits {
+			if of(c) {
+				return i
+			}
+		}
+		return -1
+	}
+	here := firstOf(func(c logCommit) bool { return c.Unpushed })
+	theirs := firstOf(func(c logCommit) bool { return c.Theirs })
+	shared := firstOf(func(c logCommit) bool { return !c.Unpushed && !c.Theirs })
+	switch {
+	case theirs >= 0 && here >= 0:
+		rules[here] = "only here · a force push puts these on origin"
+		rules[theirs] = "only on origin · a force push removes these"
+		if shared >= 0 {
+			rules[shared] = "shared"
+		}
+	case theirs >= 0:
+		rules[theirs] = "only on origin · a pull brings these"
+		if shared >= 0 {
+			rules[shared] = "shared"
+		}
+	case here >= 0 && shared > here:
+		rules[shared] = place.upstream
+	case place.upstream == "":
+		local := firstOf(func(c logCommit) bool { return c.Local })
+		pushed := firstOf(func(c logCommit) bool { return !c.Local })
+		if local >= 0 && pushed > local {
+			rules[pushed] = "on origin"
+		}
+	}
+	return rules
 }
 
 // logSub is what follows a subject, as markup: the age in a column of its
@@ -478,13 +599,13 @@ func (a *App) askName(title, value string, create func(name string), back func()
 }
 
 // editCommitMessage asks for a commit's message again and rewrites the
-// commit with it. Only a commit no remote has: one already pushed would need
+// commit with it. One origin has already asks first: the branch then needs
 // a force push, and other people may have built on it.
 func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 	// A refusal keeps the log, the warning over it.
-	if !c.Local {
+	if c.Theirs {
 		back()
-		a.flash(shortSHA(c.SHA) + " is on origin already - only a commit not pushed yet can have its message edited")
+		a.flash(shortSHA(c.SHA) + " is only on origin - only the branch's own commits can have their message edited")
 		return
 	}
 	git := gitx.New("", nil)
@@ -493,6 +614,20 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 		back()
 		a.errorf("reading the message of %s: %v", shortSHA(c.SHA), err)
 		return
+	}
+	reword := func(text string) {
+		var rewritten string
+		a.runTaskThen("Editing the message of "+shortSHA(c.SHA), func(log func(string)) (string, error) {
+			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
+			return "", git.Rewriting(place.dir, func() error {
+				var err error
+				rewritten, err = git.RewordCommit(place.dir, c.SHA, text)
+				return err
+			})
+		}, func(string) {
+			a.afterGitChange()
+			place.reload(rewritten, "the message of "+shortSHA(rewritten)+" is edited")
+		})
 	}
 	form := tview.NewForm()
 	styleForm(form)
@@ -508,15 +643,12 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 			back()
 			return
 		}
-		var rewritten string
-		a.runTaskThen("Editing the message of "+shortSHA(c.SHA), func(log func(string)) (string, error) {
-			var err error
-			rewritten, err = a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git().RewordCommit(place.dir, c.SHA, text)
-			return "", err
-		}, func(string) {
-			a.afterGitChange()
-			place.reload(rewritten, "the message of "+shortSHA(rewritten)+" is edited")
-		})
+		if c.Local {
+			reword(text)
+			return
+		}
+		a.confirmChoices("Edit Commit Message", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Editing its message"),
+			nil, []choice{{"Edit", func() { reword(text) }}})
 	})
 	form.AddButton("Cancel", func() {
 		a.closeModal(pageForm)
@@ -525,33 +657,135 @@ func (a *App) editCommitMessage(place logPlace, c logCommit, back func()) {
 	a.showFormModalSized("Edit Commit Message · "+shortSHA(c.SHA), form, 84, 14)
 }
 
+// onOriginQuestion is the question before rewriting what origin has: what
+// is done, then what follows from it.
+func onOriginQuestion(doing string) string {
+	return doing + " rewrites its history: a force push will be needed, and anyone who built on it has to rebase."
+}
+
 // undoCommit takes the newest commit back, its changes left on disk as
 // they were: IntelliJ's Undo Commit. Only the newest, since one with
-// commits after it would take them too, and only one no remote has.
+// commits after it would take them too; one origin has asks first.
 func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) {
-	switch {
-	case !newest:
+	if !newest {
 		back()
 		a.flash(shortSHA(c.SHA) + " has commits after it - only the newest commit can be undone")
 		return
-	case !c.Local:
-		back()
-		a.flash(shortSHA(c.SHA) + " is on origin already - undoing it would need a force push")
-		return
 	}
 	git := a.pathManager(place.project.Instance, place.project.PathWithNamespace).Git()
-	go func() {
-		err := git.UndoCommit(place.dir)
-		a.tv.QueueUpdateDraw(func() {
-			if err != nil {
-				back()
-				a.errorf("%v", err)
-				return
-			}
+	undo := func() {
+		go func() {
+			err := git.Rewriting(place.dir, func() error { return git.UndoCommit(place.dir) })
+			a.tv.QueueUpdateDraw(func() {
+				if err != nil {
+					back()
+					a.errorf("%v", err)
+					return
+				}
+				a.afterGitChange()
+				place.reload("", "undid "+shortSHA(c.SHA)+": its changes wait to be committed again")
+			})
+		}()
+	}
+	if c.Local {
+		undo()
+		return
+	}
+	a.confirmChoices("Undo Commit", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Undoing it"), nil, []choice{{"Undo", undo}})
+}
+
+// squashable says why the commits marked cannot be squashed, or "": two
+// or more, next to each other in the branch's history, no merge among
+// them, and none that only origin has.
+func squashable(commits []logCommit, marked []int) string {
+	if len(marked) < 2 {
+		return "mark two commits or more with space, then s squashes them"
+	}
+	// The branch's own history, in order: the log less what only origin has.
+	var place []int
+	pos := map[int]int{}
+	for i, c := range commits {
+		if !c.Theirs {
+			pos[i] = len(place)
+			place = append(place, i)
+		}
+	}
+	for n, i := range marked {
+		c := commits[i]
+		switch {
+		case c.Theirs:
+			return shortSHA(c.SHA) + " is only on origin - only the branch's own commits are squashed"
+		case c.Merge:
+			return shortSHA(c.SHA) + " is a merge - commits with a merge among them are not squashed"
+		case n > 0 && pos[i] != pos[marked[n-1]]+1:
+			return "the commits marked are not next to each other - mark a run of them"
+		}
+	}
+	return ""
+}
+
+// squashCommits asks for the message of the commit the marked ones become,
+// their messages one after another to start with, and, when origin has any
+// of them, whether to rewrite what it has. Cancel goes back to the log,
+// the marks kept.
+func (a *App) squashCommits(place logPlace, commits []logCommit, marked []int, back func()) {
+	newest, oldest := commits[marked[0]], commits[marked[len(marked)-1]]
+	git := a.pathManager(place.project.Instance, place.project.PathWithNamespace).Git()
+	// Oldest first, as git's own squash puts them.
+	var messages []string
+	for n := len(marked) - 1; n >= 0; n-- {
+		c := commits[marked[n]]
+		message, err := git.Message(place.dir, c.SHA)
+		if err != nil {
+			back()
+			a.errorf("reading the message of %s: %v", shortSHA(c.SHA), err)
+			return
+		}
+		messages = append(messages, strings.TrimSpace(message))
+	}
+	pushed := 0
+	for _, i := range marked {
+		if !commits[i].Local {
+			pushed++
+		}
+	}
+	squash := func(text string) {
+		var squashed string
+		a.runTaskThen(fmt.Sprintf("Squashing %d commits", len(marked)), func(log func(string)) (string, error) {
+			git := a.newManager(place.project.Instance, place.project.PathWithNamespace, log).Git()
+			return "", git.Rewriting(place.dir, func() error {
+				var err error
+				squashed, err = git.SquashCommits(place.dir, oldest.SHA, newest.SHA, text)
+				return err
+			})
+		}, func(string) {
 			a.afterGitChange()
-			place.reload("", "undid "+shortSHA(c.SHA)+": its changes wait to be committed again")
+			place.reload(squashed, fmt.Sprintf("squashed %d commits into %s", len(marked), shortSHA(squashed)))
 		})
-	}()
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	field := addTextArea(form, "Message", strings.Join(messages, "\n\n"), 10)
+	form.AddButton("Save", func() {
+		text := strings.TrimSpace(field.GetText())
+		if text == "" {
+			a.flash("enter a message")
+			return
+		}
+		a.closeModal(pageForm)
+		if pushed == 0 {
+			squash(text)
+			return
+		}
+		body := fmt.Sprintf("%s on origin. Squashing them rewrites its history: a force push will be needed, "+
+			"and anyone who built on them has to rebase.", counted(pushed, "of these commits is", "of these commits are"))
+		a.confirmChoices("Squash", body, nil, []choice{{"Squash", func() { squash(text) }}})
+	})
+	form.AddButton("Cancel", func() {
+		a.closeModal(pageForm)
+		back()
+	})
+	a.showFormModalSized(fmt.Sprintf("Squash %d Commits", len(marked)), form, 84, 16)
 }
 
 // commitURL is a commit's page on the server, "" without one.
@@ -652,25 +886,49 @@ func (a *App) localLog(place logPlace, focus, done string) {
 		entries, err := git.History(place.dir, "HEAD", historyLimit)
 		unpushed := git.Unpushed(place.dir)
 		local := git.LocalCommits(place.dir)
+		upstream, theirs, theirsErr := git.UpstreamOnly(place.dir, historyLimit)
 		a.tv.QueueUpdateDraw(func() {
+			if err == nil {
+				err = theirsErr
+			}
 			if err != nil {
 				a.errorf("reading the log: %v", err)
 				return
 			}
-			commits := make([]logCommit, len(entries))
-			start := 0
-			for i, e := range entries {
-				commits[i] = logCommit{LogEntry: e, Unpushed: unpushed[e.SHA], Local: local[e.SHA]}
-				if e.SHA == focus {
+			place.upstream = upstream
+			commits := sectionLog(entries, theirs, unpushed, local)
+			start := -1
+			for i, c := range commits {
+				if c.SHA == focus || (focus == "" && start < 0 && !c.Theirs) {
 					start = i
 				}
 			}
-			a.showCommitLog(place, commits, start)
+			a.showCommitLog(place, commits, max(start, 0))
 			if done != "" {
 				a.done(done)
 			}
 		})
 	}()
+}
+
+// sectionLog puts a checkout's commits in the order the log shows them:
+// what is only here, then - once the branch and its upstream have parted -
+// what only the upstream has, then what both have, each newest first.
+func sectionLog(entries, theirs []gitx.LogEntry, unpushed, local map[string]bool) []logCommit {
+	var here, shared []logCommit
+	for _, e := range entries {
+		c := logCommit{LogEntry: e, Unpushed: unpushed[e.SHA], Local: local[e.SHA]}
+		if c.Unpushed {
+			here = append(here, c)
+		} else {
+			shared = append(shared, c)
+		}
+	}
+	commits := here
+	for _, e := range theirs {
+		commits = append(commits, logCommit{LogEntry: e, Theirs: true})
+	}
+	return append(commits, shared...)
 }
 
 // mergeRequestLog is the commits of a merge request as the server has them,

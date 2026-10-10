@@ -809,7 +809,7 @@ func (a *App) remoteSentence(st remoteState, known bool, plain string) string {
 	case u.Gone:
 		return "upstream gone: the branch was deleted on origin"
 	case st.ForceFrom != "":
-		return fmt.Sprintf("rebased onto %s; origin still has the old commits · P force-pushes, asking first", st.Base)
+		return "rewritten here - rebased or squashed - and origin still has the old commits · P force-pushes, asking first"
 	case u.Name == "" && st.BaseBehind > 0:
 		return fmt.Sprintf("not on origin yet, %d behind %s · p rebases onto it · P pushes it", st.BaseBehind, st.Onto)
 	case u.Name == "":
@@ -932,9 +932,9 @@ func (a *App) pushWorktree(r worktreeRow) {
 		return
 	}
 	if st.ForceFrom != "" {
-		body := fmt.Sprintf("[::b]%s[::-] was rebased onto %s, so origin's copy has to be replaced.\n\n"+
-			"Force-push it? Only origin's copy as it was before the rebase is replaced: "+
-			"if anyone pushed since, git refuses.", esc(r.Branch), esc(st.Base))
+		body := fmt.Sprintf("[::b]%s[::-] was rewritten here - rebased or squashed - so origin's copy has to be replaced.\n\n"+
+			"Force-push it? Only origin's copy as it was before is replaced: "+
+			"if anyone pushed since, git refuses.", esc(r.Branch))
 		a.confirmWith("Force push", body, "Force push", nil, func() {
 			a.runTask(fmt.Sprintf("Force-pushing %s (%s)", r.Path, r.Branch), func(log func(string)) (string, error) {
 				return "", forcePush(a.newManager(r.Instance, r.Path, log).Git(), r.Dir, r.Branch, st.ForceFrom)

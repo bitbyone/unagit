@@ -70,6 +70,19 @@ func (g *Git) UpstreamTip(dir string) (string, error) {
 	return g.out(dir, "rev-parse", "--verify", "@{upstream}")
 }
 
+// UpstreamOnly is the branch's upstream as git names it (origin/feat/x),
+// and the commits it has that HEAD lacks, newest first: what a pull would
+// bring, or, once the two have parted, what a force push would remove. A
+// branch with no upstream has neither.
+func (g *Git) UpstreamOnly(dir string, limit int) (string, []LogEntry, error) {
+	name, err := g.out(dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+	if err != nil || name == "" {
+		return "", nil, nil
+	}
+	entries, err := g.History(dir, "HEAD..@{upstream}", limit)
+	return name, entries, err
+}
+
 // RewordCommit gives a commit of the branch checked out a new message,
 // leaving what it changed, its author and the commits after it as they
 // were. The newest is amended; an older one is written again with the new
@@ -129,6 +142,106 @@ func (g *Git) RewordCommit(dir, sha, message string) (string, error) {
 	}
 	return rewritten, nil
 }
+
+// SquashCommits makes one commit out of oldest, newest and every commit
+// between them, with message and oldest's author: newest's tree on
+// oldest's parents. The commits after newest are replayed onto it,
+// uncommitted edits stashed around the replay, which cannot conflict, since
+// the tree they grew from is the same. A merge in the range is refused, as
+// is a range not on the branch checked out. It answers the new commit.
+func (g *Git) SquashCommits(dir, oldest, newest, message string) (string, error) {
+	branch, err := g.out(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("HEAD is detached - check out the branch the commits are on first")
+	}
+	if op := g.OperationInProgress(dir); op != "" {
+		return "", fmt.Errorf("a %s is in progress - finish or abort it first", op)
+	}
+	head, err := g.out(dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	first, err := g.out(dir, "rev-parse", "--verify", oldest+"^{commit}")
+	if err != nil {
+		return "", err
+	}
+	last, err := g.out(dir, "rev-parse", "--verify", newest+"^{commit}")
+	if err != nil {
+		return "", err
+	}
+	if !g.IsAncestor(dir, last, head) || !g.IsAncestor(dir, first, last) {
+		return "", fmt.Errorf("%s..%s is not a run of commits on %s", shortID(first), shortID(last), branch)
+	}
+	// Each commit with its parents: oldest itself, and what is after it up
+	// to newest. Without a merge among them they are one line of commits.
+	out, err := g.out(dir, "rev-list", "--parents", last, "^"+first)
+	if err != nil {
+		return "", err
+	}
+	own, err := g.out(dir, "rev-list", "--parents", "-n", "1", first)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range append(strings.Split(out, "\n"), own) {
+		if f := strings.Fields(line); len(f) > 2 {
+			return "", fmt.Errorf("%s is a merge - commits with a merge among them are not squashed", shortID(f[0]))
+		}
+	}
+	meta, err := g.out(dir, "show", "--no-patch", "--date=raw", "--format=%an%x00%ae%x00%ad%x00%P", first)
+	if err != nil {
+		return "", err
+	}
+	parts := strings.Split(meta, "\x00")
+	if len(parts) != 4 {
+		return "", fmt.Errorf("cannot read %s: %q", first, meta)
+	}
+	tree, err := g.out(dir, "rev-parse", last+"^{tree}")
+	if err != nil {
+		return "", err
+	}
+	args := []string{"commit-tree", tree}
+	for _, parent := range strings.Fields(parts[3]) {
+		args = append(args, "-p", parent)
+	}
+	args = append(args, "-m", message)
+	author := []string{"GIT_AUTHOR_NAME=" + parts[0], "GIT_AUTHOR_EMAIL=" + parts[1], "GIT_AUTHOR_DATE=" + parts[2]}
+	squashed, err := g.runEnv(dir, author, args...)
+	if err != nil {
+		return "", err
+	}
+	squashed = strings.TrimSpace(squashed)
+	if last == head {
+		// Nothing after it: the branch moves, the index and the files stay.
+		if _, err := g.Run(dir, "reset", "--soft", "--quiet", squashed); err != nil {
+			return "", err
+		}
+		return squashed, nil
+	}
+	if _, err := g.runEnv(dir, []string{"GIT_EDITOR=true"}, "rebase", "--quiet", "--rebase-merges", "--autostash",
+		"--onto", squashed, last, branch); err != nil {
+		_, _ = g.Run(dir, "rebase", "--abort")
+		return "", err
+	}
+	return squashed, nil
+}
+
+// Rewriting runs rewrite, a change to the history of the branch checked
+// out, and when that moves the branch off what its upstream has, notes
+// where the upstream stood (SetRebasedFrom): P then force-pushes with
+// exactly that as the lease, so nothing pushed since can be lost.
+func (g *Git) Rewriting(dir string, rewrite func() error) error {
+	branch, _ := g.out(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	tip, tipErr := g.UpstreamTip(dir)
+	if err := rewrite(); err != nil {
+		return err
+	}
+	if branch != "" && tipErr == nil && !g.IsAncestor(dir, tip, "HEAD") {
+		return g.SetRebasedFrom(dir, branch, tip)
+	}
+	return nil
+}
+
+func shortID(sha string) string { return sha[:min(8, len(sha))] }
 
 // PushHead sends the branch checked out to origin, setting its upstream the
 // first time. With force it replaces origin's copy, but only while origin

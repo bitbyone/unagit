@@ -223,3 +223,48 @@ README says how to use it (keys and behaviour; the `?` help gets keys only,
 one short line each), the new dialogs and the log were drawn on the
 simulation screen and looked at, and the user has seen it. Update this
 file as parts land: what was built, and where it differs from the plan.
+
+## What was built
+
+All four parts are in the working tree, not committed (see **Commits**
+above). `go test ./...`, `gofmt -l .` and `go vet ./...` are clean; the
+base picker, the log with each kind of line, the marked log, the squash
+form and its question were drawn on the simulation screen and looked at.
+
+**1.** `workspace.RebaseOnto(dir, onto)` and `RebaseOntoBase` share
+`rebaseOnto`: the busy check, the fetch, `moveOnto` and the
+`unagitRebasedFrom` note. The picker is `chooseBase` in
+`internal/ui/base.go`, ordered by `baseCandidates`, each row saying why it
+is where it is ("the base now · default", "target of !12", "local only").
+Differences: without a token origin's branches are left out and the
+clone's are listed, rather than nothing. Neither action has a key - both
+are found with `Alt-Enter`. Rebase onto… is offered on a worktree of one
+repository only, not on a group as Rebase onto Base is: the picker lists
+one repository's branches (in the worktree view, light a member's block).
+
+**2.** `gitx.UpstreamOnly` reads the upstream and what only it has;
+`sectionLog` orders the commits, `logRules` places the lines, `pickItem.Rule`
+is a row the cursor steps over (`offRule`/`pass` in `showPickerWith`, since
+tview reports a move before it makes it, so the cursor cannot be corrected
+in its changed callback). Roles `log.boundary` and `log.theirs`. Beyond the
+plan: a branch only behind its upstream also lists origin's commits, under
+"only on origin · a pull brings these", then "shared"; the cursor starts on
+the first commit of the branch, not on origin's. The line of a branch with
+no upstream reads "on origin". The arrows in pickers no longer wrap from
+the last row to the first, as j/k never did.
+
+**3.** `pickerOptions.marks` takes a `*pickMarks` the caller keeps, so the
+keys' `when` and `run` read the marks and a log opened again keeps them
+(`showMarkedLog`); `bandedList` paints the band after tview's List draws.
+The key is `s`, out of the hint, which says `space mark`.
+`gitx.SquashCommits` as planned; `gitx.Rewriting` wraps any rewrite and
+notes the lease when the branch has moved off its upstream - squash, edit
+message and undo all go through it. The worktree row and `P`'s question
+for such a branch now say "rewritten here - rebased or squashed" instead
+of naming the base. Cancel on the question before squashing pushed
+commits closes it without going back to the log: `confirmChoices` has no
+cancel callback.
+
+**4.** `e` is offered on every commit of the branch, `u` on HEAD
+(`isHead`, since the first row may now be one of origin's), each asking
+first when origin has the commit (`onOriginQuestion`).

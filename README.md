@@ -413,6 +413,16 @@ Every other force push is chosen in a question - **Force Push** beside
 **Push** in `P`'s, or the commit dialog's **Commit and Force Push** - and
 its lease is origin's copy as last fetched.
 
+A branch made outside unagit has no base, so `Ctrl-R` and `Alt-D` are not
+offered for it. **Set Base…** (in the actions, `Alt-Enter`; in Repositories
+too, for a clone on a branch other than the default) picks one from the
+repository's branches - the base there is first, then the default branch,
+then the target of the merge request open from the branch - and records it as
+unagit would have. Choosing again replaces it. **Rebase onto…** rebases the
+branch onto any branch picked from the same list, once, under the same rules
+as `Ctrl-R` - nothing that would conflict, a force push with a lease after -
+and leaves the base as it was.
+
 The edits column (`✎`) counts the files not committed - versioned, then
 after a slash unversioned, as in Repositories - so work in progress shows
 before it is committed; a grouped worktree adds up its repositories.
@@ -718,12 +728,33 @@ checks the commit out with a detached HEAD: the branch column then shows
 `@<commit>` and the RMT column how far behind the branch it left it is,
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
-`e` edits the message of a commit no remote has yet - the newest is
-amended, an older one written again and the commits after it replayed onto
-it; a pushed commit is refused, since changing it would need a force push. `u` undoes
-the newest commit when no remote has it: the commit goes, its changes
-stay on disk to be committed again. Both are among a commit's actions
-(`Alt-Enter`), offered only where they can be done.
+`e` edits the message of a commit - the newest is amended, an older one
+written again and the commits after it replayed onto it. `u` undoes the
+newest commit: the commit goes, its changes stay on disk to be committed
+again. Both are among a commit's actions (`Alt-Enter`), offered only where
+they can be done.
+
+Space marks commits in a clone's or a worktree's log, as it marks rows in
+the lists; `Esc` takes the marks off before it closes the log. With two or
+more marked next to each other, `s` squashes them into one - **Squash
+Commits…** among the actions: a form with their messages one after another,
+oldest first, to make one message of, and the oldest commit's author. The
+commits after them are replayed onto it, and what is not committed stays as
+it is. A merge among them is refused.
+
+Rewriting a commit origin already has - squashing it, editing its message,
+undoing it - asks first: a force push will be needed, and anyone who built on
+it has to rebase. Once done, where origin's copy stood is noted, as for
+`Ctrl-R`, so `P` force-pushes with exactly that as the lease.
+
+The log shows where origin's copy of the branch stands. A branch ahead of
+it has a line under its own commits, at `origin/<branch>`; a branch with no
+upstream has one where the commits some remote has begin. Once the two have
+parted - after a squash, an amend, a rebase of pushed commits, or a push from
+elsewhere - the log is in three parts: **only here** (a force push puts these
+on origin), **only on origin**, dimmed (a force push removes these), and
+**shared**. The commits only on origin can be looked at, never rewritten.
+The cursor steps over the lines, and a filter hides them.
 `w` opens the commit on the server, and `y` copies its id, its link, a
 markdown link, or a link with text for a chat: repository, branch, commit
 and subject followed by the link. `y` on a merge request or a repository

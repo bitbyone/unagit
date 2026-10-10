@@ -142,6 +142,33 @@ func TestLocalCommits(t *testing.T) {
 	}
 }
 
+// TestUpstreamOnly: in step, origin has nothing HEAD lacks; once a pushed
+// commit is rewritten, origin's copy of it is what only origin has.
+func TestUpstreamOnly(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	identify(t, clone)
+	g := New("", nil)
+	commit(t, clone, "b.txt", "two")
+	sh(t, clone, "push", "-q", "origin", "HEAD")
+	name, theirs, err := g.UpstreamOnly(clone, 50)
+	must(t, err)
+	if name != "origin/main" || len(theirs) != 0 {
+		t.Fatalf("in step: %q, %v", name, theirs)
+	}
+	pushed := sh(t, clone, "rev-parse", "HEAD")
+	sh(t, clone, "commit", "-q", "--amend", "-m", "two, rewritten")
+	_, theirs, err = g.UpstreamOnly(clone, 50)
+	must(t, err)
+	if len(theirs) != 1 || theirs[0].SHA != pushed {
+		t.Errorf("only on origin: %v, want %s", theirs, pushed)
+	}
+	sh(t, clone, "checkout", "-q", "-b", "alone")
+	if name, theirs, err := g.UpstreamOnly(clone, 50); name != "" || theirs != nil || err != nil {
+		t.Errorf("a branch with no upstream: %q, %v, %v", name, theirs, err)
+	}
+}
+
 // TestOutgoingAndUndoCommit: a push would send the commits the upstream
 // lacks; undoing the newest leaves its changes on disk, not committed.
 func TestOutgoingAndUndoCommit(t *testing.T) {
@@ -165,5 +192,99 @@ func TestOutgoingAndUndoCommit(t *testing.T) {
 	sh(t, clone, "reset", "-q", "--hard", "HEAD~1")
 	if err := g.UndoCommit(clone); err == nil {
 		t.Error("the first commit was undone")
+	}
+}
+
+// TestSquashCommits: the middle three of five become one commit with the
+// message given and the oldest's author; the tree is what it was, the two
+// after it keep their own messages, and an uncommitted edit survives.
+func TestSquashCommits(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	identify(t, clone)
+	g := New("", nil)
+	commit(t, clone, "1.txt", "one")
+	write(t, clone, "2.txt", "two\n")
+	sh(t, clone, "add", "2.txt")
+	sh(t, clone, "commit", "-q", "-m", "two", "--author", "someone else <else@example.com>")
+	commit(t, clone, "3.txt", "three")
+	commit(t, clone, "4.txt", "four")
+	commit(t, clone, "5.txt", "five")
+	write(t, clone, "a.txt", "an edit\n")
+	tree := sh(t, clone, "rev-parse", "HEAD^{tree}")
+
+	squashed, err := g.SquashCommits(clone, sh(t, clone, "rev-parse", "HEAD~3"), sh(t, clone, "rev-parse", "HEAD~1"), "Two to four\n\nAll at once.")
+	must(t, err)
+	if got := sh(t, clone, "log", "--format=%s", "origin/main..HEAD"); got != "five\nTwo to four\none" {
+		t.Errorf("history = %q", got)
+	}
+	if got := sh(t, clone, "rev-parse", "HEAD~1"); got != squashed {
+		t.Errorf("HEAD~1 = %s, want the squashed %s", got, squashed)
+	}
+	if got := sh(t, clone, "rev-parse", "HEAD^{tree}"); got != tree {
+		t.Error("the tree changed")
+	}
+	if got := sh(t, clone, "log", "-1", "--format=%an|%B", squashed); got != "someone else|Two to four\n\nAll at once." {
+		t.Errorf("author and message = %q", got)
+	}
+	if got := sh(t, clone, "show", "--name-only", "--format=", squashed); got != "2.txt\n3.txt\n4.txt" {
+		t.Errorf("the squashed commit changed %q", got)
+	}
+	if got := sh(t, clone, "status", "--porcelain"); got != "M a.txt" {
+		t.Errorf("the edit around the replay: %q", got)
+	}
+
+	// The newest two: the branch moves, nothing is replayed.
+	if _, err := g.SquashCommits(clone, "HEAD~1", "HEAD", "Two to five"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sh(t, clone, "log", "--format=%s", "origin/main..HEAD"); got != "Two to five\none" {
+		t.Errorf("history = %q", got)
+	}
+	if got := sh(t, clone, "rev-parse", "HEAD^{tree}"); got != tree {
+		t.Error("the tree changed")
+	}
+}
+
+// TestSquashRefusesAMerge: a merge among the commits leaves the branch alone.
+func TestSquashRefusesAMerge(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	identify(t, clone)
+	g := New("", nil)
+	commit(t, clone, "1.txt", "one")
+	sh(t, clone, "checkout", "-q", "-b", "side")
+	commit(t, clone, "s.txt", "side")
+	sh(t, clone, "checkout", "-q", "main")
+	commit(t, clone, "2.txt", "two")
+	sh(t, clone, "merge", "-q", "--no-edit", "side")
+	commit(t, clone, "3.txt", "three")
+	head := sh(t, clone, "rev-parse", "HEAD")
+	if _, err := g.SquashCommits(clone, sh(t, clone, "rev-parse", "HEAD~2"), head, "all"); err == nil || !strings.Contains(err.Error(), "merge") {
+		t.Errorf("a merge was squashed: %v", err)
+	}
+	if sh(t, clone, "rev-parse", "HEAD") != head {
+		t.Error("the branch moved")
+	}
+}
+
+// TestRewritingNotesWhereOriginStood: a rewrite of pushed commits notes
+// origin's copy as the lease; one of commits not pushed notes nothing.
+func TestRewritingNotesWhereOriginStood(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	identify(t, clone)
+	g := New("", nil)
+	commit(t, clone, "1.txt", "one")
+	must(t, g.Rewriting(clone, func() error { return g.UndoCommit(clone) }))
+	if mark := g.RebasedFrom(clone)["main"]; mark != "" {
+		t.Errorf("a commit not pushed noted %q", mark)
+	}
+	sh(t, clone, "commit", "-q", "-m", "one")
+	sh(t, clone, "push", "-q")
+	pushed := sh(t, clone, "rev-parse", "HEAD")
+	must(t, g.Rewriting(clone, func() error { _, err := g.RewordCommit(clone, pushed, "One"); return err }))
+	if mark := g.RebasedFrom(clone)["main"]; mark != pushed {
+		t.Errorf("noted %q, origin had %s", mark, pushed)
 	}
 }

@@ -183,6 +183,8 @@ func helpRows() []helpLine {
 		key("Ctrl-L", "commit log; Enter shows a commit's detail"),
 		key("D  Alt-D", "in the log: the commit · from it to now, in Hunk"),
 		key("C  B  e", "in the log: checkout · back to branch · edit message"),
+		key("u", "in the log: undo the newest commit"),
+		key("space  s", "in the log: mark commits · squash the marked"),
 		key("n  Ctrl-W", "in the log: a branch · a worktree at the commit"),
 		key("w  y", "in the log: browser · copy id, link, reference"),
 		key("J", "in the log: the commit's pipelines"),

@@ -113,6 +113,10 @@ type pickItem struct {
 	// the lower first.
 	Aliases []string
 	Prefer  int
+	// Rule is a row that is not an item: a line between the sections of a
+	// list, drawn as its Label is. The cursor steps over it, and a filter
+	// hides it, since what it parts is no longer in order.
+	Rule bool
 }
 
 // wordsMatch says whether every word of the query is an alias of the item,
@@ -233,6 +237,82 @@ type pickerOptions struct {
 	// header names the columns of a picker whose items are a table's rows
 	// (pickTable), on a line of its own over them.
 	header string
+	// marks lets space mark items, as it marks rows in every list: the
+	// marks' band, the cursor on to the next, the count in the title, and
+	// Esc clearing them before it closes the picker. Keys read them there.
+	marks *pickMarks
+}
+
+// pickMarks are the items marked in a picker that lets them be, by their
+// place among its items. The keys read them - what they act on, and
+// whether they are offered - and whoever opened the picker keeps them, so
+// that it opens again with the same marked.
+type pickMarks struct {
+	at    map[int]bool
+	items []pickItem
+}
+
+// marked are the items marked, in the picker's order.
+func (m *pickMarks) marked() []pickItem {
+	if m == nil {
+		return nil
+	}
+	var out []pickItem
+	for i, it := range m.items {
+		if m.at[i] {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// count is how many are marked.
+func (m *pickMarks) count() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.at)
+}
+
+// toggle marks an item, or takes its mark off.
+func (m *pickMarks) toggle(i int) {
+	if m.at[i] {
+		delete(m.at, i)
+		return
+	}
+	if m.at == nil {
+		m.at = map[int]bool{}
+	}
+	m.at[i] = true
+}
+
+// bandedList is a picker's list with its marked rows on the marks' band,
+// painted once the list has drawn: tview's List has no background per
+// item.
+type bandedList struct {
+	*tview.List
+	banded func(row int) bool
+}
+
+func (l *bandedList) Draw(screen tcell.Screen) {
+	l.List.Draw(screen)
+	x, y, w, h := l.GetInnerRect()
+	offset, _ := l.GetOffset()
+	current := l.GetCurrentItem()
+	for line := 0; line < h && offset+line < l.GetItemCount(); line++ {
+		row := offset + line
+		if !l.banded(row) {
+			continue
+		}
+		bg := colMarked
+		if row == current {
+			_, bg, _ = styleMarkedSelected.Decompose()
+		}
+		for col := x; col < x+w; col++ {
+			r, comb, style, _ := screen.GetContent(col, y+line)
+			screen.SetContent(col, y+line, r, comb, style.Background(bg))
+		}
+	}
 }
 
 // pickTable lays rows out as columns under their names, for a picker whose
@@ -338,6 +418,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	footer := tview.NewTextView().SetDynamicColors(true)
 
 	shown := make([]pickItem, 0, len(items))
+	// shownAt is each shown item's place among items, which marks go by.
+	var shownAt []int
+	marks := opts.marks
+	if marks != nil {
+		marks.items = items
+	}
 	// rebuilding is set while the list is filled again, whose every item
 	// added moves the cursor on the way to where it ends.
 	rebuilding := false
@@ -345,7 +431,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		rebuilding = true
 		defer func() { rebuilding = false }()
 		list.Clear()
-		shown = shown[:0]
+		shown, shownAt = shown[:0], shownAt[:0]
 		// What an item is called comes before what its explanation says:
 		// searching for a worktree finds the action named so before one that
 		// mentions a worktree in passing. Before both, an item every typed
@@ -355,14 +441,21 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		// preferred, then the list's own order.
 		type hit struct {
 			it    pickItem
+			at    int
 			tier  int
 			score int
 			rest  int
 		}
 		typed := strings.TrimSpace(query) != ""
 		var hits []hit
-		for _, it := range items {
+		for n, it := range items {
 			if it.Hidden && !typed {
+				continue
+			}
+			if it.Rule {
+				if !typed {
+					hits = append(hits, hit{it: it, at: n})
+				}
 				continue
 			}
 			score, ok := fuzzy.Match(query, it.Label+" "+it.Sub+" "+strings.Join(it.Aliases, " "))
@@ -380,7 +473,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			if !ok {
 				continue
 			}
-			hits = append(hits, hit{it, tier, score, rest})
+			hits = append(hits, hit{it, n, tier, score, rest})
 		}
 		if typed {
 			sort.SliceStable(hits, func(i, j int) bool {
@@ -402,10 +495,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		for _, h := range hits {
 			label := h.it.Label
-			if h.it.Sub != "" {
+			if h.it.Sub != "" && !h.it.Rule {
 				label += "   " + tag(colDim) + h.it.Sub + tagEnd
 			}
-			shown = append(shown, h.it)
+			shown, shownAt = append(shown, h.it), append(shownAt, h.at)
 			list.AddItem(label, "", 0, nil)
 		}
 	}
@@ -424,6 +517,34 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	if start > 0 && start < list.GetItemCount() {
 		list.SetCurrentItem(start)
 	}
+	// isRule tells a line between sections, which is never under the
+	// cursor; offRule is the nearest item from i, onward in the direction
+	// the cursor went, or back when there is none that way.
+	isRule := func(i int) bool { return i >= 0 && i < len(shown) && shown[i].Rule }
+	offRule := func(i, dir int) int {
+		if dir == 0 {
+			dir = 1
+		}
+		for _, d := range []int{dir, -dir} {
+			for j := i + d; j >= 0 && j < len(shown); j += d {
+				if !isRule(j) {
+					return j
+				}
+			}
+		}
+		return i
+	}
+	// pass takes the cursor on past a rule it came to going dir; settle
+	// off one it was left on when the list was filled again. tview tells
+	// of a move before it makes it, so the cursor cannot be put right
+	// while it is told.
+	pass := func(dir int) {
+		if i := list.GetCurrentItem(); isRule(i) {
+			list.SetCurrentItem(offRule(i, dir))
+		}
+	}
+	settle := func() { pass(1) }
+	settle()
 	if opts.query != "" {
 		input.SetText(opts.query)
 	}
@@ -434,6 +555,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	moved := func(int) {}
 	input.SetChangedFunc(func(query string) {
 		rebuild(query)
+		settle()
 		moved(list.GetCurrentItem())
 		if typed != nil {
 			typed()
@@ -454,7 +576,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 	choose := func() {
 		i := list.GetCurrentItem()
-		if i < 0 || i >= len(shown) || onSelect == nil {
+		if i < 0 || i >= len(shown) || onSelect == nil || isRule(i) {
 			return
 		}
 		it := shown[i]
@@ -463,6 +585,8 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 
 	filtering := false
+	// retitle draws the title, with how many are marked.
+	var retitle func()
 	normalHint := func() string {
 		// Only what can be done: moving, filtering and closing are what
 		// every list does, and are not said.
@@ -475,6 +599,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			hints = append(hints, fmt.Sprintf("Enter or %c select", opts.again))
 		default:
 			hints = append(hints, "Enter select")
+		}
+		if marks != nil {
+			hints = append(hints, "space mark")
 		}
 		for _, k := range opts.keys {
 			// A key-less action is the actions picker's alone, and one with
@@ -520,7 +647,32 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		if n := list.GetItemCount(); n > 0 {
 			next := list.GetCurrentItem() + delta
 			list.SetCurrentItem(max(0, min(next, n-1)))
+			pass(delta)
 		}
+	}
+	// arrow moves the cursor for an arrow or a page key, past a rule; the
+	// list's own handler would not know to step over one.
+	arrow := func(ev *tcell.EventKey) bool {
+		_, _, _, page := list.GetInnerRect()
+		switch ev.Key() {
+		case tcell.KeyUp:
+			move(-1)
+		case tcell.KeyDown:
+			move(1)
+		case tcell.KeyPgUp:
+			move(-max(page, 1))
+		case tcell.KeyPgDn:
+			move(max(page, 1))
+		case tcell.KeyHome:
+			list.SetCurrentItem(0)
+			pass(1)
+		case tcell.KeyEnd:
+			list.SetCurrentItem(list.GetItemCount() - 1)
+			pass(-1)
+		default:
+			return false
+		}
+		return true
 	}
 
 	input.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -541,9 +693,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			choose()
 			return nil
 		case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn:
-			if h := list.InputHandler(); h != nil {
-				h(ev, func(tview.Primitive) {})
-			}
+			arrow(ev)
 			return nil
 		case tcell.KeyCtrlN:
 			move(1)
@@ -560,7 +710,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		// actions, the way every list of the main screens has it.
 		if opensSelectionActions(ev) {
 			i := list.GetCurrentItem()
-			if i < 0 || i >= len(shown) {
+			if i < 0 || i >= len(shown) || isRule(i) {
 				a.flash("nothing is selected")
 				return nil
 			}
@@ -596,7 +746,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		for _, k := range opts.keys {
 			if (uiAction{keys: k.keys}).matches(ev) {
-				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
+				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) && !isRule(i) {
 					it := shown[i]
 					if !k.stay {
 						dismiss()
@@ -606,8 +756,17 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				return nil
 			}
 		}
+		if arrow(ev) {
+			return nil
+		}
 		switch ev.Key() {
 		case tcell.KeyEsc:
+			// Marks go first, the picker with the next Esc.
+			if marks.count() > 0 {
+				marks.at = nil
+				retitle()
+				return nil
+			}
 			giveUp()
 			if opts.back != nil {
 				opts.back()
@@ -617,6 +776,14 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			choose()
 			return nil
 		case tcell.KeyRune:
+			if ev.Rune() == ' ' && marks != nil {
+				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) && !isRule(i) {
+					marks.toggle(shownAt[i])
+					retitle()
+					move(1)
+				}
+				return nil
+			}
 			if opts.again != 0 && ev.Rune() == opts.again {
 				choose()
 				return nil
@@ -633,9 +800,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				return nil
 			case 'g':
 				list.SetCurrentItem(0)
+				pass(1)
 				return nil
 			case 'G':
 				list.SetCurrentItem(list.GetItemCount() - 1)
+				pass(-1)
 				return nil
 			case 'q':
 				giveUp()
@@ -669,12 +838,18 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		header.SetText(opts.header)
 		flex.AddItem(header, 1, 0, false)
 	}
-	flex.AddItem(list, 0, 1, true)
+	view := &bandedList{List: list, banded: func(row int) bool {
+		return marks != nil && row < len(shownAt) && marks.at[shownAt[row]]
+	}}
+	flex.AddItem(view, 0, 1, true)
 
 	// The width a packed picker needs: its longest row, its title, and room
 	// for every explanation to fit in explainLines.
 	inner := 0
 	for _, it := range items {
+		if it.Rule {
+			continue
+		}
 		row := it.Label
 		if it.Sub != "" {
 			row += "   " + it.Sub
@@ -707,6 +882,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		input.SetChangedFunc(func(query string) {
 			rebuild(query)
+			settle()
 			explain(list.GetCurrentItem())
 			moved(list.GetCurrentItem())
 			if typed != nil {
@@ -738,13 +914,24 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 	}
 	list.SetChangedFunc(func(i int, _, _ string, _ rune) {
+		// The cursor goes on past a rule (pass), and is heard there.
+		if isRule(i) {
+			return
+		}
 		explain(i)
 		if !rebuilding {
 			moved(i)
 		}
 	})
 	flex.AddItem(footer, 1, 0, false)
-	box(flex.Box, title)
+	retitle = func() {
+		if n := marks.count(); n > 0 {
+			box(flex.Box, fmt.Sprintf("%s · %d marked", title, n))
+			return
+		}
+		box(flex.Box, title)
+	}
+	retitle()
 	if opts.bright {
 		for _, b := range []interface{ SetBackgroundColor(tcell.Color) *tview.Box }{flex, list, footer, input} {
 			b.SetBackgroundColor(colPicker)
@@ -764,7 +951,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			return input
 		}
 		return list
-	}}
+	}, settle: settle}
 	if opts.relabel != nil {
 		frame.resized = func(width int) {
 			opts.relabel(items, width)
@@ -773,6 +960,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			if at >= 0 && at < list.GetItemCount() {
 				list.SetCurrentItem(at)
 			}
+			settle()
 		}
 	}
 	var page tview.Primitive
@@ -791,6 +979,10 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			rows := 0
 			for _, it := range items {
+				// A rule is as wide as what is there.
+				if it.Rule {
+					continue
+				}
 				row := it.Label
 				if it.Sub != "" {
 					row += "   " + it.Sub
@@ -821,7 +1013,8 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 	return &livePicker{
 		open: func() bool { return a.pages.GetPage(pageName) == page },
-		set: func(title string, next []pickItem) {
+		set: func(retitled string, next []pickItem) {
+			title = retitled
 			var current *pickItem
 			if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
 				it := shown[i]
@@ -829,6 +1022,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			at := list.GetCurrentItem()
 			items = next
+			if marks != nil {
+				marks.items = items
+			}
 			rebuild(input.GetText())
 			if current != nil {
 				for i, it := range shown {
@@ -841,8 +1037,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			if at >= 0 && at < list.GetItemCount() {
 				list.SetCurrentItem(at)
 			}
+			settle()
 			explain(list.GetCurrentItem())
-			box(flex.Box, title)
+			retitle()
 		},
 		setHeader: func(text string) { header.SetText(text) },
 	}
@@ -882,9 +1079,14 @@ type pickerFrame struct {
 	// resized hears the width of a row whenever it changes.
 	resized func(width int)
 	width   int
+	// settle takes the cursor off a rule a click left it on.
+	settle func()
 }
 
 func (f *pickerFrame) Draw(screen tcell.Screen) {
+	if f.settle != nil {
+		f.settle()
+	}
 	if f.resized != nil {
 		_, _, w, _ := f.GetRect()
 		if row := w - 4; row != f.width {

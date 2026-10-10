@@ -95,6 +95,22 @@ func (m *Manager) UpdateMR(mr forge.MergeRequest, project forge.Project) (string
 // where the upstream stood is noted, so that only a push forcing it away from
 // exactly that - nothing origin gained since - goes through.
 func (m *Manager) RebaseOntoBase(dir, base string) (string, error) {
+	return m.rebaseOnto(dir, base, func(branch string) string {
+		return fmt.Sprintf("%s was made from %s, which is gone", branch, base)
+	})
+}
+
+// RebaseOnto is RebaseOntoBase onto any branch, once: the base recorded stays
+// what it was.
+func (m *Manager) RebaseOnto(dir, onto string) (string, error) {
+	return m.rebaseOnto(dir, onto, func(string) string {
+		return onto + " is neither on origin nor here - pick another branch"
+	})
+}
+
+// rebaseOnto moves the branch onto origin's copy of onto, or the local one
+// when origin has none; gone says why when it is nowhere.
+func (m *Manager) rebaseOnto(dir, onto string, gone func(branch string) string) (string, error) {
 	if busy := m.OperationInProgress(dir); busy != "" {
 		return "", fmt.Errorf("a %s is in progress here - finish or abort it first: %w", busy, ErrNothingDone)
 	}
@@ -102,18 +118,18 @@ func (m *Manager) RebaseOntoBase(dir, base string) (string, error) {
 	if branch == "" {
 		return "", fmt.Errorf("HEAD is detached, there is no branch to rebase: %w", ErrNotTracking)
 	}
-	if base == "" {
-		return "", fmt.Errorf("unagit does not know what %s was made from: %w", branch, ErrNotTracking)
+	if onto == "" {
+		return "", fmt.Errorf("unagit does not know what %s was made from - Set Base… says it: %w", branch, ErrNotTracking)
 	}
 	if err := m.git.Fetch(dir); err != nil {
 		return "", err
 	}
-	onto := m.git.BaseRef(dir, base)
-	if onto == "" {
-		return "", fmt.Errorf("%s was made from %s, which is gone: %w", branch, base, ErrNothingDone)
+	target := m.git.BaseRef(dir, onto)
+	if target == "" {
+		return "", fmt.Errorf("%s: %w", gone(branch), ErrNothingDone)
 	}
 	upstreamAt, _ := m.trimmed(dir, "rev-parse", "--verify", "--quiet", "@{upstream}")
-	outcome, err := m.moveOnto(dir, branch, onto)
+	outcome, err := m.moveOnto(dir, branch, target)
 	if err != nil || outcome == UpdateCurrent || upstreamAt == "" {
 		return outcome, err
 	}

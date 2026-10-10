@@ -84,7 +84,8 @@ func TestPushFromRepositories(t *testing.T) {
 }
 
 // TestEditCommitMessage: e in a clone's log writes the message of a commit
-// not pushed again, keeping the commits after it; a pushed one is refused.
+// again, keeping the commits after it; a pushed one asks first, and the
+// lease of the force push to come is noted.
 func TestEditCommitMessage(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -98,8 +99,8 @@ func TestEditCommitMessage(t *testing.T) {
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
-	// Found among a commit's actions, not in the hint, and only for a
-	// commit not pushed - though e on a pushed one still says why.
+	// Found among a commit's actions, not in the hint, for a pushed
+	// commit too.
 	if strings.Contains(a.screenText(sc), "edit message") {
 		t.Errorf("the log's hint names editing a message:\n%s", a.screenText(sc))
 	}
@@ -110,15 +111,11 @@ func TestEditCommitMessage(t *testing.T) {
 	typeRunes(sc, "jj")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Show Pipelines…")
-	if strings.Contains(a.screenText(sc), "Edit Commit Message") {
-		t.Errorf("a pushed commit's actions offer to edit its message:\n%s", a.screenText(sc))
+	if !strings.Contains(a.screenText(sc), "Edit Commit Message") {
+		t.Errorf("a pushed commit's actions do not offer to edit its message:\n%s", a.screenText(sc))
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Show Pipelines…")
-	typeRunes(sc, "e")
-	waitFor(t, a, sc, pushed[:8]+" is on origin already")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "is on origin already")
 
 	typeRunes(sc, "ke")
 	waitFor(t, a, sc, "Edit Commit Message · ")
@@ -162,11 +159,37 @@ func TestEditCommitMessage(t *testing.T) {
 	if got := gitIn(t, p.clone, "rev-parse", "HEAD~2"); got != pushed {
 		t.Errorf("the pushed commit moved: %s, want %s", got, pushed)
 	}
+	if mark := gitIn(t, p.clone, "config", "--default", "", "branch.main.unagitrebasedfrom"); mark != "" {
+		t.Errorf("a commit not pushed noted a lease: %q", mark)
+	}
+
+	// The pushed one: asked first, then origin's copy is noted as the lease.
+	typeRunes(sc, "G")
+	waitFor(t, a, sc, "HEAD→main")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Edit Commit Message · "+pushed[:8])
+	form = frontForm(a)
+	onLoop(a, func() bool {
+		form.GetFormItemByLabel("Message").(*tview.TextArea).SetText("Start", false)
+		return true
+	})
+	pressButton(t, a, sc, form, "Save")
+	waitFor(t, a, sc, pushed[:8]+" is on origin.")
+	waitFor(t, a, sc, "force push will be needed")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "is edited")
+	waitFor(t, a, sc, "── only on origin")
+	if got := gitIn(t, p.clone, "log", "-1", "--format=%s", "HEAD~2"); got != "Start" {
+		t.Errorf("the pushed commit's message = %q", got)
+	}
+	if mark := gitIn(t, p.clone, "config", "branch.main.unagitrebasedfrom"); mark != pushed {
+		t.Errorf("noted %q, origin had %s", mark, pushed)
+	}
 }
 
-// TestUndoCommit: u takes the newest commit back when no remote has it -
-// offered among its actions, its changes left to commit again - and is
-// not offered for a pushed one.
+// TestUndoCommit: u takes the newest commit back - offered among its
+// actions, its changes left to commit again - and not one with commits
+// after it; a pushed one asks first, and the lease is noted.
 func TestUndoCommit(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -187,7 +210,7 @@ func TestUndoCommit(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Show Pipelines…")
 	if strings.Contains(a.screenText(sc), "Undo Commit") {
-		t.Error("a pushed commit offers to be undone")
+		t.Error("a commit with one after it offers to be undone")
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Show Pipelines…")
@@ -199,5 +222,26 @@ func TestUndoCommit(t *testing.T) {
 	}
 	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "A  b.txt" {
 		t.Errorf("the undone commit's changes: %q", got)
+	}
+
+	// Committed again and pushed, it is undone after a question.
+	gitIn(t, p.clone, "commit", "-q", "-m", "Count requests")
+	gitIn(t, p.clone, "push", "-q")
+	counted := gitIn(t, p.clone, "rev-parse", "HEAD")
+	p.rescan()
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Commit Log")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Count requests")
+	typeRunes(sc, "u")
+	waitFor(t, a, sc, counted[:8]+" is on origin. Undoing it")
+	waitFor(t, a, sc, "a force push will")
+	typeRunes(sc, "u")
+	waitFor(t, a, sc, "its changes wait to be committed again")
+	if got := gitIn(t, p.clone, "rev-parse", "HEAD"); got != pushed {
+		t.Errorf("HEAD is %s, want %s", got, pushed)
+	}
+	if mark := gitIn(t, p.clone, "config", "branch.main.unagitrebasedfrom"); mark != counted {
+		t.Errorf("noted %q, origin had %s", mark, counted)
 	}
 }
