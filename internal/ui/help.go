@@ -194,6 +194,7 @@ func helpRows() []helpLine {
 		key("Ctrl-K", "changes: the files not committed, their diffs"),
 		key("space  x  a", "in changes: mark · tick for the commit · all"),
 		key("c  R  d", "in changes: commit ticked · rollback · delete"),
+		key("s", "in changes: shelve the marked files, or all"),
 		key("A  I", "in changes: add to git · add to .gitignore"),
 		key("/  y  D", "in changes: filter · copy paths or a patch · Hunk"),
 		key("Ctrl-O", "in changes: open the repo, the file in front"),

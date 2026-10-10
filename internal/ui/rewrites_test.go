@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 // TestRewriteHistoryUndoesASquash: a squash made in the log is in Rewrite
@@ -156,4 +160,73 @@ func TestRecoverFromTheReflog(t *testing.T) {
 	waitFor(t, a, sc, "Commit Log")
 	typeRunes(sc, "H")
 	waitFor(t, a, sc, "went back to "+lost[:8]+" from the reflog")
+}
+
+// TestShelveAndUnshelve: s in the Changes dialog shelves under a name; the
+// Shelf lists it, and u puts it back into the checkout.
+func TestShelveAndUnshelve(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 44)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(filepath.Join(p.clone, "a.txt"), []byte("half done\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(p.clone, "new.txt"), []byte("new\n"), 0o644))
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlK, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "new.txt")
+	typeRunes(sc, "s")
+	waitFor(t, a, sc, "Shelve Changes · acme/gateway (main)")
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			resizeApp(a, sc, size.w, size.h)
+			waitFor(t, a, sc, "Shelve Changes · ")
+			form := frontForm(a)
+			frame := onLoop(a, func() rect {
+				x, y, w, h := form.GetRect()
+				return rect{x, y, w, h}
+			})
+			for y := frame.y + 1; y < frame.y+frame.h-1; y++ {
+				if r, _ := cellAt(a, sc, frame.x+frame.w-1, y); r != '│' {
+					t.Fatalf("row %d: the frame's right border is drawn over:\n%s", y, a.screenText(sc))
+				}
+			}
+			for _, want := range []string{labelShelfName, "Shelves", "Shelve ", "Cancel"} {
+				if !strings.Contains(a.screenText(sc), want) {
+					t.Errorf("%q is not on screen:\n%s", want, a.screenText(sc))
+				}
+			}
+			assertLegible(t, a, sc, "the shelve form")
+		})
+	}
+	resizeApp(a, sc, 160, 44)
+	form := frontForm(a)
+	onLoop(a, func() bool {
+		form.GetFormItemByLabel(labelShelfName).(*tview.InputField).SetText("Half done")
+		return true
+	})
+	pressButton(t, a, sc, form, "Shelve")
+	waitFor(t, a, sc, "shelved as Half done")
+	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "" {
+		t.Fatalf("not committed after shelving: %q", got)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "new.txt")
+
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "FILTER")
+	typeRunes(sc, "Shelf…")
+	waitFor(t, a, sc, "Shelf…")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Shelf · acme/gateway (main)")
+	waitFor(t, a, sc, "Half done")
+	waitFor(t, a, sc, "2 files")
+	assertLegible(t, a, sc, "the shelf")
+	typeRunes(sc, "u")
+	waitFor(t, a, sc, "unshelved Half done")
+	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "M a.txt\n?? new.txt" {
+		t.Errorf("after unshelving: %q", got)
+	}
 }

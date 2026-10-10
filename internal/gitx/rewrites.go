@@ -37,6 +37,7 @@ const (
 	RewriteDelete     = "delete"
 	RewriteUndo       = "undo"
 	RewriteRecover    = "recover"
+	RewriteDropShelf  = "delete shelf"
 )
 
 // The record keeps the newest rewrites, and none older than this.
@@ -64,6 +65,8 @@ type Rewrite struct {
 	Files bool `json:"files,omitempty"`
 	// Config is the branch's configuration before, each "key=value".
 	Config []string `json:"config,omitempty"`
+	// Shelf is git's line for a shelf deleted, to put it back under.
+	Shelf string `json:"shelf,omitempty"`
 	// UndoneBy is the undo that took it back; Undid what an undo took back.
 	UndoneBy string   `json:"undone_by,omitempty"`
 	Undid    []string `json:"undid,omitempty"`
@@ -298,6 +301,22 @@ func (g *Git) PlanUndo(dir, id string) (UndoPlan, error) {
 	if undone(all, r) {
 		return UndoPlan{}, ErrUndone
 	}
+	// A shelf put back is undone by deleting it again, on the shelf.
+	if r.Kind == RewriteUndo && r.Branch == "" {
+		return UndoPlan{Chain: []Rewrite{r}, Blocked: "it put a shelf back - delete it again from the shelf"}, nil
+	}
+	// A shelf deleted is a thing of its own, not a branch's state.
+	if r.Kind == RewriteDropShelf {
+		plan := UndoPlan{Chain: []Rewrite{r}, To: r.Before}
+		shelves, _ := g.Shelves(dir)
+		switch {
+		case slices.ContainsFunc(shelves, func(s Shelf) bool { return s.SHA == r.Before }):
+			plan.Blocked = "it is on the shelf again"
+		case !g.HasCommit(dir, r.Before):
+			plan.Blocked = "git no longer has " + shortID(r.Before)
+		}
+		return plan, nil
+	}
 	plan := UndoPlan{Chain: []Rewrite{r}, To: r.Before, Files: r.Files}
 	for _, later := range all[at+1:] {
 		if later.Branch == r.Branch && !undone(all, later) {
@@ -360,6 +379,9 @@ func (g *Git) UndoRewrite(dir, id string) (Rewrite, error) {
 		return Rewrite{}, errors.New(plan.Blocked)
 	}
 	r := plan.Chain[0]
+	if r.Kind == RewriteDropShelf {
+		return g.undoDropShelf(dir, r)
+	}
 	what := "undid: " + r.What
 	if n := len(plan.Chain) - 1; n > 0 {
 		what += fmt.Sprintf(" and %d after it", n)
@@ -473,6 +495,25 @@ func (g *Git) ForceRemoves(dir, at string) []string {
 		at = "@{upstream}"
 	}
 	return g.RewriteCommits(dir, at, "HEAD")
+}
+
+// undoDropShelf puts a deleted shelf back, and writes that down.
+func (g *Git) undoDropShelf(dir string, r Rewrite) (Rewrite, error) {
+	if _, err := g.Run(dir, "stash", "store", "--message", r.Shelf, r.Before); err != nil {
+		return Rewrite{}, err
+	}
+	undo, err := g.record(dir, Rewrite{Kind: RewriteUndo, Dir: dir, What: "undid: " + r.What, After: r.Before, Undid: []string{r.ID}})
+	if err != nil {
+		return undo, err
+	}
+	return undo, g.withRecord(dir, func(all []Rewrite) ([]Rewrite, error) {
+		for i := range all {
+			if all[i].ID == r.ID {
+				all[i].UndoneBy = undo.ID
+			}
+		}
+		return all, nil
+	})
 }
 
 // RewriteCommits lists, newest first, the commits of a state of a rewrite

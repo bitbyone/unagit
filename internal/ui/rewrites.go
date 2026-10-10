@@ -157,6 +157,8 @@ func rewriteHeading(r gitx.Rewrite) string {
 		return "Undone"
 	case gitx.RewriteRecover:
 		return "Recovered"
+	case gitx.RewriteDropShelf:
+		return "Shelf deleted"
 	}
 	return r.Kind
 }

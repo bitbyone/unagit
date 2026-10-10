@@ -804,6 +804,22 @@ markdown link, or a link with text for a chat: repository, branch, commit
 and subject followed by the link. `y` on a merge request or a repository
 offers the same kind of line.
 
+### The shelf
+
+As in IntelliJ, changes can be put aside to come back to. **Shelve
+Changes…** - `s` in the Changes dialog for the files marked there, or every
+file when none is; among the actions of a repository or a worktree for all of
+them - asks for a name and puts what is not committed aside, unversioned files
+too, leaving the files as the last commit has them. **Shelf…** lists what is
+there: `Enter` shows the files, `D` the changes in Hunk, `u` unshelves into
+the checkout it was opened from and takes it off the shelf, `a` applies it
+and keeps it there, `d` deletes it - which Rewrite History can undo. An
+unshelve that would collide - a file not committed here too, or a change the
+branch has since made to the same lines - is refused before anything moves.
+The shelf is git's stash, read as a list: it is the repository's, shared by
+its worktrees, and what lazygit or `git stash` put there is on it too. A
+review worktree is never shelved: its changes are the merge request's.
+
 A detached HEAD is a checkout with no branch: you can commit there, but the
 commits belong to no branch, and unagit will not push them - make a branch
 with `n` first.

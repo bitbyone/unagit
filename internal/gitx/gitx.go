@@ -328,17 +328,7 @@ func (g *Git) BaseRef(dir, base string) string {
 // A rebase replays commit by commit and can stop where the merge of the
 // whole does not, so it is a forecast, not a promise.
 func (g *Git) WouldConflict(dir, onto string) (files []string, ok bool) {
-	out, _ := g.out(dir, "merge-tree", "--write-tree", "--name-only", "--no-messages", onto, "HEAD")
-	lines := strings.Split(out, "\n")
-	if len(lines) == 0 || len(lines[0]) < 40 || strings.ContainsAny(lines[0], " :") {
-		return nil, false
-	}
-	for _, f := range lines[1:] {
-		if f = strings.TrimSpace(f); f != "" {
-			files = append(files, f)
-		}
-	}
-	return files, true
+	return g.mergeConflicts(dir, "", onto, "HEAD")
 }
 
 // OwnCommits counts the commits of HEAD that are on no branch of origin: what

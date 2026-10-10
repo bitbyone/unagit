@@ -122,6 +122,10 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		}},
 		{name: "Recover from Reflog…", about: "Every place the clone's branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.", keys: "", rank: 98,
 			when: cloned, run: func() { a.showReflog(a.cloneReflog(pr)) }},
+		{name: "Shelve Changes…", about: "Put what is not committed in the clone aside under a name, unversioned files too, the files back as the last commit has them.", keys: "", rank: 34,
+			when: anyEdit, run: func() { a.shelveChanges(a.cloneShelf(pr), nil, nil) }},
+		{name: "Shelf…", about: "The changes put aside in this repository - in the clone, its worktrees, by git stash anywhere: look at one, unshelve it into the clone, delete it.", keys: "", rank: 35,
+			when: cloned, run: func() { a.showShelf(a.cloneShelf(pr)) }},
 		{name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.", keys: "", rank: 97,
 			when: cloned, run: func() {
 				a.showRewrites(rewriteScope{project: pr, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
@@ -334,6 +338,10 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 		{name: "Rebase onto…", about: "Rebase the branch onto a branch you pick, once, even once pushed; its base stays.", keys: "", rank: 51, when: single, run: func() { a.rebaseOnto(a.worktreeBase(r)) }},
 		{name: "Recover from Reflog…", about: "Every place the branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.", keys: "", rank: 55,
 			when: single, run: func() { a.showReflog(a.worktreeReflog(r)) }},
+		{name: "Shelve Changes…", about: "Put what is not committed aside under a name, unversioned files too, the files back as the last commit has them.", keys: "", rank: 26,
+			when: func() bool { return single() && anyEdit() }, run: func() { a.shelveChanges(a.worktreeShelf(r), nil, nil) }},
+		{name: "Shelf…", about: "The changes put aside in this repository - here, in its other worktrees, by git stash anywhere: look at one, unshelve it here, delete it.", keys: "", rank: 27,
+			when: single, run: func() { a.showShelf(a.worktreeShelf(r)) }},
 		{name: "Rewrite History…", about: "Every squash, rebase, edited message, undone commit and deleted branch of the repository, in order: undo any of them.", keys: "", rank: 54,
 			when: single, run: func() { a.showRewrites(rewriteScope{project: a.worktreeProject(r), dir: r.Dir}) }},
 		{name: "Set Base…", about: "Choose the branch this one was made from, which Pull, Rebase onto Base and the diffs since base go by.", keys: "", rank: 53,

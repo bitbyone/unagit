@@ -572,7 +572,7 @@ func (v *changesView) listHint() string {
 	if len(unversioned) > 0 {
 		parts = append(parts, "A add to git", "d delete")
 	}
-	return strings.Join(append(parts, "Ctrl-O open"), " · ")
+	return strings.Join(append(parts, "s shelve", "Ctrl-O open"), " · ")
 }
 
 // changesListKeys answers the list's keys: folding, the panes, then the
@@ -717,6 +717,9 @@ func (a *App) changesScreenActions(v *changesView) []uiAction {
 			run:  func() { a.commitChanges(v) }},
 		{name: "Include All or None", about: "Tick every file for the commit, versioned and unversioned; again, none.", keys: "a", rank: 22,
 			run: func() { a.includeAllChanges(v) }},
+		{name: "Shelve Changes…", about: "Put the marked files - every file when none is marked - aside under a name, the files back as the last commit has them; Shelf… brings them back.", keys: "s", rank: 30,
+			when: func() bool { return len(v.changes) > 0 },
+			run:  func() { a.shelveFromChanges(v) }},
 		{name: "Refresh", about: "Read again what is not committed, keeping the ticks of the files still there.", keys: "r", rank: 50,
 			run: a.reloadChanges},
 	}
