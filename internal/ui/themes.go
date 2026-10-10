@@ -289,8 +289,14 @@ type Glyphs struct {
 	// a merge commit, Select the end of a closed select, Mask a typed
 	// character of a passphrase, Bar a horizontal bar, TabSeparator what
 	// stands between tabs.
-	External     string `json:"external"`
-	Merge        string `json:"merge"`
+	External string `json:"external"`
+	Merge    string `json:"merge"`
+	// Commit stands before every commit of a log that is not a merge; Tag
+	// before a tag, in its pill and in words; Ref before any other name
+	// pointing at a commit, in words - a pill says what it is by colour.
+	Commit       string `json:"commit"`
+	Tag          string `json:"tag"`
+	Ref          string `json:"ref"`
 	Select       string `json:"select"`
 	Mask         string `json:"mask"`
 	Bar          string `json:"bar"`
@@ -614,6 +620,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,
 		"glyphs.ahead": g.Ahead, "glyphs.behind": g.Behind, "glyphs.external": g.External,
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
+		"glyphs.commit": g.Commit, "glyphs.tag": g.Tag, "glyphs.ref": g.Ref,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
 		"glyphs.ci_unknown": g.CIUnknown, "glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,

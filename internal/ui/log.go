@@ -211,13 +211,47 @@ func refWords(refs []string) string {
 	words := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		ref = strings.Replace(ref, "HEAD -> ", "HEAD→", 1)
-		ref = strings.TrimPrefix(ref, "tag: ")
-		if ref == "origin/HEAD" {
+		if name, ok := strings.CutPrefix(ref, "tag: "); ok {
+			words = append(words, glyphTag+" "+name)
 			continue
 		}
-		words = append(words, ref)
+		if strings.HasSuffix(ref, "/HEAD") {
+			continue
+		}
+		words = append(words, glyphRef+" "+ref)
 	}
-	return strings.Join(words, " ")
+	return strings.Join(words, "  ")
+}
+
+// refMarkup is what points at a commit in words, for its detail: each
+// with its icon, in the colour of its pill.
+func refMarkup(c logCommit) string {
+	var words []string
+	for i, ref := range c.Refs {
+		kind := gitx.RefOther
+		if i < len(c.RefKinds) {
+			kind = c.RefKinds[i]
+		}
+		ink := "log.ref_local.ink"
+		switch kind {
+		case gitx.RefRemote:
+			if strings.HasSuffix(ref, "/HEAD") {
+				continue
+			}
+			ink = "log.ref_remote.ink"
+		case gitx.RefTag:
+			ink = "log.ref_tag.ink"
+		case gitx.RefHead:
+			ink = "log.ref_detached.ink"
+		}
+		glyph := glyphRef
+		if name, ok := strings.CutPrefix(ref, "tag: "); ok {
+			glyph, ref = glyphTag, name
+		}
+		ref = strings.Replace(ref, "HEAD -> ", "HEAD→", 1)
+		words = append(words, tag(role(ink))+esc(glyph+" "+ref)+tagEnd)
+	}
+	return strings.Join(words, "  ")
 }
 
 // commitAbout is the pane under the log: author and time, then the body, and
@@ -272,9 +306,10 @@ func labelLog(items []pickItem, commits []logCommit, width int, ends string) {
 	subjects := make([]string, len(commits))
 	subjectW := 0
 	for i, c := range commits {
-		subject := c.Subject
+		// Every commit has its icon before the subject, a merge its own.
+		subject := glyphCommit + " " + c.Subject
 		if c.Merge {
-			subject = glyphMerge + " " + subject
+			subject = glyphMerge + " " + c.Subject
 		}
 		subjects[i] = trim(subject, max(room, 24))
 		subjectW = max(subjectW, len([]rune(subjects[i])))
@@ -429,10 +464,10 @@ func refPills(c logCommit, ends, behind string, room int) (string, int) {
 		}
 	}
 	colour := func(kind gitx.RefKind) tagColour {
+		// A pill keeps its colour on a commit only origin has: what it is
+		// matters there most.
 		name := "log.ref_local"
 		switch {
-		case c.Theirs:
-			name = "log.ref_theirs"
 		case kind == gitx.RefRemote:
 			name = "log.ref_remote"
 		case kind == gitx.RefTag:
@@ -493,16 +528,13 @@ func refPills(c logCommit, ends, behind string, room int) (string, int) {
 		add(pillOf(r.text, colour(gitx.RefRemote), ends, behind))
 	}
 	for _, t := range tags {
-		add(pillOf(t.text, colour(gitx.RefTag), ends, behind))
+		add(pillOf(glyphTag+" "+t.text, colour(gitx.RefTag), ends, behind))
 	}
 	if left := total - shown; left > 0 {
 		// A pill of its own counts the rest; the pane under the list names
 		// them all (commitAbout). It takes the place of the last pill
 		// when it does not fit beside it.
 		more := func(n int) (string, int) {
-			if c.Theirs {
-				return pillOf(fmt.Sprintf("+%d", n), colour(gitx.RefLocal), ends, behind)
-			}
 			return pillOf(fmt.Sprintf("+%d", n), tagColour{ink: quieter(role("log.ref_more.ink")).String(),
 				fill: quieter(role("log.ref_more.fill")).String()}, ends, behind)
 		}
@@ -623,12 +655,18 @@ func (a *App) showCommitDiff(place logPlace, commits []logCommit, i int, since b
 // message, and the files it changed. Esc goes back to the log.
 func (a *App) showCommitDetail(place logPlace, c logCommit, back func()) {
 	d := &detailBuf{}
-	d.title(c.Subject)
+	icon := glyphCommit
+	if c.Merge {
+		icon = glyphMerge
+	}
+	d.title(icon + " " + c.Subject)
 	d.blank()
 	d.kv("Commit", esc(c.SHA))
 	d.kv("Author", esc(c.Author))
 	d.kv("Date", esc(c.When.Format("Mon 2006-01-02 15:04")+" · "+humanAge(c.When)))
-	d.kv("Refs", esc(strings.Join(c.Refs, ", ")))
+	if refs := refMarkup(c); refs != "" {
+		d.kv("Refs", refs)
+	}
 	if c.Merge {
 		d.kv("Merge", "yes")
 	}

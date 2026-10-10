@@ -187,8 +187,8 @@ func TestALogFollowsTheTerminal(t *testing.T) {
 	waitFor(t, a, sc, long[:90])
 	resizeApp(a, sc, 100, 30)
 	waitGone(t, a, sc, long[:60])
-	waitFor(t, a, sc, long[:40])
-	if line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), long[:40])]; !strings.Contains(line, "just now") {
+	waitFor(t, a, sc, long[:36])
+	if line := strings.Split(a.screenText(sc), "\n")[lineOf(a.screenText(sc), long[:36])]; !strings.Contains(line, "just now") {
 		t.Errorf("the row lost its age to the subject: %q", line)
 	}
 }

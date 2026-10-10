@@ -88,7 +88,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "1 new since your last review")
-	row := "● " + answer[:8] + "  Answer the review"
+	row := "● " + answer[:8] + "  " + glyphCommit + " Answer the review"
 	text = a.screenText(sc)
 	if !strings.Contains(text, row) {
 		t.Fatalf("the new commit is not marked:\n%s", text)

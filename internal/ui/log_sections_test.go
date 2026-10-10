@@ -87,15 +87,15 @@ func TestTheLogShowsWhereOriginStands(t *testing.T) {
 	inOrder(t, text, "── only here", "Count and bill requests", "── only on origin",
 		"Bill them", "Count requests", "── shared", "Add the limiter")
 	assertLegible(t, a, sc, "a log parted from origin")
-	// origin/main is on a commit only origin has: its pill is dim, on a
-	// fill of its own - not the text's colour, as a name that is no role
-	// once made it.
+	// origin/main is on a commit only origin has: its pill keeps the
+	// remote's colour - not the text's, as a name that is no role once
+	// made it.
 	row := lineOf(text, "Bill them")
 	line := strings.Split(text, "\n")[row]
 	x := len([]rune(line[:strings.Index(line, "origin/main")]))
 	_, style := cellAt(a, sc, x, row)
 	_, bg, _ := style.Decompose()
-	want := onLoop(a, func() tcell.Color { return quieter(role("log.ref_theirs.fill")) })
+	want := onLoop(a, func() tcell.Color { return quieter(role("log.ref_remote.fill")) })
 	if bg.Hex() != want.Hex() {
 		t.Errorf("origin/main on a commit only origin has is on %v, want %v", bg, want)
 	}
@@ -175,7 +175,7 @@ func TestPillsThatDoNotFitAreCounted(t *testing.T) {
 	if _, all := refPills(c, config.TagEndsSquare, behindList, 200); all <= 30 {
 		t.Errorf("with room every pill is drawn: %d cells", all)
 	}
-	if about := commitAbout(c, logPlace{}); !strings.Contains(about, "release/2026-10") || !strings.Contains(about, "v1.0") {
+	if about := commitAbout(c, logPlace{}); !strings.Contains(about, glyphRef+" release/2026-10") || !strings.Contains(about, glyphTag+" v1.0") {
 		t.Errorf("the pane does not name every ref: %q", about)
 	}
 }

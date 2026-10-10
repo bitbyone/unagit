@@ -17,7 +17,7 @@ func TestReviewStartListsCommitsWithoutCloning(t *testing.T) {
 
 	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
-	waitFor(t, a, sc, "beef1230  Token bucket")
+	waitFor(t, a, sc, "beef1230  "+glyphCommit+" Token bucket")
 
 	root := onLoop(a, func() string { return a.cfg.RootDir })
 	entries, err := os.ReadDir(root)

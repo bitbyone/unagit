@@ -75,6 +75,7 @@ var (
 	glyphCIDone, glyphCIIdle, glyphApproved                 string
 	glyphAhead, glyphBehind                                 string
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator  string
+	glyphCommit, glyphTag, glyphRef                         string
 	glyphElided, glyphElidedGroup, glyphEdits               string
 	glyphPicked, glyphUnpicked, glyphFolded, glyphUnfolded  string
 	glyphCIUnknown                                          string
@@ -208,6 +209,7 @@ func setTheme(t Theme) {
 	glyphCIDone, glyphCIIdle, glyphApproved = g.CIDone, g.CIIdle, g.Approved
 	glyphAhead, glyphBehind = g.Ahead, g.Behind
 	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator = g.External, g.Merge, g.Bar, g.TabSeparator
+	glyphCommit, glyphTag, glyphRef = g.Commit, g.Tag, g.Ref
 	glyphElided, glyphElidedGroup, glyphEdits = g.Elided, g.ElidedGroup, g.Edits
 	glyphPicked, glyphUnpicked, glyphFolded, glyphUnfolded = g.Picked, g.Unpicked, g.Folded, g.Unfolded
 	glyphCIUnknown = g.CIUnknown
