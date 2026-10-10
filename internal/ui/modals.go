@@ -43,6 +43,9 @@ func (a *App) confirmChoices(title, body string, warnings []string, choices []ch
 // confirmChoicesBack is confirmChoices for a question asked over a list
 // the user came from: Cancel, Esc, n and q go back to it with back.
 func (a *App) confirmChoicesBack(title, body string, warnings []string, choices []choice, back func()) {
+	if back == nil {
+		back = a.peekBack()
+	}
 	cancel := func() {
 		a.closeModal(pageConfirm)
 		if back != nil {
@@ -251,6 +254,9 @@ type pickerOptions struct {
 	// header names the columns of a picker whose items are a table's rows
 	// (pickTable), on a line of its own over them.
 	header string
+	// onList opens the picker on its list even with a query typed: one
+	// opened again as it was left (back.go).
+	onList bool
 	// marks lets space mark items, as it marks rows in every list: the
 	// marks' band, the cursor on to the next, the count in the title, and
 	// Esc clearing them before it closes the picker. Keys read them there.
@@ -421,6 +427,10 @@ type pickKey struct {
 func (k pickKey) can(it pickItem) bool { return k.when == nil || k.when(it) }
 
 func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions, onSelect func(pickItem)) *livePicker {
+	// Esc goes back to the picker this one was opened from (back.go).
+	if claimed := a.claimBack(title); opts.back == nil {
+		opts.back = claimed
+	}
 	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
@@ -588,12 +598,32 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			opts.cancel()
 		}
 	}
+	// leave notes how to open the picker again as it is, as it closes to
+	// run what was chosen: what that opens comes back here when cancelled.
+	leave := func() {
+		// An action picker only launches what was picked: what that opens
+		// goes back where the picker was opened from, not to it.
+		if opts.filter {
+			return
+		}
+		at := start
+		if i := list.GetCurrentItem(); i >= 0 && i < len(shownAt) {
+			at = shownAt[i]
+		}
+		query := input.GetText()
+		a.leaveReturn(title, func() {
+			again := opts
+			again.start, again.query, again.onList = at, query, true
+			a.showPickerWith(title, items, again, onSelect)
+		}, opts.back)
+	}
 	choose := func() {
 		i := list.GetCurrentItem()
 		if i < 0 || i >= len(shown) || onSelect == nil || isRule(i) {
 			return
 		}
 		it := shown[i]
+		leave()
 		dismiss()
 		onSelect(it)
 	}
@@ -732,6 +762,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			var acts []uiAction
 			if onSelect != nil && opts.enterName != "" {
 				acts = append(acts, uiAction{name: opts.enterName, about: opts.enterAbout, keys: "Enter", rank: 1, run: func() {
+					leave()
 					dismiss()
 					onSelect(it)
 				}})
@@ -746,6 +777,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				}
 				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, rank: 10 + n, run: func() {
 					if !k.stay {
+						leave()
 						dismiss()
 					}
 					k.run(it)
@@ -763,6 +795,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				if i := list.GetCurrentItem(); i >= 0 && i < len(shown) && !isRule(i) {
 					it := shown[i]
 					if !k.stay {
+						leave()
 						dismiss()
 					}
 					k.run(it)
@@ -822,9 +855,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				return nil
 			case 'q':
 				giveUp()
+				if opts.back != nil {
+					opts.back()
+				}
 				return nil
 			case 'n':
 				if onNew != nil {
+					leave()
 					dismiss()
 					onNew()
 				}
@@ -833,6 +870,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				if onDelete != nil {
 					if i := list.GetCurrentItem(); i >= 0 && i < len(shown) {
 						it := shown[i]
+						leave()
 						dismiss()
 						onDelete(it)
 					}
@@ -1019,7 +1057,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 	}
 	a.pages.AddPage(pageName, page, true, true)
-	setMode(opts.filter || opts.query != "")
+	setMode(!opts.onList && (opts.filter || opts.query != ""))
 
 	same := opts.same
 	if same == nil {

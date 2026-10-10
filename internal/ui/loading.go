@@ -42,6 +42,9 @@ func (a *App) loadThen(title string, fn func(step func(string)) (string, error),
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		if ev.Key() == tcell.KeyEsc {
 			a.closeModal(pageTask)
+			if back := a.peekBack(); back != nil && !a.modalOpen() {
+				back()
+			}
 		}
 		return nil
 	})

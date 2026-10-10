@@ -116,10 +116,8 @@ func TestNewBranchFromTheManager(t *testing.T) {
 		t.Fatal("Cancel made the branch")
 	}
 
+	// The list comes back as it was left, filtered, on the list.
 	waitFor(t, a, sc, "Branches - acme/gateway")
-	typeRunes(sc, "/upstream")
-	waitFor(t, a, sc, "FILTER")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "NORMAL   ")
 	typeRunes(sc, "n")
 	waitFor(t, a, sc, "New branch - acme/gateway")

@@ -1294,6 +1294,17 @@ func (a *App) showFormModalSized(title string, form *tview.Form, width, height i
 // showFormOn is showFormModalSized on a page of its own, with what Esc in
 // NORMAL does: the unlock dialog quits rather than closing.
 func (a *App) showFormOn(page, title string, form *tview.Form, width, height int, cancel func()) {
+	// Cancelled - Esc, or its Cancel button - a form opened from a list
+	// goes back to it (back.go).
+	if back := a.peekBack(); back != nil {
+		cancel = func() {
+			a.closeModal(page)
+			back()
+		}
+		if i := form.GetButtonIndex("Cancel"); i >= 0 {
+			form.GetButton(i).SetSelectedFunc(cancel)
+		}
+	}
 	a.hintForm(form)
 	a.bindFormButtons(form)
 	box(form.Box, title).SetBorderPadding(1, 1, 2, 2)

@@ -188,6 +188,20 @@ dialog (`pageActions`, so the dialog stays). A key that opens the browser is
 any dialog lists `globalActions` alone - what can be done from anywhere, like the theme -
 never a main screen's own.
 
+**Dialogs are a stack** (the user asked for it). Whatever is cancelled
+goes back to the dialog it was opened from, and that one to its own, down
+to the screen: Esc or Cancel on a form, Cancel on a question, Esc or q on
+a picker, closing a message over a bare screen, giving up a wait
+(`back.go`). A picker closes before what it opens, so it leaves how to
+open it again as it was - cursor, filter, marks - and the next dialog
+takes that as its way back; a list opened again after its own action
+keeps where it went back to. A key pressed on a screen forgets it. The
+action pickers (Alt-Enter, `:`) only launch, and are not part of it. Do
+not wire a dialog's Cancel to a bare `closeModal` and think it done:
+`showFormOn` gives a form's Cancel button and Esc the way back, and
+`confirmChoices` its Cancel; a new kind of dialog takes `peekBack` the
+same way.
+
 **A message goes where the eye is, and weighs what it says.** `flash`
 (warning), `note` (info), `done` (success) and `errorf` (`say`) are the only
 way to say something. A warning or an error asks for attention: it always

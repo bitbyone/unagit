@@ -85,6 +85,11 @@ func (a *App) showMessage(msg string, sev severity) {
 			return ev
 		case ev.Key() == tcell.KeyEsc || ev.Key() == tcell.KeyEnter:
 			a.closeModal(pageMessage)
+			// Said over a bare screen after a list closed to act: back to
+			// the list, as a refusal should leave it (back.go).
+			if back := a.peekBack(); back != nil && !a.modalOpen() {
+				back()
+			}
 		}
 		return nil
 	})

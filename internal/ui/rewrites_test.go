@@ -55,8 +55,12 @@ func TestRewriteHistoryUndoesASquash(t *testing.T) {
 	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "" {
 		t.Errorf("the undo left %q not committed", got)
 	}
+	// Esc goes back to the log it was opened from, then to the screen.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Rewrite History")
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Commit Log")
 
 	// The Activity log has both, and H narrows it to them.
 	typeRunes(sc, "4")

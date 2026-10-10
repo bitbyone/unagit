@@ -47,6 +47,10 @@ func (a *App) showRewrites(s rewriteScope) {
 // listRewrites shows the record, the cursor on s.focus.
 func (a *App) listRewrites(s rewriteScope, all []gitx.Rewrite) {
 	if len(all) == 0 {
+		// Asked from a list, the list stays (back.go).
+		if back := a.peekBack(); back != nil {
+			back()
+		}
 		a.note("nothing rewritten in " + s.project.PathWithNamespace + " yet - squashes, rebases and deleted branches come here")
 		return
 	}

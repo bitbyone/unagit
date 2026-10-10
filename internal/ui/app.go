@@ -222,7 +222,10 @@ type App struct {
 	activityPane *pane
 	activity     *activityView
 	activityRows []activityItem
-	activityLog  []watch.Event
+	// returnTo is how to go back to the picker that closed to open what
+	// is in front (back.go).
+	returnTo    *dialogReturn
+	activityLog []watch.Event
 	// activityLocal narrows the log to the local history: what was done
 	// to the branches here, which can be undone.
 	activityLocal bool
@@ -607,6 +610,8 @@ func (a *App) selectedGroups() []config.Group {
 
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
+	// A key on a screen starts afresh: no dialog to go back to.
+	a.forgetReturn()
 	if ev, handled := a.openSelectKeys(ev); handled {
 		return ev
 	}
