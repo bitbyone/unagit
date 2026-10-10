@@ -300,3 +300,27 @@ the same day.
   event of the Activity log (`watch.Event.Local`, never unseen, never on
   the tab's count); `H` there narrows the log to them, and `Enter` on one
   opens Rewrite History on it.
+
+## 6. After part 5
+
+Asked for by the user on 2026-10-10 and built the same day:
+
+- **Dialogs are a stack** (`internal/ui/back.go`, rule in AGENTS.md):
+  whatever is cancelled goes back to the dialog it came from.
+- **A question cancelled goes back** to the list it was asked over
+  (`confirmChoicesBack`).
+- **The force push names what it takes off origin** (`gitx.ForceRemoves`,
+  `removedList`), beside what it puts there.
+- **The default branch, a protected one, a merge request open** are
+  warned of before pushed commits are rewritten or force-pushed
+  (`withRewriteWarnings`, `forge.Provider.BranchProtected`).
+- **Conflicts are forecast** before a rebase (`gitx.WouldConflict`, git
+  merge-tree in memory): `p` and `Ctrl-R` refuse naming the files, RMT says
+  "conflicts" ahead of time.
+- **Recover from Reflog…** (`internal/ui/reflog.go`, `gitx.Reflog`,
+  `RecoverTo`): every place the branch has been, whatever moved it, and the
+  way back - recorded, so Rewrite History undoes it.
+- **The shelf** (`internal/ui/shelf.go`, `gitx/shelf.go`): git's stash as
+  named shelves; shelve from the Changes dialog or a row's actions,
+  unshelve only where it goes in cleanly, a deleted shelf put back from
+  Rewrite History.
