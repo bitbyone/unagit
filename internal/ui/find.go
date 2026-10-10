@@ -4,31 +4,291 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/index"
 )
 
-// Find Repository… (+, from anywhere) looks through every repository the
-// accounts are members of - in the groups not chosen too, the hidden ones
-// too - and brings the one chosen into Repositories. A hidden one is shown
-// again; one no chosen group has is listed on its own (Instance.Repositories,
-// which Settings › Groups lists under its server), never by choosing its
-// whole group and hiding the rest, which would let every repository made
-// there later in; one listed already is only gone to.
+// Find Repository… (+, from anywhere) looks for a repository among those
+// the accounts are members of - in the groups not chosen too, the hidden
+// ones too - and brings the one chosen into Repositories. A hidden one is
+// shown again; one no chosen group has is listed on its own
+// (Instance.Repositories, which Settings › Groups lists under its server),
+// never by choosing its whole group and hiding the rest, which would let
+// every repository made there later in; one listed already is gone to.
 //
-// What there is to look through is index-catalogue.json: the picker opens
-// on it at once, and reads it again behind itself when it is older than
-// catalogueAge, putting the answer in while it is open.
+// It looks in two places. What unagit knows - every repository of the
+// lists, the hidden ones with them - is matched at once, as any picker
+// matches. What it does not is asked of each forge once typing pauses
+// (SearchProjects): nothing is listed ahead. Whatever the forges answer
+// joins the items and every item is matched again, so a forge's good match
+// goes above a poorer one known before; a spinner in the dialog's edge says
+// the rows may still move.
 
-// catalogueAge is how long the repositories read are trusted before the
-// picker asks again. Membership changes seldom; a large GitLab takes a
-// while to list.
-const catalogueAge = 10 * time.Minute
+// searchPause is how long typing stops before the forges are asked.
+const searchPause = 300 * time.Millisecond
 
-// findState is where a repository of the catalogue stands in unagit.
+// searchLeast is the shortest text the forges are asked about: shorter,
+// every repository matches.
+const searchLeast = 3
+
+// finder is one Find Repository… while it is open: the repositories known
+// when it opened, what the forges found since, and the search under way.
+type finder struct {
+	a         *App
+	instances []config.Instance
+	known     []forge.Project
+	found     map[projectKey]forge.Project
+	live      *livePicker
+	front     tview.Primitive
+	width     int
+
+	// gen counts the searches; an answer to one that is not the last is
+	// dropped. pending is how many forges the last has still to answer.
+	gen     int
+	pending int
+	timer   *time.Timer
+	cancel  context.CancelFunc
+	waiting bool
+	failed  []string
+}
+
+// showFindRepository opens the picker typing: a repository is looked for
+// by name.
+func (a *App) showFindRepository() {
+	f := &finder{a: a, found: map[projectKey]forge.Project{}, width: 100}
+	for _, inst := range a.cfg.Instances {
+		if a.client(inst.ID) != nil {
+			f.instances = append(f.instances, inst)
+		}
+	}
+	if len(f.instances) == 0 {
+		a.note("no server with a token - add one in " + settingsTab)
+		return
+	}
+	f.known = append([]forge.Project(nil), a.projects...)
+	at := func(it pickItem) forge.Project { return it.Data.(forge.Project) }
+	opts := pickerOptions{filter: true, wide: true, explain: true, enterHint: "add",
+		enterName: "Add to Unagit", enterAbout: "Show it in Repositories: listed on its own when no group of yours has it, shown again when hidden, gone to when listed already.",
+		same: func(x, y pickItem) bool {
+			p, q := at(x), at(y)
+			return p.Instance == q.Instance && p.PathWithNamespace == q.PathWithNamespace
+		},
+		keys: []pickKey{
+			a.browserKey("w", "browser", "Open in Browser", "The repository's page on the forge; the list stays open.",
+				func(it pickItem) string { return at(it).WebURL }),
+		},
+		relabel: func(items []pickItem, w int) {
+			f.width = w
+			header := a.labelFind(items, w)
+			if f.live != nil {
+				f.live.setHeader(header)
+			}
+		},
+		searched: f.typed,
+		cancel:   f.stop,
+	}
+	title, items, header := f.items()
+	opts.header = header
+	f.live = a.showPickerWith(title, items, opts, func(it pickItem) {
+		f.stop()
+		a.bringIn(at(it))
+	})
+	_, f.front = a.pages.GetFrontPage()
+}
+
+// items are what is known and what was found, the most recently active
+// first, as the picker lists them before anything is typed.
+func (f *finder) items() (string, []pickItem, string) {
+	all := append([]forge.Project(nil), f.known...)
+	have := map[projectKey]bool{}
+	for _, p := range all {
+		have[projectKey{p.Instance, p.PathWithNamespace}] = true
+	}
+	for k, p := range f.found {
+		if !have[k] {
+			all = append(all, p)
+		}
+	}
+	sort.SliceStable(all, func(i, j int) bool {
+		if !all[i].LastActivityAt.Equal(all[j].LastActivityAt) {
+			return all[i].LastActivityAt.After(all[j].LastActivityAt)
+		}
+		return all[i].PathWithNamespace < all[j].PathWithNamespace
+	})
+	items := make([]pickItem, len(all))
+	for i, p := range all {
+		items[i] = pickItem{About: p.Description, Data: p}
+	}
+	return fmt.Sprintf("Find Repository · %d", len(all)), items, f.a.labelFind(items, f.width)
+}
+
+// typed hears the filter change: the search under way is given up, and
+// the forges are asked about the new text once typing pauses.
+func (f *finder) typed(query string) {
+	f.halt()
+	query = strings.TrimSpace(query)
+	if len([]rune(query)) < searchLeast {
+		return
+	}
+	gen := f.gen
+	f.timer = time.AfterFunc(searchPause, func() {
+		f.a.tv.QueueUpdateDraw(func() {
+			if gen == f.gen && f.live.open() {
+				f.search(query)
+			}
+		})
+	})
+}
+
+// halt gives up the search under way, or the one waiting for typing to
+// pause. It runs on the event loop.
+func (f *finder) halt() {
+	f.gen++
+	if f.timer != nil {
+		f.timer.Stop()
+	}
+	if f.cancel != nil {
+		f.cancel()
+		f.cancel = nil
+	}
+	f.pending, f.failed = 0, nil
+	f.quiet()
+}
+
+// stop ends the searches for good: the picker is closing.
+func (f *finder) stop() { f.halt() }
+
+// quiet takes the spinner out of the dialog's edge.
+func (f *finder) quiet() {
+	a := f.a
+	if !f.waiting {
+		return
+	}
+	f.waiting = false
+	a.waits--
+	if a.dialogSaid.waiting && a.dialogSaid.on == f.front {
+		a.dialogSaid = dialogWord{}
+	}
+}
+
+// search asks every forge about the text at once, and puts each answer
+// into the list as it comes.
+func (f *finder) search(query string) {
+	a := f.a
+	gen := f.gen
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	f.cancel, f.pending = cancel, len(f.instances)
+	var names []string
+	for _, inst := range f.instances {
+		names = append(names, inst.Label())
+	}
+	a.dialogSaid = dialogWord{on: f.front, text: tag(colMuted) + esc("searching "+strings.Join(names, ", ")) + tagEnd, waiting: true}
+	if !f.waiting {
+		f.waiting = true
+		a.waits++
+		a.keepSpinning()
+	}
+	for _, inst := range f.instances {
+		client := a.client(inst.ID)
+		go func() {
+			got, err := client.SearchProjects(ctx, query)
+			a.tv.QueueUpdateDraw(func() {
+				if gen != f.gen {
+					return
+				}
+				f.pending--
+				switch {
+				case err != nil && ctx.Err() == nil:
+					f.failed = append(f.failed, fmt.Sprintf("%s: %v", inst.Label(), err))
+				case err == nil:
+					for _, p := range got {
+						p.Instance = inst.ID
+						f.found[projectKey{p.Instance, p.PathWithNamespace}] = p
+					}
+					if f.live.open() {
+						title, items, header := f.items()
+						f.live.setHeader(header)
+						f.live.set(title, items)
+					}
+				}
+				if f.pending > 0 {
+					return
+				}
+				cancel()
+				f.cancel = nil
+				f.quiet()
+				if len(f.failed) > 0 && f.live.open() {
+					a.flash("cannot search " + strings.Join(f.failed, "; "))
+				}
+			})
+		}()
+	}
+}
+
+// labelFind writes the rows for a row width cells wide - whether it is on
+// disk, the server when there is more than one, the forge's icon and the
+// path, where it stands, when it was last active - and gives their header.
+// A path too long is shortened by what tells it apart.
+func (a *App) labelFind(items []pickItem, width int) string {
+	var servers, paths []int
+	ageWidth := len("ACTIVE")
+	for _, it := range items {
+		p := it.Data.(forge.Project)
+		if a.multiInstance() {
+			servers = append(servers, cells(a.instanceLabel(p.Instance)))
+		}
+		paths = append(paths, iconWidth(a.forgeIcon(p.Instance))+cells(p.PathWithNamespace))
+		ageWidth = max(ageWidth, cells(humanAge(p.LastActivityAt)))
+	}
+	mark := fixedColumn(cells(glyphDiskBranch))
+	server := flexColumn("SERVER", servers, 6, 0.5)
+	if !a.multiInstance() {
+		server = fixedColumn(0)
+	}
+	repo := flexColumn("REPOSITORY", paths, 16, 2)
+	state := fixedColumn(max(findStateWidth(glyphCheck, "listed"), findStateWidth(glyphHidden, "hidden"), findStateWidth(glyphUnlisted, "new")))
+	age := fixedColumn(ageWidth)
+	layoutColumns(width-4, mark, server, repo, state, age)
+	rows := make([][]string, len(items))
+	for i, it := range items {
+		p := it.Data.(forge.Project)
+		disk := " "
+		if a.diskOf(p.Instance, p.PathWithNamespace).Cloned {
+			disk = tag(role("find.cloned")) + esc(glyphDiskBranch) + tagEnd
+		}
+		name := ""
+		if a.multiInstance() {
+			name = tag(role("find.server")) + esc(a.instanceLabel(p.Instance)) + tagEnd
+		}
+		var where string
+		switch a.findStateOf(p) {
+		case findListed:
+			where = tag(role("find.listed")) + esc(glyphCheck) + " listed" + tagEnd
+		case findHidden:
+			where = tag(role("find.hidden")) + esc(glyphHidden) + " hidden" + tagEnd
+		default:
+			where = tag(role("find.unlisted")) + esc(glyphUnlisted) + " new" + tagEnd
+		}
+		path := rowText([]field{{icon: a.forgeIcon(p.Instance), text: p.PathWithNamespace, width: repo.width, colour: role("find.name"), shorten: shortenRepo}})
+		rows[i] = []string{disk, name, path, where, tag(role("find.activity")) + humanAge(p.LastActivityAt) + tagEnd}
+	}
+	header, labels := pickTable([]string{"", "SERVER", "REPOSITORY", "", "ACTIVE"}, rows)
+	for i := range items {
+		items[i].Label = labels[i]
+	}
+	return header
+}
+
+// findStateWidth is what a state takes: its icon, a space, its word.
+func findStateWidth(icon, word string) int { return cells(icon) + 1 + len(word) }
+
+// findState is where a repository stands in unagit.
 type findState int
 
 const (
@@ -51,146 +311,6 @@ func (a *App) findStateOf(p forge.Project) findState {
 		return findListed
 	}
 	return findNew
-}
-
-// loadCatalogue reads the repositories last read, once.
-func (a *App) loadCatalogue() {
-	if a.catalogue != nil {
-		return
-	}
-	if c, err := index.Load[index.Projects](a.cfg.IndexPath("catalogue")); err == nil {
-		a.catalogue, a.catalogueAt = c.Items, c.UpdatedAt
-	}
-}
-
-// showFindRepository opens the picker over every repository there is, the
-// filter typing: a repository is looked for by name.
-func (a *App) showFindRepository() {
-	var instances []config.Instance
-	for _, inst := range a.cfg.Instances {
-		if a.client(inst.ID) != nil {
-			instances = append(instances, inst)
-		}
-	}
-	if len(instances) == 0 {
-		a.note("no server with a token - add one in " + settingsTab)
-		return
-	}
-	a.loadCatalogue()
-	at := func(it pickItem) forge.Project { return it.Data.(forge.Project) }
-	opts := pickerOptions{filter: true, wide: true, explain: true, enterHint: "add",
-		enterName: "Add to Unagit", enterAbout: "Show it in Repositories: listed on its own when no group of yours has it, shown again when hidden, gone to when listed already.",
-		same: func(x, y pickItem) bool {
-			p, q := at(x), at(y)
-			return p.Instance == q.Instance && p.PathWithNamespace == q.PathWithNamespace
-		},
-		keys: []pickKey{
-			a.browserKey("w", "browser", "Open in Browser", "The repository's page on the forge; the list stays open.",
-				func(it pickItem) string { return at(it).WebURL }),
-		}}
-	var live *livePicker
-	width := 100
-	opts.relabel = func(items []pickItem, w int) {
-		width = w
-		header := a.labelFind(items, w)
-		if live != nil {
-			live.setHeader(header)
-		}
-	}
-	title, items, header := a.findItems(width)
-	opts.header = header
-	live = a.showPickerWith(title, items, opts, func(it pickItem) { a.bringIn(at(it)) })
-	if time.Since(a.catalogueAt) < catalogueAge && a.catalogue != nil {
-		return
-	}
-	var read []forge.Project
-	a.waitInDialog("reading the repositories of your accounts", func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		for _, inst := range instances {
-			got, err := a.client(inst.ID).MemberProjects(ctx)
-			if err != nil {
-				return fmt.Errorf("%s: %w", inst.Label(), err)
-			}
-			for i := range got {
-				got[i].Instance = inst.ID
-			}
-			read = append(read, got...)
-		}
-		return nil
-	}, func(stillOpen bool) {
-		a.catalogue, a.catalogueAt = index.DedupeProjects(read), time.Now()
-		if a.catalogue == nil {
-			a.catalogue = []forge.Project{}
-		}
-		if err := index.Save(a.cfg.IndexPath("catalogue"), index.Projects{Version: index.Version, UpdatedAt: a.catalogueAt, Items: a.catalogue}); err != nil {
-			a.errorf("cannot keep the repositories read: %v", err)
-		}
-		if stillOpen && live.open() {
-			title, items, header := a.findItems(width)
-			live.setHeader(header)
-			live.set(title, items)
-		}
-	})
-}
-
-// findItems are the catalogue's items, the most recently active first,
-// their labels written for a picker width cells wide.
-func (a *App) findItems(width int) (string, []pickItem, string) {
-	all := append([]forge.Project(nil), a.catalogue...)
-	sort.SliceStable(all, func(i, j int) bool { return all[i].LastActivityAt.After(all[j].LastActivityAt) })
-	items := make([]pickItem, len(all))
-	for i, p := range all {
-		items[i] = pickItem{About: p.Description, Data: p}
-	}
-	return fmt.Sprintf("Find Repository · %d", len(all)), items, a.labelFind(items, width)
-}
-
-// labelFind writes the rows of the catalogue for a row width cells wide -
-// the server when there is more than one, the path, where it stands, when
-// it was last active - and gives their header. A path too long is
-// shortened by what tells it apart.
-func (a *App) labelFind(items []pickItem, width int) string {
-	var servers, paths []int
-	ageWidth := len("ACTIVE")
-	for _, it := range items {
-		p := it.Data.(forge.Project)
-		if a.multiInstance() {
-			servers = append(servers, cells(a.instanceLabel(p.Instance)))
-		}
-		paths = append(paths, cells(p.PathWithNamespace))
-		ageWidth = max(ageWidth, cells(humanAge(p.LastActivityAt)))
-	}
-	server := flexColumn("SERVER", servers, 6, 0.5)
-	if !a.multiInstance() {
-		server = fixedColumn(0)
-	}
-	repo := flexColumn("REPOSITORY", paths, 16, 2)
-	state := fixedColumn(cells(glyphHidden + " hidden"))
-	age := fixedColumn(ageWidth)
-	layoutColumns(width-4, server, repo, state, age)
-	rows := make([][]string, len(items))
-	for i, it := range items {
-		p := it.Data.(forge.Project)
-		name := ""
-		if a.multiInstance() {
-			name = tag(role("column.server")) + esc(a.instanceLabel(p.Instance)) + tagEnd
-		}
-		where := ""
-		switch a.findStateOf(p) {
-		case findListed:
-			where = tag(colMuted) + "listed" + tagEnd
-		case findHidden:
-			where = tag(colWarn) + glyphHidden + " hidden" + tagEnd
-		}
-		rows[i] = []string{name, tag(role("column.name")) + esc(shortenRepo(p.PathWithNamespace, repo.width)) + tagEnd, where,
-			tag(colMuted) + humanAge(p.LastActivityAt) + tagEnd}
-	}
-	header, labels := pickTable([]string{"SERVER", "REPOSITORY", "", "ACTIVE"}, rows)
-	for i := range items {
-		items[i].Label = labels[i]
-	}
-	return header
 }
 
 // bringIn makes a repository of the catalogue one of Repositories, and

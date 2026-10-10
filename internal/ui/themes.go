@@ -259,6 +259,9 @@ type Glyphs struct {
 	IntegrationState string `json:"integration_state"`
 	Hidden           string `json:"hidden"`
 	Favourite        string `json:"favourite"`
+	// Unlisted marks a repository Find Repository… found that no list of
+	// unagit has yet: Enter adds it.
+	Unlisted string `json:"unlisted"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
 	Check string `json:"check"`
 	Cross string `json:"cross"`
@@ -614,7 +617,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.watched":   g.Watched,
 		"glyphs.disk_none": g.DiskNone, "glyphs.disk_branch": g.DiskBranch,
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
-		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite,
+		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite, "glyphs.unlisted": g.Unlisted,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
 		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User, "glyphs.agent": g.Agent, "glyphs.starred": g.Starred, "glyphs.approved": g.Approved,
 		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,

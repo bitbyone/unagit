@@ -12,19 +12,25 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
-// TestFindRepositoryBringsOneIn: + opens on the filter, over every
-// repository of the account - the group's, the hidden one, one of a group
-// not chosen - each saying where it stands. Enter on the stranger lists it
-// on its own, its merge requests with it, and goes to it; on the hidden
-// one it shows it again. Settings › Groups lists the one on its own under
-// its server, and space takes it back.
+// TestFindRepositoryBringsOneIn: + opens typing, over what unagit knows -
+// the hidden one too - each saying where it stands. Typing asks the forge,
+// a spinner in the dialog's edge while it does; its answer is matched
+// with the rest, so its good match goes above a poorer one known before,
+// the cursor on it. Enter on it lists it on its own, its merge requests
+// with it, and goes to it; on the hidden one it shows it again. Settings ›
+// Groups lists the one on its own under its server, and space takes it
+// back.
 func TestFindRepositoryBringsOneIn(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)
 	resizeApp(a, sc, 140, 40)
 	waitFor(t, a, sc, "acme/gateway")
 	onLoop(a, func() bool {
-		a.cfg.Filters.Hidden = []config.Hidden{{Instance: a.cfg.Instances[0].ID, Path: "acme/billing"}}
+		id := a.cfg.Instances[0].ID
+		a.cfg.Filters.Hidden = []config.Hidden{{Instance: id, Path: "acme/billing"}}
+		// A poorer match for "tool", known before the forge is asked.
+		a.projects = append(a.projects, forge.Project{ID: 6, PathWithNamespace: "acme/t-o-o-l", Instance: id})
+		a.reindexProjects()
 		a.applyFilters()
 		return true
 	})
@@ -36,17 +42,34 @@ func TestFindRepositoryBringsOneIn(t *testing.T) {
 	// title.
 	text := a.screenText(sc)
 	text = text[strings.Index(text, "Find Repository"):]
-	for path, state := range map[string]string{"acme/gateway": "listed", "acme/billing": "hidden", "other/tool": ""} {
-		line := lineAt(text, path)
-		if state != "" && !strings.Contains(line, state) || state == "" && (strings.Contains(line, "listed") || strings.Contains(line, "hidden")) {
+	for path, state := range map[string]string{"acme/gateway": "listed", "acme/billing": "hidden"} {
+		if line := lineAt(text, path); !strings.Contains(line, state) {
 			t.Errorf("%s does not say %q: %q", path, state, line)
 		}
 	}
 	assertLegible(t, a, sc, "the repositories to find")
 
-	// It opens typing: the letters are a search.
+	hold := make(chan struct{})
+	srv.holdSearch.Store(hold)
 	typeRunes(sc, "tool")
-	waitFor(t, a, sc, "A tool of another team")
+	waitFor(t, a, sc, "searching acme")
+	text = a.screenText(sc)
+	text = text[strings.Index(text, "Find Repository"):]
+	if strings.Contains(text, "other/tool") || lineOf(text, "acme/t-o-o-l") < 0 {
+		t.Errorf("before the forge answers, only what is known matches:\n%s", text)
+	}
+	close(hold)
+	waitFor(t, a, sc, "other/tool")
+	waitGone(t, a, sc, "searching acme")
+	text = a.screenText(sc)
+	text = text[strings.Index(text, "Find Repository"):]
+	if lineOf(text, "other/tool") > lineOf(text, "acme/t-o-o-l") {
+		t.Errorf("the forge's better match is not first:\n%s", text)
+	}
+	if line := lineAt(text, "other/tool"); !strings.Contains(line, "new") {
+		t.Errorf("the one found does not say it is new: %q", line)
+	}
+	assertLegible(t, a, sc, "a repository found by the forge")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Find Repository")
 	waitFor(t, a, sc, "other/tool added on its own")
@@ -60,18 +83,24 @@ func TestFindRepositoryBringsOneIn(t *testing.T) {
 	waitFor(t, a, sc, "Sharpen the tool")
 	typeRunes(sc, "1")
 
-	// The hidden one is shown again; the list is not read twice.
+	// The hidden one is shown again.
+	held := make(chan struct{})
+	defer close(held)
+	srv.holdSearch.Store(held)
 	typeRunes(sc, "+")
-	waitFor(t, a, sc, "Find Repository · 3")
+	waitFor(t, a, sc, "Find Repository · 4")
 	typeRunes(sc, "billing")
-	waitFor(t, a, sc, "Invoices and rounding")
+	waitFor(t, a, sc, "searching acme")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "acme/billing shown again")
 	if onLoop(a, func() bool { return a.cfg.Filters.IsHidden(a.cfg.Instances[0].ID, "acme/billing") }) {
 		t.Error("acme/billing is still hidden")
 	}
-	if n := srv.catalogueRead.Load(); n != 1 {
-		t.Errorf("the repositories were read %d times", n)
+	srv.searchesMu.Lock()
+	searches := append([]string(nil), srv.searches...)
+	srv.searchesMu.Unlock()
+	if len(searches) != 2 || searches[0] != "tool" || searches[1] != "billing" {
+		t.Errorf("the forge was asked %q; once a pause in typing, never for less than three letters", searches)
 	}
 
 	openSection(t, a, sc, sectionGroups)
@@ -113,9 +142,9 @@ func TestFindRepositoryFitsItsFrame(t *testing.T) {
 			waitFor(t, a, sc, "acme/gateway")
 			long := "platform/infrastructure/terraform-modules/kubernetes-cluster-autoscaler"
 			onLoop(a, func() bool {
-				a.catalogue = append(a.catalogue, forge.Project{ID: 9, PathWithNamespace: long, Instance: a.cfg.Instances[0].ID,
-					Description: "Scales the nodes of every cluster up and down with the pods waiting for room."})
-				a.catalogueAt = time.Now()
+				a.projects = []forge.Project{{ID: 9, PathWithNamespace: long, Instance: a.cfg.Instances[0].ID, LastActivityAt: time.Now(),
+					Description: "Scales the nodes of every cluster up and down with the pods waiting for room."}}
+				a.reindexProjects()
 				return true
 			})
 			resizeApp(a, sc, size.w, size.h)

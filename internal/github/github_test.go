@@ -854,18 +854,48 @@ func TestStarredAndReadme(t *testing.T) {
 	}
 }
 
-// TestMemberProjects: every repository the account can see as owner,
-// collaborator or organisation member, the archived left out.
-func TestMemberProjects(t *testing.T) {
+// TestSearchProjectsAsksAboutEachOwner: a search names the account and its
+// organisations, since GitHub's has no "where I am a member".
+func TestSearchProjectsAsksAboutEachOwner(t *testing.T) {
 	s := newStub(t)
-	s.mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
-		if got := r.URL.Query().Get("affiliation"); got != "owner,collaborator,organization_member" {
-			t.Errorf("affiliation %q", got)
-		}
-		fmt.Fprint(w, `[{"id":3,"full_name":"acme/tool"},{"id":4,"full_name":"acme/old","archived":true}]`)
+	s.handle("/user", `{"login":"jan"}`)
+	s.mux.HandleFunc("/user/orgs", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[{"id":10,"login":"acme"}]`)
 	})
-	got, err := s.client().MemberProjects(context.Background())
+	var asked []string
+	s.mux.HandleFunc("/search/repositories", func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Query().Get("q"))
+		fmt.Fprint(w, `{"items":[{"id":3,"full_name":"acme/tool"}]}`)
+	})
+	got, err := s.client().SearchProjects(context.Background(), "tool")
 	if err != nil || len(got) != 1 || got[0].PathWithNamespace != "acme/tool" {
 		t.Fatalf("got %+v, %v", got, err)
+	}
+	if len(asked) != 1 || !strings.HasPrefix(asked[0], "tool in:name") || !strings.Contains(asked[0], " user:jan ") || !strings.HasSuffix(asked[0], " org:acme") {
+		t.Errorf("asked %q", asked)
+	}
+}
+
+// TestOwnerScopesKeepEachQuestionShort: owners that would make the question
+// too long go into another.
+func TestOwnerScopesKeepEachQuestionShort(t *testing.T) {
+	base := "tool in:name fork:true archived:false"
+	var owners []string
+	for i := 0; i < 40; i++ {
+		owners = append(owners, fmt.Sprintf("organisation-%02d", i))
+	}
+	scopes := ownerScopes(base, owners)
+	if len(scopes) < 2 {
+		t.Fatalf("one question for forty owners: %q", scopes)
+	}
+	seen := 0
+	for _, s := range scopes {
+		if len(base)+len(s) > searchQueryMax {
+			t.Errorf("too long: %d", len(base)+len(s))
+		}
+		seen += strings.Count(s, ":")
+	}
+	if seen != 40 || !strings.HasPrefix(scopes[0], " user:organisation-00") {
+		t.Errorf("owners lost or misnamed: %q", scopes)
 	}
 }

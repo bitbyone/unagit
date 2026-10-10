@@ -318,10 +318,6 @@ type App struct {
 	ciAsking     map[branchKey]bool
 	// starred is the starred repositories that were cloned (starred.go).
 	starred []forge.Project
-	// catalogue is every repository the accounts are members of, read
-	// at catalogueAt, for Find Repository… (find.go).
-	catalogue   []forge.Project
-	catalogueAt time.Time
 	// repoSize is what each cloned repository takes on disk, its worktrees
 	// included, and repoSizing those being measured (reposize.go).
 	repoSize   map[projectKey]int64

@@ -250,6 +250,9 @@ type pickerOptions struct {
 	// query is the filter as it opens, typed already: a picker opened again
 	// in place of itself keeps what was being looked for.
 	query string
+	// searched hears the filter whenever it changes, for a picker that
+	// asks elsewhere for more of what is typed (Find Repository…).
+	searched func(query string)
 	// preview hears every item the cursor comes to, and cancel that the
 	// picker was closed without a choice - so an item can be tried on the
 	// screen behind and taken back.
@@ -611,6 +614,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		moved(list.GetCurrentItem())
 		if typed != nil {
 			typed()
+		}
+		if opts.searched != nil {
+			opts.searched(query)
 		}
 	})
 
@@ -1002,6 +1008,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			if typed != nil {
 				typed()
 			}
+			if opts.searched != nil {
+				opts.searched(query)
+			}
 		})
 		explain(list.GetCurrentItem())
 		lines := 1
@@ -1144,7 +1153,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				marks.items = items
 			}
 			rebuild(input.GetText())
-			if current != nil {
+			// While typing, the cursor is on the best match, whatever came
+			// in above what was best before.
+			switch {
+			case filtering:
+				at = 0
+			case current != nil:
 				for i, it := range shown {
 					if same(it, *current) {
 						at = i

@@ -47,6 +47,11 @@ type Client struct {
 	once  sync.Once
 	login string // the authenticated account, cached
 	err   error
+
+	// owners are whose repositories a search asks about: the account,
+	// then its organisations.
+	ownersMu sync.Mutex
+	owners   []string
 }
 
 // New returns a client authenticated with a personal access token.
@@ -544,23 +549,79 @@ func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
 	return out, nil
 }
 
-// MemberProjects is every repository the account owns, collaborates on,
-// or can see as a member of an organisation.
-func (c *Client) MemberProjects(ctx context.Context) ([]forge.Project, error) {
-	q := url.Values{}
-	q.Set("affiliation", "owner,collaborator,organization_member")
-	q.Set("sort", "pushed")
-	repos, err := getAll[repo](ctx, c, "/user/repos", q)
+// SearchProjects is the repositories of the account and of its
+// organisations whose name has the text. GitHub's search has no "where I
+// am a member", so it is asked about each owner by name - the account and
+// every organisation, as many to a question as its length allows.
+func (c *Client) SearchProjects(ctx context.Context, text string) ([]forge.Project, error) {
+	owners, err := c.searchOwners(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]forge.Project, 0, len(repos))
-	for _, r := range repos {
-		if !r.Archived {
+	base := text + " in:name fork:true archived:false"
+	var out []forge.Project
+	for _, scope := range ownerScopes(base, owners) {
+		q := url.Values{}
+		q.Set("q", base+scope)
+		q.Set("sort", "updated")
+		q.Set("per_page", strconv.Itoa(searchLimit))
+		var found struct {
+			Items []repo `json:"items"`
+		}
+		if _, err := c.get(ctx, "/search/repositories", q, &found); err != nil {
+			return nil, err
+		}
+		for _, r := range found.Items {
 			out = append(out, r.project())
 		}
 	}
 	return out, nil
+}
+
+// searchLimit is how many repositories a question brings: enough to find
+// one by name, few enough to come at once.
+const searchLimit = 50
+
+// searchQueryMax is the longest question GitHub's search takes.
+const searchQueryMax = 256
+
+// ownerScopes shares the owners out into qualifiers - " user:me org:a" -
+// each short enough to go after base in one question.
+func ownerScopes(base string, owners []string) []string {
+	var scopes []string
+	scope := ""
+	for i, o := range owners {
+		part := " org:" + o
+		if i == 0 {
+			part = " user:" + o
+		}
+		if scope != "" && len(base)+len(scope)+len(part) > searchQueryMax {
+			scopes = append(scopes, scope)
+			scope = ""
+		}
+		scope += part
+	}
+	if scope != "" {
+		scopes = append(scopes, scope)
+	}
+	return scopes
+}
+
+// searchOwners is the account then its organisations, read once.
+func (c *Client) searchOwners(ctx context.Context) ([]string, error) {
+	c.ownersMu.Lock()
+	defer c.ownersMu.Unlock()
+	if c.owners != nil {
+		return c.owners, nil
+	}
+	groups, err := c.Groups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, g := range groups {
+		c.owners = append(c.owners, g.FullPath)
+	}
+	return c.owners, nil
 }
 
 // Readme is a repository's README as markdown, "" when it has none.

@@ -697,12 +697,13 @@ func TestPagesAreReadSideBySide(t *testing.T) {
 	}
 }
 
-// TestMemberProjectsAsksForMembership: the projects to look through are the
-// user's own - membership, the short shape, no archived ones.
-func TestMemberProjectsAsksForMembership(t *testing.T) {
+// TestSearchProjectsAsksAboutTheUsersOwn: a search is of the user's own
+// projects, by name and path, one page of them.
+func TestSearchProjectsAsksAboutTheUsersOwn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		if r.URL.Path != "/api/v4/projects" || q.Get("membership") != "true" || q.Get("simple") != "true" || q.Get("archived") != "false" {
+		if r.URL.Path != "/api/v4/projects" || q.Get("membership") != "true" || q.Get("search") != "tool" ||
+			q.Get("search_namespaces") != "true" || q.Get("archived") != "false" || q.Get("per_page") != "50" {
 			t.Errorf("asked %s", r.URL)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -710,7 +711,7 @@ func TestMemberProjectsAsksForMembership(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := New(srv.URL, "t").MemberProjects(context.Background())
+	got, err := New(srv.URL, "t").SearchProjects(context.Background(), "tool")
 	if err != nil || len(got) != 1 || got[0].PathWithNamespace != "other/tool" || got[0].ID != 7 {
 		t.Fatalf("got %+v, %v", got, err)
 	}

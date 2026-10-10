@@ -73,8 +73,11 @@ type fakeServer struct {
 	holdMRList   atomic.Value // chan struct{}
 	// groupListed counts the listings of a whole group's merge requests.
 	groupListed atomic.Int64
-	// catalogueRead counts the listings of the user's projects.
-	catalogueRead atomic.Int64
+	// searches are the texts the user's projects were searched for, and
+	// holdSearch, when set, keeps each answer waiting until it is closed.
+	searchesMu sync.Mutex
+	searches   []string
+	holdSearch atomic.Value // chan struct{}
 	// namesAsked counts the questions about an account's name.
 	namesAsked atomic.Int64
 	// mainRunning keeps acme/gateway's branch pipeline and its build job
@@ -143,11 +146,25 @@ func fakeGitLab(t *testing.T) *fakeServer {
 	// chosen.
 	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			f.catalogueRead.Add(1)
-			json(w, `[{"id":1,"name":"gateway","path_with_namespace":"acme/gateway","last_activity_at":"2026-09-22T10:00:00Z"},
-				{"id":2,"name":"billing","path_with_namespace":"acme/billing","description":"Invoices and rounding","last_activity_at":"2026-09-22T09:00:00Z"},
-				{"id":5,"name":"tool","path_with_namespace":"other/tool","description":"A tool of another team",
-				"default_branch":"main","web_url":"https://gl.test/other/tool","last_activity_at":"2026-09-21T09:00:00Z"}]`)
+			text := r.URL.Query().Get("search")
+			f.searchesMu.Lock()
+			f.searches = append(f.searches, text)
+			f.searchesMu.Unlock()
+			if hold, ok := f.holdSearch.Load().(chan struct{}); ok {
+				<-hold
+			}
+			var found []string
+			for _, p := range []string{
+				`{"id":1,"name":"gateway","path_with_namespace":"acme/gateway","last_activity_at":"2026-09-22T10:00:00Z"}`,
+				`{"id":2,"name":"billing","path_with_namespace":"acme/billing","last_activity_at":"2026-09-22T09:00:00Z"}`,
+				`{"id":5,"name":"tool","path_with_namespace":"other/tool","description":"A tool of another team",
+				"default_branch":"main","web_url":"https://gl.test/other/tool","last_activity_at":"2026-09-21T09:00:00Z"}`,
+			} {
+				if strings.Contains(p, `"name":"`+text) {
+					found = append(found, p)
+				}
+			}
+			json(w, "["+strings.Join(found, ",")+"]")
 			return
 		}
 		b, _ := io.ReadAll(r.Body)

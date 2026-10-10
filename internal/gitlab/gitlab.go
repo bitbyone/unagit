@@ -513,16 +513,25 @@ func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
 	return projects, err
 }
 
-// MemberProjects is every project the user is a member of, directly or
-// through a group, in the short shape the listing offers.
-func (c *Client) MemberProjects(ctx context.Context) ([]forge.Project, error) {
+// SearchProjects is the user's projects whose name or path has the text,
+// the most recently active first - one page, the best of them.
+func (c *Client) SearchProjects(ctx context.Context, text string) ([]forge.Project, error) {
 	q := url.Values{}
 	q.Set("membership", "true")
+	q.Set("search", text)
+	q.Set("search_namespaces", "true")
 	q.Set("archived", "false")
 	q.Set("simple", "true")
 	q.Set("order_by", "last_activity_at")
-	return getAll[forge.Project](ctx, c, "/projects", q)
+	q.Set("per_page", strconv.Itoa(searchLimit))
+	var out []forge.Project
+	_, err := c.get(ctx, "/projects", q, &out)
+	return out, err
 }
+
+// searchLimit is how many repositories a search brings: enough to find
+// one by name, few enough to come at once.
+const searchLimit = 50
 
 // Readme is the README.md of a project's default branch, "" when it has
 // none.

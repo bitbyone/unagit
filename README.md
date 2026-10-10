@@ -245,16 +245,20 @@ all and live only there.
   page in the browser, `C` clones it. A repository cloned from there joins
   Repositories, though none of your groups holds it, with a star badge
   saying where it came from (`index-starred.json` keeps it there).
-- `+`, from anywhere, is Find Repository…: every repository your accounts
-  are members of and can see - in groups you never chose, and the hidden
-  ones too - opened typing, each row saying whether it is listed, hidden or
-  neither. `Enter` brings it in: a hidden one is shown again, one no group
-  of yours has is listed on its own (`repositories:` under its server in
-  `config.yaml`) - never its whole group with the rest hidden, which would
-  let in every repository made there later - and the cursor goes to it,
-  its merge requests read behind. Settings › Groups lists those under
-  their server: `a` adds one, space takes one back. The list is kept in
-  `index-catalogue.json` and read again when it is older than ten minutes.
+- `+`, from anywhere, is Find Repository…: it opens typing, over every
+  repository unagit knows, the hidden ones too, each row saying whether it
+  is listed, hidden or new. Once typing pauses (three letters or more) the
+  servers are asked as well - GitLab for the projects you are a member of,
+  GitHub for the repositories of your account and your organisations - with
+  a spinner in the dialog's edge while they answer. What they find is
+  matched with the rest, so a good match from a server goes above a poorer
+  one, and the cursor stays on the best. Nothing is listed ahead of time.
+  `Enter` brings the repository in: a hidden one is shown again, one no
+  group of yours has is listed on its own (`repositories:` under its server
+  in `config.yaml`) - never its whole group with the rest hidden, which
+  would let in every repository made there later - and the cursor goes to
+  it, its merge requests read behind. Settings › Groups lists those under
+  their server: `a` adds one, space takes one back.
 - Authors and reviewers are shown by name. GitLab's lists carry the names;
   GitHub's carry only logins, so `R` asks for the names it does not know
   and keeps them in `index-users.json` for a month.

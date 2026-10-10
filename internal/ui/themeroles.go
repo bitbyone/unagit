@@ -112,6 +112,15 @@ var colourRoles = []colourRole{
 	{"starred.stars", "state.favourite", "how many stars it has"},
 	{"starred.activity", "column.age", "how long ago it moved"},
 
+	// Find Repository…: each repository found, and where it stands.
+	{"find.server", "column.server", ""},
+	{"find.name", "column.name", "a repository found"},
+	{"find.cloned", "state.good", "the mark of one on disk"},
+	{"find.listed", "state.good", "in Repositories already"},
+	{"find.hidden", "state.warning", "listed, but hidden"},
+	{"find.unlisted", "text.accent", "in no list yet: Enter adds it"},
+	{"find.activity", "column.age", "how long ago it moved"},
+
 	// A picker whose items are tried on the screen behind it, the themes.
 	{"picker.background", "surface.field", "its background on the terminal's own; on a theme's, that darkened"},
 
