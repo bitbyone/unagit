@@ -853,3 +853,19 @@ func TestStarredAndReadme(t *testing.T) {
 		t.Errorf("a missing README: %q, %v", readme, err)
 	}
 }
+
+// TestMemberProjects: every repository the account can see as owner,
+// collaborator or organisation member, the archived left out.
+func TestMemberProjects(t *testing.T) {
+	s := newStub(t)
+	s.mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("affiliation"); got != "owner,collaborator,organization_member" {
+			t.Errorf("affiliation %q", got)
+		}
+		fmt.Fprint(w, `[{"id":3,"full_name":"acme/tool"},{"id":4,"full_name":"acme/old","archived":true}]`)
+	})
+	got, err := s.client().MemberProjects(context.Background())
+	if err != nil || len(got) != 1 || got[0].PathWithNamespace != "acme/tool" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}

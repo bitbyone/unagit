@@ -513,6 +513,17 @@ func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
 	return projects, err
 }
 
+// MemberProjects is every project the user is a member of, directly or
+// through a group, in the short shape the listing offers.
+func (c *Client) MemberProjects(ctx context.Context) ([]forge.Project, error) {
+	q := url.Values{}
+	q.Set("membership", "true")
+	q.Set("archived", "false")
+	q.Set("simple", "true")
+	q.Set("order_by", "last_activity_at")
+	return getAll[forge.Project](ctx, c, "/projects", q)
+}
+
 // Readme is the README.md of a project's default branch, "" when it has
 // none.
 func (c *Client) Readme(ctx context.Context, p forge.Project) (string, error) {

@@ -49,7 +49,8 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 		}
 	case sectionGroups:
 		return sectionNames[s.current], []uiAction{
-			a.keyIn(s.tree, "Toggle Selection", "Cycle the group: not used, this group alone, or with its subgroups.", "space", 10, nil),
+			a.keyIn(s.tree, "Toggle Selection", "Cycle the group: not used, this group alone, or with its subgroups; a repository chosen on its own is taken back.", "space", 10, nil),
+			a.keyIn(s.tree, "Add Repository…", "Look through every repository your accounts are members of, and list one on its own, without its group.", "a", 15, nil),
 			a.keyIn(s.tree, "Set Clone Directory…", "Choose where the group's repositories are cloned.", "d", 20, nil),
 			a.keyIn(s.tree, "Edit Tags…", "Put tags on the group; its subgroups and repositories wear them too.", "t", 30, nil),
 			a.keyIn(s.tree, "Reload Groups", "Ask the servers for the groups again.", "r", 40, nil),

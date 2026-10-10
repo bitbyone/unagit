@@ -318,6 +318,10 @@ type App struct {
 	ciAsking     map[branchKey]bool
 	// starred is the starred repositories that were cloned (starred.go).
 	starred []forge.Project
+	// catalogue is every repository the accounts are members of, read
+	// at catalogueAt, for Find Repository… (find.go).
+	catalogue   []forge.Project
+	catalogueAt time.Time
 	// repoSize is what each cloned repository takes on disk, its worktrees
 	// included, and repoSizing those being measured (reposize.go).
 	repoSize   map[projectKey]int64
@@ -994,7 +998,7 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 			missing = append(missing, inst.Label())
 			continue
 		}
-		if len(inst.Groups) == 0 {
+		if len(inst.Groups) == 0 && len(inst.Repositories) == 0 {
 			continue
 		}
 		ready = append(ready, inst)
@@ -1013,11 +1017,13 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 // repository on top of that.
 const refreshFanOut = 6
 
-// groupJob is one selected group on one server, with the client to ask.
+// groupJob is one selected group on one server, with the client to ask -
+// or one repository chosen on its own, whose path then names the job.
 type groupJob struct {
-	inst   config.Instance
-	group  config.Group
-	client forge.Provider
+	inst       config.Instance
+	group      config.Group
+	repository *config.Repository
+	client     forge.Provider
 	// projects, when set, are the only repositories of the group whose
 	// merge requests are asked for - the ones the list shows - and carried
 	// what the others had when last read (narrowMRJobs).
@@ -1037,6 +1043,9 @@ const narrowLimit = 60
 // of a refresh's wait, for rows nobody looks at. It runs on the event loop.
 func (a *App) narrowMRJobs(jobs []groupJob) {
 	for i, job := range jobs {
+		if job.repository != nil {
+			continue
+		}
 		var shown []forge.Project
 		hidden := map[string]bool{}
 		for _, pr := range a.projects {
@@ -1123,8 +1132,30 @@ func (a *App) groupJobs(instances []config.Instance) []groupJob {
 		for _, g := range inst.Groups {
 			jobs = append(jobs, groupJob{inst: inst, group: g, client: client})
 		}
+		for _, r := range inst.Repositories {
+			jobs = append(jobs, groupJob{inst: inst, group: config.Group{FullPath: r.FullPath}, repository: &r, client: client})
+		}
 	}
 	return jobs
+}
+
+// projects is what the job lists: a group's repositories, or the one
+// repository chosen on its own.
+func (job groupJob) listProjects(ctx context.Context) ([]forge.Project, error) {
+	if job.repository != nil {
+		d, err := job.client.ProjectDetail(ctx, repositoryProject(*job.repository))
+		if err != nil {
+			return nil, err
+		}
+		return []forge.Project{d.Project}, nil
+	}
+	return job.client.GroupProjects(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
+}
+
+// repositoryProject is a repository chosen on its own as the forge asks
+// about it: by its id where the forge has one, else by its path.
+func repositoryProject(r config.Repository) forge.Project {
+	return forge.Project{ID: r.ID, PathWithNamespace: r.FullPath}
 }
 
 // fanOut runs the jobs a few at a time and gathers what they return. The first
@@ -1184,7 +1215,7 @@ func (a *App) refreshProjects() {
 		var asked atomic.Int32
 		var err error
 		all, err = fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.Project, error) {
-			ps, err := job.client.GroupProjects(ctx, forgeGroup(job.group), job.group.IncludesSubgroups())
+			ps, err := job.listProjects(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -1246,6 +1277,17 @@ func (a *App) refreshMRs() {
 		var asked atomic.Int32
 		var err error
 		all, err = fanOut(ctx, jobs, func(ctx context.Context, job groupJob) ([]forge.MergeRequest, error) {
+			if job.repository != nil {
+				ms, err := projectsMRs(ctx, job.client, []forge.Project{repositoryProject(*job.repository)})
+				if err != nil {
+					return nil, err
+				}
+				for i := range ms {
+					ms[i].Instance = job.inst.ID
+				}
+				progress(fmt.Sprintf("groups %d/%d", asked.Add(1), len(jobs)))
+				return ms, nil
+			}
 			if job.projects != nil {
 				ms, err := projectsMRs(ctx, job.client, job.projects)
 				if err != nil {

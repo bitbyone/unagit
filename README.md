@@ -245,6 +245,16 @@ all and live only there.
   page in the browser, `C` clones it. A repository cloned from there joins
   Repositories, though none of your groups holds it, with a star badge
   saying where it came from (`index-starred.json` keeps it there).
+- `+`, from anywhere, is Find Repository…: every repository your accounts
+  are members of and can see - in groups you never chose, and the hidden
+  ones too - opened typing, each row saying whether it is listed, hidden or
+  neither. `Enter` brings it in: a hidden one is shown again, one no group
+  of yours has is listed on its own (`repositories:` under its server in
+  `config.yaml`) - never its whole group with the rest hidden, which would
+  let in every repository made there later - and the cursor goes to it,
+  its merge requests read behind. Settings › Groups lists those under
+  their server: `a` adds one, space takes one back. The list is kept in
+  `index-catalogue.json` and read again when it is older than ten minutes.
 - Authors and reviewers are shown by name. GitLab's lists carry the names;
   GitHub's carry only logins, so `R` asks for the names it does not know
   and keeps them in `index-users.json` for a month.
@@ -1218,6 +1228,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | --- | --- |
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
+| `+` | find any repository of yours, in any group, and list it |
 | `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Agents · Watched · Settings |
 | `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |

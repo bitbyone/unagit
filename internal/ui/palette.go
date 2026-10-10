@@ -200,6 +200,8 @@ func (a *App) globalActions() []uiAction {
 	return []uiAction{
 		a.runningEditorsAction("E"),
 		a.runningAgentsAction(""),
+		{name: "Find Repository…", about: "Every repository your accounts are members of, in groups you did not choose and hidden ones too: Enter brings it into Repositories.",
+			keys: "+", rank: 500, run: a.showFindRepository},
 		{name: "Watches…", about: "Everything watched in one list, from any screen: go to one, or stop watching it.", keys: "W", rank: 510, run: a.showWatches},
 		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
 			rank: 900, run: a.showThemePicker},

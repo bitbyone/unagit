@@ -696,3 +696,22 @@ func TestPagesAreReadSideBySide(t *testing.T) {
 		t.Errorf("a project's merge request lost its path: %q", mrs[0].ProjectPath)
 	}
 }
+
+// TestMemberProjectsAsksForMembership: the projects to look through are the
+// user's own - membership, the short shape, no archived ones.
+func TestMemberProjectsAsksForMembership(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if r.URL.Path != "/api/v4/projects" || q.Get("membership") != "true" || q.Get("simple") != "true" || q.Get("archived") != "false" {
+			t.Errorf("asked %s", r.URL)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"id":7,"name":"tool","path_with_namespace":"other/tool"}]`)
+	}))
+	defer srv.Close()
+
+	got, err := New(srv.URL, "t").MemberProjects(context.Background())
+	if err != nil || len(got) != 1 || got[0].PathWithNamespace != "other/tool" || got[0].ID != 7 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}

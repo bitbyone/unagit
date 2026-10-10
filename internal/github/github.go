@@ -544,6 +544,25 @@ func (c *Client) StarredProjects(ctx context.Context) ([]forge.Project, error) {
 	return out, nil
 }
 
+// MemberProjects is every repository the account owns, collaborates on,
+// or can see as a member of an organisation.
+func (c *Client) MemberProjects(ctx context.Context) ([]forge.Project, error) {
+	q := url.Values{}
+	q.Set("affiliation", "owner,collaborator,organization_member")
+	q.Set("sort", "pushed")
+	repos, err := getAll[repo](ctx, c, "/user/repos", q)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.Project, 0, len(repos))
+	for _, r := range repos {
+		if !r.Archived {
+			out = append(out, r.project())
+		}
+	}
+	return out, nil
+}
+
 // Readme is a repository's README as markdown, "" when it has none.
 func (c *Client) Readme(ctx context.Context, p forge.Project) (string, error) {
 	var raw struct {

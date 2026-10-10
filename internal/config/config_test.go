@@ -652,3 +652,24 @@ func TestOneToastLengthOfAnOlderFileIsEachSeverity(t *testing.T) {
 		t.Fatalf("read %+v", c.ToastSeconds)
 	}
 }
+
+// TestRepositoriesChosenOnTheirOwn: a repository chosen on its own is
+// covered as a group's are, once however often it is added, and only it -
+// not its neighbours in the same group.
+func TestRepositoriesChosenOnTheirOwn(t *testing.T) {
+	inst := &Instance{Groups: []Group{{ID: 1, FullPath: "acme", Scope: ScopeGroup}}}
+	inst.AddRepository(Repository{ID: 7, FullPath: "other/tool"})
+	inst.AddRepository(Repository{ID: 7, FullPath: "other/tool"})
+	if len(inst.Repositories) != 1 {
+		t.Fatalf("added twice: %+v", inst.Repositories)
+	}
+	for path, want := range map[string]bool{"acme/gateway": true, "acme/sub/x": false, "other/tool": true, "other/else": false} {
+		if got := inst.Covers(path); got != want {
+			t.Errorf("Covers(%q) = %v, want %v", path, got, want)
+		}
+	}
+	inst.RemoveRepository("other/tool")
+	if inst.Covers("other/tool") {
+		t.Error("a repository taken back is still covered")
+	}
+}

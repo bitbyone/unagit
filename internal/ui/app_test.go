@@ -73,6 +73,8 @@ type fakeServer struct {
 	holdMRList   atomic.Value // chan struct{}
 	// groupListed counts the listings of a whole group's merge requests.
 	groupListed atomic.Int64
+	// catalogueRead counts the listings of the user's projects.
+	catalogueRead atomic.Int64
 	// namesAsked counts the questions about an account's name.
 	namesAsked atomic.Int64
 	// mainRunning keeps acme/gateway's branch pipeline and its build job
@@ -136,8 +138,18 @@ func fakeGitLab(t *testing.T) *fakeServer {
 			w.WriteHeader(http.StatusNoContent)
 		})
 	}
-	// A new repository, to be cloned from wherever the test put one.
+	// A new repository, to be cloned from wherever the test put one; asked
+	// for the user's projects, the group's two and one from a group not
+	// chosen.
 	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			f.catalogueRead.Add(1)
+			json(w, `[{"id":1,"name":"gateway","path_with_namespace":"acme/gateway","last_activity_at":"2026-09-22T10:00:00Z"},
+				{"id":2,"name":"billing","path_with_namespace":"acme/billing","description":"Invoices and rounding","last_activity_at":"2026-09-22T09:00:00Z"},
+				{"id":5,"name":"tool","path_with_namespace":"other/tool","description":"A tool of another team",
+				"default_branch":"main","web_url":"https://gl.test/other/tool","last_activity_at":"2026-09-21T09:00:00Z"}]`)
+			return
+		}
 		b, _ := io.ReadAll(r.Body)
 		f.postedProject.Store(string(b))
 		url, _ := f.newRepoURL.Load().(string)
@@ -170,6 +182,14 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		f.groupListed.Add(1)
 		hold()
 		json(w, "["+gatewayMRs+","+billingMRs+"]")
+	})
+	mux.HandleFunc("/api/v4/projects/5", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `{"id":5,"name":"tool","path_with_namespace":"other/tool","default_branch":"main",
+			"web_url":"https://gl.test/other/tool","last_activity_at":"2026-09-21T09:00:00Z"}`)
+	})
+	mux.HandleFunc("/api/v4/projects/5/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		json(w, `[{"id":151,"iid":1,"title":"Sharpen the tool","source_branch":"feat/sharp","target_branch":"main",
+			"project_id":5,"author":{"username":"bob"},"references":{"full":"other/tool!1"},"updated_at":"2026-09-21T09:00:00Z"}]`)
 	})
 	mux.HandleFunc("/api/v4/projects/1", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",

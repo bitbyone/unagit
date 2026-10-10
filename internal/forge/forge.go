@@ -404,6 +404,9 @@ type Provider interface {
 	GroupMergeRequests(ctx context.Context, g Group, includeSubgroups bool) ([]MergeRequest, error)
 	// StarredProjects lists the repositories the user has starred.
 	StarredProjects(ctx context.Context) ([]Project, error)
+	// MemberProjects is every repository the account is a member of,
+	// whichever group it is in: what Find Repository… looks through.
+	MemberProjects(ctx context.Context) ([]Project, error)
 	// Readme is the README of a repository's default branch, as markdown,
 	// "" when it has none.
 	Readme(ctx context.Context, p Project) (string, error)

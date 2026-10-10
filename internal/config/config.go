@@ -53,6 +53,13 @@ func (g Group) Owns(projectPath string) bool {
 	return !strings.Contains(rest, "/")
 }
 
+// Repository is one repository chosen on its own, found by Find
+// Repository… rather than through a group.
+type Repository struct {
+	ID       int    `yaml:"id" json:"id"`
+	FullPath string `yaml:"full_path" json:"full_path"`
+}
+
 // Instance is one server - a GitLab installation or a GitHub account - with
 // its own token and its own group selection.
 type Instance struct {
@@ -72,6 +79,9 @@ type Instance struct {
 	// key and the token is only ever spent on the API.
 	CloneProtocol string  `yaml:"clone_protocol,omitempty" json:"clone_protocol,omitempty"`
 	Groups        []Group `yaml:"groups" json:"groups"`
+	// Repositories are listed on their own, outside the groups chosen: one
+	// wanted from a group whose others are not.
+	Repositories []Repository `yaml:"repositories,omitempty" json:"repositories,omitempty"`
 	// LegacyPeopleUses is where an earlier version counted whom merge
 	// requests were given to; it moves into State on load.
 	LegacyPeopleUses map[string]map[string]int `yaml:"people_uses,omitempty" json:"-"`
@@ -134,6 +144,44 @@ func (i *Instance) GroupScope(id int) string {
 		}
 	}
 	return ""
+}
+
+// Covers reports whether a repository is listed: a group selected owns
+// it, or it was chosen on its own.
+func (i *Instance) Covers(path string) bool {
+	for _, g := range i.Groups {
+		if g.Owns(path) {
+			return true
+		}
+	}
+	return i.HasRepository(path)
+}
+
+// HasRepository reports whether a repository was chosen on its own.
+func (i *Instance) HasRepository(path string) bool {
+	for _, r := range i.Repositories {
+		if r.FullPath == path {
+			return true
+		}
+	}
+	return false
+}
+
+// AddRepository chooses a repository on its own; once is enough.
+func (i *Instance) AddRepository(r Repository) {
+	if !i.HasRepository(r.FullPath) {
+		i.Repositories = append(i.Repositories, r)
+	}
+}
+
+// RemoveRepository takes back a repository chosen on its own.
+func (i *Instance) RemoveRepository(path string) {
+	for idx, r := range i.Repositories {
+		if r.FullPath == path {
+			i.Repositories = append(i.Repositories[:idx], i.Repositories[idx+1:]...)
+			return
+		}
+	}
 }
 
 // HasGroup reports whether the group id is selected.

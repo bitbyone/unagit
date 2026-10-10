@@ -112,7 +112,7 @@ func (a *App) newSettingsView() *settingsView {
 		hintPanel(panel, func() string { return "a add · e edit · t token · v verify · d remove" }, 0, 0, 1, 1)
 	}
 	hintPanel(s.tree.Box, func() string {
-		return "Space select · d root directory · t tags · r reload groups · p refresh repositories · m refresh merge requests"
+		return "Space select · a add repository · d root directory · t tags · r reload groups · p refresh repositories · m refresh merge requests"
 	}, 0, 0, 1, 1)
 	hintPanel(s.tags.Box, func() string {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
@@ -785,11 +785,18 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 			case ' ':
 				s.cycleCurrentGroup()
 				return nil
+			case 'a':
+				s.app.showFindRepository()
+				return nil
 			case 'd':
+				if s.onRepository() {
+					return nil
+				}
 				s.showRootForm()
 				return nil
 			case 't':
 				switch ref, ok := s.currentRef(); {
+				case s.onRepository():
 				case ok && ref.group != nil:
 					s.app.showGroupTags(ref.instance, ref.group.FullPath)
 				case ok:
@@ -816,14 +823,19 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 	return tree
 }
 
-// treeRef is what a tree node points at: an instance, or a group on it.
+// treeRef is what a tree node points at: an instance, a group on it, or a
+// repository chosen on its own.
 type treeRef struct {
-	instance string
-	group    *forge.Group
+	instance   string
+	group      *forge.Group
+	repository string
 }
 
 // treeKey names a node of the groups tree across rebuilds.
 func (r treeRef) treeKey() string {
+	if r.repository != "" {
+		return r.instance + "#" + r.repository
+	}
 	if r.group == nil {
 		return r.instance
 	}
@@ -862,6 +874,10 @@ func (s *settingsView) fillTree() {
 			return
 		}
 		switch {
+		case ref.repository != "" || prev.repository != "":
+			if ref.repository == prev.repository {
+				restore = node
+			}
 		case ref.group == nil && prev.group == nil:
 			restore = node
 		case ref.group != nil && prev.group != nil && ref.group.ID == prev.group.ID:
@@ -890,6 +906,21 @@ func (s *settingsView) fillTree() {
 		remember(instNode, instRef)
 		if first == nil {
 			first = instNode
+		}
+
+		// The repositories chosen on their own come first: there are few,
+		// and nothing else says they are listed.
+		for _, r := range inst.Repositories {
+			ref := treeRef{instance: inst.ID, repository: r.FullPath}
+			node := tview.NewTreeNode(tag(colOn) + glyphCheck + tagEnd + " " + esc(r.FullPath) +
+				"  " + tag(colMuted) + "(on its own)" + tagEnd).
+				SetReference(ref).
+				SetSelectable(true)
+			node.SetSelectedTextStyle(styleSelected)
+			nodeColour(node, colText)
+			node.SetSelectedFunc(func() { s.dropRepository(ref) })
+			remember(node, ref)
+			instNode.AddChild(node)
 		}
 
 		groups := s.groupsOf(inst.ID)
@@ -1020,11 +1051,40 @@ func (s *settingsView) currentRef() (treeRef, bool) {
 
 func (s *settingsView) cycleCurrentGroup() {
 	ref, ok := s.currentRef()
+	if ok && ref.repository != "" {
+		s.dropRepository(ref)
+		return
+	}
 	if !ok || ref.group == nil {
 		s.app.flash("select a group, not a server")
 		return
 	}
 	s.cycleGroup(s.tree.GetCurrentNode(), ref.instance, *ref.group)
+}
+
+// onRepository says, when the cursor is on a repository chosen on its own,
+// that what is set for a group or a server is not set for it.
+func (s *settingsView) onRepository() bool {
+	ref, ok := s.currentRef()
+	if !ok || ref.repository == "" {
+		return false
+	}
+	s.app.flash("a repository chosen on its own takes its server's directory and tags - d or t on the server, Ctrl-T in Repositories")
+	return true
+}
+
+// dropRepository takes back a repository chosen on its own. It stays in
+// the list until the next refresh, as a group unselected does.
+func (s *settingsView) dropRepository(ref treeRef) {
+	inst := s.app.cfg.Instance(ref.instance)
+	if inst == nil {
+		return
+	}
+	inst.RemoveRepository(ref.repository)
+	s.app.saveConfig()
+	s.fillTree()
+	s.fillServerTables()
+	s.app.note(ref.repository + " taken back · p refreshes the list without it")
 }
 
 // cycleGroup steps a group through the three selection states.

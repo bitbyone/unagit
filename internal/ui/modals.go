@@ -709,7 +709,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		return " " + tag(colMuted) + "NORMAL" + tagEnd + hint
 	}
 	filterHint := func() {
-		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + "   " + litHint("Enter select"))
+		enter := "Enter select"
+		if opts.enterHint != "" && onSelect != nil {
+			enter = "Enter " + opts.enterHint
+		}
+		footer.SetText(" " + tag(colWarn) + "FILTER" + tagEnd + "   " + litHint(enter))
 	}
 	if opts.filter {
 		typed = func() {

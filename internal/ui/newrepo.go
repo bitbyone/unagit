@@ -237,15 +237,16 @@ func (a *App) adoptProject(p forge.Project) {
 }
 
 // selectProject puts the cursor of Repositories on a repository, when it is
-// in the list as filtered.
-func (a *App) selectProject(want projectKey) {
+// in the list as filtered, and reports whether it was.
+func (a *App) selectProject(want projectKey) bool {
 	t := a.projectsPane.table
 	for row := 1; row < t.GetRowCount(); row++ {
 		i, ok := t.GetCell(row, 0).GetReference().(int)
 		if ok && i < len(a.projects) && a.projects[i].Instance == want.Instance &&
 			a.projects[i].PathWithNamespace == want.Path {
 			t.Select(row, 0)
-			return
+			return true
 		}
 	}
+	return false
 }
