@@ -305,3 +305,29 @@ func TestUndraftedTitles(t *testing.T) {
 		}
 	}
 }
+
+// TestDiffOfMarkedCommitsIsOneRange: D with a run of commits marked hands
+// Hunk one range from before the oldest to the newest, which it reads as
+// a revision; two revisions it would take the second for a path.
+func TestDiffOfMarkedCommitsIsOneRange(t *testing.T) {
+	t.Parallel()
+	hunk, prepare := fakeHunk(t)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	commitIn(t, p.clone, "c.txt", "Count requests")
+	oldest := gitIn(t, p.clone, "rev-parse", "HEAD")
+	commitIn(t, p.clone, "d.txt", "Bill them")
+	newest := gitIn(t, p.clone, "rev-parse", "HEAD")
+	p.rescan()
+
+	typeRunes(sc, "g")
+	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "· 1 marked")
+	typeRunes(sc, " ")
+	waitFor(t, a, sc, "· 2 marked")
+	typeRunes(sc, "D")
+	waitForLog(t, hunk, p.clone+" diff "+oldest+"~1.."+newest)
+}

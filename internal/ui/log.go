@@ -1026,8 +1026,10 @@ func (a *App) diffMarkedCommits(place logPlace, commits []logCommit, marked []in
 		return
 	}
 	newest, oldest := commits[marked[0]], commits[marked[len(marked)-1]]
+	// One range, not two revisions: hunk diff takes a second argument for
+	// a pathspec, and a path named after a commit matches nothing.
 	go func() {
-		a.runView(bin, diffView{dir: place.dir, args: []string{"diff", oldest.SHA + "~1", newest.SHA}})
+		a.runView(bin, diffView{dir: place.dir, args: []string{"diff", oldest.SHA + "~1.." + newest.SHA}})
 		a.tv.QueueUpdateDraw(back)
 	}()
 }
