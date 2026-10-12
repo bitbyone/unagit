@@ -19,8 +19,9 @@ flags below come from its `--help`; `sbx ls --json` answers
 A worktree - one repository's or a group's - gets a coding agent that runs
 in a VM instead of on the machine. The agent has full autonomy inside it;
 the machine, its home, its keys and unagit's tokens are out of its reach.
-The user picks the agent, a sandbox profile (the image and the resources),
-and whether the agent shares a VM with others or gets one of its own.
+The user picks the agent, a sandbox profile (a Dockerfile and the
+resources, kept in a git repository of their own), and whether the agent
+shares a VM with others or gets one of its own.
 
 ## The model, and why
 
@@ -98,15 +99,22 @@ worktree: its HEAD is the merge base on purpose, nothing is committed
 there):
 
 1. **Open in Sandboxed Agent…** asks, each picker skipped when it has one
-   item and ordered by use: the agent, the profile, the sandbox (the
-   running and stopped VMs of the profile from `sbx ls --json`, then New
-   Sandbox…), the place (the existing `agentPlaces`).
+   item and ordered by use: the agent, the profile, the sandbox, the place
+   (the existing `agentPlaces`). The sandbox picker is also where the
+   runtime is chosen: the profile's VMs of every runtime (from `sbx ls
+   --json`), each carrying its own, then New Sandbox in <runtime>… for
+   each runtime turned on in Integrations and installed - plain New
+   Sandbox… while there is one. A profile whose host-facing fields changed
+   since they were approved does not start (see [trust](#trust)).
 2. unagit **pushes the branch** of every repository of the worktree that
    has no upstream or is ahead of it - from the host, with its own
    credentials, through the path `P` uses. A branch origin has moved past
    stops the start with the reason; nothing is forced.
-3. The VM is created if new (`sbx create`, see [runtime](#the-runtime))
-   or started.
+3. **The image is checked** for the runtime: built from the profile's
+   tree at HEAD, or not. When it is not, the start asks to build it
+   (minutes, a `runTask` log) and never builds quietly.
+   The VM is then created if new (`sbx create`, see
+   [runtime](#the-runtime)) or started.
 4. **The task is prepared** by `sbx exec <vm> sh -c <script>` with the
    manifest in the environment: for each repository, clone at the branch
    into `/work/<task>/<dir>` (`--filter=blob:none`), or fetch and
@@ -160,36 +168,62 @@ that works for a self-hosted GitLab, behind a VPN included.
 
 ## Profiles
 
-A profile is a choice the user made, so it lives in config.yaml, carried
-between machines:
+### Where they live
 
-```yaml
-sandboxes:
-  kotlin:
-    runtime: sbx
-    template: docker.io/bitbyone/kotlin-dev:2026.10   # sbx -t
-    kits: []                                           # sbx --kit, opaque
-    cpus: 8
-    memory: 12g
-    deny_network: []                                   # sbx --deny-network
-    env: [SPRING_PROFILES_ACTIVE]                      # names, values from
-                                                       # the environment
-    bootstrap: .agent/bootstrap.sh                     # per repository, if
-                                                       # present, run in the VM
-    caches:
-      - host: ~/.gradle/caches
-        env: GRADLE_RO_DEP_CACHE
+Profiles are files in a git repository of the user's, the **environments
+repository**, edited and versioned as any repository is - in the editor,
+committed with unagit's commit dialog, pushed, shared with a team:
+
+```
+sandbox-envs/
+├── kotlin/
+│   ├── Dockerfile
+│   └── profile.yaml
+└── node/
+    ├── Dockerfile
+    └── profile.yaml
 ```
 
+A directory with a `profile.yaml` is a profile, named after the directory.
+
+Settings names the environments repository as **a repository of the
+list** (instance and project path), so config.yaml stays portable: unagit
+finds its main clone wherever it cloned it on this machine, as it does for
+any repository. A plain path is the fallback for a repository on no forge.
+Profiles are read from the main clone's working tree - what the user sees
+in their editor is what runs.
+
+unagit never edits a profile. The Sandboxes tab shows them read-only,
+parsed, and opens a profile's directory or file in the editor.
+
+### The format
+
+`profile.yaml` is unagit's own format, kept small, and **knows no
+runtime**. It describes the environment; where it runs is chosen at the
+start.
+
+```yaml
+dockerfile: Dockerfile        # relative to the profile; or image: <ref>
+cpus: 8
+memory: 12g
+env: [SPRING_PROFILES_ACTIVE] # names; values from the environment
+caches:
+  - host: ~/.gradle/caches
+    env: GRADLE_RO_DEP_CACHE
+deny_network: []
+bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
+```
+
+- An unknown field is an error naming it, never skipped: a misspelt
+  `memmory` must not quietly change the environment. The Sandboxes tab
+  shows a profile that does not parse with the error, and it cannot be
+  started.
 - **The image is the environment.** Everything static - JDK, Node, the
-  agents' CLIs, certificates - is in the template, built outside unagit
-  from a Dockerfile, multi-platform (`buildx --platform
-  linux/arm64,linux/amd64`). unagit references it and never builds it.
-  What depends on the checkout belongs to the repository's bootstrap,
-  which runs inside the VM.
-- **A repository never chooses a profile or a mount.** A file in a
-  repository saying "mount `~/.ssh`" would hand whoever merges a change to
-  it a way out. The repository gives the bootstrap script and nothing else.
+  agents' CLIs, certificates - goes into the Dockerfile. What depends on
+  the checkout belongs to the worked-on repository's bootstrap, which runs
+  inside the VM.
+- `image:` instead of `dockerfile:` names an image built elsewhere (a
+  team's CI); then nothing is built.
 - **Caches are read-only from the host.** `~/.gradle/caches` mounted
   read-only as Gradle's read-only dependency cache: what the host already
   has is not downloaded again, and what is missing goes to the VM's own
@@ -199,13 +233,78 @@ sandboxes:
   consistency while the host writes the cache - at worst a build in the VM
   fails and runs again. A mount is at the host's absolute path, as sbx
   mounts everything.
-- `kits` are passed through and never interpreted: kits v3 are Early
-  Access and their format will move.
+- Considered: devcontainer.json (a standard, but unagit would honour a
+  fraction of it and the rest would silently not work; the read-only cache
+  and the network rules do not map onto it) and sbx's `sbxenv.yaml`
+  (sbx's alone, and experimental).
 
-Settings gets a section, Sandboxes: the profiles as a list, each edited in
-a form (`showFormModalSized`, `addSelect` for the runtime), with a layout
-test as AGENTS.md requires. sbx appears in Integrations like the other
-programs (`a.executable("sbx")`).
+### Trust
+
+The environments repository is the user's choice, so it is trusted - but a
+pull can bring a teammate's change, and some fields reach the host: the
+caches (host paths mounted), `env` (host values passed in) and the network
+rules. A change to those must be approved before the profile runs, as
+`direnv allow` does:
+
+- `config.State` (state.json) keeps, per profile, a hash of its
+  host-facing fields as last approved.
+- A profile whose fields differ shows "changed since approved" on the
+  Sandboxes tab; Approve… shows the difference of those fields alone and
+  asks. A new profile starts unapproved.
+- The worked-on repositories still choose nothing: they give the bootstrap
+  script, which runs inside the VM.
+
+### What a runtime makes of it
+
+Everything runtime-specific is generated just before a start, from the
+neutral profile, and kept as a cache (`<cache>/sandboxes/<runtime>/`) that
+is never edited and always regenerated. For sbx:
+
+| profile | sbx |
+| --- | --- |
+| `dockerfile` | `docker build`, `docker save`, `sbx template load`, tagged `unagit-env/<profile>:<tree>` |
+| `image` | `-t <image>` |
+| `cpus`, `memory` | `--cpus`, `--memory` |
+| `deny_network` | `--deny-network` |
+| `env` | `-e NAME` |
+| `caches` | `<host>:ro` as an extra workspace, `-e <env>=<host>` |
+| `bootstrap` | run by `sbx exec` after the clones |
+
+- `<tree>` is the git tree hash of the profile's directory at HEAD, so
+  whether the image is current is a comparison with `sbx template ls
+  --json`, per runtime: **built**, **outdated**, **not built**. A profile
+  with uncommitted changes is marked so; Build… builds them as they are,
+  tagged `<tree>-dirty`.
+- A local build is for this machine's architecture, which is all a local
+  sandbox needs.
+- **No kit is generated** while flags can say it: kits v3 are Early Access,
+  and a generator tied to their format would break with sbx's releases.
+  One is generated only if the spike finds something flags cannot do -
+  the credential for git's push is the candidate.
+
+### What the user adds for one runtime
+
+What the user wants for sbx alone - a kit of the company's certificates,
+a mirror - is a choice on this machine, not part of the environment. It
+lives in config.yaml under the runtime's integration and is edited in
+Settings › Integrations, in sbx's block:
+
+```yaml
+integrations:
+  sbx:
+    kits: [docker.io/bitbyone/company-ca:1]    # every profile
+    profiles:
+      kotlin:
+        kits: [docker.io/bitbyone/gradle-mirror:1]
+```
+
+It is the user's own file, so no approval. It is keyed by the profile's
+name: one whose profile is gone is a warning in Settings, never dropped. A
+runtime added later gets a block of its own the same way. Kits are passed
+through and never interpreted.
+
+sbx appears in Integrations like the other programs (`a.executable("sbx")`);
+only runtimes turned on there are offered.
 
 ## The runtime
 
@@ -217,6 +316,8 @@ type Runtime interface {
 	Name() string
 	Available() error                    // installed, signed in, daemon up
 	List() ([]Box, error)                // name, profile, state, memory
+	Images() ([]Image, error)            // built templates, by tag
+	Build(p Profile, log io.Writer) error // the profile's image, for this runtime
 	Create(spec Spec) error              // detached, idempotent by name
 	Exec(name string, cmd Command) *exec.Cmd // -it when Interactive
 	Stop(name string) error
@@ -229,6 +330,8 @@ sbx's side, from its `--help`:
 | Runtime | sbx |
 | --- | --- |
 | `List` | `sbx ls --json` |
+| `Build` | `docker build`, `docker save`, `sbx template load` (see [profiles](#what-a-runtime-makes-of-it)) |
+| `Images` | `sbx template ls --json` |
 | `Create` | `sbx create --name N -t T --kit K --cpus C -m M --deny-network H -e K <agent> <mounts>` |
 | `Exec` | `sbx exec [-it] [-w DIR] [-e K=V] N cmd…` (starts a stopped VM) |
 | `Stop` | `sbx stop N` |
@@ -246,6 +349,9 @@ Spike questions about it:
 - Does `sbx exec` take `-w`?
 - Do read-only mounts of host directories outside the workspace work
   (`<path>:ro` as an extra workspace)?
+- Does `sbx template load` take a tar from `docker save`, or only one from
+  `sbx template save`? If only the latter: build in a sandbox and `sbx
+  template save` it, or push to a registry.
 
 Errors are lower case and say what to do: `sbx is not signed in - run
 sbx login`.
@@ -330,24 +436,34 @@ directory, and that a plugin's commands get `HERDR_SOCKET_PATH` and
 
 ## What the user sees
 
-Actions, as data (`actions_lists.go`), each with its `about`:
+**A Sandboxes tab**, `6`, after Settings (`5` stays, as the messages that
+point at `Settings [5]` do). Three parts, each a list made the way the
+other screens' are (`pane.go`, its actions as `uiAction`s):
+
+| part | rows | actions |
+| --- | --- | --- |
+| **Profiles** | name, image state per runtime, approval, last commit to its directory | Open in Editor…, Build…, Approve…, Open in Sandboxed Agent… |
+| **Sandboxes** | VM: runtime, profile, state, memory, tasks | Shell… (`sbx exec -it <vm> bash` in a place), Stop, Remove (a question naming its tasks) |
+| **Tasks** | in the VM under the cursor: worktree, agent, its state | Open Worktree, Remove Task (`rm -rf /work/<task>` in the VM) |
+
+Without an environments repository set, the tab says where to set it.
+Activity still lists every agent, sandboxed ones with their VM: Activity is
+what runs, the Sandboxes tab is what it runs in.
+
+Elsewhere:
 
 - **Open in Sandboxed Agent…** on repositories with a worktree, worktrees,
   groups, merge requests with a branch worktree. Alt picks again what use
   would skip (the profile and the sandbox, even when one).
-- **Sandboxes…**: a `pickTable` of the VMs (name, profile, state, tasks,
-  memory) from anywhere (`:`). Its keys: Shell (`sbx exec -it <vm> bash` in
-  a place), Stop, Remove (a question, and it names the tasks in it), and
-  Enter lists its tasks with their worktrees.
+- Settings: the environments repository, and sbx's block in
+  Integrations (on or off, its kits).
 - **Pull** of a worktree or a group is what brings the agent's work; it
   exists already for branches with an upstream, check it covers a group in
   one go.
 - Deleting a worktree or a group with a task in a VM offers to remove the
-  task (`rm -rf /work/<task>` in the VM) and, for a VM of its own, the VM.
-  The default keeps the VM.
-- Activity lists sandboxed agents with their VM.
-- Help rows for the new keys; the README explains the feature and the
-  forge-side protection.
+  task and, for a VM of its own, the VM. The default keeps the VM.
+- Help rows for the tab and the new keys; the README explains the feature,
+  the environments repository and the forge-side protection.
 
 Later, not in the first version: following the branch on the forge
 (`internal/watch`) to say when the agent pushed, and pulling on request
@@ -361,8 +477,13 @@ from that news.
 - The manifest: URLs from the forge, never from a remote; no token in any
   argv or environment unagit builds (grep them, as the token test greps
   the disk).
-- UI: the pickers, Settings › Sandboxes with its layout test at several
-  sizes, `assertLegible`, help rows, `TestEveryActionIsNamedAndExplained`.
+- Profiles: parsing (an unknown field is an error), the tree hash and the
+  image state against a stand-in `sbx template ls`, the generated flags,
+  the approval refusing a changed cache or `env` and passing a changed
+  `cpus`.
+- UI: the Sandboxes tab and the pickers at several terminal sizes,
+  `assertLegible`, sbx's block in Integrations, help rows,
+  `TestEveryActionIsNamedAndExplained`, `TestNoTwoActionsShareAKey`.
 - The plugin: the manifest written with the binary's path and rewritten
   when it moves; `observe` against a stand-in `herdr` reporting a state on
   a change only, releasing a pane that no longer runs `sbx exec`; the
@@ -377,11 +498,12 @@ from that news.
 1. **Spike by hand**, everything marked so above, written back into this
    file: a VM with no repository mounted, a clone and a push from it to the
    user's GitLab with an sbx secret, a second agent by `sbx exec`, `-w`,
-   the read-only Gradle cache.
+   the read-only Gradle cache, `sbx template load` of a `docker save`.
 2. `internal/sandbox` with sbx, the stand-in, the tests.
-3. Profiles in config and Settings › Sandboxes.
+3. Profiles: the environments repository in Settings, `profile.yaml`, the
+   build and the image state, the approval, sbx's block in Integrations.
 4. Open in Sandboxed Agent… for one repository's worktree, This Terminal
    only; then groups; then every place.
-5. Sandboxes…, the removal with a worktree, Activity.
+5. The Sandboxes tab, the removal with a worktree, Activity.
 6. The herdr plugin and its install in Integrations.
 7. AGENTS.md's map gains `internal/sandbox`; the README its section.
