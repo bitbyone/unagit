@@ -37,7 +37,7 @@ keychain, with an item of its own.
 ## Working here
 
 ```sh
-make build            # go build -o unagit ./cmd/unagit
+make build            # both binaries: unagit and atbox (build-unagit, build-atbox)
 make test             # go test -race ./...
 make test-fast        # go test ./... while iterating; race still before commit
 make test-atbox       # only atbox, with the race detector
@@ -137,6 +137,8 @@ select (`styleDropDown`), it just was not reused. The rules:
 | Package | What it owns |
 | --- | --- |
 | `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where` |
+| `cmd/atbox` | the standalone sandbox CLI's entry point |
+| `internal/atbox` | atbox: profiles, runtimes (sbx), sandboxes, tasks, herdr plugin; imports nothing of unagit's |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
 | `internal/github` | github.com client, same |

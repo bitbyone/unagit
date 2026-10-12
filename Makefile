@@ -1,10 +1,15 @@
-BIN := unagit
+BINS := unagit atbox
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test test-fast test-atbox test-atbox-fast integration integration-image install clean fmt
+.PHONY: build build-unagit build-atbox test test-fast test-atbox test-atbox-fast integration integration-image install clean fmt
 
-build:
-	go build -o $(BIN) ./cmd/unagit
+build: build-unagit build-atbox
+
+build-unagit:
+	go build -o unagit ./cmd/unagit
+
+build-atbox:
+	go build -o atbox ./cmd/atbox
 
 test:
 	go test -race ./...
@@ -40,8 +45,13 @@ fmt:
 	gofmt -w .
 
 install: build
-	install -d $(PREFIX)/bin
-	install -m 0755 $(BIN) $(PREFIX)/bin/$(BIN)
+	install -d "$(PREFIX)/bin"
+	@set -e; for bin in $(BINS); do \
+		if ! cmp -s "$$bin" "$(PREFIX)/bin/$$bin" || [ ! -x "$(PREFIX)/bin/$$bin" ]; then \
+			install -m 0755 "$$bin" "$(PREFIX)/bin/$$bin"; \
+			echo "installed $$bin"; \
+		fi; \
+	done
 
 clean:
-	rm -f $(BIN)
+	rm -f $(BINS)
