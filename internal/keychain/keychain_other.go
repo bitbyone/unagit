@@ -1,11 +1,12 @@
-//go:build !darwin
+//go:build !darwin || !cgo
 
 package keychain
 
 // Available reports whether secrets can be kept in a keychain here. Outside
 // macOS there is no keychain that limits an item to the program that stored
 // it - the Secret Service lets any program of the user's read it - so none is
-// used.
+// used. On macOS the keychain is reached through cgo; a build without a C
+// compiler has none either.
 func Available() bool { return false }
 
 func Get(service, account string) ([]byte, error)      { return nil, ErrUnsupported }

@@ -90,6 +90,8 @@ func TestCommandsUseArgumentsAndRespectEnvironment(t *testing.T) {
 }
 
 func TestSlowToolHasABoundedWait(t *testing.T) {
+	// The bound itself, not the minute the test environment gives zoxide.
+	t.Setenv("UNAGIT_ZOXIDE_TIMEOUT", "")
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "zoxide")
 	if err := testenv.WriteExecutable(bin, []byte("#!/bin/sh\nexec /bin/sleep 5\n")); err != nil {

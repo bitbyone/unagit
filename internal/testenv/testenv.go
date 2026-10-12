@@ -75,6 +75,11 @@ func Isolate() func() {
 			delete(goEnv, key)
 		}
 	}
+	if missing := missingTools(); missing != "" {
+		os.RemoveAll(root)
+		fmt.Fprintln(os.Stderr, "testenv: "+missing)
+		os.Exit(1)
+	}
 	bin := filepath.Join(root, "bin")
 	must(os.MkdirAll(bin, 0o700))
 	for _, tool := range Tools {
@@ -118,6 +123,9 @@ func Isolate() func() {
 		"GIT_CONFIG_GLOBAL":   gitconfig,
 		"GIT_CONFIG_NOSYSTEM": "1",
 		"GIT_TERMINAL_PROMPT": "0",
+		// A visit to zoxide is dropped after two seconds, which a stand-in
+		// run by unagit as a program of its own missed under load.
+		"UNAGIT_ZOXIDE_TIMEOUT": "1m",
 	}
 	for key, value := range goEnv {
 		set[key] = value
@@ -159,4 +167,36 @@ func WriteExecutable(path string, content []byte) error {
 	syscall.ForkLock.RLock()
 	defer syscall.ForkLock.RUnlock()
 	return os.WriteFile(path, content, 0o755)
+}
+
+// minGit is the oldest git the tests run with: merge-tree --write-tree,
+// which forecasts a rebase's conflicts, came in 2.38.
+var minGit = [2]int{2, 38}
+
+// missingTools says what a machine lacks to run the tests at all - a git new
+// enough - before they fail one by one with something harder to read.
+func missingTools() string {
+	path, err := exec.LookPath("git")
+	if err != nil {
+		return fmt.Sprintf("the tests need git %d.%d or newer, and there is none on PATH", minGit[0], minGit[1])
+	}
+	out, err := exec.Command(path, "version").Output()
+	if err != nil {
+		return fmt.Sprintf("%s does not run (%v); the tests need git %d.%d or newer", path, err, minGit[0], minGit[1])
+	}
+	if version, ok := gitAtLeast(string(out), minGit); !ok {
+		return fmt.Sprintf("the tests need git %d.%d or newer; %s is %s", minGit[0], minGit[1], path, version)
+	}
+	return ""
+}
+
+// gitAtLeast reads `git version` - "git version 2.39.5", or with a vendor's
+// note after it - and says whether it is min or newer, and what it is.
+func gitAtLeast(out string, min [2]int) (string, bool) {
+	version := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(out), "git version "))
+	var major, minor int
+	if _, err := fmt.Sscanf(version, "%d.%d", &major, &minor); err != nil {
+		return version, false
+	}
+	return version, major > min[0] || major == min[0] && minor >= min[1]
 }

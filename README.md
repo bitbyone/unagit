@@ -58,7 +58,9 @@ cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 with an empty array rather than an error, so your orgs simply would not show up.
 `v` checks a token against the server before you trust it.
 
-Requirements: Go 1.26+, `git`, and an editor (`nvim` by default).
+Requirements: Go 1.26+, `git` 2.38+, and an editor (`nvim` by default). On
+macOS the passphrase can be kept in the keychain only in a build made with a
+C compiler (the Xcode Command Line Tools, which `git` there needs anyway).
 
 ## Navigating
 
@@ -1299,3 +1301,29 @@ simple blocks with up to five actions keep dim inline hints at the bottom.
 Confirmation dialogs accept the action letter directly (`c` cancels, `d` deletes).
 In forms, use `Alt` plus the hinted letter while typing, or the letter alone
 when a button has focus.
+
+## Developing
+
+```sh
+make build            # go build -o unagit ./cmd/unagit
+make test-fast        # go test ./...
+make test             # the same with the race detector
+make integration      # in Docker: the suite on Linux, then the real programs
+```
+
+The tests need **Go 1.26+ and git 2.38+**, and nothing else: no editor, no
+multiplexer, no chezmoi, zoxide or incomm, no git identity or configuration
+of yours. Every test package runs in an environment of its own
+(`internal/testenv`) - a temporary home, a git configuration with an
+identity of its own, and a `PATH` holding git, go and the shell's utilities
+alone - so what is installed or configured on the machine changes nothing,
+and the tests change nothing on it. A git too old or missing stops the run at
+once and says so. `make test` adds the race detector, which on Linux needs a
+C compiler too.
+
+`make integration` runs what needs the real programs - Neovim, incomm,
+Zellij, herdr - in a Docker image that has them at pinned versions, incomm
+cloned from its repository and built; it needs Docker and nothing more. The
+image is built on the first run and again when `integration/Dockerfile`
+changes. The command ends with a non-zero status when a test failed, and
+each failure is a `--- FAIL` line with its file and line.

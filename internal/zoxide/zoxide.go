@@ -52,6 +52,12 @@ func (c *Client) run(args ...string) ([]byte, error) {
 	wait := c.wait
 	if wait == 0 {
 		wait = timeout
+		// UNAGIT_ZOXIDE_TIMEOUT lengthens it where zoxide is slow to start:
+		// a loaded machine, or a test running unagit as a program of its
+		// own, whose visits were otherwise dropped now and then.
+		if d, err := time.ParseDuration(os.Getenv("UNAGIT_ZOXIDE_TIMEOUT")); err == nil && d > 0 {
+			wait = d
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()

@@ -84,3 +84,21 @@ func TestTheMachineIsOutOfReach(t *testing.T) {
 		t.Errorf("git's identity is %q (%v), not the tests'", out, err)
 	}
 }
+
+// TestGitVersionsAreRead: the versions git and its vendors print, against
+// the oldest the tests run with.
+func TestGitVersionsAreRead(t *testing.T) {
+	for out, want := range map[string]bool{
+		"git version 2.54.0 (Apple Git-157)\n": true,
+		"git version 2.39.5\n":                 true,
+		"git version 2.38.0":                   true,
+		"git version 2.37.9":                   false,
+		"git version 1.99.0":                   false,
+		"git version 3.0.0":                    true,
+		"something else":                       false,
+	} {
+		if _, got := gitAtLeast(out, [2]int{2, 38}); got != want {
+			t.Errorf("gitAtLeast(%q) = %v, want %v", out, got, want)
+		}
+	}
+}

@@ -544,7 +544,10 @@ server. Rules learned the hard way:
   temporary home and XDG directories, a git configuration of the run's own
   with an identity and no system file, the multiplexer and terminal
   variables gone, and a PATH holding git, go and the shell's utilities
-  (`testenv.Tools`) and nothing else. It changes the process's environment
+  (`testenv.Tools`) and nothing else; a git older than 2.38 (`minGit`), or
+  none, stops the run with a sentence saying so. Without a C compiler the
+  keychain is left out of the build (`darwin && cgo`) rather than breaking
+  it, so the tests need none. It changes the process's environment
   only and writes nothing outside its temporary directory. So a test that
   needs a program to be "installed" says so: `installed("chezmoi")` as the
   app's `findExecutable` when only what is drawn matters, a stand-in on its
