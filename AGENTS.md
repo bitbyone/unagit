@@ -40,6 +40,7 @@ keychain, with an item of its own.
 make build            # go build -o unagit ./cmd/unagit
 make test             # go test -race ./...
 make test-fast        # go test ./... while iterating; race still before commit
+make integration      # the suite on Linux, then real Neovim, incomm, Zellij, herdr - in Docker
 gofmt -l . && go vet ./...
 ```
 
@@ -550,7 +551,18 @@ server. Rules learned the hard way:
   own PATH (`editortest.Install`) when the program is run. The UI
   looks programs up through `a.executable`, never `exec.LookPath`, or no
   test can stand in for them. A test of a real program - Neovim, incomm, a
-  multiplexer - skips here and belongs to the integration suite.
+  multiplexer - is a `*_integration_test.go` with `//go:build integration`,
+  finds its program with `testenv.Require` (missing, it fails rather than
+  skips) and runs in the image of `make integration`
+  (`integration/Dockerfile`, incomm cloned and built from its public
+  repository), never on the host. Ghostty and the keychain are macOS's and
+  stay opt-in by their variables.
+- Stand-in programs are written with `testenv.WriteExecutable`, never
+  `os.WriteFile`: on Linux a child forked while the file is open for
+  writing makes running it fail with "text file busy". A test waits for the
+  state its next step needs, not for text that may already be on screen or
+  gone for another reason - a glyph two marks share, a heading the filter
+  hid - and keys it presses with `InjectKey` are waited for the same way.
 - Every test calls `t.Parallel()` unless it changes process state: `t.Setenv`
   (a fake binary on `PATH`), a package variable it swaps (`passphraseStore`,
   `copyToClipboard`, `pickerStarted`), or it measures time (the debounce).

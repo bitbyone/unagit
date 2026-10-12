@@ -4,12 +4,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
 
 func TestMain(m *testing.M) { Main(m) }
+
+// executableWrite is an os.WriteFile of a file with the owner's execute
+// bit, which on Linux can leave the program "text file busy".
+var executableWrite = regexp.MustCompile(`os\.WriteFile\([^\n]*(,\n[^\n]*)?, 0o?7[0-7][0-7]\)`)
 
 // TestEveryPackageRunsInTheTestEnvironment: a package whose tests skip
 // Isolate sees the machine's git, home and programs again.
@@ -33,6 +39,9 @@ func TestEveryPackageRunsInTheTestEnvironment(t *testing.T) {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
+		}
+		if executableWrite.Match(b) {
+			t.Errorf("%s writes a program with os.WriteFile; use testenv.WriteExecutable", path)
 		}
 		if strings.Contains(string(b), "testenv.Main(m)") || strings.Contains(string(b), "testenv.Isolate()") ||
 			dir == filepath.Join("internal", "testenv") {
@@ -63,6 +72,9 @@ func TestTheMachineIsOutOfReach(t *testing.T) {
 		t.Error("git still reads the system's configuration")
 	}
 	for _, name := range []string{"nvim", "chezmoi", "zoxide", "osascript", "open", "security"} {
+		if slices.Contains(Tools, name) {
+			continue // the integration suite's
+		}
 		if path, err := exec.LookPath(name); err == nil {
 			t.Errorf("%s is on PATH at %s", name, path)
 		}

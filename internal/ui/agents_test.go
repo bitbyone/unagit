@@ -14,6 +14,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/muxtest"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // fakeAgents puts stand-ins for the named agents, and for herdr when given,
@@ -26,7 +27,7 @@ func fakeAgents(t *testing.T, herdr string, ids ...string) (string, func(*App)) 
 	for _, id := range ids {
 		ag, _ := agents.ByID(id)
 		bin := filepath.Join(dir, ag.Command)
-		must(t, os.WriteFile(bin, []byte("#!/bin/sh\nprintf '%s %s\\n' \""+id+"\" \"$PWD\" >> '"+log+"'\n"), 0o755))
+		must(t, testenv.WriteExecutable(bin, []byte("#!/bin/sh\nprintf '%s %s\\n' \""+id+"\" \"$PWD\" >> '"+log+"'\n")))
 		bins[ag.Command] = bin
 	}
 	if herdr != "" {

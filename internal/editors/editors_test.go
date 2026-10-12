@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // fakeMachine makes Detect see only the launchers and applications given.
@@ -37,7 +39,7 @@ func fakeMachine(t *testing.T, bins map[string]string, apps ...string) {
 func TestDetectFindsToolboxScripts(t *testing.T) {
 	fakeMachine(t, nil, "IntelliJ IDEA.app")
 	script := filepath.Join(ScriptDirs()[0], "idea")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := testenv.WriteExecutable(script, []byte("#!/bin/sh\n")); err != nil {
 		t.Fatal(err)
 	}
 	e, _ := Pick(Detect(CustomSpec{}), Idea)

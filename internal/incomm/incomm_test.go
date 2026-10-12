@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // fakeScript stands in for the incomm CLI: it answers `version` and `list` (from
@@ -43,7 +43,7 @@ func fakeIncomm(t *testing.T) (bin, dir string) {
 	t.Helper()
 	bin, dir = t.TempDir(), t.TempDir()
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if err := os.WriteFile(filepath.Join(bin, "incomm"), []byte(fakeScript), 0o755); err != nil {
+	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(fakeScript)); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "code.go"), []byte("first\nsecond\n"), 0o644); err != nil {
@@ -271,7 +271,7 @@ func TestImportFailureReachesTheCaller(t *testing.T) {
 	// version and list work, everything else fails: a failed write must
 	// propagate, because it gates starting the editor.
 	script := "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = version ]; then echo '{\"formatVersion\":2}'; exit 0; fi\n  if [ \"$a\" = list ]; then echo '{\"notes\":[]}'; exit 0; fi\ndone\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(bin, "incomm"), []byte(script), 0o755); err != nil {
+	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	err := Import(context.Background(), dir, forge.MergeRequest{}, []forge.Note{{ID: 1, Thread: "a", Body: "x", Path: "code.go", Line: 1}}, nil)
@@ -283,7 +283,7 @@ func TestImportFailureReachesTheCaller(t *testing.T) {
 func TestImportRefusesAnOldCLI(t *testing.T) {
 	bin, dir := fakeIncomm(t)
 	// A 1.0.x CLI has no version command, and would drop audience and source.
-	if err := os.WriteFile(filepath.Join(bin, "incomm"), []byte("#!/bin/sh\necho 'unknown command' >&2\nexit 1\n"), 0o755); err != nil {
+	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte("#!/bin/sh\necho 'unknown command' >&2\nexit 1\n")); err != nil {
 		t.Fatal(err)
 	}
 	err := Import(context.Background(), dir, forge.MergeRequest{}, []forge.Note{{ID: 1, Body: "x", Path: "code.go", Line: 1}}, nil)
@@ -324,89 +324,6 @@ func TestImportThreadsGroupsAndLocates(t *testing.T) {
 	}
 	if threads[2].Root.ID != 7 || len(threads[2].Replies) != 0 {
 		t.Errorf("standalone: %+v", threads[2])
-	}
-}
-
-// This exercises the real CLI when one that understands audience and source is
-// installed, without putting anything in the user's repositories.
-func TestInstalledCLI(t *testing.T) {
-	binary, err := CheckCLI(context.Background())
-	if err != nil {
-		t.Skip("no usable incomm installed: " + err.Error())
-	}
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "code.go"), []byte("one\n\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	notes := []forge.Note{
-		{ID: 1, Path: "code.go", Line: 1, Body: "review comment", Author: forge.User{Name: "Reviewer"}, Thread: "t1"},
-		{ID: 2, Path: "gone.go", Line: 5, Body: "deleted file", Thread: "t2"},
-		{ID: 3, Path: "code.go", Line: 2, Body: "deleted line", Orphaned: true, Thread: "deleted"},
-		{ID: 4, Body: "orphan reply", Thread: "deleted"},
-		{ID: 5, Path: "code.go", Line: 99, Body: "past end", Thread: "t5"},
-		{ID: 6, Body: "general"},
-	}
-	list := func() (result struct {
-		Notes []struct {
-			Content     string
-			Orphaned    bool
-			Audience    string
-			AuthorTitle string `json:"authorTitle"`
-			Source      *Source
-			Replies     []struct{ Content string }
-		}
-	}) {
-		cmd := exec.Command(binary, "--root", dir, "--json", "list")
-		cmd.Dir = dir
-		out, err := cmd.Output()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(out, &result); err != nil {
-			t.Fatal(err)
-		}
-		return result
-	}
-	for range 2 {
-		if err := Import(context.Background(), dir, forge.MergeRequest{WebURL: "https://forge/mr/1"}, notes, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	result := list()
-	if len(result.Notes) != 4 {
-		t.Fatalf("want 4 comments, importing twice must not duplicate: %+v", result)
-	}
-	for _, n := range result.Notes {
-		if n.Audience != "agent+external" || n.Source == nil || n.Source.ID == 0 {
-			t.Errorf("no audience/source: %+v", n)
-		}
-		switch {
-		case strings.Contains(n.Content, "review comment"):
-			if n.Orphaned || n.AuthorTitle != "Reviewer" {
-				t.Errorf("invalid current comment: %+v", n)
-			}
-		case n.Content == "deleted line":
-			if !n.Orphaned || len(n.Replies) != 1 || n.Replies[0].Content != "orphan reply" {
-				t.Errorf("the orphan reply must be a reply: %+v", n)
-			}
-		default:
-			if !n.Orphaned {
-				t.Errorf("lost orphan status after listing: %+v", n)
-			}
-		}
-	}
-	notes[0].Orphaned = true
-	if err := Import(context.Background(), dir, forge.MergeRequest{WebURL: "https://forge/mr/1"}, notes, nil); err != nil {
-		t.Fatal(err)
-	}
-	result = list()
-	if len(result.Notes) != 4 {
-		t.Fatalf("reimport duplicated comments: %+v", result)
-	}
-	for _, n := range result.Notes {
-		if !n.Orphaned {
-			t.Fatalf("existing comment was not orphaned: %+v", n)
-		}
 	}
 }
 

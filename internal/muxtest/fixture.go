@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 type Call struct {
@@ -52,7 +53,7 @@ func New(t *testing.T) Tool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(tool.Binary, bin, 0700); err != nil {
+	if err := testenv.WriteExecutable(tool.Binary, bin); err != nil {
 		t.Fatal(err)
 	}
 	// The first start of a new executable is slow on macOS, which looks at
@@ -158,7 +159,7 @@ func newStand(t *testing.T, source, name, warm string) Stand {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.Binary, bin, 0o700); err != nil {
+	if err := testenv.WriteExecutable(s.Binary, bin); err != nil {
 		t.Fatal(err)
 	}
 	// The first start of a new executable is slow on macOS; had here.

@@ -1,3 +1,5 @@
+//go:build integration
+
 package mux_test
 
 import (
@@ -8,24 +10,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/creack/pty"
 	"github.com/tobola/unagit/internal/editortest"
 	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // This owns a session and configuration of its own, never a user's panes.
 // Environment isolation makes it serial; ordinary runs use the fake CLI.
 func TestZellijOpensRealEditors(t *testing.T) {
-	if os.Getenv("UNAGIT_ZELLIJ_TEST") != "1" {
-		t.Skip("set UNAGIT_ZELLIJ_TEST=1 to exercise installed Zellij")
-	}
-	bin, err := exec.LookPath("zellij")
-	if err != nil {
-		t.Skip("Zellij is not installed")
-	}
+	bin := testenv.Require(t, "zellij")
 	dir := editortest.ShortDir(t)
 	config := filepath.Join(dir, "config.kdl")
 	mustWrite := func(path, body string) {
@@ -54,7 +52,9 @@ func TestZellijOpensRealEditors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go io.Copy(io.Discard, terminal)
+	// What Zellij drew is kept for a failure to show.
+	var drawn lockedBuffer
+	go io.Copy(&drawn, terminal)
 	t.Cleanup(func() {
 		exec.Command(bin, "kill-session", name).Run()
 		terminal.Close()
@@ -62,18 +62,22 @@ func TestZellijOpensRealEditors(t *testing.T) {
 		server.Wait()
 	})
 	client := &mux.Client{Connection: mux.Connection{Kind: mux.Zellij, Binary: bin, Session: name}, SourcePane: "0"}
-	wait := func(ready func() bool) {
+	// A real Zellij starting beside the whole suite once took more than
+	// fifteen seconds; a minute only matters when something is wrong.
+	wait := func(what string, ready func() bool) {
 		t.Helper()
-		deadline := time.Now().Add(15 * time.Second)
+		deadline := time.Now().Add(time.Minute)
 		for time.Now().Before(deadline) {
 			if ready() {
 				return
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		t.Fatal("Zellij did not reach the expected state")
+		panes, err := client.Panes()
+		listed, _ := exec.Command(bin, "list-sessions", "--no-formatting").CombinedOutput()
+		t.Fatalf("Zellij never got to %s; panes %v, %v; sessions:\n%s\nlast drawn:\n%q", what, panes, err, listed, drawn.tail(2000))
 	}
-	wait(func() bool { panes, err := client.Panes(); return err == nil && panes["terminal_0"] })
+	wait("its first pane", func() bool { panes, err := client.Panes(); return err == nil && panes["terminal_0"] })
 	// Zellij directs CLI focus actions to the last client that typed a key.
 	// Opening the action picker in unagit already supplies that keystroke.
 	if _, err := terminal.Write([]byte("\n")); err != nil {
@@ -102,16 +106,39 @@ func TestZellijOpensRealEditors(t *testing.T) {
 			t.Fatal(err)
 		}
 		expected := []byte(realDir + "\n" + marker)
-		wait(func() bool { body, _ := os.ReadFile(output); return bytes.Equal(body, expected) })
+		wait("running the editor", func() bool { body, _ := os.ReadFile(output); return bytes.Equal(body, expected) })
 		alive, err := client.Panes()
 		if err != nil || !alive[pane] {
 			t.Fatalf("running editor absent: %v, %v", alive, err)
 		}
-		wait(func() bool {
+		wait("focusing the editor's pane", func() bool {
 			focused, err := exec.Command(bin, "--session", name, "action", "list-clients").Output()
 			return err == nil && strings.Contains(string(focused), pane)
 		})
 		mustWrite(gate, "")
-		wait(func() bool { alive, err := client.Panes(); return err == nil && !alive[pane] })
+		wait("closing the editor's pane", func() bool { alive, err := client.Panes(); return err == nil && !alive[pane] })
 	}
+}
+
+// lockedBuffer is a terminal's output, written by one goroutine and read by
+// the test's.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	if len(b.buf) > 1<<16 {
+		b.buf = b.buf[len(b.buf)-1<<15:]
+	}
+	return len(p), nil
+}
+
+func (b *lockedBuffer) tail(n int) string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf[max(0, len(b.buf)-n):])
 }

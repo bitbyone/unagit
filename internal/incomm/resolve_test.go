@@ -2,10 +2,8 @@ package incomm
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -302,70 +300,6 @@ func TestAnOrphanedRootIsPostedOnTheConversationWithoutALine(t *testing.T) {
 }
 
 // ---- Incomm re-anchors before anything is read ----------------------------
-
-func TestReanchorMakesThePlanFollowTheCode(t *testing.T) {
-	binary, err := CheckCLI(context.Background())
-	if err != nil {
-		t.Skip("no usable incomm installed: " + err.Error())
-	}
-	dir := t.TempDir()
-	write := func(text string) {
-		if err := os.WriteFile(filepath.Join(dir, "code.go"), []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("package main\n\nfunc a() {}\nfunc b() {}\nfunc c() {}\n")
-	run := func(args ...string) []byte {
-		cmd := exec.Command(binary, append([]string{"--root", dir, "--json"}, args...)...)
-		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("incomm %v: %v\n%s", args, err, out)
-		}
-		return out
-	}
-	run("add", "--file", "code.go", "--line", "4", "--content", "about b", "--author", "user",
-		"--author-title", "Jan", "--audience", "external")
-	line := func() (int, bool) {
-		threads := ReadThreads(dir)
-		if len(threads) != 1 {
-			t.Fatalf("threads = %+v", threads)
-		}
-		return threads[0].Line, threads[0].Orphaned
-	}
-	if l, o := line(); l != 4 || o {
-		t.Fatalf("before: %d %v", l, o)
-	}
-
-	// Lines land above the code: the stored line is now stale.
-	write("// new\n// lines\npackage main\n\nfunc a() {}\nfunc b() {}\nfunc c() {}\n")
-	if l, _ := line(); l != 4 {
-		t.Fatalf("nothing has re-anchored yet, the line is still %d", l)
-	}
-	if err := Reanchor(context.Background(), dir, filepath.Join(dir, "no-incomm-here"), dir); err != nil {
-		t.Fatal(err)
-	}
-	steps := Plan(ReadThreads(dir))
-	if len(steps) != 1 || steps[0].Line != 6 || steps[0].Orphaned {
-		t.Fatalf("the plan must follow the code to line 6: %+v", steps)
-	}
-
-	// The code is gone: the comment is orphaned, still listed, and marked.
-	write("package main\n\nfunc a() {}\nfunc c() {}\n")
-	if err := Reanchor(context.Background(), dir); err != nil {
-		t.Fatal(err)
-	}
-	steps = Plan(ReadThreads(dir))
-	if len(steps) != 1 || !steps[0].Orphaned || !strings.Contains(steps[0].Summary(), "orphaned") {
-		t.Fatalf("an orphaned pending comment is listed and marked: %+v", steps)
-	}
-
-	// The comment was never touched by a view: it is still there, still external.
-	var listed struct{ Notes []json.RawMessage }
-	if err := json.Unmarshal(run("--view", "external", "list"), &listed); err != nil || len(listed.Notes) != 1 {
-		t.Fatalf("external list: %v %v", listed, err)
-	}
-}
 
 func TestReanchorWithoutAnyIncommStateNeedsNoCLI(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // no incomm anywhere

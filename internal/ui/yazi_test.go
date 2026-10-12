@@ -13,6 +13,7 @@ import (
 	"github.com/tobola/unagit/internal/editortest"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/testenv"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -26,7 +27,7 @@ func fakeYazi(t *testing.T) (fakeYaziTool, func(*App)) {
 	f := fakeYaziTool{filepath.Join(dir, "calls"), filepath.Join(dir, "cwd"), filepath.Join(dir, "chosen"), filepath.Join(dir, "gate"), filepath.Join(dir, "init.lua")}
 	bin := filepath.Join(dir, "yazi")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$@\" >> " + yaziQuote(f.log) + "\nwhile [ -e " + yaziQuote(f.gate) + " ]; do sleep 0.02; done\ncat " + yaziQuote(f.cwd) + " > \"$2\"\ncat " + yaziQuote(f.chosen) + " > \"$4\"\n"
-	must(t, os.WriteFile(bin, []byte(script), 0o755))
+	must(t, testenv.WriteExecutable(bin, []byte(script)))
 	for _, path := range []string{f.cwd, f.chosen, f.init} {
 		must(t, os.WriteFile(path, nil, 0o600))
 	}
@@ -54,7 +55,7 @@ func yaziFavourite(t *testing.T, a *App) string {
 	dir := t.TempDir()
 	bin, log := filepath.Join(dir, "editor"), filepath.Join(dir, "calls")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$@\" > " + yaziQuote(log) + "\n"
-	must(t, os.WriteFile(bin, []byte(script), 0o755))
+	must(t, testenv.WriteExecutable(bin, []byte(script)))
 	changeOnLoop(a, func() {
 		a.cfg.Editor = bin
 		a.cfg.EditorArgs = []string{"--test"}

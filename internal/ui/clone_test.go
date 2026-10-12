@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 func TestCloneRepositoriesWithoutEditor(t *testing.T) {
@@ -20,7 +22,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 	}
 	marker := filepath.Join(t.TempDir(), "editor-opened")
 	editor := filepath.Join(t.TempDir(), "editor")
-	must(t, os.WriteFile(editor, []byte("#!/bin/sh\nprintf opened > \"$1\"\n"), 0o755))
+	must(t, testenv.WriteExecutable(editor, []byte("#!/bin/sh\nprintf opened > \"$1\"\n")))
 	visits, _, prepare := fakeZoxide(t)
 	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")

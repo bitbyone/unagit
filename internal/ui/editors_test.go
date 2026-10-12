@@ -13,6 +13,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // fakeEditors puts stand-ins for nvim and zed on an otherwise empty PATH and
@@ -39,10 +40,10 @@ func useFavourite(a *App, id string) {
 func fakeEditorsOnPath(t *testing.T) (marker string) {
 	bin := t.TempDir()
 	marker = filepath.Join(t.TempDir(), "zed-opened")
-	must(t, os.WriteFile(filepath.Join(bin, "nvim"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
-	must(t, os.WriteFile(filepath.Join(bin, "zed"),
-		[]byte("#!/bin/sh\nprintf '%s\\n%s\\n' \"$PWD\" \"$1\" > "+marker+"\n"), 0o755))
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+	must(t, testenv.WriteExecutable(filepath.Join(bin, "nvim"), []byte("#!/bin/sh\nexit 0\n")))
+	must(t, testenv.WriteExecutable(filepath.Join(bin, "zed"),
+		[]byte("#!/bin/sh\nprintf '%s\\n%s\\n' \"$PWD\" \"$1\" > "+marker+"\n")))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	saved := editors.AppDirs
 	editors.AppDirs = func() []string { return nil }
 	t.Cleanup(func() { editors.AppDirs = saved })

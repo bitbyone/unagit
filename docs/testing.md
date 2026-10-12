@@ -9,7 +9,18 @@ temporary home, a git configuration with an identity and nothing of the
 machine's, and a PATH with only git, go and the shell's utilities. They pass
 on a machine with nothing else installed and nothing configured, and they
 change nothing on it. What needs a real editor, incomm or a multiplexer
-skips here; it is the integration suite's.
+is the integration suite's.
+
+`make integration` runs in Docker, in an image built from
+`integration/Dockerfile`: Go, git, Neovim, Zellij and herdr at pinned
+versions, and incomm cloned from its public repository at a pinned commit
+and built. The image is named after its Dockerfile, so it is built once and
+again only when that changes. It mounts the checkout read-only and runs the
+whole suite on Linux, then the `integration`-tagged tests one package at a
+time, so the real programs do not start beside twenty compiling packages.
+The Linux run is worth having on its own: its shorter temporary paths and
+other timing found tests that read the screen too early, and a git (2.39)
+too old for the shelf's conflict forecast.
 
 ## What takes time
 

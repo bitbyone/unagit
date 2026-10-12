@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 func TestScoresKeepPathsWithSpaces(t *testing.T) {
@@ -48,7 +50,7 @@ func TestCommandsUseArgumentsAndRespectEnvironment(t *testing.T) {
 	log := filepath.Join(dir, "calls")
 	bin := filepath.Join(dir, "zoxide")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$_ZO_EXCLUDE_DIRS\" \"$@\" >> \"$ZO_TEST_LOG\"\nif [ \"$1\" = query ]; then printf '9.5 /a path\\n'; fi\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
@@ -90,7 +92,7 @@ func TestCommandsUseArgumentsAndRespectEnvironment(t *testing.T) {
 func TestSlowToolHasABoundedWait(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "zoxide")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexec /bin/sleep 5\n"), 0o755); err != nil {
+	if err := testenv.WriteExecutable(bin, []byte("#!/bin/sh\nexec /bin/sleep 5\n")); err != nil {
 		t.Fatal(err)
 	}
 	c := Find(func(string) (string, error) { return bin, nil })

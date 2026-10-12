@@ -13,7 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -60,6 +62,11 @@ func Isolate() func() {
 				goEnv[key] = lines[i]
 			}
 		}
+	}
+	// Only the keychain is cgo, and only on macOS. Elsewhere the compiler
+	// would look for its assembler on a PATH that has none.
+	if runtime.GOOS != "darwin" {
+		goEnv["CGO_ENABLED"] = "0"
 	}
 	for _, key := range []string{"CC", "CXX"} {
 		if path, err := exec.LookPath(goEnv[key]); err == nil {
@@ -141,4 +148,15 @@ func must(err error) {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "testenv:", err)
 	os.Exit(1)
+}
+
+// WriteExecutable writes a stand-in program. A plain os.WriteFile followed by
+// running the file fails now and then on Linux with "text file busy": a
+// child another test forks while the file is still open for writing keeps
+// that descriptor until it execs. Holding the fork lock while the file is
+// open lets no child be forked with it.
+func WriteExecutable(path string, content []byte) error {
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+	return os.WriteFile(path, content, 0o755)
 }

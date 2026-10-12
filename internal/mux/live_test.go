@@ -1,12 +1,10 @@
 package mux_test
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,10 +22,11 @@ func buildUnagit(t *testing.T) string {
 	return bin
 }
 
-// waitUntil polls for what a real terminal does in its own time.
+// waitUntil polls for what a real terminal does in its own time, which
+// beside the whole suite can be long.
 func waitUntil(t *testing.T, what string, done func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for !done() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
@@ -52,67 +51,6 @@ func checkRan(t *testing.T, out, dir string) {
 	}
 }
 
-// TestHerdrOpensRealCommands uses the herdr server the user runs: it opens
-// a tab in the Unagit Agents workspace, checks the command ran as given
-// and that the pane closed with it, and puts herdr's focus back.
-func TestHerdrOpensRealCommands(t *testing.T) {
-	if os.Getenv("UNAGIT_HERDR_TEST") != "1" {
-		t.Skip("set UNAGIT_HERDR_TEST=1 to exercise the running herdr")
-	}
-	c := mux.DetectHerdr(func(string) string { return "" }, exec.LookPath)
-	if c == nil {
-		t.Skip("herdr is not installed")
-	}
-	c.Self = buildUnagit(t)
-	before := herdrWorkspaces(t, c)
-	dir := t.TempDir()
-	out := filepath.Join(dir, "out")
-	pane, err := c.Open(mux.Window, dir, "unagit live test", awkwardCommand(out))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if !strings.Contains(before, mux.AgentsWorkspace) {
-			for _, line := range strings.Split(herdrWorkspaces(t, c), "\n") {
-				if id, label, _ := strings.Cut(line, " "); label == mux.AgentsWorkspace {
-					exec.CommandContext(ctx, c.Binary, "workspace", "close", id).Run()
-				}
-			}
-		}
-		if back := os.Getenv("HERDR_WORKSPACE_ID"); back != "" {
-			exec.CommandContext(ctx, c.Binary, "workspace", "focus", back).Run()
-		}
-	})
-	checkRan(t, out, dir)
-	waitUntil(t, "the pane to close with its command", func() bool {
-		live, err := c.Panes()
-		return err == nil && !live[pane]
-	})
-}
-
-func herdrWorkspaces(t *testing.T, c *mux.Client) string {
-	t.Helper()
-	out, err := exec.Command(c.Binary, "workspace", "list").Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// id label, one per line, without decoding more than is needed here.
-	var lines []string
-	for _, part := range strings.Split(string(out), `"workspace_id":"`)[1:] {
-		id, _, _ := strings.Cut(part, `"`)
-		lines = append(lines, id)
-	}
-	for i, part := range strings.Split(string(out), `"label":"`)[1:] {
-		label, _, _ := strings.Cut(part, `"`)
-		if i < len(lines) {
-			lines[i] += " " + label
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
 // TestGhosttyOpensRealCommands opens a Ghostty window running a command
 // through the launcher, and checks the window's terminal is closed once
 // the command ends - Ghostty itself would wait for a key.
@@ -120,7 +58,13 @@ func TestGhosttyOpensRealCommands(t *testing.T) {
 	if os.Getenv("UNAGIT_GHOSTTY_TEST") != "1" {
 		t.Skip("set UNAGIT_GHOSTTY_TEST=1 to open a real Ghostty window")
 	}
-	c := mux.DetectGhostty(os.Getenv, exec.LookPath, false)
+	// AppleScript is the system's, outside the tests' PATH.
+	c := mux.DetectGhostty(os.Getenv, func(name string) (string, error) {
+		if name == "osascript" {
+			return "/usr/bin/osascript", nil
+		}
+		return exec.LookPath(name)
+	}, false)
 	if c == nil {
 		t.Skip("Ghostty is not installed")
 	}

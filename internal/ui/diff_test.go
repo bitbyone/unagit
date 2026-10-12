@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // fakeHunk gives one app a hunk that writes down where it ran, with what, and
@@ -19,7 +21,7 @@ func fakeHunk(t *testing.T) (log string, prepare func(*App)) {
 	dir := t.TempDir()
 	log = filepath.Join(dir, "log")
 	script := "#!/bin/sh\necho \"$PWD $*\" >> " + log + "\nif [ \"$1\" = patch ]; then cat \"$2\" >> " + log + "; fi\n"
-	must(t, os.WriteFile(filepath.Join(dir, "hunk"), []byte(script), 0o755))
+	must(t, testenv.WriteExecutable(filepath.Join(dir, "hunk"), []byte(script)))
 	return log, func(a *App) {
 		a.findExecutable = func(name string) (string, error) {
 			if name == "hunk" {

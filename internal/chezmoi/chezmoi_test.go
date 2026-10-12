@@ -1,10 +1,12 @@
 package chezmoi
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 func TestKeyNamesOneRepositoryWhateverTheProtocol(t *testing.T) {
@@ -36,6 +38,12 @@ func TestKeyNamesOneRepositoryWhateverTheProtocol(t *testing.T) {
 // TestFindAsksChezmoiForItsWorkingTree runs a chezmoi that only knows `git`,
 // in a real repository, the way chezmoi itself would.
 func TestFindAsksChezmoiForItsWorkingTree(t *testing.T) {
+	// The stand-in is a script written a moment ago, and its first run
+	// can wait on the system's look at a new program for longer than
+	// chezmoi is given in use.
+	saved := timeout
+	timeout = time.Minute
+	t.Cleanup(func() { timeout = saved })
 	repo := t.TempDir()
 	for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", "git@github.com:me/dotfiles.git"}} {
 		if out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput(); err != nil {
@@ -44,7 +52,7 @@ func TestFindAsksChezmoiForItsWorkingTree(t *testing.T) {
 	}
 	bin := filepath.Join(t.TempDir(), "chezmoi")
 	script := "#!/bin/sh\n[ \"$1\" = --no-tty ] && [ \"$2\" = git ] && [ \"$3\" = -- ] || exit 2\nshift 3\ncd '" + repo + "' && exec git \"$@\"\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	got, err := Find(bin)

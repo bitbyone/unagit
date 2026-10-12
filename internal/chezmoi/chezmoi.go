@@ -21,7 +21,7 @@ type Checkout struct {
 
 // timeout keeps a chezmoi that waits for something - a template prompting,
 // a locked state file - from holding the start of unagit.
-const timeout = 5 * time.Second
+var timeout = 5 * time.Second
 
 // Find asks chezmoi for its working tree and the origin of it. It goes
 // through `chezmoi git`, which runs in the working tree rather than the

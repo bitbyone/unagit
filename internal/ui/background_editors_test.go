@@ -15,6 +15,7 @@ import (
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/editortest"
 	"github.com/tobola/unagit/internal/session"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 func shortSessions(t *testing.T, a *App) {
@@ -322,7 +323,7 @@ func TestAWaitingWindowLauncherHoldsNoOtherOpen(t *testing.T) {
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "pid")
 	launcher := filepath.Join(dir, "editor")
-	must(t, os.WriteFile(launcher, []byte("#!/bin/sh\necho $$ > "+pidFile+"\nexec sleep 60\n"), 0o755))
+	must(t, testenv.WriteExecutable(launcher, []byte("#!/bin/sh\necho $$ > "+pidFile+"\nexec sleep 60\n")))
 	t.Cleanup(func() {
 		if b, err := os.ReadFile(pidFile); err == nil {
 			var pid int
