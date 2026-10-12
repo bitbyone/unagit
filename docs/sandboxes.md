@@ -241,7 +241,8 @@ there):
    tree at HEAD, or not. When it is not, the start asks to build it
    (minutes, a `runTask` log) and never builds quietly.
    The VM is then created if new (`sbx create`, see
-   [runtime](#the-runtime)) or started.
+   [runtime](#the-runtime)) or started, and the profile's `start` script
+   runs if the VM booted since it last ran.
 4. **The task is prepared** by `sbx exec <vm> sh -c <script>` with the
    manifest in the environment: for each repository, clone at the branch
    into `/work/<task>/<dir>` (`--filter=blob:none`), or fetch and
@@ -305,7 +306,12 @@ committed with unagit's commit dialog, pushed, shared with a team:
 sandbox-envs/
 ├── kotlin/
 │   ├── Dockerfile
-│   └── profile.yaml
+│   ├── profile.yaml
+│   ├── start.sh
+│   ├── sbx/
+│   │   └── build.args
+│   └── podman/
+│       └── build.args
 └── node/
     ├── Dockerfile
     └── profile.yaml
@@ -338,8 +344,30 @@ caches:
   - host: ~/.gradle/caches
     env: GRADLE_RO_DEP_CACHE
 deny_network: []
+start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
 ```
+
+Three scripts, each at its own moment, all running inside the VM:
+
+| what | lives in | runs | for |
+| --- | --- | --- | --- |
+| `Dockerfile` | the profile | when the image is built | everything static: toolchains, tools, certificates |
+| `start` | the profile | once per boot of the VM | services and daemons (a shared `docker compose`), configuration from the environment, `git config` |
+| `bootstrap` | the worked-on repository | after a task's clone or fetch | the project's dependencies, generated code |
+
+- **`start` runs once per boot, whoever booted the VM.** A VM can be
+  started by something else than unagit (`sbx exec` from a terminal, sbx's
+  TUI), so before every agent unagit compares the kernel's `boot_id` with a
+  mark it left in the VM (`/var/lib/unagit/started`) and runs the script
+  only when they differ - by `sbx exec`, its output in the start's
+  `runTask` log. A failure stops the start with that log.
+- No kit's startup hook does this: it is a plain `sbx exec`, so it means
+  the same in any runtime.
+- Nothing runs once when the VM is made: what should happen once is static
+  and belongs in the Dockerfile. If that proves wrong, `setup:` comes the
+  same way.
+- `start` runs only inside the VM, so it needs no approval.
 
 - An unknown field is an error naming it, never skipped: a misspelt
   `memmory` must not quietly change the environment. The Sandboxes tab
@@ -364,6 +392,49 @@ bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
   fraction of it and the rest would silently not work; the read-only cache
   and the network rules do not map onto it) and sbx's `sbxenv.yaml`
   (sbx's alone, and experimental).
+
+### What differs between runtimes
+
+`profile.yaml` says nothing about a runtime, but an image may have to be
+built a little differently for one - another `FROM`, a step only one of
+them needs. That is said with Docker's own means, build arguments, from a
+subdirectory named after the runtime:
+
+```dockerfile
+ARG BASE=ubuntu:24.04
+FROM ${BASE}
+
+ARG UNAGIT_RUNTIME
+USER root
+RUN apt-get update && apt-get install -y openjdk-21-jdk git curl
+RUN if [ "$UNAGIT_RUNTIME" = sbx ]; then echo "sbx alone"; fi
+```
+
+```
+# kotlin/sbx/build.args
+BASE=docker/sandbox-templates:shell
+```
+
+- Building for runtime X, unagit always passes `--build-arg
+  UNAGIT_RUNTIME=X`, so a condition needs no file, and every `KEY=VALUE`
+  line of `X/build.args` as a `--build-arg`. No `X/` means the `ARG`
+  defaults.
+- Defaults in `ARG` keep the Dockerfile buildable by hand, with a plain
+  `docker build .`.
+- Larger differences can be a stage per runtime (`FROM common AS sbx`,
+  built with `--target`); not until one is needed.
+- This is how the environment is built on a runtime, so it lives in the
+  environments repository and is shared. What the user adds for
+  themselves - a kit - stays in config.yaml
+  ([below](#what-the-user-adds-for-one-runtime)). The line: what the
+  environment needs to work on a runtime goes to the repository, what the
+  user wants goes to their configuration.
+- `build.args` is the one file a runtime directory has for now; an unknown
+  file there is an error, as an unknown field is.
+- The tree hash covers the whole profile, so a change under `podman/`
+  marks sbx's image outdated too. A needless rebuild, kept for the simple
+  rule; hashing the common files and the runtime's own directory alone can
+  come if it bothers anyone.
 
 ### Trust
 
@@ -411,8 +482,12 @@ is expressible as flags, and a format still moving is not one to generate.
 
 **Spike**: does sbx need anything of a template beyond an image - its
 `agent` user, its workdir, the agent's kit installing into it? If so, a
-profile's Dockerfile starts `FROM` Docker's template for sandboxes, and
-the README says which.
+profile's Dockerfile starts `FROM` Docker's template for sandboxes - given
+by `sbx/build.args`, so other runtimes keep their own base - and the README
+says which. If Docker's base is per agent (`sandbox-templates:claude`,
+`:codex`), a shared VM with several agents needs a common one (perhaps
+`:shell`, the agents installed by the Dockerfile) or an image per profile
+and agent; find out which.
 
 ### What a runtime makes of it
 
@@ -422,12 +497,13 @@ is never edited and always regenerated. For sbx:
 
 | profile | sbx |
 | --- | --- |
-| `dockerfile` | `docker build`, `docker save`, `sbx template load`, tagged `unagit-env/<profile>:<tree>` |
+| `dockerfile` | `docker build --build-arg UNAGIT_RUNTIME=sbx` and `sbx/build.args`, `docker save`, `sbx template load`, tagged `unagit-env/<profile>:<tree>` |
 | `image` | `-t <image>` |
 | `cpus`, `memory` | `--cpus`, `--memory` |
 | `deny_network` | `--deny-network` |
 | `env` | `-e NAME` |
 | `caches` | `<host>:ro` as an extra workspace, `-e <env>=<host>` |
+| `start` | run by `sbx exec` when the VM's `boot_id` is new |
 | `bootstrap` | run by `sbx exec` after the clones |
 
 - `<tree>` is the git tree hash of the profile's directory at HEAD, so
@@ -640,7 +716,8 @@ from that news.
 - Profiles: parsing (an unknown field is an error), the tree hash and the
   image state against a stand-in `sbx template ls`, the generated flags,
   the approval refusing a changed cache or `env` and passing a changed
-  `cpus`.
+  `cpus`; the build arguments (`UNAGIT_RUNTIME` always, `build.args` of the
+  runtime alone); `start` run on a new `boot_id` and not on the same one.
 - UI: the Sandboxes tab and the pickers at several terminal sizes,
   `assertLegible`, sbx's block in Integrations, help rows,
   `TestEveryActionIsNamedAndExplained`, `TestNoTwoActionsShareAKey`.
