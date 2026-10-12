@@ -53,7 +53,7 @@ func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profi
 		if len(p.Agents) == 1 {
 			req.Agent = p.Agents[0]
 		} else {
-			return api.Task{}, fmt.Errorf("profile offers several agents; pass --agent")
+			return api.Task{}, fmt.Errorf("profile %s offers %s; pass --agent", p.Name, strings.Join(p.Agents, ", "))
 		}
 	}
 	if !slices.Contains(p.Agents, req.Agent) {
