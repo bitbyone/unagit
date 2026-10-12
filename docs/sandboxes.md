@@ -344,6 +344,7 @@ caches:
   - host: ~/.gradle/caches
     env: GRADLE_RO_DEP_CACHE
 deny_network: []
+agents: [claude, codex]       # what the image has; ids of agents.All
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
 ```
@@ -480,14 +481,66 @@ built-in agent kits as they are, passes the user's own mixins through from
 `integrations.sbx`, and writes none of its own: everything a profile says
 is expressible as flags, and a format still moving is not one to generate.
 
-**Spike**: does sbx need anything of a template beyond an image - its
-`agent` user, its workdir, the agent's kit installing into it? If so, a
-profile's Dockerfile starts `FROM` Docker's template for sandboxes - given
-by `sbx/build.args`, so other runtimes keep their own base - and the README
-says which. If Docker's base is per agent (`sandbox-templates:claude`,
-`:codex`), a shared VM with several agents needs a common one (perhaps
-`:shell`, the agents installed by the Dockerfile) or an image per profile
-and agent; find out which.
+### One image, several agents
+
+A profile is one image holding every agent it offers, built on Docker's
+agent-less base, and its VMs are made as shell sandboxes:
+
+```dockerfile
+# kotlin/sbx/build.args:  BASE=docker/sandbox-templates:shell
+ARG BASE=ubuntu:24.04
+FROM ${BASE}
+USER root
+RUN apt-get update && apt-get install -y openjdk-21-jdk nodejs npm
+RUN npm install -g @anthropic-ai/claude-code @openai/codex
+USER agent
+```
+
+`sbx create shell …` makes the VM, and each agent runs in it by `sbx exec
+… claude`, `sbx exec … codex`.
+
+- **A shared VM can hold several agents.** An image per agent
+  (`sandbox-templates:claude`) would allow one.
+- **One build per profile**, not per profile and agent: fewer builds, less
+  disk, one image state on the tab.
+- **The agents' versions are the user's**, in the Dockerfile, versioned. A
+  new Claude Code is a rebuild; updating them in `start` instead trades
+  that for a slower start.
+
+What makes it likely to work, checked 2026-10-12: `docker/sandbox-templates`
+has a `shell` tag beside the agents' (claude, codex, copilot, cursor,
+devin, docker, droid, gemini, kiro, opencode). And the agents' logins are
+not the agent kit's: sbx keeps them as service secrets (`anthropic`,
+`openai`, `github`), global or per sandbox, and its proxy signs the
+requests to those services with them, the key never entering the VM - so
+they should hold for any process in it, an agent started by `exec`
+included. The `github` service may also be git's push to GitHub.
+
+**Spike**: that `sbx exec … claude` in a shell VM does get its login
+through the proxy; whether a self-hosted GitLab can be a service of its
+own; and whether sbx needs anything of a template beyond `:shell`'s base.
+Should the login fail, the fallback is a VM per profile and agent made by
+`sbx create <agent>` (see [runtime](#the-runtime)), the image still one.
+
+### Which agents a profile offers
+
+The profile declares them (`agents:`), and the build checks the
+declaration against the image:
+
+- **Declared**, so unagit knows what to offer before anything is built,
+  for an `image:` too without pulling it, and the tab can show it.
+- **Checked**: after a build, before the image is loaded into the runtime,
+  unagit runs `docker run --rm <image> sh -c 'command -v …'` for the
+  declared agents' commands. One missing fails the build, naming it
+  ("profile kotlin declares codex, but the image has no codex - install it
+  in the Dockerfile"), so the declaration cannot quietly stop being true.
+  One present but not declared is mentioned in the log and not offered.
+  An `image:` is checked the same way once pulled.
+- **Offered**: the agents declared by the profile and not turned off in
+  Integrations. Whether an agent is installed on the host does not matter
+  here; the VM runs the image's. The agent picker lists the agents of
+  every profile, the profile picker then the profiles that have the one
+  chosen, skipped when there is one.
 
 ### What a runtime makes of it
 
@@ -568,7 +621,7 @@ sbx's side, from its `--help`:
 | `List` | `sbx ls --json` |
 | `Build` | `docker build`, `docker save`, `sbx template load` (see [profiles](#what-a-runtime-makes-of-it)) |
 | `Images` | `sbx template ls --json` |
-| `Create` | `sbx create --name N -t T --kit K --cpus C -m M --deny-network H -e K <agent> <mounts>` |
+| `Create` | `sbx create --name N -t T --kit K --cpus C -m M --deny-network H -e K shell <mounts>` |
 | `Exec` | `sbx exec [-it] [-w DIR] [-e K=V] N cmd…` (starts a stopped VM) |
 | `Stop` | `sbx stop N` |
 | `Remove` | `sbx rm N` |
@@ -579,9 +632,11 @@ Spike questions about it:
   no path. A VM must be created with no repository mounted: give it a
   directory of unagit's own (`<cache>/sandboxes/<vm>`, empty, read-only)
   as its workspace, unless sbx can do without one.
-- A shared VM is created for one agent. Does a second agent started with
-  `sbx exec` have its login and sbx's proxy? If not, a shared VM is per
-  profile and agent, `unagit-<profile>-<agent>`, and the picker says so.
+- A VM is created as `shell`, its agents started by `sbx exec` (see
+  [one image, several agents](#one-image-several-agents)). If an agent
+  started so has no login, a VM is per profile and agent,
+  `unagit-<profile>-<agent>`, created with that agent, and the picker says
+  so.
 - Does `sbx exec` take `-w`?
 - Do read-only mounts of host directories outside the workspace work
   (`<path>:ro` as an extra workspace)?
@@ -595,10 +650,10 @@ sbx login`.
 ## The agents
 
 `agents.Agent` gains what a VM needs: the command inside the VM (usually
-`Command`), and sbx's agent name for `sbx create` (`claude`, `codex`,
-`copilot`, `opencode`; Antigravity has none, so it is not offered in a
-sandbox). An agent not installed in the profile's template fails in the VM
-with the template named in the error.
+`Command`, the one the build checks for), and sbx's agent name, for the
+fallback of a VM per agent (`claude`, `codex`, `copilot`, `opencode`). A
+profile names agents by these ids; which it offers is
+[its declaration](#which-agents-a-profile-offers), checked by the build.
 
 ## herdr
 
@@ -716,7 +771,9 @@ from that news.
 - Profiles: parsing (an unknown field is an error), the tree hash and the
   image state against a stand-in `sbx template ls`, the generated flags,
   the approval refusing a changed cache or `env` and passing a changed
-  `cpus`; the build arguments (`UNAGIT_RUNTIME` always, `build.args` of the
+  `cpus`; the declared agents checked against a stand-in image, one
+  missing failing the build; the agent and profile pickers filtered by the
+  declarations; the build arguments (`UNAGIT_RUNTIME` always, `build.args` of the
   runtime alone); `start` run on a new `boot_id` and not on the same one.
 - UI: the Sandboxes tab and the pickers at several terminal sizes,
   `assertLegible`, sbx's block in Integrations, help rows,
