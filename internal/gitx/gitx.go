@@ -581,8 +581,54 @@ func (g *Git) UnstagedFiles(dir string) []string {
 // ChangedSince lists the working tree files that differ from a commit. In a
 // review worktree, where the merge request itself is pending by design, this
 // is what tells the reviewer's own edits apart from it.
+//
+// A file the merge request adds is only seen by git diff while the index
+// holds it as intent-to-add; once anything resets the index - an IDE, a
+// tool, a hand - it is untracked and git diff calls it deleted, though it is
+// on disk exactly as the commit has it. So a path whose file is the
+// commit's own blob is no edit.
 func (g *Git) ChangedSince(dir, commit string) []string {
-	return g.names(dir, "diff", "--name-only", commit)
+	changed := g.names(dir, "diff", "--name-only", commit)
+	if len(changed) == 0 {
+		return nil
+	}
+	var present []string
+	for _, p := range changed {
+		if info, err := os.Lstat(filepath.Join(dir, p)); err == nil && info.Mode().IsRegular() {
+			present = append(present, p)
+		}
+	}
+	if len(present) == 0 {
+		return changed
+	}
+	inCommit := map[string]string{}
+	tree, err := g.Run(dir, append([]string{"ls-tree", "-z", commit, "--"}, present...)...)
+	if err != nil {
+		return changed
+	}
+	for _, entry := range strings.Split(tree, "\x00") {
+		meta, path, ok := strings.Cut(entry, "\t")
+		if f := strings.Fields(meta); ok && len(f) == 3 && f[1] == "blob" {
+			inCommit[path] = f[2]
+		}
+	}
+	hashes, err := g.out(dir, append([]string{"hash-object", "--"}, present...)...)
+	if err != nil {
+		return changed
+	}
+	same := map[string]bool{}
+	for i, h := range strings.Split(hashes, "\n") {
+		if i < len(present) && inCommit[present[i]] == h {
+			same[present[i]] = true
+		}
+	}
+	var out []string
+	for _, p := range changed {
+		if !same[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // AddedPaths lists the files head adds on top of base.

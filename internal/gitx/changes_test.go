@@ -227,3 +227,21 @@ func TestPatchAppliesElsewhere(t *testing.T) {
 		t.Error("the rename left the old name behind")
 	}
 }
+
+// A file the head adds, left untracked when something reset the index, is
+// still the head's and no edit; one changed on top of it is.
+func TestChangedSinceIgnoresAnAddedFileThatLostItsIndexEntry(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	identify(t, clone)
+	base := sh(t, clone, "rev-parse", "HEAD")
+	commit(t, clone, "added.txt", "added\n")
+	commit(t, clone, "edited.txt", "head\n")
+	head := sh(t, clone, "rev-parse", "HEAD")
+	sh(t, clone, "reset", "-q", strings.TrimSpace(base))
+	write(t, clone, "edited.txt", "mine\n")
+	got := New("", nil).ChangedSince(clone, strings.TrimSpace(head))
+	if strings.Join(got, " ") != "edited.txt" {
+		t.Errorf("changed since the head: %q, want only edited.txt", got)
+	}
+}
