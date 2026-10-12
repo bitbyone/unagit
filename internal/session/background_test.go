@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -63,14 +64,7 @@ func TestDeadSocketIsSweptEvenWithALiveWriter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No Accept waits on it: Go closes a listener with one pending only once
-	// that returns, and under load the socket would still answer.
-	l, err := net.Listen("unix", socket)
-	if err != nil {
-		t.Fatal(err)
-	}
-	l.(*net.UnixListener).SetUnlinkOnClose(false)
-	l.Close()
+	deadSocket(t, socket)
 	_, err = s.Add(Record{Dir: t.TempDir(), Socket: socket, Since: time.Now().Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
@@ -149,5 +143,21 @@ func TestRemoveOnlyTakesBackTheClosedServer(t *testing.T) {
 	s.Remove(r)
 	if got := s.List(); len(got) != 1 || got[0].Editor != editors.Zed {
 		t.Fatalf("removing server removed other sessions: %+v", got)
+	}
+}
+
+// deadSocket leaves a socket file nothing listens on. It is bound and never
+// listened on: a listener closed at once is not dead in time, since on macOS
+// a child another test is forking holds a copy of its descriptor until it
+// execs, and a dial in that window is answered.
+func deadSocket(t *testing.T, path string) {
+	t.Helper()
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd)
+	if err := syscall.Bind(fd, &syscall.SockaddrUnix{Name: path}); err != nil {
+		t.Fatal(err)
 	}
 }
