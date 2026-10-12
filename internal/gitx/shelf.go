@@ -3,6 +3,8 @@ package gitx
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -175,7 +177,15 @@ func (g *Git) Unshelve(dir, sha string, keep bool) error {
 		return errors.New(why)
 	}
 	if _, err := g.Run(dir, "stash", "apply", "--quiet", sha); err != nil {
-		return err
+		// A git older than 2.40 cannot forecast from the shelf's own base,
+		// so the apply is what finds the conflict - and leaves it in the
+		// files. None of the shelf's files had changes here, as
+		// UnshelveBlocked made sure, so they go back to what HEAD has and
+		// the checkout is as it was; the shelf stays where it is.
+		if files, filesErr := g.ShelfFiles(dir, sha); filesErr == nil {
+			g.restoreToHead(dir, files)
+		}
+		return fmt.Errorf("it would conflict with what the branch has now; nothing was changed: %w", err)
 	}
 	if keep {
 		return nil
@@ -186,6 +196,36 @@ func (g *Git) Unshelve(dir, sha string, keep bool) error {
 	}
 	_, err = g.Run(dir, "stash", "drop", "--quiet", ref)
 	return err
+}
+
+// restoreToHead puts files back as HEAD has them, and takes away those it
+// does not have.
+func (g *Git) restoreToHead(dir string, files []FileStat) {
+	var paths []string
+	for _, f := range files {
+		paths = append(paths, f.Path)
+	}
+	if len(paths) == 0 {
+		return
+	}
+	inHead := map[string]bool{}
+	if out, err := g.out(dir, append([]string{"ls-tree", "-r", "--name-only", "HEAD", "--"}, paths...)...); err == nil {
+		for _, p := range strings.Split(out, "\n") {
+			inHead[p] = true
+		}
+	}
+	var tracked []string
+	for _, p := range paths {
+		if inHead[p] {
+			tracked = append(tracked, p)
+			continue
+		}
+		_, _ = g.Run(dir, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", p)
+		_ = os.Remove(filepath.Join(dir, p))
+	}
+	if len(tracked) > 0 {
+		_, _ = g.Run(dir, append([]string{"checkout", "HEAD", "--"}, tracked...)...)
+	}
 }
 
 // DeleteShelf takes a shelf off the shelf, written down so that it can be

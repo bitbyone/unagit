@@ -1,117 +1,139 @@
 package mux_test
 
 import (
-	"bytes"
-	"fmt"
-	"io"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/creack/pty"
-	"github.com/tobola/unagit/internal/editortest"
 	"github.com/tobola/unagit/internal/mux"
 )
 
-// This owns a session and configuration of its own, never a user's panes.
-// Environment isolation makes it serial; ordinary runs use the fake CLI.
-func TestZellijOpensRealEditors(t *testing.T) {
-	if os.Getenv("UNAGIT_ZELLIJ_TEST") != "1" {
-		t.Skip("set UNAGIT_ZELLIJ_TEST=1 to exercise installed Zellij")
+// buildUnagit is the binary herdr and Ghostty start as the launcher.
+func buildUnagit(t *testing.T) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "unagit")
+	_, here, _, _ := runtime.Caller(0)
+	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(filepath.Dir(here), "..", "..", "cmd", "unagit")).CombinedOutput(); err != nil {
+		t.Fatalf("build unagit: %v\n%s", err, out)
 	}
-	bin, err := exec.LookPath("zellij")
-	if err != nil {
-		t.Skip("Zellij is not installed")
-	}
-	dir := editortest.ShortDir(t)
-	config := filepath.Join(dir, "config.kdl")
-	mustWrite := func(path, body string) {
-		t.Helper()
-		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
-			t.Fatal(err)
+	return bin
+}
+
+// waitUntil polls for what a real terminal does in its own time.
+func waitUntil(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for !done() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	mustWrite(config, "session_serialization false\nshow_release_notes false\nshow_startup_tips false\n")
-	layout := filepath.Join(dir, "layout.kdl")
-	mustWrite(layout, "layout {\n pane command=\"/bin/sh\" {\n args \"-c\" \"sleep 120\"\n close_on_exit true\n }\n}\n")
-	for key, value := range map[string]string{
-		"ZELLIJ_CONFIG_FILE": config, "ZELLIJ_CONFIG_DIR": filepath.Join(dir, "config"),
-		"XDG_CONFIG_HOME": filepath.Join(dir, "config"), "XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CACHE_HOME": filepath.Join(dir, "cache"),
-		"TERM": "xterm-256color",
-	} {
-		t.Setenv(key, value)
+}
+
+// awkwardCommand writes where it ran and its argument, which no shell may
+// have read, so a wrong quote shows.
+func awkwardCommand(out string) *exec.Cmd {
+	return exec.Command("sh", "-c", `printf '%s|%s' "$PWD" "$1" > "$2"; sleep 1`, "x", `a 'b' "c" $(no) ; \n`, out)
+}
+
+func checkRan(t *testing.T, out, dir string) {
+	t.Helper()
+	waitUntil(t, "the command to run", func() bool { b, _ := os.ReadFile(out); return len(b) > 0 })
+	got, _ := os.ReadFile(out)
+	real, _ := filepath.EvalSymlinks(dir)
+	if string(got) != dir+`|a 'b' "c" $(no) ; \n` && string(got) != real+`|a 'b' "c" $(no) ; \n` {
+		t.Fatalf("ran as %q", got)
 	}
-	for _, key := range []string{"ZELLIJ", "ZELLIJ_SESSION_NAME", "ZELLIJ_PANE_ID"} {
-		t.Setenv(key, "")
-		os.Unsetenv(key)
+}
+
+// TestHerdrOpensRealCommands uses the herdr server the user runs: it opens
+// a tab in the Unagit Agents workspace, checks the command ran as given
+// and that the pane closed with it, and puts herdr's focus back.
+func TestHerdrOpensRealCommands(t *testing.T) {
+	if os.Getenv("UNAGIT_HERDR_TEST") != "1" {
+		t.Skip("set UNAGIT_HERDR_TEST=1 to exercise the running herdr")
 	}
-	name := filepath.Base(dir)
-	server := exec.Command(bin, "--session", name, "--config", config, "--new-session-with-layout", layout)
-	terminal, err := pty.StartWithSize(server, &pty.Winsize{Rows: 36, Cols: 120})
+	c := mux.DetectHerdr(func(string) string { return "" }, exec.LookPath)
+	if c == nil {
+		t.Skip("herdr is not installed")
+	}
+	c.Self = buildUnagit(t)
+	before := herdrWorkspaces(t, c)
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out")
+	pane, err := c.Open(mux.Window, dir, "unagit live test", awkwardCommand(out))
 	if err != nil {
 		t.Fatal(err)
 	}
-	go io.Copy(io.Discard, terminal)
 	t.Cleanup(func() {
-		exec.Command(bin, "kill-session", name).Run()
-		terminal.Close()
-		server.Process.Kill()
-		server.Wait()
-	})
-	client := &mux.Client{Connection: mux.Connection{Kind: mux.Zellij, Binary: bin, Session: name}, SourcePane: "0"}
-	wait := func(ready func() bool) {
-		t.Helper()
-		deadline := time.Now().Add(15 * time.Second)
-		for time.Now().Before(deadline) {
-			if ready() {
-				return
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if !strings.Contains(before, mux.AgentsWorkspace) {
+			for _, line := range strings.Split(herdrWorkspaces(t, c), "\n") {
+				if id, label, _ := strings.Cut(line, " "); label == mux.AgentsWorkspace {
+					exec.CommandContext(ctx, c.Binary, "workspace", "close", id).Run()
+				}
 			}
-			time.Sleep(20 * time.Millisecond)
 		}
-		t.Fatal("Zellij did not reach the expected state")
-	}
-	wait(func() bool { panes, err := client.Panes(); return err == nil && panes["terminal_0"] })
-	// Zellij directs CLI focus actions to the last client that typed a key.
-	// Opening the action picker in unagit already supplies that keystroke.
-	if _, err := terminal.Write([]byte("\n")); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("ZELLIJ", "1")
-	t.Setenv("ZELLIJ_SESSION_NAME", name)
-	t.Setenv("ZELLIJ_PANE_ID", "0")
-	editorDir := filepath.Join(dir, "a folder's name")
-	if err := os.Mkdir(editorDir, 0700); err != nil {
-		t.Fatal(err)
-	}
-	realDir, err := filepath.EvalSymlinks(editorDir)
+		if back := os.Getenv("HERDR_WORKSPACE_ID"); back != "" {
+			exec.CommandContext(ctx, c.Binary, "workspace", "focus", back).Run()
+		}
+	})
+	checkRan(t, out, dir)
+	waitUntil(t, "the pane to close with its command", func() bool {
+		live, err := c.Panes()
+		return err == nil && !live[pane]
+	})
+}
+
+func herdrWorkspaces(t *testing.T, c *mux.Client) string {
+	t.Helper()
+	out, err := exec.Command(c.Binary, "workspace", "list").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, where := range []mux.Placement{mux.Tab, mux.Vertical, mux.Horizontal} {
-		output := filepath.Join(dir, fmt.Sprintf("editor-%d", i))
-		marker := fmt.Sprintf("%d quotes: ' \" \\ \n tab:\t é $(touch wrong)", i)
-		// The command blocks on a file we create after its pane has been checked.
-		gate := output + ".finish"
-		script := `printf '%s\n%s' "$PWD" "$1" > "$2"; while [ ! -e "$3" ]; do sleep 0.02; done`
-		command := exec.Command("/bin/sh", "-c", script, "editor", marker, output, gate)
-		pane, err := client.Open(where, editorDir, "gateway !7", command)
-		if err != nil {
-			t.Fatal(err)
-		}
-		expected := []byte(realDir + "\n" + marker)
-		wait(func() bool { body, _ := os.ReadFile(output); return bytes.Equal(body, expected) })
-		alive, err := client.Panes()
-		if err != nil || !alive[pane] {
-			t.Fatalf("running editor absent: %v, %v", alive, err)
-		}
-		wait(func() bool {
-			focused, err := exec.Command(bin, "--session", name, "action", "list-clients").Output()
-			return err == nil && strings.Contains(string(focused), pane)
-		})
-		mustWrite(gate, "")
-		wait(func() bool { alive, err := client.Panes(); return err == nil && !alive[pane] })
+	// id label, one per line, without decoding more than is needed here.
+	var lines []string
+	for _, part := range strings.Split(string(out), `"workspace_id":"`)[1:] {
+		id, _, _ := strings.Cut(part, `"`)
+		lines = append(lines, id)
 	}
+	for i, part := range strings.Split(string(out), `"label":"`)[1:] {
+		label, _, _ := strings.Cut(part, `"`)
+		if i < len(lines) {
+			lines[i] += " " + label
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// TestGhosttyOpensRealCommands opens a Ghostty window running a command
+// through the launcher, and checks the window's terminal is closed once
+// the command ends - Ghostty itself would wait for a key.
+func TestGhosttyOpensRealCommands(t *testing.T) {
+	if os.Getenv("UNAGIT_GHOSTTY_TEST") != "1" {
+		t.Skip("set UNAGIT_GHOSTTY_TEST=1 to open a real Ghostty window")
+	}
+	c := mux.DetectGhostty(os.Getenv, exec.LookPath, false)
+	if c == nil {
+		t.Skip("Ghostty is not installed")
+	}
+	c.Self = buildUnagit(t)
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out")
+	id, err := c.Open(mux.Window, dir, "unagit live test", awkwardCommand(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkRan(t, out, dir)
+	waitUntil(t, "the terminal to close with its command", func() bool {
+		live, err := c.Panes()
+		return err == nil && !live[id]
+	})
 }

@@ -57,11 +57,18 @@ func TestUnshelveRefusesWhatWouldCollide(t *testing.T) {
 		t.Errorf("an edit here too: %q", why)
 	}
 	sh(t, clone, "commit", "-q", "-am", "committed over it")
-	if why := g.UnshelveBlocked(clone, sha); !strings.Contains(why, "conflict") {
-		t.Errorf("a commit over the same lines: %q", why)
+	// Forecast where git can; one before 2.40 cannot, and the refusal
+	// below is then all there is.
+	if _, forecasts := g.mergeConflicts(clone, sha+"^1", "HEAD", sha); forecasts {
+		if why := g.UnshelveBlocked(clone, sha); !strings.Contains(why, "conflict") {
+			t.Errorf("a commit over the same lines: %q", why)
+		}
 	}
-	if err := g.Unshelve(clone, sha, false); err == nil {
-		t.Error("it unshelved")
+	if err := g.Unshelve(clone, sha, false); err == nil || !strings.Contains(err.Error(), "conflict") {
+		t.Errorf("it unshelved, or said why not otherwise: %v", err)
+	}
+	if left, _ := g.Shelves(clone); len(left) != 1 {
+		t.Errorf("the shelf went with the refusal: %+v", left)
 	}
 	if got := sh(t, clone, "status", "--porcelain"); got != "" {
 		t.Errorf("the refusal changed %q", got)
