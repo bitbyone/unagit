@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -535,6 +536,27 @@ func fakeGitLab(t *testing.T) *fakeServer {
 
 // newTestApp writes index files into a temporary config directory and starts
 // the TUI on a simulation screen.
+// testRoot is a clone root as long on every machine and named after no
+// test. t.TempDir's path is the test's name under the system's temporary
+// directory: short on Linux, it fitted whole into the lists' PATH column -
+// the name with it, which a test looking for "Debug" or "Chezmoi" then
+// found - and the columns came out otherwise than on a Mac.
+func testRoot(t *testing.T) string {
+	t.Helper()
+	const length = 96
+	base := filepath.Join(fixtureRoot, "roots")
+	pad := length - len(base) - 1
+	if pad < 6 {
+		t.Fatalf("the temporary directory %s is too long for a clone root of %d", base, length)
+	}
+	dir := filepath.Join(base, fmt.Sprintf("%0*d", pad, rootsMade.Add(1)))
+	must(t, os.MkdirAll(dir, 0o700))
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
+}
+
+var rootsMade atomic.Int64
+
 // installed is an app's findExecutable for a test that only needs the app to
 // believe these programs are there - a card that says enabled, a badge that
 // shows - and never runs them: their paths lead nowhere.
@@ -571,7 +593,7 @@ func writeTestConfig(t *testing.T, gitlabURL string) *config.Config {
 	t.Helper()
 	cfg := config.Default()
 	cfg.SetDir(t.TempDir())
-	cfg.RootDir = t.TempDir()
+	cfg.RootDir = testRoot(t)
 	// An editor every machine has, chosen, so opening does not stop to ask.
 	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
 	inst := cfg.AddInstance(config.Instance{

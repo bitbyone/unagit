@@ -19,6 +19,9 @@ func activityFixture(t *testing.T) (*App, tcell.SimulationScreen, watch.Watch) {
 	t.Helper()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	// The follower's first look puts what is on disk in place - nothing -
+	// whenever it comes; under load it once came after what is set below.
+	waitTrue(t, "the watches were never read", func() bool { return onLoop(a, func() bool { return a.watchStarted }) })
 	now := time.Now()
 	mr := watch.Watch{Kind: watch.KindPipeline, Instance: "gl", Project: "acme/gateway", IID: 334, Title: "Rate limiting for the public API", Since: now.Add(-48 * time.Hour)}
 	onLoop(a, func() bool {

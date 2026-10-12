@@ -88,7 +88,9 @@ func TestChezmoiKeepsItsRepository(t *testing.T) {
 	typeRunes(sc, "k")
 	badgeKept("marked, under the cursor")
 	assertLegible(t, a, sc, "the chezmoi badge")
+	// Esc is waited for: handled late, it closed the message below instead.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "SELECT 1")
 
 	// Hiding the tags keeps the badge, which is not one.
 	changeOnLoop(a, func() { a.cfg.Filters.HideTags = true; a.projectsPane.reload() })

@@ -407,13 +407,16 @@ func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
 	if row == "" {
 		t.Fatalf("no row for the cloned repository:\n%s", strings.Join(lines, "\n"))
 	}
-	// The path is truncated to the column, so its start is what is checked.
-	head := want
-	if len(head) > 20 {
-		head = head[:20]
+	// The path is shortened to the column, by what tells it apart, so what
+	// is checked is that its start, up to where it is cut, is the clone's.
+	start := strings.Index(row, " /")
+	if start < 0 {
+		t.Fatalf("the row shows no path: %q", row)
 	}
-	if !strings.Contains(row, head) {
-		t.Errorf("the row does not show %q:\n%q", head, row)
+	head, _, _ := strings.Cut(row[start+1:], "…")
+	head, _, _ = strings.Cut(head, " ")
+	if len(head) < 4 || !strings.HasPrefix(want, head) {
+		t.Errorf("the row does not show %q, but %q:\n%q", want, head, row)
 	}
 	// The path alone changes brightness; both rows remain selectable.
 	onLoop(a, func() bool {

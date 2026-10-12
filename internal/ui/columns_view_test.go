@@ -29,7 +29,11 @@ func TestViewOptionsHideColumns(t *testing.T) {
 		sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-		waitGone(t, a, sc, "Columns")
+		// Not the word Columns: the filter has already taken it off the
+		// dialog, so its going said nothing about the keys.
+		waitTrue(t, "View options did not close", func() bool {
+			return onLoop(a, func() bool { return !a.pages.HasPage(pageToggles) })
+		})
 	}
 	hidden := func(list, id string) bool {
 		return onLoop(a, func() bool { return a.cfg.Filters.HidesColumn(list, id) })

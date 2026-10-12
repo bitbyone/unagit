@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +92,13 @@ func TestFindRepositoryBringsOneIn(t *testing.T) {
 	waitFor(t, a, sc, "Find Repository · 4")
 	typeRunes(sc, "billing")
 	waitFor(t, a, sc, "searching acme")
+	// Searching is the request leaving; under load it reached the server
+	// only after Enter had closed the dialog and called it off.
+	waitTrue(t, "the forge was never asked for billing", func() bool {
+		srv.searchesMu.Lock()
+		defer srv.searchesMu.Unlock()
+		return slices.Contains(srv.searches, "billing")
+	})
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "acme/billing shown again")
 	if onLoop(a, func() bool { return a.cfg.Filters.IsHidden(a.cfg.Instances[0].ID, "acme/billing") }) {

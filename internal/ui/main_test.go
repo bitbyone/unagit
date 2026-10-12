@@ -29,6 +29,10 @@ func TestMain(m *testing.M) {
 	// Whether the terminal running the tests draws Nerd Font icons is
 	// nothing the tests should depend on.
 	nerdFontGuess = func() (bool, string) { return false, "tests" }
+	// The process's theme is the default from the start, not from the first
+	// app a test starts: a test drawing a badge or a box on its own, run
+	// alone, found every glyph and colour empty.
+	setTheme(loadThemes("").byName[defaultThemeName])
 	limitParallel()
 	code := m.Run()
 	os.RemoveAll(dir)

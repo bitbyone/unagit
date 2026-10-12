@@ -49,8 +49,18 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "29747")
 
-	// Wide: the whole title fits, the branch is still there.
-	wide := a.screenText(sc)
+	// Wide: the whole title fits, the branch is still there. The list may
+	// first show for the width it was laid out at while hidden; its first
+	// draw at this one lays it out again.
+	deadline := time.Now().Add(patience)
+	var wide string
+	for time.Now().Before(deadline) {
+		wide = a.screenText(sc)
+		if strings.Contains(wide, "fix the footer") && strings.Contains(wide, "/MY2N-29747-wrap-rendered") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if !strings.Contains(wide, "fix the footer") {
 		t.Errorf("the full title should fit at 160 columns:\n%s", wide)
 	}
@@ -60,7 +70,7 @@ func TestColumnsAdaptToTheTerminalWidth(t *testing.T) {
 
 	// Narrow: the title gives way, the branch must not fall off the edge.
 	resizeApp(a, sc, 84, 20)
-	deadline := time.Now().Add(patience)
+	deadline = time.Now().Add(patience)
 	var narrow string
 	for time.Now().Before(deadline) {
 		narrow = a.screenText(sc)

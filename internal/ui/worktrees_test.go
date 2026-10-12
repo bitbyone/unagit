@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
+
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -139,7 +141,9 @@ func TestCIOfBranches(t *testing.T) {
 	}
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, " CI ")
-	waitForRow(t, a, sc, "acme/gateway", glyphCIDone)
+	waitCIDone(t, a, sc, "acme/gateway", func() string {
+		return a.branchCIStatus(instance, "acme/gateway", "main")
+	})
 	if row := rowWith(a, sc, "acme/billing"); containsField(row, glyphCIDone) {
 		t.Errorf("acme/billing is not cloned, yet its row has a pipeline: %q", row)
 	}
@@ -159,7 +163,9 @@ func TestCIOfBranches(t *testing.T) {
 	})
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/rate")
-	waitForRow(t, a, sc, "feat/rate", glyphCIDone)
+	waitCIDone(t, a, sc, "feat/rate", func() string {
+		return a.branchCIStatus(instance, "acme/gateway", "feat/rate")
+	})
 	status := onLoop(a, func() string {
 		return a.worktreeCI(worktreeRow{Instance: instance, Path: "acme/gateway", Branch: "feat/rate"})
 	})
@@ -196,5 +202,28 @@ func TestCIOfBranches(t *testing.T) {
 	})
 	if group != "" {
 		t.Errorf("a grouped worktree shows a pipeline: %q", group)
+	}
+}
+
+// waitCIDone waits for a pipeline that passed: its status, then its mark
+// on the row. The mark alone cannot be waited for - the default theme draws
+// it as it draws a clone, so a cloned row has one before any answer.
+func waitCIDone(t *testing.T, a *App, sc tcell.SimulationScreen, row string, status func() string) {
+	t.Helper()
+	deadline := time.Now().Add(patience)
+	for {
+		marks := 0
+		for _, f := range strings.Fields(rowWith(a, sc, row)) {
+			if f == glyphCIDone {
+				marks++
+			}
+		}
+		if onLoop(a, status) == "success" && marks >= 2 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the pipeline of %s never passed on its row:\n%s", row, a.screenText(sc))
+		}
+		time.Sleep(30 * time.Millisecond)
 	}
 }

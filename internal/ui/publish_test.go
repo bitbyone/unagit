@@ -9,6 +9,7 @@ import (
 
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/incomm"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 const pendingNotes = `{"version":2,"notes":[
@@ -104,7 +105,7 @@ func fakeIncommCLI(t *testing.T) {
 	t.Helper()
 	bin := t.TempDir()
 	script := "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = version ]; then echo '{\"version\":\"1.1.0\",\"formatVersion\":2}'; exit 0; fi\ndone\necho '{\"changed\":0}'\n"
-	if err := os.WriteFile(filepath.Join(bin, "incomm"), []byte(script), 0o755); err != nil {
+	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -143,8 +144,24 @@ func TestPublishAsksFirstAndSaysWhenThereIsNothing(t *testing.T) {
 	typeRunes(sc, "c")
 	waitGone(t, a, sc, "Publish 3 comments")
 
-	// !8 has no worktrees at all.
-	typeRunes(sc, "jj")
+	// !8 has no worktrees at all. The cursor is taken there by its number,
+	// not a count of keys: the list read again after the cancel once came
+	// between two of them.
+	selectedIID := func() int {
+		return onLoop(a, func() int {
+			if i := a.mrsPane.selectedIndex(); i >= 0 && i < len(a.mrs) {
+				return a.mrs[i].IID
+			}
+			return 0
+		})
+	}
+	waitTrue(t, "the cursor never reached !8", func() bool {
+		if selectedIID() == 8 {
+			return true
+		}
+		typeRunes(sc, "j")
+		return false
+	})
 	typeRunes(sc, "P")
 	waitFor(t, a, sc, "nothing to publish on !8")
 }
