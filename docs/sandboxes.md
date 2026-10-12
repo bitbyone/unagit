@@ -1,18 +1,18 @@
-# Sandboxed agents
+# Sandboxed agents: agentbox
 
 ## Where it stands
 
 Designed (2026-10-12), nothing built. This is the brief for whoever
 implements it; the reasoning is here so that the decisions are not undone
 by accident. It replaces "Agents in a container" in [herdr.md](herdr.md),
-and wins wherever the two disagree:
-that plan mounted the worktree and the main clone's `.git` into a Docker
-container. Its launcher for herdr is not used either: unagit tells herdr
-about its agents with a plugin of its own (see [herdr](#herdr)).
+and wins wherever the two disagree: that plan mounted the worktree and the
+main clone's `.git` into a Docker container, and its launcher for herdr is
+not used either.
 
 Checked so far: `sbx` 0.47.0 on macOS (Apple Silicon) - its commands and
 flags below come from its `--help`; `sbx ls --json` answers
-`{"sandboxes": []}`. Everything marked **spike** has not been tried.
+`{"sandboxes": []}`, `sbx template ls --json` `{"images": []}`. Everything
+marked **spike** has not been tried. `agentbox` is a working name.
 
 ## What it is for
 
@@ -23,113 +23,125 @@ The user picks the agent, a sandbox profile (a Dockerfile and the
 resources, kept in a git repository of their own), and whether the agent
 shares a VM with others or gets one of its own.
 
+## Two programs
+
+The sandboxing is **agentbox**, a program of its own, usable without
+unagit; **unagit is a UI over it** and one of its users.
+
+- agentbox lives in this repository for now, but is built as its own
+  binary (`cmd/agentbox`, `make build` makes both) with its own home, its
+  own configuration and its own runtimes. Moving it to a repository of its
+  own later - as incomm is - is moving directories.
+- unagit drives it as it drives herdr or Zellij: through its command line,
+  `--json` for what it reads. It never imports agentbox's code, beyond the
+  package of the JSON types (see [the boundary](#the-boundary)).
+- unagit also **configures** agentbox: what the user chooses in unagit's
+  Settings (the environments repository picked from the list of
+  repositories, the runtimes) is handed to agentbox as its configuration.
+
+| agentbox | unagit |
+| --- | --- |
+| its home: configuration, state, cache | Integrations: agentbox on or off |
+| the environments repository: profiles, build, the agents' check, approvals | which worktree, which repositories, which branch |
+| the runtimes: sbx now, Podman later | pushing the branch, with the vault's token |
+| VMs and tasks: create, start, stop, remove | clone URLs from the forge's API |
+| a task's preparation: clones, author, co-author hook, instructions, `start`, bootstrap | the Sandboxes tab, the pickers, Activity |
+| running the agent, stopping an idle VM | the questions: approve, build, commit first |
+| its herdr plugin | the commit dialog's warning, the pull |
+| refusing a default branch | picking the environments repository from the list, handing agentbox its path |
+
 ## The picture
 
-The parts, and what stays outside unagit:
+The parts:
 
 ```
 +------------------------------- unagit (host) --------------------------------+
-|                                                                              |
 |  internal/ui                                                                 |
 |  +------------------+ +------------------+ +------------+ +----------------+ |
 |  | Sandboxes tab [6]| | Open in Sandboxed| | Activity   | | Settings [5]   | |
-|  | Profiles         | | Agent...         | | (agents,   | | env repository | |
-|  | Sandboxes (VMs)  | | agent > profile  | |  states)   | | Integrations:  | |
-|  | Tasks            | | > sandbox > place| |            | | sbx, herdr     | |
+|  | Profiles         | | Agent...         | |            | | Integrations:  | |
+|  | Sandboxes (VMs)  | | agent > profile  | |            | | agentbox, env  | |
+|  | Tasks            | | > sandbox > place| |            | | repo, runtimes | |
 |  +--------+---------+ +--------+---------+ +-----+------+ +-------+--------+ |
 |           |                    |                 |                |          |
-|           v                    v                 |                v          |
-|  internal/sandbox (the neutral vocabulary, as internal/forge is)             |
-|  +-----------------------------------------------------------------------+   |
-|  | Profile   parse profile.yaml, tree hash, an unknown field is an error |   |
-|  | Trust     host-facing fields hashed, Approve...                       |   |
-|  | Task      the manifest: branch and clone URLs (from the forge's API)  |   |
-|  |                                                                       |   |
-|  | Runtime   Available List Images Build Create Exec Stop Remove         |   |
-|  +-----------------+---------------------------------+-------------------+   |
-|                    |                                 |                       |
-|        +-----------v-----------+         +-----------v-----------+           |
-|        | sbx adapter           |         | podman adapter        |           |
-|        | profile -> flags      |         | (later)               |           |
-|        | Dockerfile -> template|         |                       |           |
-|        | + integrations.sbx    |         | + integrations.podman |           |
-|        +-----------+-----------+         +-----------------------+           |
-|                    |                                                         |
-|  +--------------+  |  +--------------+ +--------------+ +-----------------+  |
-|  | workspace,   |  |  | cache        | | session      | | mux             |  |
-|  | gitx: push   |  |  | <cache>/     | | records:     | | This Terminal,  |  |
-|  | the branch,  |  |  | sandboxes/   | | pane, agent, | | Zellij, Ghostty,|  |
-|  | pull         |  |  | (generated)  | | VM, task     | | herdr           |  |
-|  +------+-------+  |  +--------------+ +------+-------+ +--------+--------+  |
-+---------+----------+------------------------+------------------+-----------+
-          |          |                        | read             | the pane runs
-          |          |                        v                  v
-          |          |       +-------------------------+   sbx exec -it -w
-          |          |       | herdr + unagit's plugin |   /work/<task> <vm>
-          |          |       | unagit herdr observe:   |   claude
-          |          |       | pane.read -> agent      |        |
-          |          |       | explain -> report_agent |        |
-          |          |       +-------------------------+        |
-          |          | sbx CLI                                  |
-          | push,    +-----------------------------------+      |
-          | pull     |                                   v      v
-          v          |                     +--------------------------------------+
-   +-------------+   |    clone, push      | sbx microVM  unagit-<profile>[-task] |
-   | forge       |<--+-------------------->|  template = the profile's image      |
-   | GitLab,     |     (the VM's own       |  /work/<task>/<repo>   git clones    |
-   | GitHub      |      narrow token,      |  the agent (claude, codex, ...)      |
-   | protected   |      an sbx secret)     |  Docker Engine (compose, tests)      |
-   | branches    |                         |  GRADLE_USER_HOME (the VM's own)     |
-   +-------------+                         |  ~/.gradle/caches :ro <- host        |
-                                           +--------------------------------------+
+|           +--------------------+--------+--------+----------------+          |
+|                                         | agentbox ... --json                |
+|  workspace, gitx: push the branch, pull | (and agentbox config set ...)      |
++---------+-------------------------------+------------------------------------+
+          |                               |
+          |                               v
+          |      +------------------- agentbox (host) ---------------------+
+          |      | ~/.config/agentbox/config.yaml, state.json              |
+          |      | profiles: parse, tree hash, build, agents' check, trust |
+          |      | tasks: manifest, instructions, author, hook             |
+          |      | Runtime: Available List Images Build Create Exec Stop   |
+          |      |          Remove                                         |
+          |      |   +----------------+      +----------------+            |
+          |      |   | sbx adapter    |      | podman adapter |            |
+          |      |   |                |      | (later)        |            |
+          |      |   +-------+--------+      +----------------+            |
+          |      | herdr plugin: agentbox herdr observe                    |
+          |      +-----------+---------------------------------------------+
+          |                  | sbx CLI
+          | push, pull       v
+          v           +--------------------------------------+
+   +-------------+    | sbx microVM  ab-<profile>[-<task>]   |
+   | forge       |<-->|  template = the profile's image      |
+   | GitLab,     |    |  /work/<task>/<repo>   git clones    |
+   | GitHub      |    |  the agents (claude, codex, ...)     |
+   | protected   |    |  Docker Engine (compose, tests)      |
+   | branches    |    |  GRADLE_USER_HOME (the VM's own)     |
+   +-------------+    |  ~/.gradle/caches :ro <- host        |
+     clone, push:     +--------------------------------------+
+     the VM's own
+     narrow token
 ```
 
 Where each kind of setting lives:
 
 ```
- environments repository            config.yaml (chezmoi)        state.json
- +---------------------------+   +---------------------------+  +------------------+
- | kotlin/                   |   | sandboxes:                |  | approvals:       |
- |   Dockerfile              |<--+   envs: gl/team/sandbox-  |  |  kotlin: <hash>  |
- |   profile.yaml            |   |         envs              |  | sandboxes:       |
- | node/                     |   | integrations:             |  |  <dir> -> vm,task|
- |   ...                     |   |   sbx:                    |  | uses: profile,   |
- +-------------+-------------+   |     kits: [...]           |  |  sandbox, place  |
-               |                 |     profiles:             |  +------------------+
-  what the     |                 |       kotlin: {kits: ...} |   what use taught
-  environment  |                 +---------------------------+
-  is, no       |                  the user's choices for
-  runtime      v                  one runtime
-       +--------------------------------------+
-       | generated just before a start        |
-       | <cache>/sandboxes/sbx/               |
-       |   unagit-env/kotlin:<tree>  template |
-       |   flags: --cpus -m -e --deny-network |
-       +--------------------------------------+
-         a cache: never edited, regenerated
+ environments repository         ~/.config/agentbox/         unagit
+ (git, the user's or a team's)                               config.yaml
+ +--------------------------+   +-----------------------+   +----------------------+
+ | kotlin/                  |   | config.yaml           |   | integrations:        |
+ |   Dockerfile             |<--+   environments: <path>|<--+   agentbox:          |
+ |   profile.yaml           |   |   runtimes:           |   |     on: true         |
+ |   start.sh               |   |     sbx: {on, stop_   |   |     environments:    |
+ |   instructions.md        |   |           idle}       |   |       gl/team/envs   |
+ |   sbx/build.args         |   | state.json            |   +----------------------+
+ | instructions/*.md        |   |   approvals, VMs,     |    the user's choices,
+ +------------+-------------+   |   tasks, agents run   |    handed to agentbox
+              |                 +-----------------------+
+  what the    |                  agentbox's own
+  environment v
+  is      +--------------------------------------+
+          | generated just before a start        |
+          | ~/.cache/agentbox/sbx/               |
+          |   agentbox/kotlin:<tree>  template   |
+          |   flags: --cpus -m -e --deny-network |
+          +--------------------------------------+
+            a cache: never edited, regenerated
 ```
 
-A start:
+A start from unagit:
 
 ```
- user                  unagit                        sbx, the VM            forge
-  | Open in Sandboxed    |                              |                     |
-  | Agent... on a group  |                              |                     |
-  +--------------------->|                              |                     |
-  | agent, profile,      | parse the profile, check     |                     |
-  | sandbox, place       | its approval                 |                     |
-  +--------------------->|                              |                     |
-  |                      | push every member's branch --+-------------------->|
-  |                      | template current? ---------->| template ls --json  |
-  |<-- build? (if not) --+                              |                     |
-  +-- yes -------------->| docker build, save, load --->|                     |
-  |                      | create or start the VM ----->|                     |
-  |                      | exec: clone or fetch, ------>| git clone --------->|
-  |                      |       bootstrap              |                     |
-  |                      | session record, the pane --->| exec -it ... claude |
-  |                      |                              |  the agent works    |
-  |                      |                              |  commit, push ----->|
-  | Pull on the group -->| fetch, fast-forward <--------+---------------------+
+ user              unagit                     agentbox            sbx, VM        forge
+  | Open in          |                          |                    |             |
+  | Sandboxed Agent  |                          |                    |             |
+  +----------------->| profiles, VMs --json --->|                    |             |
+  | agent, profile,  |                          |                    |             |
+  | sandbox, place   |                          |                    |             |
+  +----------------->| check --json ------------>| approved? built?   |             |
+  |<- approve? build?|<-- needs: build ---------+                    |             |
+  +-- yes ---------->| build (log) ------------>| docker build, load>|             |
+  |                  | push the branch ---------+--------------------+------------>|
+  |                  | prepare (log) ---------->| create/start, ---->| clone ----->|
+  |                  |                          | start.sh, clones   |             |
+  |                  | the place runs:          |                    |             |
+  |                  |   agentbox run --------->| sbx exec -it ----->| the agent   |
+  |                  |                          |                    | push ------>|
+  | Pull ----------->| fetch, fast-forward <----+--------------------+-------------+
 ```
 
 What crosses the line between the machine and the VM:
@@ -138,8 +150,8 @@ What crosses the line between the machine and the VM:
    +------------- trusted --------------+       +----- untrusted -----+
    | host: home, ~/.ssh, unagit's vault |       | VM: the agent, sudo,|
    | main clones, the user's worktrees  | <-X-- | its clones, its     |
-   | config.yaml, the environments      |       | Docker              |
-   | repository (as approved)           |       |                     |
+   | the configurations, the            |       | Docker              |
+   | environments repository (approved) |       |                     |
    +-----------------+------------------+       +----------+----------+
                      | only:                               ^ | only:
                      |  ~/.gradle/caches  :ro  ------------+ |
@@ -153,7 +165,7 @@ What crosses the line between the machine and the VM:
 ## The model, and why
 
 ```
-host                                   sandbox VM (sbx)
+host                                   sandbox VM
 grouped worktree  <── git pull ───┐    /work/<task>/<repo>  clones of the
   (yours)                         │      branch, the agent commits
                                   │      and pushes here
@@ -161,10 +173,10 @@ grouped worktree  <── git pull ───┐    /work/<task>/<repo>  clones o
 ```
 
 - **The agent clones from the forge, commits and pushes; the user pulls.**
-  unagit pushes the worktree's branch before the agent starts, the VM
-  clones every repository of the worktree at that branch, the agent pushes
-  back to it, and the user pulls into the grouped worktree as they would a
-  colleague's commits.
+  The worktree's branch is pushed before the agent starts, the VM clones
+  every repository of the worktree at that branch, the agent pushes back
+  to it, and the user pulls into the worktree as they would a colleague's
+  commits.
 - **Nothing of the VM is mounted on the host, and nothing git-related of the
   host is mounted in the VM.** That is the point of the design. A `.git`
   the agent can write holds commands the host would run: a hook,
@@ -173,8 +185,8 @@ grouped worktree  <── git pull ───┐    /work/<task>/<repo>  clones o
   time. Through `credential.helper` the agent would even receive the forge
   token unagit hands git. A fetch from the forge carries objects and refs,
   never config or hooks, so the host stays safe however the agent behaves.
-- **The cost**: what the agent has not pushed is not seen on the host.
-  Tell the agent (in its instructions) to commit and push as it goes.
+- **The cost**: what the agent has not pushed is not seen on the host. Its
+  instructions tell it to commit and push as it goes.
 
 Considered and rejected:
 
@@ -186,13 +198,13 @@ Considered and rejected:
   knowledge of git.
 - **The same with the main clone read-only, the worktree on a detached HEAD
   and an object directory of its own** (`GIT_OBJECT_DIRECTORY`, the main
-  objects as an alternate). Safe, but the agent sees a detached HEAD and
-  unagit has to move the branch after it. The user found it unpleasant.
+  objects as an alternate). Safe, but the agent sees a detached HEAD and the
+  branch has to be moved after it. The user found it unpleasant.
 - **`sbx run --clone`**: sbx's own clone inside the VM, of the host
   repository mounted read-only. One repository per sandbox, and how its
   commits come back is undocumented (the docs' git-workflow page is a 404).
-- **Podman**: not now. `internal/sandbox` is neutral so that it can be added
-  without touching the UI.
+- **Podman**: not now. agentbox's runtimes are neutral so that it can be
+  added without touching unagit.
 
 ## Sandboxes and VMs
 
@@ -203,28 +215,29 @@ runs another process in the same environment, like `docker exec`.
 
 Both arrangements are offered, and the user picks at the start:
 
-- **A shared VM** per profile (`unagit-<profile>`): tasks are directories
+- **A shared VM** per profile (`ab-<profile>`): tasks are directories
   `/work/<task>`, agents are processes side by side. Memory, the Gradle
   cache and Docker images are paid once. Between the agents there is no
   isolation at all - one user with sudo, one filesystem, one Docker, one
   set of ports (two `docker compose` Postgreses on 5432 collide). The
   picker says so.
-- **A VM of its own** (`unagit-<profile>-<task>`): nothing it does reaches
+- **A VM of its own** (`ab-<profile>-<task>`): nothing it does reaches
   another task.
 
 Both persist when the agent ends, for their caches; removing is the user's
-action. A VM in which the last agent unagit started has ended is
+action. A VM in which the last agent agentbox started has ended is
 **stopped** (`sbx stop`), so idle VMs hold no memory; its disk, caches and
 tasks stay, and the next start boots it again (and runs the profile's
-`start`). Settings › Integrations, sbx's block, can turn the stopping off.
-unagit stops only VMs it made (`unagit-` names) and only when it saw its
-own agents end; one with an agent started some other way is left alone. The default offered is the shared VM; the picker orders by use, as
-the place picker does (`orderPlaces`).
+`start`). agentbox's configuration can turn the stopping off
+(`runtimes.sbx.stop_idle`). It stops only VMs it made (`ab-` names), and
+only when no agent it started is left in them.
 
 `<task>` is the worktree's folder name and a short hash of its host path,
 since two roots can hold folders of the same name.
 
-## A start, step by step
+## A start
+
+### From unagit
 
 On a worktree, a group or a merge request's branch worktree (never a review
 worktree: its HEAD is the merge base on purpose, nothing is committed
@@ -232,80 +245,80 @@ there):
 
 1. **Open in Sandboxed Agent…** asks, each picker skipped when it has one
    item and ordered by use: the agent, the profile, the sandbox, the place
-   (the existing `agentPlaces`). The sandbox picker is also where the
-   runtime is chosen: the profile's VMs of every runtime (from `sbx ls
-   --json`), each carrying its own, then New Sandbox in <runtime>… for
-   each runtime turned on in Integrations and installed - plain New
-   Sandbox… while there is one. A profile whose host-facing fields changed
-   since they were approved does not start (see [trust](#trust)).
-
-   Refused before any picker: **a repository on its default branch**
-   ("make a worktree with a branch first") - the agent would push straight
-   to it should the forge not protect it. And when the worktree has
-   uncommitted changes, they will not reach the VM, which clones from the
-   forge: unagit says so and offers Commit… or going on without them.
-2. unagit **pushes the branch** of every repository of the worktree that
+   (the existing `agentPlaces`). The pickers are filled from `agentbox
+   profiles --json` and `agentbox ls --json`. The sandbox picker is also
+   where the runtime is chosen: the profile's VMs of every runtime, each
+   carrying its own, then New Sandbox in <runtime>… for each runtime
+   agentbox has on - plain New Sandbox… while there is one.
+2. `agentbox check --json` with the profile, runtime, branch and
+   directories. It answers what stands in the way, and unagit asks about
+   each in its own dialogs: a default branch (refused: "make a worktree with
+   a branch first"), uncommitted changes (they will not reach the VM, which
+   clones from the forge - Commit… or go on without them), a profile not
+   approved (Approve…, see [trust](#trust)), an image outdated or not built
+   (Build…, with the profile's diff).
+3. unagit **pushes the branch** of every repository of the worktree that
    has no upstream or is ahead of it - from the host, with its own
    credentials, through the path `P` uses. A branch origin has moved past
    stops the start with the reason; nothing is forced.
-3. **The image is checked** for the runtime: built from the profile's
-   tree at HEAD, or not. When it is not, the start asks to build it
-   (minutes, a `runTask` log) and never builds quietly.
-   The VM is then created if new (`sbx create`, see
-   [runtime](#the-runtime)) or started, and the profile's `start` script
-   runs if the VM booted since it last ran.
-4. **The task is prepared** by `sbx exec <vm> sh -c <script>` with the
-   manifest in the environment: for each repository, clone at the branch
-   into `/work/<task>/<dir>` (`--filter=blob:none`), or fetch and
-   fast-forward when it is there already; set the author and the
-   co-author hook ([commits](#commits)); write the agent's
-   [instructions](#instructions-for-the-agent) into the VM's home; run the
-   profile's bootstrap script from the repository if it has one. This is a
-   `runTask` log - a clone is worth reading when it fails.
-5. **The agent starts** in the place chosen: `sbx exec -it -w
-   /work/<task> <vm> <agent command>`, a terminal command like any other,
-   so This Terminal, Zellij, Ghostty and herdr all work as they do for an
-   agent on the host.
-6. The record goes to `<config>/sessions/` as an agent's does, with the VM
-   and the task added, so Activity lists it.
+4. `agentbox prepare` with the repositories' clone URLs **from the forge's
+   API** (the project's http URL), never from a local remote, which can
+   carry a token (a chezmoi origin, AGENTS.md); https always - the VM has
+   no SSH key. A `runTask` log of its output; it prints the VM and the task
+   as JSON at the end.
+5. The place chosen runs `agentbox run …` for the task - This Terminal,
+   Zellij, Ghostty or herdr, as for any agent.
+6. unagit's session record (`<config>/sessions/`) gets the VM and the task
+   beside the pane, so Activity lists the agent with them.
 
-The manifest is clone URLs and directory names:
+### What agentbox does
 
-```
-UNAGIT_BRANCH=feature/x
-UNAGIT_REPOS=api=https://gitlab.example.com/team/api.git web=https://…/web.git
-```
+`agentbox prepare` (and `run`, when not prepared):
 
-**Clone URLs come from the forge's API** (the project's http URL), never
-from a local remote: a chezmoi origin can carry a token in its URL
-(AGENTS.md, chezmoi). https always - the VM has no SSH key.
+1. Creates the VM if new (`sbx create`, see [runtime](#the-runtime)) or
+   starts it, and runs the profile's `start` if the VM booted since it last
+   ran.
+2. For each repository, clones at the branch into `/work/<task>/<dir>`
+   (`--filter=blob:none`), or fetches and fast-forwards when it is there
+   already.
+3. Sets the author and the co-author hook ([commits](#commits)), writes
+   the agent's [instructions](#instructions-for-the-agent) into the VM's
+   home, and runs the profile's bootstrap script from each repository that
+   has one.
 
-What a worktree's sandbox is, for the next start and for removing:
-`config.State` (state.json) keeps `Sandboxes`, host directory → VM and
-task. It is use, not a choice, so not config.yaml; entries whose
-directory is gone are swept.
+`agentbox run` then runs the agent: `sbx exec -it -w /work/<task> <vm>
+<agent command>` as its child - not `exec`'d, so that when the agent ends
+it can stop an idle VM and update its records. It passes the terminal,
+signals and the window size through, and exits with the agent's status.
+
+Without unagit, agentbox takes what unagit would give it from where it is
+run: the repositories and the branch from the current directory or the
+directories named, their clone URLs from `origin` (credentials stripped,
+an ssh URL turned into https where the host is plain). It never pushes on
+its own: a branch the forge does not have is refused ("push it first"),
+unless `--push` asks it to run the user's own `git push -u`.
 
 ## Credentials
 
-- **unagit's tokens never go into a VM**, in any form (AGENTS.md, the hard
-  rule). The push from step 2 is the host's; everything after it is the
-  VM's own.
+- **unagit's tokens never go into a VM**, nor into agentbox, in any form
+  (AGENTS.md, the hard rule). The push before a start is unagit's, from
+  the host; everything after it is the VM's own.
 - **The VM pushes with a token of its own**, issued by the user for this,
-  stored by sbx (`sbx secret set`, its keychain and proxy). unagit never
-  sees it. Narrow: a GitLab project or group access token with Developer on
-  the projects concerned; a GitHub fine-grained token on the repositories,
-  contents write.
+  stored by sbx (`sbx secret set`, its keychain and proxy). Neither
+  program sees it. Narrow: a GitLab project or group access token with
+  Developer on the projects concerned; a GitHub fine-grained token on the
+  repositories, contents write.
 - **The forge is now the boundary.** The agent can push to any branch the
   token may, force-push, delete. Protect `main` and release branches on the
   forge, and if possible restrict the token to the work branches (GitLab
   push rules and protected branches, GitHub rulesets). The README says so
   where it explains the feature.
-- The agents' own logins (Claude, Codex) are sbx's business, as with
-  `sbx run claude`.
+- The agents' own logins (Claude, Codex) are sbx's service secrets
+  ([below](#one-image-several-agents)).
 
-**Spike**: how sbx hands git its credential - a credential binding through
-the proxy, or a secret the VM's git reads through a helper - and whether
-that works for a self-hosted GitLab, behind a VPN included.
+**Spike**: how sbx hands git its credential - its `github` service, a
+service of one's own for a self-hosted GitLab, or a secret the VM's git
+reads through a helper - and whether that works behind a VPN.
 
 ## Profiles
 
@@ -336,19 +349,21 @@ sandbox-envs/
 
 A directory with a `profile.yaml` is a profile, named after the directory.
 
-Settings names the environments repository as **a repository of the
-list** (instance and project path), so config.yaml stays portable: unagit
-finds its main clone wherever it cloned it on this machine, as it does for
-any repository. A plain path is the fallback for a repository on no forge.
-Profiles are read from the main clone's working tree - what the user sees
-in their editor is what runs.
+agentbox knows the repository by its path (`environments` in its
+configuration) and reads the working tree - what the user sees in their
+editor is what runs. In unagit, Settings picks it **from the list of
+repositories** (instance and project path), which keeps unagit's
+config.yaml portable; unagit finds its main clone on this machine and
+hands agentbox the path (`agentbox config set environments <path>`) at
+every start and whenever the choice changes, if agentbox's differs. With
+nothing chosen in unagit, agentbox's own setting is left as it is.
 
-unagit never edits a profile. The Sandboxes tab shows them read-only,
+Neither program edits a profile. The Sandboxes tab shows them read-only,
 parsed, and opens a profile's directory or file in the editor.
 
 ### The format
 
-`profile.yaml` is unagit's own format, kept small, and **knows no
+`profile.yaml` is agentbox's own format, kept small, and **knows no
 runtime**. It describes the environment; where it runs is chosen at the
 start.
 
@@ -361,10 +376,10 @@ caches:
   - host: ~/.gradle/caches
     env: GRADLE_RO_DEP_CACHE
 deny_network: []
-agents: [claude, codex]       # what the image has; ids of agents.All
+agents: [claude, codex]       # what the image has
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
-instructions:                 # for the agent, in this order, after unagit's own
+instructions:                 # for the agent, in this order, after agentbox's own
   - ../instructions/review-style.md
   - instructions.md
 git:
@@ -372,35 +387,12 @@ git:
   co_author: true             # a Co-Authored-By trailer naming the agent
 ```
 
-Three scripts, each at its own moment, all running inside the VM:
-
-| what | lives in | runs | for |
-| --- | --- | --- | --- |
-| `Dockerfile` | the profile | when the image is built | everything static: toolchains, tools, certificates |
-| `start` | the profile | once per boot of the VM | services and daemons (a shared `docker compose`), configuration from the environment, `git config` |
-| `bootstrap` | the worked-on repository | after a task's clone or fetch | the project's dependencies, generated code |
-
-- **`start` runs once per boot, whoever booted the VM.** A VM can be
-  started by something else than unagit (`sbx exec` from a terminal, sbx's
-  TUI), so before every agent unagit compares the kernel's `boot_id` with a
-  mark it left in the VM (`/var/lib/unagit/started`) and runs the script
-  only when they differ - by `sbx exec`, its output in the start's
-  `runTask` log. A failure stops the start with that log.
-- No kit's startup hook does this: it is a plain `sbx exec`, so it means
-  the same in any runtime.
-- Nothing runs once when the VM is made: what should happen once is static
-  and belongs in the Dockerfile. If that proves wrong, `setup:` comes the
-  same way.
-- `start` runs only inside the VM, so it needs no approval.
-
 - An unknown field is an error naming it, never skipped: a misspelt
-  `memmory` must not quietly change the environment. The Sandboxes tab
-  shows a profile that does not parse with the error, and it cannot be
-  started.
+  `memmory` must not quietly change the environment. A profile that does
+  not parse is listed with the error and cannot be started.
 - **The image is the environment.** Everything static - JDK, Node, the
   agents' CLIs, certificates - goes into the Dockerfile. What depends on
-  the checkout belongs to the worked-on repository's bootstrap, which runs
-  inside the VM.
+  the checkout belongs to the worked-on repository's bootstrap.
 - `image:` instead of `dockerfile:` names an image built elsewhere (a
   team's CI); then nothing is built.
 - **Caches are read-only from the host.** `~/.gradle/caches` mounted
@@ -412,10 +404,31 @@ Three scripts, each at its own moment, all running inside the VM:
   consistency while the host writes the cache - at worst a build in the VM
   fails and runs again. A mount is at the host's absolute path, as sbx
   mounts everything.
-- Considered: devcontainer.json (a standard, but unagit would honour a
+- Considered: devcontainer.json (a standard, but agentbox would honour a
   fraction of it and the rest would silently not work; the read-only cache
   and the network rules do not map onto it) and sbx's `sbxenv.yaml`
   (sbx's alone, and experimental).
+
+### Three scripts
+
+Each at its own moment, all running inside the VM:
+
+| what | lives in | runs | for |
+| --- | --- | --- | --- |
+| `Dockerfile` | the profile | when the image is built | everything static: toolchains, tools, certificates |
+| `start` | the profile | once per boot of the VM | services and daemons (a shared `docker compose`), configuration from the environment |
+| `bootstrap` | the worked-on repository | after a task's clone or fetch | the project's dependencies, generated code |
+
+- **`start` runs once per boot, whoever booted the VM.** A VM can be
+  started by something else (`sbx exec` from a terminal, sbx's TUI), so
+  before every agent agentbox compares the kernel's `boot_id` with a mark
+  it left in the VM (`/var/lib/agentbox/started`) and runs the script only
+  when they differ, by `sbx exec`, its output in the preparation's output.
+  A failure stops the start.
+- Nothing runs once when the VM is made: what should happen once is static
+  and belongs in the Dockerfile. If that proves wrong, `setup:` comes the
+  same way.
+- The scripts run only inside the VM, so they need no approval.
 
 ### Instructions for the agent
 
@@ -424,41 +437,33 @@ push as it goes, never to force - and the user has more to say, in general
 and per profile. None of it may go into the worked-on repository, where
 it would be committed. So:
 
-- **unagit's own**, always first, fixed in the binary: the branch, the
+- **agentbox's own**, always first, fixed in the binary: the branch, the
   repositories and where they are, commit and push as you go, never force
-  push, never push another branch, the author rules below.
+  push, never push another branch.
 - **Then the profile's `instructions`**, markdown files of the
   environments repository, in the order listed: shared ones from anywhere
   in it (`instructions/` by convention, attached to as many profiles as
-  want them) and the profile's own. Versioned, reviewed and shared like
-  the rest; a path that does not exist is an error, as an unknown field
-  is. They run only inside the VM, so they need no approval.
-- At a task's preparation unagit writes the whole into the VM's home as
-  the agents' user-level instructions (`~/.claude/CLAUDE.md`,
-  `~/.codex/AGENTS.md`, each agent's own file, named in `agents.Agent`),
-  never into `/work`.
-- The Sandboxes tab shows them: under Profiles, a pane with the profile's
-  instructions as the agent gets them, unagit's included, rendered by
-  `internal/md`. Edit Instructions… opens the files in the editor - unagit
-  never writes the repository.
+  want them) and the profile's own. A path that does not exist is an
+  error. They go only into the VM, so they need no approval.
+- At a task's preparation agentbox writes the whole into the VM's home as
+  the agent's user-level instructions (`~/.claude/CLAUDE.md`,
+  `~/.codex/AGENTS.md` - each agent's file is in agentbox's table of
+  agents), never into `/work`.
+- `agentbox instructions <profile>` prints them as the agent gets them;
+  the Sandboxes tab shows that in a pane under Profiles, rendered by
+  `internal/md`, and Edit Instructions… opens the files in the editor.
 
 ### Commits
 
-```yaml
-git:
-  author: user
-  co_author: true
-```
-
 - `author: user` takes `user.name` and `user.email` from the host's git
-  configuration for the worktree, and sets them in each clone in the VM.
-  The commits are the user's, so a forge's push rule that the author must
-  be one of its users passes. It is the one value; a profile cannot name
-  someone else.
+  configuration of the worktree (unagit passes them as `--author`), and
+  sets them in each clone in the VM. The commits are the user's, so a
+  forge's push rule that the author must be one of its users passes. It is
+  the one value; a profile cannot name someone else.
 - `co_author: true` adds `Co-Authored-By: <agent>` to every commit, the
-  agent's name and address from `agents.Agent` (Claude Code's
+  agent's name and address from agentbox's table (Claude Code's
   `Claude <noreply@anthropic.com>`, and so on). It is not left to the
-  agent: unagit puts a `commit-msg` hook into each clone in the VM that
+  agent: agentbox puts a `commit-msg` hook into each clone in the VM that
   adds the trailer when it is missing. A hook in the VM's own clone is the
   VM's business; nothing of it reaches the host.
 - Absent, `git` means both as shown.
@@ -474,10 +479,10 @@ subdirectory named after the runtime:
 ARG BASE=ubuntu:24.04
 FROM ${BASE}
 
-ARG UNAGIT_RUNTIME
+ARG AGENTBOX_RUNTIME
 USER root
 RUN apt-get update && apt-get install -y openjdk-21-jdk git curl
-RUN if [ "$UNAGIT_RUNTIME" = sbx ]; then echo "sbx alone"; fi
+RUN if [ "$AGENTBOX_RUNTIME" = sbx ]; then echo "sbx alone"; fi
 ```
 
 ```
@@ -485,26 +490,17 @@ RUN if [ "$UNAGIT_RUNTIME" = sbx ]; then echo "sbx alone"; fi
 BASE=docker/sandbox-templates:shell
 ```
 
-- Building for runtime X, unagit always passes `--build-arg
-  UNAGIT_RUNTIME=X`, so a condition needs no file, and every `KEY=VALUE`
+- Building for runtime X, agentbox always passes `--build-arg
+  AGENTBOX_RUNTIME=X`, so a condition needs no file, and every `KEY=VALUE`
   line of `X/build.args` as a `--build-arg`. No `X/` means the `ARG`
-  defaults.
-- Defaults in `ARG` keep the Dockerfile buildable by hand, with a plain
-  `docker build .`.
+  defaults, which also keep the Dockerfile buildable by hand.
 - Larger differences can be a stage per runtime (`FROM common AS sbx`,
   built with `--target`); not until one is needed.
-- This is how the environment is built on a runtime, so it lives in the
-  environments repository and is shared. What the user adds for
-  themselves - a kit - stays in config.yaml
-  ([below](#what-the-user-adds-for-one-runtime)). The line: what the
-  environment needs to work on a runtime goes to the repository, what the
-  user wants goes to their configuration.
 - `build.args` is the one file a runtime directory has for now; an unknown
   file there is an error, as an unknown field is.
 - The tree hash covers the whole profile, so a change under `podman/`
   marks sbx's image outdated too. A needless rebuild, kept for the simple
-  rule; hashing the common files and the runtime's own directory alone can
-  come if it bothers anyone.
+  rule.
 
 ### Trust
 
@@ -514,41 +510,34 @@ caches (host paths mounted), `env` (host values passed in) and the network
 rules. A change to those must be approved before the profile runs, as
 `direnv allow` does:
 
-- `config.State` (state.json) keeps, per profile, a hash of its
-  host-facing fields as last approved.
-- A profile whose fields differ shows "changed since approved" on the
-  Sandboxes tab; Approve… shows the difference of those fields alone and
-  asks. A new profile starts unapproved.
+- agentbox's state keeps, per profile, a hash of its host-facing fields as
+  last approved. A new profile starts unapproved.
+- `agentbox check` reports a profile whose fields differ, with the
+  difference of those fields alone; `agentbox approve <profile>` records
+  them. unagit shows the difference and asks, then approves; agentbox run
+  from a terminal asks itself.
 - The worked-on repositories still choose nothing: they give the bootstrap
   script, which runs inside the VM.
 
 ### sbx's templates and kits
 
-sbx has two words for shaping a sandbox, and the design leans on one and
-keeps away from the other.
+sbx has two words for shaping a sandbox; the design uses one and keeps away
+from the other.
 
 - **A template** is the image a sandbox is made from: an OCI image in sbx's
   own image store (apart from Docker's), its root filesystem being what is
-  installed in the VM - the OS, the toolchains, the agent's CLI.
-  `sbx create -t <template>` picks it; without one, sbx takes the agent's
-  own (Docker publishes one per agent). It is how the environment gets into
-  the VM, so it is what a profile's Dockerfile becomes: built, saved and
-  loaded (`sbx template load`), tagged by the profile's tree. `sbx template
-  save` can also snapshot a running sandbox as a template.
+  installed in the VM - the OS, the toolchains, the agents' CLIs. `sbx
+  create -t <template>` picks it. It is how the environment gets into the
+  VM, so it is what a profile's Dockerfile becomes: built, saved and
+  loaded (`sbx template load`), tagged by the profile's tree.
 - **A kit** is a declarative package laid over a sandbox: files, an
-  install hook run once when the sandbox is made, a startup hook run at
-  every start, network rules, credential bindings, instructions for the
-  agent. A *workload* kit says what runs - the built-in agents are kits,
-  which is how `sbx create claude` knows to install and log in Claude - and
-  a *mixin* kit adds to one (`--kit`). Kits v3 are Early Access.
-
-Why they matter here: the template is the profile, so building and
-tagging it is the runtime adapter's main job, and whether it is current is
-what the Profiles part of the tab shows. The kit is where sbx keeps what
-makes an agent work inside - its login, its proxy - so unagit uses the
-built-in agent kits as they are, passes the user's own mixins through from
-`integrations.sbx`, and writes none of its own: everything a profile says
-is expressible as flags, and a format still moving is not one to generate.
+  install hook, a startup hook, network rules, credential bindings,
+  instructions for the agent. The built-in agents are kits; a *mixin* kit
+  adds to one (`--kit`). Kits v3 are Early Access. **agentbox neither
+  writes nor takes kits**: everything a profile says is expressible as
+  flags and `sbx exec`, and a format still moving is not one to build on.
+  If the spike finds something only a kit can do - the credential for
+  git's push is the candidate - that is decided then.
 
 ### One image, several agents
 
@@ -583,107 +572,126 @@ not the agent kit's: sbx keeps them as service secrets (`anthropic`,
 `openai`, `github`), global or per sandbox, and its proxy signs the
 requests to those services with them, the key never entering the VM - so
 they should hold for any process in it, an agent started by `exec`
-included. The `github` service may also be git's push to GitHub.
+included.
 
 **Spike**: that `sbx exec … claude` in a shell VM does get its login
-through the proxy; whether a self-hosted GitLab can be a service of its
-own; and whether sbx needs anything of a template beyond `:shell`'s base.
-Should the login fail, the fallback is a VM per profile and agent made by
-`sbx create <agent>` (see [runtime](#the-runtime)), the image still one.
+through the proxy, and whether sbx needs anything of a template beyond
+`:shell`'s base. Should the login fail, the fallback is a VM per profile
+and agent made by `sbx create <agent>`, the image still one.
 
 ### Which agents a profile offers
 
 The profile declares them (`agents:`), and the build checks the
 declaration against the image:
 
-- **Declared**, so unagit knows what to offer before anything is built,
-  for an `image:` too without pulling it, and the tab can show it.
+- **Declared**, so what to offer is known before anything is built, for an
+  `image:` too without pulling it.
 - **Checked**: after a build, before the image is loaded into the runtime,
-  unagit runs `docker run --rm <image> sh -c 'command -v …'` for the
+  agentbox runs `docker run --rm <image> sh -c 'command -v …'` for the
   declared agents' commands. One missing fails the build, naming it
   ("profile kotlin declares codex, but the image has no codex - install it
   in the Dockerfile"), so the declaration cannot quietly stop being true.
-  One present but not declared is mentioned in the log and not offered.
-  An `image:` is checked the same way once pulled.
-- **Offered**: the agents declared by the profile and not turned off in
-  Integrations. Whether an agent is installed on the host does not matter
-  here; the VM runs the image's. The agent picker lists the agents of
-  every profile, the profile picker then the profiles that have the one
-  chosen, skipped when there is one.
+  One present but not declared is mentioned and not offered. An `image:`
+  is checked the same way once pulled.
+- **Offered** by unagit: the agents declared by the profile and not
+  turned off in unagit's Integrations. Whether an agent is installed on
+  the host does not matter here; the VM runs the image's. The agent picker
+  lists the agents of every profile, the profile picker then the profiles
+  that have the one chosen, skipped when there is one.
 
-### What a runtime makes of it
+agentbox has its own table of agents - id, command, its instructions file,
+its co-author line, sbx's name for it - and never reads unagit's
+`agents.All`; the ids are the same, so unagit maps them.
 
-Everything runtime-specific is generated just before a start, from the
-neutral profile, and kept as a cache (`<cache>/sandboxes/<runtime>/`) that
-is never edited and always regenerated. For sbx:
-
-| profile | sbx |
-| --- | --- |
-| `dockerfile` | `docker build --build-arg UNAGIT_RUNTIME=sbx` and `sbx/build.args`, `docker save`, `sbx template load`, tagged `unagit-env/<profile>:<tree>` |
-| `image` | `-t <image>` |
-| `cpus`, `memory` | `--cpus`, `--memory` |
-| `deny_network` | `--deny-network` |
-| `env` | `-e NAME` |
-| `caches` | `<host>:ro` as an extra workspace, `-e <env>=<host>` |
-| `start` | run by `sbx exec` when the VM's `boot_id` is new |
-| `bootstrap` | run by `sbx exec` after the clones |
+### Building
 
 - `<tree>` is the git tree hash of the profile's directory at HEAD, so
   whether the image is current is a comparison with `sbx template ls
   --json`, per runtime: **built**, **outdated**, **not built**. A profile
-  with uncommitted changes is marked so; Build… builds them as they are,
-  tagged `<tree>-dirty`.
-- **Build… shows what it is about to build.** The question lists what
-  changed in the profile's directory since the image last built (its tree
-  is in the tag) and shows the differences in unagit's own differ - the
-  one the Changes dialog draws (`drawDiff`, `diffdraw.go`) - before it
-  asks. A teammate's Dockerfile runs in the host's Docker when built; it
-  is isolated there, but `RUN --mount` and build secrets can reach out,
-  so the user sees it first. No approval of its own beyond that question.
-- A local build is for this machine's architecture, which is all a local
+  with uncommitted changes is marked so, and builds as it is, tagged
+  `<tree>-dirty`.
+- For sbx: `docker build` with the build arguments, the agents' check,
+  `docker save`, `sbx template load`, tagged `agentbox/<profile>:<tree>`.
+  A local build is for this machine's architecture, which is all a local
   sandbox needs.
-- **No kit is generated** while flags can say it: kits v3 are Early Access,
-  and a generator tied to their format would break with sbx's releases.
-  One is generated only if the spike finds something flags cannot do -
-  the credential for git's push is the candidate.
+- **A build shows what it is about to build.** `agentbox diff <profile>`
+  prints what changed in the profile's directory since its image last
+  built (the tree is in the tag) as a unified diff. unagit's Build…
+  question draws it in unagit's own differ - the one the Changes dialog
+  draws (`drawDiff`, `diffdraw.go`) - before it asks. A teammate's
+  Dockerfile runs in the host's Docker when built; isolated there, but
+  `RUN --mount` and build secrets can reach out, so the user sees it
+  first. No approval of its own beyond that question.
 
-### What the user adds for one runtime
+## agentbox
 
-What the user wants for sbx alone - a kit of the company's certificates,
-a mirror - is a choice on this machine, not part of the environment. It
-lives in config.yaml under the runtime's integration and is edited in
-Settings › Integrations, in sbx's block:
+### Its home
 
-```yaml
-integrations:
-  sbx:
-    kits: [docker.io/bitbyone/company-ca:1]    # every profile
-    profiles:
-      kotlin:
-        kits: [docker.io/bitbyone/gradle-mirror:1]
+```
+~/.config/agentbox/config.yaml   the user's choices
+~/.config/agentbox/state.json    what use taught: approvals, VMs, tasks,
+                                 the agents it runs, the boot marks
+~/.cache/agentbox/               generated: tars, never edited
 ```
 
-It is the user's own file, so no approval. It is keyed by the profile's
-name: one whose profile is gone is a warning in Settings, never dropped. A
-runtime added later gets a block of its own the same way. Kits are passed
-through and never interpreted.
+```yaml
+environments: ~/workspace/bitbyone/sandbox-envs
+runtimes:
+  sbx:
+    on: true
+    stop_idle: true
+```
 
-sbx appears in Integrations like the other programs (`a.executable("sbx")`);
-only runtimes turned on there are offered.
+A runtime not named is on when installed. unagit writes this file only
+through `agentbox config set`, never by hand, and only what the user chose
+in unagit's Settings.
 
-## The runtime
+### The command line
 
-`internal/sandbox`, the neutral vocabulary, as `internal/forge` is for
-forges. Nothing above it says sbx.
+The contract unagit is written against. Everything a list shows has
+`--json`; a long operation prints its progress as lines, for a log.
+Called by unagit (`--json`, or `--yes` where a question would come) it
+never asks: what stands in the way is an answer, not a prompt.
+
+| command | does |
+| --- | --- |
+| `agentbox profiles [--json]` | profiles: name, agents, image state per runtime, approval, error, last commit |
+| `agentbox instructions <profile>` | the instructions as the agent gets them |
+| `agentbox diff <profile>` | what changed since the last build, a unified diff |
+| `agentbox approve <profile>` | records the host-facing fields as approved |
+| `agentbox build <profile> [--runtime R]` | builds, checks the agents, loads |
+| `agentbox check …  --json` | what stands in the way of a start: default branch, uncommitted, approval, image |
+| `agentbox prepare …` | the VM and the task, ready; JSON of both at the end |
+| `agentbox run …` | the agent, in this terminal; prepares first if needed |
+| `agentbox ls [--json]` | VMs: runtime, profile, state, memory, tasks |
+| `agentbox tasks <vm> [--json]` | tasks: directory on the host, repositories, branch, agents |
+| `agentbox shell <vm>` | a shell in the VM |
+| `agentbox stop <vm>`, `rm <vm>`, `rm-task <vm> <task>` | as named |
+| `agentbox config get/set <key> [<value>]` | its configuration |
+| `agentbox herdr install-plugin`, `uninstall-plugin`, `status [--json]` | [herdr](#herdr) |
+
+`check`, `prepare` and `run` take the same task: `--profile`,
+`--agent`, `--runtime`, `--vm <name>` or `--new-vm`, `--branch`,
+`--repo <dir>=<clone URL>` (repeated; or directories, as without unagit),
+`--author "Name <email>"`.
+
+Exit codes say what kind of failure: 2 not approved, 3 image outdated or
+not built, 4 refused (a default branch, a branch the forge lacks), 1 any
+other error. Errors are lower case and say what to do: `sbx is not signed
+in - run sbx login`.
+
+### The runtime
+
+agentbox's neutral vocabulary; nothing above it says sbx.
 
 ```go
 type Runtime interface {
 	Name() string
-	Available() error                    // installed, signed in, daemon up
-	List() ([]Box, error)                // name, profile, state, memory
-	Images() ([]Image, error)            // built templates, by tag
+	Available() error                     // installed, signed in, daemon up
+	List() ([]Box, error)                 // name, profile, state, memory
+	Images() ([]Image, error)             // built templates, by tag
 	Build(p Profile, log io.Writer) error // the profile's image, for this runtime
-	Create(spec Spec) error              // detached, idempotent by name
+	Create(spec Spec) error               // detached, idempotent by name
 	Exec(name string, cmd Command) *exec.Cmd // -it when Interactive
 	Stop(name string) error
 	Remove(name string) error
@@ -695,24 +703,32 @@ sbx's side, from its `--help`:
 | Runtime | sbx |
 | --- | --- |
 | `List` | `sbx ls --json` |
-| `Build` | `docker build`, `docker save`, `sbx template load` (see [profiles](#what-a-runtime-makes-of-it)) |
 | `Images` | `sbx template ls --json` |
-| `Create` | `sbx create --name N -t T --kit K --cpus C -m M --deny-network H -e K shell <mounts>` |
+| `Build` | `docker build`, `docker save`, `sbx template load` |
+| `Create` | `sbx create --name N -t T --cpus C -m M --deny-network H -e K shell <mounts>` |
 | `Exec` | `sbx exec [-it] [-w DIR] [-e K=V] N cmd…` (starts a stopped VM) |
 | `Stop` | `sbx stop N` |
 | `Remove` | `sbx rm N` |
+
+How a profile becomes flags:
+
+| profile | sbx |
+| --- | --- |
+| `dockerfile` | the built template, `-t agentbox/<profile>:<tree>` |
+| `image` | `-t <image>` |
+| `cpus`, `memory` | `--cpus`, `--memory` |
+| `deny_network` | `--deny-network` |
+| `env` | `-e NAME` |
+| `caches` | `<host>:ro` as an extra workspace, `-e <env>=<host>` |
+| `start` | run by `sbx exec` when the VM's `boot_id` is new |
+| `bootstrap` | run by `sbx exec` after the clones |
 
 Spike questions about it:
 
 - `sbx create` takes an agent and mounts the current directory when given
   no path. A VM must be created with no repository mounted: give it a
-  directory of unagit's own (`<cache>/sandboxes/<vm>`, empty, read-only)
-  as its workspace, unless sbx can do without one.
-- A VM is created as `shell`, its agents started by `sbx exec` (see
-  [one image, several agents](#one-image-several-agents)). If an agent
-  started so has no login, a VM is per profile and agent,
-  `unagit-<profile>-<agent>`, created with that agent, and the picker says
-  so.
+  directory of agentbox's own (`~/.cache/agentbox/vms/<vm>`, empty,
+  read-only) as its workspace, unless sbx can do without one.
 - Does `sbx exec` take `-w`?
 - Do read-only mounts of host directories outside the workspace work
   (`<path>:ro` as an extra workspace)?
@@ -720,121 +736,131 @@ Spike questions about it:
   `sbx template save`? If only the latter: build in a sandbox and `sbx
   template save` it, or push to a registry.
 
-Errors are lower case and say what to do: `sbx is not signed in - run
-sbx login`.
+### herdr
 
-## The agents
-
-`agents.Agent` gains what a VM needs: the command inside the VM (usually
-`Command`, the one the build checks for), and sbx's agent name, for the
-fallback of a VM per agent (`claude`, `codex`, `copilot`, `opencode`). A
-profile names agents by these ids; which it offers is
-[its declaration](#which-agents-a-profile-offers), checked by the build.
-
-## herdr
-
-herdr recognises an agent by its pane's foreground process, and `sbx exec
-… claude` in a pane is the `sbx` process: herdr sees no agent and has no
-state for it. unagit fills that in with **a herdr plugin of its own**. It
-is the one way; there is no launcher and no third-party plugin to choose
-instead.
+herdr recognises an agent by its pane's foreground process, and an agent
+behind `sbx exec` is not one it knows: no agent, no state. agentbox fills
+that in with **a herdr plugin of its own**. It is the one way; there is no
+launcher and no third-party plugin to choose instead.
 
 What it does, as long as herdr runs - unagit open or not:
 
-- For every pane in which unagit started a sandboxed agent (the session
-  records in `<config>/sessions/`: the pane, the agent, the VM), it reads
-  the screen (`pane.read`), has herdr classify it by herdr's own rules for
-  that agent (`herdr agent explain --file … --agent <kind> --json`), and
-  reports the state (`pane.report_agent`, `pane.release_agent` when the
-  agent is gone), with the VM's name as the pane's metadata
+- `agentbox run` started in a herdr pane records the pane
+  (`HERDR_PANE_ID`), the agent and the VM in agentbox's state. For every
+  pane so recorded whose `agentbox run` is alive, the plugin reads the
+  screen (`pane.read`), has herdr classify it by herdr's own rules for that
+  agent (`herdr agent explain --file … --agent <kind> --json`), and reports
+  the state (`pane.report_agent`, `pane.release_agent` when the agent is
+  gone), with the VM's name as the pane's metadata
   (`pane.report_metadata`). It reports only on a change.
-- It need not parse argv to know what runs where - unagit started it and
-  wrote it down - but it checks with `pane.process_info` that the pane
-  still runs `sbx exec`, so a pane reused for something else is released.
-- The Agents part of Activity matches herdr's agents by pane, so the state
-  arrives there with no change.
+- It never parses argv: agentbox started the agent and wrote it down.
+- unagit's Activity matches herdr's agents by pane, so the state arrives
+  there with no change to it.
 
 The idea, and the herdr calls, come from
 [sbx-herdr](https://github.com/dvdksn/sbx-herdr) (read 2026-10-12 at
-0.1.0). It has no licence, so none of its code is taken; ours is smaller
-anyway, since it knows its panes instead of guessing them from argv.
+0.1.0). It has no licence, so none of its code is taken.
 
 **The plugin is a manifest and nothing to build.** `herdr-plugin.toml`, its
-commands calling the unagit binary: a startup command and the
-`pane.created` / `pane.focused` events run `unagit herdr ensure`, which
-starts one `unagit herdr observe` per herdr socket (a lock in
+commands calling the agentbox binary: a startup command and the
+`pane.created` / `pane.focused` events run `agentbox herdr ensure`, which
+starts one `agentbox herdr observe` per herdr socket (a lock in
 `HERDR_PLUGIN_STATE_DIR`, so a second ensure does nothing), detached, its
-log in that directory. Both are hidden cobra commands that refuse to run
-outside herdr (no `HERDR_SOCKET_PATH`). No Go on the user's machine, and
-the plugin's version is unagit's.
+log in that directory. Both are hidden commands that refuse to run outside
+herdr (no `HERDR_SOCKET_PATH`).
 
 **Installed only with the user's consent**, never quietly - it changes
 herdr's configuration and leaves a process running with herdr:
 
-- Settings › Integrations, in herdr's block: whether the plugin is
-  installed and enabled (`herdr plugin list`), and an action Install herdr
-  Plugin… (and Uninstall) behind a question that says what it does.
-- The same from the command line: `unagit herdr install-plugin` and
-  `uninstall-plugin`, asking unless `--yes`.
-- Installing writes the manifest, embedded in the binary, to
-  `<config>/herdr-plugin/` with the absolute path of the running unagit,
-  then `herdr plugin link <dir>` and `enable`.
-- The path changes when unagit is upgraded or moved. At every start,
-  unagit compares the linked manifest with what it would write and, if it
-  differs, rewrites it - the user consented to the plugin, not to a path.
-- When a sandboxed agent is started in herdr without the plugin, it runs,
-  with no state, and unagit says once (`note`) that Install herdr Plugin…
-  in Settings would show it.
-
-What the command must look like, so that the plugin's check holds: `sbx
-exec` itself is the pane's process - directly or through `unagit launch`,
-which `exec`s it, never inside `sh -c` - and the agent is the command
-(`sbx exec -it -w /work/<task> <vm> claude`).
+- `agentbox herdr install-plugin` asks unless `--yes`; it writes the
+  manifest, embedded in the binary, to `~/.config/agentbox/herdr-plugin/`
+  with the absolute path of the running agentbox, then `herdr plugin link
+  <dir>` and `enable`. `uninstall-plugin` undoes it.
+- unagit's Settings › Integrations, in herdr's block, shows `agentbox herdr
+  status --json` and offers Install herdr Plugin… (and Uninstall) behind
+  its own question, then calls the command with `--yes`.
+- The path changes when agentbox is upgraded or moved. Every agentbox
+  command that finds the plugin installed compares the linked manifest
+  with what it would write and rewrites it if it differs - the user
+  consented to the plugin, not to a path.
+- A sandboxed agent started in herdr without the plugin runs, with no
+  state; unagit says once (`note`) that Install herdr Plugin… in Settings
+  would show it.
 
 The agents' own hooks (Claude's session id, opencode's states) do not cross
 into the VM; the state is the screen's.
 
 **Spike**: the herdr here is 0.9.1 and sbx-herdr asks for 0.9.3 - find the
 version whose plugins have `pane.read`, `agent explain` and the events, and
-make Integrations say "herdr 0.9.3 or newer" when older. Check that `herdr
+have `status` say "herdr 0.9.3 or newer" when older. Check that `herdr
 plugin link` takes a manifest whose commands are absolute paths outside its
 directory, and that a plugin's commands get `HERDR_SOCKET_PATH` and
 `HERDR_PLUGIN_STATE_DIR`.
 
-## What the user sees
+### The boundary
+
+- agentbox's code is `cmd/agentbox` and `internal/agentbox/...`. It
+  imports nothing of unagit's packages; a test (`go list -deps
+  ./cmd/agentbox`) fails if it does, as `TestSharedFieldsAreTheOnlyWayToMakeThem`
+  fails on a stray widget.
+- unagit imports nothing of agentbox but `internal/agentbox/api`, the JSON
+  types of its command line; a test fails on anything else. unagit runs
+  the binary, found through `a.executable("agentbox")` like any program.
+- agentbox follows the repository's rules - gofmt, vet, race, the
+  testenv isolation, the hard rule on tokens - as any package here.
+
+## In unagit
+
+**An integration**, in Settings › Integrations: agentbox on or off
+(unset, on when installed), and its block:
+
+- the environments repository, picked from the list of repositories and
+  handed to agentbox as a path (see [where they live](#where-they-live));
+- the runtimes agentbox has, each on or off, and stopping idle VMs -
+  written to agentbox's configuration with `agentbox config set`;
+- in herdr's block, agentbox's herdr plugin.
+
+unagit's config.yaml keeps only what it must to be portable: whether
+agentbox is on, and the environments repository as a repository of the
+list. The rest is agentbox's.
 
 **A Sandboxes tab**, `6`, after Settings (`5` stays, as the messages that
 point at `Settings [5]` do). Three parts, each a list made the way the
-other screens' are (`pane.go`, its actions as `uiAction`s):
+other screens' are (`pane.go`, its actions as `uiAction`s), filled from
+agentbox's `--json`:
 
 | part | rows | actions |
 | --- | --- | --- |
 | **Profiles** | name, image state per runtime, approval, agents, last commit to its directory; a pane with its instructions as the agent gets them | Open in Editor…, Edit Instructions…, Build…, Approve…, Open in Sandboxed Agent… |
-| **Sandboxes** | VM: runtime, profile, state, memory, tasks | Shell… (`sbx exec -it <vm> bash` in a place), Stop, Remove (a question naming its tasks) |
-| **Tasks** | in the VM under the cursor: worktree, agent, its state | Open Worktree, Remove Task (`rm -rf /work/<task>` in the VM) |
+| **Sandboxes** | VM: runtime, profile, state, memory, tasks | Shell… (`agentbox shell` in a place), Stop, Remove (a question naming its tasks) |
+| **Tasks** | in the VM under the cursor: worktree, agent, its state | Open Worktree, Remove Task |
 
-Without an environments repository set, the tab says where to set it.
-Activity still lists every agent, sandboxed ones with their VM: Activity is
-what runs, the Sandboxes tab is what it runs in.
+Without agentbox installed or an environments repository chosen, the tab
+says what is missing and where to set it. Activity still lists every
+agent, sandboxed ones with their VM: Activity is what runs, the Sandboxes
+tab is what it runs in.
 
 Elsewhere:
 
 - **Open in Sandboxed Agent…** on repositories with a worktree, worktrees,
   groups, merge requests with a branch worktree. Alt picks again what use
   would skip (the profile and the sandbox, even when one).
-- Settings: the environments repository, and sbx's block in
-  Integrations (on or off, its kits).
 - **Pull** of a worktree or a group is what brings the agent's work; it
   exists already for branches with an upstream, check it covers a group in
   one go.
-- **A worktree whose branch an agent works on in a VM** wears a mark in
-  the lists, and the commit dialog on it warns before a commit: "an agent
-  works on this branch in <vm> - pull first". Nothing is forbidden; two
-  commits apart on one branch only end in a conflict at the pull.
+- **A worktree whose branch an agent works on in a VM** (agentbox's tasks
+  name the host directory) wears a mark in the lists, and the commit
+  dialog on it warns before a commit: "an agent works on this branch in
+  <vm> - pull first". Nothing is forbidden; two commits apart on one
+  branch only end in a conflict at the pull.
 - Deleting a worktree or a group with a task in a VM offers to remove the
-  task and, for a VM of its own, the VM. The default keeps the VM.
-- Help rows for the tab and the new keys; the README explains the feature,
-  the environments repository and the forge-side protection.
+  task (`agentbox rm-task`) and, for a VM of its own, the VM. The default
+  keeps the VM.
+- What unagit learns from use - the order of the profile and sandbox
+  pickers - goes to its `state.json`, as the place picker's does.
+- Help rows for the tab and the new keys; the README explains the
+  feature, agentbox, the environments repository and the forge-side
+  protection.
 
 Later, not in the first version: following the branch on the forge
 (`internal/watch`) to say when the agent pushed, and pulling on request
@@ -842,50 +868,67 @@ from that news.
 
 ## Tests
 
-- A stand-in `sbx` on its own PATH (`testenv.WriteExecutable`), answering
-  `ls --json` from a file and logging every argv: the commands built for a
-  shared and an own VM, the task script, the order push → create → exec.
-- The manifest: URLs from the forge, never from a remote; no token in any
-  argv or environment unagit builds (grep them, as the token test greps
-  the disk).
-- Profiles: parsing (an unknown field is an error), the tree hash and the
-  image state against a stand-in `sbx template ls`, the generated flags,
-  the approval refusing a changed cache or `env` and passing a changed
-  `cpus`; the declared agents checked against a stand-in image, one
-  missing failing the build; the agent and profile pickers filtered by the
-  declarations; the build arguments (`UNAGIT_RUNTIME` always, `build.args` of the
-  runtime alone); `start` run on a new `boot_id` and not on the same one;
-  the instructions put together in order, unagit's first, a missing file an
-  error; the author from the host's git config and the trailer added by
-  the hook to a message without it, once.
-- The start refused on a default branch; the uncommitted changes named;
-  the VM stopped when its last agent ends, and not one unagit did not make;
-  the commit dialog's warning on a branch an agent works on; the build's
-  question drawing the profile's diff.
-- UI: the Sandboxes tab and the pickers at several terminal sizes,
-  `assertLegible`, sbx's block in Integrations, help rows,
-  `TestEveryActionIsNamedAndExplained`, `TestNoTwoActionsShareAKey`.
-- The plugin: the manifest written with the binary's path and rewritten
-  when it moves; `observe` against a stand-in `herdr` reporting a state on
-  a change only, releasing a pane that no longer runs `sbx exec`; the
-  install asking first. A real herdr only in `make integration`, beside
-  the existing herdr integration test.
-- A real sbx only opt-in by a variable on macOS (`UNAGIT_SBX_TEST=1`), as
+agentbox:
+
+- A stand-in `sbx` and a stand-in `docker` on their own PATH
+  (`testenv.WriteExecutable`), answering `ls --json` and `template ls
+  --json` from files and logging every argv: the commands for a shared and
+  an own VM, the task script, `start` run on a new `boot_id` and not on the
+  same one, the VM stopped when its last agent ends and not one it did not
+  make.
+- Profiles: parsing (an unknown field, a missing instructions file are
+  errors), the tree hash and the image state, the build arguments
+  (`AGENTBOX_RUNTIME` always, `build.args` of the runtime alone), the
+  generated flags, the agents' check failing a build that lacks one, the
+  approval refusing a changed cache or `env` and passing a changed `cpus`,
+  the instructions put together in order, the author and the trailer added
+  by the hook once.
+- The command line: `--json` shapes against `internal/agentbox/api`, the
+  exit codes, no question asked under `--json` or `--yes`; without unagit,
+  URLs from `origin` with credentials stripped, a branch the forge lacks
+  refused.
+- No token in any argv or environment agentbox builds.
+- The herdr plugin: the manifest written with the binary's path and
+  rewritten when it moves; `observe` against a stand-in `herdr` reporting a
+  state on a change only and releasing a pane whose `agentbox run` ended;
+  the install asking first. A real herdr only in `make integration`.
+- A real sbx only opt-in by a variable on macOS (`AGENTBOX_SBX_TEST=1`), as
   Ghostty and the keychain are - sbx needs a hypervisor, not the Docker
   image of `make integration`.
+
+unagit:
+
+- A stand-in `agentbox` on its own PATH answering the `--json` commands
+  from files and logging its argv: the order check → (approve, build) →
+  push → prepare → run; the clone URLs from the forge, never from a
+  remote; the environments repository handed over as a path; no token in
+  any argv or environment unagit gives it.
+- The questions on what `check` reports: a default branch refused,
+  uncommitted changes named, Approve… and Build… drawing their diffs.
+- The commit dialog's warning on a branch an agent works on.
+- UI: the Sandboxes tab and the pickers at several terminal sizes,
+  `assertLegible`, agentbox's block in Integrations, help rows,
+  `TestEveryActionIsNamedAndExplained`, `TestNoTwoActionsShareAKey`.
+- The boundary tests of [the boundary](#the-boundary).
 
 ## Order of work
 
 1. **Spike by hand**, everything marked so above, written back into this
-   file: a VM with no repository mounted, a clone and a push from it to the
-   user's GitLab with an sbx secret, a second agent by `sbx exec`, `-w`,
-   the read-only Gradle cache, `sbx template load` of a `docker save`,
-   what a template must have beyond an image.
-2. `internal/sandbox` with sbx, the stand-in, the tests.
-3. Profiles: the environments repository in Settings, `profile.yaml`, the
-   build and the image state, the approval, sbx's block in Integrations.
-4. Open in Sandboxed Agent… for one repository's worktree, This Terminal
-   only; then groups; then every place.
-5. The Sandboxes tab, the removal with a worktree, Activity.
-6. The herdr plugin and its install in Integrations.
-7. AGENTS.md's map gains `internal/sandbox`; the README its section.
+   file: a VM with no repository mounted, a clone and a push from it to
+   the user's GitLab with an sbx secret, an agent by `sbx exec` in a shell
+   VM with its login, `-w`, the read-only Gradle cache, `sbx template load`
+   of a `docker save`, what a template needs beyond `:shell`, the herdr
+   plugin API.
+2. agentbox's core: the runtime with sbx, profiles, the build and the
+   agents' check, approvals, its stand-ins and tests.
+3. agentbox's tasks: `check`, `prepare`, `run`, the instructions, the
+   author and hook, `start`, stopping idle VMs; usable from a terminal
+   without unagit.
+4. unagit's integration: Settings and the configuration handed over, Open
+   in Sandboxed Agent… for one repository's worktree in This Terminal; then
+   groups; then every place.
+5. The Sandboxes tab, the removal with a worktree, the commit warning,
+   Activity.
+6. agentbox's herdr plugin and its install from Integrations.
+7. AGENTS.md's map gains `cmd/agentbox` and `internal/agentbox`; the
+   README its section, and one of agentbox's own.
