@@ -23,6 +23,133 @@ The user picks the agent, a sandbox profile (a Dockerfile and the
 resources, kept in a git repository of their own), and whether the agent
 shares a VM with others or gets one of its own.
 
+## The picture
+
+The parts, and what stays outside unagit:
+
+```
++------------------------------- unagit (host) --------------------------------+
+|                                                                              |
+|  internal/ui                                                                 |
+|  +------------------+ +------------------+ +------------+ +----------------+ |
+|  | Sandboxes tab [6]| | Open in Sandboxed| | Activity   | | Settings [5]   | |
+|  | Profiles         | | Agent...         | | (agents,   | | env repository | |
+|  | Sandboxes (VMs)  | | agent > profile  | |  states)   | | Integrations:  | |
+|  | Tasks            | | > sandbox > place| |            | | sbx, herdr     | |
+|  +--------+---------+ +--------+---------+ +-----+------+ +-------+--------+ |
+|           |                    |                 |                |          |
+|           v                    v                 |                v          |
+|  internal/sandbox (the neutral vocabulary, as internal/forge is)             |
+|  +-----------------------------------------------------------------------+   |
+|  | Profile   parse profile.yaml, tree hash, an unknown field is an error |   |
+|  | Trust     host-facing fields hashed, Approve...                       |   |
+|  | Task      the manifest: branch and clone URLs (from the forge's API)  |   |
+|  |                                                                       |   |
+|  | Runtime   Available List Images Build Create Exec Stop Remove         |   |
+|  +-----------------+---------------------------------+-------------------+   |
+|                    |                                 |                       |
+|        +-----------v-----------+         +-----------v-----------+           |
+|        | sbx adapter           |         | podman adapter        |           |
+|        | profile -> flags      |         | (later)               |           |
+|        | Dockerfile -> template|         |                       |           |
+|        | + integrations.sbx    |         | + integrations.podman |           |
+|        +-----------+-----------+         +-----------------------+           |
+|                    |                                                         |
+|  +--------------+  |  +--------------+ +--------------+ +-----------------+  |
+|  | workspace,   |  |  | cache        | | session      | | mux             |  |
+|  | gitx: push   |  |  | <cache>/     | | records:     | | This Terminal,  |  |
+|  | the branch,  |  |  | sandboxes/   | | pane, agent, | | Zellij, Ghostty,|  |
+|  | pull         |  |  | (generated)  | | VM, task     | | herdr           |  |
+|  +------+-------+  |  +--------------+ +------+-------+ +--------+--------+  |
++---------+----------+------------------------+------------------+-----------+
+          |          |                        | read             | the pane runs
+          |          |                        v                  v
+          |          |       +-------------------------+   sbx exec -it -w
+          |          |       | herdr + unagit's plugin |   /work/<task> <vm>
+          |          |       | unagit herdr observe:   |   claude
+          |          |       | pane.read -> agent      |        |
+          |          |       | explain -> report_agent |        |
+          |          |       +-------------------------+        |
+          |          | sbx CLI                                  |
+          | push,    +-----------------------------------+      |
+          | pull     |                                   v      v
+          v          |                     +--------------------------------------+
+   +-------------+   |    clone, push      | sbx microVM  unagit-<profile>[-task] |
+   | forge       |<--+-------------------->|  template = the profile's image      |
+   | GitLab,     |     (the VM's own       |  /work/<task>/<repo>   git clones    |
+   | GitHub      |      narrow token,      |  the agent (claude, codex, ...)      |
+   | protected   |      an sbx secret)     |  Docker Engine (compose, tests)      |
+   | branches    |                         |  GRADLE_USER_HOME (the VM's own)     |
+   +-------------+                         |  ~/.gradle/caches :ro <- host        |
+                                           +--------------------------------------+
+```
+
+Where each kind of setting lives:
+
+```
+ environments repository            config.yaml (chezmoi)        state.json
+ +---------------------------+   +---------------------------+  +------------------+
+ | kotlin/                   |   | sandboxes:                |  | approvals:       |
+ |   Dockerfile              |<--+   envs: gl/team/sandbox-  |  |  kotlin: <hash>  |
+ |   profile.yaml            |   |         envs              |  | sandboxes:       |
+ | node/                     |   | integrations:             |  |  <dir> -> vm,task|
+ |   ...                     |   |   sbx:                    |  | uses: profile,   |
+ +-------------+-------------+   |     kits: [...]           |  |  sandbox, place  |
+               |                 |     profiles:             |  +------------------+
+  what the     |                 |       kotlin: {kits: ...} |   what use taught
+  environment  |                 +---------------------------+
+  is, no       |                  the user's choices for
+  runtime      v                  one runtime
+       +--------------------------------------+
+       | generated just before a start        |
+       | <cache>/sandboxes/sbx/               |
+       |   unagit-env/kotlin:<tree>  template |
+       |   flags: --cpus -m -e --deny-network |
+       +--------------------------------------+
+         a cache: never edited, regenerated
+```
+
+A start:
+
+```
+ user                  unagit                        sbx, the VM            forge
+  | Open in Sandboxed    |                              |                     |
+  | Agent... on a group  |                              |                     |
+  +--------------------->|                              |                     |
+  | agent, profile,      | parse the profile, check     |                     |
+  | sandbox, place       | its approval                 |                     |
+  +--------------------->|                              |                     |
+  |                      | push every member's branch --+-------------------->|
+  |                      | template current? ---------->| template ls --json  |
+  |<-- build? (if not) --+                              |                     |
+  +-- yes -------------->| docker build, save, load --->|                     |
+  |                      | create or start the VM ----->|                     |
+  |                      | exec: clone or fetch, ------>| git clone --------->|
+  |                      |       bootstrap              |                     |
+  |                      | session record, the pane --->| exec -it ... claude |
+  |                      |                              |  the agent works    |
+  |                      |                              |  commit, push ----->|
+  | Pull on the group -->| fetch, fast-forward <--------+---------------------+
+```
+
+What crosses the line between the machine and the VM:
+
+```
+   +------------- trusted --------------+       +----- untrusted -----+
+   | host: home, ~/.ssh, unagit's vault |       | VM: the agent, sudo,|
+   | main clones, the user's worktrees  | <-X-- | its clones, its     |
+   | config.yaml, the environments      |       | Docker              |
+   | repository (as approved)           |       |                     |
+   +-----------------+------------------+       +----------+----------+
+                     | only:                               ^ | only:
+                     |  ~/.gradle/caches  :ro  ------------+ |
+                     |  the env values a profile names ----+ |
+                     |                                       |
+                     +---- git fetch <---- forge <-----------+ git push
+                          (objects and refs only,     (a narrow token,
+                           no config, no hooks)        protected branches)
+```
+
 ## The model, and why
 
 ```
@@ -253,6 +380,39 @@ rules. A change to those must be approved before the profile runs, as
   asks. A new profile starts unapproved.
 - The worked-on repositories still choose nothing: they give the bootstrap
   script, which runs inside the VM.
+
+### sbx's templates and kits
+
+sbx has two words for shaping a sandbox, and the design leans on one and
+keeps away from the other.
+
+- **A template** is the image a sandbox is made from: an OCI image in sbx's
+  own image store (apart from Docker's), its root filesystem being what is
+  installed in the VM - the OS, the toolchains, the agent's CLI.
+  `sbx create -t <template>` picks it; without one, sbx takes the agent's
+  own (Docker publishes one per agent). It is how the environment gets into
+  the VM, so it is what a profile's Dockerfile becomes: built, saved and
+  loaded (`sbx template load`), tagged by the profile's tree. `sbx template
+  save` can also snapshot a running sandbox as a template.
+- **A kit** is a declarative package laid over a sandbox: files, an
+  install hook run once when the sandbox is made, a startup hook run at
+  every start, network rules, credential bindings, instructions for the
+  agent. A *workload* kit says what runs - the built-in agents are kits,
+  which is how `sbx create claude` knows to install and log in Claude - and
+  a *mixin* kit adds to one (`--kit`). Kits v3 are Early Access.
+
+Why they matter here: the template is the profile, so building and
+tagging it is the runtime adapter's main job, and whether it is current is
+what the Profiles part of the tab shows. The kit is where sbx keeps what
+makes an agent work inside - its login, its proxy - so unagit uses the
+built-in agent kits as they are, passes the user's own mixins through from
+`integrations.sbx`, and writes none of its own: everything a profile says
+is expressible as flags, and a format still moving is not one to generate.
+
+**Spike**: does sbx need anything of a template beyond an image - its
+`agent` user, its workdir, the agent's kit installing into it? If so, a
+profile's Dockerfile starts `FROM` Docker's template for sandboxes, and
+the README says which.
 
 ### What a runtime makes of it
 
@@ -498,7 +658,8 @@ from that news.
 1. **Spike by hand**, everything marked so above, written back into this
    file: a VM with no repository mounted, a clone and a push from it to the
    user's GitLab with an sbx secret, a second agent by `sbx exec`, `-w`,
-   the read-only Gradle cache, `sbx template load` of a `docker save`.
+   the read-only Gradle cache, `sbx template load` of a `docker save`,
+   what a template must have beyond an image.
 2. `internal/sandbox` with sbx, the stand-in, the tests.
 3. Profiles: the environments repository in Settings, `profile.yaml`, the
    build and the image state, the approval, sbx's block in Integrations.
