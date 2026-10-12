@@ -213,7 +213,12 @@ Both arrangements are offered, and the user picks at the start:
   another task.
 
 Both persist when the agent ends, for their caches; removing is the user's
-action. The default offered is the shared VM; the picker orders by use, as
+action. A VM in which the last agent unagit started has ended is
+**stopped** (`sbx stop`), so idle VMs hold no memory; its disk, caches and
+tasks stay, and the next start boots it again (and runs the profile's
+`start`). Settings › Integrations, sbx's block, can turn the stopping off.
+unagit stops only VMs it made (`unagit-` names) and only when it saw its
+own agents end; one with an agent started some other way is left alone. The default offered is the shared VM; the picker orders by use, as
 the place picker does (`orderPlaces`).
 
 `<task>` is the worktree's folder name and a short hash of its host path,
@@ -233,6 +238,12 @@ there):
    each runtime turned on in Integrations and installed - plain New
    Sandbox… while there is one. A profile whose host-facing fields changed
    since they were approved does not start (see [trust](#trust)).
+
+   Refused before any picker: **a repository on its default branch**
+   ("make a worktree with a branch first") - the agent would push straight
+   to it should the forge not protect it. And when the worktree has
+   uncommitted changes, they will not reach the VM, which clones from the
+   forge: unagit says so and offers Commit… or going on without them.
 2. unagit **pushes the branch** of every repository of the worktree that
    has no upstream or is ahead of it - from the host, with its own
    credentials, through the path `P` uses. A branch origin has moved past
@@ -246,9 +257,11 @@ there):
 4. **The task is prepared** by `sbx exec <vm> sh -c <script>` with the
    manifest in the environment: for each repository, clone at the branch
    into `/work/<task>/<dir>` (`--filter=blob:none`), or fetch and
-   fast-forward when it is there already; set the author; run the profile's
-   bootstrap script from the repository if it has one. This is a `runTask`
-   log - a clone is worth reading when it fails.
+   fast-forward when it is there already; set the author and the
+   co-author hook ([commits](#commits)); write the agent's
+   [instructions](#instructions-for-the-agent) into the VM's home; run the
+   profile's bootstrap script from the repository if it has one. This is a
+   `runTask` log - a clone is worth reading when it fails.
 5. **The agent starts** in the place chosen: `sbx exec -it -w
    /work/<task> <vm> <agent command>`, a terminal command like any other,
    so This Terminal, Zellij, Ghostty and herdr all work as they do for an
@@ -308,13 +321,17 @@ sandbox-envs/
 │   ├── Dockerfile
 │   ├── profile.yaml
 │   ├── start.sh
+│   ├── instructions.md
 │   ├── sbx/
 │   │   └── build.args
 │   └── podman/
 │       └── build.args
-└── node/
-    ├── Dockerfile
-    └── profile.yaml
+├── node/
+│   ├── Dockerfile
+│   └── profile.yaml
+└── instructions/
+    ├── review-style.md
+    └── no-migrations.md
 ```
 
 A directory with a `profile.yaml` is a profile, named after the directory.
@@ -347,6 +364,12 @@ deny_network: []
 agents: [claude, codex]       # what the image has; ids of agents.All
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
+instructions:                 # for the agent, in this order, after unagit's own
+  - ../instructions/review-style.md
+  - instructions.md
+git:
+  author: user                # the user's identity, from the host's git config
+  co_author: true             # a Co-Authored-By trailer naming the agent
 ```
 
 Three scripts, each at its own moment, all running inside the VM:
@@ -393,6 +416,52 @@ Three scripts, each at its own moment, all running inside the VM:
   fraction of it and the rest would silently not work; the read-only cache
   and the network rules do not map onto it) and sbx's `sbxenv.yaml`
   (sbx's alone, and experimental).
+
+### Instructions for the agent
+
+The agent has to know how it is meant to work - its branch, to commit and
+push as it goes, never to force - and the user has more to say, in general
+and per profile. None of it may go into the worked-on repository, where
+it would be committed. So:
+
+- **unagit's own**, always first, fixed in the binary: the branch, the
+  repositories and where they are, commit and push as you go, never force
+  push, never push another branch, the author rules below.
+- **Then the profile's `instructions`**, markdown files of the
+  environments repository, in the order listed: shared ones from anywhere
+  in it (`instructions/` by convention, attached to as many profiles as
+  want them) and the profile's own. Versioned, reviewed and shared like
+  the rest; a path that does not exist is an error, as an unknown field
+  is. They run only inside the VM, so they need no approval.
+- At a task's preparation unagit writes the whole into the VM's home as
+  the agents' user-level instructions (`~/.claude/CLAUDE.md`,
+  `~/.codex/AGENTS.md`, each agent's own file, named in `agents.Agent`),
+  never into `/work`.
+- The Sandboxes tab shows them: under Profiles, a pane with the profile's
+  instructions as the agent gets them, unagit's included, rendered by
+  `internal/md`. Edit Instructions… opens the files in the editor - unagit
+  never writes the repository.
+
+### Commits
+
+```yaml
+git:
+  author: user
+  co_author: true
+```
+
+- `author: user` takes `user.name` and `user.email` from the host's git
+  configuration for the worktree, and sets them in each clone in the VM.
+  The commits are the user's, so a forge's push rule that the author must
+  be one of its users passes. It is the one value; a profile cannot name
+  someone else.
+- `co_author: true` adds `Co-Authored-By: <agent>` to every commit, the
+  agent's name and address from `agents.Agent` (Claude Code's
+  `Claude <noreply@anthropic.com>`, and so on). It is not left to the
+  agent: unagit puts a `commit-msg` hook into each clone in the VM that
+  adds the trailer when it is missing. A hook in the VM's own clone is the
+  VM's business; nothing of it reaches the host.
+- Absent, `git` means both as shown.
 
 ### What differs between runtimes
 
@@ -564,6 +633,13 @@ is never edited and always regenerated. For sbx:
   --json`, per runtime: **built**, **outdated**, **not built**. A profile
   with uncommitted changes is marked so; Build… builds them as they are,
   tagged `<tree>-dirty`.
+- **Build… shows what it is about to build.** The question lists what
+  changed in the profile's directory since the image last built (its tree
+  is in the tag) and shows the differences in unagit's own differ - the
+  one the Changes dialog draws (`drawDiff`, `diffdraw.go`) - before it
+  asks. A teammate's Dockerfile runs in the host's Docker when built; it
+  is isolated there, but `RUN --mount` and build secrets can reach out,
+  so the user sees it first. No approval of its own beyond that question.
 - A local build is for this machine's architecture, which is all a local
   sandbox needs.
 - **No kit is generated** while flags can say it: kits v3 are Early Access,
@@ -733,7 +809,7 @@ other screens' are (`pane.go`, its actions as `uiAction`s):
 
 | part | rows | actions |
 | --- | --- | --- |
-| **Profiles** | name, image state per runtime, approval, last commit to its directory | Open in Editor…, Build…, Approve…, Open in Sandboxed Agent… |
+| **Profiles** | name, image state per runtime, approval, agents, last commit to its directory; a pane with its instructions as the agent gets them | Open in Editor…, Edit Instructions…, Build…, Approve…, Open in Sandboxed Agent… |
 | **Sandboxes** | VM: runtime, profile, state, memory, tasks | Shell… (`sbx exec -it <vm> bash` in a place), Stop, Remove (a question naming its tasks) |
 | **Tasks** | in the VM under the cursor: worktree, agent, its state | Open Worktree, Remove Task (`rm -rf /work/<task>` in the VM) |
 
@@ -751,6 +827,10 @@ Elsewhere:
 - **Pull** of a worktree or a group is what brings the agent's work; it
   exists already for branches with an upstream, check it covers a group in
   one go.
+- **A worktree whose branch an agent works on in a VM** wears a mark in
+  the lists, and the commit dialog on it warns before a commit: "an agent
+  works on this branch in <vm> - pull first". Nothing is forbidden; two
+  commits apart on one branch only end in a conflict at the pull.
 - Deleting a worktree or a group with a task in a VM offers to remove the
   task and, for a VM of its own, the VM. The default keeps the VM.
 - Help rows for the tab and the new keys; the README explains the feature,
@@ -774,7 +854,14 @@ from that news.
   `cpus`; the declared agents checked against a stand-in image, one
   missing failing the build; the agent and profile pickers filtered by the
   declarations; the build arguments (`UNAGIT_RUNTIME` always, `build.args` of the
-  runtime alone); `start` run on a new `boot_id` and not on the same one.
+  runtime alone); `start` run on a new `boot_id` and not on the same one;
+  the instructions put together in order, unagit's first, a missing file an
+  error; the author from the host's git config and the trailer added by
+  the hook to a message without it, once.
+- The start refused on a default branch; the uncommitted changes named;
+  the VM stopped when its last agent ends, and not one unagit did not make;
+  the commit dialog's warning on a branch an agent works on; the build's
+  question drawing the profile's diff.
 - UI: the Sandboxes tab and the pickers at several terminal sizes,
   `assertLegible`, sbx's block in Integrations, help rows,
   `TestEveryActionIsNamedAndExplained`, `TestNoTwoActionsShareAKey`.
