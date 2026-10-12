@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"os/exec"
-
 	"github.com/tobola/unagit/internal/chezmoi"
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -22,13 +20,13 @@ func (a *App) chezmoiOn() bool {
 	if on := a.cfg.Integrations.Chezmoi; on != nil {
 		return *on
 	}
-	_, err := exec.LookPath("chezmoi")
+	_, err := a.executable("chezmoi")
 	return err == nil
 }
 
 // findChezmoiCheckout asks the installed chezmoi; tests replace it.
-func findChezmoiCheckout() (chezmoi.Checkout, error) {
-	bin, err := exec.LookPath("chezmoi")
+func (a *App) findChezmoiCheckout() (chezmoi.Checkout, error) {
+	bin, err := a.executable("chezmoi")
 	if err != nil {
 		return chezmoi.Checkout{}, err
 	}
@@ -47,7 +45,7 @@ func (a *App) detectChezmoi() {
 	}
 	find := a.findChezmoi
 	if find == nil {
-		find = findChezmoiCheckout
+		find = a.findChezmoiCheckout
 	}
 	go func() {
 		checkout, err := find()

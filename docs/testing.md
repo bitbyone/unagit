@@ -4,6 +4,13 @@
 the same tests without it while iterating. A finished change still needs the
 race run, `go vet ./...`, a build and clean `gofmt` output before committing.
 
+The tests run in an environment of their own (`internal/testenv`): a
+temporary home, a git configuration with an identity and nothing of the
+machine's, and a PATH with only git, go and the shell's utilities. They pass
+on a machine with nothing else installed and nothing configured, and they
+change nothing on it. What needs a real editor, incomm or a multiplexer
+skips here; it is the integration suite's.
+
 ## What takes time
 
 The UI suite at c7704eb had 284 top-level tests. Most started a real tview event

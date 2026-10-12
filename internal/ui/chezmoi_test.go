@@ -24,6 +24,9 @@ func newChezmoiApp(t *testing.T) (*App, tcell.SimulationScreen, string) {
 	must(t, os.MkdirAll(checkout, 0o755))
 	gitIn(t, checkout, "init", "-q", "--initial-branch=main")
 	a := newApp(cfg, testVault(t, cfg))
+	// Installed as far as the app can tell: the checkout is what it asks
+	// chezmoi for, and that answer is given here.
+	a.findExecutable = installed("chezmoi")
 	a.findChezmoi = func() (chezmoi.Checkout, error) {
 		return chezmoi.Checkout{Dir: checkout, Origin: srv.URL + "/acme/gateway.git"}, nil
 	}

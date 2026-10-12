@@ -537,6 +537,20 @@ server. Rules learned the hard way:
   Mixing the two once wrote a test vault over the user's real one.
   `TestMain` points the usual directory at a temporary one as a second
   guard; do not remove it.
+- **The tests see nothing of the machine.** Every package's `TestMain` goes
+  through `internal/testenv` (`testenv.Main`, or `Isolate` in a TestMain of
+  its own; `TestEveryPackageRunsInTheTestEnvironment` checks it): a
+  temporary home and XDG directories, a git configuration of the run's own
+  with an identity and no system file, the multiplexer and terminal
+  variables gone, and a PATH holding git, go and the shell's utilities
+  (`testenv.Tools`) and nothing else. It changes the process's environment
+  only and writes nothing outside its temporary directory. So a test that
+  needs a program to be "installed" says so: `installed("chezmoi")` as the
+  app's `findExecutable` when only what is drawn matters, a stand-in on its
+  own PATH (`editortest.Install`) when the program is run. The UI
+  looks programs up through `a.executable`, never `exec.LookPath`, or no
+  test can stand in for them. A test of a real program - Neovim, incomm, a
+  multiplexer - skips here and belongs to the integration suite.
 - Every test calls `t.Parallel()` unless it changes process state: `t.Setenv`
   (a fake binary on `PATH`), a package variable it swaps (`passphraseStore`,
   `copyToClipboard`, `pickerStarted`), or it measures time (the debounce).

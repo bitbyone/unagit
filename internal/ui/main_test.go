@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // TestMain points the usual configuration directory at a throwaway one for
@@ -15,6 +17,7 @@ import (
 // the keychain's account name - would otherwise land in the user's real
 // ~/.config/unagit and overwrite the vault there. That has happened once.
 func TestMain(m *testing.M) {
+	isolated := testenv.Isolate()
 	dir, err := os.MkdirTemp("", "unagit-ui-test-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -26,14 +29,10 @@ func TestMain(m *testing.M) {
 	// Whether the terminal running the tests draws Nerd Font icons is
 	// nothing the tests should depend on.
 	nerdFontGuess = func() (bool, string) { return false, "tests" }
-	// Nor whether they run under a multiplexer, which changes what the
-	// Notifications card says.
-	for _, name := range []string{"ZELLIJ", "HERDR_ENV", "HERDR_PANE_ID"} {
-		os.Unsetenv(name)
-	}
 	limitParallel()
 	code := m.Run()
 	os.RemoveAll(dir)
+	isolated()
 	os.Exit(code)
 }
 

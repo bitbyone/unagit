@@ -21,7 +21,7 @@ func Places(cfg *config.Config) []session.Record {
 	a := &App{cfg: cfg}
 	a.loadIndexes()
 	if a.chezmoiOn() {
-		if checkout, err := findChezmoiCheckout(); err == nil {
+		if checkout, err := a.findChezmoiCheckout(); err == nil {
 			a.chezmoi.Store(&chezmoiState{checkout: checkout})
 			a.pairChezmoi()
 		}

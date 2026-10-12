@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -534,6 +535,18 @@ func fakeGitLab(t *testing.T) *fakeServer {
 
 // newTestApp writes index files into a temporary config directory and starts
 // the TUI on a simulation screen.
+// installed is an app's findExecutable for a test that only needs the app to
+// believe these programs are there - a card that says enabled, a badge that
+// shows - and never runs them: their paths lead nowhere.
+func installed(names ...string) func(string) (string, error) {
+	return func(name string) (string, error) {
+		if slices.Contains(names, name) {
+			return filepath.Join("/nonexistent", name), nil
+		}
+		return "", exec.ErrNotFound
+	}
+}
+
 func newTestApp(t *testing.T) (*App, tcell.SimulationScreen) {
 	t.Helper()
 	a, sc, _ := newTestAppSrv(t)

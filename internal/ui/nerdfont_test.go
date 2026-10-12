@@ -158,7 +158,7 @@ func TestServerIconsGoBeforeRepositoryNames(t *testing.T) {
 func TestAnIntegrationsStateIsAnIconWithANerdFont(t *testing.T) {
 	restoreDefaultTheme(t)
 	t.Cleanup(func() { nerdFont = false })
-	a, sc := newTestApp(t)
+	a, sc, _ := newTestAppSrv(t, func(a *App) { a.findExecutable = installed("incomm") })
 	waitFor(t, a, sc, "acme/gateway")
 	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]) })
 	openSection(t, a, sc, sectionIntegrations)
