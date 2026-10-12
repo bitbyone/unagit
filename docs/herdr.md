@@ -22,7 +22,9 @@ forward by the title herdr gives it, "<host>: <workspace>". Whether
 Ghostty's `focus` slides a hidden quick terminal out is still to be seen
 in use.
 
-Not yet: everything about containers below.
+Not yet: everything about containers below. Superseded by
+[sandboxes.md](sandboxes.md), which wins wherever the two disagree; what
+stays of it here is the launcher, which sandboxes.md uses.
 
 ## The plan
 
@@ -195,6 +197,10 @@ window, which is enough when herdr lives there, and a title or working
 directory would be needed otherwise.
 
 ## Agents in a container
+
+Superseded by [sandboxes.md](sandboxes.md): agents run in an sbx VM that
+clones from the forge and pushes, nothing mounted either way. Kept for
+the launcher and the history; where it disagrees, sandboxes.md holds.
 
 Opt-in per start (Start Agent in Container…) and per repository default.
 
