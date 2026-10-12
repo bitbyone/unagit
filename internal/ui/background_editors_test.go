@@ -357,14 +357,13 @@ func TestOpenMarksStandFurthestOut(t *testing.T) {
 	p := newRealProject(t, a, "acme/gateway")
 	wt := p.worktree("feat/x")
 	p.rescan()
+	// Records on disk, not only the lists' copy: a tab switch reads them
+	// again.
+	t.Cleanup(a.sessions.Open(session.Record{Dir: p.clone, Editor: editors.Nvim}))
+	t.Cleanup(a.sessions.Open(session.Record{Dir: wt, Editor: editors.Nvim}))
 	changeOnLoop(a, func() {
-		a.openDirs = map[string]session.Record{
-			filepath.Clean(p.clone): {Dir: p.clone, Editor: editors.Nvim},
-			filepath.Clean(wt):      {Dir: wt, Editor: editors.Nvim},
-		}
 		a.cfg.Filters.ToggleFavourite(a.cfg.Instances[0].ID, "acme/billing", 0)
-		a.projectsPane.reload()
-		a.worktreesPane.reload()
+		a.refreshOpenEditors()
 	})
 	waitFor(t, a, sc, "▣")
 	text := a.screenText(sc)
@@ -429,4 +428,31 @@ func TestAgentsAreMarkedWhereTheyWork(t *testing.T) {
 		t.Errorf("an idle agent's mark is %v", fg(style))
 	}
 	assertLegible(t, a, sc, "an agent's mark")
+}
+
+// TestSwitchingToAListReadsWhatIsOpen: an editor that quit while another
+// tab was in front leaves no mark on the list switched to, without waiting
+// for the timer.
+func TestSwitchingToAListReadsWhatIsOpen(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.MkdirAll(filepath.Join(a.cfg.Dir(), "sessions"), 0o700))
+	// The timer's first look at the directory, after which it waits for a
+	// change there.
+	waitEditorState(t, a, func() bool { return a.openSeen.Load() != nil && !a.openReading })
+	typeRunes(sc, "4")
+	waitFor(t, a, sc, "Activity")
+	// What the lists last read: a Neovim there that has since gone, with
+	// nothing on disk changed for the timer to notice, and the disk looked
+	// at a moment ago, as it is once an editor returns the terminal.
+	changeOnLoop(a, func() {
+		a.localRefreshed = time.Now()
+		a.openDirs = map[string]session.Record{filepath.Clean(p.clone): {Dir: p.clone, Editor: editors.Nvim}}
+		a.projectsPane.reload()
+	})
+	typeRunes(sc, "1")
+	waitEditorState(t, a, func() bool { return len(a.openDirs) == 0 })
+	waitGone(t, a, sc, glyphEditor)
 }

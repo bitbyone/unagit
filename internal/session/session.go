@@ -187,20 +187,27 @@ func (s *Store) Running() []Record {
 // InEditor filters before deduplication: a newer window editor beside
 // Neovim does not take away the mark of the Neovim still running there.
 func (s *Store) InEditor(id string) []Record {
-	var out []Record
-	for _, r := range s.records(false) {
-		if r.Editor == id {
-			out = append(out, r)
-		}
-	}
-	return unique(out)
+	return Pick(s.Records(), func(r Record) bool { return r.Editor == id })
 }
 
 // Where is what is open and keep says yes to, filtered before
 // deduplication as InEditor is.
 func (s *Store) Where(keep func(Record) bool) []Record {
+	return Pick(s.Records(), keep)
+}
+
+// Records is one reading of what is open, swept as List sweeps, neither
+// filtered nor deduplicated. Views picked from the same reading agree: two
+// readings can straddle a Neovim's server going away, and then one view
+// still shows the editor the other has dropped.
+func (s *Store) Records() []Record {
+	return s.records(false)
+}
+
+// Pick is what of records keep says yes to, filtered before deduplication.
+func Pick(records []Record, keep func(Record) bool) []Record {
 	var out []Record
-	for _, r := range s.records(false) {
+	for _, r := range records {
 		if keep(r) {
 			out = append(out, r)
 		}

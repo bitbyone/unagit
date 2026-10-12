@@ -184,13 +184,17 @@ func (a *App) refreshOpenEditors() {
 	}
 	a.openReading = true
 	go func() {
+		// One reading for the lists' marks and the Activity cards alike: two
+		// could straddle a Neovim quitting, and its row would stay marked
+		// with its card gone.
+		records := a.sessions.Records()
 		open := map[string]session.Record{}
-		for _, r := range a.sessions.InEditor(editors.Nvim) {
+		for _, r := range session.Pick(records, func(r session.Record) bool { return r.Editor == editors.Nvim }) {
 			open[filepath.Clean(r.Dir)] = r
 		}
 		// Every editor open, for the Activity screen's cards: not the
 		// agents, which are rows of their own.
-		editorsOpen := a.sessions.Where(func(r session.Record) bool {
+		editorsOpen := session.Pick(records, func(r session.Record) bool {
 			_, agent := agents.ByID(r.Editor)
 			return r.Editor != "" && !agent
 		})

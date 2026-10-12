@@ -120,6 +120,12 @@ func (a *App) switchTab(page string) {
 	a.agentsInFront.Store(page == pageActivity)
 	a.pages.SwitchToPage(page)
 	a.refreshZoxide()
+	// What is open was last read on the timer, which can be seconds behind
+	// an editor that quit while another tab was in front; a list is not
+	// shown with marks of it.
+	if page == pageProjects || page == pageMRs || page == pageWorktrees {
+		a.refreshOpenEditors()
+	}
 	switch page {
 	case pageProjects:
 		a.tv.SetFocus(a.projectsPane.focusTarget())
