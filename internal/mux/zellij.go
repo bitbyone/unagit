@@ -1,6 +1,7 @@
 package mux
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -34,17 +35,24 @@ func (c Connection) panes(ctx context.Context) ([]pane, error) {
 		return nil, fmt.Errorf("unknown multiplexer; open the editor again from Zellij")
 	}
 	cmd := c.zellijCommand(ctx, "list-panes", "--json")
-	out, err := cmd.CombinedOutput()
+	// The JSON is read from stdout alone: whatever Zellij says on stderr
+	// beside it - a warning while a session starts - made it unreadable.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
 	// An absent session is definitive. Other failures keep its records for a
 	// later retry; a title in a JSON reply must never be mistaken for an error.
-	if strings.HasPrefix(strings.TrimSpace(string(out)), "There is no active session") || strings.HasPrefix(strings.TrimSpace(string(out)), fmt.Sprintf("Session '%s' not found.", c.Session)) {
-		return nil, nil
+	for _, said := range []string{stderr.String(), stdout.String()} {
+		said = strings.TrimSpace(said)
+		if strings.HasPrefix(said, "There is no active session") || strings.HasPrefix(said, fmt.Sprintf("Session '%s' not found.", c.Session)) {
+			return nil, nil
+		}
 	}
 	if err != nil {
-		return nil, muxError(ctx, out, err)
+		return nil, muxError(ctx, append(stdout.Bytes(), stderr.Bytes()...), err)
 	}
 	var panes []pane
-	if err := json.Unmarshal(out, &panes); err != nil {
+	if err := json.Unmarshal(stdout.Bytes(), &panes); err != nil {
 		return nil, fmt.Errorf("cannot read zellij panes; use Zellij 0.45.1 or newer")
 	}
 	return panes, nil
