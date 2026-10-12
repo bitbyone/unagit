@@ -63,6 +63,11 @@ func (a *App) watchCI() {
 // until none is left.
 func (a *App) followCI() {
 	every := a.ciAskInterval()
+	// An event loop that does not answer in time - an editor holding the
+	// terminal - ends the following, and the next pipeline seen running
+	// starts it again. Giving up once left it marked as following, and
+	// nothing followed for the rest of the session.
+	giveUp := func() { a.tv.QueueUpdate(func() { a.ciWatching = false }) }
 	ticker := time.NewTicker(ciTurnEvery)
 	defer ticker.Stop()
 	asked := time.Now()
@@ -108,6 +113,7 @@ func (a *App) followCI() {
 		})
 		cancel()
 		if !ok {
+			giveUp()
 			return
 		}
 		// Asked for on the loop above, the turn is drawn here.
@@ -119,6 +125,7 @@ func (a *App) followCI() {
 				return
 			}
 		case <-time.After(5 * time.Second):
+			giveUp()
 			return
 		}
 	}

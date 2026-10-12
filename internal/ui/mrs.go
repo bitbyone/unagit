@@ -609,13 +609,19 @@ func withDetail(mr forge.MergeRequest, det *forge.MergeRequestDetail) forge.Merg
 }
 
 // sameRow reports whether two versions of a merge request agree on everything
-// the list shows, so a refresh that found nothing new redraws nothing.
+// the list shows, so a refresh that found nothing new redraws nothing. The
+// pipeline, the approvals and the threads are compared too: a pipeline
+// ending moves no updated time, and a poll that looked at the time alone
+// kept a finished pipeline turning.
 func sameRow(a, b forge.MergeRequest) bool {
 	return a.Title == b.Title && a.Draft == b.Draft && a.State == b.State &&
 		a.SourceBranch == b.SourceBranch && a.TargetBranch == b.TargetBranch &&
 		a.WebURL == b.WebURL && a.Comments == b.Comments && a.UpdatedAt.Equal(b.UpdatedAt) &&
 		a.Author == b.Author && slices.Equal(a.Labels, b.Labels) &&
-		samePeople(a.Assignees, b.Assignees) && samePeople(a.Reviewers, b.Reviewers)
+		samePeople(a.Assignees, b.Assignees) && samePeople(a.Reviewers, b.Reviewers) &&
+		a.SHA == b.SHA && a.Pipeline == b.Pipeline &&
+		slices.Equal(a.ApprovedBy, b.ApprovedBy) && a.ApprovalsRequired == b.ApprovalsRequired &&
+		a.Unresolved == b.Unresolved && a.Resolved == b.Resolved && a.UnresolvedKnown == b.UnresolvedKnown
 }
 
 // samePeople reports whether two lists name the same people. A forge does

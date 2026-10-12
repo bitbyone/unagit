@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -710,6 +711,44 @@ func TestJobsAreStartedByAName(t *testing.T) {
 	changeOnLoop(a, func() { a.people.Learn(inst, "kanak", "Kateřina Kanaková", time.Now()) })
 	if got := cell(forge.User{Username: "kanak"}); !strings.Contains(got, "Kateřina Kanaková") {
 		t.Errorf("the name the index learnt is not used: %q", got)
+	}
+}
+
+// TestAFollowedPipelineEndsInTheList: a pipeline that ends moves no updated
+// time of its merge request, and the following still brings its end in.
+func TestAFollowedPipelineEndsInTheList(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	changeOnLoop(a, func() { a.ciAskEvery = 150 * time.Millisecond })
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Invoice rounding")
+	pipeline := func() string {
+		return onLoop(a, func() string {
+			for _, mr := range a.mrs {
+				if mr.IID == 9 {
+					return mr.Pipeline
+				}
+			}
+			return ""
+		})
+	}
+	running := func() {
+		changeOnLoop(a, func() {
+			for i := range a.mrs {
+				if a.mrs[i].IID == 9 {
+					a.mrs[i].Pipeline = "running"
+				}
+			}
+			a.mrsPane.reload()
+		})
+	}
+	// The first answer brings the row as the server's detail has it; the
+	// second finds nothing changed but the pipeline.
+	for round := 1; round <= 2; round++ {
+		running()
+		waitTrue(t, fmt.Sprintf("round %d: the ended pipeline still turns in the list", round), func() bool { return pipeline() != "running" })
+		waitTrue(t, "the following never stopped", func() bool { return !onLoop(a, func() bool { return a.ciWatching }) })
 	}
 }
 
