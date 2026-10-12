@@ -15,24 +15,22 @@ import (
 	"github.com/tobola/unagit/internal/editortest"
 )
 
+// TestOnlySupportedNeovimCanDetach reads the version as given, with no
+// process: a probe started under the whole suite's load once missed its
+// timeout and read as too old.
 func TestOnlySupportedNeovimCanDetach(t *testing.T) {
 	t.Parallel()
 	for _, version := range []struct {
 		text string
 		want bool
 	}{{"NVIM v0.11.9", false}, {"NVIM v0.12.0", true}, {"NVIM v1.0.0", true}, {"VIM 9.1", false}} {
-		bin := filepath.Join(t.TempDir(), "nvim")
-		if err := os.WriteFile(bin, []byte("#!/bin/sh\nprintf '%s\\n' '"+version.text+"'\n"), 0o700); err != nil {
-			t.Fatal(err)
+		if got := detachable(version.text + "\nBuild type: Release\n"); got != version.want {
+			t.Errorf("%s: detach = %v", version.text, got)
 		}
-		e := Editor{ID: Nvim, Terminal: true, Found: true, Where: bin, argv: []string{bin}}
-		if e.CanDetach() != version.want {
-			t.Errorf("%s: detach = %v", version.text, !version.want)
-		}
-		e.ID = Custom
-		if e.CanDetach() {
-			t.Error("a custom editor was treated as Neovim")
-		}
+	}
+	e := Editor{ID: Custom, Terminal: true, Found: true, Where: "/nonexistent/nvim"}
+	if e.CanDetach() {
+		t.Error("a custom editor was treated as Neovim")
 	}
 }
 

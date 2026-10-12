@@ -24,17 +24,19 @@ func (e Editor) CanDetach() bool {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		out, err := exec.CommandContext(ctx, e.Where, "--version").Output()
-		if err != nil {
-			return false
-		}
-		var major, minor int
-		if _, err := fmt.Sscanf(string(out), "NVIM v%d.%d", &major, &minor); err != nil {
-			return false
-		}
-		return major > 0 || minor >= 12
+		return err == nil && detachable(string(out))
 	})
 	value, _ := detachVersions.LoadOrStore(e.Where, probe)
 	return value.(func() bool)()
+}
+
+// detachable reads `nvim --version`: :detach came with Neovim 0.12.
+func detachable(version string) bool {
+	var major, minor int
+	if _, err := fmt.Sscanf(version, "NVIM v%d.%d", &major, &minor); err != nil {
+		return false
+	}
+	return major > 0 || minor >= 12
 }
 
 // BackgroundCommand changes only this invocation, never the user's config.
