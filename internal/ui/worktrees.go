@@ -43,7 +43,15 @@ type worktreeRow struct {
 	// Path is then the group's name, Branch the branch they all share or "",
 	// and Dir the directory holding them.
 	Members []worktreeRow
+	// Review is the merge request a review worktree was made for, when it is
+	// no longer open and the worktree was kept: nothing else lists it then.
+	// Its HEAD is the merge base, no branch, so Branch stays "" and nothing
+	// takes the row for a branch's worktree.
+	Review int
 }
+
+// reviewOf tells a kept review worktree from a branch's.
+func (r worktreeRow) keptReview() bool { return r.Review != 0 }
 
 // grouped tells a grouped worktree from the worktree of one repository.
 func (r worktreeRow) grouped() bool { return r.Members != nil }
@@ -85,6 +93,9 @@ type remoteState struct {
 	// Own counts, for a branch origin does not have, the commits that are on
 	// no branch of origin: none means pushing would add an empty branch.
 	Own int
+	// Source and URL are a kept review's merge request: its branch and its
+	// page. Edits are then the reviewer's own, the merge request left out.
+	Source, URL string
 }
 
 // busyWords is an operation in progress as a column says it.
@@ -134,6 +145,7 @@ func (a *App) openMRFor(r worktreeRow) (forge.MergeRequest, bool) {
 func (a *App) loadWorktreeRemotes() {
 	type job struct {
 		dir  string
+		mgr  *workspace.Manager
 		git  *gitx.Git
 		rows []worktreeRow
 	}
@@ -154,7 +166,8 @@ func (a *App) loadWorktreeRemotes() {
 		if j == nil {
 			// Branches are shared by every worktree of a repository, so any one
 			// directory answers for all of them.
-			j = &job{dir: r.Dir, git: a.newManager(r.Instance, r.Path, nil).Git()}
+			mgr := a.newManager(r.Instance, r.Path, nil)
+			j = &job{dir: r.Dir, mgr: mgr, git: mgr.Git()}
 			jobs[k] = j
 			order = append(order, k)
 		}
@@ -174,6 +187,10 @@ func (a *App) loadWorktreeRemotes() {
 			bases := j.git.BranchBases(j.dir)
 			rebased := j.git.RebasedFrom(j.dir)
 			for _, r := range j.rows {
+				if r.keptReview() {
+					result[r.Dir] = keptReviewState(j.mgr, r, integrate)
+					continue
+				}
 				result[r.Dir] = remoteStateOf(j.git, r, upstreams, bases, rebased, integrate)
 			}
 		}
@@ -191,6 +208,22 @@ func (a *App) loadWorktreeRemotes() {
 			}
 		})
 	}()
+}
+
+// keptReviewState is what a kept review's row shows: its merge request, and
+// what of the reviewer's is in it. Everything the merge request changes is
+// pending there by design, so only the reviewer's own edits count. It runs
+// off the event loop.
+func keptReviewState(mgr *workspace.Manager, r worktreeRow, integrate bool) remoteState {
+	meta := mgr.ReadMeta(r.Dir)
+	st := remoteState{Source: meta.Source, URL: meta.URL, Edits: len(mgr.OwnEdits(r.Dir))}
+	if integrate {
+		for _, t := range incomm.ThreadsAt(incomm.Place{Dir: r.Dir}) {
+			st.Comments += 1 + len(t.Replies)
+			st.Pending += t.PendingCount()
+		}
+	}
+	return st
 }
 
 // remoteStateOf is where one worktree stands, out of what git said of its
@@ -341,7 +374,13 @@ func (a *App) newWorktreesPane() *pane {
 		if idx < 0 || idx >= len(a.worktrees) {
 			return
 		}
-		// A worktree is a view of its own, not a column beside the list.
+		// A worktree is a view of its own, not a column beside the list. A
+		// kept review has nothing for one - no branch, no commits of its own
+		// - so Enter goes inside it.
+		if r := a.worktrees[idx]; r.keptReview() {
+			a.withEditor(false, func(ed *editors.Editor) { a.openWorktree(r, ed) })
+			return
+		}
 		a.showWorktreeView(a.worktrees[idx])
 	}
 	p.onOpen = func(ask bool) {
@@ -371,7 +410,7 @@ func (a *App) newWorktreesPane() *pane {
 func (a *App) filterWorktrees(query string) []int {
 	var hits []scored
 	for i, r := range a.worktrees {
-		hay := r.Path + " " + r.Branch + " " + a.instanceLabel(r.Instance)
+		hay := r.Path + " " + a.worktreeBranch(r) + " " + a.worktreeMR(r) + " " + a.instanceLabel(r.Instance)
 		if r.grouped() {
 			for _, m := range r.Members {
 				hay += " " + m.Path + " " + m.Branch
@@ -569,6 +608,9 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 				branchColour = colMuted
 			}
 		}
+		if r.keptReview() {
+			mark, branchColour = tag(colMuted)+lead+glyphReviewWorktree+tagEnd, colMuted
+		}
 		open := a.openMarks(r.Dir)
 		var cells []field
 		if marksCol.shown() {
@@ -582,7 +624,7 @@ func (a *App) drawWorktrees(p *pane, filtered []int) {
 		}
 		plain, colour := a.worktreeRemoteWords(r)
 		remote := field{text: plain, width: remoteW, colour: colour}
-		if !r.grouped() && remoteW > 0 {
+		if !r.grouped() && !r.keptReview() && remoteW > 0 {
 			st, known := a.wtRemote[r.Dir]
 			remote = field{raw: remoteCell(st, known, remoteW)}
 		}
@@ -678,6 +720,9 @@ func (a *App) worktreeEditCount(r worktreeRow) int {
 // worktreeBranch is what the BRANCH column says: the branch, or for a grouped
 // worktree whose members are on different ones, how many.
 func (a *App) worktreeBranch(r worktreeRow) string {
+	if r.keptReview() {
+		return a.wtRemote[r.Dir].Source
+	}
 	if !r.grouped() || r.Branch != "" {
 		return r.Branch
 	}
@@ -707,6 +752,9 @@ func (a *App) worktreeServer(r worktreeRow) string {
 // worktreeMR is the MR column: the open merge request of the branch, or for a
 // grouped worktree, the first of its members' and how many more there are.
 func (a *App) worktreeMR(r worktreeRow) string {
+	if r.keptReview() {
+		return fmt.Sprintf("!%d", r.Review)
+	}
 	if !r.grouped() {
 		if mr, ok := a.openMRFor(r); ok {
 			return fmt.Sprintf("!%d", mr.IID)
@@ -732,6 +780,9 @@ func (a *App) worktreeMR(r worktreeRow) string {
 // grouped worktree says what its members share, or the worst of them and how
 // many are not in sync.
 func (a *App) worktreeRemoteWords(r worktreeRow) (string, tcell.Color) {
+	if r.keptReview() {
+		return "MR closed", colMuted
+	}
 	if !r.grouped() {
 		st, known := a.wtRemote[r.Dir]
 		plain, name, colour := remoteWords(st, known)
@@ -816,13 +867,25 @@ func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
 }
 
 func (a *App) openWorktreeIn(r worktreeRow, ed *editors.Editor, place editorPlace) {
-	a.openNowIn(r.Dir, session.Record{
+	a.openNowIn(r.Dir, a.worktreeRecord(r), ed, place)
+}
+
+// worktreeRecord is what a session says of a worktree open in an editor.
+func (a *App) worktreeRecord(r worktreeRow) session.Record {
+	what := session.Record{
 		Instance: r.Instance,
 		Server:   a.instanceLabel(r.Instance),
 		Project:  r.Path,
 		Title:    r.Branch,
 		Mode:     session.ModeBranch,
-	}, ed, place)
+	}
+	switch {
+	case r.grouped():
+		what.Mode = session.ModeGroup
+	case r.keptReview():
+		what.Title, what.IID, what.Mode = a.worktreeBranch(r), r.Review, session.ModeReview
+	}
+	return what
 }
 
 // remoteSentence is remoteWords for the detail column, where there is room to

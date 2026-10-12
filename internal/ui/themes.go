@@ -226,9 +226,12 @@ type Glyphs struct {
 	DiskReview string `json:"disk_review"`
 	DiskBoth   string `json:"disk_both"`
 	// Worktree marks a worktree of one repository in Worktrees, Group a
-	// grouped one, Hidden a hidden repository, Favourite a starred one.
-	Worktree string `json:"worktree"`
-	Group    string `json:"group"`
+	// grouped one, ReviewWorktree the review of a merge request no longer
+	// open, kept for what is in it, Hidden a hidden repository, Favourite a
+	// starred one.
+	Worktree       string `json:"worktree"`
+	Group          string `json:"group"`
+	ReviewWorktree string `json:"review_worktree"`
 	// Repos follows the count of repositories in a worktree's row, Draft
 	// stands for the word before a draft merge request's title, and
 	// ForgeGitHub and ForgeGitLab go before a repository's name, saying its
@@ -617,7 +620,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.watched":   g.Watched,
 		"glyphs.disk_none": g.DiskNone, "glyphs.disk_branch": g.DiskBranch,
 		"glyphs.disk_review": g.DiskReview, "glyphs.disk_both": g.DiskBoth,
-		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite, "glyphs.unlisted": g.Unlisted,
+		"glyphs.worktree": g.Worktree, "glyphs.group": g.Group, "glyphs.review_worktree": g.ReviewWorktree, "glyphs.hidden": g.Hidden, "glyphs.favourite": g.Favourite, "glyphs.unlisted": g.Unlisted,
 		"glyphs.check": g.Check, "glyphs.cross": g.Cross, "glyphs.dot": g.Dot, "glyphs.ring": g.Ring,
 		"glyphs.manual": g.Manual, "glyphs.scheduled": g.Scheduled, "glyphs.trigger": g.Trigger, "glyphs.retried": g.Retried, "glyphs.user": g.User, "glyphs.agent": g.Agent, "glyphs.starred": g.Starred, "glyphs.approved": g.Approved,
 		"glyphs.ci_done": g.CIDone, "glyphs.ci_idle": g.CIIdle,

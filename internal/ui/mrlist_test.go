@@ -58,6 +58,86 @@ func TestARefreshTidiesClosedMergeRequests(t *testing.T) {
 	}
 }
 
+// TestAKeptReviewIsListedInWorktrees: the review of a merge request no
+// longer open, kept for an edit of the reviewer's, is a row of Worktrees with
+// its merge request's number - the files the merge request adds not taken
+// for edits - and d deletes it, naming the edit first.
+func TestAKeptReviewIsListedInWorktrees(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	head := mrOnOrigin(t, srv, p, "Add a token bucket")
+	mr := onLoop(a, func() forge.MergeRequest {
+		for _, m := range a.mrs {
+			if m.IID == 7 {
+				return m
+			}
+		}
+		return forge.MergeRequest{}
+	})
+	project := onLoop(a, func() forge.Project { return a.mrProject(mr) })
+	dir, err := a.newManager(mr.Instance, project.PathWithNamespace, nil).
+		EnsureMRReview(mr, project, workspace.Review{HeadSHA: head})
+	must(t, err)
+	must(t, os.WriteFile(filepath.Join(dir, "mine.txt"), []byte("mine\n"), 0o644))
+	gitIn(t, dir, "add", "-N", "mine.txt")
+	// Something reset the index: the file the merge request adds is
+	// untracked now, and still the merge request's.
+	gitIn(t, dir, "rm", "-q", "--cached", "rate0.txt")
+
+	typeRunes(sc, "3")
+	changeOnLoop(a, func() {
+		var open []forge.MergeRequest
+		for _, m := range a.mrs {
+			if m.IID != 7 {
+				open = append(open, m)
+			}
+		}
+		a.mrs = open
+		a.refreshDisk()
+	})
+	// The branch is read from the worktree in the background, with the edits.
+	waitFor(t, a, sc, "feat/rate")
+	screen := a.screenText(sc)
+	line := strings.Split(screen, "\n")[lineOf(screen, "MR closed")]
+	for _, want := range []string{glyphReviewWorktree, "acme/gateway", "feat/rate", "!7"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the kept review's row lacks %q: %q", want, line)
+		}
+	}
+	edits := onLoop(a, func() int {
+		for _, r := range a.worktrees {
+			if r.Review == 7 {
+				return a.worktreeEditCount(r)
+			}
+		}
+		return -1
+	})
+	if edits != 1 {
+		t.Errorf("the kept review counts %d edits, want the reviewer's one", edits)
+	}
+	assertLegible(t, a, sc, "a kept review in Worktrees")
+
+	at := onLoop(a, func() int {
+		for i, r := range a.worktrees {
+			if r.Review == 7 {
+				a.worktreesPane.selectWhere(func(j int) bool { return j == i })
+				return i
+			}
+		}
+		return -1
+	})
+	waitSelected(t, a, a.worktreesPane, at)
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "1 file(s) edited in the review")
+	typeRunes(sc, "d")
+	waitGone(t, a, sc, "MR closed")
+	if workspace.Exists(dir) {
+		t.Errorf("the kept review %s is still on disk", dir)
+	}
+}
+
 // TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent: NEW counts what was pushed
 // since the review last checked out the head; CI is the pipeline's mark.
 func TestTheMergeRequestRowSaysWhatIsNewAndHowCIWent(t *testing.T) {

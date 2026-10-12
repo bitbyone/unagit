@@ -52,6 +52,7 @@ var (
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth string
 	glyphEditor, glyphWatched                                      string
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite         string
+	glyphReviewWorktree                                            string
 	glyphUnlisted                                                  string
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft     string
 	glyphIntegrationState, glyphEditorNeovim                       string
@@ -194,6 +195,7 @@ func setTheme(t Theme) {
 	glyphEditor = g.Editor
 	glyphDiskNone, glyphDiskBranch, glyphDiskReview, glyphDiskBoth = g.DiskNone, g.DiskBranch, g.DiskReview, g.DiskBoth
 	glyphWorktree, glyphGroup, glyphHidden, glyphFavourite = g.Worktree, g.Group, g.Hidden, g.Favourite
+	glyphReviewWorktree = g.ReviewWorktree
 	glyphUnlisted = g.Unlisted
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft = g.Repos, g.ForgeGitHub, g.ForgeGitLab, g.Draft
 	glyphIntegrationState = g.IntegrationState

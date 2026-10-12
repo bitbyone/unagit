@@ -1613,6 +1613,21 @@ func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRo
 	disk := make(map[projectKey]diskInfo, len(a.projects))
 	seen := map[projectKey]bool{}
 	var worktrees []worktreeRow
+	// A review worktree whose merge request is not among the open ones was
+	// kept when it closed, for work in it, and is listed with the worktrees.
+	// A server none of whose merge requests is known has not been read, and
+	// its reviews are not taken for closed.
+	type mrAt struct {
+		key projectKey
+		iid int
+	}
+	open, read := map[mrAt]bool{}, map[string]bool{}
+	for _, mr := range a.mrs {
+		if mr.State != "closed" && mr.State != "merged" {
+			open[mrAt{projectKey{mr.Instance, a.projectPathOfMR(mr)}, mr.IID}] = true
+		}
+		read[mr.Instance] = true
+	}
 
 	inspect := func(key projectKey) {
 		if key.Path == "" || seen[key] {
@@ -1664,6 +1679,12 @@ func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRo
 				d := info.MRs[iid]
 				if review {
 					d.Review, d.ReviewDir = true, filepath.Join(root, e.Name())
+					if read[key.Instance] && !open[mrAt{key, iid}] {
+						_, moved := workspace.WorktreeHead(d.ReviewDir)
+						worktrees = append(worktrees, worktreeRow{
+							Instance: key.Instance, Path: key.Path, Dir: d.ReviewDir, Moved: moved,
+							Created: workspace.WorktreeCreated(d.ReviewDir), Review: iid})
+					}
 				} else {
 					d.Branch, d.BranchDir = true, filepath.Join(root, e.Name())
 				}

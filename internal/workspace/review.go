@@ -388,6 +388,12 @@ func (m *Manager) setNotesAside(dir string) (func() error, error) {
 	}, nil
 }
 
+// OwnEdits lists what the reviewer changed in a review worktree, the merge
+// request itself left out.
+func (m *Manager) OwnEdits(dir string) []string {
+	return m.ownEdits(dir, m.ReadMeta(dir))
+}
+
 // ownEdits lists what the reviewer changed on top of the head unagit last put
 // in the worktree.
 func (m *Manager) ownEdits(dir string, previous Meta) []string {

@@ -160,7 +160,9 @@ func (a *App) sayRefreshed(before map[mrKey]bool, open []forge.MergeRequest, rem
 		parts = append(parts, "removed the worktrees of closed "+strings.Join(removed, ", "))
 	}
 	if len(kept) > 0 {
-		parts = append(parts, "kept the worktrees of closed "+strings.Join(kept, ", "))
+		// What is kept waits for the user, so the warning says where it goes.
+		parts = append(parts, "kept the worktrees of closed "+strings.Join(kept, ", ")+
+			" - d deletes one in Repositories, a review in Worktrees too")
 	}
 	opened := counted(shown, "open merge request", "open merge requests")
 	if len(parts) == 0 {

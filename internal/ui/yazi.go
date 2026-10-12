@@ -74,11 +74,7 @@ func (a *App) browseMR(mr forge.MergeRequest) {
 }
 
 func (a *App) browseWorktree(r worktreeRow) {
-	mode := session.ModeBranch
-	if r.grouped() {
-		mode = session.ModeGroup
-	}
-	a.browseNow(r.Dir, session.Record{Instance: r.Instance, Server: a.instanceLabel(r.Instance), Project: r.Path, Title: r.Branch, Mode: mode})
+	a.browseNow(r.Dir, a.worktreeRecord(r))
 }
 
 func (a *App) browseNow(dir string, what session.Record) {

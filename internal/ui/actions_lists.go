@@ -278,6 +278,31 @@ func (a *App) mergeRequestsActions(p *pane) []uiAction {
 	return append(acts, a.listActions(p)...)
 }
 
+// keptReviewActions are what can be done with the review worktree of a merge
+// request no longer open: look into it, take what is the reviewer's, and
+// delete it. It has no branch, so nothing of a branch's is offered.
+func (a *App) keptReviewActions(p *pane, r worktreeRow) []uiAction {
+	url := a.wtRemote[r.Dir].URL
+	openIn := func(ed *editors.Editor, place editorPlace) { a.openWorktreeIn(r, ed, place) }
+	acts := []uiAction{
+		a.browseFilesAction(func() { a.browseWorktree(r) }),
+		{name: "Open", about: "Open the review worktree in your default editor, here.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
+		{name: "Open With…", about: "Choose the editor, then open the review worktree here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
+		{name: "Open in Browser", about: "Open the merge request's page on the server.", keys: "w", rank: 35, when: func() bool { return url != "" }, run: func() {
+			a.openWeb(url)
+		}},
+		{name: "Copy…", about: "Copy the directory or the merge request's branch to the clipboard.", keys: "y", rank: 70, run: func() {
+			a.showYank("Copy "+r.Path, []yankItem{{"Directory", r.Dir}, {"Branch", a.worktreeBranch(r)}})
+		}},
+		{name: "Delete from Disk…", about: "Delete the review worktree from disk; asks first and lists what would be lost.", keys: "d", rank: 800, run: func() {
+			a.confirmDeleteWorktreeEntry(a.worktreeProject(r), workspace.WorktreeEntry{
+				Label: a.worktreeMR(r) + " " + a.worktreeBranch(r), Kind: "review", Dirs: []string{r.Dir}, IID: r.Review})
+		}},
+		a.openAction("worktree", r.Path, openTarget{"Open", openIn}),
+	}
+	return append(acts, a.openingActions(openTarget{"Open", openIn})...)
+}
+
 // worktreeActions are what can be done with one worktree, grouped or not;
 // the worktree view offers the same for the block that is lit.
 // The list commits with c, the view with C, since c there is the comments.
@@ -374,6 +399,9 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 // worktreeListActions are worktreeActions as the list has them: taking a
 // repository out and deleting are keys of the list's own.
 func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
+	if r.keptReview() {
+		return a.keptReviewActions(p, r)
+	}
 	acts := a.worktreeActions(r, p.onOpen, "c")
 	return append(acts,
 		uiAction{name: "Refresh", about: "Fetch this worktree's repository, read its branch's pipeline and bring in its merge request's comments, leaving the rest as it is.", keys: "r", rank: 38,

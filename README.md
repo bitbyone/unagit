@@ -294,7 +294,10 @@ all and live only there.
 - When `R` finds a merge request merged or closed, its worktrees are removed
   without asking - unless they hold work of yours: uncommitted changes,
   unpushed commits, your own edits in a review, comments not yet published.
-  Those are kept, and named.
+  Those are kept, and named; `d` on the repository in Repositories deletes
+  them. A kept review is also a row of Worktrees, marked with an eye and its
+  merge request's number, its edits your own: Enter or `Ctrl-O` opens it,
+  `d` deletes it.
 - `H` on a merge request hides its author's merge requests - Renovate's, a
   CI bot's - and the header counts the hidden authors. `x` there does the
   same for the repository's merge requests, the repository itself still

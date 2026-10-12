@@ -267,6 +267,7 @@ func helpRows() []helpLine {
 		key("MR", "the open merge request of the branch"),
 		key(glyphWorktree, "a worktree of one repository"),
 		key(glyphGroup, "grouped: several repositories in one folder"),
+		key(glyphReviewWorktree, "review of a closed merge request, kept: d deletes"),
 		key("REPOS", "how many repositories the worktree holds"),
 		key(glyphEdits, "edits: versioned/unversioned; Repositories too"),
 		key("COM", "Incomm comments; amber while some wait for P"),
