@@ -32,6 +32,11 @@ unagit; **unagit is a UI over it** and one of its users.
   binary (`cmd/agentbox`, `make build` makes both) with its own home, its
   own configuration and its own runtimes. Moving it to a repository of its
   own later - as incomm is - is moving directories.
+- `make install` builds and installs both binaries in one invocation, under
+  the same `PREFIX`. It compares each built binary with its installed copy
+  and installs only one whose contents differ (or which is missing). Go's
+  build cache avoids recompiling unchanged packages; modification times
+  alone do not decide whether to replace an installed binary.
 - unagit drives it as it drives herdr or Zellij: through its command line,
   `--json` for what it reads. It never imports agentbox's code, beyond the
   package of the JSON types (see [the boundary](#the-boundary)).
@@ -867,6 +872,14 @@ Later, not in the first version: following the branch on the forge
 from that news.
 
 ## Tests
+
+`make test-atbox` runs only `cmd/atbox/...` and `internal/atbox/...`, with
+the race detector; `make test-atbox-fast` runs the same packages without it.
+These are the checks while implementing atbox, including before commits
+that change only atbox. The unagit suite is not run for those changes.
+`make test` and `make test-fast` retain the whole repository's suite for
+changes across the boundary or to shared build machinery. The binary and
+package name agreed after the original design is `atbox`.
 
 agentbox:
 

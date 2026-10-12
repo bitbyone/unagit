@@ -40,11 +40,17 @@ keychain, with an item of its own.
 make build            # go build -o unagit ./cmd/unagit
 make test             # go test -race ./...
 make test-fast        # go test ./... while iterating; race still before commit
+make test-atbox       # only atbox, with the race detector
+make test-atbox-fast  # only atbox while iterating
 make integration      # the suite on Linux, then real Neovim, incomm, Zellij, herdr - in Docker
 gofmt -l . && go vet ./...
 ```
 
 Everything must be gofmt-clean, vet-clean and race-clean before a commit. The
+checks follow the change's scope: for atbox-only work, run gofmt on its
+files, `go vet ./cmd/atbox/... ./internal/atbox/...` and `make test-atbox`.
+Do not run unagit's tests for atbox-only changes. The full suite is for
+unagit, shared build changes and changes across the CLI boundary. The
 UI package's tests run a real tview application against a simulation screen.
 They run in parallel, four at a time (`parallelTests` in `ui/main_test.go`).
 Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);

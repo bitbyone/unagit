@@ -1,7 +1,7 @@
 BIN := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build test test-fast integration integration-image install clean fmt
+.PHONY: build test test-fast test-atbox test-atbox-fast integration integration-image install clean fmt
 
 build:
 	go build -o $(BIN) ./cmd/unagit
@@ -11,6 +11,12 @@ test:
 
 test-fast:
 	go test ./...
+
+test-atbox:
+	go test -race ./cmd/atbox/... ./internal/atbox/...
+
+test-atbox-fast:
+	go test ./cmd/atbox/... ./internal/atbox/...
 
 # The integration suite runs the real programs unagit drives - Neovim,
 # incomm, Zellij, herdr - in a Docker image that has them (integration/),
