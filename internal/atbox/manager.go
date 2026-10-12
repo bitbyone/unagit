@@ -224,7 +224,10 @@ func (m *Manager) Definition(req Request) (api.Sandbox, Runtime, Profile, error)
 		return b, r, p, err
 	}
 	if req.Profile == "" {
-		return api.Sandbox{}, nil, Profile{}, fmt.Errorf("new sandbox needs --profile; list profiles with atbox profiles")
+		if name == "" {
+			return api.Sandbox{}, nil, Profile{}, fmt.Errorf("no sandbox chosen; pass --sandbox (atbox ls lists them) or --profile to make one (atbox profiles)")
+		}
+		return api.Sandbox{}, nil, Profile{}, fmt.Errorf("new sandbox %s needs --profile; list profiles with atbox profiles", name)
 	}
 	if name == "" {
 		name = req.Profile
