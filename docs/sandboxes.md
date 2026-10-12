@@ -7,8 +7,8 @@ implements it; the reasoning is here so that the decisions are not undone
 by accident. It replaces "Agents in a container" in [herdr.md](herdr.md),
 and wins wherever the two disagree:
 that plan mounted the worktree and the main clone's `.git` into a Docker
-container. For herdr, a plugin now does what its launcher did (see
-[herdr](#herdr)).
+container. Its launcher for herdr is not used either: unagit tells herdr
+about its agents with a plugin of its own (see [herdr](#herdr)).
 
 Checked so far: `sbx` 0.47.0 on macOS (Apple Silicon) - its commands and
 flags below come from its `--help`; `sbx ls --json` answers
@@ -261,33 +261,72 @@ with the template named in the error.
 ## herdr
 
 herdr recognises an agent by its pane's foreground process, and `sbx exec
-… claude` in a pane is the `sbx` process. The
-[sbx-herdr](https://github.com/dvdksn/sbx-herdr) plugin (herdr 0.9.3+,
-read 2026-10-12 at 0.1.0) fills that in: it watches the panes' processes,
-parses an `sbx run` or `sbx exec` argv - for `exec`, the command after the
-sandbox names the agent - classifies the pane's screen with herdr's own
-rules for that agent and reports the state, as `sbx-claude`, with the
-sandbox's name as the pane's `sbx` metadata. The Agents part of Activity
-matches herdr's agents by pane, so the state arrives without anything else.
+… claude` in a pane is the `sbx` process: herdr sees no agent and has no
+state for it. unagit fills that in with **a herdr plugin of its own**. It
+is the one way; there is no launcher and no third-party plugin to choose
+instead.
 
-So unagit needs no launcher of its own for a sandbox; it opens a shell pane
-and runs the command there, as for any command in a place. What that asks
-of the command:
+What it does, as long as herdr runs - unagit open or not:
 
-- **`sbx exec` itself is the pane's process** - directly or through `unagit
-  launch`, which `exec`s it, never inside `sh -c`.
-- **The agent is the command**: `sbx exec -it -w /work/<task> <vm> claude`.
-  A shell that then starts the agent is labelled `sbx-shell`. The plugin
-  knows `-w`, `-e`, `-u` and `-it`; a flag it does not know makes it
-  ignore the pane, so use no other.
-- The hooks' reporting (Claude's session id, opencode's states) does not
-  cross into the VM; the state is the screen's. The plugin's guest helper
-  for agents started inside a sandbox shell is not finished.
+- For every pane in which unagit started a sandboxed agent (the session
+  records in `<config>/sessions/`: the pane, the agent, the VM), it reads
+  the screen (`pane.read`), has herdr classify it by herdr's own rules for
+  that agent (`herdr agent explain --file … --agent <kind> --json`), and
+  reports the state (`pane.report_agent`, `pane.release_agent` when the
+  agent is gone), with the VM's name as the pane's metadata
+  (`pane.report_metadata`). It reports only on a change.
+- It need not parse argv to know what runs where - unagit started it and
+  wrote it down - but it checks with `pane.process_info` that the pane
+  still runs `sbx exec`, so a pane reused for something else is released.
+- The Agents part of Activity matches herdr's agents by pane, so the state
+  arrives there with no change.
 
-The plugin is a third party's and young; unagit does not install it.
-Settings › Integrations says whether herdr has it (spike: how to ask herdr
-for its plugins) and, without it, a sandboxed agent in herdr shows no state.
-The launcher of herdr.md stays the fallback should the plugin go away.
+The idea, and the herdr calls, come from
+[sbx-herdr](https://github.com/dvdksn/sbx-herdr) (read 2026-10-12 at
+0.1.0). It has no licence, so none of its code is taken; ours is smaller
+anyway, since it knows its panes instead of guessing them from argv.
+
+**The plugin is a manifest and nothing to build.** `herdr-plugin.toml`, its
+commands calling the unagit binary: a startup command and the
+`pane.created` / `pane.focused` events run `unagit herdr ensure`, which
+starts one `unagit herdr observe` per herdr socket (a lock in
+`HERDR_PLUGIN_STATE_DIR`, so a second ensure does nothing), detached, its
+log in that directory. Both are hidden cobra commands that refuse to run
+outside herdr (no `HERDR_SOCKET_PATH`). No Go on the user's machine, and
+the plugin's version is unagit's.
+
+**Installed only with the user's consent**, never quietly - it changes
+herdr's configuration and leaves a process running with herdr:
+
+- Settings › Integrations, in herdr's block: whether the plugin is
+  installed and enabled (`herdr plugin list`), and an action Install herdr
+  Plugin… (and Uninstall) behind a question that says what it does.
+- The same from the command line: `unagit herdr install-plugin` and
+  `uninstall-plugin`, asking unless `--yes`.
+- Installing writes the manifest, embedded in the binary, to
+  `<config>/herdr-plugin/` with the absolute path of the running unagit,
+  then `herdr plugin link <dir>` and `enable`.
+- The path changes when unagit is upgraded or moved. At every start,
+  unagit compares the linked manifest with what it would write and, if it
+  differs, rewrites it - the user consented to the plugin, not to a path.
+- When a sandboxed agent is started in herdr without the plugin, it runs,
+  with no state, and unagit says once (`note`) that Install herdr Plugin…
+  in Settings would show it.
+
+What the command must look like, so that the plugin's check holds: `sbx
+exec` itself is the pane's process - directly or through `unagit launch`,
+which `exec`s it, never inside `sh -c` - and the agent is the command
+(`sbx exec -it -w /work/<task> <vm> claude`).
+
+The agents' own hooks (Claude's session id, opencode's states) do not cross
+into the VM; the state is the screen's.
+
+**Spike**: the herdr here is 0.9.1 and sbx-herdr asks for 0.9.3 - find the
+version whose plugins have `pane.read`, `agent explain` and the events, and
+make Integrations say "herdr 0.9.3 or newer" when older. Check that `herdr
+plugin link` takes a manifest whose commands are absolute paths outside its
+directory, and that a plugin's commands get `HERDR_SOCKET_PATH` and
+`HERDR_PLUGIN_STATE_DIR`.
 
 ## What the user sees
 
@@ -324,6 +363,11 @@ from that news.
   the disk).
 - UI: the pickers, Settings › Sandboxes with its layout test at several
   sizes, `assertLegible`, help rows, `TestEveryActionIsNamedAndExplained`.
+- The plugin: the manifest written with the binary's path and rewritten
+  when it moves; `observe` against a stand-in `herdr` reporting a state on
+  a change only, releasing a pane that no longer runs `sbx exec`; the
+  install asking first. A real herdr only in `make integration`, beside
+  the existing herdr integration test.
 - A real sbx only opt-in by a variable on macOS (`UNAGIT_SBX_TEST=1`), as
   Ghostty and the keychain are - sbx needs a hypervisor, not the Docker
   image of `make integration`.
@@ -337,6 +381,7 @@ from that news.
 2. `internal/sandbox` with sbx, the stand-in, the tests.
 3. Profiles in config and Settings › Sandboxes.
 4. Open in Sandboxed Agent… for one repository's worktree, This Terminal
-   only; then groups; then every place, herdr last.
+   only; then groups; then every place.
 5. Sandboxes…, the removal with a worktree, Activity.
-6. AGENTS.md's map gains `internal/sandbox`; the README its section.
+6. The herdr plugin and its install in Integrations.
+7. AGENTS.md's map gains `internal/sandbox`; the README its section.

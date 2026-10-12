@@ -24,7 +24,8 @@ in use.
 
 Not yet: everything about containers below. Superseded by
 [sandboxes.md](sandboxes.md), which wins wherever the two disagree; what
-stays of it here is the launcher, a fallback to the sbx-herdr plugin.
+stays of it here is the history: its launcher is dropped too, unagit's
+own herdr plugin does that job.
 
 ## The plan
 
@@ -200,8 +201,8 @@ directory would be needed otherwise.
 
 Superseded by [sandboxes.md](sandboxes.md): agents run in an sbx VM that
 clones from the forge and pushes, nothing mounted either way. Kept for
-the launcher (a fallback now, sandboxes.md uses the sbx-herdr plugin)
-and the history; where it disagrees, sandboxes.md holds.
+the history; its launcher is not to be built - unagit's own herdr plugin
+reports the state instead. Where it disagrees, sandboxes.md holds.
 
 Opt-in per start (Start Agent in Container…) and per repository default.
 
