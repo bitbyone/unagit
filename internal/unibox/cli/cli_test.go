@@ -59,7 +59,7 @@ func cliFixture(t *testing.T) (unibox.Paths, string) {
 	if err := os.MkdirAll(filepath.Join(root, "sandboxes", "node"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "sandboxes", "node", "profile.yaml"), []byte("image: example/image\nagents: [claude]\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), []byte("image: example/image\nagents: [claude]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := paths.SaveConfig(unibox.Config{Environments: root, Runtimes: map[string]unibox.RuntimeConfig{}}); err != nil {

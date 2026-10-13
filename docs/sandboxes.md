@@ -113,7 +113,7 @@ Where each kind of setting lives:
  |   profile.yaml           |   |   runtimes:           |   |     on: true         |
  |   start.sh               |   |     sbx: {on, stop_   |   |     environments:    |
  |   instructions.md        |   |           idle}       |   |       gl/team/envs   |
- |   sbx/build.args         |   | state.json            |   +----------------------+
+ |   .sbx/build.args         |   | state.json            |   +----------------------+
  | instructions/*.md        |   |   approvals, VMs,     |    the user's choices,
  +------------+-------------+   |   tasks, agents run   |    handed to agentbox
               |                 +-----------------------+
@@ -337,13 +337,14 @@ committed with unagit's commit dialog, pushed, shared with a team:
 sandbox-envs/
 ├── sandboxes/
 │   ├── kotlin/
-│   │   ├── profile.yaml
+│   │   ├── sandbox.yaml
 │   │   ├── Dockerfile
 │   │   ├── start.sh
-│   │   └── sbx/
+│   │   ├── instructions.md
+│   │   └── .sbx/
 │   │       └── build.args
 │   └── node/
-│       ├── profile.yaml
+│       ├── sandbox.yaml
 │       └── Dockerfile
 ├── instructions/
 │   ├── unibox.md
@@ -356,16 +357,21 @@ sandbox-envs/
 └── README.md
 ```
 
-A directory of `sandboxes/` with a `profile.yaml` is a profile, named after
-the directory. The layout is held to its shape (`CheckLayout`): profiles
-under `sandboxes/` (every directory there must carry a `profile.yaml`),
-attachable markdown under `instructions/` (`.md` files alone), anything of
-the user's own behind an underscore (`_shared` by convention), `README.md`
-and hidden entries - and nothing else; a stray file is a named error, never
-quietly ignored. `_shared/` is copied into every profile's build context, so
-a Dockerfile composes what it needs (`COPY _shared/installations/claude.sh`),
-and its contents are part of every profile's revision - a change there marks
-every image outdated.
+A directory of `sandboxes/` with a `sandbox.yaml` is a profile, named after
+the directory; everything inside it is the profile's own. The layout is held
+to its shape (`CheckLayout`): profiles under `sandboxes/` (every directory
+there must carry a `sandbox.yaml`), attachable markdown under
+`instructions/` (`.md` files alone, none named `instructions.md`), anything
+of the user's own behind an underscore (`_shared` by convention),
+`README.md` and hidden entries - and nothing else; a stray file is a named
+error, never quietly ignored. Runtime directories inside a profile are
+hidden (`.sbx/build.args`). `_shared/` is copied into every profile's build
+context, so a Dockerfile composes what it needs
+(`COPY _shared/installations/claude.sh`), and its contents are part of every
+profile's revision - a change there marks every image outdated. The
+profile's `sandbox.yaml`, its `instructions.md` and its agent configuration
+seeds are not image inputs: they change nothing of the image and force no
+rebuild.
 
 agentbox knows the repository by its path (`environments` in its
 configuration) and reads the working tree - what the user sees in their
@@ -397,9 +403,9 @@ deny_network: []
 agents: [claude, codex]       # what the image has
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
-instructions:                 # names of instructions/*.md, in this order
-  - unibox
-  - review-style
+instructions:                 # names of instructions/*.md, or .md paths
+  - unibox                    # relative to sandbox.yaml; the profile's own
+  - review-style              # instructions.md attaches itself
 agent_config:                 # JSON seeds merged into an agent's own
   claude: claude.json         # configuration in the VM home; seed keys win,
                               # the agent's state - projects, paths - stays
@@ -462,9 +468,12 @@ it would be committed. So:
   the environments repository: the texts live in `instructions/`, one `.md`
   per name, and the former built-in rules are just a text there (`unibox`
   by convention) a profile lists like any other.
-- **The profile's `instructions` are names** of those texts, in the order
-  listed; a sandbox attaches more by the same names (`--instructions`,
-  `unibox instructions attach`), each text once. A name that does not
+- **The profile's `instructions` are names or paths**: a bare name is a
+  text of `instructions/`, the one namespace a sandbox attaches more from
+  (`--instructions`, `unibox instructions attach`); an entry with a path or
+  extension is a `.md` relative to `sandbox.yaml`, confined to the
+  repository. The profile's own `instructions.md` attaches itself, after
+  the listed texts. Each file goes in once; a name or path that does not
   exist is an error. They go only into the VM, so they need no approval.
 - At a task's preparation unibox writes the whole into the VM's home as
   the agent's user-level instructions (`~/.claude/CLAUDE.md`,
@@ -508,7 +517,7 @@ RUN if [ "$AGENTBOX_RUNTIME" = sbx ]; then echo "sbx alone"; fi
 ```
 
 ```
-# kotlin/sbx/build.args
+# kotlin/.sbx/build.args
 BASE=docker/sandbox-templates:shell
 ```
 
@@ -567,7 +576,7 @@ A profile is one image holding every agent it offers, built on Docker's
 agent-less base, and its VMs are made as shell sandboxes:
 
 ```dockerfile
-# kotlin/sbx/build.args:  BASE=docker/sandbox-templates:shell
+# kotlin/.sbx/build.args:  BASE=docker/sandbox-templates:shell
 ARG BASE=ubuntu:24.04
 FROM ${BASE}
 USER root

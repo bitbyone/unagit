@@ -150,10 +150,7 @@ func (r *SBX) Build(ctx context.Context, p Profile, tag string, log io.Writer) (
 			return "", err
 		}
 	} else {
-		for name, file := range p.Files {
-			if name == "profile.yaml" {
-				continue
-			}
+		for name, file := range p.BuildFiles() {
 			dest := filepath.Join(dir, filepath.FromSlash(name))
 			if err = AtomicWrite(dest, file.Data, os.FileMode(file.Mode)); err != nil {
 				return "", err

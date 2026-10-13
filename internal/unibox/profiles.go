@@ -104,7 +104,7 @@ func LoadProfile(root, name string) (Profile, error) {
 		return p, err
 	}
 	p.Dir = filepath.Join(p.Root, "sandboxes", name)
-	b, err := readInside(p.Root, filepath.Join(p.Dir, "profile.yaml"))
+	b, err := readInside(p.Root, filepath.Join(p.Dir, "sandbox.yaml"))
 	if err != nil {
 		return p, err
 	}
@@ -219,18 +219,22 @@ func LoadProfile(root, name string) (Profile, error) {
 		}
 	}
 	for _, rt := range []string{"sbx", "podman"} {
-		entries, _ := os.ReadDir(filepath.Join(p.Dir, rt))
+		entries, _ := os.ReadDir(filepath.Join(p.Dir, "."+rt))
 		for _, e := range entries {
 			if e.IsDir() || e.Name() != "build.args" {
-				return p, fmt.Errorf("unknown runtime file %s/%s; only build.args is supported", rt, e.Name())
+				return p, fmt.Errorf("unknown runtime file .%s/%s; only build.args is supported", rt, e.Name())
 			}
 		}
-	}
-	for _, name := range p.Instructions {
-		if err := ValidName(name); err != nil {
-			return p, fmt.Errorf("profile instructions name texts of the instructions directory: %w", err)
+		if _, err := os.Stat(filepath.Join(p.Dir, rt)); err == nil {
+			return p, fmt.Errorf("profile %s: runtime directories are hidden; rename %s to .%s", name, rt, rt)
 		}
-		if _, err := readInside(p.Root, filepath.Join(p.Root, "instructions", name+".md")); err != nil {
+	}
+	for _, entry := range p.Instructions {
+		path, err := p.instructionFile(entry)
+		if err != nil {
+			return p, err
+		}
+		if _, err := readInside(p.Root, path); err != nil {
 			return p, fmt.Errorf("profile instructions: %w", err)
 		}
 	}
@@ -254,25 +258,36 @@ func LoadProfile(root, name string) (Profile, error) {
 			return p, fmt.Errorf("profile %s: agent_config %s must be a JSON object: %v", name, file, err)
 		}
 	}
-	buildFiles := make(map[string]SnapshotFile, len(p.Files))
-	for name, file := range p.Files {
-		if name != "profile.yaml" {
-			buildFiles[name] = file
-		}
-	}
 	p.Revision = digest(struct {
 		Files             map[string]SnapshotFile
 		Dockerfile, Image string
 		Agents            []string
-	}{buildFiles, p.Dockerfile, p.Image, p.Agents})
+	}{p.BuildFiles(), p.Dockerfile, p.Image, p.Agents})
 	return p, nil
+}
+
+// BuildFiles is the image's inputs: the profile's files without what only
+// unibox reads - the definition, the automatic instructions.md, the agent
+// configuration seeds. Those change without the image changing.
+func (p Profile) BuildFiles() map[string]SnapshotFile {
+	skip := map[string]bool{"sandbox.yaml": true, "instructions.md": true}
+	for _, file := range p.AgentConfig {
+		skip[filepath.ToSlash(file)] = true
+	}
+	out := make(map[string]SnapshotFile, len(p.Files))
+	for name, file := range p.Files {
+		if !skip[name] {
+			out[name] = file
+		}
+	}
+	return out
 }
 
 func (p Profile) ApprovalKey() string { return digest([]string{p.Root, p.Name}) }
 func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
 func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	args := []string{"AGENTBOX_RUNTIME=" + runtime, "UNIBOX_RUNTIME=" + runtime}
-	f, ok := p.Files[runtime+"/build.args"]
+	f, ok := p.Files["."+runtime+"/build.args"]
 	if !ok {
 		return args, nil
 	}
@@ -290,22 +305,52 @@ func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	return args, nil
 }
 
-// InstructionText lays the named texts together: the profile's, then the
-// sandbox's attached ones, each a name of the instructions directory, each
-// once. Nothing is fixed in the binary; the environments repository owns
-// every word the agent gets.
+// instructionFile resolves one instructions entry of a profile: a bare name
+// is a text of the repository's instructions directory; anything with a path
+// or an extension is a markdown file named relative to sandbox.yaml, still
+// confined to the repository when read.
+func (p Profile) instructionFile(entry string) (string, error) {
+	if ValidName(entry) == nil {
+		return filepath.Join(p.Root, "instructions", entry+".md"), nil
+	}
+	if filepath.IsAbs(entry) || !strings.HasSuffix(entry, ".md") {
+		return "", fmt.Errorf("instruction %q is neither a name of instructions/ nor a relative .md path", entry)
+	}
+	return filepath.Join(p.Dir, entry), nil
+}
+
+// InstructionText lays the texts together: the profile's entries, its own
+// instructions.md when it has one, then the sandbox's attached names - each
+// file once. Nothing is fixed in the binary; the environments repository
+// owns every word the agent gets.
 func (p Profile) InstructionText(attached []string) (string, error) {
-	parts := []string{}
-	used := map[string]bool{}
-	for _, name := range append(append([]string{}, p.Instructions...), attached...) {
-		if err := ValidName(name); err != nil {
+	entries := append([]string{}, p.Instructions...)
+	if _, ok := p.Files["instructions.md"]; ok {
+		entries = append(entries, "instructions.md")
+	}
+	paths := []string{}
+	for _, entry := range entries {
+		path, err := p.instructionFile(entry)
+		if err != nil {
 			return "", err
 		}
-		if used[name] {
+		paths = append(paths, path)
+	}
+	for _, name := range attached {
+		if err := ValidName(name); err != nil {
+			return "", fmt.Errorf("attached instructions are names of the instructions directory: %w", err)
+		}
+		paths = append(paths, filepath.Join(p.Root, "instructions", name+".md"))
+	}
+	parts := []string{}
+	used := map[string]bool{}
+	for _, path := range paths {
+		path = filepath.Clean(path)
+		if used[path] {
 			continue
 		}
-		used[name] = true
-		b, err := readInside(p.Root, filepath.Join(p.Root, "instructions", name+".md"))
+		used[path] = true
+		b, err := readInside(p.Root, path)
 		if err != nil {
 			return "", err
 		}
@@ -342,10 +387,10 @@ func CheckLayout(root string) error {
 			continue
 		}
 		if !e.IsDir() {
-			return fmt.Errorf("sandboxes/%s is not a profile directory; every entry of sandboxes/ is a directory with a profile.yaml", e.Name())
+			return fmt.Errorf("sandboxes/%s is not a profile directory; every entry of sandboxes/ is a directory with a sandbox.yaml", e.Name())
 		}
-		if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "profile.yaml")); err != nil {
-			return fmt.Errorf("sandboxes/%s has no profile.yaml; every profile directory needs one", e.Name())
+		if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "sandbox.yaml")); err != nil {
+			return fmt.Errorf("sandboxes/%s has no sandbox.yaml; every profile directory needs one", e.Name())
 		}
 	}
 	texts, err := os.ReadDir(filepath.Join(root, "instructions"))
@@ -358,6 +403,9 @@ func CheckLayout(root string) error {
 		}
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			return fmt.Errorf("instructions/%s is not a markdown file; the instructions directory holds attachable .md texts alone", e.Name())
+		}
+		if e.Name() == "instructions.md" {
+			return fmt.Errorf("instructions/instructions.md collides with the profiles' automatic instructions.md; give the text a name of its own")
 		}
 	}
 	return nil
@@ -384,7 +432,7 @@ func ProfileNames(root string) ([]string, error) {
 	names := []string{}
 	for _, e := range entries {
 		if e.IsDir() {
-			if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "profile.yaml")); err == nil {
+			if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "sandbox.yaml")); err == nil {
 				names = append(names, e.Name())
 			}
 		}
