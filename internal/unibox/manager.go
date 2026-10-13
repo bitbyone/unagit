@@ -207,7 +207,41 @@ func (m *Manager) usage(name string, shared bool) (*FileLock, error) {
 	return LockFile(filepath.Join(m.Paths.Config, "locks", name+"-usage.lock"), shared, false)
 }
 
+// A task lives in exactly one sandbox, so naming the task is enough to find
+// it; the sandbox has to be named only when two of them hold the same name.
+func (m *Manager) taskSandbox(task string, preparing bool) (string, error) {
+	s, err := m.Paths.ReadState()
+	if err != nil {
+		return "", err
+	}
+	found := []string{}
+	for name, b := range s.Sandboxes {
+		for _, t := range b.Tasks {
+			if t.ID == task {
+				found = append(found, name)
+			}
+		}
+	}
+	slices.Sort(found)
+	switch {
+	case len(found) == 1:
+		return found[0], nil
+	case len(found) > 1:
+		return "", fmt.Errorf("task %s exists in sandboxes %s; pass --sandbox", task, strings.Join(found, ", "))
+	case preparing:
+		return "", nil
+	}
+	return "", fmt.Errorf("task %s does not exist; unibox tasks lists them", task)
+}
+
 func (m *Manager) Definition(req Request) (api.Sandbox, Runtime, Profile, error) {
+	if req.Sandbox == "" && req.NewSandbox == "" && req.Profile == "" && req.Task != "" {
+		name, err := m.taskSandbox(req.Task, len(req.Repositories) > 0)
+		if err != nil {
+			return api.Sandbox{}, nil, Profile{}, err
+		}
+		req.Sandbox = name
+	}
 	name := req.Sandbox
 	if name == "" {
 		name = req.NewSandbox

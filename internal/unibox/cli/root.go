@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -47,7 +48,7 @@ func New(paths unibox.Paths, in io.Reader, out, errout io.Writer) *cobra.Command
 		o.manager = m
 		return m.RefreshPlugin()
 	}
-	root.AddCommand(o.configCommand(), o.initCommand(), o.validateCommand(), o.inspectCommand(), o.profilesCommand(), o.runtimesCommand(), o.approveCommand(), o.buildCommand(), o.diffCommand(), o.instructionsCommand(), o.createCommand(), o.listCommand(), o.tasksCommand(), o.shellCommand(), o.recreateCommand(), o.stopCommand(), o.removeCommand(false), o.removeCommand(true), o.herdrCommand())
+	root.AddCommand(o.configCommand(), o.initCommand(), o.validateCommand(), o.inspectCommand(), o.profilesCommand(), o.runtimesCommand(), o.approveCommand(), o.buildCommand(), o.diffCommand(), o.instructionsCommand(), o.createCommand(), o.listCommand(), o.tasksCommand(), o.resumeCommand(), o.shellCommand(), o.recreateCommand(), o.stopCommand(), o.removeCommand(false), o.removeCommand(true), o.herdrCommand())
 	for _, name := range []string{"check", "prepare", "run"} {
 		root.AddCommand(o.taskCommand(name))
 	}
@@ -345,26 +346,72 @@ func (o *options) listCommand() *cobra.Command {
 	}}
 }
 func (o *options) tasksCommand() *cobra.Command {
-	return &cobra.Command{Use: "tasks sandbox", Args: cobra.ExactArgs(1), Short: "List prepared tasks in a sandbox", RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "tasks [sandbox]", Args: cobra.MaximumNArgs(1), Short: "List prepared tasks, in every sandbox or in one", RunE: func(cmd *cobra.Command, args []string) error {
 		boxes, err := o.manager.List(cmd.Context())
 		if err != nil {
 			return err
 		}
+		tasks, runs := []api.Task{}, []api.Run{}
+		found := false
 		for _, b := range boxes {
-			if b.Name == args[0] {
-				if o.json {
-					return o.write(map[string]any{"api_version": api.Version, "tasks": b.Tasks, "runs": b.Runs})
-				}
-				w := tabwriter.NewWriter(o.output, 0, 4, 2, ' ', 0)
-				fmt.Fprintln(w, "TASK\tAGENT\tSTATE\tDIRECTORY")
-				for _, t := range b.Tasks {
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, t.Agent, t.State, t.Directory)
-				}
-				return w.Flush()
+			if len(args) == 1 && b.Name != args[0] {
+				continue
 			}
+			found = true
+			sorted := slices.Clone(b.Tasks)
+			slices.SortFunc(sorted, func(x, y api.Task) int { return strings.Compare(x.ID, y.ID) })
+			tasks = append(tasks, sorted...)
+			runs = append(runs, b.Runs...)
 		}
-		return fmt.Errorf("sandbox %s not found", args[0])
+		if len(args) == 1 && !found {
+			return fmt.Errorf("sandbox %s not found; unibox ls lists them", args[0])
+		}
+		if o.json {
+			return o.write(map[string]any{"api_version": api.Version, "tasks": tasks, "runs": runs})
+		}
+		w := tabwriter.NewWriter(o.output, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(w, "TASK\tSANDBOX\tAGENT\tSTATE\tSESSIONS\tREPOSITORIES")
+		for _, t := range tasks {
+			sessions := 0
+			for _, r := range runs {
+				if r.Sandbox == t.Sandbox && r.Task == t.ID {
+					sessions++
+				}
+			}
+			repos := []string{}
+			for _, r := range t.Repositories {
+				repos = append(repos, r.Name+"@"+r.Branch)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n", t.ID, t.Sandbox, t.Agent, t.State, sessions, strings.Join(repos, ", "))
+		}
+		if err = w.Flush(); err != nil {
+			return err
+		}
+		if len(tasks) > 0 {
+			fmt.Fprintln(o.log, "resume one with: unibox resume <task>")
+		}
+		return nil
 	}}
+}
+
+func (o *options) resumeCommand() *cobra.Command {
+	var req unibox.Request
+	c := &cobra.Command{Use: "resume task [-- agent-args...]", Args: cobra.MinimumNArgs(1), Short: "Run a prepared task's agent again, in whichever sandbox holds it", RunE: func(cmd *cobra.Command, args []string) error {
+		if n := cmd.ArgsLenAtDash(); n > 1 || (n < 0 && len(args) > 1) {
+			return fmt.Errorf("resume takes one task; agent arguments go after --")
+		}
+		if o.json {
+			return fmt.Errorf("resume owns the terminal; omit --json")
+		}
+		req.Task = args[0]
+		if err := o.preflight(cmd, &req); err != nil {
+			return err
+		}
+		return o.manager.Run(cmd.Context(), req, o.input, o.output, o.log, args[1:])
+	}}
+	c.Flags().StringVar(&req.Sandbox, "sandbox", "", "Sandbox holding the task, when two hold one of that name")
+	c.Flags().StringVar(&req.Agent, "agent", "", "Coding agent to run instead of the task's own")
+	return c
 }
 
 func (o *options) shellCommand() *cobra.Command {

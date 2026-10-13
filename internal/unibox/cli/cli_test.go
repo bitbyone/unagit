@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tobola/unagit/internal/testenv"
 	"github.com/tobola/unagit/internal/unibox"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func TestMain(m *testing.M) { testenv.Main(m) }
@@ -223,5 +224,50 @@ func TestHelpListsLifecycleAndMultipleRepositories(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("help lacks %s", want)
 		}
+	}
+}
+
+func TestTasksListsEverySandboxAndResumeNeedsOnlyTheTask(t *testing.T) {
+	t.Parallel()
+	paths, _ := cliFixture(t)
+	err := paths.State(func(s *unibox.State) error {
+		for _, name := range []string{"work", "personal"} {
+			s.Sandboxes[name] = api.Sandbox{Name: name, Runtime: "gone", RuntimeName: "unibox-" + name, Profile: "node", Runs: []api.Run{}, Tasks: []api.Task{
+				{ID: name + "-task", Sandbox: name, Directory: "/work/" + name + "-task", Agent: "claude", State: "ready", Repositories: []api.Repository{{Name: "api", Branch: "feat/" + name}}},
+			}}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	c := New(paths, strings.NewReader(""), &out, io.Discard)
+	c.SetArgs([]string{"tasks"})
+	if err = c.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"SANDBOX", "REPOSITORIES", "personal-task  personal", "work-task      work", "api@feat/work"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("tasks lacks %q:\n%s", want, out.String())
+		}
+	}
+	out.Reset()
+	c = New(paths, strings.NewReader(""), &out, io.Discard)
+	c.SetArgs([]string{"tasks", "personal"})
+	if err = c.Execute(); err != nil || strings.Contains(out.String(), "work-task") || !strings.Contains(out.String(), "personal-task") {
+		t.Fatalf("%v:\n%s", err, out.String())
+	}
+	// The sandbox is found from the task; the error then comes from its
+	// runtime, which this fixture does not have.
+	c = New(paths, strings.NewReader(""), io.Discard, io.Discard)
+	c.SetArgs([]string{"resume", "personal-task"})
+	if err = c.Execute(); err == nil || strings.Contains(err.Error(), "no sandbox chosen") || !strings.Contains(err.Error(), "gone") {
+		t.Fatalf("%v", err)
+	}
+	c = New(paths, strings.NewReader(""), io.Discard, io.Discard)
+	c.SetArgs([]string{"resume", "nothing"})
+	if err = c.Execute(); err == nil || !strings.Contains(err.Error(), "unibox tasks lists them") {
+		t.Fatalf("%v", err)
 	}
 }

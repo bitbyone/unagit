@@ -44,7 +44,7 @@ func taskFlags(c *cobra.Command, r *unibox.Request) {
 	f.StringVar(&r.Profile, "profile", "", "Environment profile for a new sandbox")
 	f.StringVar(&r.Runtime, "runtime", "", "Runtime adapter (existing sandboxes keep theirs)")
 	f.StringVar(&r.Agent, "agent", "", "Coding agent declared by the profile")
-	f.StringVar(&r.Task, "task", "", "Task name to prepare or resume")
+	f.StringVar(&r.Task, "task", "", "Task name to prepare or resume; alone, it finds its sandbox")
 	f.StringVar(&r.Author, "author", "", "Commit author, as Name <email>")
 	f.StringSliceVar(&r.Instructions, "instructions", nil, "Named instruction texts for a new sandbox")
 	f.BoolVar(&r.Push, "push", false, "Push selected local branches; create one nobody has from the local HEAD, or a URL's default tip (never force)")

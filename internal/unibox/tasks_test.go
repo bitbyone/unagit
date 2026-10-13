@@ -327,3 +327,39 @@ func TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox(t *testing.T) {
 		t.Fatal("did not stop last session's sandbox")
 	}
 }
+
+func TestATaskNamedAloneFindsItsSandbox(t *testing.T) {
+	t.Parallel()
+	m, _ := managerFixture(t)
+	ctx := context.Background()
+	for _, name := range []string{"dev", "ci"} {
+		if _, err := m.Create(ctx, Request{NewSandbox: name, Profile: "node"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, ids := range map[string][]string{"dev": {"refunds", "shared"}, "ci": {"shared"}} {
+		b, _ := m.sandbox(name)
+		for _, id := range ids {
+			b.Tasks = append(b.Tasks, api.Task{ID: id, Sandbox: name, Directory: "/work/" + id, Agent: "claude", State: "ready"})
+		}
+		if err := m.saveBox(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, _, _, err := m.Definition(Request{Task: "refunds"}); err != nil || b.Name != "dev" {
+		t.Fatalf("%s %v", b.Name, err)
+	}
+	if _, _, _, err := m.Definition(Request{Task: "shared"}); err == nil || !strings.Contains(err.Error(), "ci, dev; pass --sandbox") {
+		t.Fatalf("%v", err)
+	}
+	if b, _, _, err := m.Definition(Request{Task: "shared", Sandbox: "ci"}); err != nil || b.Name != "ci" {
+		t.Fatalf("%s %v", b.Name, err)
+	}
+	if _, _, _, err := m.Definition(Request{Task: "missing"}); err == nil || !strings.Contains(err.Error(), "unibox tasks lists them") {
+		t.Fatalf("%v", err)
+	}
+	// A new task named by the user still needs to be told where to go.
+	if _, _, _, err := m.Definition(Request{Task: "missing", Repositories: []RepoInput{{Source: "."}}}); err == nil || !strings.Contains(err.Error(), "no sandbox chosen") {
+		t.Fatalf("%v", err)
+	}
+}
