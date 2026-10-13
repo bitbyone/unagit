@@ -100,9 +100,14 @@ func (a *App) browseNow(dir string, what session.Record) {
 }
 
 func (a *App) runYazi(bin, dir string, what session.Record) (string, error) {
+	file, _, err := a.runYaziSelection(bin, dir, what)
+	return file, err
+}
+
+func (a *App) runYaziSelection(bin, dir string, what session.Record) (string, string, error) {
 	tmp, err := os.MkdirTemp("", "unagit-yazi-")
 	if err != nil {
-		return "", fmt.Errorf("cannot prepare the file browser: %w", err)
+		return "", "", fmt.Errorf("cannot prepare the file browser: %w", err)
 	}
 	defer os.RemoveAll(tmp)
 	cwd, chosen := filepath.Join(tmp, "cwd"), filepath.Join(tmp, "chosen")
@@ -112,23 +117,23 @@ func (a *App) runYazi(bin, dir string, what session.Record) (string, error) {
 	what.Branch, _ = workspace.WorktreeHead(dir)
 	a.tv.QueueUpdateDraw(func() { a.closeModal(pageTask) })
 	if err := a.runInTerminal(dir, what, cmd); err != nil {
-		return "", err
+		return "", "", err
 	}
 	last, err := yaziResult(cwd)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if last != "" && !sameDirectory(last, dir) {
 		a.zoxideAdd(last)
 	}
 	file, err := yaziResult(chosen)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if file != "" && !filepath.IsAbs(file) {
 		file = filepath.Join(dir, file)
 	}
-	return file, nil
+	return file, last, nil
 }
 
 // Yazi writes one path per line. Keep spaces in names, and open the first

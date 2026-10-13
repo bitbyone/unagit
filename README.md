@@ -90,6 +90,30 @@ all and live only there.
   of them brings a README along, as GitHub writes them only into a repository
   it initialises.
 
+- **Publish Local Folder…** (`:` in Repositories) starts from a directory on
+  disk, with or without Git, and creates its remote repository. Type its path
+  or use **Browse** when Yazi is enabled, then choose the server/group, name,
+  description, visibility and first branch. Existing history is kept; the
+  current branch is published, with other branches and tags when selected.
+  **Changes** opens the usual file selection and commit dialog before publishing.
+  Uncommitted and ignored files stay local. The remote starts empty, without
+  template commits; an empty folder can remain an empty repository.
+
+  After publishing, **Keep here** remembers the actual checkout in this
+  machine's state, without changing `config.yaml`. **Move** moves the whole
+  folder to the configured clone destination, keeping edits, ignored files,
+  stashes and local Git history. It refuses an occupied destination, open
+  sessions, linked worktrees and external Git storage. Across filesystems it
+  copies all files and checks their contents, permissions and symlinks before
+  removing the source. Close other editors and shells before moving.
+
+  **Manage Local Folder…** in the repository's actions returns to an unfinished
+  publication or the location choice. You can also reopen **Publish Local
+  Folder…** on the same directory. Progress lives under `publications/` beside
+  the indexes: a failed push reuses the remote already made. If the server's
+  create response was lost, unagit asks you to identify the existing repository
+  before continuing. No retry force-pushes or deletes a remote repository.
+
 - `C` clones it to disk without opening the editor. `Ctrl-C` is left to end
   unagit, as it ends any program in a terminal.
 - `Ctrl-O` opens your editor in it at once, as it is on disk - no fetch, no

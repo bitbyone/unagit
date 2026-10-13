@@ -15,6 +15,10 @@ import (
 // state.json, which goes with the machine or with whatever syncs the
 // directory, never with the configuration.
 type State struct {
+	// LocalRepositories remembers checkouts adopted on this machine. Clone
+	// destinations remain portable choices in config.yaml.
+	LocalRepositories map[string]map[string]string `json:"local_repositories,omitempty"`
+
 	// PlaceUses counts the places things were opened in - by what went
 	// there (agent, attach), then by place - so a picker of places starts
 	// on the usual one rather than the one used last.
@@ -153,4 +157,23 @@ func (c *Config) moveStateOut() bool {
 		inst.LegacyPeopleUses, moved = nil, true
 	}
 	return moved
+}
+
+// LocalRepository is an adopted checkout, independent of the clone destination.
+func (s *State) LocalRepository(instance, project string) string {
+	return s.LocalRepositories[instance][project]
+}
+
+func (s *State) SetLocalRepository(instance, project, dir string) {
+	if s.LocalRepositories == nil {
+		s.LocalRepositories = map[string]map[string]string{}
+	}
+	if s.LocalRepositories[instance] == nil {
+		s.LocalRepositories[instance] = map[string]string{}
+	}
+	if dir == "" {
+		delete(s.LocalRepositories[instance], project)
+	} else {
+		s.LocalRepositories[instance][project] = dir
+	}
 }

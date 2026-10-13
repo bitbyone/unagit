@@ -1521,3 +1521,15 @@ func (c *Client) CreateProject(ctx context.Context, g forge.Group, req forge.New
 func (c *Client) DeleteBranch(ctx context.Context, p forge.Project, branch string) error {
 	return c.send(ctx, http.MethodDelete, "/repos/"+p.PathWithNamespace+"/git/refs/heads/"+branch, nil, nil)
 }
+
+// SetDefaultBranch selects the branch published from a local repository.
+func (c *Client) SetDefaultBranch(ctx context.Context, p forge.Project, branch string) error {
+	var updated repo
+	if err := c.send(ctx, "PATCH", "/repos/"+p.PathWithNamespace, map[string]string{"default_branch": branch}, &updated); err != nil {
+		return err
+	}
+	if updated.DefaultBranch != branch {
+		return fmt.Errorf("the server did not confirm the default branch; retry publication")
+	}
+	return nil
+}

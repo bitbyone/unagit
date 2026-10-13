@@ -854,6 +854,7 @@ func (a *App) loadIndexes() {
 	a.loadBranchCI()
 	a.loadStarred()
 	a.adoptLegacyIndex()
+	a.loadLocalPublications()
 	a.reindexProjects()
 }
 
@@ -937,6 +938,9 @@ func (a *App) projectDir(instanceID, projectPath string) string {
 	if dir := a.managedDir(instanceID, projectPath); dir != "" {
 		return dir
 	}
+	if dir := a.cfg.State.LocalRepository(instanceID, projectPath); dir != "" {
+		return dir
+	}
 	return a.cloneDir(instanceID, projectPath)
 }
 
@@ -957,7 +961,7 @@ func (a *App) reviewDir(instanceID, projectPath string, iid int, branch string) 
 // Path lookups do not need credentials or an API client.
 func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 	return workspace.New(workspace.Options{Root: a.rootFor(instanceID, projectPath),
-		ProjectDirectory: a.cloneDir(instanceID, projectPath), ManagedDirectory: a.managedDir(instanceID, projectPath), OnRemoved: a.zoxideRemove}, nil)
+		ProjectDirectory: a.cloneDir(instanceID, projectPath), LocalDirectory: a.cfg.State.LocalRepository(instanceID, projectPath), ManagedDirectory: a.managedDir(instanceID, projectPath), OnRemoved: a.zoxideRemove}, nil)
 }
 
 // newManager builds a workspace manager for one project, with that project's
@@ -966,6 +970,7 @@ func (a *App) pathManager(instanceID, projectPath string) *workspace.Manager {
 func (a *App) newManager(instanceID, projectPath string, log func(string)) *workspace.Manager {
 	opts := workspace.Options{
 		Root:             a.rootFor(instanceID, projectPath),
+		LocalDirectory:   a.cfg.State.LocalRepository(instanceID, projectPath),
 		OnRemoved:        a.zoxideRemove,
 		ManagedDirectory: a.managedDir(instanceID, projectPath),
 	}
@@ -1204,6 +1209,15 @@ func (a *App) refreshProjects() {
 		return
 	}
 	jobs := a.groupJobs(instances)
+	// A newly published repository may take a moment to appear in the
+	// server's group listing. Keep adopted checkouts until the server knows
+	// them too, so a refresh cannot make one disappear from this machine.
+	var adopted []forge.Project
+	for _, p := range a.projects {
+		if a.cfg.State.LocalRepository(p.Instance, p.PathWithNamespace) != "" {
+			adopted = append(adopted, p)
+		}
+	}
 	var all []forge.Project
 	var idx index.Projects
 	a.runInBackground("refreshing repositories", &a.refreshingPrj, func(progress func(string)) error {
@@ -1225,7 +1239,7 @@ func (a *App) refreshProjects() {
 		if err != nil {
 			return err
 		}
-		all = index.DedupeProjects(all)
+		all = index.DedupeProjects(append(all, adopted...))
 		idx = index.Projects{Version: index.Version, UpdatedAt: time.Now(), Items: all}
 		return index.Save(a.cfg.IndexPath("projects"), idx)
 	}, func() {
@@ -1651,6 +1665,12 @@ func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRo
 		seen[key] = true
 		dir := a.projectDir(key.Instance, key.Path)
 		info := diskInfo{MRs: map[int]mrDisk{}}
+		if a.cfg.State.LocalRepository(key.Instance, key.Path) != "" && a.managedDir(key.Instance, key.Path) == "" {
+			if pr, ok := a.projByKey[key]; !ok || a.pathManager(key.Instance, key.Path).CheckLocalProject(pr) != nil {
+				disk[key] = info
+				return
+			}
+		}
 		if head, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD")); err == nil {
 			info.Cloned = true
 			head := strings.TrimSpace(string(head))

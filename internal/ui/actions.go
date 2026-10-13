@@ -43,8 +43,22 @@ func (a *App) confirmDeleteProject(pr forge.Project) {
 		warnings = append(warnings, "grouped worktree "+g+" holds a worktree of it, which would break")
 	}
 	a.confirm("Delete repository", body, warnings, func() {
-		a.runTask("Deleting "+path, func(log func(string)) (string, error) {
-			return "", a.newManager(pr.Instance, path, log).RemoveProject(path)
+		local := a.cfg.State.LocalRepository(pr.Instance, path) != "" && !ws.Managed()
+		a.runTaskThen("Deleting "+path, func(log func(string)) (string, error) {
+			mgr := a.newManager(pr.Instance, path, log)
+			if local {
+				if err := mgr.CheckLocalProject(pr); err != nil {
+					return "", err
+				}
+			}
+			return "", mgr.RemoveProject(path)
+		}, func(string) {
+			if local {
+				a.cfg.State.SetLocalRepository(pr.Instance, path, "")
+				a.saveState()
+			}
+			a.refreshDisk()
+			a.projectsPane.reload()
 		})
 	})
 }

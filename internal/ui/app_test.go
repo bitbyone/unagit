@@ -175,6 +175,12 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		json(w, `{"id":3,"name":"tool","path_with_namespace":"acme/tool","default_branch":"main",
 			"web_url":"https://gl.test/acme/tool","http_url_to_repo":"`+url+`"}`)
 	})
+	mux.HandleFunc("/api/v4/projects/3", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			f.record(r)
+		}
+		json(w, `{"id":3,"path_with_namespace":"acme/tool","default_branch":"main"}`)
+	})
 	// The group listings, so a refresh has something to read.
 	mux.HandleFunc("/api/v4/groups/1/projects", func(w http.ResponseWriter, r *http.Request) {
 		json(w, `[{"id":1,"name":"gateway","path_with_namespace":"acme/gateway",

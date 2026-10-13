@@ -25,7 +25,8 @@ type commitTarget struct {
 	edits               int    // its versioned files with changes
 	// changes are the files picked in the Changes dialog; nil commits
 	// every versioned file.
-	changes []gitx.Change
+	changes     []gitx.Change
+	afterCommit func()
 }
 
 // commitWorktree commits a worktree, or every repository of a grouped one.
@@ -183,8 +184,10 @@ func (a *App) showCommitForm(title string, grouped bool, targets []commitTarget)
 		}
 	}
 	form.AddButton("Commit", commit(commitOnly))
-	form.AddButton("Commit and Push", commit(commitAndPush))
-	form.AddButton("Commit and Force Push", commit(commitAndForce))
+	if len(targets) != 1 || targets[0].afterCommit == nil {
+		form.AddButton("Commit and Push", commit(commitAndPush))
+		form.AddButton("Commit and Force Push", commit(commitAndForce))
+	}
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	height := 10
 	if len(targets) > 1 {
@@ -248,6 +251,9 @@ func (a *App) runCommit(title string, targets []commitTarget, messages []string,
 		return said + " and pushed", nil
 	}, func(said string) {
 		a.afterGitChange()
+		if len(targets) == 1 && targets[0].afterCommit != nil {
+			targets[0].afterCommit()
+		}
 		a.done(said)
 	})
 }

@@ -39,6 +39,8 @@ type changesPlace struct {
 	instance, path, dir string
 	title               string
 	what                session.Record
+	back                func()
+	afterCommit         func()
 }
 
 // changesRow is a line of the list: a group's heading, or a file.
@@ -195,8 +197,15 @@ func (a *App) showChanges(place changesPlace) {
 
 // closeChanges leaves the dialog.
 func (a *App) closeChanges() {
+	var back func()
+	if a.changes != nil {
+		back = a.changes.place.back
+	}
 	a.changes = nil
 	a.closeModal(pageChanges)
+	if back != nil {
+		back()
+	}
 }
 
 // reloadChanges reads the dialog's changes again, after a commit or a
@@ -810,8 +819,15 @@ func (a *App) commitChanges(v *changesView) {
 		a.flash("no file is ticked for the commit - x ticks the one under the cursor, a all of them")
 		return
 	}
+	// A publication's Changes dialog stays underneath the commit form. Cancel
+	// returns to those files; the publication resumes only when Changes closes.
+	back := a.returnTo
+	if v.place.back != nil {
+		a.returnTo = nil
+	}
 	a.showCommitForm(v.place.title, false, []commitTarget{{instance: v.place.instance, path: v.place.path,
-		dir: v.place.dir, name: v.place.path, edits: len(included), changes: included}})
+		dir: v.place.dir, name: v.place.path, edits: len(included), changes: included, afterCommit: v.place.afterCommit}})
+	a.returnTo = back
 }
 
 // changeList names files for a question, one a line, a long list cut.
