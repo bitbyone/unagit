@@ -37,20 +37,17 @@ keychain, with an item of its own.
 ## Working here
 
 ```sh
-make build            # both binaries: unagit and unibox (build-unagit, build-unibox)
+make build            # the unagit binary
 make test             # go test -race ./...
 make test-fast        # go test ./... while iterating; race still before commit
-make test-unibox       # only unibox, with the race detector
-make test-unibox-fast  # only unibox while iterating
 make integration      # the suite on Linux, then real Neovim, incomm, Zellij, herdr - in Docker
 gofmt -l . && go vet ./...
 ```
 
-Everything must be gofmt-clean, vet-clean and race-clean before a commit. The
-checks follow the change's scope: for unibox-only work, run gofmt on its
-files, `go vet ./cmd/unibox/... ./internal/unibox/...` and `make test-unibox`.
-Do not run unagit's tests for unibox-only changes. The full suite is for
-unagit, shared build changes and changes across the CLI boundary. The
+Everything must be gofmt-clean, vet-clean and race-clean before a commit.
+The sandboxing is unibox, a project of its own beside this one
+(`../unibox`), with its own AGENTS.md; unagit is meant to drive it through
+its CLI and `--json` contract, never by importing it. The
 UI package's tests run a real tview application against a simulation screen.
 They run in parallel, four at a time (`parallelTests` in `ui/main_test.go`).
 Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
@@ -137,8 +134,6 @@ select (`styleDropDown`), it just was not reused. The rules:
 | Package | What it owns |
 | --- | --- |
 | `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where` |
-| `cmd/unibox` | the standalone sandbox CLI's entry point |
-| `internal/unibox` | unibox: profiles, runtimes (sbx), sandboxes, tasks, herdr plugin; imports nothing of unagit's |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
 | `internal/github` | github.com client, same |

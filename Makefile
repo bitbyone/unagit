@@ -1,27 +1,18 @@
-BINS := unagit unibox
+BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit build-unibox test test-fast test-unibox test-unibox-fast integration integration-image install clean fmt
+.PHONY: build build-unagit test test-fast integration integration-image install clean fmt
 
-build: build-unagit build-unibox
+build: build-unagit
 
 build-unagit:
 	go build -o unagit ./cmd/unagit
-
-build-unibox:
-	go build -o unibox ./cmd/unibox
 
 test:
 	go test -race ./...
 
 test-fast:
 	go test ./...
-
-test-unibox:
-	go test -race ./cmd/unibox/... ./internal/unibox/...
-
-test-unibox-fast:
-	go test ./cmd/unibox/... ./internal/unibox/...
 
 # The integration suite runs the real programs unagit drives - Neovim,
 # incomm, Zellij, herdr - in a Docker image that has them (integration/),
