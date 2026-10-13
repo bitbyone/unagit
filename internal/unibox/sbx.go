@@ -127,7 +127,9 @@ func (r *SBX) Stop(ctx context.Context, name string) error {
 	return err
 }
 func (r *SBX) Remove(ctx context.Context, name string) error {
-	_, err := commandOutput(hostCommand(ctx, "sbx", "rm", name))
+	// Confirmation is unibox's: unpushed work and active sessions are
+	// checked before any removal, so sbx must not prompt a stdin it lacks.
+	_, err := commandOutput(hostCommand(ctx, "sbx", "rm", "--force", name))
 	return err
 }
 
