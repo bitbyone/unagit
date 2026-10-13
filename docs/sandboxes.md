@@ -1075,7 +1075,8 @@ Facts the implementation stands on:
   apiKey.inject scheme in v3); test gh-based pushing, or wait for sbx.
 - Two session-lock tests flake under full parallel load
   (TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox,
-  TestActiveSessionsBlockRecreateButNotAnotherTask), one failure in a few
+  TestActiveSessionsBlockRecreateButNotAnotherTask, and the usage lock in
+  TestInstructionChangesWaitWithoutRebuildingOrRecreating), one failure in a few
   runs, present before the kit work; alone they always pass. Find the
   flock race in the fixture.
 - unibox ls could hint at a missing sandbox's row that recreate restores
