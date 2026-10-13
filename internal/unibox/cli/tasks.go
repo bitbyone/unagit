@@ -44,7 +44,7 @@ func taskFlags(c *cobra.Command, r *unibox.Request) {
 	f.StringVar(&r.Profile, "profile", "", "Environment profile for a new sandbox")
 	f.StringVar(&r.Runtime, "runtime", "", "Runtime adapter (existing sandboxes keep theirs)")
 	f.StringVar(&r.Agent, "agent", "", "Coding agent declared by the profile")
-	f.StringVar(&r.Task, "task", "", "Task name to prepare or resume; alone, it finds its sandbox")
+	f.StringVar(&r.Task, "task", "", "Name for the task, unique across sandboxes (default: its first repository and a digest)")
 	f.StringVar(&r.Author, "author", "", "Commit author, as Name <email>")
 	f.StringSliceVar(&r.Instructions, "instructions", nil, "Named instruction texts for a new sandbox")
 	f.BoolVar(&r.Push, "push", false, "Push selected local branches; create one nobody has from the local HEAD, or a URL's default tip (never force)")
@@ -153,7 +153,7 @@ func (o *options) preflight(cmd *cobra.Command, r *unibox.Request) error {
 
 func (o *options) taskCommand(name string) *cobra.Command {
 	var req unibox.Request
-	c := &cobra.Command{Use: name + " [directory...] [-- agent-args...]", Short: map[string]string{"check": "Explain what a task needs before it can start", "prepare": "Prepare independent forge clones inside a sandbox", "run": "Prepare or resume a task and run its agent in this terminal"}[name]}
+	c := &cobra.Command{Use: name + " [directory...] [-- agent-args...]", Short: map[string]string{"check": "Explain what a task needs before it can start", "prepare": "Prepare independent forge clones inside a sandbox", "run": "Prepare a task and run its agent in this terminal (unibox resume runs it again)"}[name]}
 	taskFlags(c, &req)
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		extra := []string{}
@@ -167,7 +167,7 @@ func (o *options) taskCommand(name string) *cobra.Command {
 		for _, dir := range args {
 			req.Repositories = append(req.Repositories, unibox.RepoInput{Source: dir})
 		}
-		if len(req.Repositories) == 0 && req.Task == "" {
+		if len(req.Repositories) == 0 {
 			req.Repositories = []unibox.RepoInput{{Source: "."}}
 		}
 		if name == "check" {

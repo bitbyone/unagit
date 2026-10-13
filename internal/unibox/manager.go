@@ -207,8 +207,8 @@ func (m *Manager) usage(name string, shared bool) (*FileLock, error) {
 	return LockFile(filepath.Join(m.Paths.Config, "locks", name+"-usage.lock"), shared, false)
 }
 
-// A task lives in exactly one sandbox, so naming the task is enough to find
-// it; the sandbox has to be named only when two of them hold the same name.
+// A task's name is unique across sandboxes, so naming the task is enough to
+// find it. State from before that rule may still hold one name twice.
 func (m *Manager) taskSandbox(task string, preparing bool) (string, error) {
 	s, err := m.Paths.ReadState()
 	if err != nil {
@@ -227,7 +227,7 @@ func (m *Manager) taskSandbox(task string, preparing bool) (string, error) {
 	case len(found) == 1:
 		return found[0], nil
 	case len(found) > 1:
-		return "", fmt.Errorf("task %s exists in sandboxes %s; pass --sandbox", task, strings.Join(found, ", "))
+		return "", fmt.Errorf("task %s exists in sandboxes %s; remove the one not wanted with unibox rm-task", task, strings.Join(found, ", "))
 	case preparing:
 		return "", nil
 	}

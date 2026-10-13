@@ -78,7 +78,7 @@ func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profi
 		return api.Task{}, fmt.Errorf("task %s does not exist; supply --repo to prepare it", req.Task)
 	}
 	if len(req.Repositories) == 0 {
-		return api.Task{}, fmt.Errorf("no repository selected; pass --repo <path-or-url> or --task")
+		return api.Task{}, fmt.Errorf("no repository selected; pass --repo <path-or-url>, or unibox resume <task> for a prepared one")
 	}
 	repos, needs, err := ResolveRepositories(ctx, req)
 	if err != nil {
@@ -101,12 +101,24 @@ func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profi
 	if err = checkNeeds(needs); err != nil {
 		return api.Task{}, err
 	}
+	state, err := m.Paths.ReadState()
+	if err != nil {
+		return api.Task{}, err
+	}
 	id := req.Task
 	if id == "" {
 		id = taskID(repos)
+		// The same repositories in another sandbox are another task, and a
+		// task's name has to say which one without naming the sandbox.
+		if other := taskOwner(state, id); other != "" && other != b.Name {
+			id = id[:strings.LastIndex(id, "-")+1] + digest([]string{id, b.Name})[:8]
+		}
 	}
 	if err = ValidName(id); err != nil {
 		return api.Task{}, err
+	}
+	if other := taskOwner(state, id); other != "" && other != b.Name {
+		return api.Task{}, fmt.Errorf("task %s already exists in sandbox %s; choose another --task name", id, other)
 	}
 	t := api.Task{ID: id, Sandbox: b.Name, Directory: "/work/" + id, Repositories: repos, Agent: req.Agent, State: "pending"}
 	for _, old := range b.Tasks {
@@ -121,6 +133,38 @@ func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profi
 		}
 	}
 	return t, nil
+}
+
+// taskOwner names the sandbox holding a task, "" when none does.
+func taskOwner(s State, id string) string {
+	for name, b := range s.Sandboxes {
+		for _, t := range b.Tasks {
+			if t.ID == id {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
+// claimTask saves a sandbox with a new task in one step with the check that
+// no other sandbox has taken the name meanwhile; each sandbox's guard only
+// serializes its own preparations.
+func (m *Manager) claimTask(b api.Sandbox, id string) error {
+	return m.Paths.State(func(s *State) error {
+		for name, other := range s.Sandboxes {
+			if name == b.Name {
+				continue
+			}
+			for _, t := range other.Tasks {
+				if t.ID == id {
+					return fmt.Errorf("task %s already exists in sandbox %s; choose another --task name", id, name)
+				}
+			}
+		}
+		s.Sandboxes[b.Name] = b
+		return nil
+	})
 }
 
 func replaceTask(b *api.Sandbox, t api.Task) {
@@ -195,7 +239,7 @@ func (m *Manager) prepare(ctx context.Context, req Request, resume bool) (api.Sa
 	if !resume || t.State != "ready" {
 		t.State = "preparing"
 		replaceTask(&b, t)
-		if err = m.saveBox(b); err != nil {
+		if err = m.claimTask(b, t.ID); err != nil {
 			return b, t, r, nil, nil, err
 		}
 		a, _ := FindAgent(t.Agent)

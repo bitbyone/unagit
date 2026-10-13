@@ -331,6 +331,7 @@ func TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox(t *testing.T) {
 func TestATaskNamedAloneFindsItsSandbox(t *testing.T) {
 	t.Parallel()
 	m, _ := managerFixture(t)
+	// Two sandboxes holding one name is state from before names were unique.
 	ctx := context.Background()
 	for _, name := range []string{"dev", "ci"} {
 		if _, err := m.Create(ctx, Request{NewSandbox: name, Profile: "node"}); err != nil {
@@ -349,11 +350,8 @@ func TestATaskNamedAloneFindsItsSandbox(t *testing.T) {
 	if b, _, _, err := m.Definition(Request{Task: "refunds"}); err != nil || b.Name != "dev" {
 		t.Fatalf("%s %v", b.Name, err)
 	}
-	if _, _, _, err := m.Definition(Request{Task: "shared"}); err == nil || !strings.Contains(err.Error(), "ci, dev; pass --sandbox") {
+	if _, _, _, err := m.Definition(Request{Task: "shared"}); err == nil || !strings.Contains(err.Error(), "ci, dev; remove the one not wanted") {
 		t.Fatalf("%v", err)
-	}
-	if b, _, _, err := m.Definition(Request{Task: "shared", Sandbox: "ci"}); err != nil || b.Name != "ci" {
-		t.Fatalf("%s %v", b.Name, err)
 	}
 	if _, _, _, err := m.Definition(Request{Task: "missing"}); err == nil || !strings.Contains(err.Error(), "unibox tasks lists them") {
 		t.Fatalf("%v", err)
@@ -361,5 +359,42 @@ func TestATaskNamedAloneFindsItsSandbox(t *testing.T) {
 	// A new task named by the user still needs to be told where to go.
 	if _, _, _, err := m.Definition(Request{Task: "missing", Repositories: []RepoInput{{Source: "."}}}); err == nil || !strings.Contains(err.Error(), "no sandbox chosen") {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestTaskNamesAreUniqueAcrossSandboxes(t *testing.T) {
+	t.Parallel()
+	remote, _ := remoteFixture(t)
+	m, f := managerFixture(t)
+	url := "https://forge.invalid/team/payments.git"
+	f.remotes[url] = "file://" + remote
+	ctx := context.Background()
+	for _, name := range []string{"dev", "ci"} {
+		if _, err := m.Create(ctx, Request{NewSandbox: name, Profile: "node"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	req := func(sandbox, task string) Request {
+		return Request{Sandbox: sandbox, Task: task, Agent: "claude", Author: "Person <person@example.com>", Repositories: []RepoInput{{Source: url, Branch: "feat/refunds"}}}
+	}
+	if _, err := m.Prepare(ctx, req("dev", "refunds")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Prepare(ctx, req("ci", "refunds")); err == nil || !strings.Contains(err.Error(), "already exists in sandbox dev") {
+		t.Fatalf("%v", err)
+	}
+	ids := map[string]string{}
+	for _, name := range []string{"dev", "ci", "ci"} {
+		p, err := m.Prepare(ctx, req(name, ""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if old, ok := ids[name]; ok && old != p.Task {
+			t.Fatalf("the same repositories in %s became %s and %s", name, old, p.Task)
+		}
+		ids[name] = p.Task
+	}
+	if ids["dev"] == ids["ci"] || !strings.HasPrefix(ids["ci"], "payments-") {
+		t.Fatal(ids)
 	}
 }
