@@ -297,7 +297,7 @@ func (m *Manager) Definition(req Request) (api.Sandbox, Runtime, Profile, error)
 
 func (m *Manager) Check(ctx context.Context, req Request) (api.Check, error) {
 	result := api.Check{APIVersion: api.Version, Ready: true, Needs: []api.Need{}, Repositories: []api.Repository{}}
-	_, r, p, err := m.Definition(req)
+	b, r, p, err := m.Definition(req)
 	if err != nil {
 		return result, err
 	}
@@ -311,6 +311,9 @@ func (m *Manager) Check(ctx context.Context, req Request) (api.Check, error) {
 	}
 	if req.Agent != "" && !slices.Contains(p.Agents, req.Agent) {
 		return result, fmt.Errorf("profile %s does not offer agent %s", p.Name, req.Agent)
+	}
+	if a, ok := r.(Authenticator); ok {
+		result.Needs = append(result.Needs, a.AuthNeeds(ctx, b.RuntimeName, p)...)
 	}
 	repos, needs, err := ResolveRepositories(ctx, req)
 	if err != nil {
@@ -329,6 +332,24 @@ func (m *Manager) Check(ctx context.Context, req Request) (api.Check, error) {
 		}
 	}
 	return result, nil
+}
+
+// Login takes an agent's sign-in as the profile declares it, on the user's
+// terminal, through the runtime that keeps it.
+func (m *Manager) Login(ctx context.Context, req Request, agent string, in io.Reader, out, errout io.Writer) error {
+	_, r, p, err := m.Definition(req)
+	if err != nil {
+		return err
+	}
+	a, ok := r.(Authenticator)
+	if !ok {
+		return fmt.Errorf("runtime %s keeps no logins; sign %s in inside the sandbox", r.Name(), agent)
+	}
+	auth, ok := p.Auth[agent]
+	if !ok {
+		return fmt.Errorf("profile %s declares no auth for %s", p.Name, agent)
+	}
+	return a.Login(ctx, agent, auth, in, out, errout)
 }
 
 func (m *Manager) findBox(ctx context.Context, r Runtime, b api.Sandbox) (Box, bool, error) {
@@ -417,7 +438,7 @@ func (m *Manager) ensure(ctx context.Context, b *api.Sandbox, r Runtime, p Profi
 		if len(p.Agents) == 1 {
 			kind = p.Agents[0]
 		}
-		if err = r.Create(ctx, Spec{Name: b.RuntimeName, Image: imageTag(p), CPUs: p.CPUs, Memory: p.Memory, Access: p.HostAccess, Agent: kind, Agents: p.Agents}, m.Log); err != nil {
+		if err = r.Create(ctx, Spec{Name: b.RuntimeName, Image: imageTag(p), CPUs: p.CPUs, Memory: p.Memory, Access: p.HostAccess, Agent: kind, Agents: p.Agents, OAuth: p.OAuthAgent()}, m.Log); err != nil {
 			return err
 		}
 		box, ok, err := m.findBox(ctx, r, *b)

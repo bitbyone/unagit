@@ -120,8 +120,11 @@ fi
 // as it is, so it is taken away and codex asks. What unibox writes into
 // config.toml sits between markers, rewritten each time; the rest is the
 // user's. Top-level keys go before the first table, or TOML would read
-// them as the table's.
+// them as the table's. Every task directory and repository under /work is
+// trusted, so codex does not ask whether to trust what unibox prepared; a
+// directory the user's own part already names is left to it.
 const codexSetup = `home="${CODEX_HOME:-$HOME/.codex}"
+work="${UNIBOX_WORK:-/work}"
 mode="${SBX_CRED_OPENAI_MODE:-none}"
 mkdir -p "$home"
 cfg="$home/config.toml"
@@ -144,12 +147,25 @@ skip { next }
       ;;
   esac
   cat "$cfg.unibox"
-  if [ "$mode" = oauth ]; then
-    printf '%s\n' '# unibox:begin' '[model_providers.sandboxd]' 'name = "Sandbox Proxy"' 'base_url = "https://chatgpt.com/backend-api/codex"' 'experimental_bearer_token = "oai-oat01-proxy-managed"' 'requires_openai_auth = false' '# unibox:end'
+  {
+    if [ "$mode" = oauth ]; then
+      printf '%s\n' '[model_providers.sandboxd]' 'name = "Sandbox Proxy"' 'base_url = "https://chatgpt.com/backend-api/codex"' 'experimental_bearer_token = "oai-oat01-proxy-managed"' 'requires_openai_auth = false'
+    fi
+    for d in "$work"/* "$work"/*/*; do
+      [ -d "$d" ] || continue
+      case "$d" in *.unibox-clone) continue ;; esac
+      grep -qxF "[projects.\"$d\"]" "$cfg.unibox" && continue
+      printf '[projects."%s"]\ntrust_level = "trusted"\n' "$d"
+    done
+  } > "$cfg.tail"
+  if [ -s "$cfg.tail" ]; then
+    echo '# unibox:begin'
+    cat "$cfg.tail"
+    echo '# unibox:end'
   fi
 } > "$cfg.new"
 cat "$cfg.new" > "$cfg"
-rm -f "$cfg.new" "$cfg.unibox"
+rm -f "$cfg.new" "$cfg.unibox" "$cfg.tail"
 case "$mode" in
   oauth|apikey)
     (umask 077; printf '{\n  "OPENAI_API_KEY": "proxy-managed"\n}\n' > "$home/auth.json")

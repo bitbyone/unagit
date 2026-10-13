@@ -419,6 +419,10 @@ agent_config:                 # JSON seeds merged into an agent's own
 git:
   author: user                # the user's identity, from the host's git config
   co_author: true             # a Co-Authored-By trailer naming the agent
+auth:                         # how each agent signs in
+  codex: oauth                # the provider's login, kept by the runtime
+  claude: api-key             # a key the runtime stores
+  copilot: {command: gh auth token} # a host command the runtime runs
 ```
 
 - An unknown field is an error naming it, never skipped: a misspelt
@@ -427,6 +431,15 @@ git:
 - **The image is the environment.** Everything static - JDK, Node, the
   agents' CLIs, certificates - goes into the Dockerfile. What depends on
   the checkout belongs to the worked-on repository's bootstrap.
+- `auth` is host access and is approved with the rest. The runtime keeps
+  the logins on the host; unibox only checks that each is there, and
+  before a start offers to store what is missing - sbx asks for it on the
+  terminal (`sbx secret set ...`, the browser for an OAuth login), so the
+  value never passes through unibox. sbx stores locally only ChatGPT's
+  OAuth login (claude's OAuth is a sign-in inside the sandbox, kept by
+  the proxy) and signs one agent of a sandbox in by OAuth, so two `oauth`
+  agents in one profile are refused, and the `oauth` one is declared
+  first in the generated kit.
 - `image:` instead of `dockerfile:` names an image built elsewhere (a
   team's CI); then nothing is built.
 - **Caches are read-only from the host.** `~/.gradle/caches` mounted

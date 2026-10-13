@@ -3,7 +3,6 @@ package unibox
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -197,25 +196,18 @@ func credentialOrder(agents []string, oauth map[string]bool) []string {
 	return out
 }
 
-// oauthLogins names the services with an OAuth login stored for the
-// sandbox, globally or for it alone. sbx shows such a login, masked, as a
-// phrase about OAuth rather than a key; nothing else of the value is read
-// or kept. When sbx cannot say, the profile's order stands.
-func oauthLogins(ctx context.Context, sandbox string) map[string]bool {
+// oauthFirst says which service's OAuth the kit declares first: the agent
+// the profile signs in by OAuth, or else whichever service has an OAuth
+// login stored. When sbx cannot say, the profile's order stands.
+func oauthFirst(ctx context.Context, s Spec) map[string]bool {
+	if s.OAuth != "" {
+		return map[string]bool{sbxKitBindings[s.OAuth].Service: true}
+	}
 	out := map[string]bool{}
-	data, err := commandOutput(hostCommand(ctx, "sbx", "secret", "ls", "--json"))
-	if err != nil {
-		return out
-	}
-	var list struct {
-		Secrets []struct{ Scope, Type, Name, Secret string }
-	}
-	if json.Unmarshal(data, &list) != nil {
-		return out
-	}
-	for _, sec := range list.Secrets {
-		if sec.Type == "service" && (sec.Scope == "global" || sec.Scope == sandbox) && strings.Contains(strings.ToLower(sec.Secret), "oauth") {
-			out[sec.Name] = true
+	stored, _ := storedLogins(ctx, s.Name)
+	for service, kind := range stored {
+		if kind == AuthOAuth {
+			out[service] = true
 		}
 	}
 	return out

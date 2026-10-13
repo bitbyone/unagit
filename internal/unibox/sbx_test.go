@@ -251,6 +251,40 @@ func TestCodexIsSignedInByTheSandboxProxy(t *testing.T) {
 	}
 }
 
+func TestCodexTrustsWhatUnboxPrepared(t *testing.T) {
+	t.Parallel()
+	home, work := t.TempDir(), t.TempDir()
+	for _, d := range []string{"task/api", "task/web", "task/web.unibox-clone", "mine/repo"} {
+		if err := os.MkdirAll(filepath.Join(work, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := filepath.Join(home, ".codex", "config.toml")
+	mine := filepath.Join(work, "mine")
+	write(t, cfg, "[projects.\""+mine+"\"]\ntrust_level = \"untrusted\"\n")
+	run := func() string {
+		cmd := exec.Command("sh", "-c", codexSetup)
+		cmd.Env = append(os.Environ(), "HOME="+home, "CODEX_HOME=", "UNIBOX_WORK="+work, "SBX_CRED_OPENAI_MODE=none")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v %s", err, out)
+		}
+		c, _ := os.ReadFile(cfg)
+		return string(c)
+	}
+	c := run()
+	if again := run(); again != c {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", c, again)
+	}
+	for _, d := range []string{"task", "task/api", "task/web", "mine/repo"} {
+		if !strings.Contains(c, "[projects.\""+filepath.Join(work, d)+"\"]\ntrust_level = \"trusted\"") {
+			t.Fatalf("%s not trusted:\n%s", d, c)
+		}
+	}
+	if strings.Contains(c, "unibox-clone") || strings.Count(c, "[projects.\""+mine+"\"]") != 1 || !strings.Contains(c, "\"untrusted\"") {
+		t.Fatalf("%s", c)
+	}
+}
+
 func TestTheStoredOAuthLoginIsDeclaredFirst(t *testing.T) {
 	t.Parallel()
 	agents := []string{"claude", "codex", "copilot"}
@@ -268,5 +302,78 @@ func TestTheStoredOAuthLoginIsDeclaredFirst(t *testing.T) {
 	kit, _ := os.ReadFile(filepath.Join(dir, "unibox-home.yaml"))
 	if o, a := strings.Index(string(kit), "service: openai"), strings.Index(string(kit), "service: anthropic"); o < 0 || a < 0 || o > a {
 		t.Fatalf("sbx would wire Anthropic's OAuth, not the stored one:\n%s", kit)
+	}
+}
+
+func TestProfilesSayHowEachAgentSignsIn(t *testing.T) {
+	t.Parallel()
+	root := profileFixture(t)
+	write(t, filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), "dockerfile: Dockerfile\nstart: start.sh\nagents: [claude, codex, copilot]\nauth:\n  codex: oauth\n  claude: api-key\n  copilot: {command: gh auth token}\n")
+	p, err := LoadProfile(root, "node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Auth["codex"].Method != AuthOAuth || p.Auth["copilot"] != (AgentAuth{AuthCommand, "gh auth token"}) || p.OAuthAgent() != "codex" {
+		t.Fatal(p.Auth)
+	}
+	// A command runs on the host, so the sign-ins are approved like the rest.
+	if !p.HostFacing() {
+		t.Fatal("auth needs no approval")
+	}
+	plain := p
+	plain.Auth = nil
+	if plain.AccessHash() == p.AccessHash() {
+		t.Fatal("auth does not change the approval")
+	}
+	if digest(HostAccess{}) != digest(HostAccess{Auth: map[string]AgentAuth{}}) {
+		t.Fatal("a profile without auth must keep its approval")
+	}
+}
+
+func TestSBXFindsWhatALoginLacksAndStoresItThroughSbx(t *testing.T) {
+	bin := t.TempDir()
+	argv := filepath.Join(t.TempDir(), "argv")
+	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte(`#!/bin/sh
+if [ "$1 $2" = "secret ls" ]; then
+  echo '{"secrets":[{"scope":"global","type":"service","name":"openai","secret":"(oauth configured)"},{"scope":"other","type":"service","name":"anthropic","secret":"sk-ant****"}]}'
+  exit 0
+fi
+printf '%s\n' "$@" > `+Quote(argv)+`
+`))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r := &SBX{}
+	ctx := context.Background()
+	p := Profile{Name: "home", Agents: []string{"claude", "codex", "copilot"}, HostAccess: HostAccess{Auth: map[string]AgentAuth{
+		"codex": {Method: AuthOAuth}, "claude": {Method: AuthAPIKey}, "copilot": {Method: AuthCommand, Command: "gh auth token"},
+	}}}
+	needs := r.AuthNeeds(ctx, "unibox-home", p)
+	got := map[string]string{}
+	for _, n := range needs {
+		got[n.Agent] = n.Code
+	}
+	// codex's login is stored; the anthropic key belongs to another sandbox.
+	if len(needs) != 2 || got["claude"] != "login_required" || got["copilot"] != "login_required" {
+		t.Fatalf("%+v", needs)
+	}
+	p.Auth["claude"] = AgentAuth{Method: AuthOAuth}
+	needs = r.AuthNeeds(ctx, "unibox-home", p)
+	if len(needs) == 0 || needs[0].Code != "auth_conflict" {
+		t.Fatalf("%+v", needs)
+	}
+	p.Auth = map[string]AgentAuth{"copilot": {Method: AuthOAuth}}
+	if needs = r.AuthNeeds(ctx, "unibox-home", p); len(needs) != 1 || needs[0].Code != "auth_unsupported" {
+		t.Fatalf("%+v", needs)
+	}
+	if err := r.Login(ctx, "copilot", AgentAuth{Method: AuthCommand, Command: "gh auth token"}, strings.NewReader(""), io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(argv); string(data) != "secret\nset\ngithub\n--command\ngh auth token\n" {
+		t.Fatalf("%q", data)
+	}
+	if got := oauthFirst(ctx, Spec{Name: "unibox-home", OAuth: "claude"}); !got["anthropic"] || got["openai"] {
+		t.Fatal(got)
+	}
+	if got := oauthFirst(ctx, Spec{Name: "unibox-home"}); !got["openai"] {
+		t.Fatal(got)
 	}
 }

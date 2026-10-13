@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 type Box struct {
@@ -31,6 +33,8 @@ type Spec struct {
 	// every declared agent: several mean a generated v3 workload kit.
 	Agent  string
 	Agents []string
+	// OAuth is the agent the profile signs in by OAuth, if any.
+	OAuth string
 }
 type Command struct {
 	Args            []string
@@ -57,6 +61,14 @@ type Runtime interface {
 	Exec(context.Context, string, Command) *exec.Cmd
 	Stop(context.Context, string) error
 	Remove(context.Context, string) error
+}
+
+// Authenticator is a runtime that keeps the agents' logins on the host. It
+// says which of a profile's sign-ins it does not have yet, and takes one on
+// the user's terminal - the runtime asks for the value, never unibox.
+type Authenticator interface {
+	AuthNeeds(ctx context.Context, sandbox string, p Profile) []api.Need
+	Login(ctx context.Context, agent string, a AgentAuth, in io.Reader, out, errout io.Writer) error
 }
 
 // Child processes receive only the host context they need. In particular, an

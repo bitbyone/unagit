@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Cache struct {
@@ -25,7 +27,38 @@ type HostAccess struct {
 	Env         []string `yaml:"env" json:"env"`
 	Caches      []Cache  `yaml:"caches" json:"caches"`
 	DenyNetwork []string `yaml:"deny_network" json:"deny_network"`
+	// Auth is how each agent signs in. It is host access: the runtime keeps
+	// the logins on the host, and a command runs there to fetch a token.
+	Auth map[string]AgentAuth `yaml:"auth" json:"auth,omitempty"`
 }
+
+// AgentAuth is an agent's way to sign in: oauth (the provider's own login,
+// kept by the runtime), api-key (a key the runtime stores), or command (a
+// host command the runtime runs for a token, such as gh auth token). In the
+// profile it is the method's name, or {command: ...}.
+type AgentAuth struct {
+	Method  string `json:"method"`
+	Command string `json:"command,omitempty"`
+}
+
+const (
+	AuthOAuth   = "oauth"
+	AuthAPIKey  = "api-key"
+	AuthCommand = "command"
+)
+
+func (a *AgentAuth) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		a.Method = n.Value
+		return nil
+	}
+	if n.Kind != yaml.MappingNode || len(n.Content) != 2 || n.Content[0].Value != "command" || n.Content[1].Kind != yaml.ScalarNode {
+		return fmt.Errorf("line %d: an agent's auth is oauth, api-key or {command: <host command>}", n.Line)
+	}
+	a.Method, a.Command = AuthCommand, n.Content[1].Value
+	return nil
+}
+
 type Profile struct {
 	Dockerfile   string `yaml:"dockerfile" json:"dockerfile"`
 	Image        string `yaml:"image" json:"image"`
@@ -137,6 +170,17 @@ func LoadProfile(root, name string) (Profile, error) {
 	for _, path := range []string{p.Dockerfile, p.Start, p.Bootstrap} {
 		if path != "" && !safeRelative(path) {
 			return p, fmt.Errorf("profile %s: script and dockerfile paths must stay inside their directory", name)
+		}
+	}
+	for id, a := range p.Auth {
+		if !seen[id] {
+			return p, fmt.Errorf("profile %s: auth names %s, which is not among its agents", name, id)
+		}
+		switch {
+		case a.Method == AuthOAuth || a.Method == AuthAPIKey:
+		case a.Method == AuthCommand && strings.TrimSpace(a.Command) != "" && !strings.ContainsAny(a.Command, "\n\r"):
+		default:
+			return p, fmt.Errorf("profile %s: auth of %s must be oauth, api-key or {command: <one host command>}", name, id)
 		}
 	}
 	if p.Git.Author != "" && p.Git.Author != "user" {
@@ -305,6 +349,17 @@ func (p Profile) BuildFiles() map[string]SnapshotFile {
 	return out
 }
 
+// OAuthAgent is the agent the profile signs in by OAuth; the first in the
+// profile's order when it names several.
+func (p Profile) OAuthAgent() string {
+	for _, id := range p.Agents {
+		if p.Auth[id].Method == AuthOAuth {
+			return id
+		}
+	}
+	return ""
+}
+
 func (p Profile) ApprovalKey() string { return digest([]string{p.Root, p.Name}) }
 func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
 
@@ -312,7 +367,7 @@ func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
 // environment value, a cache mount, a network rule. A profile asking for
 // nothing has nothing to approve: nothing of it crosses the boundary.
 func (p Profile) HostFacing() bool {
-	return len(p.Env)+len(p.Caches)+len(p.DenyNetwork) > 0
+	return len(p.Env)+len(p.Caches)+len(p.DenyNetwork)+len(p.Auth) > 0
 }
 func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	args := []string{"AGENTBOX_RUNTIME=" + runtime, "UNIBOX_RUNTIME=" + runtime}

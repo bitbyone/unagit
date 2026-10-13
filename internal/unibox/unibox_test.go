@@ -52,6 +52,10 @@ func TestProfilesRejectUnknownFieldsAndEscapes(t *testing.T) {
 		{"seed-no-json-config", "image: example/image\nagents: [claude, codex]\nagent_config: {codex: codex.json}\n"},
 		{"seed-missing-file", "image: example/image\nagents: [claude]\nagent_config: {claude: absent.json}\n"},
 		{"seed-not-an-object", "image: example/image\nagents: [claude]\nagent_config: {claude: start.sh}\n"},
+		{"auth-undeclared", "image: example/image\nagents: [claude]\nauth: {codex: oauth}\n"},
+		{"auth-unknown", "image: example/image\nagents: [claude]\nauth: {claude: password}\n"},
+		{"auth-empty-command", "image: example/image\nagents: [claude]\nauth: {claude: {command: ''}}\n"},
+		{"auth-other-key", "image: example/image\nagents: [claude]\nauth: {claude: {script: x}}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

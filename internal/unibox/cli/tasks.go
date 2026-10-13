@@ -126,6 +126,14 @@ func (o *options) preflight(cmd *cobra.Command, r *unibox.Request) error {
 					return err
 				}
 				changed = true
+			case "login_required":
+				if o.json || !o.ask(n.Message+".\nStore it now?") {
+					return unibox.Fail(4, n.Code, "%s", n.Message)
+				}
+				if err := o.manager.Login(cmd.Context(), *r, n.Agent, o.input, o.log, o.log); err != nil {
+					return err
+				}
+				changed = true
 			case "uncommitted", "local_commits":
 				if r.Push && n.Code == "local_commits" {
 					continue

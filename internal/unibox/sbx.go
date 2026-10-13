@@ -98,7 +98,7 @@ func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
 	if len(s.Agents) > 1 {
 		// Several agents: a generated v3 workload kit carries their
 		// credential declarations; built-in v2 kinds cannot be combined.
-		dir, err := r.writeKit(s, oauthLogins(ctx, s.Name))
+		dir, err := r.writeKit(s, oauthFirst(ctx, s))
 		if err != nil {
 			return err
 		}
