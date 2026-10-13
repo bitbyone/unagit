@@ -1392,16 +1392,31 @@ func (a *App) refreshMRs() {
 // the interface that needs to read what the interface holds. It reports
 // false when ctx ends first.
 func (a *App) onLoopWait(ctx context.Context, fn func()) bool {
+	var state atomic.Int32
 	done := make(chan struct{})
-	a.tv.QueueUpdate(func() {
+	// QueueUpdate itself waits for the event loop. Run it apart so a caller
+	// whose context ends can leave after the loop has already stopped.
+	go a.tv.QueueUpdate(func() {
+		if ctx.Err() != nil || !state.CompareAndSwap(0, 1) {
+			return
+		}
 		fn()
+		state.Store(2)
 		close(done)
 	})
 	select {
 	case <-done:
 		return true
 	case <-ctx.Done():
-		return false
+		if state.CompareAndSwap(0, 3) {
+			return false
+		}
+		// Once fn begins, keep the old promise that it finishes before its
+		// caller carries on.
+		if state.Load() == 1 {
+			<-done
+		}
+		return state.Load() == 2
 	}
 }
 
