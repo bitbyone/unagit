@@ -2,6 +2,7 @@ package unibox
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -206,6 +207,70 @@ func TestPushCreatesABranchNobodyHasFromTheHostHead(t *testing.T) {
 	}
 	if len(needs) != 0 {
 		t.Fatalf("created branch still blocked: %+v", needs)
+	}
+}
+
+func TestAgentConfigSeedMergesAndKeepsAgentState(t *testing.T) {
+	t.Parallel()
+	m, f := managerFixture(t)
+	root := m.Config.Environments
+	write(t, filepath.Join(root, "node", "claude.json"), `{"theme": "dark", "hasCompletedOnboarding": true, "nested": {"a": 1}}`)
+	write(t, filepath.Join(root, "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\ncpus: 2\nmemory: 1g\nstart: start.sh\nagent_config: {claude: claude.json}\n")
+	ctx := context.Background()
+	if err := m.Build(ctx, "node", "fake", false); err != nil {
+		t.Fatal(err)
+	}
+	// The agent's own state, written before the sandbox is ensured.
+	home := filepath.Join(f.root, "unibox-dev", "home")
+	write(t, filepath.Join(home, ".claude.json"), `{"theme": "light", "projects": {"/work/x": {"trusted": true}}, "nested": {"a": 2, "keep": "yes"}}`)
+	if _, err := m.Create(ctx, Request{NewSandbox: "dev", Profile: "node"}); err != nil {
+		t.Fatal(err)
+	}
+	read := func() map[string]any {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err = json.Unmarshal(b, &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	got := read()
+	if got["theme"] != "dark" || got["hasCompletedOnboarding"] != true {
+		t.Fatalf("seed keys were not enforced: %v", got)
+	}
+	if _, ok := got["projects"].(map[string]any)["/work/x"]; !ok {
+		t.Fatalf("agent state was lost: %v", got)
+	}
+	nested := got["nested"].(map[string]any)
+	if nested["a"] != float64(1) || nested["keep"] != "yes" {
+		t.Fatalf("nested merge went wrong: %v", nested)
+	}
+	// The agent works on: its own additions survive the next initialization.
+	got["projects"].(map[string]any)["/work/y"] = map[string]any{"trusted": true}
+	b, _ := json.Marshal(got)
+	write(t, filepath.Join(home, ".claude.json"), string(b))
+	box, err := m.sandbox("dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadProfile(root, "node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = m.ensure(ctx, &box, f, p, false, false); err != nil {
+		t.Fatal(err)
+	}
+	got = read()
+	projects := got["projects"].(map[string]any)
+	if _, ok := projects["/work/y"]; !ok {
+		t.Fatalf("agent state added later was lost: %v", got)
+	}
+	if got["theme"] != "dark" {
+		t.Fatalf("seed key was not kept enforced: %v", got)
 	}
 }
 

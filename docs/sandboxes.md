@@ -387,6 +387,9 @@ bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
 instructions:                 # for the agent, in this order, after agentbox's own
   - ../instructions/review-style.md
   - instructions.md
+agent_config:                 # JSON seeds merged into an agent's own
+  claude: claude.json         # configuration in the VM home; seed keys win,
+                              # the agent's state - projects, paths - stays
 git:
   author: user                # the user's identity, from the host's git config
   co_author: true             # a Co-Authored-By trailer naming the agent

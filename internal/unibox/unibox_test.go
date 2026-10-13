@@ -48,6 +48,10 @@ func TestProfilesRejectUnknownFieldsAndEscapes(t *testing.T) {
 		{"credential", "image: example/image\nagents: [claude]\nenv: [GITHUB_TOKEN]\n"},
 		{"script", "image: example/image\nagents: [claude]\nstart: ../../host.sh\n"},
 		{"documents", "image: example/image\nagents: [claude]\n---\nimage: another\n"},
+		{"seed-undeclared", "image: example/image\nagents: [claude]\nagent_config: {codex: codex.json}\n"},
+		{"seed-no-json-config", "image: example/image\nagents: [claude, codex]\nagent_config: {codex: codex.json}\n"},
+		{"seed-missing-file", "image: example/image\nagents: [claude]\nagent_config: {claude: absent.json}\n"},
+		{"seed-not-an-object", "image: example/image\nagents: [claude]\nagent_config: {claude: start.sh}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

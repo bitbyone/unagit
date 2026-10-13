@@ -36,6 +36,7 @@ type Profile struct {
 	Start        string                  `yaml:"start" json:"start"`
 	Bootstrap    string                  `yaml:"bootstrap" json:"bootstrap"`
 	Instructions []string                `yaml:"instructions" json:"instructions"`
+	AgentConfig  map[string]string       `yaml:"agent_config" json:"agent_config,omitempty"`
 	Git          GitOptions              `yaml:"git" json:"git"`
 	Name         string                  `yaml:"-" json:"-"`
 	Dir          string                  `yaml:"-" json:"-"`
@@ -213,6 +214,26 @@ func LoadProfile(root, name string) (Profile, error) {
 	for _, path := range p.Instructions {
 		if _, err := readInside(p.Root, filepath.Join(p.Dir, path)); err != nil {
 			return p, fmt.Errorf("profile instructions: %w", err)
+		}
+	}
+	for id, file := range p.AgentConfig {
+		a, err := FindAgent(id)
+		if err != nil {
+			return p, err
+		}
+		if !seen[id] {
+			return p, fmt.Errorf("profile %s seeds configuration for %s but does not declare it in agents", name, id)
+		}
+		if a.Config == "" {
+			return p, fmt.Errorf("profile %s: agent %s keeps no JSON configuration unibox can merge; remove it from agent_config", name, id)
+		}
+		b, err := readInside(p.Root, filepath.Join(p.Dir, file))
+		if err != nil {
+			return p, fmt.Errorf("profile agent_config: %w", err)
+		}
+		var seed map[string]any
+		if err = json.Unmarshal(b, &seed); err != nil {
+			return p, fmt.Errorf("profile %s: agent_config %s must be a JSON object: %v", name, file, err)
 		}
 	}
 	buildFiles := make(map[string]SnapshotFile, len(p.Files))
