@@ -332,6 +332,7 @@ type fakeRuntime struct {
 	boxes                           []Box
 	images                          []Image
 	creates, removes, stops, builds int
+	lastSpec                        Spec
 	failBuild                       bool
 	remotes                         map[string]string
 	scriptError                     bool
@@ -365,6 +366,7 @@ func (f *fakeRuntime) Create(_ context.Context, s Spec, _ io.Writer) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.creates++
+	f.lastSpec = s
 	f.boxes = append(f.boxes, Box{Name: s.Name, State: "running", ID: fmt.Sprint(f.creates)})
 	return nil
 }
@@ -605,5 +607,35 @@ func TestAProfileAskingNothingOfTheHostNeedsNoApproval(t *testing.T) {
 	}
 	if err := m.approved(asking); err == nil {
 		t.Fatal("host access ran unapproved")
+	}
+}
+
+func TestASingleAgentProfileCreatesItsKindOfSandbox(t *testing.T) {
+	t.Parallel()
+	m, f := managerFixture(t)
+	root := m.Config.Environments
+	write(t, filepath.Join(root, "sandboxes", "solo", "sandbox.yaml"), "dockerfile: Dockerfile\nagents: [copilot]\n")
+	write(t, filepath.Join(root, "sandboxes", "solo", "Dockerfile"), "FROM example/shell\n")
+	ctx := context.Background()
+	if err := m.Build(ctx, "solo", "fake", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Create(ctx, Request{NewSandbox: "one", Profile: "solo"}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	kind := f.lastSpec.Agent
+	f.mu.Unlock()
+	if kind != "copilot" {
+		t.Fatalf("single-agent profile made a %q sandbox; its agent's kind binds the runtime's credentials", kind)
+	}
+	if _, err := m.Create(ctx, Request{NewSandbox: "two", Profile: "node"}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	kind = f.lastSpec.Agent
+	f.mu.Unlock()
+	if kind != "" {
+		t.Fatalf("a profile of several agents must make a plain sandbox, got %q", kind)
 	}
 }

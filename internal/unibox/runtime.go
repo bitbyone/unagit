@@ -25,6 +25,10 @@ type Spec struct {
 	CPUs        int
 	Memory      string
 	Access      HostAccess
+	// Agent is the runtime's own kind for the sandbox. sbx binds its stored
+	// service credentials by this kind, so a profile with one agent gets the
+	// proxy-managed login; empty means a plain shell sandbox.
+	Agent string
 }
 type Command struct {
 	Args            []string

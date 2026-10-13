@@ -87,7 +87,11 @@ func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
 	for _, c := range s.Access.Caches {
 		args = append(args, "-e", c.Env+"="+c.Host)
 	}
-	args = append(args, "shell")
+	kind := s.Agent
+	if kind == "" {
+		kind = "shell"
+	}
+	args = append(args, kind)
 	for _, c := range s.Access.Caches {
 		args = append(args, c.Host+":ro")
 	}
