@@ -511,32 +511,38 @@ func (m *Manager) seedAgentConfigs(ctx context.Context, b api.Sandbox, r Runtime
 		if err = json.Unmarshal(data, &seed); err != nil {
 			return fmt.Errorf("agent_config %s must be a JSON object: %v", file, err)
 		}
-		out, err := runtimeOutput(ctx, r, b.RuntimeName, "sh", "-c", "cat \"$HOME/"+a.Config+"\" 2>/dev/null || true")
-		if err != nil {
-			return err
-		}
-		current := map[string]any{}
-		if out != "" {
-			if err = json.Unmarshal([]byte(out), &current); err != nil {
-				return fmt.Errorf("agent %s configuration in sandbox %s is not valid JSON; repair or remove ~/%s before seeding it", id, b.Name, a.Config)
-			}
-		}
-		before, _ := json.Marshal(current)
-		mergedMap := mergeJSON(current, seed)
-		after, _ := json.Marshal(mergedMap)
-		if bytes.Equal(before, after) {
-			continue
-		}
-		merged, err := json.MarshalIndent(mergedMap, "", "  ")
-		if err != nil {
-			return err
-		}
-		script := "set -eu\nmkdir -p \"$HOME/" + path.Dir(a.Config) + "\"\nprintf %s " + Quote(base64.StdEncoding.EncodeToString(append(merged, '\n'))) + " | base64 -d > \"$HOME/" + a.Config + "\"\n"
-		if err = runLogged(r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-s"}, Input: strings.NewReader(script)}), m.Log); err != nil {
+		if err = m.mergeAgentConfig(ctx, b, r, a, seed); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// mergeAgentConfig lays a seed over the agent's JSON configuration in the
+// guest home, writing only when something changes.
+func (m *Manager) mergeAgentConfig(ctx context.Context, b api.Sandbox, r Runtime, a Agent, seed map[string]any) error {
+	out, err := runtimeOutput(ctx, r, b.RuntimeName, "sh", "-c", "cat \"$HOME/"+a.Config+"\" 2>/dev/null || true")
+	if err != nil {
+		return err
+	}
+	current := map[string]any{}
+	if out != "" {
+		if err = json.Unmarshal([]byte(out), &current); err != nil {
+			return fmt.Errorf("agent %s configuration in sandbox %s is not valid JSON; repair or remove ~/%s before seeding it", a.ID, b.Name, a.Config)
+		}
+	}
+	before, _ := json.Marshal(current)
+	mergedMap := mergeJSON(current, seed)
+	after, _ := json.Marshal(mergedMap)
+	if bytes.Equal(before, after) {
+		return nil
+	}
+	merged, err := json.MarshalIndent(mergedMap, "", "  ")
+	if err != nil {
+		return err
+	}
+	script := "set -eu\nmkdir -p \"$HOME/" + path.Dir(a.Config) + "\"\nprintf %s " + Quote(base64.StdEncoding.EncodeToString(append(merged, '\n'))) + " | base64 -d > \"$HOME/" + a.Config + "\"\n"
+	return runLogged(r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-s"}, Input: strings.NewReader(script)}), m.Log)
 }
 
 func (m *Manager) AttachInstructions(name string, names []string) error {

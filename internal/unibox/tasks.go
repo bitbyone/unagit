@@ -371,9 +371,21 @@ func (m *Manager) Run(ctx context.Context, req Request, in io.Reader, out, errou
 	a, _ := FindAgent(t.Agent)
 	args := append([]string{a.Command}, a.Args...)
 	args = append(args, extra...)
+	if len(a.Env) > 0 {
+		args = append(append([]string{"env"}, a.Env...), args...)
+	}
 	dir := t.Directory
 	if len(t.Repositories) == 1 {
 		dir = path.Join(dir, t.Repositories[0].Name)
+	}
+	if a.Trust != nil && a.Config != "" {
+		dirs := []string{"/work", t.Directory}
+		for _, repo := range t.Repositories {
+			dirs = append(dirs, path.Join(t.Directory, repo.Name))
+		}
+		if err := m.mergeAgentConfig(ctx, b, r, a, a.Trust(dirs)); err != nil {
+			fmt.Fprintf(errout, "unibox: %s may ask whether to trust the directory: %v\n", a.ID, err)
+		}
 	}
 	script := sessionScript(run.ID, args)
 	if a.Setup != "" {

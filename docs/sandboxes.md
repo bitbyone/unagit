@@ -1042,6 +1042,13 @@ Facts the implementation stands on:
   needs no such step; its kit declaration renders
   `~/.claude/.credentials.json` in the guest (on a Mac host Claude keeps
   its login in the keychain, so no such file exists there).
+- No agent stops to ask whether to trust what unibox prepared: codex gets
+  `trust_level = "trusted"` for /work's task directories and repositories
+  in its config.toml, claude `hasTrustDialogAccepted` for /work, the task
+  and its repositories (and `bypassPermissionsModeAccepted`, as sbx's
+  claude kit seeds) merged into `~/.claude.json` before each session, and
+  copilot runs with `COPILOT_ALLOW_ALL=true`, which it reads as trust for
+  every folder - what `--allow-all` already grants.
 
 ## Follow-ups (2026-10-13)
 

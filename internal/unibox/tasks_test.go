@@ -3,6 +3,7 @@ package unibox
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -396,5 +397,42 @@ func TestTaskNamesAreUniqueAcrossSandboxes(t *testing.T) {
 	}
 	if ids["dev"] == ids["ci"] || !strings.HasPrefix(ids["ci"], "payments-") {
 		t.Fatal(ids)
+	}
+}
+
+func TestClaudeTrustsTheTaskItRunsIn(t *testing.T) {
+	remote, _ := remoteFixture(t)
+	m, f := managerFixture(t)
+	url := "https://forge.invalid/team/payments.git"
+	f.remotes[url] = "file://" + remote
+	bin := t.TempDir()
+	mustWriteExecutable(t, filepath.Join(bin, "claude"), []byte("#!/bin/sh\nexit 0\n"))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	ctx := context.Background()
+	if _, err := m.Create(ctx, Request{NewSandbox: "dev", Profile: "node"}); err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(f.root, "unibox-dev", "home")
+	write(t, filepath.Join(home, ".claude.json"), `{"theme":"dark","projects":{"/elsewhere":{"hasTrustDialogAccepted":false}}}`)
+	req := Request{Sandbox: "dev", Task: "refunds", Agent: "claude", Author: "Person <person@example.com>", Repositories: []RepoInput{{Source: url, Branch: "feat/refunds"}}}
+	if err := m.Run(ctx, req, strings.NewReader(""), io.Discard, io.Discard, nil); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(home, ".claude.json"))
+	var cfg struct {
+		Theme                         string
+		BypassPermissionsModeAccepted bool
+		Projects                      map[string]struct{ HasTrustDialogAccepted bool }
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme != "dark" || !cfg.BypassPermissionsModeAccepted || cfg.Projects["/elsewhere"].HasTrustDialogAccepted {
+		t.Fatalf("%s", data)
+	}
+	for _, d := range []string{"/work", "/work/refunds", "/work/refunds/payments"} {
+		if !cfg.Projects[d].HasTrustDialogAccepted {
+			t.Fatalf("%s not trusted: %s", d, data)
+		}
 	}
 }
