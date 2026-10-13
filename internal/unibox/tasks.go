@@ -77,7 +77,7 @@ func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profi
 	}
 	if req.Push {
 		for _, n := range needs {
-			if n.Code == "default_branch" || n.Code == "default_branch_unknown" {
+			if n.Code == "default_branch" || n.Code == "default_branch_unknown" || n.Code == "branch_missing" {
 				return api.Task{}, checkNeeds([]api.Need{n})
 			}
 		}

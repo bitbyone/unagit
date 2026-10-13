@@ -178,10 +178,15 @@ func ResolveRepositories(ctx context.Context, req Request) ([]api.Repository, []
 			} else if defaultBranch == r.Branch {
 				needs = append(needs, api.Need{Code: "default_branch", Message: "make a work branch first", Repository: r.Name})
 			}
+			localTip, localErr := git(ctx, r.HostPath, "rev-parse", "--verify", "refs/heads/"+r.Branch)
 			if remoteTip == "" {
-				needs = append(needs, api.Need{Code: "branch_not_pushed", Message: "push the selected branch first (or pass --push)", Repository: r.Name})
-			} else if tip, err := git(ctx, r.HostPath, "rev-parse", "--verify", "refs/heads/"+r.Branch); err == nil && tip != remoteTip {
-				if _, err = git(ctx, r.HostPath, "merge-base", "--is-ancestor", tip, remoteTip); err != nil {
+				if localErr != nil {
+					needs = append(needs, api.Need{Code: "branch_missing", Message: "branch exists neither locally nor on the forge; create it first: git branch " + r.Branch, Repository: r.Name})
+				} else {
+					needs = append(needs, api.Need{Code: "branch_not_pushed", Message: "push the selected branch first (or pass --push)", Repository: r.Name})
+				}
+			} else if localErr == nil && localTip != remoteTip {
+				if _, err = git(ctx, r.HostPath, "merge-base", "--is-ancestor", localTip, remoteTip); err != nil {
 					needs = append(needs, api.Need{Code: "local_commits", Message: "selected local branch differs from the forge; push it or use --ignore-local to use the forge's version", Repository: r.Name, Warning: req.IgnoreLocal})
 				}
 			}
@@ -195,6 +200,9 @@ func PushRepositories(ctx context.Context, repos []api.Repository) error {
 	for _, r := range repos {
 		if r.HostPath == "" {
 			return fmt.Errorf("--push requires local repositories")
+		}
+		if _, err := git(ctx, r.HostPath, "rev-parse", "--verify", "refs/heads/"+r.Branch); err != nil {
+			return fmt.Errorf("branch %s does not exist in %s; create it first: git branch %s", r.Branch, r.HostPath, r.Branch)
 		}
 		if _, err := git(ctx, r.HostPath, "push", "--set-upstream", "origin", "refs/heads/"+r.Branch+":refs/heads/"+r.Branch); err != nil {
 			return err
