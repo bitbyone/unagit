@@ -32,7 +32,7 @@ zoxide visit when that integration is enabled. Choosing a file opens the
 favourite editor with the original directory as its working directory and
 review context. Without a usable favourite, the shared editor picker asks.
 Quitting without a file returns to unagit. Multiple selections open the
-first file. **Publish Local Folder…** uses the same terminal handoff through
+first file. **New Repository from Folder…** uses the same terminal handoff through
 its **Browse** button, but takes the final directory into the path field.
 Choosing a file there does not open an editor; **Continue** confirms the folder.
 

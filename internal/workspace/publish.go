@@ -232,7 +232,7 @@ func (m *Manager) PublishLocal(ctx context.Context, client PublicationProvider, 
 	}
 	if p.Project == nil {
 		if p.Requested {
-			return fmt.Errorf("the server may already have created this repository; reopen Publish Local Folder to recover it before retrying")
+			return fmt.Errorf("the server may already have created this repository; reopen New Repository from Folder to recover it before retrying")
 		}
 		p.Requested = true
 		if err = p.Save(journal); err != nil {
@@ -242,7 +242,7 @@ func (m *Manager) PublishLocal(ctx context.Context, client PublicationProvider, 
 		req.Readme, req.License, req.Gitignore = false, "", ""
 		pr, createErr := client.CreateProject(ctx, p.Group, req)
 		if pr == nil {
-			return fmt.Errorf("creation was not confirmed; reopen Publish Local Folder to recover or retry: %w", createErr)
+			return fmt.Errorf("creation was not confirmed; reopen New Repository from Folder to recover or retry: %w", createErr)
 		}
 		pr.Instance = p.Instance
 		p.Project = pr

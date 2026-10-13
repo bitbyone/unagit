@@ -18,7 +18,7 @@ func openPublication(t *testing.T, a *App, sc tcell.SimulationScreen, dir string
 	t.Helper()
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "FILTER")
-	typeRunes(sc, "publish local folder")
+	typeRunes(sc, "new repository from folder")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Directory")
 	form := currentForm(a)
@@ -183,7 +183,7 @@ func TestPublishPlainFolderThroughChangesAndMove(t *testing.T) {
 		return true
 	})
 	pressButton(t, a, sc, form, "Commit")
-	waitFor(t, a, sc, "Publish local folder · review")
+	waitFor(t, a, sc, "New repository from folder · review")
 	pressButton(t, a, sc, currentForm(a), "Publish")
 	waitFor(t, a, sc, "Local repository location")
 	for _, size := range []struct{ w, h int }{{100, 30}, {80, 24}} {

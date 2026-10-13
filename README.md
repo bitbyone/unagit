@@ -90,7 +90,7 @@ all and live only there.
   of them brings a README along, as GitHub writes them only into a repository
   it initialises.
 
-- **Publish Local Folder…** (`:` in Repositories) starts from a directory on
+- **New Repository from Folder…** (`:` in Repositories) starts from a directory on
   disk, with or without Git, and creates its remote repository. Type its path
   or use **Browse** when Yazi is enabled, then choose the server/group, name,
   description, visibility and first branch. Existing history is kept; the
@@ -107,9 +107,9 @@ all and live only there.
   copies all files and checks their contents, permissions and symlinks before
   removing the source. Close other editors and shells before moving.
 
-  **Manage Local Folder…** in the repository's actions returns to an unfinished
-  publication or the location choice. You can also reopen **Publish Local
-  Folder…** on the same directory. Progress lives under `publications/` beside
+  **Finish New Repository…** in the repository's actions returns to an
+  unfinished publication or the location choice. You can also reopen **New
+  Repository from Folder…** on the same directory. Progress lives under `publications/` beside
   the indexes: a failed push reuses the remote already made. If the server's
   create response was lost, unagit asks you to identify the existing repository
   before continuing. No retry force-pushes or deletes a remote repository.

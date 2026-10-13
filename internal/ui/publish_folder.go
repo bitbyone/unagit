@@ -64,7 +64,7 @@ func (a *App) showPublishSource(dir string) {
 		form.AddButton("Browse", func() { a.choosePublishDirectory(field) })
 	}
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Publish local folder", form, 80, 8)
+	a.showFormModalSized("New repository from folder", form, 80, 8)
 }
 
 // The existing browser owns suspension and temporary files. Directory picking
@@ -163,8 +163,8 @@ func (a *App) showPublishDetailsWith(folder workspace.LocalFolder, draft *worksp
 		})
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.leaveReturn("Publish local folder", func() { a.showPublishSource(folder.Directory) }, nil)
-	a.showFormModalSized("Publish local folder · destination", form, 84, 23)
+	a.leaveReturn("New repository from folder", func() { a.showPublishSource(folder.Directory) }, nil)
+	a.showFormModalSized("New repository from folder · destination", form, 84, 23)
 }
 
 // reviewWidth is the width the publication review asks for.
@@ -223,7 +223,7 @@ func (a *App) showPublicationReady(p *workspace.Publication) {
 		}
 		form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 		form.SetFocus(form.GetFormItemCount())
-		a.showFormModalSized("Publish local folder · review", form, reviewWidth, 16)
+		a.showFormModalSized("New repository from folder · review", form, reviewWidth, 16)
 	})
 }
 
@@ -447,7 +447,7 @@ func (a *App) loadLocalPublications() {
 	}
 }
 
-func (a *App) manageLocalFolder(pr forge.Project) {
+func (a *App) finishNewRepository(pr forge.Project) {
 	dir := a.cfg.State.LocalRepository(pr.Instance, pr.PathWithNamespace)
 	var p *workspace.Publication
 	a.loadThen("Reading publication progress", func(func(string)) (string, error) {
