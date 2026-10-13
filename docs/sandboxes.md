@@ -335,24 +335,37 @@ committed with unagit's commit dialog, pushed, shared with a team:
 
 ```
 sandbox-envs/
-├── kotlin/
-│   ├── Dockerfile
-│   ├── profile.yaml
-│   ├── start.sh
-│   ├── instructions.md
-│   ├── sbx/
-│   │   └── build.args
-│   └── podman/
-│       └── build.args
-├── node/
-│   ├── Dockerfile
-│   └── profile.yaml
-└── instructions/
-    ├── review-style.md
-    └── no-migrations.md
+├── sandboxes/
+│   ├── kotlin/
+│   │   ├── profile.yaml
+│   │   ├── Dockerfile
+│   │   ├── start.sh
+│   │   └── sbx/
+│   │       └── build.args
+│   └── node/
+│       ├── profile.yaml
+│       └── Dockerfile
+├── instructions/
+│   ├── unibox.md
+│   ├── review-style.md
+│   └── no-migrations.md
+├── _shared/
+│   └── installations/
+│       ├── claude.sh
+│       └── copilot.sh
+└── README.md
 ```
 
-A directory with a `profile.yaml` is a profile, named after the directory.
+A directory of `sandboxes/` with a `profile.yaml` is a profile, named after
+the directory. The layout is held to its shape (`CheckLayout`): profiles
+under `sandboxes/` (every directory there must carry a `profile.yaml`),
+attachable markdown under `instructions/` (`.md` files alone), anything of
+the user's own behind an underscore (`_shared` by convention), `README.md`
+and hidden entries - and nothing else; a stray file is a named error, never
+quietly ignored. `_shared/` is copied into every profile's build context, so
+a Dockerfile composes what it needs (`COPY _shared/installations/claude.sh`),
+and its contents are part of every profile's revision - a change there marks
+every image outdated.
 
 agentbox knows the repository by its path (`environments` in its
 configuration) and reads the working tree - what the user sees in their
@@ -384,9 +397,9 @@ deny_network: []
 agents: [claude, codex]       # what the image has
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
-instructions:                 # for the agent, in this order, after agentbox's own
-  - ../instructions/review-style.md
-  - instructions.md
+instructions:                 # names of instructions/*.md, in this order
+  - unibox
+  - review-style
 agent_config:                 # JSON seeds merged into an agent's own
   claude: claude.json         # configuration in the VM home; seed keys win,
                               # the agent's state - projects, paths - stays
@@ -445,19 +458,20 @@ push as it goes, never to force - and the user has more to say, in general
 and per profile. None of it may go into the worked-on repository, where
 it would be committed. So:
 
-- **agentbox's own**, always first, fixed in the binary: the branch, the
-  repositories and where they are, commit and push as you go, never force
-  push, never push another branch.
-- **Then the profile's `instructions`**, markdown files of the
-  environments repository, in the order listed: shared ones from anywhere
-  in it (`instructions/` by convention, attached to as many profiles as
-  want them) and the profile's own. A path that does not exist is an
-  error. They go only into the VM, so they need no approval.
-- At a task's preparation agentbox writes the whole into the VM's home as
+- **Nothing is fixed in the binary.** Every word the agent gets comes from
+  the environments repository: the texts live in `instructions/`, one `.md`
+  per name, and the former built-in rules are just a text there (`unibox`
+  by convention) a profile lists like any other.
+- **The profile's `instructions` are names** of those texts, in the order
+  listed; a sandbox attaches more by the same names (`--instructions`,
+  `unibox instructions attach`), each text once. A name that does not
+  exist is an error. They go only into the VM, so they need no approval.
+- At a task's preparation unibox writes the whole into the VM's home as
   the agent's user-level instructions (`~/.claude/CLAUDE.md`,
-  `~/.codex/AGENTS.md` - each agent's file is in agentbox's table of
+  `~/.codex/AGENTS.md` - each agent's file is in unibox's table of
   agents), never into `/work`.
-- `agentbox instructions <profile>` prints them as the agent gets them;
+- `unibox instructions <profile>` prints them as the agent gets them
+  (`--sandbox` for a sandbox's, with its attached texts);
   the Sandboxes tab shows that in a pane under Profiles, rendered by
   `internal/md`, and Edit Instructions… opens the files in the editor.
 

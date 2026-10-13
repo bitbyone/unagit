@@ -34,9 +34,9 @@ func write(t *testing.T, path, text string) {
 func profileFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	write(t, filepath.Join(root, "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\ncpus: 2\nmemory: 1g\nstart: start.sh\n")
-	write(t, filepath.Join(root, "node", "Dockerfile"), "FROM example/shell\n")
-	write(t, filepath.Join(root, "node", "start.sh"), "echo started >> \"$HOME/start-count\"\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\ncpus: 2\nmemory: 1g\nstart: start.sh\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "Dockerfile"), "FROM example/shell\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "start.sh"), "echo started >> \"$HOME/start-count\"\n")
 	return root
 }
 
@@ -56,7 +56,7 @@ func TestProfilesRejectUnknownFieldsAndEscapes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			root := profileFixture(t)
-			write(t, filepath.Join(root, "node", "profile.yaml"), tc.body)
+			write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), tc.body)
 			if _, err := LoadProfile(root, "node"); err == nil {
 				t.Fatal("invalid profile was accepted")
 			}
@@ -71,7 +71,7 @@ func TestContentRevisionsAndApprovalHaveDifferentInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(root, "node", "Dockerfile"), "FROM example/second\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "Dockerfile"), "FROM example/second\n")
 	changed, _ := LoadProfile(root, "node")
 	if changed.Revision == p.Revision {
 		t.Fatal("uncommitted Dockerfile edit did not change revision")
@@ -79,12 +79,12 @@ func TestContentRevisionsAndApprovalHaveDifferentInputs(t *testing.T) {
 	if changed.AccessHash() != p.AccessHash() {
 		t.Fatal("Dockerfile changed host approval")
 	}
-	write(t, filepath.Join(root, "node", "Dockerfile"), "FROM example/third\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "Dockerfile"), "FROM example/third\n")
 	third, _ := LoadProfile(root, "node")
 	if third.Revision == changed.Revision {
 		t.Fatal("two dirty versions shared a revision")
 	}
-	write(t, filepath.Join(root, "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\ncpus: 8\nmemory: 12g\nstart: start.sh\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\ncpus: 8\nmemory: 12g\nstart: start.sh\n")
 	resource, _ := LoadProfile(root, "node")
 	if resource.Revision != third.Revision {
 		t.Fatal("resource-only change rebuilt image")
@@ -92,7 +92,7 @@ func TestContentRevisionsAndApprovalHaveDifferentInputs(t *testing.T) {
 	if resource.AccessHash() != third.AccessHash() {
 		t.Fatal("resource-only change changed approval")
 	}
-	write(t, filepath.Join(root, "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\nenv: [BUILD_MODE]\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude, codex]\nenv: [BUILD_MODE]\n")
 	access, _ := LoadProfile(root, "node")
 	if access.AccessHash() == resource.AccessHash() {
 		t.Fatal("new host environment access kept approval")
@@ -109,7 +109,7 @@ func TestInstructionsAreSandboxWideAndConfined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Index(text, "team instructions") > strings.Index(text, "review instructions") || !strings.HasPrefix(text, BaseInstructions) {
+	if !strings.HasPrefix(text, "team instructions") || strings.Index(text, "team instructions") > strings.Index(text, "review instructions") {
 		t.Fatal(text)
 	}
 	if _, err = p.InstructionText([]string{"missing"}); err == nil {
@@ -125,11 +125,95 @@ func TestInstructionsAreSandboxWideAndConfined(t *testing.T) {
 	}
 }
 
+func TestProfileInstructionsAreNamesAndAttachOnce(t *testing.T) {
+	t.Parallel()
+	root := profileFixture(t)
+	write(t, filepath.Join(root, "instructions", "team.md"), "team instructions")
+	write(t, filepath.Join(root, "instructions", "backend.md"), "backend instructions")
+	write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude]\nstart: start.sh\ninstructions: [backend, team]\n")
+	p, err := LoadProfile(root, "node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := p.InstructionText([]string{"team"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(text, "team instructions") != 1 || !strings.HasPrefix(text, "backend instructions") {
+		t.Fatal(text)
+	}
+	write(t, filepath.Join(root, "sandboxes", "node", "profile.yaml"), "dockerfile: Dockerfile\nagents: [claude]\nstart: start.sh\ninstructions: [absent]\n")
+	if _, err = LoadProfile(root, "node"); err == nil {
+		t.Fatal("missing instruction name accepted")
+	}
+}
+
+func TestTheRepositoryLayoutIsHeldToItsShape(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, path, content string }{
+		{"stray-top-level", "notes.txt", "x"},
+		{"stray-dir", "tools/x.sh", "x"},
+		{"file-in-sandboxes", "sandboxes/readme.txt", "x"},
+		{"non-md-instruction", "instructions/run.sh", "x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := profileFixture(t)
+			write(t, filepath.Join(root, filepath.FromSlash(tc.path)), tc.content)
+			if _, err := LoadProfile(root, "node"); err == nil {
+				t.Fatalf("%s was accepted", tc.path)
+			}
+		})
+	}
+	t.Run("underscore-readme-and-hidden-pass", func(t *testing.T) {
+		t.Parallel()
+		root := profileFixture(t)
+		write(t, filepath.Join(root, "README.md"), "about")
+		write(t, filepath.Join(root, ".gitignore"), "x")
+		write(t, filepath.Join(root, "_notes", "ideas.md"), "x")
+		if _, err := LoadProfile(root, "node"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("profile-without-yaml", func(t *testing.T) {
+		t.Parallel()
+		root := profileFixture(t)
+		write(t, filepath.Join(root, "sandboxes", "empty", "Dockerfile"), "FROM example/shell\n")
+		if _, err := LoadProfile(root, "node"); err == nil {
+			t.Fatal("profile directory without profile.yaml was accepted")
+		}
+	})
+}
+
+func TestSharedDirectoryJoinsTheBuildContextAndRevision(t *testing.T) {
+	t.Parallel()
+	root := profileFixture(t)
+	before, err := LoadProfile(root, "node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "_shared", "installations", "claude.sh"), "npm install -g claude\n")
+	p, err := LoadProfile(root, "node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := p.Files["_shared/installations/claude.sh"]; !ok {
+		t.Fatalf("_shared missing from the build context: %v", p.Files)
+	}
+	if p.Revision == before.Revision {
+		t.Fatal("a _shared change left the image current")
+	}
+	write(t, filepath.Join(root, "sandboxes", "node", "_shared", "own.sh"), "x")
+	if _, err = LoadProfile(root, "node"); err == nil {
+		t.Fatal("a profile's own _shared was accepted")
+	}
+}
+
 func TestRuntimeBuildArgumentsStaySeparate(t *testing.T) {
 	t.Parallel()
 	root := profileFixture(t)
-	write(t, filepath.Join(root, "node", "sbx", "build.args"), "BASE=example/sbx\n")
-	write(t, filepath.Join(root, "node", "podman", "build.args"), "BASE=example/podman\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "sbx", "build.args"), "BASE=example/sbx\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "podman", "build.args"), "BASE=example/podman\n")
 	p, err := LoadProfile(root, "node")
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +226,7 @@ func TestRuntimeBuildArgumentsStaySeparate(t *testing.T) {
 	if !strings.Contains(joined, "UNIBOX_RUNTIME=sbx") || !strings.Contains(joined, "BASE=example/sbx") || strings.Contains(joined, "example/podman") {
 		t.Fatal(args)
 	}
-	write(t, filepath.Join(root, "node", "sbx", "extra"), "bad")
+	write(t, filepath.Join(root, "sandboxes", "node", "sbx", "extra"), "bad")
 	if _, err = LoadProfile(root, "node"); err == nil {
 		t.Fatal("unknown runtime file accepted")
 	}

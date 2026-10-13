@@ -100,7 +100,10 @@ func LoadProfile(root, name string) (Profile, error) {
 	if err != nil {
 		return p, err
 	}
-	p.Dir = filepath.Join(p.Root, name)
+	if err = CheckLayout(p.Root); err != nil {
+		return p, err
+	}
+	p.Dir = filepath.Join(p.Root, "sandboxes", name)
 	b, err := readInside(p.Root, filepath.Join(p.Dir, "profile.yaml"))
 	if err != nil {
 		return p, err
@@ -165,36 +168,48 @@ func LoadProfile(root, name string) (Profile, error) {
 		p.Caches[i].Host = h
 	}
 	p.Files = map[string]SnapshotFile{}
-	err = filepath.WalkDir(p.Dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if d.Name() == ".git" {
-				return filepath.SkipDir
+	snapshot := func(dir, prefix string) error {
+		return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
 			}
+			if d.IsDir() {
+				if d.Name() == ".git" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if d.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("profile contains symlink %s; use a regular file in its build context", path)
+			}
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("profile contains non-regular file %s", path)
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			rel, _ := filepath.Rel(dir, path)
+			p.Files[prefix+filepath.ToSlash(rel)] = SnapshotFile{b, uint32(info.Mode().Perm())}
 			return nil
-		}
-		if d.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("profile contains symlink %s; use a regular file in its build context", path)
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("profile contains non-regular file %s", path)
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(p.Dir, path)
-		p.Files[filepath.ToSlash(rel)] = SnapshotFile{b, uint32(info.Mode().Perm())}
-		return nil
-	})
-	if err != nil {
+		})
+	}
+	if err = snapshot(p.Dir, ""); err != nil {
 		return p, err
+	}
+	// _shared is part of every profile's build context, so a Dockerfile can
+	// copy one install script from it; its change outdates every image.
+	if _, err := os.Stat(filepath.Join(p.Dir, "_shared")); err == nil {
+		return p, fmt.Errorf("profile %s has a _shared directory of its own; _shared lives at the repository root", name)
+	}
+	if info, err := os.Stat(filepath.Join(p.Root, "_shared")); err == nil && info.IsDir() {
+		if err = snapshot(filepath.Join(p.Root, "_shared"), "_shared/"); err != nil {
+			return p, err
+		}
 	}
 	for _, path := range []string{p.Dockerfile, p.Start} {
 		if path != "" {
@@ -211,8 +226,11 @@ func LoadProfile(root, name string) (Profile, error) {
 			}
 		}
 	}
-	for _, path := range p.Instructions {
-		if _, err := readInside(p.Root, filepath.Join(p.Dir, path)); err != nil {
+	for _, name := range p.Instructions {
+		if err := ValidName(name); err != nil {
+			return p, fmt.Errorf("profile instructions name texts of the instructions directory: %w", err)
+		}
+		if _, err := readInside(p.Root, filepath.Join(p.Root, "instructions", name+".md")); err != nil {
 			return p, fmt.Errorf("profile instructions: %w", err)
 		}
 	}
@@ -272,28 +290,21 @@ func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	return args, nil
 }
 
-const BaseInstructions = `# Unibox sandbox
-
-You work in private clones inside a sandbox. Other tasks may share this sandbox;
-leave their directories and processes alone. Host workspaces are not mounted.
-For each repository, work on its checked-out branch. Commit and push progress
-to that branch regularly. Never force-push, delete remote branches, or push a
-different branch. Keep instructions and sandbox configuration out of commits.
-`
-
+// InstructionText lays the named texts together: the profile's, then the
+// sandbox's attached ones, each a name of the instructions directory, each
+// once. Nothing is fixed in the binary; the environments repository owns
+// every word the agent gets.
 func (p Profile) InstructionText(attached []string) (string, error) {
-	parts := []string{BaseInstructions}
-	for _, file := range p.Instructions {
-		b, err := readInside(p.Root, filepath.Join(p.Dir, file))
-		if err != nil {
-			return "", err
-		}
-		parts = append(parts, string(b))
-	}
-	for _, name := range attached {
+	parts := []string{}
+	used := map[string]bool{}
+	for _, name := range append(append([]string{}, p.Instructions...), attached...) {
 		if err := ValidName(name); err != nil {
 			return "", err
 		}
+		if used[name] {
+			continue
+		}
+		used[name] = true
 		b, err := readInside(p.Root, filepath.Join(p.Root, "instructions", name+".md"))
 		if err != nil {
 			return "", err
@@ -301,6 +312,55 @@ func (p Profile) InstructionText(attached []string) (string, error) {
 		parts = append(parts, string(b))
 	}
 	return strings.Join(parts, "\n\n") + "\n", nil
+}
+
+// CheckLayout holds the environments repository to its shape: profiles under
+// sandboxes/, attachable markdown under instructions/, anything of the
+// user's own behind an underscore - so a misplaced file is named instead of
+// quietly ignored.
+func CheckLayout(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		name := e.Name()
+		switch {
+		case strings.HasPrefix(name, "."), strings.HasPrefix(name, "_"):
+		case name == "README.md" && !e.IsDir():
+		case (name == "sandboxes" || name == "instructions") && e.IsDir():
+		default:
+			return fmt.Errorf("unexpected %s in the environments repository; profiles go under sandboxes/, attachable texts under instructions/, anything else under an underscore directory such as _shared", name)
+		}
+	}
+	profiles, err := os.ReadDir(filepath.Join(root, "sandboxes"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, e := range profiles {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if !e.IsDir() {
+			return fmt.Errorf("sandboxes/%s is not a profile directory; every entry of sandboxes/ is a directory with a profile.yaml", e.Name())
+		}
+		if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "profile.yaml")); err != nil {
+			return fmt.Errorf("sandboxes/%s has no profile.yaml; every profile directory needs one", e.Name())
+		}
+	}
+	texts, err := os.ReadDir(filepath.Join(root, "instructions"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, e := range texts {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			return fmt.Errorf("instructions/%s is not a markdown file; the instructions directory holds attachable .md texts alone", e.Name())
+		}
+	}
+	return nil
 }
 
 func ProfileNames(root string) ([]string, error) {
@@ -311,14 +371,20 @@ func ProfileNames(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(root)
+	if err = CheckLayout(root); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(root, "sandboxes"))
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 	names := []string{}
 	for _, e := range entries {
 		if e.IsDir() {
-			if _, err := os.Stat(filepath.Join(root, e.Name(), "profile.yaml")); err == nil {
+			if _, err := os.Stat(filepath.Join(root, "sandboxes", e.Name(), "profile.yaml")); err == nil {
 				names = append(names, e.Name())
 			}
 		}
