@@ -365,7 +365,13 @@ there must carry a `sandbox.yaml`), attachable markdown under
 of the user's own behind an underscore (`_shared` by convention),
 `README.md` and hidden entries - and nothing else; a stray file is a named
 error, never quietly ignored. Runtime directories inside a profile are
-hidden (`.sbx/build.args`). `_shared/` is copied into every profile's build
+hidden (`.sbx/build.args`), and a profile's root holds only its definition,
+Dockerfile, start script and `instructions.md` - custom files, an agent
+configuration seed say, go under an underscore directory of the profile's
+own, `_data` by convention. `unibox init <profile>` lays the whole shape
+out (interactively with `-i`) and `unibox validate` checks it, every
+profile and every text included. `_shared/` is copied into every profile's
+build
 context, so a Dockerfile composes what it needs
 (`COPY _shared/installations/claude.sh`), and its contents are part of every
 profile's revision - a change there marks every image outdated. The
@@ -686,6 +692,8 @@ never asks: what stands in the way is an answer, not a prompt.
 
 | command | does |
 | --- | --- |
+| `agentbox init <profile> [-i]` | lays out the environments repository and adds a profile; -i asks |
+| `agentbox validate [--json]` | the repository's layout, every profile, every attachable text |
 | `agentbox profiles [--json]` | profiles: name, agents, image state per runtime, approval, error, last commit |
 | `agentbox instructions <profile>` | the instructions as the agent gets them |
 | `agentbox diff <profile>` | what changed since the last build, a unified diff |

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs the named installation scripts of _shared/installations, in order.
+# Names come as arguments, or one per line on stdin - which lets a Dockerfile
+# write them as a vertical list in a heredoc. Blank lines and #-comments pass.
+set -eu
+dir="$(dirname "$0")/installations"
+run() {
+    echo "installing $1"
+    sh "$dir/$1.sh"
+}
+if [ "$#" -gt 0 ]; then
+    for name in "$@"; do run "$name"; done
+else
+    while read -r name; do
+        case "$name" in '' | \#*) continue ;; esac
+        run "$name"
+    done
+fi

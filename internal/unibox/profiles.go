@@ -56,6 +56,7 @@ func digest(v any) string {
 }
 
 var envName = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+var memoryPattern = regexp.MustCompile(`^[1-9][0-9]*[kKmMgG]?$`)
 var sensitiveEnv = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|API_KEY|PRIVATE_KEY|SSH_AUTH|GIT_CONFIG|DOCKER_HOST|DOCKER_CONTEXT|LD_|DYLD_)`)
 
 func safeRelative(path string) bool {
@@ -117,7 +118,7 @@ func LoadProfile(root, name string) (Profile, error) {
 	if p.CPUs < 0 {
 		return p, fmt.Errorf("profile %s: cpus must be positive", name)
 	}
-	if p.Memory != "" && !regexp.MustCompile(`^[1-9][0-9]*[kKmMgG]?$`).MatchString(p.Memory) {
+	if p.Memory != "" && !memoryPattern.MatchString(p.Memory) {
 		return p, fmt.Errorf("profile %s: invalid memory; use e.g. 8g", name)
 	}
 	if len(p.Agents) == 0 {
@@ -168,6 +169,27 @@ func LoadProfile(root, name string) (Profile, error) {
 		p.Caches[i].Host = h
 	}
 	p.Files = map[string]SnapshotFile{}
+	// The profile's root is held to its shape too: the definition, its
+	// Dockerfile, start script and instructions.md, hidden runtime
+	// directories - and custom files behind an underscore, _data by
+	// convention, where the Dockerfile and sandbox.yaml reference them.
+	known := map[string]bool{"sandbox.yaml": true, "instructions.md": true}
+	for _, ref := range []string{p.Dockerfile, p.Start} {
+		if ref != "" && !strings.Contains(ref, "/") {
+			known[ref] = true
+		}
+	}
+	shape, err := os.ReadDir(p.Dir)
+	if err != nil {
+		return p, err
+	}
+	for _, e := range shape {
+		n := e.Name()
+		if strings.HasPrefix(n, ".") || strings.HasPrefix(n, "_") || known[n] {
+			continue
+		}
+		return p, fmt.Errorf("profile %s: unexpected %s; a profile's root holds sandbox.yaml, its Dockerfile, start script and instructions.md - custom files go under _data and are referenced from there", name, n)
+	}
 	snapshot := func(dir, prefix string) error {
 		return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {

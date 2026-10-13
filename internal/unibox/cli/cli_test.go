@@ -136,6 +136,80 @@ func TestExplicitApprovalAndStrictConfig(t *testing.T) {
 	}
 }
 
+func TestInitLaysTheRepositoryOutAndKeepsWhatExists(t *testing.T) {
+	t.Parallel()
+	paths := unibox.Paths{Config: t.TempDir(), Cache: t.TempDir()}
+	root := t.TempDir()
+	if err := paths.SaveConfig(unibox.Config{Environments: root}); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	c := New(paths, strings.NewReader(""), &out, io.Discard)
+	c.SetArgs([]string{"init", "my2n"})
+	if err := c.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"_shared/install", "_shared/installations/base.sh", "_shared/installations/agents/copilot.sh", "instructions/unibox.md", "sandboxes/my2n/sandbox.yaml", "sandboxes/my2n/Dockerfile", "sandboxes/my2n/instructions.md", "sandboxes/my2n/.sbx/build.args"} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("missing %s: %v", rel, err)
+		}
+	}
+	p, err := unibox.LoadProfile(root, "my2n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(p.Agents, []string{"copilot"}) {
+		t.Fatal(p.Agents)
+	}
+	if text, err := p.InstructionText(nil); err != nil || !strings.Contains(text, "Unibox sandbox") {
+		t.Fatalf("%v %q", err, text)
+	}
+	if info, _ := os.Stat(filepath.Join(root, "_shared", "install")); info.Mode().Perm()&0o100 == 0 {
+		t.Fatal("the runner is not executable")
+	}
+	// A second init adds a profile and keeps every existing file as it is.
+	if err := os.WriteFile(filepath.Join(root, "_shared", "installations", "base.sh"), []byte("#!/bin/sh\necho mine\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c = New(paths, strings.NewReader(""), io.Discard, io.Discard)
+	c.SetArgs([]string{"init", "personal", "--agents", "claude,codex", "--cpus", "2", "--memory", "4g"})
+	if err := c.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(root, "_shared", "installations", "base.sh"))
+	if !strings.Contains(string(b), "echo mine") {
+		t.Fatal("init overwrote an existing file")
+	}
+	second, err := unibox.LoadProfile(root, "personal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(second.Agents, []string{"claude", "codex"}) || second.CPUs != 2 || second.Memory != "4g" {
+		t.Fatalf("%v %d %s", second.Agents, second.CPUs, second.Memory)
+	}
+	c = New(paths, strings.NewReader(""), io.Discard, io.Discard)
+	c.SetArgs([]string{"init", "bad", "--agents", "nonsense"})
+	if err := c.Execute(); err == nil {
+		t.Fatal("unknown agent accepted")
+	}
+	// validate approves the generated repository and names what breaks it.
+	var report bytes.Buffer
+	c = New(paths, strings.NewReader(""), &report, io.Discard)
+	c.SetArgs([]string{"validate"})
+	if err := c.Execute(); err != nil {
+		t.Fatalf("%v: %s", err, report.String())
+	}
+	if err := os.WriteFile(filepath.Join(root, "stray.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	report.Reset()
+	c = New(paths, strings.NewReader(""), &report, io.Discard)
+	c.SetArgs([]string{"validate"})
+	if err := c.Execute(); err == nil || !strings.Contains(report.String(), "stray.txt") {
+		t.Fatalf("%v: %s", err, report.String())
+	}
+}
+
 func TestHelpListsLifecycleAndMultipleRepositories(t *testing.T) {
 	t.Parallel()
 	paths, _ := cliFixture(t)

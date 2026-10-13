@@ -166,14 +166,14 @@ func TestProfileInstructionsAreNamesAndAttachOnce(t *testing.T) {
 func TestOnlyImageInputsTurnTheRevision(t *testing.T) {
 	t.Parallel()
 	root := profileFixture(t)
-	write(t, filepath.Join(root, "sandboxes", "node", "claude.json"), `{"theme": "dark"}`)
-	write(t, filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), "dockerfile: Dockerfile\nagents: [claude]\nstart: start.sh\nagent_config: {claude: claude.json}\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "_data", "claude.json"), `{"theme": "dark"}`)
+	write(t, filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), "dockerfile: Dockerfile\nagents: [claude]\nstart: start.sh\nagent_config: {claude: _data/claude.json}\n")
 	before, err := LoadProfile(root, "node")
 	if err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(root, "sandboxes", "node", "instructions.md"), "own text")
-	write(t, filepath.Join(root, "sandboxes", "node", "claude.json"), `{"theme": "light"}`)
+	write(t, filepath.Join(root, "sandboxes", "node", "_data", "claude.json"), `{"theme": "light"}`)
 	after, err := LoadProfile(root, "node")
 	if err != nil {
 		t.Fatal(err)
@@ -200,6 +200,7 @@ func TestTheRepositoryLayoutIsHeldToItsShape(t *testing.T) {
 		{"non-md-instruction", "instructions/run.sh", "x"},
 		{"reserved-instruction-name", "instructions/instructions.md", "x"},
 		{"unhidden-runtime-dir", "sandboxes/node/sbx/build.args", "BASE=x"},
+		{"stray-profile-file", "sandboxes/node/notes.txt", "x"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
