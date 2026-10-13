@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func TestSBXUsesOnlyApprovedMountsAndEnvironment(t *testing.T) {
 	t.Setenv("SSH_AUTH_SOCK", "fake-ssh-socket")
 	t.Setenv("BUILD_MODE", "test")
 	r := &SBX{}
-	err := r.Create(context.Background(), Spec{Name: "atbox-dev", Image: "atbox/node:abc", CPUs: 2, Memory: "1g", Access: HostAccess{Env: []string{"BUILD_MODE"}, Caches: []Cache{{Host: "/approved/cache", Env: "CACHE_HOME"}}, DenyNetwork: []string{"private.example"}}}, io.Discard)
+	err := r.Create(context.Background(), Spec{Name: "unibox-dev", Image: "unibox/node:abc", CPUs: 2, Memory: "1g", Access: HostAccess{Env: []string{"BUILD_MODE"}, Caches: []Cache{{Host: "/approved/cache", Env: "CACHE_HOME"}}, DenyNetwork: []string{"private.example"}}}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestSBXChecksSSHForwardingAndParsesRuntimeInventory(t *testing.T) {
 	bin := t.TempDir()
 	settings := filepath.Join(t.TempDir(), "settings")
 	write(t, settings, `{"value":true}`)
-	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte("#!/bin/sh\ncase \"$1\" in\nsettings) cat "+Quote(settings)+" ;;\nls) printf '%s\\n' '{\"sandboxes\":[{\"name\":\"atbox-dev\",\"id\":\"vm-id\",\"status\":\"stopped\",\"memory\":\"1g\"}]}' ;;\ntemplate) printf '%s\\n' '{\"images\":[{\"repository\":\"docker.io/atbox/node\",\"tag\":\"abc\",\"id\":\"image-id\"}]}' ;;\nesac\n"))
+	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte("#!/bin/sh\ncase \"$1\" in\nsettings) cat "+Quote(settings)+" ;;\nls) printf '%s\\n' '{\"sandboxes\":[{\"name\":\"unibox-dev\",\"id\":\"vm-id\",\"status\":\"stopped\",\"memory\":\"1g\"}]}' ;;\ntemplate) printf '%s\\n' '{\"images\":[{\"repository\":\"docker.io/unibox/node\",\"tag\":\"abc\",\"id\":\"image-id\"}]}' ;;\nesac\n"))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	r := &SBX{}
 	if err := r.Available(context.Background()); err == nil {
@@ -69,7 +69,7 @@ func TestSBXChecksSSHForwardingAndParsesRuntimeInventory(t *testing.T) {
 		t.Fatalf("%+v %v", boxes, err)
 	}
 	images, err := r.Images(context.Background())
-	if err != nil || len(images) != 1 || images[0].Reference != "atbox/node:abc" {
+	if err != nil || len(images) != 1 || images[0].Reference != "unibox/node:abc" {
 		t.Fatalf("%+v %v", images, err)
 	}
 }
@@ -82,7 +82,7 @@ func TestMissingAgentFailsBeforeLoadingImage(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	p, _ := LoadProfile(profileFixture(t), "node")
 	r := &SBX{Cache: t.TempDir()}
-	if _, err := r.Build(context.Background(), p, "atbox/node:test", io.Discard); err == nil || !strings.Contains(err.Error(), "declares claude") {
+	if _, err := r.Build(context.Background(), p, "unibox/node:test", io.Discard); err == nil || !strings.Contains(err.Error(), "declares claude") {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(log)

@@ -1,5 +1,5 @@
-// Package atbox owns sandbox environments independently of unagit.
-package atbox
+// Package unibox owns sandbox environments independently of unagit.
+package unibox
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,7 +48,7 @@ func DefaultPaths() (Paths, error) {
 	if cache == "" {
 		cache = filepath.Join(home, ".cache")
 	}
-	return Paths{filepath.Join(config, "atbox"), filepath.Join(cache, "atbox")}, nil
+	return Paths{filepath.Join(config, "unibox"), filepath.Join(cache, "unibox")}, nil
 }
 
 func ExpandPath(path string) (string, error) {
@@ -91,7 +91,7 @@ func (p Paths) LoadConfig() (Config, error) {
 		return c, err
 	}
 	if err = DecodeYAML(b, &c); err != nil {
-		return c, fmt.Errorf("invalid atbox configuration: %w", err)
+		return c, fmt.Errorf("invalid unibox configuration: %w", err)
 	}
 	if c.Runtimes == nil {
 		c.Runtimes = map[string]RuntimeConfig{}
@@ -103,7 +103,7 @@ func AtomicWrite(path string, b []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".atbox-*")
+	f, err := os.CreateTemp(filepath.Dir(path), ".unibox-*")
 	if err != nil {
 		return err
 	}
@@ -163,10 +163,10 @@ func (p Paths) State(fn func(*State) error) error {
 		err = json.Unmarshal(b, &s)
 	}
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot read atbox state; preserve %s and repair it: %w", path, err)
+		return fmt.Errorf("cannot read unibox state; preserve %s and repair it: %w", path, err)
 	}
 	if s.Version != 1 {
-		return fmt.Errorf("unsupported atbox state version %d; upgrade atbox", s.Version)
+		return fmt.Errorf("unsupported unibox state version %d; upgrade unibox", s.Version)
 	}
 	if err = fn(&s); err != nil {
 		return err

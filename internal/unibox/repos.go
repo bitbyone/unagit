@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 type RepoInput struct{ Source, Branch, Name string }

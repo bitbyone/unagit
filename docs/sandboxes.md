@@ -873,13 +873,13 @@ from that news.
 
 ## Tests
 
-`make test-atbox` runs only `cmd/atbox/...` and `internal/atbox/...`, with
-the race detector; `make test-atbox-fast` runs the same packages without it.
-These are the checks while implementing atbox, including before commits
-that change only atbox. The unagit suite is not run for those changes.
+`make test-unibox` runs only `cmd/unibox/...` and `internal/unibox/...`, with
+the race detector; `make test-unibox-fast` runs the same packages without it.
+These are the checks while implementing unibox, including before commits
+that change only unibox. The unagit suite is not run for those changes.
 `make test` and `make test-fast` retain the whole repository's suite for
 changes across the boundary or to shared build machinery. The binary and
-package name agreed after the original design is `atbox`.
+package name agreed after the original design is `unibox`.
 
 agentbox:
 

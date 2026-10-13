@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 type Manager struct {
@@ -47,10 +47,10 @@ func (m *Manager) Runtime(name string) (Runtime, error) {
 	}
 	r, ok := m.Runtimes[name]
 	if !ok {
-		return nil, fmt.Errorf("runtime %q is not supported; use atbox runtimes to list adapters", name)
+		return nil, fmt.Errorf("runtime %q is not supported; use unibox runtimes to list adapters", name)
 	}
 	if !m.Config.Enabled(name) {
-		return nil, fmt.Errorf("runtime %s is disabled; enable it with atbox config set runtimes.%s.on true", name, name)
+		return nil, fmt.Errorf("runtime %s is disabled; enable it with unibox config set runtimes.%s.on true", name, name)
 	}
 	return r, nil
 }
@@ -82,12 +82,12 @@ func (m *Manager) approved(p Profile) error {
 		return err
 	}
 	if s.Approvals[p.ApprovalKey()] != p.AccessHash() {
-		return Fail(2, "approval_required", "profile %s has unapproved host access; inspect it with atbox check and run atbox approve %s", p.Name, p.Name)
+		return Fail(2, "approval_required", "profile %s has unapproved host access; inspect it with unibox check and run unibox approve %s", p.Name, p.Name)
 	}
 	return nil
 }
 func buildKey(p Profile, r Runtime) string { return p.ApprovalKey() + ":" + r.Name() }
-func imageTag(p Profile) string            { return "atbox/" + p.Name + ":" + p.Revision[:16] }
+func imageTag(p Profile) string            { return "unibox/" + p.Name + ":" + p.Revision[:16] }
 
 func (m *Manager) Built(ctx context.Context, p Profile, r Runtime) (BuildRecord, error) {
 	s, err := m.Paths.ReadState()
@@ -96,7 +96,7 @@ func (m *Manager) Built(ctx context.Context, p Profile, r Runtime) (BuildRecord,
 	}
 	record, ok := s.Builds[buildKey(p, r)]
 	if !ok || record.Revision != p.Revision {
-		return BuildRecord{}, Fail(3, "image_required", "profile %s needs a build; run atbox build %s --runtime %s", p.Name, p.Name, r.Name())
+		return BuildRecord{}, Fail(3, "image_required", "profile %s needs a build; run unibox build %s --runtime %s", p.Name, p.Name, r.Name())
 	}
 	images, err := r.Images(ctx)
 	if err != nil {
@@ -107,7 +107,7 @@ func (m *Manager) Built(ctx context.Context, p Profile, r Runtime) (BuildRecord,
 			return record, nil
 		}
 	}
-	return BuildRecord{}, Fail(3, "image_required", "profile %s image is missing from %s; run atbox build %s", p.Name, r.Name(), p.Name)
+	return BuildRecord{}, Fail(3, "image_required", "profile %s image is missing from %s; run unibox build %s", p.Name, r.Name(), p.Name)
 }
 func (m *Manager) Build(ctx context.Context, name, rt string, force bool) error {
 	p, err := m.profile(name)
@@ -186,7 +186,7 @@ func (m *Manager) sandbox(name string) (api.Sandbox, error) {
 	}
 	b, ok := s.Sandboxes[name]
 	if !ok {
-		return b, fmt.Errorf("sandbox %s is not registered; create it with atbox create", name)
+		return b, fmt.Errorf("sandbox %s is not registered; create it with unibox create", name)
 	}
 	return b, nil
 }
@@ -225,9 +225,9 @@ func (m *Manager) Definition(req Request) (api.Sandbox, Runtime, Profile, error)
 	}
 	if req.Profile == "" {
 		if name == "" {
-			return api.Sandbox{}, nil, Profile{}, fmt.Errorf("no sandbox chosen; pass --sandbox (atbox ls lists them) or --profile to make one (atbox profiles)")
+			return api.Sandbox{}, nil, Profile{}, fmt.Errorf("no sandbox chosen; pass --sandbox (unibox ls lists them) or --profile to make one (unibox profiles)")
 		}
-		return api.Sandbox{}, nil, Profile{}, fmt.Errorf("new sandbox %s needs --profile; list profiles with atbox profiles", name)
+		return api.Sandbox{}, nil, Profile{}, fmt.Errorf("new sandbox %s needs --profile; list profiles with unibox profiles", name)
 	}
 	if name == "" {
 		name = req.Profile
@@ -246,7 +246,7 @@ func (m *Manager) Definition(req Request) (api.Sandbox, Runtime, Profile, error)
 	if _, err = p.InstructionText(req.Instructions); err != nil {
 		return api.Sandbox{}, nil, Profile{}, err
 	}
-	b := api.Sandbox{Name: name, Runtime: r.Name(), RuntimeName: "atbox-" + name, Profile: p.Name, Instructions: req.Instructions, State: "missing", Tasks: []api.Task{}, Runs: []api.Run{}}
+	b := api.Sandbox{Name: name, Runtime: r.Name(), RuntimeName: "unibox-" + name, Profile: p.Name, Instructions: req.Instructions, State: "missing", Tasks: []api.Task{}, Runs: []api.Run{}}
 	return b, r, p, nil
 }
 
@@ -294,7 +294,7 @@ func (m *Manager) findBox(ctx context.Context, r Runtime, b api.Sandbox) (Box, b
 	for _, v := range boxes {
 		if v.Name == b.RuntimeName {
 			if b.RuntimeID != "" && v.ID != "" && b.RuntimeID != v.ID {
-				return v, true, fmt.Errorf("sandbox %s was replaced outside atbox; inspect it before removing its atbox registration", b.Name)
+				return v, true, fmt.Errorf("sandbox %s was replaced outside unibox; inspect it before removing its unibox registration", b.Name)
 			}
 			return v, true, nil
 		}
@@ -379,7 +379,7 @@ func (m *Manager) ensure(ctx context.Context, b *api.Sandbox, r Runtime, p Profi
 			return fmt.Errorf("runtime did not list the new sandbox; inspect it with its own CLI")
 		}
 		b.RuntimeID = box.ID
-		cmd := r.Exec(ctx, b.RuntimeName, Command{User: "root", Args: []string{"sh", "-c", "set -eu; mkdir -p /work /var/lib/atbox/runs; chown -R agent:agent /work /var/lib/atbox"}})
+		cmd := r.Exec(ctx, b.RuntimeName, Command{User: "root", Args: []string{"sh", "-c", "set -eu; mkdir -p /work /var/lib/unibox/runs; chown -R agent:agent /work /var/lib/unibox"}})
 		if err = runLogged(cmd, m.Log); err != nil {
 			return err
 		}
@@ -462,7 +462,7 @@ func (m *Manager) Create(ctx context.Context, req Request) (api.Sandbox, error) 
 
 func (m *Manager) safeBox(ctx context.Context, b api.Sandbox, r Runtime) error {
 	if err := runLogged(r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-s"}, Input: strings.NewReader(guestIdleScript)}), m.Log); err != nil {
-		return Fail(4, "guest_busy", "sandbox %s may still have a running guest session; inspect it with atbox shell", b.Name)
+		return Fail(4, "guest_busy", "sandbox %s may still have a running guest session; inspect it with unibox shell", b.Name)
 	}
 	for _, t := range b.Tasks {
 		if err := runLogged(r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-s"}, Input: strings.NewReader(safeToRemoveScript(t))}), m.Log); err != nil {

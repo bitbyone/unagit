@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"crypto/sha256"
@@ -89,7 +89,7 @@ func LoadProfile(root, name string) (Profile, error) {
 		return p, err
 	}
 	if root == "" {
-		return p, fmt.Errorf("no environments repository configured; run atbox config set environments <path>")
+		return p, fmt.Errorf("no environments repository configured; run unibox config set environments <path>")
 	}
 	abs, err := ExpandPath(root)
 	if err != nil {
@@ -232,7 +232,7 @@ func LoadProfile(root, name string) (Profile, error) {
 func (p Profile) ApprovalKey() string { return digest([]string{p.Root, p.Name}) }
 func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
 func (p Profile) BuildArgs(runtime string) ([]string, error) {
-	args := []string{"AGENTBOX_RUNTIME=" + runtime, "ATBOX_RUNTIME=" + runtime}
+	args := []string{"AGENTBOX_RUNTIME=" + runtime, "UNIBOX_RUNTIME=" + runtime}
 	f, ok := p.Files[runtime+"/build.args"]
 	if !ok {
 		return args, nil
@@ -243,7 +243,7 @@ func (p Profile) BuildArgs(runtime string) ([]string, error) {
 			continue
 		}
 		k, _, ok := strings.Cut(line, "=")
-		if !ok || !envName.MatchString(k) || sensitiveEnv.MatchString(k) || k == "AGENTBOX_RUNTIME" || k == "ATBOX_RUNTIME" {
+		if !ok || !envName.MatchString(k) || sensitiveEnv.MatchString(k) || k == "AGENTBOX_RUNTIME" || k == "UNIBOX_RUNTIME" {
 			return nil, fmt.Errorf("invalid build argument %q; use NAME=value without credentials", k)
 		}
 		args = append(args, line)
@@ -251,7 +251,7 @@ func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	return args, nil
 }
 
-const BaseInstructions = `# Atbox sandbox
+const BaseInstructions = `# Unibox sandbox
 
 You work in private clones inside a sandbox. Other tasks may share this sandbox;
 leave their directories and processes alone. Host workspaces are not mounted.

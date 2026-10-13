@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -12,18 +12,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
-const pluginID = "atbox"
+const pluginID = "unibox"
 
 func PluginManifest(binary string) string {
 	command := "[" + strconv.Quote(binary) + ", \"herdr\", \"ensure\"]"
-	return `id = "atbox"
-name = "Atbox"
+	return `id = "unibox"
+name = "Unibox"
 version = "0.1.0"
 min_herdr_version = "0.9.1"
-description = "Report coding agents running in atbox sandboxes"
+description = "Report coding agents running in unibox sandboxes"
 platforms = ["macos", "linux"]
 
 [[startup]]
@@ -129,7 +129,7 @@ func (m *Manager) EnsureObserver() error {
 	if socket == "" || state == "" {
 		return fmt.Errorf("herdr observer needs HERDR_SOCKET_PATH and HERDR_PLUGIN_STATE_DIR; install the plugin in herdr")
 	}
-	lock, err := LockFile(filepath.Join(state, "atbox-"+digest(socket)[:16]+".lock"), false, false)
+	lock, err := LockFile(filepath.Join(state, "unibox-"+digest(socket)[:16]+".lock"), false, false)
 	if err != nil {
 		return nil
 	}
@@ -141,7 +141,7 @@ func (m *Manager) EnsureObserver() error {
 	if err = os.MkdirAll(state, 0o700); err != nil {
 		return err
 	}
-	log, err := os.OpenFile(filepath.Join(state, "atbox.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	log, err := os.OpenFile(filepath.Join(state, "unibox.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
@@ -201,10 +201,10 @@ func (m *Manager) observeOnce(ctx context.Context, socket, stateDir string, prev
 	for pane, old := range previous {
 		run, ok := current[pane]
 		if !ok || run.ID != old.Run.ID {
-			if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "release-agent", pane, "--source", "atbox", "--agent", old.Run.Agent)); err != nil {
+			if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "release-agent", pane, "--source", "unibox", "--agent", old.Run.Agent)); err != nil {
 				return err
 			}
-			_, _ = commandOutput(herdrCommand(ctx, socket, "pane", "report-metadata", pane, "--source", "atbox", "--clear-title"))
+			_, _ = commandOutput(herdrCommand(ctx, socket, "pane", "report-metadata", pane, "--source", "unibox", "--clear-title"))
 			delete(previous, pane)
 		}
 	}
@@ -237,10 +237,10 @@ func (m *Manager) observeOnce(ctx context.Context, socket, stateDir string, prev
 		if old, ok := previous[pane]; ok && old.Run.ID == run.ID && old.State == status.State {
 			continue
 		}
-		if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "report-agent", pane, "--source", "atbox", "--agent", run.Agent, "--state", status.State)); err != nil {
+		if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "report-agent", pane, "--source", "unibox", "--agent", run.Agent, "--state", status.State)); err != nil {
 			continue
 		}
-		if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "report-metadata", pane, "--source", "atbox", "--applies-to-source", "atbox", "--title", run.Sandbox)); err != nil {
+		if _, err = commandOutput(herdrCommand(ctx, socket, "pane", "report-metadata", pane, "--source", "unibox", "--applies-to-source", "unibox", "--title", run.Sandbox)); err != nil {
 			continue
 		}
 		previous[pane] = observed{run, status.State}
@@ -253,7 +253,7 @@ func (m *Manager) Observe(ctx context.Context) error {
 	if socket == "" || state == "" {
 		return fmt.Errorf("observer runs only inside herdr")
 	}
-	lock, err := LockFile(filepath.Join(state, "atbox-"+digest(socket)[:16]+".lock"), false, false)
+	lock, err := LockFile(filepath.Join(state, "unibox-"+digest(socket)[:16]+".lock"), false, false)
 	if err != nil {
 		return nil
 	}

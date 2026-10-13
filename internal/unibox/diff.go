@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func (m *Manager) Diff(ctx context.Context, name, runtime string, out io.Writer)
 	if err != nil {
 		return err
 	}
-	dir, err := os.MkdirTemp("", "atbox-diff-")
+	dir, err := os.MkdirTemp("", "unibox-diff-")
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (m *Manager) Diff(ctx context.Context, name, runtime string, out io.Writer)
 		}
 		for name, file := range files {
 			if !safeRelative(name) {
-				return fmt.Errorf("invalid saved build path; inspect atbox state")
+				return fmt.Errorf("invalid saved build path; inspect unibox state")
 			}
 			if err = AtomicWrite(filepath.Join(root, name), file.Data, os.FileMode(file.Mode)); err != nil {
 				return err

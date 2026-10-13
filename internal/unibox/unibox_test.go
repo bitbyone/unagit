@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"bytes"
@@ -13,8 +13,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tobola/unagit/internal/atbox/api"
 	"github.com/tobola/unagit/internal/testenv"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func TestMain(m *testing.M) {
@@ -135,7 +135,7 @@ func TestRuntimeBuildArgumentsStaySeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "ATBOX_RUNTIME=sbx") || !strings.Contains(joined, "BASE=example/sbx") || strings.Contains(joined, "example/podman") {
+	if !strings.Contains(joined, "UNIBOX_RUNTIME=sbx") || !strings.Contains(joined, "BASE=example/sbx") || strings.Contains(joined, "example/podman") {
 		t.Fatal(args)
 	}
 	write(t, filepath.Join(root, "node", "sbx", "extra"), "bad")
@@ -256,7 +256,7 @@ func (f *fakeRuntime) Exec(ctx context.Context, name string, c Command) *exec.Cm
 	boxRoot := filepath.Join(f.root, name)
 	_ = os.MkdirAll(filepath.Join(boxRoot, "home"), 0o700)
 	replace := func(s string) string {
-		s = strings.ReplaceAll(s, "/var/lib/atbox", filepath.Join(boxRoot, "state"))
+		s = strings.ReplaceAll(s, "/var/lib/unibox", filepath.Join(boxRoot, "state"))
 		s = strings.ReplaceAll(s, "/work", filepath.Join(boxRoot, "work"))
 		s = strings.ReplaceAll(s, "/proc/sys/kernel/random/boot_id", filepath.Join(f.root, "boot"))
 		s = strings.ReplaceAll(s, "chown -R agent:agent", ":")
@@ -321,7 +321,7 @@ func TestSandboxOwnershipAndRuntimeChoice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.Runtime != "fake" || b.RuntimeName != "atbox-dev" || b.RuntimeID == "" {
+	if b.Runtime != "fake" || b.RuntimeName != "unibox-dev" || b.RuntimeID == "" {
 		t.Fatal(b)
 	}
 	if _, _, _, err = m.Definition(Request{Sandbox: "dev", Runtime: "sbx"}); err == nil {
@@ -431,7 +431,7 @@ func TestInstructionChangesWaitWithoutRebuildingOrRecreating(t *testing.T) {
 
 func TestBuildBoundary(t *testing.T) {
 	t.Parallel()
-	cmd := exec.Command("go", "list", "-deps", "-json", "../../cmd/atbox")
+	cmd := exec.Command("go", "list", "-deps", "-json", "../../cmd/unibox")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -446,8 +446,8 @@ func TestBuildBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.HasPrefix(p.ImportPath, "github.com/tobola/unagit/") && !strings.HasPrefix(p.ImportPath, "github.com/tobola/unagit/internal/atbox") && p.ImportPath != "github.com/tobola/unagit/cmd/atbox" {
-			t.Errorf("atbox imports unagit package %s", p.ImportPath)
+		if strings.HasPrefix(p.ImportPath, "github.com/tobola/unagit/") && !strings.HasPrefix(p.ImportPath, "github.com/tobola/unagit/internal/unibox") && p.ImportPath != "github.com/tobola/unagit/cmd/unibox" {
+			t.Errorf("unibox imports unagit package %s", p.ImportPath)
 		}
 	}
 }

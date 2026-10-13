@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"encoding/base64"
@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func writeGuest(file string, data []byte, mode string) string {
@@ -20,13 +20,13 @@ func initializeScript(p Profile, instructions string) string {
 		s += "mkdir -p \"$HOME/" + path.Dir(a.Instructions) + "\"\nprintf %s " + Quote(base64.StdEncoding.EncodeToString([]byte(instructions))) + " | base64 -d > \"$HOME/" + a.Instructions + "\"\n"
 	}
 	if p.Start != "" {
-		s += writeGuest("/var/lib/atbox/start.sh", p.Files[p.Start].Data, "700")
+		s += writeGuest("/var/lib/unibox/start.sh", p.Files[p.Start].Data, "700")
 	}
-	s += "boot=$(cat /proc/sys/kernel/random/boot_id)\nprevious=$(cat /var/lib/atbox/started 2>/dev/null || true)\nif [ \"$boot\" != \"$previous\" ]; then\n"
+	s += "boot=$(cat /proc/sys/kernel/random/boot_id)\nprevious=$(cat /var/lib/unibox/started 2>/dev/null || true)\nif [ \"$boot\" != \"$previous\" ]; then\n"
 	if p.Start != "" {
-		s += "  /bin/sh /var/lib/atbox/start.sh\n"
+		s += "  /bin/sh /var/lib/unibox/start.sh\n"
 	}
-	s += "  printf '%s\\n' \"$boot\" > /var/lib/atbox/started\nfi\n"
+	s += "  printf '%s\\n' \"$boot\" > /var/lib/unibox/started\nfi\n"
 	return s
 }
 
@@ -44,15 +44,15 @@ tip=$(printf '%s\n' "$refs" | awk -v ref="refs/heads/$branch" '$2 == ref {print 
 [ "$branch" != "$default" ] || { echo 'default branch refused; make a work branch first' >&2; exit 4; }
 [ -n "$tip" ] || { echo 'branch does not exist on the forge; push it first' >&2; exit 4; }
 if [ ! -d "$dir" ]; then
-  tmp="$dir.atbox-clone"
-  [ ! -e "$tmp" ] || { echo 'incomplete clone remains; inspect it in atbox shell and remove it before retrying' >&2; exit 4; }
+  tmp="$dir.unibox-clone"
+  [ ! -e "$tmp" ] || { echo 'incomplete clone remains; inspect it in unibox shell and remove it before retrying' >&2; exit 4; }
   git clone --filter=blob:none --single-branch --branch "$branch" -- "$url" "$tmp"
   mv "$tmp" "$dir"
 else
-  [ -d "$dir/.git" ] || { echo 'task directory is not a clone; inspect it in atbox shell' >&2; exit 4; }
-  [ "$(git -C "$dir" remote get-url origin)" = "$url" ] || { echo 'task origin changed; inspect it in atbox shell' >&2; exit 4; }
-  [ "$(git -C "$dir" symbolic-ref --short HEAD)" = "$branch" ] || { echo 'task branch changed; restore it in atbox shell' >&2; exit 4; }
-  [ -z "$(git -C "$dir" status --porcelain --untracked-files=all)" ] || { echo 'task has local edits; finish them in atbox shell before preparing again' >&2; exit 4; }
+  [ -d "$dir/.git" ] || { echo 'task directory is not a clone; inspect it in unibox shell' >&2; exit 4; }
+  [ "$(git -C "$dir" remote get-url origin)" = "$url" ] || { echo 'task origin changed; inspect it in unibox shell' >&2; exit 4; }
+  [ "$(git -C "$dir" symbolic-ref --short HEAD)" = "$branch" ] || { echo 'task branch changed; restore it in unibox shell' >&2; exit 4; }
+  [ -z "$(git -C "$dir" status --porcelain --untracked-files=all)" ] || { echo 'task has local edits; finish them in unibox shell before preparing again' >&2; exit 4; }
   git -C "$dir" fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch"
   git -C "$dir" merge-base --is-ancestor HEAD "refs/remotes/origin/$branch" || { echo 'task has unpushed or divergent commits; preserve them before continuing' >&2; exit 4; }
   git -C "$dir" merge --ff-only "refs/remotes/origin/$branch"
@@ -62,8 +62,8 @@ fi
 		b.WriteString("git -C \"$dir\" config push.default simple\n")
 		if p.Git.CoAuthor == nil || *p.Git.CoAuthor {
 			hook := "#!/bin/sh\nset -eu\ngit interpret-trailers --in-place --if-exists addIfDifferent --trailer " + Quote("Co-Authored-By: "+a.CoAuthor) + " \"$1\"\n"
-			b.WriteString(writeGuest(path.Join(dir, ".git", "atbox-hooks", "commit-msg"), []byte(hook), "700"))
-			fmt.Fprintf(&b, "git -C \"$dir\" config core.hooksPath %s\n", Quote(path.Join(dir, ".git", "atbox-hooks")))
+			b.WriteString(writeGuest(path.Join(dir, ".git", "unibox-hooks", "commit-msg"), []byte(hook), "700"))
+			fmt.Fprintf(&b, "git -C \"$dir\" config core.hooksPath %s\n", Quote(path.Join(dir, ".git", "unibox-hooks")))
 		} else {
 			b.WriteString("git -C \"$dir\" config --unset core.hooksPath || true\n")
 		}
@@ -76,12 +76,12 @@ fi
 
 // A disconnected host process is not proof that its guest process ended.
 const guestIdleScript = `set -eu
-for f in /var/lib/atbox/runs/*; do
+for f in /var/lib/unibox/runs/*; do
   [ -f "$f" ] || continue
   read -r pid born < "$f"
   now=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || true)
   if [ -n "$now" ] && [ "$now" = "$born" ]; then
-    echo 'a guest session is still running; inspect it with atbox shell' >&2
+    echo 'a guest session is still running; inspect it with unibox shell' >&2
     exit 4
   fi
 done
@@ -113,7 +113,7 @@ fi
 }
 
 func sessionScript(id string, args []string) string {
-	s := "set -u\nmkdir -p /var/lib/atbox/runs\nborn=$(awk '{print $22}' /proc/$$/stat)\nprintf '%s %s\\n' \"$$\" \"$born\" > " + Quote("/var/lib/atbox/runs/"+id) + "\ntrap " + Quote("rm -f "+Quote("/var/lib/atbox/runs/"+id)) + " EXIT\n"
+	s := "set -u\nmkdir -p /var/lib/unibox/runs\nborn=$(awk '{print $22}' /proc/$$/stat)\nprintf '%s %s\\n' \"$$\" \"$born\" > " + Quote("/var/lib/unibox/runs/"+id) + "\ntrap " + Quote("rm -f "+Quote("/var/lib/unibox/runs/"+id)) + " EXIT\n"
 	for _, arg := range args {
 		s += Quote(arg) + " "
 	}

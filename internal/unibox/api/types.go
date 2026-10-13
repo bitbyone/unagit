@@ -1,4 +1,4 @@
-// Package api is the versioned command-line contract shared with atbox clients.
+// Package api is the versioned command-line contract shared with unibox clients.
 package api
 
 import "time"

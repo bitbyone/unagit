@@ -7,7 +7,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func (o *options) herdrCommand() *cobra.Command {
@@ -16,7 +16,7 @@ func (o *options) herdrCommand() *cobra.Command {
 		return o.write(map[string]any{"api_version": api.Version, "plugin": o.manager.PluginStatus(cmd.Context())})
 	}})
 	c.AddCommand(&cobra.Command{Use: "install-plugin", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		if err := o.confirm("Install the atbox herdr plugin and its background observer?"); err != nil {
+		if err := o.confirm("Install the unibox herdr plugin and its background observer?"); err != nil {
 			return err
 		}
 		if err := o.manager.InstallPlugin(cmd.Context()); err != nil {
@@ -25,7 +25,7 @@ func (o *options) herdrCommand() *cobra.Command {
 		return o.success("herdr plugin installed")
 	}})
 	c.AddCommand(&cobra.Command{Use: "uninstall-plugin", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		if err := o.confirm("Uninstall the atbox herdr plugin?"); err != nil {
+		if err := o.confirm("Uninstall the unibox herdr plugin?"); err != nil {
 			return err
 		}
 		if err := o.manager.UninstallPlugin(cmd.Context()); err != nil {

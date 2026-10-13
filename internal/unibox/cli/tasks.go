@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tobola/unagit/internal/atbox"
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 // Cobra calls a flag's Value in argument order. Keeping that order here makes
 // one leading branch a default and a later branch belong only to its repository.
 type orderedValue struct {
-	req    *atbox.Request
+	req    *unibox.Request
 	branch bool
 }
 
@@ -28,8 +28,8 @@ func (v *orderedValue) Set(value string) error {
 		}
 		return nil
 	}
-	in := atbox.RepoInput{Source: value}
-	if name, source, ok := strings.Cut(value, "="); ok && atbox.ValidName(name) == nil {
+	in := unibox.RepoInput{Source: value}
+	if name, source, ok := strings.Cut(value, "="); ok && unibox.ValidName(name) == nil {
 		in.Name = name
 		in.Source = source
 	}
@@ -37,7 +37,7 @@ func (v *orderedValue) Set(value string) error {
 	return nil
 }
 
-func taskFlags(c *cobra.Command, r *atbox.Request) {
+func taskFlags(c *cobra.Command, r *unibox.Request) {
 	f := c.Flags()
 	f.StringVar(&r.Sandbox, "sandbox", "", "Existing sandbox name")
 	f.StringVar(&r.NewSandbox, "new-sandbox", "", "Create a sandbox with this name")
@@ -73,7 +73,7 @@ func needsStatus(needs []api.Need) int {
 	return 0
 }
 
-func (o *options) preflight(cmd *cobra.Command, r *atbox.Request) error {
+func (o *options) preflight(cmd *cobra.Command, r *unibox.Request) error {
 	for attempt := 0; attempt < 4; attempt++ {
 		check, err := o.manager.Check(cmd.Context(), *r)
 		if err != nil {
@@ -102,7 +102,7 @@ func (o *options) preflight(cmd *cobra.Command, r *atbox.Request) error {
 					fmt.Fprintln(o.log, string(b))
 				}
 				if !o.ask("Approve host access for profile " + p.Name + "?") {
-					return atbox.Fail(2, n.Code, "%s", n.Message)
+					return unibox.Fail(2, n.Code, "%s", n.Message)
 				}
 				if err = o.manager.Approve(p.Name); err != nil {
 					return err
@@ -114,13 +114,13 @@ func (o *options) preflight(cmd *cobra.Command, r *atbox.Request) error {
 					return err
 				}
 				if o.json {
-					return atbox.Fail(3, n.Code, "%s", n.Message)
+					return unibox.Fail(3, n.Code, "%s", n.Message)
 				}
 				if err = o.manager.Diff(cmd.Context(), p.Name, rt.Name(), o.log); err != nil {
 					return err
 				}
 				if !o.yes && !o.ask("Build profile "+p.Name+"?") {
-					return atbox.Fail(3, n.Code, "%s", n.Message)
+					return unibox.Fail(3, n.Code, "%s", n.Message)
 				}
 				if err = o.manager.Build(cmd.Context(), p.Name, rt.Name(), false); err != nil {
 					return err
@@ -134,14 +134,14 @@ func (o *options) preflight(cmd *cobra.Command, r *atbox.Request) error {
 					r.IgnoreLocal = true
 					changed = true
 				} else {
-					return atbox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
+					return unibox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
 				}
 			case "branch_not_pushed":
 				if !r.Push {
-					return atbox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
+					return unibox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
 				}
 			default:
-				return atbox.Fail(4, n.Code, "%s", n.Message)
+				return unibox.Fail(4, n.Code, "%s", n.Message)
 			}
 		}
 		if !changed {
@@ -152,7 +152,7 @@ func (o *options) preflight(cmd *cobra.Command, r *atbox.Request) error {
 }
 
 func (o *options) taskCommand(name string) *cobra.Command {
-	var req atbox.Request
+	var req unibox.Request
 	c := &cobra.Command{Use: name + " [directory...] [-- agent-args...]", Short: map[string]string{"check": "Explain what a task needs before it can start", "prepare": "Prepare independent forge clones inside a sandbox", "run": "Prepare or resume a task and run its agent in this terminal"}[name]}
 	taskFlags(c, &req)
 	c.RunE = func(cmd *cobra.Command, args []string) error {
@@ -165,10 +165,10 @@ func (o *options) taskCommand(name string) *cobra.Command {
 			return fmt.Errorf("only run accepts agent arguments after --")
 		}
 		for _, dir := range args {
-			req.Repositories = append(req.Repositories, atbox.RepoInput{Source: dir})
+			req.Repositories = append(req.Repositories, unibox.RepoInput{Source: dir})
 		}
 		if len(req.Repositories) == 0 && req.Task == "" {
-			req.Repositories = []atbox.RepoInput{{Source: "."}}
+			req.Repositories = []unibox.RepoInput{{Source: "."}}
 		}
 		if name == "check" {
 			check, err := o.manager.Check(cmd.Context(), req)
@@ -215,7 +215,7 @@ func (o *options) taskCommand(name string) *cobra.Command {
 }
 
 func (o *options) createCommand() *cobra.Command {
-	var req atbox.Request
+	var req unibox.Request
 	c := &cobra.Command{Use: "create sandbox", Args: cobra.ExactArgs(1), Short: "Create a named environment without mounting a host workspace", RunE: func(cmd *cobra.Command, args []string) error {
 		req.NewSandbox = args[0]
 		if err := o.preflight(cmd, &req); err != nil {

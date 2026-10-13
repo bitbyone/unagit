@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/tobola/unagit/internal/atbox"
 	"github.com/tobola/unagit/internal/testenv"
+	"github.com/tobola/unagit/internal/unibox"
 )
 
 func TestMain(m *testing.M) { testenv.Main(m) }
@@ -31,7 +31,7 @@ func TestBranchOrderSupportsDefaultsAndIndividualOverrides(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var req atbox.Request
+			var req unibox.Request
 			c := &cobra.Command{Use: "test", Run: func(*cobra.Command, []string) {}}
 			taskFlags(c, &req)
 			c.SetArgs(tc.args)
@@ -52,9 +52,9 @@ func TestBranchOrderSupportsDefaultsAndIndividualOverrides(t *testing.T) {
 	}
 }
 
-func cliFixture(t *testing.T) (atbox.Paths, string) {
+func cliFixture(t *testing.T) (unibox.Paths, string) {
 	t.Helper()
-	paths := atbox.Paths{Config: t.TempDir(), Cache: t.TempDir()}
+	paths := unibox.Paths{Config: t.TempDir(), Cache: t.TempDir()}
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "node"), 0o700); err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func cliFixture(t *testing.T) (atbox.Paths, string) {
 	if err := os.WriteFile(filepath.Join(root, "node", "profile.yaml"), []byte("image: example/image\nagents: [claude]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := paths.SaveConfig(atbox.Config{Environments: root, Runtimes: map[string]atbox.RuntimeConfig{}}); err != nil {
+	if err := paths.SaveConfig(unibox.Config{Environments: root, Runtimes: map[string]unibox.RuntimeConfig{}}); err != nil {
 		t.Fatal(err)
 	}
 	return paths, root

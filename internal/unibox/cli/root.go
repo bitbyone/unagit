@@ -1,4 +1,4 @@
-// Package cli exposes atbox through Cobra, without importing unagit's commands.
+// Package cli exposes unibox through Cobra, without importing unagit's commands.
 package cli
 
 import (
@@ -14,33 +14,33 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"github.com/tobola/unagit/internal/atbox"
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox"
+	"github.com/tobola/unagit/internal/unibox/api"
 	"golang.org/x/term"
 )
 
 type options struct {
-	paths       atbox.Paths
+	paths       unibox.Paths
 	json, yes   bool
 	input       io.Reader
 	output, log io.Writer
-	manager     *atbox.Manager
+	manager     *unibox.Manager
 	interactive bool
 }
 
-func New(paths atbox.Paths, in io.Reader, out, errout io.Writer) *cobra.Command {
+func New(paths unibox.Paths, in io.Reader, out, errout io.Writer) *cobra.Command {
 	o := &options{paths: paths, input: in, output: out, log: errout}
 	if f, ok := in.(*os.File); ok {
 		o.interactive = term.IsTerminal(int(f.Fd()))
 	}
-	root := &cobra.Command{Use: "atbox", Short: "Run coding agents in independent sandbox environments", SilenceErrors: true, SilenceUsage: true, Version: "0.1.0"}
+	root := &cobra.Command{Use: "unibox", Short: "Run coding agents in independent sandbox environments", SilenceErrors: true, SilenceUsage: true, Version: "0.1.0"}
 	root.SetIn(in)
 	root.SetOut(out)
 	root.SetErr(errout)
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "Write versioned JSON without prompting")
 	root.PersistentFlags().BoolVarP(&o.yes, "yes", "y", false, "Accept operation prompts (does not approve host access or discard work)")
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		m, err := atbox.Open(paths, errout)
+		m, err := unibox.Open(paths, errout)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func New(paths atbox.Paths, in io.Reader, out, errout io.Writer) *cobra.Command 
 }
 
 func Execute(ctx context.Context, args []string, in io.Reader, out, errout io.Writer) int {
-	paths, err := atbox.DefaultPaths()
+	paths, err := unibox.DefaultPaths()
 	if err != nil {
 		fmt.Fprintln(errout, err)
 		return 1
@@ -68,7 +68,7 @@ func Execute(ctx context.Context, args []string, in io.Reader, out, errout io.Wr
 	}
 	status := 1
 	code := "error"
-	var failure *atbox.Failure
+	var failure *unibox.Failure
 	if errors.As(err, &failure) {
 		status = failure.Status
 		code = failure.Code
@@ -81,7 +81,7 @@ func Execute(ctx context.Context, args []string, in io.Reader, out, errout io.Wr
 	if jsonMode {
 		_ = json.NewEncoder(out).Encode(api.Error{APIVersion: api.Version, Code: code, Message: err.Error()})
 	} else {
-		fmt.Fprintln(errout, "atbox:", err)
+		fmt.Fprintln(errout, "unibox:", err)
 	}
 	return status
 }
@@ -110,11 +110,11 @@ func (o *options) confirm(question string) error {
 	if o.yes || o.ask(question) {
 		return nil
 	}
-	return atbox.Fail(4, "confirmation_required", "%s; rerun with --yes to confirm", strings.ToLower(question))
+	return unibox.Fail(4, "confirmation_required", "%s; rerun with --yes to confirm", strings.ToLower(question))
 }
 
 func (o *options) configCommand() *cobra.Command {
-	c := &cobra.Command{Use: "config", Short: "Read or change atbox's own configuration"}
+	c := &cobra.Command{Use: "config", Short: "Read or change unibox's own configuration"}
 	c.AddCommand(&cobra.Command{Use: "get [key]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := o.manager.Config
 		var value any = cfg
@@ -142,14 +142,14 @@ func (o *options) configCommand() *cobra.Command {
 		key, value := args[0], args[1]
 		switch key {
 		case "environments":
-			path, err := atbox.ExpandPath(value)
+			path, err := unibox.ExpandPath(value)
 			if err != nil {
 				return err
 			}
 			cfg.Environments = path
 		case "default_runtime":
 			if _, ok := o.manager.Runtimes[value]; !ok {
-				return fmt.Errorf("unknown runtime %s; use atbox runtimes", value)
+				return fmt.Errorf("unknown runtime %s; use unibox runtimes", value)
 			}
 			cfg.DefaultRuntime = value
 		default:
@@ -182,7 +182,7 @@ func (o *options) configCommand() *cobra.Command {
 	}})
 	return c
 }
-func configValue(c atbox.Config, key string) (any, error) {
+func configValue(c unibox.Config, key string) (any, error) {
 	switch key {
 	case "environments":
 		return c.Environments, nil
@@ -303,7 +303,7 @@ func (o *options) instructionsCommand() *cobra.Command {
 		} else {
 			return fmt.Errorf("pass a profile or --sandbox")
 		}
-		p, err := atbox.LoadProfile(o.manager.Config.Environments, profile)
+		p, err := unibox.LoadProfile(o.manager.Config.Environments, profile)
 		if err != nil {
 			return err
 		}
@@ -328,7 +328,7 @@ func (o *options) instructionsCommand() *cobra.Command {
 }
 
 func (o *options) listCommand() *cobra.Command {
-	return &cobra.Command{Use: "ls", Args: cobra.NoArgs, Short: "List atbox's sandboxes and their runtime state", RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "ls", Args: cobra.NoArgs, Short: "List unibox's sandboxes and their runtime state", RunE: func(cmd *cobra.Command, args []string) error {
 		boxes, err := o.manager.List(cmd.Context())
 		if err != nil {
 			return err

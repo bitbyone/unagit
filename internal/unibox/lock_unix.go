@@ -1,6 +1,6 @@
 //go:build !windows
 
-package atbox
+package unibox
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ func LockFile(path string, shared, wait bool) (*FileLock, error) {
 	}
 	if err = syscall.Flock(int(f.Fd()), op); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("resource is busy; wait for the active atbox operation to finish: %w", err)
+		return nil, fmt.Errorf("resource is busy; wait for the active unibox operation to finish: %w", err)
 	}
 	return &FileLock{f}, nil
 }

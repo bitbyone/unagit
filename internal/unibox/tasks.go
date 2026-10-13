@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func taskID(repos []api.Repository) string {
@@ -149,7 +149,7 @@ func (m *Manager) prepare(ctx context.Context, req Request, resume bool) (api.Sa
 		if _, exists, err := m.findBox(ctx, r, b); err != nil {
 			return b, api.Task{}, r, nil, nil, err
 		} else if exists {
-			return b, api.Task{}, r, nil, nil, fmt.Errorf("runtime sandbox %s is not owned by atbox; choose another name", b.RuntimeName)
+			return b, api.Task{}, r, nil, nil, fmt.Errorf("runtime sandbox %s is not owned by unibox; choose another name", b.RuntimeName)
 		}
 	}
 	t, err := m.task(ctx, req, &b, p, resume)
@@ -359,7 +359,7 @@ func (m *Manager) Shell(ctx context.Context, name string, in io.Reader, out, err
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("sandbox is missing; run atbox recreate %s", name)
+		return fmt.Errorf("sandbox is missing; run unibox recreate %s", name)
 	}
 	usage, err := m.usage(name, true)
 	guard.Close()
@@ -402,7 +402,7 @@ func (m *Manager) Stop(ctx context.Context, name string) error {
 		return nil
 	}
 	if _, err = runtimeOutput(ctx, r, b.RuntimeName, "sh", "-c", guestIdleScript); err != nil {
-		return Fail(4, "guest_busy", "a guest session may still be active; inspect it with atbox shell")
+		return Fail(4, "guest_busy", "a guest session may still be active; inspect it with unibox shell")
 	}
 	return r.Stop(ctx, b.RuntimeName)
 }

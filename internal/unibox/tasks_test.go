@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tobola/unagit/internal/atbox/api"
+	"github.com/tobola/unagit/internal/unibox/api"
 )
 
 func gitTest(t *testing.T, dir string, args ...string) string {
@@ -94,7 +94,7 @@ func TestTaskClonesFromForgeAndKeepsOwnEdits(t *testing.T) {
 	if prepared.Directory != "/work/refunds" {
 		t.Fatal(prepared)
 	}
-	clone := filepath.Join(f.root, "atbox-dev", "work", "refunds", "payments")
+	clone := filepath.Join(f.root, "unibox-dev", "work", "refunds", "payments")
 	if got := gitTest(t, clone, "branch", "--show-current"); got != "feat/refunds" {
 		t.Fatal(got)
 	}

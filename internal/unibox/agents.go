@@ -1,4 +1,4 @@
-package atbox
+package unibox
 
 import "fmt"
 
@@ -20,5 +20,5 @@ func FindAgent(id string) (Agent, error) {
 			return a, nil
 		}
 	}
-	return Agent{}, fmt.Errorf("unknown agent %q; choose one listed by atbox profiles", id)
+	return Agent{}, fmt.Errorf("unknown agent %q; choose one listed by unibox profiles", id)
 }
