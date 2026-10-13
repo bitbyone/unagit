@@ -167,6 +167,9 @@ func (a *App) showPublishDetailsWith(folder workspace.LocalFolder, draft *worksp
 	a.showFormModalSized("Publish local folder · destination", form, 84, 23)
 }
 
+// reviewWidth is the width the publication review asks for.
+const reviewWidth = 88
+
 func (a *App) showPublicationReady(p *workspace.Publication) {
 	var folder workspace.LocalFolder
 	var changes []gitx.Change
@@ -182,21 +185,30 @@ func (a *App) showPublicationReady(p *workspace.Publication) {
 		form := tview.NewForm()
 		styleForm(form)
 		planned := a.cloneDir(p.Instance, p.Group.FullPath+"/"+p.Request.Name)
-		scope := "Branch " + p.Branch
+		// One line a row, the way a detail pane reads: what matters in its
+		// colour, the words around it muted.
+		scope := "branch " + tag(colBranch) + esc(p.Branch)
 		if p.AllBranches {
-			scope = "All local branches"
+			scope = tag(colBranch) + "all local branches"
 		}
 		if p.Tags {
-			scope += " and tags"
+			scope += tag(colMuted) + " and " + tag(colBranch) + "tags"
 		}
 		if !folder.HasCommits {
-			scope = "Empty repository; no commits to push"
+			scope = tag(colMuted) + "an empty repository, no commits to push"
 		}
-		form.AddTextView("Remote", esc(a.instanceLabel(p.Instance)+" · "+p.Group.FullPath+"/"+p.Request.Name), 0, 2, true, false)
-		form.AddTextView("Publish", esc(scope), 0, 2, true, false)
-		form.AddTextView("Local files", fmt.Sprintf("%d uncommitted file(s) stay local unless committed below", len(changes)), 0, 2, true, false)
-		form.AddTextView("Source", esc(p.Directory), 0, 2, true, false)
-		form.AddTextView("Planned path", esc(planned), 0, 2, true, false)
+		local := tag(colOn) + "nothing uncommitted"
+		if len(changes) != 0 {
+			local = fmt.Sprintf("%s%d uncommitted %s stay local %sunless committed with Changes", tag(colWarn), len(changes), plural(len(changes), "file", "files"), tag(colMuted))
+		}
+		form.AddTextView("Remote", tag(colMuted)+esc(a.instanceLabel(p.Instance))+" · "+tag(colAccent)+esc(p.Group.FullPath+"/"+p.Request.Name), 0, 1, true, false)
+		form.AddTextView("Publish", tag(colText)+scope, 0, 1, true, false)
+		form.AddTextView("Local files", local, 0, 1, true, false)
+		// A row is one line, so a path longer than the dialog is shortened by
+		// what tells it apart; wrapped, tview would show only its last line.
+		room := min(reviewWidth, a.screenWidth()) - len("Planned path") - 7
+		form.AddTextView("Source", tag(colText)+esc(shortenPath(tildePath(p.Directory), room)), 0, 1, true, false)
+		form.AddTextView("Planned path", tag(colText)+esc(shortenPath(tildePath(planned), room)), 0, 1, true, false)
 		form.AddButton("Publish", func() {
 			a.closeModal(pageForm)
 			a.publishFolder(p)
@@ -211,7 +223,7 @@ func (a *App) showPublicationReady(p *workspace.Publication) {
 		}
 		form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 		form.SetFocus(form.GetFormItemCount())
-		a.showFormModalSized("Publish local folder · review", form, 88, 21)
+		a.showFormModalSized("Publish local folder · review", form, reviewWidth, 16)
 	})
 }
 
