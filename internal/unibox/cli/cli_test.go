@@ -168,7 +168,7 @@ func TestInitLaysTheRepositoryOutAndKeepsWhatExists(t *testing.T) {
 		t.Fatal("the runner is not executable")
 	}
 	// A second init adds a profile and keeps every existing file as it is.
-	if err := os.WriteFile(filepath.Join(root, "_shared", "installations", "base.sh"), []byte("#!/bin/sh\necho mine\n"), 0o755); err != nil {
+	if err := testenv.WriteExecutable(filepath.Join(root, "_shared", "installations", "base.sh"), []byte("#!/bin/sh\necho mine\n")); err != nil {
 		t.Fatal(err)
 	}
 	c = New(paths, strings.NewReader(""), io.Discard, io.Discard)
