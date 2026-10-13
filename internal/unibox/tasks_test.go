@@ -274,6 +274,33 @@ func TestAgentConfigSeedMergesAndKeepsAgentState(t *testing.T) {
 	}
 }
 
+func TestPushCreatesABranchOnTheForgeFromAURL(t *testing.T) {
+	t.Parallel()
+	remote, _ := remoteFixture(t)
+	url := "https://forge-url-push.invalid/team/payments.git"
+	gitTest(t, ".", "config", "--global", "url.file://"+remote+".insteadOf", url)
+	ctx := context.Background()
+	req := Request{Repositories: []RepoInput{{Source: url, Branch: "feat/from-url"}}, Push: true, Author: "Person <person@example.com>"}
+	repos, needs, err := ResolveRepositories(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(needs) != 0 {
+		t.Fatalf("url repository raised host needs: %+v", needs)
+	}
+	if err = PushRepositories(ctx, repos); err != nil {
+		t.Fatal(err)
+	}
+	main := gitTest(t, remote, "rev-parse", "refs/heads/main")
+	if got := gitTest(t, remote, "rev-parse", "refs/heads/feat/from-url"); got != main {
+		t.Fatalf("forge branch is not the default tip: %s != %s", got, main)
+	}
+	// A second push finds the branch and leaves it alone.
+	if err = PushRepositories(ctx, repos); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox(t *testing.T) {
 	t.Parallel()
 	m, f := managerFixture(t)

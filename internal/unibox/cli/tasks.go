@@ -47,7 +47,7 @@ func taskFlags(c *cobra.Command, r *unibox.Request) {
 	f.StringVar(&r.Task, "task", "", "Task name to prepare or resume")
 	f.StringVar(&r.Author, "author", "", "Commit author, as Name <email>")
 	f.StringSliceVar(&r.Instructions, "instructions", nil, "Named instruction texts for a new sandbox")
-	f.BoolVar(&r.Push, "push", false, "Push selected local branches before preparation (never force)")
+	f.BoolVar(&r.Push, "push", false, "Push selected local branches; create one nobody has from the local HEAD, or a URL's default tip (never force)")
 	f.BoolVar(&r.IgnoreLocal, "ignore-local", false, "Use the forge version despite uncommitted or unpushed local changes")
 	f.Var(&orderedValue{req: r}, "repo", "Repository path or HTTPS URL, optionally name=source (repeatable)")
 	f.Var(&orderedValue{req: r, branch: true}, "branch", "Before all repos: shared branch; after a repo: override only that repo")

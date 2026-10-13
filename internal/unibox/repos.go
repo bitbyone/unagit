@@ -158,20 +158,9 @@ func ResolveRepositories(ctx context.Context, req Request) ([]api.Repository, []
 			return nil, nil, err
 		}
 		if local {
-			out, err := git(ctx, r.HostPath, "ls-remote", "--symref", r.URL, "HEAD", "refs/heads/"+r.Branch)
+			defaultBranch, remoteTip, err := remoteRefs(ctx, r.HostPath, r.URL, r.Branch)
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot check remote branch for %s; check forge access: %w", r.Name, err)
-			}
-			remoteTip := ""
-			defaultBranch := ""
-			for _, line := range strings.Split(out, "\n") {
-				fields := strings.Fields(line)
-				if len(fields) == 3 && fields[0] == "ref:" && fields[2] == "HEAD" {
-					defaultBranch = strings.TrimPrefix(fields[1], "refs/heads/")
-				}
-				if len(fields) == 2 && fields[1] == "refs/heads/"+r.Branch {
-					remoteTip = fields[0]
-				}
 			}
 			if defaultBranch == "" {
 				needs = append(needs, api.Need{Code: "default_branch_unknown", Message: "cannot determine the forge's default branch; check its HEAD configuration", Repository: r.Name})
@@ -196,10 +185,61 @@ func ResolveRepositories(ctx context.Context, req Request) ([]api.Repository, []
 	return repos, needs, nil
 }
 
+// remoteRefs reads the forge's default branch and the chosen branch's tip in
+// one ls-remote, run from dir so a checkout's URL rewrites apply.
+func remoteRefs(ctx context.Context, dir, url, branch string) (string, string, error) {
+	out, err := git(ctx, dir, "ls-remote", "--symref", url, "HEAD", "refs/heads/"+branch)
+	if err != nil {
+		return "", "", err
+	}
+	defaultBranch, tip := "", ""
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 3 && fields[0] == "ref:" && fields[2] == "HEAD" {
+			defaultBranch = strings.TrimPrefix(fields[1], "refs/heads/")
+		}
+		if len(fields) == 2 && fields[1] == "refs/heads/"+branch {
+			tip = fields[0]
+		}
+	}
+	return defaultBranch, tip, nil
+}
+
+// createRemoteBranch starts the chosen branch on the forge from its default
+// tip: --push with a URL repository means exactly that, since there is no
+// host checkout to publish. A branch already on the forge is left alone.
+func createRemoteBranch(ctx context.Context, r api.Repository) error {
+	defaultBranch, tip, err := remoteRefs(ctx, ".", r.URL, r.Branch)
+	if err != nil {
+		return fmt.Errorf("cannot reach %s; check forge access: %w", r.Name, err)
+	}
+	if tip != "" {
+		return nil
+	}
+	if defaultBranch == "" {
+		return fmt.Errorf("cannot determine the default branch of %s; create branch %s on the forge yourself", r.Name, r.Branch)
+	}
+	tmp, err := os.MkdirTemp("", "unibox-branch-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	if _, err = git(ctx, tmp, "clone", "--bare", "--depth", "1", "--branch", defaultBranch, "--", r.URL, "fork.git"); err != nil {
+		return fmt.Errorf("cannot create branch %s of %s: %w", r.Branch, r.Name, err)
+	}
+	if _, err = git(ctx, filepath.Join(tmp, "fork.git"), "push", "origin", "HEAD:refs/heads/"+r.Branch); err != nil {
+		return fmt.Errorf("cannot create branch %s of %s: %w", r.Branch, r.Name, err)
+	}
+	return nil
+}
+
 func PushRepositories(ctx context.Context, repos []api.Repository) error {
 	for _, r := range repos {
 		if r.HostPath == "" {
-			return fmt.Errorf("--push requires local repositories")
+			if err := createRemoteBranch(ctx, r); err != nil {
+				return err
+			}
+			continue
 		}
 		if _, err := git(ctx, r.HostPath, "rev-parse", "--verify", "refs/heads/"+r.Branch); err != nil {
 			// A branch nobody has yet starts on the forge from what the host
