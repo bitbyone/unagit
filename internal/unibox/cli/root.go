@@ -435,6 +435,11 @@ func (o *options) recreateCommand() *cobra.Command {
 		if err := o.confirm("Recreate sandbox " + args[0] + " and discard its caches?"); err != nil {
 			return err
 		}
+		// A login stored after the sandbox is made does not reach it (a
+		// token's placeholder is set at creation), so ask for it first.
+		if err := o.preflight(cmd, &unibox.Request{Sandbox: args[0]}); err != nil {
+			return err
+		}
 		if err := o.manager.Recreate(cmd.Context(), args[0], rebuild); err != nil {
 			return err
 		}
