@@ -980,3 +980,35 @@ unagit:
 6. agentbox's herdr plugin and its install from Integrations.
 7. AGENTS.md's map gains `cmd/agentbox` and `internal/agentbox`; the
    README its section, and one of agentbox's own.
+
+## Kits v3: multi-agent credentials (validated 2026-10-13)
+
+The decision above to take no kits is reversed for one purpose: a v3
+workload kit is how one sandbox gets several agents' credentials. Verified
+by hand (`agent-sandboxes/_spike/personal-kit`): a local kit directory -
+a `# syntax=docker/sandbox-kit:3` descriptor beside a Dockerfile that is
+just `FROM` the profile's built image - creates a sandbox
+(`sbx create --name X ./dir`) whose `credential@1` declarations bind the
+host's stored secrets: the spike sandbox had `SBX_CRED_OPENAI_MODE=oauth`
+over the three-agent personal image. The sbx adapter will generate that
+directory from the profile - the profile stays the one runtime-neutral
+configuration, and a later podman adapter satisfies it its own way.
+
+Facts the implementation stands on:
+
+- The kind of a sandbox is what binds credentials: built-in kinds are v2
+  kits; a single-agent profile already uses its agent's kind (done). v3
+  kits cannot mix with v2 built-ins, so the multi-agent path needs a v3
+  workload, created from a local directory (no registry; local kits are
+  allowed by default).
+- The agents' authoritative declarations - endpoints, sentinels,
+  credential files, onboarding seeds - are docker's example mixins in
+  github.com/docker/sandbox-kit-spec (claude-mixin, codex-mixin, ...).
+  The adapter borrows their credential and lifecycle blocks; the neutral
+  facts (service name, hosts) belong in unibox's agents table.
+- `sbx` ignores `apiKey.inject[].scheme` in v3 kits, so git-over-https
+  basic auth cannot be declared by a kit today; gh works (Bearer on
+  api.github.com). Git push from a multi-agent kit sandbox is the open
+  question; the built-in github service covers it for single-agent kinds.
+- Binding approval is interactive at creation ("no binding authorizes...");
+  unibox must surface that question, not swallow it.
