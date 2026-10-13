@@ -1226,3 +1226,15 @@ func fileNames(files []map[string]string) []string {
 func (c *Client) DeleteBranch(ctx context.Context, p forge.Project, branch string) error {
 	return c.send(ctx, http.MethodDelete, projectPath(p)+"/repository/branches/"+url.PathEscape(branch), nil, nil)
 }
+
+// SetDefaultBranch selects the branch published from a local repository.
+func (c *Client) SetDefaultBranch(ctx context.Context, p forge.Project, branch string) error {
+	var updated forge.Project
+	if err := c.send(ctx, "PUT", projectPath(p), map[string]string{"default_branch": branch}, &updated); err != nil {
+		return err
+	}
+	if updated.DefaultBranch != branch {
+		return fmt.Errorf("the server did not confirm the default branch; retry publication")
+	}
+	return nil
+}

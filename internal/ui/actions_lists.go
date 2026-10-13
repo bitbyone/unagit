@@ -77,6 +77,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 	anyEdit := func() bool { st, known := sync(); return cloned() && (!known || st.Edits+st.Unversioned > 0) }
 	pushable := func() bool { st, known := sync(); return cloned() && (!known || canPush(st)) }
 	acts := []uiAction{
+		{name: "Manage Local Folder…", about: "Continue publishing an adopted folder, keep it here, or move it to its planned directory.", rank: 22,
+			when: func() bool { return a.cfg.State.LocalRepository(pr.Instance, pr.PathWithNamespace) != "" }, run: func() { a.manageLocalFolder(pr) }},
 		a.browseFilesAction(func() { a.browseProject(pr) }),
 		{name: "Open", about: "Open the clone in your default editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
 		a.openAction("repository", pr.PathWithNamespace, openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }}),
@@ -162,6 +164,7 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 		a.runningAgentsAction("Alt-A"),
 		{name: "Refresh All", about: "Ask the servers for the repositories again, and the pipelines of the clones' branches; the list is a cache until then.", keys: "R", rank: 10, run: a.refreshProjects},
 		{name: "New Repository…", about: "Create a repository on a server and clone it.", rank: 20, run: a.showNewRepository},
+		{name: "Publish Local Folder…", about: "Publish a local folder on a server, then keep it here or move it to its planned directory.", rank: 21, run: a.showPublishFolder},
 		{name: "Measure Sizes Again", about: "Measure what every clone takes on disk, its worktrees counted; otherwise only a refresh measures them again.", rank: 40,
 			when: func() bool { return a.wantsSizes(config.ListRepositories) }, run: func() {
 				if !a.wantsSizes(config.ListRepositories) {

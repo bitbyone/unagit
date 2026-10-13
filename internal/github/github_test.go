@@ -899,3 +899,18 @@ func TestOwnerScopesKeepEachQuestionShort(t *testing.T) {
 		t.Errorf("owners lost or misnamed: %q", scopes)
 	}
 }
+
+func TestSetDefaultBranchAfterPublishing(t *testing.T) {
+	t.Parallel()
+	s := newStub(t)
+	s.mux.HandleFunc("/repos/acme/tool", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != "PATCH" || !strings.Contains(string(body), `"default_branch":"trunk"`) {
+			t.Errorf("unexpected request: %s %s", r.Method, body)
+		}
+		fmt.Fprint(w, `{"full_name":"acme/tool","default_branch":"trunk"}`)
+	})
+	if err := s.client().SetDefaultBranch(context.Background(), forge.Project{PathWithNamespace: "acme/tool"}, "trunk"); err != nil {
+		t.Fatal(err)
+	}
+}

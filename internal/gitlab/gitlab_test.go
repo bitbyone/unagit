@@ -716,3 +716,18 @@ func TestSearchProjectsAsksAboutTheUsersOwn(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
+
+func TestSetDefaultBranchAfterPublishing(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != "PUT" || r.URL.Path != "/api/v4/projects/7" || !strings.Contains(string(body), `"default_branch":"trunk"`) {
+			t.Errorf("unexpected request: %s %s %s", r.Method, r.URL.Path, body)
+		}
+		fmt.Fprint(w, `{"id":7,"default_branch":"trunk"}`)
+	}))
+	defer srv.Close()
+	if err := New(srv.URL, "test").SetDefaultBranch(context.Background(), forge.Project{ID: 7}, "trunk"); err != nil {
+		t.Fatal(err)
+	}
+}

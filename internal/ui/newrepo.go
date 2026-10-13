@@ -129,11 +129,7 @@ func (a *App) showNewRepository() {
 
 	form := tview.NewForm()
 	styleForm(form)
-	form.AddInputField(labelRepoName, "", 0, nil, nil)
-	addSelect(form, labelRepoWhere, where, at)
-	form.AddInputField(labelRepoDesc, "", 0, nil, nil)
-	addSelect(form, labelRepoVisibility, labelsOf(visibilityChoices), 0)
-	form.AddInputField(labelRepoBranch, "main", 0, nil, nil)
+	addRepositoryIdentity(form, where, at, "", "main")
 	addCheckbox(form, labelRepoReadme, true)
 	addSelect(form, labelRepoLicense, labelsOf(licenseChoices), 0)
 	addSelect(form, labelRepoGitignore, gitignoreChoices, 0)
@@ -249,4 +245,13 @@ func (a *App) selectProject(want projectKey) bool {
 		}
 	}
 	return false
+}
+
+// Both ways of creating a repository ask the same questions in the same fields.
+func addRepositoryIdentity(form *tview.Form, where []string, at int, name, branch string) {
+	form.AddInputField(labelRepoName, name, 0, nil, nil)
+	addSelect(form, labelRepoWhere, where, at)
+	form.AddInputField(labelRepoDesc, "", 0, nil, nil)
+	addSelect(form, labelRepoVisibility, labelsOf(visibilityChoices), 0)
+	form.AddInputField(labelRepoBranch, branch, 0, nil, nil)
 }

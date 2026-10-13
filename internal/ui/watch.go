@@ -417,7 +417,28 @@ func (f *watchFollower) readHistory() {
 	f.historyStamp = stamp
 	events := f.store.AllHistory(activityLogKept)
 	a := f.app
-	a.tv.QueueUpdateDraw(func() { a.setActivityLog(events) })
+	f.onLoop(func() { a.setActivityLog(events) })
+}
+
+// The event loop may stop between checking the context and queuing a draw.
+// Let the follower release its poller lock even when that draw is never read.
+func (f *watchFollower) onLoop(update func()) {
+	if f.ctx.Err() != nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		f.app.tv.QueueUpdateDraw(func() {
+			if f.ctx.Err() == nil {
+				update()
+			}
+		})
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-f.ctx.Done():
+	}
 }
 
 // moved reports whether a file was written since the last look.
@@ -600,7 +621,7 @@ func (f *watchFollower) deliver() {
 	snap.States = cloneStates(snap.States)
 	snap.Events = slices.Clone(snap.Events)
 	d.watches, d.snap, d.once = watches, snap, true
-	a.tv.QueueUpdateDraw(func() { a.applyWatchState(watches, snap) })
+	f.onLoop(func() { a.applyWatchState(watches, snap) })
 }
 
 // applyWatchState is the interface's side of a turn. The first one after

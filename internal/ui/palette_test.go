@@ -236,6 +236,7 @@ func TestColonListsWhatTheScreenCanDo(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 120, 40)
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "New Repository…")
 	text := a.screenText(sc)

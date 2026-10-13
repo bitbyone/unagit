@@ -44,6 +44,8 @@ type Options struct {
 	Root      string
 	// ProjectDirectory is the exact clone destination, resolved by the caller.
 	ProjectDirectory string
+	// LocalDirectory is an adopted checkout; new worktrees keep the planned layout.
+	LocalDirectory string
 	// ManagedDirectory is a checkout another tool keeps - chezmoi's - which is
 	// used as the main clone instead of making one. Its worktrees still go
 	// where the clone would have been, and the checkout itself is never
@@ -119,6 +121,9 @@ func ReviewDirIn(root, projectPath string, iid int, sourceBranch string) string 
 func (m *Manager) ProjectDir(projectPath string) string {
 	if m.opts.ManagedDirectory != "" {
 		return config.Expand(m.opts.ManagedDirectory)
+	}
+	if m.opts.LocalDirectory != "" {
+		return m.opts.LocalDirectory
 	}
 	return m.cloneDir(projectPath)
 }
@@ -236,6 +241,11 @@ func (m *Manager) ensureMain(p forge.Project) (string, error) {
 // CloneProject leaves an existing checkout alone, including its branch and edits.
 func (m *Manager) CloneProject(p forge.Project) (string, error) {
 	dir := m.ProjectDir(p.PathWithNamespace)
+	if m.opts.LocalDirectory != "" && !m.Managed() {
+		if err := m.CheckLocalProject(p); err != nil {
+			return "", err
+		}
+	}
 	if Exists(dir) {
 		return dir, nil
 	}
