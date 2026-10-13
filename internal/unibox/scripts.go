@@ -112,6 +112,54 @@ fi
 	return b.String()
 }
 
+// codexSetup does for a generated kit what sbx's own codex kit does: codex
+// signs in only through a file of its own, so the proxy's login has to be
+// written there. SBX_CRED_OPENAI_MODE says which login sbx wired: oauth
+// (ChatGPT, through a provider that sends the proxy's placeholder to
+// chatgpt.com), apikey, or none. In none a placeholder would reach OpenAI
+// as it is, so it is taken away and codex asks. What unibox writes into
+// config.toml sits between markers, rewritten each time; the rest is the
+// user's. Top-level keys go before the first table, or TOML would read
+// them as the table's.
+const codexSetup = `home="${CODEX_HOME:-$HOME/.codex}"
+mode="${SBX_CRED_OPENAI_MODE:-none}"
+mkdir -p "$home"
+cfg="$home/config.toml"
+touch "$cfg"
+awk -v mode="$mode" '
+/^# unibox:begin/ { skip = 1; next }
+/^# unibox:end/ { skip = 0; next }
+skip { next }
+/^[ \t]*\[/ { table = 1 }
+!table && (mode == "oauth" || mode == "apikey") && /^[ \t]*forced_login_method[ \t]*=/ { next }
+!table && mode == "oauth" && /^[ \t]*model_provider[ \t]*=/ { next }
+{ print }' "$cfg" > "$cfg.unibox"
+{
+  case "$mode" in
+    oauth|apikey)
+      echo '# unibox:begin - the sandbox proxy signs codex in; rewritten before every session'
+      echo 'forced_login_method = "api"'
+      [ "$mode" = oauth ] && echo 'model_provider = "sandboxd"'
+      echo '# unibox:end'
+      ;;
+  esac
+  cat "$cfg.unibox"
+  if [ "$mode" = oauth ]; then
+    printf '%s\n' '# unibox:begin' '[model_providers.sandboxd]' 'name = "Sandbox Proxy"' 'base_url = "https://chatgpt.com/backend-api/codex"' 'experimental_bearer_token = "oai-oat01-proxy-managed"' 'requires_openai_auth = false' '# unibox:end'
+  fi
+} > "$cfg.new"
+cat "$cfg.new" > "$cfg"
+rm -f "$cfg.new" "$cfg.unibox"
+case "$mode" in
+  oauth|apikey)
+    (umask 077; printf '{\n  "OPENAI_API_KEY": "proxy-managed"\n}\n' > "$home/auth.json")
+    ;;
+  *)
+    if grep -q '"proxy-managed"' "$home/auth.json" 2>/dev/null; then rm -f "$home/auth.json"; fi
+    ;;
+esac
+`
+
 func sessionScript(id string, args []string) string {
 	s := "set -u\nmkdir -p /var/lib/unibox/runs\nborn=$(awk '{print $22}' /proc/$$/stat)\nprintf '%s %s\\n' \"$$\" \"$born\" > " + Quote("/var/lib/unibox/runs/"+id) + "\ntrap " + Quote("rm -f "+Quote("/var/lib/unibox/runs/"+id)) + " EXIT\n"
 	for _, arg := range args {

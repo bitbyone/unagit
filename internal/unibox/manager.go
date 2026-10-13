@@ -32,7 +32,11 @@ func Open(paths Paths, log io.Writer) (*Manager, error) {
 	if log == nil {
 		log = io.Discard
 	}
-	return &Manager{paths, c, map[string]Runtime{"sbx": &SBX{filepath.Join(paths.Cache, "sbx")}}, log}, nil
+	sbx := &SBX{Cache: filepath.Join(paths.Cache, "sbx")}
+	if home, err := os.UserHomeDir(); err == nil {
+		sbx.Bindings = filepath.Join(home, ".config", "sbx", "credentials.yaml")
+	}
+	return &Manager{paths, c, map[string]Runtime{"sbx": sbx}, log}, nil
 }
 
 func (m *Manager) Runtime(name string) (Runtime, error) {

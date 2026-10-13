@@ -11,7 +11,12 @@ import (
 	"strings"
 )
 
-type SBX struct{ Cache string }
+type SBX struct {
+	Cache string
+	// Bindings is sbx's credentials.yaml, where a generated kit's
+	// credentials are approved; empty leaves it alone.
+	Bindings string
+}
 
 func (r *SBX) Name() string               { return "sbx" }
 func (r *SBX) Capabilities() Capabilities { return Capabilities{"vm", true, true, true} }
@@ -93,8 +98,11 @@ func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
 	if len(s.Agents) > 1 {
 		// Several agents: a generated v3 workload kit carries their
 		// credential declarations; built-in v2 kinds cannot be combined.
-		dir, err := r.writeKit(s)
+		dir, err := r.writeKit(s, oauthLogins(ctx, s.Name))
 		if err != nil {
+			return err
+		}
+		if err = writeBindings(r.Bindings, s.Agents, log); err != nil {
 			return err
 		}
 		args = append(args, dir)

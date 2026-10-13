@@ -1,15 +1,19 @@
 package unibox
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/tobola/unagit/internal/testenv"
+	"gopkg.in/yaml.v3"
 )
 
 func mustWriteExecutable(t *testing.T, path string, content []byte) {
@@ -145,5 +149,124 @@ func TestSeveralAgentsCreateFromAGeneratedKit(t *testing.T) {
 	}
 	if r.KitDir("unibox-solo") != "" {
 		t.Fatal("a kit was made for a single agent")
+	}
+}
+
+func TestAGeneratedKitsCredentialsAreApprovedAndOnlyAdded(t *testing.T) {
+	t.Parallel()
+	file := filepath.Join(t.TempDir(), "sbx", "credentials.yaml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("bindings:\n  openai:\n    apiKey:\n      domains: [api.openai.com, mine.example]\n  other:\n    apiKey:\n      domains: [x.example]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var log bytes.Buffer
+	if err := writeBindings(file, []string{"claude", "codex"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Bindings map[string]map[string]struct{ Domains []string }
+	}
+	data, _ := os.ReadFile(file)
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	b := doc.Bindings
+	if !slices.Equal(b["openai"]["apiKey"].Domains, []string{"api.openai.com", "mine.example"}) ||
+		!slices.Equal(b["openai"]["oauth"].Domains, []string{"auth.openai.com", "chatgpt.com"}) ||
+		!slices.Equal(b["anthropic"]["oauth"].Domains, []string{"platform.claude.com"}) ||
+		!slices.Equal(b["other"]["apiKey"].Domains, []string{"x.example"}) || b["github"] != nil {
+		t.Fatalf("%s", data)
+	}
+	if !strings.Contains(log.String(), "openai oauth chatgpt.com") || strings.Contains(log.String(), "apiKey api.openai.com") {
+		t.Fatal(log.String())
+	}
+	log.Reset()
+	if err := writeBindings(file, []string{"claude", "codex"}, &log); err != nil || log.Len() != 0 {
+		t.Fatalf("approved twice: %v %s", err, log.String())
+	}
+	// Every approved domain is one the kit declares, and nothing beyond.
+	for id, want := range sbxKitBindings {
+		for _, d := range append(slices.Clone(want.APIKey), want.OAuth...) {
+			if !strings.Contains(sbxKitCredentials[id], d) {
+				t.Fatalf("%s approves %s, which its declaration does not name", id, d)
+			}
+		}
+	}
+}
+
+func TestCodexIsSignedInByTheSandboxProxy(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	codex := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codex, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(codex, "config.toml")
+	user := "model = \"gpt-5\"\nmodel_provider = \"mine\"\n\n[tui]\nmodel_provider = \"kept\"\n"
+	if err := os.WriteFile(cfg, []byte(user), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run := func(mode string) (string, string) {
+		cmd := exec.Command("sh", "-c", codexSetup)
+		cmd.Env = append(os.Environ(), "HOME="+home, "CODEX_HOME=", "SBX_CRED_OPENAI_MODE="+mode)
+		if out, err := cmd.CombinedOutput(); err != nil || len(out) > 0 {
+			t.Fatalf("%s: %v %s", mode, err, out)
+		}
+		c, _ := os.ReadFile(cfg)
+		a, _ := os.ReadFile(filepath.Join(codex, "auth.json"))
+		return string(c), string(a)
+	}
+	c, a := run("oauth")
+	if again, _ := run("oauth"); again != c {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", c, again)
+	}
+	table := strings.Index(c, "[tui]")
+	for _, want := range []string{"forced_login_method = \"api\"", "model_provider = \"sandboxd\""} {
+		if i := strings.Index(c, want); i < 0 || i > table {
+			t.Fatalf("%q not a top-level key:\n%s", want, c)
+		}
+	}
+	if strings.Contains(c, "\"mine\"") || !strings.Contains(c, "model_provider = \"kept\"") || !strings.Contains(c, "[model_providers.sandboxd]") || strings.Index(c, "[model_providers.sandboxd]") < table {
+		t.Fatalf("%s", c)
+	}
+	if !strings.Contains(a, "\"proxy-managed\"") {
+		t.Fatal(a)
+	}
+	c, a = run("apikey")
+	if strings.Contains(c, "sandboxd") || !strings.Contains(c, "forced_login_method") || a == "" {
+		t.Fatalf("%s %s", c, a)
+	}
+	c, a = run("none")
+	if strings.Contains(c, "unibox") || strings.Contains(c, "forced_login_method") || a != "" {
+		t.Fatalf("none kept the proxy's login:\n%s %s", c, a)
+	}
+	// A login the user made in the sandbox is not the proxy's to take away.
+	if err := os.WriteFile(filepath.Join(codex, "auth.json"), []byte(`{"tokens":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, a = run("none"); a == "" {
+		t.Fatal("removed the user's own login")
+	}
+}
+
+func TestTheStoredOAuthLoginIsDeclaredFirst(t *testing.T) {
+	t.Parallel()
+	agents := []string{"claude", "codex", "copilot"}
+	if got := credentialOrder(agents, nil); !slices.Equal(got, agents) {
+		t.Fatal(got)
+	}
+	if got := credentialOrder(agents, map[string]bool{"openai": true}); !slices.Equal(got, []string{"codex", "claude", "copilot"}) {
+		t.Fatal(got)
+	}
+	r := &SBX{Cache: t.TempDir()}
+	dir, err := r.writeKit(Spec{Name: "unibox-home", Image: "x", Agents: agents}, map[string]bool{"openai": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kit, _ := os.ReadFile(filepath.Join(dir, "unibox-home.yaml"))
+	if o, a := strings.Index(string(kit), "service: openai"), strings.Index(string(kit), "service: anthropic"); o < 0 || a < 0 || o > a {
+		t.Fatalf("sbx would wire Anthropic's OAuth, not the stored one:\n%s", kit)
 	}
 }

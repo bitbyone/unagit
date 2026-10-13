@@ -375,7 +375,11 @@ func (m *Manager) Run(ctx context.Context, req Request, in io.Reader, out, errou
 	if len(t.Repositories) == 1 {
 		dir = path.Join(dir, t.Repositories[0].Name)
 	}
-	cmd := r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-c", sessionScript(run.ID, args)}, Directory: dir, Interactive: true, Input: in, Output: out, Error: errout})
+	script := sessionScript(run.ID, args)
+	if a.Setup != "" {
+		script = "(\n" + a.Setup + ") || echo 'unibox: preparing " + a.ID + " failed; it may ask for a login' >&2\n" + script
+	}
+	cmd := r.Exec(ctx, b.RuntimeName, Command{Args: []string{"sh", "-c", script}, Directory: dir, Interactive: true, Input: in, Output: out, Error: errout})
 	err = RunChild(cmd)
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {

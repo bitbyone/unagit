@@ -1010,18 +1010,28 @@ Facts the implementation stands on:
   basic auth cannot be declared by a kit today; gh works (Bearer on
   api.github.com). Git push from a multi-agent kit sandbox is the open
   question; the built-in github service covers it for single-agent kinds.
-- Binding approval is interactive at creation ("no binding authorizes...");
-  unibox must surface that question, not swallow it.
+- A kit's credential is injected only with a binding in
+  `~/.config/sbx/credentials.yaml` ("no binding authorizes ... the
+  credential was not injected"). sbx 0.47 asked no question at creation,
+  not even on a terminal, so unibox writes the bindings itself when it
+  creates a kit sandbox: each agent's service with exactly the domains its
+  declaration names, added and never removed - what a built-in kind gets
+  without one.
+- sbx keeps one OAuth policy per sandbox, taken from the first credential
+  declaring OAuth whether or not a login is stored for it. The profile's
+  order put Claude first, and the stored ChatGPT login (`sbx secret set
+  openai --oauth`, the one OAuth sbx stores locally) was never wired. The
+  kit declares first the services `sbx secret ls` shows an OAuth login for.
+- Codex signs in only through its own files: before each codex session
+  unibox writes what codex-mixin seeds - `forced_login_method`, the
+  `sandboxd` provider routing to chatgpt.com, an `auth.json` placeholder -
+  from `SBX_CRED_OPENAI_MODE`, between markers in `config.toml`. Claude
+  needs no such step; its kit declaration renders
+  `~/.claude/.credentials.json` in the guest (on a Mac host Claude keeps
+  its login in the keychain, so no such file exists there).
 
 ## Follow-ups (2026-10-13)
 
-- Binding approval: sbx asks interactively at a kit sandbox's creation and
-  unibox runs create without a terminal, so the question is lost. An
-  interactive run/create must let it through; --json/--yes answer it as a
-  need.
-- The generated kit lacks codex's config.toml seed (forced_login_method,
-  the sandboxd model_provider routing to chatgpt.com) - without it codex
-  does not use the bound OAuth. Condense it from codex-mixin.
 - Git-over-https from a kit sandbox is undeclared (sbx ignores
   apiKey.inject scheme in v3); test gh-based pushing, or wait for sbx.
 - Two session-lock tests flake under full parallel load
