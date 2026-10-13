@@ -166,6 +166,49 @@ func TestTaskDefaultBranchAndMissingBranchAreRefusedInsideGuest(t *testing.T) {
 	}
 }
 
+func TestPushCreatesABranchNobodyHasFromTheHostHead(t *testing.T) {
+	t.Parallel()
+	remote, host := remoteFixture(t)
+	url := "https://forge.invalid/team/payments.git"
+	gitTest(t, host, "remote", "set-url", "origin", url)
+	gitTest(t, host, "config", "url.file://"+remote+".insteadOf", url)
+	ctx := context.Background()
+	req := Request{Repositories: []RepoInput{{Source: host}}, Branch: "feat/new", Push: true}
+	repos, needs, err := ResolveRepositories(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing := false
+	for _, n := range needs {
+		if n.Code == "branch_missing" {
+			missing = true
+		}
+	}
+	if !missing {
+		t.Fatalf("a branch nobody has was not reported: %+v", needs)
+	}
+	if err = PushRepositories(ctx, repos); err != nil {
+		t.Fatal(err)
+	}
+	head := gitTest(t, host, "rev-parse", "HEAD")
+	if tip := gitTest(t, host, "ls-remote", "origin", "refs/heads/feat/new"); !strings.HasPrefix(tip, head) {
+		t.Fatalf("forge branch is not the host HEAD: %s", tip)
+	}
+	if got := gitTest(t, host, "branch", "--show-current"); got != "main" {
+		t.Fatalf("host branch changed to %s", got)
+	}
+	if locals := gitTest(t, host, "branch", "--list", "feat/new"); locals != "" {
+		t.Fatalf("a local branch was made: %s", locals)
+	}
+	_, needs, err = ResolveRepositories(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(needs) != 0 {
+		t.Fatalf("created branch still blocked: %+v", needs)
+	}
+}
+
 func TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox(t *testing.T) {
 	t.Parallel()
 	m, f := managerFixture(t)

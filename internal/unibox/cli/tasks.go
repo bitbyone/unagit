@@ -136,7 +136,7 @@ func (o *options) preflight(cmd *cobra.Command, r *unibox.Request) error {
 				} else {
 					return unibox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
 				}
-			case "branch_not_pushed":
+			case "branch_not_pushed", "branch_missing":
 				if !r.Push {
 					return unibox.Fail(4, n.Code, "%s: %s", n.Repository, n.Message)
 				}
