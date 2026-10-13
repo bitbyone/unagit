@@ -18,10 +18,15 @@ import (
 // official example mixins in github.com/docker/sandbox-kit-spec. A sandbox
 // of several agents is created from a generated v3 workload kit carrying
 // these, since v2 built-in kinds cannot be combined.
+// Copilot calls the API host of the user's plan - individual, business or
+// enterprise - besides api.githubcopilot.com. A host the kit does not
+// declare gets the placeholder token as it is, and Copilot answers 400
+// "Authorization header is badly formatted"; sbx's own kits route every
+// one of them to the github service.
 var sbxKitHosts = map[string][]string{
 	"claude":  {"api.anthropic.com:443", "platform.claude.com:443", "claude.com:443"},
 	"codex":   {"api.openai.com:443", "openai.com:443", "auth.openai.com:443", "chatgpt.com:443"},
-	"copilot": {"api.github.com:443", "github.com:443", "api.githubcopilot.com:443", "copilot.github.com:443"},
+	"copilot": {"api.github.com:443", "github.com:443", "api.githubcopilot.com:443", "api.individual.githubcopilot.com:443", "api.business.githubcopilot.com:443", "api.enterprise.githubcopilot.com:443", "copilot.github.com:443"},
 }
 
 var sbxKitCredentials = map[string]string{
@@ -81,6 +86,9 @@ var sbxKitCredentials = map[string]string{
         inject:
           - {domain: api.github.com, header: Authorization, format: "Bearer %s"}
           - {domain: api.githubcopilot.com, header: Authorization, format: "Bearer %s"}
+          - {domain: api.individual.githubcopilot.com, header: Authorization, format: "Bearer %s"}
+          - {domain: api.business.githubcopilot.com, header: Authorization, format: "Bearer %s"}
+          - {domain: api.enterprise.githubcopilot.com, header: Authorization, format: "Bearer %s"}
           - {domain: copilot.github.com, header: Authorization, format: "Bearer %s"}
 `,
 }
@@ -99,7 +107,7 @@ type sbxBinding struct {
 var sbxKitBindings = map[string]sbxBinding{
 	"claude":  {"anthropic", []string{"api.anthropic.com"}, []string{"platform.claude.com"}},
 	"codex":   {"openai", []string{"api.openai.com"}, []string{"auth.openai.com", "chatgpt.com"}},
-	"copilot": {"github", []string{"api.github.com", "api.githubcopilot.com", "copilot.github.com"}, nil},
+	"copilot": {"github", []string{"api.github.com", "api.githubcopilot.com", "api.individual.githubcopilot.com", "api.business.githubcopilot.com", "api.enterprise.githubcopilot.com", "copilot.github.com"}, nil},
 }
 
 // writeBindings adds the agents' approvals to sbx's credentials.yaml. It

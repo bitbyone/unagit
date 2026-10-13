@@ -1035,6 +1035,11 @@ Facts the implementation stands on:
   order put Claude first, and the stored ChatGPT login (`sbx secret set
   openai --oauth`, the one OAuth sbx stores locally) was never wired. The
   kit declares first the services `sbx secret ls` shows an OAuth login for.
+- Copilot calls its plan's API host - api.individual, .business or
+  .enterprise.githubcopilot.com - besides api.githubcopilot.com. An
+  undeclared host gets the placeholder token as it is, and Copilot answers
+  400 "Authorization header is badly formatted"; the kit routes all of
+  them to the github service, as sbx's own kits do.
 - Codex signs in only through its own files: before each codex session
   unibox writes what codex-mixin seeds - `forced_login_method`, the
   `sandboxd` provider routing to chatgpt.com, an `auth.json` placeholder -

@@ -129,7 +129,7 @@ func TestSeveralAgentsCreateFromAGeneratedKit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"service: anthropic", "service: openai", "service: github", "api.anthropic.com:443", "chatgpt.com:443", "api.githubcopilot.com:443", "kind: workload"} {
+	for _, want := range []string{"service: anthropic", "service: openai", "service: github", "api.anthropic.com:443", "chatgpt.com:443", "api.githubcopilot.com:443", "domain: api.individual.githubcopilot.com", "kind: workload"} {
 		if !strings.Contains(string(descriptor), want) {
 			t.Fatalf("descriptor lacks %q:\n%s", want, descriptor)
 		}
