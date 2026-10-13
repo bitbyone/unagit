@@ -1012,3 +1012,22 @@ Facts the implementation stands on:
   question; the built-in github service covers it for single-agent kinds.
 - Binding approval is interactive at creation ("no binding authorizes...");
   unibox must surface that question, not swallow it.
+
+## Follow-ups (2026-10-13)
+
+- Binding approval: sbx asks interactively at a kit sandbox's creation and
+  unibox runs create without a terminal, so the question is lost. An
+  interactive run/create must let it through; --json/--yes answer it as a
+  need.
+- The generated kit lacks codex's config.toml seed (forced_login_method,
+  the sandboxd model_provider routing to chatgpt.com) - without it codex
+  does not use the bound OAuth. Condense it from codex-mixin.
+- Git-over-https from a kit sandbox is undeclared (sbx ignores
+  apiKey.inject scheme in v3); test gh-based pushing, or wait for sbx.
+- Two session-lock tests flake under full parallel load
+  (TestIdleStoppingCountsEverySessionAndOwnsOnlyItsSandbox,
+  TestActiveSessionsBlockRecreateButNotAnotherTask), one failure in a few
+  runs, present before the kit work; alone they always pass. Find the
+  flock race in the fixture.
+- unibox ls could hint at a missing sandbox's row that recreate restores
+  it and rm removes the record.
