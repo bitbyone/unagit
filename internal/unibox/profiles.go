@@ -27,15 +27,20 @@ type HostAccess struct {
 	Env         []string `yaml:"env" json:"env"`
 	Caches      []Cache  `yaml:"caches" json:"caches"`
 	DenyNetwork []string `yaml:"deny_network" json:"deny_network"`
+	// AllowNetwork widens the runtime's egress policy for the sandbox;
+	// deny_network wins where both match.
+	AllowNetwork []string `yaml:"allow_network" json:"allow_network,omitempty"`
 	// Auth is how each agent signs in. It is host access: the runtime keeps
 	// the logins on the host, and a command runs there to fetch a token.
 	Auth map[string]AgentAuth `yaml:"auth" json:"auth,omitempty"`
 }
 
 // AgentAuth is an agent's way to sign in: oauth (the provider's own login,
-// kept by the runtime), api-key (a key the runtime stores), or command (a
-// host command the runtime runs for a token, such as gh auth token). In the
-// profile it is the method's name, or {command: ...}.
+// kept by the runtime), api-key (a key the runtime stores), command (a
+// host command the runtime runs for its key, such as gh auth token), or
+// token (a host command printing a long-lived login token the agent reads
+// from its environment, such as claude setup-token's). In the profile it is
+// the method's name, {command: ...} or {token: ...}.
 type AgentAuth struct {
 	Method  string `json:"method"`
 	Command string `json:"command,omitempty"`
@@ -45,6 +50,7 @@ const (
 	AuthOAuth   = "oauth"
 	AuthAPIKey  = "api-key"
 	AuthCommand = "command"
+	AuthToken   = "token"
 )
 
 func (a *AgentAuth) UnmarshalYAML(n *yaml.Node) error {
@@ -52,10 +58,10 @@ func (a *AgentAuth) UnmarshalYAML(n *yaml.Node) error {
 		a.Method = n.Value
 		return nil
 	}
-	if n.Kind != yaml.MappingNode || len(n.Content) != 2 || n.Content[0].Value != "command" || n.Content[1].Kind != yaml.ScalarNode {
-		return fmt.Errorf("line %d: an agent's auth is oauth, api-key or {command: <host command>}", n.Line)
+	if n.Kind != yaml.MappingNode || len(n.Content) != 2 || (n.Content[0].Value != AuthCommand && n.Content[0].Value != AuthToken) || n.Content[1].Kind != yaml.ScalarNode {
+		return fmt.Errorf("line %d: an agent's auth is oauth, api-key, {command: <host command>} or {token: <host command>}", n.Line)
 	}
-	a.Method, a.Command = AuthCommand, n.Content[1].Value
+	a.Method, a.Command = n.Content[0].Value, n.Content[1].Value
 	return nil
 }
 
@@ -89,6 +95,10 @@ func digest(v any) string {
 }
 
 var envName = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+
+// A network rule is a host, a domain wildcard, an IP or a CIDR prefix, with
+// an optional port: one pattern, never a list or anything with spaces.
+var networkPattern = regexp.MustCompile(`^[A-Za-z0-9.*?\[\]!:/_-]+$`)
 var memoryPattern = regexp.MustCompile(`^[1-9][0-9]*[kKmMgG]?$`)
 var sensitiveEnv = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|API_KEY|PRIVATE_KEY|SSH_AUTH|GIT_CONFIG|DOCKER_HOST|DOCKER_CONTEXT|^LD_|^DYLD_)`)
 
@@ -172,15 +182,22 @@ func LoadProfile(root, name string) (Profile, error) {
 			return p, fmt.Errorf("profile %s: script and dockerfile paths must stay inside their directory", name)
 		}
 	}
+	for _, rules := range [][]string{p.AllowNetwork, p.DenyNetwork} {
+		for _, h := range rules {
+			if !networkPattern.MatchString(h) || h == "*" {
+				return p, fmt.Errorf("profile %s: network rule %q must be one host, wildcard domain (*.example.com), IP or CIDR, optionally with :port", name, h)
+			}
+		}
+	}
 	for id, a := range p.Auth {
 		if !seen[id] {
 			return p, fmt.Errorf("profile %s: auth names %s, which is not among its agents", name, id)
 		}
 		switch {
 		case a.Method == AuthOAuth || a.Method == AuthAPIKey:
-		case a.Method == AuthCommand && strings.TrimSpace(a.Command) != "" && !strings.ContainsAny(a.Command, "\n\r"):
+		case (a.Method == AuthCommand || a.Method == AuthToken) && strings.TrimSpace(a.Command) != "" && !strings.ContainsAny(a.Command, "\n\r"):
 		default:
-			return p, fmt.Errorf("profile %s: auth of %s must be oauth, api-key or {command: <one host command>}", name, id)
+			return p, fmt.Errorf("profile %s: auth of %s must be oauth, api-key, {command: <one host command>} or {token: <one host command>}", name, id)
 		}
 	}
 	if p.Git.Author != "" && p.Git.Author != "user" {
@@ -367,7 +384,7 @@ func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
 // environment value, a cache mount, a network rule. A profile asking for
 // nothing has nothing to approve: nothing of it crosses the boundary.
 func (p Profile) HostFacing() bool {
-	return len(p.Env)+len(p.Caches)+len(p.DenyNetwork)+len(p.Auth) > 0
+	return len(p.Env)+len(p.Caches)+len(p.DenyNetwork)+len(p.AllowNetwork)+len(p.Auth) > 0
 }
 func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	args := []string{"AGENTBOX_RUNTIME=" + runtime, "UNIBOX_RUNTIME=" + runtime}

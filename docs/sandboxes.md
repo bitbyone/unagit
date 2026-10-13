@@ -406,7 +406,8 @@ env: [SPRING_PROFILES_ACTIVE] # names; values from the environment
 caches:
   - host: ~/.gradle/caches
     env: GRADLE_RO_DEP_CACHE
-deny_network: []
+allow_network: [jitpack.io]  # hosts the runtime's policy would refuse
+deny_network: [gist.github.com] # hosts it would allow; deny wins
 agents: [claude, codex]       # what the image has
 start: start.sh               # in the VM, once per boot of the VM
 bootstrap: .agent/bootstrap.sh # per worked-on repository, if present, in the VM
@@ -421,7 +422,8 @@ git:
   co_author: true             # a Co-Authored-By trailer naming the agent
 auth:                         # how each agent signs in
   codex: oauth                # the provider's login, kept by the runtime
-  claude: api-key             # a key the runtime stores
+  claude: {token: security find-generic-password -s claude-code-oauth-token -w}
+                              # a long-lived login token a host command prints
   copilot: {command: gh auth token} # a host command the runtime runs
 ```
 
@@ -431,6 +433,18 @@ auth:                         # how each agent signs in
 - **The image is the environment.** Everything static - JDK, Node, the
   agents' CLIs, certificates - goes into the Dockerfile. What depends on
   the checkout belongs to the worked-on repository's bootstrap.
+- `allow_network` and `deny_network` are one pattern each - a host,
+  `*.domain`, an IP or a CIDR, with an optional port. sbx refuses what its
+  policy does not list (403 from the proxy) and already allows the usual
+  registries; an allow is added to the sandbox's own policy after
+  creation, a deny is given at creation, and a deny wins where both match.
+  Both are host access, approved with the rest.
+- `token` is for claude beside codex: sbx signs one agent of a sandbox in
+  by OAuth, so claude's subscription goes through a long-lived token from
+  `claude setup-token`, kept on the host where the command reads it (the
+  keychain above). sbx stores the command as a custom secret; claude sees
+  a placeholder in `CLAUDE_CODE_OAUTH_TOKEN`, the proxy sends the token to
+  api.anthropic.com, and the login outlives a recreated sandbox.
 - `auth` is host access and is approved with the rest. The runtime keeps
   the logins on the host; unibox only checks that each is there, and
   before a start offers to store what is missing - sbx asks for it on the

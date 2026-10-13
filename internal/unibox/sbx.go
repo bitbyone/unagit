@@ -124,7 +124,15 @@ func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
 		}
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	return runLogged(cmd, log)
+	if err := runLogged(cmd, log); err != nil {
+		return err
+	}
+	if len(s.Access.AllowNetwork) > 0 {
+		// sbx create takes deny rules only; an allow rule is added to the
+		// sandbox's own policy, which a deny rule still overrides.
+		return runLogged(hostCommand(ctx, "sbx", "policy", "allow", "network", "--sandbox", s.Name, strings.Join(s.Access.AllowNetwork, ",")), log)
+	}
+	return nil
 }
 func (r *SBX) Exec(ctx context.Context, name string, c Command) *exec.Cmd {
 	args := []string{"exec"}

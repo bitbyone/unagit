@@ -91,8 +91,11 @@ instructions: [unibox]
 # OAuth.
 # auth:
 #   codex: oauth                      # the ChatGPT login sbx keeps
-#   claude: api-key
+#   claude: {token: security find-generic-password -s claude-code-oauth-token -w}
 #   copilot: {command: gh auth token}
+# Egress beyond the runtime's policy, and hosts to refuse; deny wins.
+# allow_network: [jitpack.io]
+# deny_network: [gist.github.com]
 `, name, cpus, memory, strings.Join(declared, ", "))
 	dockerfile := fmt.Sprintf(`# The image is composed by _shared/install: list the installation scripts,
 # one per line. The sbx build passes BASE=docker/sandbox-templates:shell

@@ -308,12 +308,12 @@ func TestTheStoredOAuthLoginIsDeclaredFirst(t *testing.T) {
 func TestProfilesSayHowEachAgentSignsIn(t *testing.T) {
 	t.Parallel()
 	root := profileFixture(t)
-	write(t, filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), "dockerfile: Dockerfile\nstart: start.sh\nagents: [claude, codex, copilot]\nauth:\n  codex: oauth\n  claude: api-key\n  copilot: {command: gh auth token}\n")
+	write(t, filepath.Join(root, "sandboxes", "node", "sandbox.yaml"), "dockerfile: Dockerfile\nstart: start.sh\nagents: [claude, codex, copilot]\nauth:\n  codex: oauth\n  claude: {token: security find-generic-password -s claude -w}\n  copilot: {command: gh auth token}\n")
 	p, err := LoadProfile(root, "node")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Auth["codex"].Method != AuthOAuth || p.Auth["copilot"] != (AgentAuth{AuthCommand, "gh auth token"}) || p.OAuthAgent() != "codex" {
+	if p.Auth["codex"].Method != AuthOAuth || p.Auth["copilot"] != (AgentAuth{AuthCommand, "gh auth token"}) || p.Auth["claude"] != (AgentAuth{AuthToken, "security find-generic-password -s claude -w"}) || p.OAuthAgent() != "codex" {
 		t.Fatal(p.Auth)
 	}
 	// A command runs on the host, so the sign-ins are approved like the rest.
@@ -335,9 +335,12 @@ func TestSBXFindsWhatALoginLacksAndStoresItThroughSbx(t *testing.T) {
 	argv := filepath.Join(t.TempDir(), "argv")
 	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte(`#!/bin/sh
 if [ "$1 $2" = "secret ls" ]; then
-  echo '{"secrets":[{"scope":"global","type":"service","name":"openai","secret":"(oauth configured)"},{"scope":"other","type":"service","name":"anthropic","secret":"sk-ant****"}]}'
+  custom='[]'
+  [ -f `+Quote(argv+".custom")+` ] && custom='[{"scope":"global","env":"CLAUDE_CODE_OAUTH_TOKEN","hosts":["api.anthropic.com"]}]'
+  echo '{"secrets":[{"scope":"global","type":"service","name":"openai","secret":"(oauth configured)"},{"scope":"other","type":"service","name":"anthropic","secret":"sk-ant****"}],"custom_secrets":'"$custom"'}'
   exit 0
 fi
+[ "$2" = set-custom ] && : > `+Quote(argv+".custom")+`
 printf '%s\n' "$@" > `+Quote(argv)+`
 `))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -364,6 +367,19 @@ printf '%s\n' "$@" > `+Quote(argv)+`
 	if needs = r.AuthNeeds(ctx, "unibox-home", p); len(needs) != 1 || needs[0].Code != "auth_unsupported" {
 		t.Fatalf("%+v", needs)
 	}
+	p.Auth = map[string]AgentAuth{"claude": {Method: AuthToken, Command: "security find-generic-password -s claude -w"}}
+	if needs = r.AuthNeeds(ctx, "unibox-home", p); len(needs) != 1 || needs[0].Code != "login_required" || !strings.Contains(needs[0].Message, "CLAUDE_CODE_OAUTH_TOKEN") {
+		t.Fatalf("%+v", needs)
+	}
+	if err := r.Login(ctx, "claude", p.Auth["claude"], strings.NewReader(""), io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(argv); string(data) != "secret\nset-custom\n--env\nCLAUDE_CODE_OAUTH_TOKEN\n--placeholder\nsk-ant-oat01-{rand}\n--host\napi.anthropic.com\n--command\nsecurity find-generic-password -s claude -w\n" {
+		t.Fatalf("%q", data)
+	}
+	if needs = r.AuthNeeds(ctx, "unibox-home", p); len(needs) != 0 {
+		t.Fatalf("a stored token is not seen: %+v", needs)
+	}
 	if err := r.Login(ctx, "copilot", AgentAuth{Method: AuthCommand, Command: "gh auth token"}, strings.NewReader(""), io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
@@ -375,5 +391,29 @@ printf '%s\n' "$@" > `+Quote(argv)+`
 	}
 	if got := oauthFirst(ctx, Spec{Name: "unibox-home"}); !got["openai"] {
 		t.Fatal(got)
+	}
+}
+
+func TestAllowedHostsJoinTheSandboxesPolicy(t *testing.T) {
+	bin := t.TempDir()
+	calls := filepath.Join(t.TempDir(), "calls")
+	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte("#!/bin/sh\necho \"$*\" >> "+Quote(calls)+"\n"))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r := &SBX{Cache: t.TempDir()}
+	acc := HostAccess{AllowNetwork: []string{"jitpack.io", "*.jetbrains.team"}, DenyNetwork: []string{"gist.github.com"}}
+	if err := r.Create(context.Background(), Spec{Name: "unibox-home", Image: "x", Agent: "codex", Agents: []string{"codex"}, Access: acc}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(calls)
+	if !strings.Contains(string(data), "--deny-network gist.github.com") || !strings.Contains(string(data), "policy allow network --sandbox unibox-home jitpack.io,*.jetbrains.team") {
+		t.Fatalf("%s", data)
+	}
+	// A profile allowing nothing more adds no rule.
+	os.Remove(calls)
+	if err := r.Create(context.Background(), Spec{Name: "unibox-solo", Image: "x", Agent: "codex", Agents: []string{"codex"}}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ = os.ReadFile(calls); strings.Contains(string(data), "policy") {
+		t.Fatalf("%s", data)
 	}
 }

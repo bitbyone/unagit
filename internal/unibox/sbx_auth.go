@@ -16,9 +16,22 @@ import (
 // on the host. Claude's OAuth is not stored: claude signs in inside the
 // sandbox and the proxy keeps the token on the host.
 var sbxAuthMethods = map[string][]string{
-	"claude":  {AuthOAuth, AuthAPIKey, AuthCommand},
+	"claude":  {AuthOAuth, AuthAPIKey, AuthCommand, AuthToken},
 	"codex":   {AuthOAuth, AuthAPIKey, AuthCommand},
 	"copilot": {AuthAPIKey, AuthCommand},
+}
+
+// sbxTokens are the agents that sign in by a long-lived token in an
+// environment variable. sbx keeps the token as a custom secret: the sandbox
+// sees a placeholder of the token's shape in the variable, and the proxy
+// puts the token in its place on requests to the hosts. This is how claude
+// keeps a subscription login beside codex's, since sbx wires one OAuth
+// login per sandbox - and it outlives a recreated sandbox.
+var sbxTokens = map[string]struct {
+	Env, Placeholder string
+	Hosts            []string
+}{
+	"claude": {"CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-{rand}", []string{"api.anthropic.com"}},
 }
 
 // storedLogins says, for each service with something stored for the
@@ -33,9 +46,23 @@ func storedLogins(ctx context.Context, sandbox string) (map[string]string, error
 	}
 	var list struct {
 		Secrets []struct{ Scope, Type, Name, Secret string }
+		Custom  []map[string]any `json:"custom_secrets"`
 	}
 	if err = json.Unmarshal(data, &list); err != nil {
 		return out, fmt.Errorf("sbx secret ls answered in a form unibox does not know; upgrade unibox")
+	}
+	// A custom secret is recorded by the variable it fills; only its
+	// description is read, never a value.
+	for _, c := range list.Custom {
+		scope := fmt.Sprint(c["scope"])
+		if scope != "global" && scope != sandbox && scope != "<nil>" && scope != "" {
+			continue
+		}
+		for _, v := range c {
+			if name, ok := v.(string); ok {
+				out["env:"+name] = AuthToken
+			}
+		}
 	}
 	for _, sec := range list.Secrets {
 		if sec.Type != "service" || (sec.Scope != "global" && sec.Scope != sandbox) {
@@ -89,16 +116,25 @@ func (r *SBX) AuthNeeds(ctx context.Context, sandbox string, p Profile) []api.Ne
 			missing = "no " + service + " key is stored"
 		case a.Method == AuthCommand && have == "":
 			missing = "no " + service + " token command is stored"
+		case a.Method == AuthToken && stored["env:"+sbxTokens[id].Env] != AuthToken:
+			missing = "no token for " + sbxTokens[id].Env + " is stored"
 		}
 		if missing != "" {
-			needs = append(needs, api.Need{Code: "login_required", Agent: id, Message: fmt.Sprintf("%s signs in by %s, but %s; %s", id, a.Method, missing, sbxLoginHint(service, a))})
+			needs = append(needs, api.Need{Code: "login_required", Agent: id, Message: fmt.Sprintf("%s signs in by %s, but %s; %s", id, a.Method, missing, sbxLoginHint(id, service, a))})
 		}
 	}
 	return needs
 }
 
-func sbxLoginArgs(service string, a AgentAuth) []string {
+func sbxLoginArgs(agent, service string, a AgentAuth) []string {
 	switch a.Method {
+	case AuthToken:
+		t := sbxTokens[agent]
+		args := []string{"secret", "set-custom", "--env", t.Env, "--placeholder", t.Placeholder}
+		for _, h := range t.Hosts {
+			args = append(args, "--host", h)
+		}
+		return append(args, "--command", a.Command)
 	case AuthOAuth:
 		return []string{"secret", "set", service, "--oauth"}
 	case AuthCommand:
@@ -107,9 +143,9 @@ func sbxLoginArgs(service string, a AgentAuth) []string {
 	return []string{"secret", "set", service}
 }
 
-func sbxLoginHint(service string, a AgentAuth) string {
-	args := sbxLoginArgs(service, a)
-	if a.Method == AuthCommand {
+func sbxLoginHint(agent, service string, a AgentAuth) string {
+	args := sbxLoginArgs(agent, service, a)
+	if a.Method == AuthCommand || a.Method == AuthToken {
 		args[len(args)-1] = Quote(a.Command)
 	}
 	return "unibox run asks to store it, or run sbx " + strings.Join(args, " ")
@@ -123,7 +159,7 @@ func (r *SBX) Login(ctx context.Context, agent string, a AgentAuth, in io.Reader
 	if !ok {
 		return fmt.Errorf("sbx has no login for agent %s", agent)
 	}
-	cmd := hostCommand(ctx, "sbx", sbxLoginArgs(b.Service, a)...)
+	cmd := hostCommand(ctx, "sbx", sbxLoginArgs(agent, b.Service, a)...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = in, out, errout
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("sbx did not store the %s login: %w", b.Service, err)
