@@ -379,7 +379,7 @@ func (m *Manager) ensure(ctx context.Context, b *api.Sandbox, r Runtime, p Profi
 		if len(p.Agents) == 1 {
 			kind = p.Agents[0]
 		}
-		if err = r.Create(ctx, Spec{Name: b.RuntimeName, Image: imageTag(p), CPUs: p.CPUs, Memory: p.Memory, Access: p.HostAccess, Agent: kind}, m.Log); err != nil {
+		if err = r.Create(ctx, Spec{Name: b.RuntimeName, Image: imageTag(p), CPUs: p.CPUs, Memory: p.Memory, Access: p.HostAccess, Agent: kind, Agents: p.Agents}, m.Log); err != nil {
 			return err
 		}
 		box, ok, err := m.findBox(ctx, r, *b)

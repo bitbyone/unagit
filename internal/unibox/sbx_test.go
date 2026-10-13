@@ -102,3 +102,48 @@ func TestSavedStateContainsNoEnvironmentValues(t *testing.T) {
 		t.Fatal("configuration stores credentials")
 	}
 }
+
+func TestSeveralAgentsCreateFromAGeneratedKit(t *testing.T) {
+	bin := t.TempDir()
+	log := filepath.Join(t.TempDir(), "argv")
+	mustWriteExecutable(t, filepath.Join(bin, "sbx"), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > "+Quote(log)+"\n"))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r := &SBX{Cache: t.TempDir()}
+	spec := Spec{Name: "unibox-home", Image: "unibox/personal:abc", CPUs: 2, Agents: []string{"claude", "codex", "copilot"}}
+	if err := r.Create(context.Background(), spec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	argv, _ := os.ReadFile(log)
+	dir := r.KitDir("unibox-home")
+	if dir == "" {
+		t.Fatal("no kit was kept for inspection")
+	}
+	if !strings.Contains(string(argv), dir) || strings.Contains(string(argv), "--template") {
+		t.Fatalf("create did not use the kit alone: %s", argv)
+	}
+	descriptor, err := os.ReadFile(filepath.Join(dir, "unibox-home.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"service: anthropic", "service: openai", "service: github", "api.anthropic.com:443", "chatgpt.com:443", "api.githubcopilot.com:443", "kind: workload"} {
+		if !strings.Contains(string(descriptor), want) {
+			t.Fatalf("descriptor lacks %q:\n%s", want, descriptor)
+		}
+	}
+	from, err := os.ReadFile(filepath.Join(dir, "unibox-home.dockerfile"))
+	if err != nil || strings.TrimSpace(string(from)) != "FROM unibox/personal:abc" {
+		t.Fatalf("%q %v", from, err)
+	}
+	// One agent keeps the template and its kind; no kit remains.
+	single := Spec{Name: "unibox-solo", Image: "unibox/my2n:abc", Agent: "copilot", Agents: []string{"copilot"}}
+	if err := r.Create(context.Background(), single, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	argv, _ = os.ReadFile(log)
+	if !strings.Contains(string(argv), "--template\nunibox/my2n:abc") || !strings.Contains(string(argv), "copilot") {
+		t.Fatalf("single agent lost its kind: %s", argv)
+	}
+	if r.KitDir("unibox-solo") != "" {
+		t.Fatal("a kit was made for a single agent")
+	}
+}

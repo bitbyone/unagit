@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -23,6 +25,39 @@ func (o *options) prompt(reader *bufio.Reader, question, preset string) (string,
 		return preset, nil
 	}
 	return line, nil
+}
+
+func (o *options) inspectCommand() *cobra.Command {
+	return &cobra.Command{Use: "inspect sandbox", Args: cobra.ExactArgs(1), Short: "Show a sandbox's record and the runtime materials made for it", RunE: func(cmd *cobra.Command, args []string) error {
+		boxes, err := o.manager.List(cmd.Context())
+		if err != nil {
+			return err
+		}
+		for _, b := range boxes {
+			if b.Name != args[0] {
+				continue
+			}
+			kit := ""
+			descriptor := ""
+			if r, ok := o.manager.Runtimes[b.Runtime].(*unibox.SBX); ok {
+				if dir := r.KitDir(b.RuntimeName); dir != "" {
+					kit = dir
+					data, _ := os.ReadFile(filepath.Join(dir, b.RuntimeName+".yaml"))
+					descriptor = string(data)
+				}
+			}
+			if o.json {
+				return o.write(map[string]any{"api_version": api.Version, "sandbox": b, "kit_dir": kit, "kit_descriptor": descriptor})
+			}
+			record, _ := json.MarshalIndent(b, "", "  ")
+			fmt.Fprintln(o.output, string(record))
+			if kit != "" {
+				fmt.Fprintf(o.output, "\ngenerated kit: %s\n\n%s", kit, descriptor)
+			}
+			return nil
+		}
+		return fmt.Errorf("sandbox %s not found; list them with unibox ls", args[0])
+	}}
 }
 
 func (o *options) validateCommand() *cobra.Command {

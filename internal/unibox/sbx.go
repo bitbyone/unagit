@@ -71,7 +71,10 @@ func (r *SBX) Images(ctx context.Context) ([]Image, error) {
 	return images, nil
 }
 func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
-	args := []string{"create", "--name", s.Name, "--template", s.Image, "--pull", "never", "--skills", "off"}
+	args := []string{"create", "--name", s.Name, "--pull", "never", "--skills", "off"}
+	if len(s.Agents) <= 1 {
+		args = append(args, "--template", s.Image)
+	}
 	if s.CPUs > 0 {
 		args = append(args, "--cpus", fmt.Sprint(s.CPUs))
 	}
@@ -87,11 +90,21 @@ func (r *SBX) Create(ctx context.Context, s Spec, log io.Writer) error {
 	for _, c := range s.Access.Caches {
 		args = append(args, "-e", c.Env+"="+c.Host)
 	}
-	kind := s.Agent
-	if kind == "" {
-		kind = "shell"
+	if len(s.Agents) > 1 {
+		// Several agents: a generated v3 workload kit carries their
+		// credential declarations; built-in v2 kinds cannot be combined.
+		dir, err := r.writeKit(s)
+		if err != nil {
+			return err
+		}
+		args = append(args, dir)
+	} else {
+		kind := s.Agent
+		if kind == "" {
+			kind = "shell"
+		}
+		args = append(args, kind)
 	}
-	args = append(args, kind)
 	for _, c := range s.Access.Caches {
 		args = append(args, c.Host+":ro")
 	}
