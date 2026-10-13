@@ -373,7 +373,8 @@ out (interactively with `-i`) and `unibox validate` checks it, every
 profile and every text included. `_shared/` is copied into every profile's
 build
 context, so a Dockerfile composes what it needs
-(`COPY _shared/installations/claude.sh`), and its contents are part of every
+(its `.install` runner executes `_shared/installations` scripts listed in a
+Dockerfile heredoc), and its contents are part of every
 profile's revision - a change there marks every image outdated. The
 profile's `sandbox.yaml`, its `instructions.md` and its agent configuration
 seeds are not image inputs: they change nothing of the image and force no

@@ -149,7 +149,7 @@ func TestInitLaysTheRepositoryOutAndKeepsWhatExists(t *testing.T) {
 	if err := c.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, rel := range []string{"_shared/install", "_shared/installations/base.sh", "_shared/installations/agents/copilot.sh", "instructions/unibox.md", "sandboxes/my2n/sandbox.yaml", "sandboxes/my2n/Dockerfile", "sandboxes/my2n/instructions.md", "sandboxes/my2n/.sbx/build.args"} {
+	for _, rel := range []string{"_shared/.install", "_shared/installations/base.sh", "_shared/installations/agents/copilot.sh", "instructions/unibox.md", "sandboxes/my2n/sandbox.yaml", "sandboxes/my2n/Dockerfile", "sandboxes/my2n/instructions.md", "sandboxes/my2n/.sbx/build.args"} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
 		}
@@ -164,7 +164,7 @@ func TestInitLaysTheRepositoryOutAndKeepsWhatExists(t *testing.T) {
 	if text, err := p.InstructionText(nil); err != nil || !strings.Contains(text, "Unibox sandbox") {
 		t.Fatalf("%v %q", err, text)
 	}
-	if info, _ := os.Stat(filepath.Join(root, "_shared", "install")); info.Mode().Perm()&0o100 == 0 {
+	if info, _ := os.Stat(filepath.Join(root, "_shared", ".install")); info.Mode().Perm()&0o100 == 0 {
 		t.Fatal("the runner is not executable")
 	}
 	// A second init adds a profile and keeps every existing file as it is.

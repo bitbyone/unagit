@@ -57,7 +57,7 @@ func Init(root, name string, agents []string, cpus int, memory string) (InitRepo
 		}
 		rel := strings.TrimPrefix(path, "scaffold/")
 		dest := rel
-		if rel == "install" || strings.HasPrefix(rel, "installations/") {
+		if rel == ".install" || strings.HasPrefix(rel, "installations/") {
 			dest = "_shared/" + rel
 		}
 		data, err := scaffoldFS.ReadFile(path)
@@ -65,7 +65,7 @@ func Init(root, name string, agents []string, cpus int, memory string) (InitRepo
 			return err
 		}
 		mode := os.FileMode(0o644)
-		if rel == "install" || strings.HasSuffix(rel, ".sh") {
+		if rel == ".install" || strings.HasSuffix(rel, ".sh") {
 			mode = 0o755
 		}
 		return place(dest, data, mode)
@@ -74,7 +74,7 @@ func Init(root, name string, agents []string, cpus int, memory string) (InitRepo
 		return report, err
 	}
 	dir := "sandboxes/" + name
-	lines := []string{"base", "tools/node"}
+	lines := []string{"base", "tools/nvm"}
 	declared := []string{}
 	for _, id := range agents {
 		lines = append(lines, "agents/"+id)
@@ -96,7 +96,7 @@ FROM ${BASE}
 ARG UNIBOX_RUNTIME
 USER root
 
-RUN --mount=type=bind,source=_shared,target=/unibox /unibox/install <<EOF
+RUN --mount=type=bind,source=_shared,target=/unibox /unibox/.install <<EOF
 %s
 EOF
 
