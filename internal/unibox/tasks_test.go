@@ -119,7 +119,7 @@ func TestTaskClonesFromForgeAndKeepsOwnEdits(t *testing.T) {
 	if err = m.saveBox(b); err != nil {
 		t.Fatal(err)
 	}
-	_, _, _, usage, taskLock, err := m.prepare(ctx, Request{Sandbox: "dev", Task: "refunds", Agent: "claude"}, true)
+	_, _, _, usage, taskLock, err := m.prepare(ctx, Request{Sandbox: "dev", Task: "refunds"}, true)
 	if err != nil {
 		t.Fatalf("cannot resume own edits: %v", err)
 	}

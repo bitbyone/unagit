@@ -49,6 +49,15 @@ func checkNeeds(needs []api.Need) error {
 }
 
 func (m *Manager) task(ctx context.Context, req Request, b *api.Sandbox, p Profile, resume bool) (api.Task, error) {
+	// A task resumed by name already knows its agent; asking again would
+	// make the record pointless.
+	if req.Agent == "" && req.Task != "" && len(req.Repositories) == 0 {
+		for _, t := range b.Tasks {
+			if t.ID == req.Task {
+				req.Agent = t.Agent
+			}
+		}
+	}
 	if req.Agent == "" {
 		if len(p.Agents) == 1 {
 			req.Agent = p.Agents[0]
