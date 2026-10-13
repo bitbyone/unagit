@@ -81,6 +81,9 @@ func (m *Manager) Approval(name string) (HostAccess, HostAccess, error) {
 	return s.ApprovedFields[p.ApprovalKey()], p.HostAccess, err
 }
 func (m *Manager) approved(p Profile) error {
+	if !p.HostFacing() {
+		return nil
+	}
 	s, err := m.Paths.ReadState()
 	if err != nil {
 		return err
@@ -161,7 +164,7 @@ func (m *Manager) Profiles(ctx context.Context) ([]api.Profile, error) {
 		}
 		row.Agents = p.Agents
 		row.Revision = p.Revision
-		row.Approved = state.Approvals[p.ApprovalKey()] == p.AccessHash()
+		row.Approved = !p.HostFacing() || state.Approvals[p.ApprovalKey()] == p.AccessHash()
 		row.LastCommit, _ = git(ctx, p.Root, "log", "-1", "--format=%h %s", "--", name)
 		for id, r := range m.Runtimes {
 			if !m.Config.Enabled(id) {

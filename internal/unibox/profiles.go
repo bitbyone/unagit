@@ -57,7 +57,7 @@ func digest(v any) string {
 
 var envName = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 var memoryPattern = regexp.MustCompile(`^[1-9][0-9]*[kKmMgG]?$`)
-var sensitiveEnv = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|API_KEY|PRIVATE_KEY|SSH_AUTH|GIT_CONFIG|DOCKER_HOST|DOCKER_CONTEXT|LD_|DYLD_)`)
+var sensitiveEnv = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|API_KEY|PRIVATE_KEY|SSH_AUTH|GIT_CONFIG|DOCKER_HOST|DOCKER_CONTEXT|^LD_|^DYLD_)`)
 
 func safeRelative(path string) bool {
 	return path != "" && !filepath.IsAbs(path) && filepath.Clean(path) != ".." && !strings.HasPrefix(filepath.Clean(path), ".."+string(filepath.Separator))
@@ -307,6 +307,13 @@ func (p Profile) BuildFiles() map[string]SnapshotFile {
 
 func (p Profile) ApprovalKey() string { return digest([]string{p.Root, p.Name}) }
 func (p Profile) AccessHash() string  { return digest(p.HostAccess) }
+
+// HostFacing says whether the profile asks for anything of the host - an
+// environment value, a cache mount, a network rule. A profile asking for
+// nothing has nothing to approve: nothing of it crosses the boundary.
+func (p Profile) HostFacing() bool {
+	return len(p.Env)+len(p.Caches)+len(p.DenyNetwork) > 0
+}
 func (p Profile) BuildArgs(runtime string) ([]string, error) {
 	args := []string{"AGENTBOX_RUNTIME=" + runtime, "UNIBOX_RUNTIME=" + runtime}
 	f, ok := p.Files["."+runtime+"/build.args"]

@@ -585,3 +585,25 @@ func TestBuildBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestAProfileAskingNothingOfTheHostNeedsNoApproval(t *testing.T) {
+	t.Parallel()
+	m, _ := managerFixture(t)
+	root := m.Config.Environments
+	write(t, filepath.Join(root, "sandboxes", "plain", "sandbox.yaml"), "image: example/image\nagents: [claude]\n")
+	p, err := LoadProfile(root, "plain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.approved(p); err != nil {
+		t.Fatalf("a profile with no host access demanded approval: %v", err)
+	}
+	write(t, filepath.Join(root, "sandboxes", "plain", "sandbox.yaml"), "image: example/image\nagents: [claude]\nenv: [BUILD_MODE]\n")
+	asking, err := LoadProfile(root, "plain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.approved(asking); err == nil {
+		t.Fatal("host access ran unapproved")
+	}
+}
