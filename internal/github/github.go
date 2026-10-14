@@ -517,6 +517,10 @@ func (r repo) project() forge.Project {
 	if activity.IsZero() {
 		activity = r.UpdatedAt
 	}
+	visibility := forge.VisibilityPublic
+	if r.Private {
+		visibility = forge.VisibilityPrivate
+	}
 	return forge.Project{
 		ID:                r.ID,
 		Name:              r.Name,
@@ -527,6 +531,7 @@ func (r repo) project() forge.Project {
 		SSHURLToRepo:      r.SSHURL,
 		WebURL:            r.HTMLURL,
 		Archived:          r.Archived,
+		Visibility:        visibility,
 		LastActivityAt:    activity,
 		Stars:             r.Stars,
 		Language:          r.Language,
@@ -851,13 +856,8 @@ func (c *Client) ProjectDetail(ctx context.Context, p forge.Project) (*forge.Pro
 	if _, err := c.get(ctx, "/repos/"+p.PathWithNamespace, nil, &r); err != nil {
 		return nil, err
 	}
-	visibility := "public"
-	if r.Private {
-		visibility = "private"
-	}
 	d := &forge.ProjectDetail{
 		Project:         r.project(),
-		Visibility:      visibility,
 		CreatedAt:       r.CreatedAt,
 		StarCount:       r.Stars,
 		ForksCount:      r.Forks,

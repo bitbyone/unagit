@@ -3,7 +3,11 @@ package ui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
@@ -320,7 +324,7 @@ func (a *App) showMRViewOptions() {
 	}
 	a.showToggles(toggles{
 		title: "View · Merge requests",
-		verb:  "on/off",
+		verb:  "change",
 		pack:  true,
 		items: func() []toggleItem {
 			items := make([]toggleItem, 0, len(options)+len(f.HiddenAuthors))
@@ -333,6 +337,12 @@ func (a *App) showMRViewOptions() {
 			for i := range last {
 				items = append(items, option(i))
 			}
+			ageLabel := "hide older than … days"
+			if f.HideOlderThanDays > 0 {
+				ageLabel = fmt.Sprintf("hide older than %d days…", f.HideOlderThanDays)
+			}
+			items = append(items, toggleItem{Label: tagMark(f.HideOlderThanDays > 0) + " " + ageLabel,
+				Search: "hide older than days", Edit: a.showMRAgeFilter})
 			items = append(items, a.columnItems(config.ListMergeRequests)...)
 			items = append(items, option(last))
 			// The people first, each marked as one, then the repositories.
@@ -378,14 +388,54 @@ func (a *App) showMRViewOptions() {
 	})
 }
 
+func (a *App) showMRAgeFilter(changed func()) {
+	form := tview.NewForm()
+	text := ""
+	if days := a.cfg.Filters.HideOlderThanDays; days > 0 {
+		text = strconv.Itoa(days)
+	}
+	form.AddInputField("Days", text, 0, func(text string, _ rune) bool {
+		for _, r := range text {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+		_, err := strconv.Atoi(text)
+		return text == "" || err == nil
+	}, nil)
+	form.AddTextView("", "Since the last update. Empty or 0 shows all ages.", 0, 2, true, false)
+	form.AddButton("Apply", func() {
+		text := form.GetFormItemByLabel("Days").(*tview.InputField).GetText()
+		days := 0
+		if text != "" {
+			var err error
+			days, err = strconv.Atoi(text)
+			if err != nil || days < 0 {
+				a.flash("enter a number of days, or 0 to show all ages")
+				return
+			}
+		}
+		a.cfg.Filters.HideOlderThanDays = days
+		a.closeModal(pageForm)
+		a.applyFilters()
+		changed()
+	})
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModalSized("Hide older merge requests", form, 58, 9)
+}
+
 // passesMRFilters reports whether a merge request survives the filters only
-// merge requests have: hidden authors, drafts, and whose they are. Whose is
+// merge requests have: hidden authors, drafts, age, and whose they are. Whose is
 // known once a refresh has asked each server who the token belongs to; until
 // then a server's merge requests are not narrowed by it.
 func (a *App) passesMRFilters(mr forge.MergeRequest) bool {
 	f := &a.cfg.Filters
 	if f.HidesAuthor(mr.Instance, mr.Author.Username) || f.HideDrafts && mr.Draft ||
 		f.HidesMRsOf(mr.Instance, a.projectPathOfMR(mr)) {
+		return false
+	}
+	if f.HideOlderThanDays > 0 && !mr.UpdatedAt.IsZero() &&
+		time.Since(mr.UpdatedAt).Hours()/24 > float64(f.HideOlderThanDays) {
 		return false
 	}
 	me := a.me[mr.Instance]
@@ -406,7 +456,7 @@ func (a *App) passesMRFilters(mr forge.MergeRequest) bool {
 }
 
 // whoseSummary is what the merge request header says of the filters on whose
-// they are and of the drafts.
+// they are, the drafts and the age limit.
 func (a *App) whoseSummary() string {
 	f := &a.cfg.Filters
 	var parts []string
@@ -423,6 +473,9 @@ func (a *App) whoseSummary() string {
 	}
 	if f.HideDrafts {
 		parts = append(parts, "no drafts")
+	}
+	if f.HideOlderThanDays > 0 {
+		parts = append(parts, fmt.Sprintf("updated within %d days", f.HideOlderThanDays))
 	}
 	if len(parts) == 0 {
 		return ""

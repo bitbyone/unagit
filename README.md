@@ -1039,6 +1039,13 @@ machines, what you happen to wait for here is not.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
+  In Merge requests, `v` also hides requests last updated more than a chosen
+  number of days ago. "hide older than … days" accepts digits only; empty or
+  `0` shows all ages again. The setting sticks, and the cached requests stay.
+  Refresh still checks the list for new activity, but skips pipelines,
+  approvals, threads and name lookups for requests the view hides.
+- **Private repositories** carry a lock after their name in Repositories
+  (`p` without a Nerd Font), including when grouped or shortened.
 - **An order for each list.** `o` sorts the list on screen, and each list
   keeps its own: every one by activity or by name; Repositories also by
   edits, by size, or by remote - the furthest behind origin first, then any

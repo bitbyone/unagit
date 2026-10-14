@@ -242,6 +242,7 @@ func helpRows() []helpLine {
 		key("v", "view: grouping · favourites first · columns"),
 		key("f  F", "show only some tags · every tag again"),
 		key("PATH", "clone directory; dim when not cloned yet"),
+		key(glyphPrivate+" after name", "private repository"),
 		key("CI", "newest pipeline of the clone's branch"),
 		key("RMT", glyphCheck+" up to date · "+glyphBehind+" behind · "+glyphAhead+" unpushed; r fetches"),
 		key("MR", "merge requests with a worktree on disk"),
@@ -326,7 +327,7 @@ func helpRows() []helpLine {
 		key("H", "hide the author's merge requests (bots)"),
 		key("x", "hide the repository's MRs; refreshes skip them"),
 		key("space", "mark; x H r V y Ctrl-F then act on all"),
-		key("v", "view: mine · to review · drafts · authors · columns"),
+		key("v", "mine · to review · drafts · age · authors · columns"),
 		blank(),
 
 		section("Comments  (c)", 0),

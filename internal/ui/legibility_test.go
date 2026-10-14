@@ -175,6 +175,24 @@ func walkDialogs(t *testing.T, a *App, sc tcell.SimulationScreen) {
 
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "vjjjjjj ")
+	waitFor(t, a, sc, "Hide older merge requests")
+	ageForm := currentForm(a)
+	if ageForm == nil {
+		t.Fatal("the age filter form did not open")
+	}
+	assertLegible(t, a, sc, "the age filter input")
+	for _, label := range []string{"Apply", "Cancel"} {
+		changeOnLoop(a, func() {
+			ageForm.SetFocus(ageForm.GetFormItemCount() + buttonIndex(ageForm, label))
+			a.tv.SetFocus(ageForm)
+		})
+		assertLegible(t, a, sc, "the age filter's "+label+" button")
+	}
+	pressButton(t, a, sc, ageForm, "Cancel")
+	waitGone(t, a, sc, "Hide older merge requests")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "View · Merge requests")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "MERGE REQUEST")
 	assertLegible(t, a, sc, "the merge request detail")

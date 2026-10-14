@@ -274,7 +274,7 @@ func (a *App) mergeRequestsActions(p *pane) []uiAction {
 				p.reload()
 				a.note("repository filter cleared")
 			}},
-		{name: "View Options…", about: "What the list shows: grouping, favourites first, cloned only, the authors kept out of it, and which columns.", keys: "v", rank: 410, run: a.showMRViewOptions},
+		{name: "View Options…", about: "What the list shows: grouping, favourites first, cloned only, age, hidden authors, and which columns.", keys: "v", rank: 410, run: a.showMRViewOptions},
 		{name: "Toggle Grouping", about: "Group the merge requests under their repositories, or list them flat.", keys: "Ctrl-G", rank: 420, run: a.toggleGrouping},
 	}
 	acts = append(acts, a.filterActions()...)

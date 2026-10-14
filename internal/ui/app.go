@@ -1360,13 +1360,17 @@ func (a *App) refreshMRs() {
 		mrExtras(ctx, all, ask, clients, func(done int) {
 			progress(fmt.Sprintf("details %d/%d", done, len(ask)))
 		})
+		visible := make([]forge.MergeRequest, 0, len(ask))
+		for _, i := range ask {
+			visible = append(visible, all[i])
+		}
 		me := map[string]string{}
 		for id, client := range clients {
 			if u, err := client.CurrentUser(ctx); err == nil && u != nil {
 				me[id] = u.Username
 			}
 		}
-		learnNames(ctx, &people, all, clients, func(done, of int) {
+		learnNames(ctx, &people, visible, clients, func(done, of int) {
 			progress(fmt.Sprintf("names %d/%d", done, of))
 		})
 		// The names are a convenience; one that could not be saved is

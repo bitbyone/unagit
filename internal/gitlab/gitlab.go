@@ -608,7 +608,6 @@ func (c *Client) ProjectDetail(ctx context.Context, p forge.Project) (*forge.Pro
 	q.Set("license", "true")
 	var raw struct {
 		forge.Project
-		Visibility      string   `json:"visibility"`
 		CreatedAt       string   `json:"created_at"`
 		StarCount       int      `json:"star_count"`
 		ForksCount      int      `json:"forks_count"`
@@ -632,7 +631,6 @@ func (c *Client) ProjectDetail(ctx context.Context, p forge.Project) (*forge.Pro
 	}
 	d := &forge.ProjectDetail{
 		Project:         raw.Project,
-		Visibility:      raw.Visibility,
 		StarCount:       raw.StarCount,
 		ForksCount:      raw.ForksCount,
 		OpenIssuesCount: raw.OpenIssuesCount,

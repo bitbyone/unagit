@@ -334,6 +334,9 @@ type Filters struct {
 	OnlyMine     bool `yaml:"only_mine,omitempty" json:"only_mine,omitempty"`
 	OnlyToReview bool `yaml:"only_to_review,omitempty" json:"only_to_review,omitempty"`
 	HideDrafts   bool `yaml:"hide_drafts,omitempty" json:"hide_drafts,omitempty"`
+	// HideOlderThanDays hides merge requests by their last update; zero shows
+	// every age again without changing the cached list.
+	HideOlderThanDays int `yaml:"hide_older_than_days,omitempty" json:"hide_older_than_days,omitempty"`
 }
 
 // HiddenAuthor is an author of a server whose merge requests are not listed.

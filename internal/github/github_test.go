@@ -129,6 +129,26 @@ func TestGroupProjectsSkipsArchivedAndForeignRepos(t *testing.T) {
 	}
 }
 
+func TestProjectVisibilityComesFromTheListingAndDetail(t *testing.T) {
+	t.Parallel()
+	s := newStub(t)
+	s.handle("/user", userJSON)
+	s.handle("/orgs/acme/repos", `[{"id":1,"full_name":"acme/private","owner":{"login":"acme"},"private":true},
+		{"id":2,"full_name":"acme/public","owner":{"login":"acme"},"private":false}]`)
+	s.handle("/repos/acme/private", `{"id":1,"full_name":"acme/private","private":true}`)
+	projects, err := s.client().GroupProjects(context.Background(), forge.Group{FullPath: "acme"}, false)
+	if err != nil || len(projects) != 2 {
+		t.Fatalf("projects = %v, %v", projects, err)
+	}
+	if projects[0].Visibility != forge.VisibilityPrivate || projects[1].Visibility != forge.VisibilityPublic {
+		t.Fatalf("visibility was lost: %v", projects)
+	}
+	detail, err := s.client().ProjectDetail(context.Background(), projects[0])
+	if err != nil || detail.Visibility != forge.VisibilityPrivate {
+		t.Fatalf("detail visibility = %v, %v", detail, err)
+	}
+}
+
 // TestPersonalReposComeFromTheUserEndpoint: /orgs/<me>/repos would 404 and
 // would miss private repositories.
 func TestPersonalReposComeFromTheUserEndpoint(t *testing.T) {

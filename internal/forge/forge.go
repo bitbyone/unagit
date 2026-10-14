@@ -56,6 +56,7 @@ type Project struct {
 	SSHURLToRepo      string    `json:"ssh_url_to_repo"`
 	WebURL            string    `json:"web_url"`
 	Archived          bool      `json:"archived"`
+	Visibility        string    `json:"visibility"`
 	LastActivityAt    time.Time `json:"last_activity_at"`
 	Instance          string    `json:"instance,omitempty"`
 	// Starred is a repository the user starred and cloned from the list of
@@ -69,7 +70,6 @@ type Project struct {
 // ProjectDetail is everything worth showing about a repository.
 type ProjectDetail struct {
 	Project
-	Visibility      string    `json:"visibility"`
 	CreatedAt       time.Time `json:"created_at"`
 	StarCount       int       `json:"star_count"`
 	ForksCount      int       `json:"forks_count"`

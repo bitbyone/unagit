@@ -198,7 +198,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			servers = append(servers, len([]rune(a.instanceLabel(pr.Instance))))
 		}
 		paths = append(paths, tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
-		names = append(names, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr))))
+		names = append(names, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr)))+iconWidth(privateMark(pr)))
 		if w := tagsWidth(pr, math.MaxInt); w > 0 {
 			tagged = append(tagged, w)
 			tagsShort = append(tagsShort, tagsWidth(pr, 3))
@@ -396,7 +396,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1
 		}
-		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), width: nameW, colour: nameColour, shorten: shortenRepo})
+		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), after: privateMark(pr), width: nameW, colour: nameColour, shorten: shortenRepo})
 		if tagsW > 0 {
 			var starred *forge.Project
 			if pr.Starred {
@@ -582,4 +582,11 @@ func iconWidth(icon string) int {
 		return 0
 	}
 	return len([]rune(icon)) + 1
+}
+
+func privateMark(pr forge.Project) string {
+	if pr.Visibility == forge.VisibilityPrivate {
+		return glyphPrivate
+	}
+	return ""
 }

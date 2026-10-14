@@ -68,6 +68,35 @@ func TestUnauthorizedMessage(t *testing.T) {
 	}
 }
 
+func TestProjectVisibilityComesFromTheListingAndDetail(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/projects") {
+			fmt.Fprint(w, `[{"id":1,"path_with_namespace":"acme/private","visibility":"private"},
+				{"id":2,"path_with_namespace":"acme/public","visibility":"public"},
+				{"id":3,"path_with_namespace":"acme/internal","visibility":"internal"}]`)
+		} else {
+			fmt.Fprint(w, `{"id":1,"path_with_namespace":"acme/private","visibility":"private"}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	client := New(srv.URL, "test-token")
+	projects, err := client.GroupProjects(context.Background(), forge.Group{ID: 1}, false)
+	if err != nil || len(projects) != 3 {
+		t.Fatalf("projects = %v, %v", projects, err)
+	}
+	for i, visibility := range []string{forge.VisibilityPrivate, forge.VisibilityPublic, forge.VisibilityInternal} {
+		if projects[i].Visibility != visibility {
+			t.Errorf("project %d: visibility = %q, want %q", i, projects[i].Visibility, visibility)
+		}
+	}
+	detail, err := client.ProjectDetail(context.Background(), projects[0])
+	if err != nil || detail.Visibility != forge.VisibilityPrivate {
+		t.Fatalf("detail visibility = %v, %v", detail, err)
+	}
+}
+
 func TestMergeRequestDecoding(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

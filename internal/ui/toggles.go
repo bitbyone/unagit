@@ -17,6 +17,9 @@ type toggleItem struct {
 	Label  string
 	Search string
 	Data   any
+	// Edit opens an input for a setting rather than flipping it. changed
+	// redraws this same list, keeping its cursor and filter when it returns.
+	Edit func(changed func())
 }
 
 // toggleSeparator is the Data of a line between two parts of a list - what
@@ -162,6 +165,13 @@ func (a *App) showToggles(t toggles) {
 	toggle := func() {
 		i := list.GetCurrentItem()
 		if i < 0 || i >= len(shown) || isSeparator(shown[i]) {
+			return
+		}
+		if edit := shown[i].Edit; edit != nil {
+			edit(func() {
+				rebuild(input.GetText())
+				place()
+			})
 			return
 		}
 		t.toggle(shown[i])
