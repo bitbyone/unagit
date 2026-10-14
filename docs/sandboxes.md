@@ -58,6 +58,11 @@ Elsewhere:
   keeps the VM.
 - What unagit learns from use - the order of the profile and sandbox
   pickers - goes to its `state.json`, as the place picker's does.
+- **The commit author**: unagit passes `--author` only when the user
+  picked one for the run. unibox otherwise takes the author from a git
+  service of the profile that names one, then from the worktree's git
+  configuration - and an explicit `--author` beats both, so passing it
+  always would hide the profile's choice.
 - Help rows for the tab and the new keys; the README explains the
   feature, agentbox, the environments repository and the forge-side
   protection.
