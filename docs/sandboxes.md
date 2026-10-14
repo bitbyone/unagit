@@ -65,3 +65,7 @@ Elsewhere:
 Later, not in the first version: following the branch on the forge
 (`internal/watch`) to say when the agent pushed, and pulling on request
 from that news.
+
+How unagit hands the sandboxes the forge tokens they need - a socket, a
+`unagit credential get` helper, grants - is planned in
+[sandbox-credentials.md](sandbox-credentials.md).
