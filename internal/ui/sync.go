@@ -33,8 +33,19 @@ func (a *App) loadRepoSync(fetch bool) {
 		git    *gitx.Git
 	}
 	var jobs []job
+	var visible map[projectKey]bool
+	if fetch && a.cfg.Filters.RepositoryVisibility != "" {
+		visible = map[projectKey]bool{}
+		for _, i := range a.filterProjects(a.projects, "") {
+			pr := a.projects[i]
+			visible[projectKey{pr.Instance, pr.PathWithNamespace}] = true
+		}
+	}
 	for key, info := range a.disk {
 		if !info.Cloned {
+			continue
+		}
+		if visible != nil && !visible[key] {
 			continue
 		}
 		git := a.pathManager(key.Instance, key.Path).Git()

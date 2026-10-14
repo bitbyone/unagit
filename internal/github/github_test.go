@@ -134,13 +134,14 @@ func TestProjectVisibilityComesFromTheListingAndDetail(t *testing.T) {
 	s := newStub(t)
 	s.handle("/user", userJSON)
 	s.handle("/orgs/acme/repos", `[{"id":1,"full_name":"acme/private","owner":{"login":"acme"},"private":true},
-		{"id":2,"full_name":"acme/public","owner":{"login":"acme"},"private":false}]`)
+		{"id":2,"full_name":"acme/public","owner":{"login":"acme"},"private":false},
+		{"id":3,"full_name":"acme/internal","owner":{"login":"acme"},"private":true,"visibility":"internal"}]`)
 	s.handle("/repos/acme/private", `{"id":1,"full_name":"acme/private","private":true}`)
 	projects, err := s.client().GroupProjects(context.Background(), forge.Group{FullPath: "acme"}, false)
-	if err != nil || len(projects) != 2 {
+	if err != nil || len(projects) != 3 {
 		t.Fatalf("projects = %v, %v", projects, err)
 	}
-	if projects[0].Visibility != forge.VisibilityPrivate || projects[1].Visibility != forge.VisibilityPublic {
+	if projects[0].Visibility != forge.VisibilityPrivate || projects[1].Visibility != forge.VisibilityPublic || projects[2].Visibility != forge.VisibilityInternal {
 		t.Fatalf("visibility was lost: %v", projects)
 	}
 	detail, err := s.client().ProjectDetail(context.Background(), projects[0])

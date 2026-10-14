@@ -91,6 +91,9 @@ func (a *App) filterProjects(projects []forge.Project, query string) []int {
 		if !a.passesFilters(p.Instance, p.PathWithNamespace) {
 			continue
 		}
+		if visibility := a.cfg.Filters.RepositoryVisibility; visibility != "" && repositoryVisibility(p) != visibility {
+			continue
+		}
 		tags := a.cfg.TagsOf(p.Instance, p.PathWithNamespace)
 		if !a.cfg.Filters.PassesTags(tags) {
 			continue
@@ -168,7 +171,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	actW, syncW, editsW := headingWidth("ACTIVITY"), headingWidth("RMT"), cells(glyphEdits)
 	// MR is how many merge requests have a worktree on disk, after a mark
 	// when the repository's merge requests are hidden (H here, x there).
-	mrW, hiddenW := headingWidth("MR"), 0
+	mrW, hiddenW, privateW := headingWidth("MR"), 0, 0
 	sizeW := headingWidth("SIZE")
 	// CI is the newest pipeline of the clone's branch, and takes room only
 	// when some row has one.
@@ -177,6 +180,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	var paths []string
 	for _, idx := range filtered {
 		pr := a.projects[idx]
+		privateW = max(privateW, cells(privateMark(pr)))
 		if a.repositoryCI(pr) != "" {
 			ciW = headingWidth("CI")
 		}
@@ -198,7 +202,7 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			servers = append(servers, len([]rune(a.instanceLabel(pr.Instance))))
 		}
 		paths = append(paths, tildePath(a.projectDir(pr.Instance, pr.PathWithNamespace)))
-		names = append(names, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr)))+iconWidth(privateMark(pr)))
+		names = append(names, iconWidth(a.forgeIcon(pr.Instance))+len([]rune(name(pr))))
 		if w := tagsWidth(pr, math.MaxInt); w > 0 {
 			tagged = append(tagged, w)
 			tagsShort = append(tagsShort, tagsWidth(pr, 3))
@@ -240,6 +244,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 		markW--
 	}
 	cols = append(cols, fixedColumn(markW))
+	if privateW > 0 {
+		cols = append(cols, fixedColumn(privateW))
+	}
 	add := func(id string, c *listColumn) *listColumn {
 		if id != "" && hide(id) {
 			c.width = 0
@@ -303,6 +310,9 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 	header = append(header, field{text: "", width: markW, colour: role("repositories.header")})
 	if withServer {
 		header = append(header, field{text: "SERVER", width: serverW, colour: role("repositories.header")})
+	}
+	if privateW > 0 {
+		header = append(header, field{width: privateW})
 	}
 	header = append(header,
 		field{text: "REPOSITORY", width: nameW, colour: role("repositories.header")})
@@ -396,7 +406,11 @@ func (a *App) drawProjects(p *pane, filtered []int) {
 			fields = append(fields, field{text: a.instanceLabel(pr.Instance), width: serverW, colour: role("repositories.server")})
 			nameX += serverW + 1
 		}
-		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), after: privateMark(pr), width: nameW, colour: nameColour, shorten: shortenRepo})
+		if privateW > 0 {
+			fields = append(fields, field{text: privateMark(pr), width: privateW, colour: iconShade(nameColour)})
+			nameX += privateW + 1
+		}
+		fields = append(fields, field{icon: a.forgeIcon(pr.Instance), text: name(pr), width: nameW, colour: nameColour, shorten: shortenRepo})
 		if tagsW > 0 {
 			var starred *forge.Project
 			if pr.Starred {

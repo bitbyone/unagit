@@ -8,7 +8,7 @@ import (
 )
 
 // Serial: the theme's glyphs belong to the process.
-func TestPrivateRepositoriesKeepTheirMarkAfterTheName(t *testing.T) {
+func TestPrivateRepositoriesKeepTheirMarkBeforeTheForge(t *testing.T) {
 	restoreDefaultTheme(t)
 	t.Cleanup(func() { nerdFont = false })
 	a, sc := newTestApp(t)
@@ -28,6 +28,7 @@ func TestPrivateRepositoriesKeepTheirMarkAfterTheName(t *testing.T) {
 	for _, nerd := range []bool{false, true} {
 		changeOnLoop(a, func() { nerdFont = nerd; setTheme(theme); a.projectsPane.reload() })
 		mark := onLoop(a, func() string { return glyphPrivate })
+		forgeIcon := onLoop(a, func() string { return a.forgeIcon(a.projects[0].Instance) })
 		if nerd && mark != "\uf023" || !nerd && mark != "p" {
 			t.Fatalf("nerd=%v: the private mark is %q", nerd, mark)
 		}
@@ -36,14 +37,18 @@ func TestPrivateRepositoriesKeepTheirMarkAfterTheName(t *testing.T) {
 			for _, width := range []int{120, 80, 60} {
 				resizeApp(a, sc, width, 26)
 				text := a.screenText(sc)
-				if strings.Count(text, " "+mark+" ") != 1 || width >= 80 && !strings.Contains(lineAt(text, "gateway"), "gateway "+mark) {
-					t.Errorf("nerd=%v grouped=%v width=%d: no private mark after the name:\n%s", nerd, grouped, width, text)
+				prefix := mark + " "
+				if forgeIcon != "" {
+					prefix += forgeIcon + " "
+				}
+				if strings.Count(text, " "+mark+" ") != 1 || width >= 80 && !strings.Contains(lineAt(text, "gateway"), prefix) {
+					t.Errorf("nerd=%v grouped=%v width=%d: no private mark before the forge:\n%s", nerd, grouped, width, text)
 				}
 				for _, name := range []string{"billing", "internal", "unknown"} {
 					if width < 80 {
 						continue
 					}
-					if line := lineAt(text, name); line == "" || strings.Contains(line, name+" "+mark) {
+					if line := lineAt(text, name); line == "" || strings.Contains(line, " "+mark+" ") {
 						t.Errorf("%s has the wrong visibility mark: %q", name, line)
 					}
 				}
@@ -66,6 +71,6 @@ func TestPrivateRepositoriesKeepTheirMarkAfterTheName(t *testing.T) {
 	}
 	resizeApp(a, sc, 120, 34)
 	typeRunes(sc, "?")
-	waitFor(t, a, sc, "private repository")
+	waitFor(t, a, sc, "private: visible")
 	assertLegible(t, a, sc, "the repository help")
 }

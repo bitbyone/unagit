@@ -298,13 +298,19 @@ func (a *App) showViewOptions() {
 	}
 	a.showToggles(toggles{
 		title: "View · Repositories",
-		verb:  "on/off",
+		verb:  "change",
 		pack:  true,
 		items: func() []toggleItem {
 			items := make([]toggleItem, len(options))
 			for i, o := range options {
 				items[i] = toggleItem{Label: tagMark(o.on()) + " " + o.label, Search: o.label, Data: i}
 			}
+			visibility := f.RepositoryVisibility
+			if visibility == "" {
+				visibility = "all"
+			}
+			label := "visibility: " + visibility + "…"
+			items = append(items, toggleItem{Label: tagMark(f.RepositoryVisibility != "") + " " + esc(label), Search: label, Edit: a.showRepositoryVisibility})
 			return append(items, a.columnItems(config.ListRepositories)...)
 		},
 		toggle: func(it toggleItem) {

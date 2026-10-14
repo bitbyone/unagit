@@ -497,6 +497,7 @@ type repo struct {
 	PushedAt      time.Time `json:"pushed_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	Private       bool      `json:"private"`
+	Visibility    string    `json:"visibility"`
 	Stars         int       `json:"stargazers_count"`
 	Forks         int       `json:"forks_count"`
 	OpenIssues    int       `json:"open_issues_count"`
@@ -517,9 +518,12 @@ func (r repo) project() forge.Project {
 	if activity.IsZero() {
 		activity = r.UpdatedAt
 	}
-	visibility := forge.VisibilityPublic
-	if r.Private {
-		visibility = forge.VisibilityPrivate
+	visibility := r.Visibility
+	if visibility == "" {
+		visibility = forge.VisibilityPublic
+		if r.Private {
+			visibility = forge.VisibilityPrivate
+		}
 	}
 	return forge.Project{
 		ID:                r.ID,

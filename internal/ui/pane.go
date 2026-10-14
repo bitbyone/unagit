@@ -314,6 +314,7 @@ func (p *pane) openDetail(title, text string, focus bool) {
 
 // showDetail reveals the right hand column and moves focus into it.
 func (p *pane) showDetail(title, text string) {
+	p.app.stopTextWait(p.detail)
 	if !p.detailShown {
 		p.body.AddItem(p.detail, 0, p.detailWeight, false)
 		p.detailShown = true
@@ -327,6 +328,7 @@ func (p *pane) showDetail(title, text string) {
 
 // setDetail replaces the text without touching focus, for async updates.
 func (p *pane) setDetail(title, text string) {
+	p.app.stopTextWait(p.detail)
 	if !p.detailShown {
 		return
 	}
@@ -340,6 +342,7 @@ func (p *pane) setDetail(title, text string) {
 // render is called with the width the column is drawn at, and again when that
 // changes.
 func (p *pane) setDetailFunc(title string, render func(width int) string) {
+	p.app.stopTextWait(p.detail)
 	if !p.detailShown {
 		return
 	}
@@ -349,6 +352,7 @@ func (p *pane) setDetailFunc(title string, render func(width int) string) {
 }
 
 func (p *pane) hideDetail() {
+	p.app.stopTextWait(p.detail)
 	if !p.detailShown {
 		return
 	}

@@ -286,6 +286,9 @@ type Hidden struct {
 type Filters struct {
 	// ClonedOnly narrows both lists to projects that are on disk.
 	ClonedOnly bool `yaml:"cloned_only,omitempty" json:"cloned_only,omitempty"`
+	// RepositoryVisibility narrows only Repositories; empty shows every
+	// visibility, including repositories an old cache has not learned yet.
+	RepositoryVisibility string `yaml:"repository_visibility,omitempty" json:"repository_visibility,omitempty"`
 	// Sort is SortActivity or SortName; empty means activity. It is the
 	// order of a list that has none of its own in Sorts, and all a
 	// configuration written before Sorts says.

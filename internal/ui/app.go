@@ -183,9 +183,10 @@ type App struct {
 	// starting twice.
 	jobs      []*bgJob
 	spinFrame int
-	// waits counts the dialogs waiting on a request (waitInDialog), which
-	// keep the spinner turning as jobs do; spinning is whether it turns.
+	// waits counts dialogs and text panels waiting on a request, which keep
+	// the spinner turning as jobs do; spinning is whether it turns.
 	waits                        int
+	textWaits                    map[*tview.TextView]*textWait
 	spinning                     bool
 	refreshingMRs, refreshingPrj bool
 

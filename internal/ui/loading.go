@@ -5,6 +5,40 @@ import (
 	"github.com/rivo/tview"
 )
 
+type textWait struct{ render func() string }
+
+func (a *App) loadingLine(step string) string {
+	return tag(colAccent) + spinnerGlyph(a.spinFrame) + tagEnd + " " + tag(colMuted) + esc(step) + tagEnd
+}
+
+// waitText keeps the spinner in a text panel moving until its answer arrives.
+// A newer request or a closed panel makes the old answer no longer its own.
+func (a *App) waitText(view *tview.TextView, render func() string) func() bool {
+	a.stopTextWait(view)
+	if a.textWaits == nil {
+		a.textWaits = map[*tview.TextView]*textWait{}
+	}
+	wait := &textWait{render: render}
+	a.textWaits[view] = wait
+	a.waits++
+	view.SetText(render())
+	a.keepSpinning()
+	return func() bool {
+		if a.textWaits[view] != wait {
+			return false
+		}
+		a.stopTextWait(view)
+		return true
+	}
+}
+
+func (a *App) stopTextWait(view *tview.TextView) {
+	if a.textWaits[view] != nil {
+		delete(a.textWaits, view)
+		a.waits--
+	}
+}
+
 // A read from a server before a dialog can show it - a pipeline, a log,
 // the branches for a form - has nothing worth keeping to say: the log that
 // runTask keeps flashed up for a moment and went, and the dialog came after
@@ -30,7 +64,7 @@ func (a *App) loadThen(title string, fn func(step func(string)) (string, error),
 		for col := x + 1; col < x+w-1; col++ {
 			screen.SetContent(col, y+1, ' ', nil, baseStyle())
 		}
-		text := tag(colAccent) + spinnerGlyph(a.spinFrame) + tagEnd + " " + tag(colMuted) + esc(step) + tagEnd
+		text := a.loadingLine(step)
 		tview.Print(screen, text, x+2, y+1, w-4, tview.AlignLeft, colMuted)
 		return x, y, w, h
 	})

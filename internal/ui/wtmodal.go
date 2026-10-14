@@ -62,7 +62,7 @@ func (a *App) showWorktreeView(r worktreeRow) {
 func (a *App) makeWorktreeView(r worktreeRow) {
 	v := &wtView{row: r, facts: map[string]wtFacts{}}
 	v.body = newBlockList()
-	v.body.waiting = "reading the worktree from git …"
+	v.body.waiting = func() string { return a.loadingLine("Reading worktree details…") }
 	v.footer = tview.NewTextView().SetDynamicColors(true).SetTextColor(colDim)
 	v.footer.SetWrap(true).SetWordWrap(true)
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -134,9 +134,9 @@ func (a *App) readWorktreeFacts() {
 	v.reading++
 	ticket := v.reading
 	integrate := a.cfg.Integrations.Incomm
-	go func() {
-		states := make([]remoteState, len(members))
-		facts := make([]wtFacts, len(members))
+	states := make([]remoteState, len(members))
+	facts := make([]wtFacts, len(members))
+	a.waitInDialog("reading worktree details", func() error {
 		var wg sync.WaitGroup
 		for i, m := range members {
 			wg.Add(1)
@@ -149,22 +149,22 @@ func (a *App) readWorktreeFacts() {
 			}()
 		}
 		wg.Wait()
-		a.tv.QueueUpdateDraw(func() {
-			if a.wtView != v || ticket != v.reading {
-				return
-			}
-			if a.wtRemote == nil {
-				a.wtRemote = map[string]remoteState{}
-			}
-			v.facts = map[string]wtFacts{}
-			for i, m := range members {
-				a.wtRemote[m.Dir] = states[i]
-				v.facts[m.Dir] = facts[i]
-			}
-			v.loaded = true
-			a.renderWorktreeView()
-		})
-	}()
+		return nil
+	}, func(_ bool) {
+		if a.wtView != v || ticket != v.reading {
+			return
+		}
+		if a.wtRemote == nil {
+			a.wtRemote = map[string]remoteState{}
+		}
+		v.facts = map[string]wtFacts{}
+		for i, m := range members {
+			a.wtRemote[m.Dir] = states[i]
+			v.facts[m.Dir] = facts[i]
+		}
+		v.loaded = true
+		a.renderWorktreeView()
+	})
 }
 
 // renderWorktreeView draws every block, the lit one in the focused border.

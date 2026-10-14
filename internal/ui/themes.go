@@ -265,7 +265,7 @@ type Glyphs struct {
 	// Unlisted marks a repository Find Repository… found that no list of
 	// unagit has yet: Enter adds it.
 	Unlisted string `json:"unlisted"`
-	// Private follows a repository's name when only its members can see it.
+	// Private marks a repository whose visibility is restricted to members.
 	Private string `json:"private"`
 	// Check and Cross are yes and no: up to date, approved, chosen; failed.
 	Check string `json:"check"`

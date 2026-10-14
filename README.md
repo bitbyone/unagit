@@ -1044,8 +1044,18 @@ machines, what you happen to wait for here is not.
   `0` shows all ages again. The setting sticks, and the cached requests stay.
   Refresh still checks the list for new activity, but skips pipelines,
   approvals, threads and name lookups for requests the view hides.
-- **Private repositories** carry a lock after their name in Repositories
-  (`p` without a Nerd Font), including when grouped or shortened.
+- **Private repositories** carry a lock between their disk state and forge
+  icon in Repositories (`p` without a Nerd Font). It means access is limited
+  to members, including inherited group members, rather than to one person.
+  `v` › visibility switches between all, public, private and internal, using
+  the same vocabulary on GitLab and GitHub (including GitHub Enterprise's
+  internal repositories). Other values reported by a server are offered too;
+  unknown means the cache has not learned the visibility yet. The filter
+  affects Repositories alone, keeps the cache and is saved for the next start.
+- **Details show their wait.** Repository and merge request details, the
+  conversation and the worktree view show an animated spinner while loading.
+  Repository and merge request detail reads also appear as jobs in the main
+  lists' status lines.
 - **An order for each list.** `o` sorts the list on screen, and each list
   keeps its own: every one by activity or by name; Repositories also by
   edits, by size, or by remote - the furthest behind origin first, then any

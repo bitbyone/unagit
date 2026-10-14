@@ -153,6 +153,8 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 		return
 	}
 
+	a.waitText(p.detail, func() string { return a.projectSkeleton(pr) })
+	job := a.startJob("reading repository details")
 	// The clone is read here, on the event loop, and asked about out of it.
 	info := a.disk[projectKey{pr.Instance, pr.PathWithNamespace}]
 	clone := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: info.Branch,
@@ -225,6 +227,7 @@ func (a *App) showProjectDetail(pr forge.Project, focus bool) {
 		wg.Wait()
 
 		a.tv.QueueUpdateDraw(func() {
+			a.endJob(job)
 			if p.detailSeq != seq {
 				return // the user moved on
 			}
@@ -240,7 +243,7 @@ func (a *App) projectSkeleton(pr forge.Project) string {
 	a.tagsLine(d, pr)
 	a.chezmoiLine(d, pr)
 	d.blank()
-	d.raw(tag(colMuted) + "Loading from GitLab…" + tagEnd + "\n")
+	d.raw(a.loadingLine("Loading repository details…") + "\n")
 	return d.String()
 }
 
@@ -400,12 +403,7 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 	p.detailSeq++
 	seq := p.detailSeq
 
-	skeleton := &detailBuf{}
-	skeleton.title(fmt.Sprintf("!%d  %s", mr.IID, mr.Title))
-	skeleton.sub(path)
-	skeleton.blank()
-	skeleton.raw(tag(colMuted) + "Loading from GitLab…" + tagEnd + "\n")
-	p.openDetail(title, skeleton.String(), focus)
+	p.openDetail(title, a.mrSkeleton(mr, path), focus)
 
 	client := a.client(mr.Instance)
 	if client == nil {
@@ -414,6 +412,8 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 		return
 	}
 
+	a.waitText(p.detail, func() string { return a.mrSkeleton(mr, path) })
+	job := a.startJob("reading merge request details")
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -467,6 +467,7 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 		wg.Wait()
 
 		a.tv.QueueUpdateDraw(func() {
+			a.endJob(job)
 			if p.detailSeq != seq {
 				return
 			}
@@ -482,6 +483,15 @@ func (a *App) showMRDetail(mr forge.MergeRequest, focus bool) {
 			}
 		})
 	}()
+}
+
+func (a *App) mrSkeleton(mr forge.MergeRequest, path string) string {
+	d := &detailBuf{}
+	d.title(fmt.Sprintf("!%d  %s", mr.IID, mr.Title))
+	d.sub(path)
+	d.blank()
+	d.raw(a.loadingLine("Loading merge request details…") + "\n")
+	return d.String()
 }
 
 func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeRequestDetail,

@@ -127,6 +127,9 @@ func spinnerGlyph(frame int) string {
 // showJobs draws the right-hand end of every status line again: the word
 // last said and the jobs under way.
 func (a *App) showJobs() {
+	for view, wait := range a.textWaits {
+		view.SetText(wait.render())
+	}
 	for _, p := range []*pane{a.projectsPane, a.mrsPane, a.worktreesPane, a.activityPane} {
 		if p != nil {
 			p.updateHeader()

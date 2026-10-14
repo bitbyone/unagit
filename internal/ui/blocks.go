@@ -27,7 +27,7 @@ type blockList struct {
 	blocks  []textBlock
 	lit     int
 	offset  int
-	waiting string
+	waiting func() string
 }
 
 func newBlockList() *blockList { return &blockList{Box: tview.NewBox()} }
@@ -50,7 +50,9 @@ func (b *blockList) Draw(screen tcell.Screen) {
 		return
 	}
 	if len(b.blocks) == 0 {
-		tview.Print(screen, b.waiting, x, y+h/3, w, tview.AlignCenter, colMuted)
+		if b.waiting != nil {
+			tview.Print(screen, b.waiting(), x, y+h/3, w, tview.AlignCenter, colMuted)
+		}
 		return
 	}
 	// Where each block starts, one blank row between two.

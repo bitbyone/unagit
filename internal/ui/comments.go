@@ -59,13 +59,14 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	fit := a.widthAware(view)
 	var load func()
 	load = func() {
+		a.stopTextWait(view)
 		fit(nil)
 		client := a.client(mr.Instance)
 		if client == nil {
 			view.SetText(tag(colBad) + a.instanceLabel(mr.Instance) + " has no token" + tagEnd)
 			return
 		}
-		view.SetText(tag(colMuted) + "Loading the conversation…" + tagEnd)
+		finish := a.waitText(view, func() string { return a.loadingLine("Loading the conversation…") })
 		// The worktrees are looked up here, where the configuration belongs to
 		// the event loop; reading their files can wait for the goroutine.
 		var places []incomm.Place
@@ -78,6 +79,9 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			notes, err := client.MergeRequestNotes(ctx, mr, 200)
 			localThreads := incomm.ThreadsAt(places...)
 			a.tv.QueueUpdateDraw(func() {
+				if !finish() {
+					return
+				}
 				if err != nil {
 					view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)
 					return
@@ -100,11 +104,13 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		switch ev.Key() {
 		case tcell.KeyEsc:
+			a.stopTextWait(view)
 			a.closeModal(pageComments)
 			return nil
 		case tcell.KeyRune:
 			switch ev.Rune() {
 			case 'q':
+				a.stopTextWait(view)
 				a.closeModal(pageComments)
 				return nil
 			case 'i':
