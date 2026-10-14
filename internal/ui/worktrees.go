@@ -410,6 +410,15 @@ func (a *App) newWorktreesPane() *pane {
 func (a *App) filterWorktrees(query string) []int {
 	var hits []scored
 	for i, r := range a.worktrees {
+		matches := a.cfg.Filters.MatchesServer(r.Instance)
+		if r.grouped() {
+			for _, member := range r.Members {
+				matches = matches || a.cfg.Filters.MatchesServer(member.Instance)
+			}
+		}
+		if !matches {
+			continue
+		}
 		hay := r.Path + " " + a.worktreeBranch(r) + " " + a.worktreeMR(r) + " " + a.instanceLabel(r.Instance)
 		if r.grouped() {
 			for _, m := range r.Members {

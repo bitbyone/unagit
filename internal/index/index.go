@@ -161,13 +161,14 @@ func Save(path string, v any) error {
 // DedupeProjects removes projects seen through more than one selected group
 // and sorts them by path.
 func DedupeProjects(in []forge.Project) []forge.Project {
-	seen := make(map[int]bool, len(in))
+	seen := make(map[serverID]bool, len(in))
 	out := make([]forge.Project, 0, len(in))
 	for _, p := range in {
-		if seen[p.ID] {
+		key := serverID{p.Instance, p.ID}
+		if seen[key] {
 			continue
 		}
-		seen[p.ID] = true
+		seen[key] = true
 		out = append(out, p)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].PathWithNamespace < out[j].PathWithNamespace })
@@ -176,15 +177,22 @@ func DedupeProjects(in []forge.Project) []forge.Project {
 
 // DedupeMergeRequests removes duplicates and sorts by most recently updated.
 func DedupeMergeRequests(in []forge.MergeRequest) []forge.MergeRequest {
-	seen := make(map[int]bool, len(in))
+	seen := make(map[serverID]bool, len(in))
 	out := make([]forge.MergeRequest, 0, len(in))
 	for _, m := range in {
-		if seen[m.ID] {
+		key := serverID{m.Instance, m.ID}
+		if seen[key] {
 			continue
 		}
-		seen[m.ID] = true
+		seen[key] = true
 		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
 	return out
+}
+
+// Numeric IDs are unique only within the server that assigned them.
+type serverID struct {
+	instance string
+	id       int
 }

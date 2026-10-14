@@ -1039,6 +1039,11 @@ machines, what you happen to wait for here is not.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.
+  `v` › server narrows Repositories, Merge requests and Worktrees to one
+  configured server; all shows every server again. The choice sticks and
+  appears in each list's status line. Refresh asks only the chosen server,
+  keeping the other servers' caches and worktrees. A grouped worktree remains
+  listed if any of its members belongs to the chosen server, and stays whole.
   In Merge requests, `v` also hides requests last updated more than a chosen
   number of days ago. "hide older than … days" accepts digits only; empty or
   `0` shows all ages again. The setting sticks, and the cached requests stay.

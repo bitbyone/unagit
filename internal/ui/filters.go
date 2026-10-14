@@ -18,6 +18,9 @@ import (
 // it belongs to.
 func (a *App) passesFilters(instance, path string) bool {
 	f := &a.cfg.Filters
+	if !f.MatchesServer(instance) {
+		return false
+	}
 	if f.IsHidden(instance, path) {
 		return false
 	}
@@ -34,6 +37,9 @@ func (a *App) passesFilters(instance, path string) bool {
 func (a *App) filterSummary(list string, grouped bool) string {
 	f := &a.cfg.Filters
 	parts := []string{sortLabel(a.order(list))}
+	if f.Server != "" {
+		parts = append(parts, tag(colOn)+"server: "+esc(a.instanceLabel(f.Server))+tagEnd+tag(colMuted))
+	}
 	if f.ClonedOnly {
 		parts = append(parts, tag(colOn)+"cloned only"+tagEnd+tag(colMuted))
 	}
@@ -346,6 +352,7 @@ func (a *App) showMRViewOptions() {
 			}
 			items = append(items, toggleItem{Label: tagMark(f.HideOlderThanDays > 0) + " " + ageLabel,
 				Search: "hide older than days", Edit: a.showMRAgeFilter})
+			items = append(items, a.serverFilterItem())
 			items = append(items, a.columnItems(config.ListMergeRequests)...)
 			items = append(items, option(last))
 			// The people first, each marked as one, then the repositories.
@@ -499,9 +506,11 @@ func mrsHiddenName(hidden bool) string {
 func (a *App) showWorktreeViewOptions() {
 	a.showToggles(toggles{
 		title: "View · Worktrees",
-		verb:  "show/hide",
+		verb:  "change",
 		pack:  true,
-		items: func() []toggleItem { return a.columnItems(config.ListWorktrees) },
+		items: func() []toggleItem {
+			return append([]toggleItem{a.serverFilterItem()}, a.columnItems(config.ListWorktrees)...)
+		},
 		toggle: func(it toggleItem) {
 			a.toggleColumnItem(it)
 		},

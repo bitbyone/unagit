@@ -72,7 +72,7 @@ func (a *App) repositoryCITargets() []branchKey {
 func (a *App) worktreeCITargets() []branchKey {
 	var out []branchKey
 	for _, r := range a.worktrees {
-		if !r.grouped() && !r.keptReview() && !a.cfg.Filters.IsHidden(r.Instance, r.Path) {
+		if !r.grouped() && !r.keptReview() && a.cfg.Filters.MatchesServer(r.Instance) && !a.cfg.Filters.IsHidden(r.Instance, r.Path) {
 			out = append(out, branchKey{r.Instance, r.Path, r.Branch})
 		}
 	}

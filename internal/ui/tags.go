@@ -311,6 +311,7 @@ func (a *App) showViewOptions() {
 			}
 			label := "visibility: " + visibility + "…"
 			items = append(items, toggleItem{Label: tagMark(f.RepositoryVisibility != "") + " " + esc(label), Search: label, Edit: a.showRepositoryVisibility})
+			items = append(items, a.serverFilterItem())
 			return append(items, a.columnItems(config.ListRepositories)...)
 		},
 		toggle: func(it toggleItem) {

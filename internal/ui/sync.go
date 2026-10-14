@@ -45,6 +45,9 @@ func (a *App) loadRepoSync(fetch bool) {
 		if !info.Cloned {
 			continue
 		}
+		if fetch && !a.cfg.Filters.MatchesServer(key.Instance) {
+			continue
+		}
 		if visible != nil && !visible[key] {
 			continue
 		}
@@ -445,6 +448,9 @@ func (a *App) moveMany(title string, items []updateItem, move func(*workspace.Ma
 func (a *App) fetchWorktrees() {
 	dirs := map[projectKey]string{}
 	for _, it := range a.worktreeItems(a.worktrees) {
+		if !a.cfg.Filters.MatchesServer(it.instance) {
+			continue
+		}
 		k := projectKey{it.instance, it.path}
 		if _, ok := dirs[k]; !ok {
 			dirs[k] = it.dir

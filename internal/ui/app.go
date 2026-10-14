@@ -997,6 +997,9 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 	var ready []config.Instance
 	var missing []string
 	for _, inst := range a.cfg.Instances {
+		if !a.cfg.Filters.MatchesServer(inst.ID) {
+			continue
+		}
 		if a.client(inst.ID) == nil {
 			missing = append(missing, inst.Label())
 			continue
@@ -1007,6 +1010,9 @@ func (a *App) instancesWithTokens() ([]config.Instance, error) {
 		ready = append(ready, inst)
 	}
 	if len(ready) == 0 {
+		if server := a.cfg.Filters.Server; server != "" && a.cfg.Instance(server) == nil {
+			return nil, fmt.Errorf("the selected server is no longer configured - choose all in View Options")
+		}
 		if len(missing) > 0 {
 			return nil, fmt.Errorf("no token for %s - set one in "+settingsTab, strings.Join(missing, ", "))
 		}
@@ -1212,10 +1218,10 @@ func (a *App) refreshProjects() {
 	jobs := a.groupJobs(instances)
 	// A newly published repository may take a moment to appear in the
 	// server's group listing. Keep adopted checkouts until the server knows
-	// them too, so a refresh cannot make one disappear from this machine.
+	// them too, and keep what was cached for servers this filter leaves out.
 	var adopted []forge.Project
 	for _, p := range a.projects {
-		if a.cfg.State.LocalRepository(p.Instance, p.PathWithNamespace) != "" {
+		if !a.cfg.Filters.MatchesServer(p.Instance) || a.cfg.State.LocalRepository(p.Instance, p.PathWithNamespace) != "" {
 			adopted = append(adopted, p)
 		}
 	}
@@ -1280,6 +1286,18 @@ func (a *App) refreshMRs() {
 		clients[j.inst.ID] = j.client
 	}
 	paths := a.snapshotProjectPaths()
+	var carried []forge.MergeRequest
+	for _, mr := range a.mrs {
+		if !a.cfg.Filters.MatchesServer(mr.Instance) {
+			carried = append(carried, mr)
+		}
+	}
+	carriedMe := map[string]string{}
+	for id, username := range a.me {
+		if !a.cfg.Filters.MatchesServer(id) {
+			carriedMe[id] = username
+		}
+	}
 	var all []forge.MergeRequest
 	var idx index.MergeRequests
 	people := a.people.Clone()
@@ -1331,7 +1349,7 @@ func (a *App) refreshMRs() {
 		if err != nil {
 			return err
 		}
-		all = index.DedupeMergeRequests(all)
+		all = index.DedupeMergeRequests(append(all, carried...))
 
 		// What the list does not show is not asked about: it keeps what the
 		// last refresh found, and the requests go to what is seen.
@@ -1365,7 +1383,7 @@ func (a *App) refreshMRs() {
 		for _, i := range ask {
 			visible = append(visible, all[i])
 		}
-		me := map[string]string{}
+		me := carriedMe
 		for id, client := range clients {
 			if u, err := client.CurrentUser(ctx); err == nil && u != nil {
 				me[id] = u.Username

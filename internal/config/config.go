@@ -284,6 +284,9 @@ type Hidden struct {
 // They are a lasting preference, so they live in the configuration rather
 // than in the session.
 type Filters struct {
+	// Server is the stable instance ID chosen for the main lists; empty
+	// shows every server again.
+	Server string `yaml:"server,omitempty" json:"server,omitempty"`
 	// ClonedOnly narrows both lists to projects that are on disk.
 	ClonedOnly bool `yaml:"cloned_only,omitempty" json:"cloned_only,omitempty"`
 	// RepositoryVisibility narrows only Repositories; empty shows every
@@ -340,6 +343,10 @@ type Filters struct {
 	// HideOlderThanDays hides merge requests by their last update; zero shows
 	// every age again without changing the cached list.
 	HideOlderThanDays int `yaml:"hide_older_than_days,omitempty" json:"hide_older_than_days,omitempty"`
+}
+
+func (f *Filters) MatchesServer(instance string) bool {
+	return f.Server == "" || f.Server == instance
 }
 
 // HiddenAuthor is an author of a server whose merge requests are not listed.
@@ -960,6 +967,9 @@ func (c *Config) RemoveInstance(id string) {
 	for i := range c.Instances {
 		if c.Instances[i].ID == id {
 			c.Instances = append(c.Instances[:i], c.Instances[i+1:]...)
+			if c.Filters.Server == id {
+				c.Filters.Server = ""
+			}
 			return
 		}
 	}
