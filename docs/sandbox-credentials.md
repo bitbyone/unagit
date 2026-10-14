@@ -43,7 +43,8 @@ value. What matters for unagit, all checked against sbx itself:
 
 Without unagit the same works with a long-lived narrow token in the login
 keychain and `command: security find-generic-password -s <item> -w`. unagit
-is the better source because it can mint a short-lived token per use.
+is the better source because it keeps the tokens in one vault and, where
+the forge allows it, issues short-lived ones.
 
 ## The hard rule, and what this changes in it
 
@@ -137,21 +138,26 @@ offers to create the grant (never silently).
 
 ### Minting short-lived tokens
 
-What each forge allows, to be confirmed when built:
+Tokens only: no GitHub App, no OAuth application - the user's decision.
+unagit holds the user's PATs and uses them to issue narrower ones where
+the forge's API allows it. What each forge allows, to be confirmed when
+built:
 
 - **GitLab** - project and group access tokens can be created through the
-  API, but expire by the day, not the hour. Shorter ones need an OAuth
-  application (access tokens of two hours, user `oauth2`). Either way,
-  unagit revokes what it minted once a newer one replaced it, so a day's
-  expiry is not a day's exposure.
-- **GitHub** - a fine-grained personal token cannot be created by API.
-  Short-lived tokens come from a GitHub App: an installation token lasts
-  an hour and can be narrowed to repositories and permissions (user
-  `x-access-token`). That means registering an app and keeping its key in
-  the vault.
+  API (`POST /projects/:id/access_tokens`, a Maintainer's right; on
+  gitlab.com a paid tier) with chosen scopes and an expiry, by the day,
+  not the hour. A stored token can also rotate itself
+  (`POST /personal_access_tokens/self/rotate`): a new value, the old one
+  revoked. Either way unagit revokes what it issued once a newer one
+  replaced it, so a day's expiry is not a day's exposure.
+- **GitHub** - no API creates a personal access token, fine-grained or
+  classic; they are made in the web UI only. unagit hands out `stored`
+  tokens there - one fine-grained token per owner (it covers one owner),
+  or one classic token for all - and can say when one nears its expiry.
+  A profile tells owners on github.com apart by path
+  (`host: github.com/some-org`), which unibox supports.
 
-Until minting exists, `stored` grants make the integration useful on day
-one.
+`stored` grants work on both forges from day one; minting is GitLab's.
 
 ### Seen
 
@@ -184,5 +190,5 @@ The profile changes host access, so unibox asks to approve it again.
 1. The socket and `unagit credential get` with `stored` grants, the log,
    and the Settings block - enough for the my2n and personal profiles.
 2. Activity rows for handouts.
-3. GitLab minting, then the GitHub App.
+3. GitLab minting and rotation; expiry reminders for stored GitHub tokens.
 4. Writing profile entries from the Sandboxes tab.
