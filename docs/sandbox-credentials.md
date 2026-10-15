@@ -41,10 +41,12 @@ value. What matters for unagit, all checked against sbx itself:
 - A host behind the VPN works: the proxy connects from the host, and the
   host's VPN routes it (checked with gitlab.2n.cz).
 
-Without unagit the same works with a long-lived narrow token in the login
-keychain and `command: security find-generic-password -s <item> -w`. unagit
-is the better source because it keeps the tokens in one vault and, where
-the forge allows it, issues short-lived ones.
+Without unagit the same works with a long-lived narrow token unibox keeps:
+`unibox secret set <name>` takes it on a terminal into the platform's store
+(the login keychain, the Secret Service), and the service says `command:
+secret:<name>` - which is what profiles use today. unagit is the better
+source because it keeps the tokens in one vault and, where the forge
+allows it, issues short-lived ones; it matters most for those.
 
 ## The hard rule, and what this changes in it
 
@@ -83,8 +85,8 @@ Considered and rejected:
   dialog that protects the item would never show. If wanted later, it
   needs its own decision.
 - **Tokens passed to unibox with `prepare`.** unibox would hold values in
-  argv, logs and state, the approval of the profile would not cover them,
-  and an sbx secret is the sandbox's, not a task's.
+  argv, logs and state, a profile would not say where they come from, and
+  an sbx secret is the sandbox's, not a task's.
 
 ## What unagit has to build
 
@@ -193,7 +195,8 @@ asks nothing (unibox's Trust).
 ## Order of work
 
 1. The socket and `unagit credential get` with `stored` grants, the log,
-   and the Settings block - enough for the my2n and personal profiles.
+   and the Settings block. Not urgent while `secret:<name>` covers the
+   my2n and personal profiles; it pays off with minting.
 2. Activity rows for handouts.
 3. GitLab minting and rotation; expiry reminders for stored GitHub tokens.
 4. Writing profile entries from the Sandboxes tab.
