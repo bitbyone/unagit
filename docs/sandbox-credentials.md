@@ -167,10 +167,14 @@ token is something the user should be able to see happen.
 
 ### Writing the profile's entries
 
-From the Sandboxes tab, a grant can write or show the matching `services`
-entry for a profile: the absolute path of the running unagit binary, the
-host, the user the forge expects, a `refresh` shorter than the lifetime.
-The profile changes host access, so unibox asks to approve it again.
+unagit writes no YAML. From the Sandboxes tab, a grant runs `unibox
+service add` for a profile - the host, the user the forge expects, a
+`refresh` shorter than the lifetime, and a `command:` naming `unagit
+credential get` by the absolute path of the running binary - and a
+`stored` token reaches the platform's store through `unibox secret set`,
+on its stdin. unibox owns the profile's format and the platforms'
+stores (unibox's docs/design.md, "Configured through unibox"); the
+profile changes host access, so unibox asks to approve it again.
 
 ## Open questions
 
