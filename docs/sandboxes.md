@@ -31,7 +31,7 @@ agentbox's `--json`:
 
 | part | rows | actions |
 | --- | --- | --- |
-| **Profiles** | name, image state per runtime, approval, agents, last commit to its directory; a pane with its instructions as the agent gets them | Open in Editor…, Edit Instructions…, Build…, Approve…, Open in Sandboxed Agent… |
+| **Profiles** | name, image state per runtime, agents, last commit to its directory; a pane with its instructions as the agent gets them, and what changed in it since unibox last saw it | Open in Editor…, Edit Instructions…, Build…, Network… (`unibox network`), Services… (`unibox service`), Sign In… (`unibox login`), Open in Sandboxed Agent… |
 | **Sandboxes** | VM: runtime, profile, state, memory, tasks | Shell… (`agentbox shell` in a place), Stop, Remove (a question naming its tasks) |
 | **Tasks** | in the VM under the cursor: worktree, agent, its state | Open Worktree, Remove Task |
 

@@ -174,7 +174,8 @@ credential get` by the absolute path of the running binary - and a
 `stored` token reaches the platform's store through `unibox secret set`,
 on its stdin. unibox owns the profile's format and the platforms'
 stores (unibox's docs/design.md, "Configured through unibox"); the
-profile changes host access, so unibox asks to approve it again.
+profile changes host access, which unibox tells at the next start; it
+asks nothing (unibox's Trust).
 
 ## Open questions
 
