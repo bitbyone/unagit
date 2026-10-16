@@ -54,8 +54,9 @@ Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
 measure an uncached run before changing the parallel limit.
 
 A release is a tag `vX.Y` - two numbers, nothing else - on a commit of
-main. Every push and pull request runs `.github/workflows/test.yml` (macOS
-and Linux, read-only token); `.github/workflows/release.yml` runs it too,
+main. Every push and pull request runs `.github/workflows/test.yml` (Linux
+with the race detector, macOS without - its runtime crashes children
+there; read-only token); `.github/workflows/release.yml` runs it too,
 builds the tag, checks that `unagit --version` prints `X.Y`, and only then
 lets a last job - the one that may write, running none of the repository's
 code - point `Formula/unagit.rb` at the tag and its commit and push it to

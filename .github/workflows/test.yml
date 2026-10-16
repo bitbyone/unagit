@@ -22,7 +22,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        # The race detector runs on Linux. On macOS its runtime crashes now
+        # and then in a child between fork and exec (tsan_rtl.cpp:94, the
+        # child dies of SIGSEGV before git or an editor even starts), which
+        # fails tests that did nothing wrong; a race in Go code is the same
+        # on either system, so macOS runs the suite without it.
+        include:
+          - os: ubuntu-latest
+            target: test
+          - os: macos-latest
+            target: test-fast
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,4 +49,4 @@ jobs:
           fi
           go vet ./...
       - name: Test
-        run: make test
+        run: make ${{ matrix.target }}
