@@ -11,6 +11,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/ui"
+	"github.com/tobola/unagit/internal/version"
 )
 
 func main() {
@@ -33,6 +34,7 @@ func rootCmd() *cobra.Command {
 			"the groups and where each of them is cloned to. Tokens are encrypted with a\n" +
 			"passphrase (Argon2id + AES-256-GCM) that is asked for in a dialog on every\n" +
 			"start; they only ever exist in memory.",
+		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -44,7 +46,9 @@ func rootCmd() *cobra.Command {
 		},
 	}
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
-	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(),
+	// --version prints the version alone, the same line as unagit version.
+	root.SetVersionTemplate("{{.Version}}\n")
+	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), versionCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
@@ -100,6 +104,17 @@ func whereCmd() *cobra.Command {
 			fmt.Println("projects:", config.IndexPath("projects"))
 			fmt.Println("mrs:     ", config.IndexPath("mrs"))
 			fmt.Println("groups:  ", config.IndexPath("groups"))
+		},
+	}
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version of unagit",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), version.String())
 		},
 	}
 }

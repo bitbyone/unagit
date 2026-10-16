@@ -53,6 +53,14 @@ They run in parallel, four at a time (`parallelTests` in `ui/main_test.go`).
 Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
 measure an uncached run before changing the parallel limit.
 
+A release is a tag `vX.Y` - two numbers, nothing else - on a commit of
+main. `.github/workflows/release.yml` tests it, builds it, checks that
+`unagit --version` prints `X.Y`, and points `Formula/unagit.rb` at the tag
+and its commit, pushed to main. Homebrew builds from source and refuses if
+the tag has moved; nothing compiled is published. The version is baked in
+with `-X …/internal/version.Version=X.Y` (no `v`); any other build is `dev`
+with its commit. Do not edit the formula's tag or revision by hand.
+
 Commit and push every finished change, in every repository you touched (unagit
 and `../incomm`), without waiting to be asked: the user wants nothing left
 unpushed. Never force-push. Commit messages are a sentence in the imperative
@@ -133,7 +141,8 @@ select (`styleDropDown`), it just was not reused. The rules:
 
 | Package | What it owns |
 | --- | --- |
-| `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where` |
+| `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where`, `version` |
+| `internal/version` | the release baked in at build time, or dev and its commit |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
 | `internal/github` | github.com client, same |

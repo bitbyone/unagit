@@ -46,10 +46,22 @@ that you decide instead of inherit, and one keystroke to be inside any of it.
 
 ## Install
 
+With Homebrew, from the tap in this repository; it builds the release on your
+machine from its tagged commit:
+
 ```sh
-make install     # -> ~/.local/bin/unagit
+brew tap bitbyone/unagit https://github.com/bitbyone/unagit
+brew install unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
+
+Or from a checkout:
+
+```sh
+make install     # -> ~/.local/bin/unagit
+```
+
+`unagit --version` (or `unagit version`) prints the release it was built from.
 
 Nothing to edit by hand. In **Settings [5]** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be

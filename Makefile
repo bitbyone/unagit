@@ -5,8 +5,14 @@ PREFIX ?= $(HOME)/.local
 
 build: build-unagit
 
+# VERSION is the release tag on HEAD without its v, empty anywhere else,
+# which leaves the binary calling itself dev with its commit. The release
+# workflow and the Homebrew formula set it the same way.
+VERSION ?= $(shell git describe --tags --exact-match --match 'v[0-9]*.[0-9]*' 2>/dev/null | sed 's/^v//')
+LDFLAGS := $(if $(VERSION),-X github.com/tobola/unagit/internal/version.Version=$(VERSION))
+
 build-unagit:
-	go build -o unagit ./cmd/unagit
+	go build -ldflags "$(LDFLAGS)" -o unagit ./cmd/unagit
 
 test:
 	go test -race ./...

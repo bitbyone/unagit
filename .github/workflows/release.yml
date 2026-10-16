@@ -1,0 +1,85 @@
+# A vX.Y tag on a commit of main releases it: the tests run, the binary is
+# built and asked for its version, and the Homebrew formula in this
+# repository is pointed at the tag and its commit and pushed to main, where
+# `brew upgrade` finds it. Homebrew builds from source; nothing compiled is
+# published.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+# Two tags pushed together would race for main; one at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # Empty until branch protection needs it; then a deploy key allowed
+          # to push to main, and the token is not used for the push.
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Check the tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$GITHUB_REF_NAME is not vX.Y"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is on a commit that is not on main"
+            exit 1
+          fi
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: make test
+
+      - name: Build and ask for the version
+        run: |
+          make build VERSION="$VERSION"
+          got=$(./unagit --version)
+          if [ "$got" != "$VERSION" ]; then
+            echo "::error::unagit --version printed $got, not $VERSION"
+            exit 1
+          fi
+
+      - name: Point the formula at the tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B release origin/main
+            sed -E -i '' \
+              -e "s/(tag: +)\"v[0-9.]+\"/\1\"$GITHUB_REF_NAME\"/" \
+              -e "s/(revision: +)\"[0-9a-f]{40}\"/\1\"$GITHUB_SHA\"/" \
+              Formula/unagit.rb
+            # A replacement that matched nothing would push the old release
+            # as the new one.
+            grep -q "tag: *\"$GITHUB_REF_NAME\"" Formula/unagit.rb
+            grep -q "revision: *\"$GITHUB_SHA\"" Formula/unagit.rb
+            if git diff --quiet; then
+              echo "the formula already names $GITHUB_REF_NAME"
+              exit 0
+            fi
+            git commit -am "Release unagit $VERSION" \
+              -m "Point the Homebrew formula at $GITHUB_REF_NAME, commit $GITHUB_SHA, so brew builds that commit and nothing else."
+            # main may have moved during the tests; fetch and try again.
+            git push origin HEAD:main && exit 0
+            sleep 5
+          done
+          echo "::error::could not push the formula to main"
+          exit 1
