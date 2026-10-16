@@ -154,6 +154,13 @@ func watchApp(t *testing.T, cfg *config.Config, notified *atomic.Int64) (*App, t
 	return a, sc, stopped
 }
 
+// noticeLog is what became of each change's notification, for a failure to
+// say which was sent twice.
+func noticeLog(cfg *config.Config) string {
+	b, _ := os.ReadFile(filepath.Join(cfg.WatchDir(), "notify.log"))
+	return string(b)
+}
+
 func watchMR7(t *testing.T, cfg *config.Config) watch.Watch {
 	t.Helper()
 	w := watch.Watch{Kind: watch.KindPipeline, Instance: cfg.Instances[0].ID, Project: "acme/gateway", ProjectID: 1, IID: 7, Since: time.Now()}
@@ -229,7 +236,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	waitFor(t, b, scB, "failed in unit tests")
 	waitTrue(t, "the failure was never notified", func() bool { return notified.Load() >= 1 })
 	if n := notified.Load(); n != 1 {
-		t.Fatalf("the failure was notified %d times, want once", n)
+		t.Fatalf("the failure was notified %d times, want once\n%s", n, noticeLog(cfg))
 	}
 	waitTrue(t, "the tab does not count the change", func() bool { return tabBadge(a, sc, glyphDot+"1") })
 	for _, app := range []*App{a, b} {
@@ -251,7 +258,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	asked := srv.asked.Load()
 	waitTrue(t, "the new poller does not ask", func() bool { return srv.asked.Load() > asked+1 })
 	if n := notified.Load(); n != 1 {
-		t.Fatalf("taking over notified the failure again: %d", n)
+		t.Fatalf("taking over notified the failure again: %d\n%s", n, noticeLog(cfg))
 	}
 	srv.set("success", 91, "bbbb2222")
 	waitFor(t, survivor, survivorScreen, "Pipeline passed")

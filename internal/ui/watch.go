@@ -533,6 +533,12 @@ func (f *watchFollower) poll() {
 	}
 	results := f.read(ask, due)
 	behind := f.readBehind(ask)
+	// An instance closing mid-read has readings cut short, which look like
+	// a watch that lost its pipeline. Written down, they would make the
+	// next poller tell its old news again.
+	if f.ctx.Err() != nil {
+		return
+	}
 	var events []watch.Event
 	var gone []string
 	for i, w := range ask {
