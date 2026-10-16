@@ -44,8 +44,7 @@ func (a *App) newTag(place logPlace, c logCommit, back func()) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.AddInputField(labelTagName, "", 0, nil, nil)
-	message := addTextArea(form, labelTagMessage, "", 3)
-	message.SetPlaceholder("empty: a lightweight tag")
+	message := setPlaceholder(addTextArea(form, labelTagMessage, "", 3), "empty: a lightweight tag")
 	push := addCheckbox(form, labelTagPush, true)
 	form.AddButton("Create", func() {
 		name := strings.TrimSpace(form.GetFormItemByLabel(labelTagName).(*tview.InputField).GetText())

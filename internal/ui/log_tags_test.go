@@ -198,6 +198,17 @@ func TestNewTagFormFitsItsFrame(t *testing.T) {
 					t.Errorf("%q is not on screen:\n%s", want, text)
 				}
 			}
+			// The message, empty and not focused, is still drawn as a field:
+			// its placeholder once covered it in the form's own background.
+			field, surface := onLoop(a, func() rect {
+				x, y, w, h := form.GetFormItemByLabel(labelTagMessage).GetRect()
+				return rect{x, y, w, h}
+			}), onLoop(a, func() tcell.Color { return colSurface })
+			for _, at := range [][2]int{{field.x + field.w - 2, field.y}, {field.x + field.w - 2, field.y + field.h - 1}} {
+				if _, style := cellAt(a, sc, at[0], at[1]); func() tcell.Color { _, bg, _ := style.Decompose(); return bg }() != surface {
+					t.Errorf("the empty message is not drawn as a field at %v:\n%s", at, a.screenText(sc))
+				}
+			}
 			assertLegible(t, a, sc, "the new tag form")
 		})
 	}

@@ -232,7 +232,7 @@ func (a *App) showComposer(mr forge.MergeRequest, onSent func()) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.AddTextArea("", "", 66, 10, 0, nil)
-	form.GetFormItem(0).(*tview.TextArea).SetPlaceholder("Write a comment…")
+	setPlaceholder(form.GetFormItem(0).(*tview.TextArea), "Write a comment…")
 	status := "Markdown is understood.\nCtrl-S sends it, Esc closes without sending."
 	form.AddTextView("", status, 66, 2, true, false)
 

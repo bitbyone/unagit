@@ -49,6 +49,14 @@ func addTextArea(form *tview.Form, label, text string, height int) *tview.TextAr
 	return area
 }
 
+// setPlaceholder gives a text area a word shown while it is empty, on the
+// field's own background. tview draws it with a style of its own over the
+// whole field, on the form's background, and an empty field with a
+// placeholder could not be seen as a field at all.
+func setPlaceholder(area *tview.TextArea, text string) *tview.TextArea {
+	return area.SetPlaceholder(text).SetPlaceholderStyle(baseStyle().Background(colSurface).Foreground(colMuted))
+}
+
 // addCheckbox adds a checkbox that can be seen when it is not ticked.
 func addCheckbox(form *tview.Form, label string, checked bool) *tview.Checkbox {
 	form.AddCheckbox(label, checked, nil)
