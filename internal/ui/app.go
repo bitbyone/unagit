@@ -784,9 +784,15 @@ type dialogWord struct {
 // request made from a dialog - starting a job - needs no log over it that
 // flashes up and goes. then runs on the event loop once fn went through,
 // told whether that dialog is still the one in front; what went wrong is a
-// warning.
+// warning. A word the dialog said before the wait comes back after it: a
+// view below reading again in the background must not take away what the
+// user was just told.
 func (a *App) waitInDialog(text string, fn func() error, then func(stillOpen bool)) {
 	_, front := a.pages.GetFrontPage()
+	before := dialogWord{}
+	if a.dialogSaid.on == front && !a.dialogSaid.waiting {
+		before = a.dialogSaid
+	}
 	a.dialogSaid = dialogWord{on: front, text: tag(colMuted) + esc(text) + tagEnd, waiting: true}
 	a.waits++
 	a.keepSpinning()
@@ -795,7 +801,7 @@ func (a *App) waitInDialog(text string, fn func() error, then func(stillOpen boo
 		a.tv.QueueUpdateDraw(func() {
 			a.waits--
 			if a.dialogSaid.waiting && a.dialogSaid.on == front {
-				a.dialogSaid = dialogWord{}
+				a.dialogSaid = before
 			}
 			if err != nil {
 				a.errorf("%v", err)

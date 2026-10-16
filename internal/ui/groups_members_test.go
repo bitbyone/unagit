@@ -142,6 +142,11 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 		t.Fatalf("pushed: gateway %v, billing %v; want the gateway alone", onOrigin(gw), onOrigin(bl))
 	}
 
+	// The push's log closes once git returns, a moment after origin has the
+	// branch; an Enter while it is up goes to the log, not to the list.
+	waitTrue(t, "the push's log stays open", func() bool {
+		return onLoop(a, func() bool { return !a.pages.HasPage(pageTask) })
+	})
 	onLoop(a, func() bool { a.refreshDisk(); return true })
 	waitFor(t, a, sc, "1/2") // the gateway in sync, billing not pushed
 	// The branches of the gateway, from its block in the view: the cursor

@@ -192,3 +192,33 @@ func TestAMessageSaysWhatKindItIs(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "✗ Error")
 }
+
+// A view below the dialog in front reading again in the background - the
+// worktree view after a branch was deleted from its list - waits in that
+// dialog's edge; when it is done, what the user was told is there again,
+// not gone with the wait.
+func TestAWaitInADialogGivesBackTheWordItCovered(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	// Each step is drawn, as the app's own updates are.
+	drawn := func(step func()) {
+		ran := make(chan struct{})
+		a.tv.QueueUpdateDraw(func() { step(); close(ran) })
+		<-ran
+	}
+	drawn(func() { a.showPicker("Branches", []pickItem{{Label: "main"}}, func(pickItem) {}) })
+	waitFor(t, a, sc, "Branches")
+	drawn(func() { a.done("deleted feat/push on origin") })
+	waitFor(t, a, sc, "deleted feat/push on origin")
+
+	release := make(chan struct{})
+	ended := make(chan struct{})
+	drawn(func() {
+		a.waitInDialog("reading worktree details", func() error { <-release; return nil }, func(bool) { close(ended) })
+	})
+	waitFor(t, a, sc, "reading worktree details")
+	close(release)
+	<-ended
+	waitFor(t, a, sc, "deleted feat/push on origin")
+	waitGone(t, a, sc, "reading worktree details")
+}
