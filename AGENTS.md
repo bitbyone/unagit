@@ -54,9 +54,13 @@ Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
 measure an uncached run before changing the parallel limit.
 
 A release is a tag `vX.Y` - two numbers, nothing else - on a commit of
-main. `.github/workflows/release.yml` tests it, builds it, checks that
-`unagit --version` prints `X.Y`, and points `Formula/unagit.rb` at the tag
-and its commit, pushed to main. Homebrew builds from source and refuses if
+main. Every push and pull request runs `.github/workflows/test.yml` (macOS
+and Linux, read-only token); `.github/workflows/release.yml` runs it too,
+builds the tag, checks that `unagit --version` prints `X.Y`, and only then
+lets a last job - the one that may write, running none of the repository's
+code - point `Formula/unagit.rb` at the tag and its commit and push it to
+main. Keep that split: a step that runs the code never holds a token that
+writes, and actions are pinned by commit. Homebrew builds from source and refuses if
 the tag has moved; nothing compiled is published. The version is baked in
 with `-X …/internal/version.Version=X.Y` (no `v`); any other build is `dev`
 with its commit. Do not edit the formula's tag or revision by hand.
