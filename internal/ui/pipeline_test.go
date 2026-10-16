@@ -585,8 +585,8 @@ func TestTheLogStaysBehindTheBrowser(t *testing.T) {
 // pipeline has ended, and then the watching stops.
 func TestARunningPipelineTurnsAndIsFollowed(t *testing.T) {
 	t.Parallel()
-	a, sc := newTestApp(t)
-	changeOnLoop(a, func() { a.ciAskEvery = 1500 * time.Millisecond })
+	// Set before the start: the watches' follower reads it off the loop.
+	a, sc, _ := newTestAppSrv(t, func(a *App) { a.ciAskEvery = 1500 * time.Millisecond })
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
@@ -718,8 +718,7 @@ func TestJobsAreStartedByAName(t *testing.T) {
 // time of its merge request, and the following still brings its end in.
 func TestAFollowedPipelineEndsInTheList(t *testing.T) {
 	t.Parallel()
-	a, sc, _ := newTestAppSrv(t)
-	changeOnLoop(a, func() { a.ciAskEvery = 150 * time.Millisecond })
+	a, sc, _ := newTestAppSrv(t, func(a *App) { a.ciAskEvery = 150 * time.Millisecond })
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
@@ -759,8 +758,7 @@ func TestAFollowedPipelineEndsInTheList(t *testing.T) {
 // refresh asked for brings it back.
 func TestARunningPipelineBacksOffWhenTheServerIsAway(t *testing.T) {
 	t.Parallel()
-	a, sc, srv := newTestAppSrv(t)
-	changeOnLoop(a, func() { a.ciAskEvery = 150 * time.Millisecond })
+	a, sc, srv := newTestAppSrv(t, func(a *App) { a.ciAskEvery = 150 * time.Millisecond })
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
