@@ -5,8 +5,8 @@ class Unagit < Formula
   desc "Universal Navigator Around GIT: repositories, worktrees and merge request reviews"
   homepage "https://github.com/bitbyone/unagit"
   url "https://github.com/bitbyone/unagit.git",
-      tag:      "v0.1",
-      revision: "2409c3d074271d5f9e6bbcb824ae49aed7f48971"
+      tag:      "v0.2",
+      revision: "2698d164b770c6746465dd21a0cce770963124cb"
   license "MIT"
   head "https://github.com/bitbyone/unagit.git", branch: "main"
 
