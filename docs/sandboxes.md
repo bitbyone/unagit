@@ -58,7 +58,7 @@ Elsewhere:
   <vm> - pull first". Nothing is forbidden; two commits apart on one
   branch only end in a conflict at the pull.
 - Deleting a worktree or a group with a task in a VM offers to remove the
-  task (`unibox rm-task`) and, for a VM of its own, the VM. The default
+  task (`unibox rm-task <task>`) and, for a VM of its own, the VM. The default
   keeps the VM.
 - What unagit learns from use - the order of the profile and sandbox
   pickers - goes to its `state.json`, as the place picker's does.
@@ -103,7 +103,9 @@ line" and "The boundary"); what unagit relies on in it:
 
 1. unibox's side of the contract first (unibox's docs/design.md, "Order
    of work"): `profiles --json` without `approved` and with a profile's
-   format, `api_version` 2.
+   format, `api_version` 2. The command line's arguments are settled:
+   what a command works on is its argument, `--sandbox` names a sandbox
+   there or one to make from `--profile`, `rm-task <task>`, `sandboxes`.
 2. Settings: the integration block, the configuration handed over.
 3. Open in Sandboxed Agent… for one repository's worktree in This
    Terminal: the pickers, `check` and its questions, the push, `prepare`,
