@@ -178,6 +178,13 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 			pickKey{keys: "n", hint: "branch", name: "New Branch Here…", about: "Start a branch at this commit.", run: func(it pickItem) { a.branchAtCommit(place, at(it), again(it)) }},
 			pickKey{keys: "Ctrl-W", hint: "worktree", name: "New Worktree Here…", about: "Start a branch at this commit in a worktree of its own.", run: func(it pickItem) { a.worktreeAtCommit(place, at(it), again(it)) }})
 	}
+	// A tag needs the commit's refs, which only a log read from the disk has.
+	if place.reload != nil {
+		keys = append(keys,
+			pickKey{keys: "t", hint: "tag", name: "New Tag…", about: "Put a tag on this commit - annotated when it is given a message - and send it to origin.", run: func(it pickItem) { a.newTag(place, at(it), again(it)) }},
+			pickKey{keys: "T", hint: "tags", name: "Tags…", about: "The tags on this commit: push one to origin, or delete it here or everywhere.",
+				when: func(it pickItem) bool { return hasTag(at(it)) }, run: func(it pickItem) { a.showTags(place, at(it)) }})
+	}
 	keys = append(keys,
 		pickKey{keys: "J", hint: "pipelines", name: "Show Pipelines…", about: "The pipelines that ran for this commit, and their jobs.", run: func(it pickItem) {
 			c := at(it)

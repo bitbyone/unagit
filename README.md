@@ -787,6 +787,14 @@ checks the commit out with a detached HEAD: the branch column then shows
 `@<commit>` and the RMT column how far behind the branch it left it is,
 and `B` - or `b` and a branch - goes back. `n` starts a branch at the commit,
 `Ctrl-W` a worktree of its own, for an old state without moving the clone.
+`t` puts a tag on the commit: a name, a message that makes it an annotated
+tag (left empty, a lightweight one), and **Push to origin**, ticked unless
+you untick it. A name a tag already has is refused - a tag is never moved,
+since whoever fetched it, or a release built from it, takes it to mean one
+commit. `T` lists the tags on the commit and which of them origin has:
+`p` pushes one origin lacks, `d` deletes one here (origin keeps it, and the
+next fetch brings it back), `D` deletes it on origin and here, after
+asking. A deleted tag goes into the Activity log with the commit it was on.
 `e` edits the message of a commit - the newest is amended, an older one
 written again and the commits after it replayed onto it. `u` undoes the
 newest commit: the commit goes, its changes stay on disk to be committed
@@ -1312,6 +1320,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` details |
 | `D` `Alt-D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
 | `e` | in the log: edit the message of a commit not pushed yet |
+| `t` `T` | in the log: a tag on the commit, pushed unless you say not · its tags: push, delete here or everywhere |
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `A` | read and write comments · approve |
