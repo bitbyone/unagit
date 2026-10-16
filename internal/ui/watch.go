@@ -480,15 +480,9 @@ func (f *watchFollower) poll() {
 	snap.States = cloneStates(snap.States)
 	snap.Poller = a.watchID
 	presences := f.store.Presences()
-	anyFocused := false
-	var inFront []string
 	due := map[string]bool{}
 	for _, p := range presences {
 		snap.Seen = max(snap.Seen, p.Seen)
-		anyFocused = anyFocused || p.Focused
-		if p.Focused {
-			inFront = append(inFront, p.ID)
-		}
 		if p.AskSeq > f.askSeen[p.ID] {
 			f.askSeen[p.ID] = p.AskSeq
 			if p.Ask == nil {
@@ -597,8 +591,23 @@ func (f *watchFollower) poll() {
 			f.moved("state.json")
 		}
 	}
+	// Who is in front is asked now, not before the reading: a read can take
+	// seconds, and the user may have turned away from unagit meanwhile. This
+	// instance's own word is not written yet, so its terminal is asked.
+	var inFront []string
+	if len(events) > 0 {
+		for _, p := range f.store.Presences() {
+			focused := p.Focused
+			if p.ID == a.watchID {
+				focused = a.terminalInFront()
+			}
+			if focused {
+				inFront = append(inFront, p.ID)
+			}
+		}
+	}
 	for _, e := range events {
-		if anyFocused {
+		if len(inFront) > 0 {
 			a.logNotice(e, "not sent: unagit "+strings.Join(inFront, ", ")+" in front")
 			continue
 		}

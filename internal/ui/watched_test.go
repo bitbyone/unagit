@@ -42,6 +42,10 @@ type watchServer struct {
 	remaining int
 	// branches are the branches the server has.
 	branches map[string]bool
+	// held, when set, keeps the next answer about the merge request's
+	// pipelines until it is closed; heldAt is closed once that request
+	// waits on it.
+	held, heldAt chan struct{}
 }
 
 func (s *watchServer) set(status string, pipeline int, sha string) {
@@ -112,6 +116,14 @@ func newWatchServer(t *testing.T) *watchServer {
 	})
 	mux.HandleFunc("/api/v4/projects/1/merge_requests/7/pipelines", func(w http.ResponseWriter, r *http.Request) {
 		s.asked.Add(1)
+		s.mu.Lock()
+		held, at := s.held, s.heldAt
+		s.held, s.heldAt = nil, nil
+		s.mu.Unlock()
+		if held != nil {
+			close(at)
+			<-held
+		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		json(w, fmt.Sprintf(`[{"id":%d,"status":%q,"sha":%q,"web_url":"https://gl.test/p/%d","user":{"username":"jane"}}]`,
@@ -279,6 +291,56 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	waitFor(t, survivor, survivorScreen, "Pipeline passed")
 	// A new head is news of its own, besides the pipeline's.
 	waitNotified(t, cfg, &notified, 2, "the success was never notified")
+}
+
+// TestNewsWaitsOnlyForWhoIsInFrontWhenItComes: whether an instance is in
+// front is asked when the news is told, not before the server was read -
+// a read takes seconds, and the user may turn away from unagit meanwhile.
+func TestNewsWaitsOnlyForWhoIsInFrontWhenItComes(t *testing.T) {
+	t.Parallel()
+	srv := newWatchServer(t)
+	cfg := writeTestConfig(t, srv.URL)
+	w := watchMR7(t, cfg)
+	other, err := config.LoadFrom(cfg.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.RootDir = cfg.RootDir
+	var notified atomic.Int64
+	a, _, _ := watchApp(t, cfg, &notified)
+	b, _, _ := watchApp(t, other, &notified)
+	waitState(t, cfg, w.Key(), "running")
+	idle := a
+	if a.watchPolling.Load() {
+		idle = b
+	}
+	focus := func(on bool) {
+		t.Helper()
+		idle.quiet.focused.Store(on)
+		waitTrue(t, "the instance never said where it is", func() bool {
+			for _, p := range watch.Open(cfg.WatchDir()).Presences() {
+				if p.ID == idle.watchID {
+					return p.Focused == on
+				}
+			}
+			return false
+		})
+	}
+
+	focus(true)
+	held, at := make(chan struct{}), make(chan struct{})
+	srv.mu.Lock()
+	srv.held, srv.heldAt = held, at
+	srv.status = "failed"
+	srv.mu.Unlock()
+	select {
+	case <-at:
+	case <-time.After(patience):
+		t.Fatal("the pipeline was never asked for")
+	}
+	focus(false)
+	close(held)
+	waitNotified(t, cfg, &notified, 1, "the failure was held back for a terminal no longer in front")
 }
 
 // TestAWatchStartsFromTheListAndStopsOnItsScreen: Watch Merge Request on a
