@@ -4,6 +4,8 @@
 
 ### **U**niversal **Nav**igator **A**round **GIT**
 
+**Documentation and tutorials: [bitbyone.github.io/unagit](https://bitbyone.github.io/unagit/)**
+
 *(Or, if you happen to watch Friends - any resemblance is purely coincidental.)*
 
 **One place to see every repository you work with, decide where each one lands

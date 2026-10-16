@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit test test-fast integration integration-image install clean fmt
+.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev
 
 build: build-unagit
 
@@ -52,3 +52,11 @@ install: build
 
 clean:
 	rm -f $(BINS)
+
+# The website is VitePress in website/, published to GitHub Pages by
+# .github/workflows/website.yml; these build it or serve it while writing.
+website:
+	cd website && npm ci && npm run build
+
+website-dev:
+	cd website && npm install && npm run dev

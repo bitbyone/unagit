@@ -45,6 +45,15 @@ gofmt -l . && go vet ./...
 ```
 
 Everything must be gofmt-clean, vet-clean and race-clean before a commit.
+
+The project website - documentation and tutorials - is VitePress in
+`website/` (`make website`, `make website-dev`), published to GitHub Pages
+by `.github/workflows/website.yml` on every push to main that touches it.
+Its look follows the Vite+ documentation, rebuilt on VitePress's default
+theme in `website/.vitepress/theme/style.css`: VoidZero's own theme package
+is unlicensed, so do not install it. A feature that changes what the README
+says changes the matching page of `website/guide/` too, and the build
+refuses a dead link, so run it.
 The sandboxing is unibox, a project of its own beside this one
 (`../unibox`), with its own AGENTS.md; unagit is meant to drive it through
 its CLI and `--json` contract, never by importing it. The

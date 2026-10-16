@@ -1,0 +1,274 @@
+/*
+ * The look follows the Vite+ documentation: a white page framed by thin
+ * rules, one indigo for everything that can be followed, a sidebar on the
+ * page's own background, and code on a quiet grey. It is built on the
+ * default theme's variables, so whatever VitePress draws takes it up.
+ */
+
+:root {
+  --ug-brand: #4f30e8;
+  --ug-brand-hover: #3f22d6;
+  --ug-brand-soft: rgba(79, 48, 232, 0.08);
+  --ug-gold: #b8955a;
+  --ug-frame: #e7e7ec;
+  --ug-code-bg: #f6f6f8;
+  --ug-search-bg: #f2f2f5;
+
+  --vp-c-brand-1: var(--ug-brand);
+  --vp-c-brand-2: var(--ug-brand-hover);
+  --vp-c-brand-3: var(--ug-brand);
+  --vp-c-brand-soft: var(--ug-brand-soft);
+
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #ffffff;
+  --vp-c-bg-soft: #f6f6f8;
+  --vp-c-divider: var(--ug-frame);
+  --vp-c-gutter: var(--ug-frame);
+  --vp-c-text-1: #16161d;
+  --vp-c-text-2: #55555f;
+  --vp-c-text-3: #8a8a96;
+
+  --vp-nav-height: 80px;
+  --vp-sidebar-bg-color: var(--vp-c-bg);
+  --vp-sidebar-width: 300px;
+  --vp-layout-max-width: 1440px;
+
+  --vp-code-bg: var(--ug-brand-soft);
+  --vp-code-color: var(--ug-brand);
+  --vp-code-block-bg: var(--ug-code-bg);
+  --vp-code-copy-code-bg: #ffffff;
+  --vp-code-line-height: 1.75;
+
+  --vp-button-brand-bg: var(--ug-brand);
+  --vp-button-brand-hover-bg: var(--ug-brand-hover);
+  --vp-button-brand-active-bg: var(--ug-brand-hover);
+  --vp-button-alt-bg: #ffffff;
+  --vp-button-alt-border: var(--ug-frame);
+  --vp-button-alt-hover-bg: #f6f6f8;
+  --vp-button-alt-hover-border: #d6d6de;
+
+  --vp-home-hero-name-color: var(--vp-c-text-1);
+  --vp-custom-block-tip-bg: var(--ug-brand-soft);
+  --vp-custom-block-tip-text: var(--vp-c-text-1);
+}
+
+.dark {
+  --ug-brand: #8b93fa;
+  --ug-brand-hover: #a3a9fb;
+  --ug-brand-soft: rgba(107, 119, 248, 0.14);
+  --ug-gold: #d4b57c;
+  --ug-frame: #26262e;
+  --ug-code-bg: #16161c;
+  --ug-search-bg: #18181e;
+
+  --vp-c-bg: #0c0c10;
+  --vp-c-bg-alt: #0c0c10;
+  --vp-c-bg-soft: #16161c;
+  --vp-c-text-1: #ececf1;
+  --vp-c-text-2: #a6a6b2;
+  --vp-c-text-3: #6e6e7a;
+
+  --vp-code-copy-code-bg: #1e1e26;
+  --vp-button-brand-text: #0c0c10;
+  --vp-button-brand-hover-text: #0c0c10;
+  --vp-button-alt-bg: transparent;
+  --vp-button-alt-hover-bg: #16161c;
+  --vp-button-alt-hover-border: #34343e;
+}
+
+/* The frame: two rules down the sides of the 1440px page, as Vite+ draws. */
+@media (min-width: 1500px) {
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--ug-frame);
+    z-index: 40;
+    pointer-events: none;
+  }
+  body::before { left: calc(50% - 720px); }
+  body::after { right: calc(50% - 720px); }
+}
+
+/* Navigation: a solid bar with a rule under it everywhere, not only once scrolled. */
+.VPNav,
+.VPNavBar,
+.VPNavBar.has-sidebar .content-body,
+.VPNavBar:not(.home) .content-body,
+.VPNavBar.home.top .content-body {
+  background: var(--vp-c-bg) !important;
+}
+.VPNav {
+  border-bottom: 1px solid var(--ug-frame);
+}
+.VPNavBar .divider { display: none; }
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar .title { border-bottom: none !important; }
+  .VPNavBar.has-sidebar .content { padding-left: 0; }
+}
+.VPNavBar .title { padding-left: 8px; }
+
+/* The menu follows the logo and search goes to the right, as on Vite+. */
+@media (min-width: 768px) {
+  .VPNavBar .content-body { justify-content: flex-start; }
+  .VPNavBar .content-body > * { order: 3; }
+  .VPNavBar .content-body > .VPNavBarMenu { order: 1; margin-right: auto; padding-left: 24px; }
+  .VPNavBar .content-body > .VPNavBarSearch { order: 2; flex-grow: 0; padding-left: 0; margin-right: 16px; }
+}
+.VPNavBarTitle .logo { height: 26px; }
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .button {
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  color: var(--vp-c-text-1);
+}
+.VPNavBarMenuLink.active { color: var(--ug-brand) !important; }
+
+/* Search: a grey pill with its shortcut, no border. */
+.DocSearch-Button {
+  background: var(--ug-search-bg) !important;
+  border: none !important;
+  border-radius: 8px !important;
+}
+@media (min-width: 768px) {
+  .DocSearch-Button { padding: 0 8px 0 12px !important; }
+  .DocSearch-Button .DocSearch-Button-Placeholder { font-size: 14px; padding-right: 32px; }
+}
+.DocSearch-Button .DocSearch-Button-Keys {
+  border: none !important;
+  background: var(--vp-c-bg) !important;
+}
+
+/* Sidebar: on the page's background, groups apart by a rule. */
+.VPSidebar {
+  border-right: 1px solid var(--ug-frame);
+  background: var(--vp-c-bg) !important;
+}
+.VPSidebar .group + .group { border-top: 1px solid var(--ug-frame); }
+.VPSidebar .group { padding-top: 14px; padding-bottom: 14px; }
+.VPSidebarItem.level-0 > .item > .link .text,
+.VPSidebarItem.level-0 > .item > h2.text,
+.VPSidebarItem.level-0 > .item > .text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+.VPSidebarItem.level-1 .text,
+.VPSidebarItem.level-2 .text {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--vp-c-text-2);
+}
+.VPSidebarItem.is-active > .item .link > .text { color: var(--ug-brand) !important; }
+.VPSidebarItem .items .VPSidebarItem.level-2 { padding-left: 2px; }
+.VPSidebarItem.level-1 > .items {
+  border-left: 1px solid var(--ug-frame) !important;
+  padding-left: 16px !important;
+}
+.VPSidebarItem .indicator { display: none; }
+
+/* The document. */
+.vp-doc h1 {
+  font-size: 34px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.vp-doc h2 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  border-top: 1px solid var(--ug-frame);
+}
+.vp-doc h3 { font-size: 20px; font-weight: 600; }
+.vp-doc p,
+.vp-doc li { font-size: 16px; line-height: 1.8; }
+.vp-doc a {
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.vp-doc :not(pre, h1, h2, h3, h4) > code {
+  font-size: 0.86em;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.vp-doc h1 > code,
+.vp-doc h2 > code,
+.vp-doc h3 > code {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg-soft);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.vp-doc a > code { color: var(--ug-brand); }
+
+/* Code blocks: grey, rounded, the language standing in the corner. */
+.vp-doc div[class*='language-'] {
+  border-radius: 10px !important;
+  margin: 16px 0 !important;
+}
+@media (max-width: 639px) {
+  .vp-doc div[class*='language-'] { margin: 16px 0 !important; }
+}
+.vp-doc div[class*='language-'] > span.lang {
+  font-size: 12px;
+  font-weight: 400;
+  top: 6px;
+  right: 12px;
+  color: var(--vp-c-text-3);
+}
+.vp-doc div[class*='language-'] pre { padding: 28px 0 20px; }
+
+/* Tables keep to the frame's colour. */
+.vp-doc table { display: table; width: 100%; }
+.vp-doc tr:nth-child(2n) { background: transparent; }
+.vp-doc th { background: var(--vp-c-bg-soft); font-weight: 500; }
+.vp-doc td code { white-space: nowrap; }
+
+/* The outline: a rule before it, "On this page" in capitals with its icon. */
+@media (min-width: 1280px) {
+  .VPDoc .aside {
+    border-left: 1px solid var(--ug-frame);
+    padding-left: 32px !important;
+    margin-left: 32px;
+  }
+}
+.VPDocAsideOutline .content { border-left: none !important; padding-left: 0 !important; }
+.VPDocAsideOutline .outline-marker { display: none; }
+.VPDocAsideOutline .outline-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--vp-c-text-2);
+}
+.VPDocAsideOutline .outline-title::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 6h12M13 12h8M9 18h12'/%3E%3Ccircle cx='4.5' cy='6' r='1.5'/%3E%3Ccircle cx='8.5' cy='12' r='1.5'/%3E%3Ccircle cx='4.5' cy='18' r='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 6h12M13 12h8M9 18h12'/%3E%3Ccircle cx='4.5' cy='6' r='1.5'/%3E%3Ccircle cx='8.5' cy='12' r='1.5'/%3E%3Ccircle cx='4.5' cy='18' r='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.VPDocOutlineItem .outline-link {
+  font-size: 14px;
+  line-height: 28px;
+  color: var(--vp-c-text-2);
+}
+.VPDocOutlineItem .outline-link.active { color: var(--ug-brand); }
+.VPDocOutlineItem .nested { padding-left: 16px; }
+
+/* Custom blocks: a rule at the edge, quiet fills. */
+.custom-block { border-radius: 10px; border: 1px solid var(--ug-frame); }
+.custom-block.tip { border-color: transparent; }
+
+.VPFooter { border-top: 1px solid var(--ug-frame) !important; background: var(--vp-c-bg) !important; }
+.VPDocFooter .pager-link { border-radius: 10px; }
