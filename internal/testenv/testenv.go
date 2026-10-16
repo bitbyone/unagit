@@ -89,7 +89,9 @@ func Isolate() func() {
 	}
 
 	// Nothing of git's from the machine: no identity, signing, hooks,
-	// aliases or a repository the tests were started inside of.
+	// aliases or a repository the tests were started inside of. Nor its
+	// maintenance: a commit starts it detached, and its lock appearing in
+	// .git while a test copies or compares the folder fails that test.
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
 		if strings.HasPrefix(name, "GIT_") {
@@ -108,6 +110,10 @@ func Isolate() func() {
 	gpgsign = false
 [advice]
 	detachedHead = false
+[maintenance]
+	auto = false
+[gc]
+	auto = 0
 `), 0o600))
 
 	home := filepath.Join(root, "home")

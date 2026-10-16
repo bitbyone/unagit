@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -85,12 +86,12 @@ func TestCrossFilesystemMoveKeepsSourceWhenSavingProgressFails(t *testing.T) {
 	publicationCommit(t, p.Directory)
 	target := filepath.Join(t.TempDir(), "destination")
 	err := copyLocalFolder(p.Directory, target, func() error { return errors.New("disk full") })
-	if err == nil {
-		t.Fatal("expected save failure")
+	if err == nil || !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("the copy did not get as far as saving the progress: %v", err)
 	}
 	for _, dir := range []string{p.Directory, target} {
 		if !Exists(dir) {
-			t.Fatalf("lost %s", dir)
+			t.Fatalf("lost %s (%v)", dir, err)
 		}
 	}
 }
