@@ -1,12 +1,17 @@
-# A vX.Y tag on a commit of main releases it: the tests run, the binary is
-# built and asked for its version, and the Homebrew formula in this
-# repository is pointed at the tag and its commit and pushed to main, where
-# `brew upgrade` finds it. Homebrew builds from source; nothing compiled is
-# published.
+# A vX.Y tag on a commit of main releases it: the commit's tests must have
+# passed, the binary is built and asked for its version, and the Homebrew
+# formula in this repository is pointed at the tag and its commit and pushed
+# to main, where `brew upgrade` finds it. Homebrew builds from source;
+# nothing compiled is published.
+#
+# The tests are not run again: they ran when the commit was pushed to main
+# (test.yml), and running them twice only gives a flaky one a second chance
+# to stop the release. A failure there is re-run there, then this release is
+# re-run; the tag never moves.
 #
 # Only the last job may write, and it runs nothing of the repository's: it
-# edits one file and pushes. The tests and the build, which run its code and
-# that of its dependencies, never hold a token that can write.
+# edits one file and pushes. The build, which runs its code and that of its
+# dependencies, never holds a token that can write.
 name: release
 
 on:
@@ -21,10 +26,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
+  tested:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
-      contents: read
+      actions: read
+    steps:
+      - name: Wait for the tests of the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          # Tagged right after the push, its tests are still running: wait.
+          for attempt in $(seq 1 80); do
+            run=$(gh run list --repo "$REPO" --workflow test.yml --commit "$SHA" --branch main \
+              --limit 1 --json databaseId,status,conclusion,url \
+              --jq '.[0] // empty | "\(.databaseId) \(.status) \(.conclusion) \(.url)"')
+            read -r id status conclusion url <<<"$run"
+            if [ -z "$id" ]; then
+              echo "no test run of $SHA on main yet"
+            elif [ "$status" != "completed" ]; then
+              echo "the tests of $SHA are $status: $url"
+            elif [ "$conclusion" = "success" ]; then
+              echo "the tests of $SHA passed: $url"
+              exit 0
+            else
+              echo "::error::the tests of $SHA ended $conclusion - re-run them ($url), then re-run this release"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::the tests of $SHA did not finish in 40 minutes"
+          exit 1
 
   check:
     runs-on: ubuntu-latest
@@ -59,7 +93,7 @@ jobs:
           fi
 
   formula:
-    needs: [test, check]
+    needs: [tested, check]
     runs-on: ubuntu-latest
     permissions:
       contents: write

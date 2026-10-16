@@ -1,5 +1,5 @@
 # Every commit pushed to a branch, and every pull request, runs the tests;
-# the release calls this same workflow before it touches the formula. The
+# a release waits for this run of its commit on main to have passed. The
 # token is read-only: the tests run the repository's code, and a pull
 # request's code is whoever wrote it.
 name: test
@@ -8,7 +8,6 @@ on:
   push:
     branches: ["**"]
   pull_request:
-  workflow_call:
 
 permissions:
   contents: read
