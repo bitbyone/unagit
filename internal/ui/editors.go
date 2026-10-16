@@ -271,7 +271,7 @@ func (a *App) runTerminalEditor(cmd *exec.Cmd, ed editors.Editor) error {
 
 func (a *App) runTerminalEditorWith(cmd *exec.Cmd, ed editors.Editor, started func()) error {
 	var runErr error
-	a.tv.Suspend(func() {
+	a.suspend(func() {
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 		err := cmd.Start()
 		if err == nil {

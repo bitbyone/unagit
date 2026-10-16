@@ -100,6 +100,8 @@ type App struct {
 	cfg      *config.Config
 	sessions *session.Store
 	editorMu sync.Mutex
+	// suspends counts the programs holding the terminal (suspend).
+	suspends sync.WaitGroup
 	// Visits are recorded by editor and removal workers; their switch and
 	// cached client are shared, while score snapshots belong to the loop.
 	zoxideOnce    sync.Once

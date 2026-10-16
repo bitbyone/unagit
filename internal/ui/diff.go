@@ -229,7 +229,7 @@ func (a *App) diffMR(mr forge.MergeRequest) {
 // runHunk hands Hunk the terminal the way a terminal editor gets it, and reads
 // the disk again afterwards. It runs off the event loop.
 func (a *App) runHunk(bin, dir string, args ...string) {
-	a.tv.Suspend(func() {
+	a.suspend(func() {
 		cmd := exec.Command(bin, args...)
 		cmd.Dir = dir
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr

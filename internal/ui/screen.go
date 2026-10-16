@@ -99,6 +99,16 @@ func (s *quietScreen) Sync() {
 	}
 }
 
+// suspend hands the terminal to f, as tv.Suspend does, and counts it while
+// f runs. tview's Run clears its screen without its lock as it ends, which
+// races with a Suspend still under way; whatever stops the app waits for
+// the count first (the tests do, before Stop).
+func (a *App) suspend(f func()) {
+	a.suspends.Add(1)
+	defer a.suspends.Done()
+	a.tv.Suspend(f)
+}
+
 // SetScreen gives the app the screen to draw on; without one, Run opens the
 // terminal.
 func (a *App) SetScreen(s tcell.Screen) {

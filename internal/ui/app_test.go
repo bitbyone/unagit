@@ -715,6 +715,15 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 	stopped := make(chan struct{})
 	go func() { defer close(stopped); _ = a.Run() }()
 	t.Cleanup(func() {
+		// A stand-in still holding the terminal is let finish, or its
+		// Suspend races with Run's end (App.suspend).
+		handed := make(chan struct{})
+		go func() { a.suspends.Wait(); close(handed) }()
+		select {
+		case <-handed:
+		case <-time.After(patience):
+			t.Error("a program still holds the terminal")
+		}
 		a.tv.Stop()
 		select {
 		case <-stopped:

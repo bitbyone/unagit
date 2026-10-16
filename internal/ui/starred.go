@@ -288,7 +288,7 @@ func (a *App) openFile(path string, ed *editors.Editor) {
 	if !ed.Terminal {
 		err = cmd.Start()
 	} else {
-		a.tv.Suspend(func() {
+		a.suspend(func() {
 			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 			err = cmd.Run()
 		})
