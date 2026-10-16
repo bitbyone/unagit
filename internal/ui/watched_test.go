@@ -185,6 +185,21 @@ func waitState(t *testing.T, cfg *config.Config, key, status string) {
 	t.Fatalf("the watch never read %q: %+v", status, snap.States[key])
 }
 
+// waitNotified waits for n notifications, and failing says what became of
+// each change and what the watch read last.
+func waitNotified(t *testing.T, cfg *config.Config, notified *atomic.Int64, n int64, what string) {
+	t.Helper()
+	deadline := time.Now().Add(patience)
+	for notified.Load() < n {
+		if time.Now().After(deadline) {
+			store := watch.Open(cfg.WatchDir())
+			snap, _ := store.State()
+			t.Fatalf("%s (%d sent)\nnotify.log:\n%s\nstate: %+v\npresences: %+v", what, notified.Load(), noticeLog(cfg), snap, store.Presences())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func waitTrue(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(patience)
@@ -234,7 +249,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	srv.set("failed", 90, "aaaa1111")
 	waitFor(t, a, sc, "failed in unit tests")
 	waitFor(t, b, scB, "failed in unit tests")
-	waitTrue(t, "the failure was never notified", func() bool { return notified.Load() >= 1 })
+	waitNotified(t, cfg, &notified, 1, "the failure was never notified")
 	if n := notified.Load(); n != 1 {
 		t.Fatalf("the failure was notified %d times, want once\n%s", n, noticeLog(cfg))
 	}
@@ -263,7 +278,7 @@ func TestTwoUnagitsFollowAWatchOnce(t *testing.T) {
 	srv.set("success", 91, "bbbb2222")
 	waitFor(t, survivor, survivorScreen, "Pipeline passed")
 	// A new head is news of its own, besides the pipeline's.
-	waitTrue(t, "the success was never notified", func() bool { return notified.Load() >= 2 })
+	waitNotified(t, cfg, &notified, 2, "the success was never notified")
 }
 
 // TestAWatchStartsFromTheListAndStopsOnItsScreen: Watch Merge Request on a
