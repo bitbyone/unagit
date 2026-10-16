@@ -11,11 +11,13 @@ import (
 
 // EditCounts counts a working tree's uncommitted files: the versioned ones -
 // changed, added, deleted, renamed, staged or not - and the unversioned ones
-// git does not track yet. Both are -1 when git cannot say.
+// git does not track yet, file by file as the Changes dialog lists them (git
+// would otherwise answer a new directory as one). Both are -1 when git
+// cannot say.
 func (g *Git) EditCounts(dir string) (versioned, unversioned int) {
 	// Without the index lock: it is read in the background, and a lock taken
 	// to refresh the index fails a commit or a checkout running beside it.
-	out, err := g.Run(dir, "--no-optional-locks", "status", "--porcelain")
+	out, err := g.Run(dir, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return -1, -1
 	}

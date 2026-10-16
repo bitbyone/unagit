@@ -214,7 +214,8 @@ func (s Status) Describe() string {
 // Status inspects a working tree.
 func (g *Git) Status(dir string) Status {
 	st := Status{Branch: g.CurrentBranch(dir)}
-	if out, err := g.out(dir, "--no-optional-locks", "status", "--porcelain"); err == nil && out != "" {
+	// File by file, as EditCounts counts: a new directory is its files.
+	if out, err := g.out(dir, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all"); err == nil && out != "" {
 		st.DirtyFiles = len(strings.Split(out, "\n"))
 		st.Dirty = true
 	}

@@ -60,6 +60,27 @@ func TestCommitVersionedLeavesUnversionedFilesAlone(t *testing.T) {
 	}
 }
 
+// TestEditCountsCountANewDirectoryByItsFiles: git answers an untracked
+// directory as one line; EDITS counts its files, as the Changes dialog
+// lists them.
+func TestEditCountsCountANewDirectoryByItsFiles(t *testing.T) {
+	t.Parallel()
+	_, clone := repos(t)
+	g := New("", nil)
+	for _, f := range []string{"one.txt", "two.txt", "deep/three.txt"} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(clone, "new", f)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write(t, clone, filepath.Join("new", f), f+"\n")
+	}
+	if v, u := g.EditCounts(clone); v != 0 || u != 3 {
+		t.Errorf("counts = %d/%d, want 0/3", v, u)
+	}
+	if st := g.Status(clone); st.DirtyFiles != 3 {
+		t.Errorf("Status counts %d files, want 3", st.DirtyFiles)
+	}
+}
+
 // TestCommitVersionedRefusesAReview: a review worktree's changes are the
 // merge request's, and committing them would rewrite what is reviewed.
 func TestCommitVersionedRefusesAReview(t *testing.T) {
