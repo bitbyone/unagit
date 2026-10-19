@@ -190,6 +190,18 @@ var colourRoles = []colourRole{
 	{"agents.title", "column.name", "what the agent calls its conversation"},
 	{"agents.where", "text.muted", "where it runs"},
 	{"agents.path", "column.path", ""},
+	// Sandboxes: unibox's profiles, the VMs made from them, their tasks.
+	{"sandboxes.header", "column.header", ""},
+	{"sandboxes.profile", "text.accent", "a profile, the heading of its sandboxes"},
+	{"sandboxes.sandbox", "column.name", "a sandbox"},
+	{"sandboxes.task", "column.name", "a task in a sandbox"},
+	{"sandboxes.running", "state.good", "a sandbox running, a task's agent at work"},
+	{"sandboxes.stopped", "text.muted", "a sandbox stopped, its disk kept"},
+	{"sandboxes.problem", "state.warning", "an image outdated or missing, a profile that does not load"},
+	{"sandboxes.agent", "agents.agent", ""},
+	{"sandboxes.branch", "column.branch", ""},
+	{"sandboxes.runtime", "text.muted", "the runtime a sandbox runs in"},
+	{"sandboxes.memory", "column.size", ""},
 	// An agent's mark in the lists, in the colour of what it is doing.
 	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
 	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},

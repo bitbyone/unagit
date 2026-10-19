@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"github.com/tobola/unagit/internal/unibox"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,15 @@ func actionLists(a *App) map[string][]uiAction {
 			"a view's member":   append(a.worktreeViewActions(v), a.worktreeViewScreenActions()...),
 			"marked repository": a.markedRepositoryActions(a.projectsPane, a.projects),
 			"changes":           append(append(a.changesSelectionActions(&changesView{}), a.changesScreenActions(&changesView{})...), a.globalActions()...),
+		}
+		web := unibox.Profile{Name: "web", Agents: []string{"claude", "copilot"}}
+		box := unibox.Sandbox{Name: "web-1", Profile: "web", State: "running"}
+		for name, r := range map[string]sandboxRow{
+			"sandbox profile": {kind: rowProfile, profile: web},
+			"sandbox":         {kind: rowSandbox, profile: web, sandbox: box},
+			"sandbox task":    {kind: rowTask, profile: web, sandbox: box, task: unibox.Task{ID: "t-1", Sandbox: "web-1", Agent: "claude"}},
+		} {
+			lists[name] = append(a.sandboxRowActions(a.sandboxesPane, r), a.sandboxesActions(a.sandboxesPane)...)
 		}
 		s := a.settings
 		was := s.current

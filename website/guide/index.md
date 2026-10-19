@@ -78,7 +78,7 @@ by hand. [First Setup](/guide/setup) goes through it.
  ? help · q quit
 ```
 
-Five tabs, reached by their number:
+Five tabs, reached by their number, and a sixth with unibox:
 
 | Tab | What it holds |
 | --- | --- |
@@ -87,6 +87,7 @@ Five tabs, reached by their number:
 | **Worktrees** `3` | every worktree unagit made: branches, reviews, grouped worktrees |
 | **Activity** `4` | what runs in the background: watches, agents, open editors, the log |
 | **Settings** `5` | servers, tokens, groups, destinations, integrations, themes |
+| **Sandboxes** `6` | unibox's profiles, sandboxes and tasks, when unibox is installed |
 
 ## The three keys to remember
 

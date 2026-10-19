@@ -53,6 +53,10 @@ type Record struct {
 	Pane        string    `json:"pane,omitempty"`
 	MuxSession  string    `json:"mux_session,omitempty"`
 	MuxLauncher string    `json:"mux_launcher,omitempty"`
+	// Sandbox and Task name the unibox sandbox and task an agent works in:
+	// its directory is the VM's, so Dir is only where its pane was opened.
+	Sandbox string `json:"sandbox,omitempty"`
+	Task    string `json:"task,omitempty"`
 }
 
 // Label is how the record reads in a list.
@@ -298,7 +302,9 @@ func unique(out []Record) []Record {
 	seen := map[string]bool{}
 	unique := out[:0]
 	for _, r := range out {
-		if dir := filepath.Clean(r.Dir); !seen[dir] {
+		// Agents in sandboxes all open where their panes do; the task tells
+		// them apart.
+		if dir := filepath.Clean(r.Dir) + "\x00" + r.Task; !seen[dir] {
 			seen[dir] = true
 			unique = append(unique, r)
 		}

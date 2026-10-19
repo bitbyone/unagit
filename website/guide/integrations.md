@@ -39,6 +39,11 @@ Most are on as soon as their program is found on `PATH`.
 [Claude Code, Codex, Copilot CLI, opencode, Antigravity](/guide/agents): open a
 repository, a worktree or a review in an agent.
 
+## Sandboxes
+
+[unibox](/guide/sandboxes): the sandboxes agents run in, their profiles and
+tasks, on a tab of their own.
+
 ## Files and navigation
 
 | | |

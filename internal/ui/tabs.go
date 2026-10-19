@@ -23,6 +23,21 @@ var tabs = []tab{
 	{pageWorktrees, '3', "Worktrees", "Worktrees"},
 	{pageActivity, '4', "Activity", "Activity"},
 	{pageSettings, '5', "Settings", "Settings"},
+	// After Settings, so the 5 every message points at stays where it is.
+	{pageSandboxes, '6', "Sandboxes", "Boxes"},
+}
+
+// visibleTabs are the tabs on the bar: Sandboxes only while unibox is on,
+// so a machine without it has no tab that only says it is missing.
+func (a *App) visibleTabs() []tab {
+	var out []tab
+	for _, t := range tabs {
+		if t.page == pageSandboxes && !a.uniboxOn() {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // settingsTab is how a message points at Settings.
@@ -69,7 +84,7 @@ func (a *App) drawTabs() {
 	short, tight := false, false
 	fits := func(short, tight bool) bool {
 		width := 1 + badgesWidth
-		for _, t := range tabs {
+		for _, t := range a.visibleTabs() {
 			width += cells(label(t, short, tight)) + 1
 		}
 		return a.tabsWidth == 0 || width <= a.tabsWidth
@@ -82,7 +97,7 @@ func (a *App) drawTabs() {
 		short, tight = true, true
 	}
 	var parts []string
-	for _, t := range tabs {
+	for _, t := range a.visibleTabs() {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
 		var text string
 		if t.page == current {
@@ -141,6 +156,9 @@ func (a *App) switchTab(page string) {
 		a.activity.focusAgain()
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
+	case pageSandboxes:
+		a.tv.SetFocus(a.sandboxesPane.focusTarget())
+		a.visitSandboxes()
 	}
 	a.drawTabs()
 	if a.helpHint != nil {
@@ -155,7 +173,7 @@ func (a *App) switchTab(page string) {
 
 // tabKey switches tabs when the event is one of the tab shortcuts.
 func (a *App) tabKey(r rune) bool {
-	for _, t := range tabs {
+	for _, t := range a.visibleTabs() {
 		if t.key == r {
 			a.switchTab(t.page)
 			return true

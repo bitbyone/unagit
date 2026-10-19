@@ -31,12 +31,13 @@ const (
 	helpSecurity
 	helpTags
 	helpTheme
+	helpSandboxes
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
+	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSandboxes | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -63,6 +64,8 @@ func (a *App) helpContext() (helpContext, string) {
 		return helpWorktreeList, "Worktrees"
 	case pageActivity:
 		return helpActivity, "Activity"
+	case pageSandboxes:
+		return helpSandboxes, "Sandboxes"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -144,7 +147,7 @@ func helpRows() []helpLine {
 	applyTheme()
 	rows := []helpLine{
 		section("Getting around", helpNavigation),
-		key("1 2 3 4 5 6", "Repos, MRs, Worktrees, Agents, Watched, Settings"),
+		key("1 2 3 4 5 6", "Repos, MRs, Worktrees, Activity, Settings, Sandboxes"),
 		key("Alt-Enter", "every action on the selection, with its key"),
 		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
 		key(":", "every action of the screen, with its key"),
@@ -290,6 +293,22 @@ func helpRows() []helpLine {
 		key("r  R", "read this one, or everything, now"),
 		key("Ctrl-O", "open an agent's directory in the editor"),
 		key(glyphNew, "new since your last visit; counted on the tab"),
+		blank(),
+
+		section("Sandboxes", helpSandboxes),
+		key("o", "a task: resume its agent; one at work is gone to"),
+		key("a", "a task: resume with another of the profile's agents"),
+		key("s", "a shell in the task or the sandbox"),
+		key("n", "new task: a worktree or clone, agent, place"),
+		key("e  y  w", "a task: rename · copy resume · repository page"),
+		key("p  S  i", "a sandbox: ports · run a script · instructions"),
+		key("x  C  d", "a sandbox: stop · recreate · remove"),
+		key("c  b  m", "a profile: new sandbox · build image · migrate"),
+		key("D  N  v", "a profile: changes since build · network · services"),
+		key("l  O", "a profile: sign agents in · open in the editor"),
+		key("u", "make it unibox's context; "+glyphDot+" marks the context"),
+		key("r", "read everything from unibox again"),
+		key("STATE", "a profile's images · running · a task's agent"),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail),

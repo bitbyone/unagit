@@ -130,7 +130,7 @@ func (a *App) showJobs() {
 	for view, wait := range a.textWaits {
 		view.SetText(wait.render())
 	}
-	for _, p := range []*pane{a.projectsPane, a.mrsPane, a.worktreesPane, a.activityPane} {
+	for _, p := range []*pane{a.projectsPane, a.mrsPane, a.worktreesPane, a.activityPane, a.sandboxesPane} {
 		if p != nil {
 			p.updateHeader()
 		}

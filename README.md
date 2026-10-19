@@ -652,6 +652,33 @@ or split of the Zellij or herdr unagit runs in, a tab of herdr's Unagit
 Agents workspace, or a Ghostty window, tab or split. The places are listed
 in the order they are usually chosen.
 
+### [unibox](https://github.com/bitbyone/unibox)
+
+unibox runs coding agents in sandboxes: VMs made from profiles kept in an
+environments repository, each holding tasks - fresh clones on a branch with
+an agent on them. With `unibox` on PATH (Settings › Integrations, under
+*Sandboxes*) the **Sandboxes** tab, `6`, shows it as one tree: each profile
+with its images and agents, the sandboxes made from it - running or stopped,
+their runtime and memory - and the tasks in each, with their repositories,
+branch and agent, **working** while one is at it. The detail beside it has
+the rest: a profile's sign-ins, services and whether their tokens are
+stored, its network rules; a sandbox's resources, ports and scripts.
+
+Everything is read from unibox's `--json` and every change is a unibox
+command; unagit reads none of its files. On a task `o` resumes its agent and
+`a` another of the profile's, where you choose - this terminal, a Zellij or
+herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
+in the picker finds each agent in each place (**Resume with Claude Code in
+Zellij Vertical Split**); `s` is a shell in it, `e` renames it, `d` removes
+it. On a sandbox `n` starts a new task on one of your worktrees or clones,
+checked first with `unibox task check` and pushed only on **Push and
+Start**; `p` its ports, `S` a script, `x` stop, `C` recreate, `d` remove. On
+a profile `c` a new sandbox, `b` build, `D` changes since the build, `N` the
+network rules, `v` the services, `l` signs its agents in - in this terminal,
+where unibox asks for the tokens itself. **Open in Sandbox…** on a worktree,
+a grouped worktree or a clone starts a task from there. See the
+[Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
+
 ### Where things open
 
 Opening is three questions: what - the clone, a merge request's branch or
@@ -1306,7 +1333,7 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
 | `+` | find any repository of yours, in any group, and list it |
-| `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Agents · Watched · Settings |
+| `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Activity · Settings · Sandboxes (with unibox) |
 | `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |

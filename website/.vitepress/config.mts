@@ -62,6 +62,7 @@ const guideSidebar = [
       { text: 'Overview', link: '/guide/integrations' },
       { text: 'Editors', link: '/guide/editors' },
       { text: 'Coding Agents', link: '/guide/agents' },
+      { text: 'Sandboxes', link: '/guide/sandboxes' },
       { text: 'Zellij, herdr, Ghostty', link: '/guide/multiplexers' },
       { text: 'Incomm and Hunk', link: '/guide/incomm-hunk' },
       { text: 'chezmoi', link: '/guide/chezmoi' },

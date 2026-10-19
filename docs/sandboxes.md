@@ -99,6 +99,29 @@ line" and "The boundary"); what unagit relies on in it:
 - Values never pass through unagit: Sign In… opens a terminal running
   `unibox agent login` or `unibox secret set`, which take the token there.
 
+## Built
+
+- `internal/unibox`: the client - the binary run with `--json`, decoded into
+  unagit's own types, an `api_version` other than 1 refused; its stand-in
+  for tests in `internal/unibox/uniboxtest`.
+- The Sandboxes tab (`sandboxes.go`, `sandboxes_actions.go`): one tree of
+  profiles, sandboxes and tasks rather than three lists, the detail beside
+  it read from `agent ls`, `service ls`, `network ls`, `network port ls`
+  and `script ls`. The tab is on the bar only while unibox is on, so `5`
+  stays Settings.
+- Resume (any of the profile's agents, every place), shells, New Task…
+  with `task check` and a push only on request, stop, recreate, remove,
+  ports, scripts, network rules, services, build, migrate, sign-in in this
+  terminal, the context, the environments repository, prune.
+- Open in Sandbox… on worktrees, groups and clones.
+- Settings › Integrations: unibox on or off, and what was found.
+- A session record names its sandbox and task, so Activity lists the agent.
+
+Not yet: the integration block's runtimes and herdr plugin, the commit
+warning and the mark on a worktree an agent works on in a VM, removal with
+a worktree, pushing the branch from the host before `prepare`, and clone
+URLs from the forge's API (unibox takes them from `origin` for now).
+
 ## Order of work
 
 1. unibox's side of the contract first (unibox's docs/design.md, "Order

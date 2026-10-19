@@ -606,6 +606,10 @@ type Integrations struct {
 	// Ghostty opens editors and agents in Ghostty windows and splits on a
 	// Mac. Unset, it is on whenever Ghostty is installed.
 	Ghostty *bool `yaml:"ghostty,omitempty"`
+	// Unibox shows the sandboxes coding agents run in - unibox's profiles,
+	// sandboxes and tasks - on a tab of their own. Unset, it is on whenever
+	// unibox is installed.
+	Unibox *bool `yaml:"unibox,omitempty"`
 	// Notifications is where a watched pipeline's news goes while the user
 	// looks elsewhere: "" for the terminal where it can and the system
 	// otherwise, "terminal", "system", or "off" (internal/notify).

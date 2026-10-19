@@ -163,6 +163,11 @@ type App struct {
 	mrsPane       *pane
 	worktreesPane *pane
 	settings      *settingsView
+	// sandboxesPane is unibox's profiles, sandboxes and tasks, ubx what was
+	// last read of them and sandboxRows the tree it is drawn as.
+	sandboxesPane *pane
+	ubx           uniboxState
+	sandboxRows   []sandboxRow
 
 	// worktrees are the plain branch worktrees on disk, made from Repositories
 	// rather than for a merge request; refreshDisk fills them in.
@@ -550,12 +555,14 @@ func (a *App) buildInterface() tview.Primitive {
 	a.mrsPane = a.newMRsPane()
 	a.worktreesPane = a.newWorktreesPane()
 	a.activityPane = a.newActivityPane()
+	a.sandboxesPane = a.newSandboxesPane()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
 	a.pages.AddPage(pageMRs, a.mrsPane.root, true, false)
 	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
 	a.pages.AddPage(pageActivity, a.activityPane.root, true, false)
+	a.pages.AddPage(pageSandboxes, a.sandboxesPane.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -703,6 +710,8 @@ func (a *App) restoreFocus() {
 		a.tv.SetFocus(a.activityPane.focusTarget())
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
+	case pageSandboxes:
+		a.tv.SetFocus(a.sandboxesPane.focusTarget())
 	}
 }
 

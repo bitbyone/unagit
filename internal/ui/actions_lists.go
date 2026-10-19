@@ -29,6 +29,14 @@ func (a *App) listActions(p *pane) []uiAction {
 		{name: "Go to Activity", about: "What runs in the background and waits for you: the watches, the agents, the editors open, and what happened.", keys: "4", rank: 905, when: func() bool { return a.currentTab() != pageActivity },
 			run: func() { a.switchTab(pageActivity) }},
 		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "5", rank: 910, run: func() { a.switchTab(pageSettings) }},
+		{name: "Go to Sandboxes", about: "unibox's profiles, the sandboxes made from them and the tasks agents work on in each.", keys: "6", rank: 912,
+			when: func() bool { return a.uniboxOn() && a.currentTab() != pageSandboxes }, run: func() {
+				if !a.uniboxOn() {
+					a.flash("unibox is not installed, or turned off - see Settings › Integrations")
+					return
+				}
+				a.switchTab(pageSandboxes)
+			}},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	}
@@ -83,6 +91,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Open", about: "Open the clone in your default editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
 		a.openAction("repository", pr.PathWithNamespace, openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }}),
 		{name: "Open With…", about: "Choose the editor, then open the clone here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
+		a.openInSandboxAction(pr.PathWithNamespace, func() []string { return []string{a.projectDir(pr.Instance, pr.PathWithNamespace)} }, cloned),
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
 		{name: "Pull", about: "Fetch origin and fast-forward the clone's branch when nothing local is in the way.", keys: "p", rank: 30, when: cloned, run: func() { a.updateProject(pr) }},
 		{name: "Commit…", about: "Commit the clone's changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: "c", rank: 32, when: edited, run: func() { a.commitProject(pr) }},
@@ -412,6 +421,16 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 		uiAction{name: "Show Commit Log", about: "The worktree's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: func() bool { return !r.grouped() },
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Open View", about: "Open the worktree's view: its state, commits and merge request, block by block.", keys: "Enter", rank: 5, run: p.enter},
+		a.openInSandboxAction(r.Path, func() []string {
+			if !r.grouped() {
+				return []string{r.Dir}
+			}
+			var dirs []string
+			for _, m := range r.Members {
+				dirs = append(dirs, m.Dir)
+			}
+			return dirs
+		}, nil),
 		uiAction{name: "Remove from Group…", about: "Remove one repository's worktree from the group; its branch stays.", keys: "x", rank: 65, when: func() bool { return r.grouped() },
 			run: func() { a.removeFromGroup(r) }},
 		uiAction{name: "Delete from Disk…", about: "Delete the worktree from disk; asks first and lists what would be lost.", keys: "d", rank: 800, run: func() {

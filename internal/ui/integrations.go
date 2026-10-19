@@ -134,6 +134,17 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.cfg.Integrations.Ghostty = &on
 		},
 	}
+	byName["unibox"] = &integrationCard{
+		name: "unibox", command: "unibox",
+		description: "Runs coding agents in sandboxes. The Sandboxes tab [6] lists unibox's profiles, sandboxes and tasks; Open in Sandbox… starts an agent on a worktree in one.",
+		enabled:     s.app.uniboxOn,
+		toggle: func() {
+			on := !s.app.uniboxOn()
+			s.app.cfg.Integrations.Unibox = &on
+			s.app.drawTabs()
+		},
+		found: s.app.uniboxFound,
+	}
 	byName["Notifications"] = s.app.notificationsCard()
 	editorCards := v.editorCards()
 	var agentCards []*integrationCard
@@ -154,6 +165,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"], byName["Notifications"]}},
 		{"AI Agents", agentCards},
 		{"Files & Navigation", []*integrationCard{byName["Zoxide"], byName["Yazi"], byName["Chezmoi"]}},
+		{"Sandboxes", []*integrationCard{byName["unibox"]}},
 	}
 	for _, c := range v.categories {
 		v.cards = append(v.cards, c.cards...)
