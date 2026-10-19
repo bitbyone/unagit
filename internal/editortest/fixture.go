@@ -21,6 +21,12 @@ func Install(t *testing.T) (string, string) {
 	if out, err := exec.Command("go", "build", "-o", bin, source).CombinedOutput(); err != nil {
 		t.Fatalf("build fake nvim: %v: %s", err, out)
 	}
+	// Run once here: the first start of a new binary can take seconds
+	// while the system checks it, and the app's own first run of it is
+	// the version probe, which has a deadline.
+	if out, err := exec.Command(bin, "--version").CombinedOutput(); err != nil {
+		t.Fatalf("run fake nvim: %v: %s", err, out)
+	}
 	log := filepath.Join(dir, "opened")
 	t.Setenv("UNAGIT_FAKE_NVIM_LOG", log)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))

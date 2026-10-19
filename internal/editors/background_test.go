@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // TestOnlySupportedNeovimCanDetach reads the version as given, with no
@@ -29,6 +31,37 @@ func TestOnlySupportedNeovimCanDetach(t *testing.T) {
 	e := Editor{ID: Custom, Terminal: true, Found: true, Where: "/nonexistent/nvim"}
 	if e.CanDetach() {
 		t.Error("a custom editor was treated as Neovim")
+	}
+}
+
+// TestASlowVersionIsAskedAgain: a Neovim that did not say its version in
+// time is not taken for one that cannot be put aside for good - the next
+// opening asks it again. It swaps the timeout, so it is serial.
+func TestASlowVersionIsAskedAgain(t *testing.T) {
+	was := versionTimeout
+	versionTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { versionTimeout = was })
+	dir := t.TempDir()
+	bin := dir + "/nvim"
+	write := func(script string) {
+		t.Helper()
+		if err := testenv.WriteExecutable(bin+".new", []byte(script)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(bin+".new", bin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("#!/bin/sh\nexec sleep 30\n")
+	e := Editor{ID: Nvim, Terminal: true, Found: true, Where: bin}
+	if e.CanDetach() {
+		t.Fatal("a version not said in time was read")
+	}
+	// The second answer has the usual time, which a loaded machine needs.
+	versionTimeout = was
+	write("#!/bin/sh\necho 'NVIM v0.12.0'\n")
+	if !e.CanDetach() {
+		t.Fatal("the slow answer was kept: the version was not asked again")
 	}
 }
 

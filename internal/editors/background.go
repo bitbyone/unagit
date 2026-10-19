@@ -14,20 +14,37 @@ import (
 
 var detachVersions sync.Map
 
+// versionTimeout is how long a launcher has to say its version.
+var versionTimeout = 5 * time.Second
+
+// versionProbe asks a launcher its version once; settled is false when it
+// did not answer in time.
+type versionProbe struct {
+	run func() (detach, settled bool)
+}
+
 // CanDetach is cached by launcher, so checking an opening action does not
 // start another process every time. Custom commands keep their own meaning.
+// A launcher that did not answer in time is asked again next time: the
+// first start of a program can be slow - the system checking a new binary,
+// a busy machine - and that once cost a Neovim being put aside for as long
+// as unagit ran.
 func (e Editor) CanDetach() bool {
 	if e.ID != Nvim || !e.Found || !e.Terminal {
 		return false
 	}
-	probe := sync.OnceValue(func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	probe := &versionProbe{run: sync.OnceValues(func() (bool, bool) {
+		ctx, cancel := context.WithTimeout(context.Background(), versionTimeout)
 		defer cancel()
 		out, err := exec.CommandContext(ctx, e.Where, "--version").Output()
-		return err == nil && detachable(string(out))
-	})
+		return err == nil && detachable(string(out)), ctx.Err() == nil
+	})}
 	value, _ := detachVersions.LoadOrStore(e.Where, probe)
-	return value.(func() bool)()
+	detach, settled := value.(*versionProbe).run()
+	if !settled {
+		detachVersions.CompareAndDelete(e.Where, value)
+	}
+	return detach
 }
 
 // detachable reads `nvim --version`: :detach came with Neovim 0.12.
