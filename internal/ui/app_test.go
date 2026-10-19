@@ -834,7 +834,7 @@ func TestStartsOnTheProjectList(t *testing.T) {
 	waitFor(t, a, sc, "Repositories [1]")
 	waitFor(t, a, sc, "Merge requests [2]")
 	waitFor(t, a, sc, "Activity [4]")
-	waitFor(t, a, sc, "Settings [5]")
+	waitFor(t, a, sc, "Settings [S]")
 	waitFor(t, a, sc, "acme/gateway")
 	waitFor(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "? help")
@@ -852,7 +852,7 @@ func TestTabKeysSwitchViews(t *testing.T) {
 		t.Fatalf("tab = %q", a.currentTab())
 	}
 
-	typeRunes(sc, "5")
+	typeRunes(sc, "S")
 	waitFor(t, a, sc, "GitLab servers")
 	if a.currentTab() != pageSettings {
 		t.Fatalf("tab = %q", a.currentTab())
@@ -967,7 +967,7 @@ func TestSettingsOpensOnItsSections(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 
-	typeRunes(sc, "5")
+	typeRunes(sc, "S")
 	for _, section := range sectionNames {
 		waitFor(t, a, sc, section)
 	}

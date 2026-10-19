@@ -16,32 +16,28 @@ type tab struct {
 	title, short string
 }
 
-// The tabs are numbered: letters are the lists' own, and R refreshes.
+// The screens are numbered: letters are the lists' own, and R refreshes.
+// Settings is not one of them - it is what the others are configured in -
+// so it stands apart at the bar's right end, on a letter of its own that
+// no list takes.
 var tabs = []tab{
 	{pageProjects, '1', "Repositories", "Repos"},
 	{pageMRs, '2', "Merge requests", "MRs"},
 	{pageWorktrees, '3', "Worktrees", "Worktrees"},
 	{pageActivity, '4', "Activity", "Activity"},
-	{pageSettings, '5', "Settings", "Settings"},
-	// After Settings, so the 5 every message points at stays where it is.
-	{pageSandboxes, '6', "Sandboxes", "Boxes"},
-}
-
-// visibleTabs are the tabs on the bar: Sandboxes only while unibox is on,
-// so a machine without it has no tab that only says it is missing.
-func (a *App) visibleTabs() []tab {
-	var out []tab
-	for _, t := range tabs {
-		if t.page == pageSandboxes && !a.uniboxOn() {
-			continue
-		}
-		out = append(out, t)
-	}
-	return out
+	{pageSandboxes, '5', "Sandboxes", "Boxes"},
+	{pageSettings, 'S', "Settings", "Settings"},
 }
 
 // settingsTab is how a message points at Settings.
-const settingsTab = "Settings [5]"
+const settingsTab = "Settings [S]"
+
+// tabOff says whether a tab is there but has nothing to show: Sandboxes
+// without unibox. It is drawn grey and can still be gone to, where it
+// says why it is empty.
+func (a *App) tabOff(t tab) bool {
+	return t.page == pageSandboxes && !a.uniboxOn()
+}
 
 // drawTabs renders the tab bar, highlighting the visible page. Where the
 // titles do not fit, the short ones stand in; where even those do not, the
@@ -82,12 +78,17 @@ func (a *App) drawTabs() {
 		badgesWidth = cells(badge) + 1
 	}
 	short, tight := false, false
-	fits := func(short, tight bool) bool {
-		width := 1 + badgesWidth
-		for _, t := range a.visibleTabs() {
+	// Settings is held apart from the screens by at least a separator's
+	// room.
+	width := func(short, tight bool) int {
+		width := 1 + badgesWidth + 2
+		for _, t := range tabs {
 			width += cells(label(t, short, tight)) + 1
 		}
-		return a.tabsWidth == 0 || width <= a.tabsWidth
+		return width
+	}
+	fits := func(short, tight bool) bool {
+		return a.tabsWidth == 0 || width(short, tight) <= a.tabsWidth
 	}
 	switch {
 	case fits(false, false):
@@ -97,12 +98,16 @@ func (a *App) drawTabs() {
 		short, tight = true, true
 	}
 	var parts []string
-	for _, t := range a.visibleTabs() {
+	settings := ""
+	for _, t := range tabs {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
 		var text string
-		if t.page == current {
+		switch {
+		case t.page == current:
 			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), tview.Escape(label(t, short, tight)))
-		} else {
+		case a.tabOff(t):
+			text = fmt.Sprintf("[%s]%s[-]", role("tabs.off").String(), tview.Escape(label(t, short, tight)))
+		default:
 			// The name in the tabs' accent, the key quieter after it: the
 			// names are what is read.
 			name, key := tabParts(t, short, tight)
@@ -113,9 +118,27 @@ func (a *App) drawTabs() {
 			// background whatever the tab's style.
 			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
 		}
+		if t.page == pageSettings {
+			settings = text
+			continue
+		}
 		parts = append(parts, text)
 	}
-	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)))
+	// The room left between the screens and Settings, which keeps to the
+	// right end.
+	gap := 1
+	if a.tabsWidth > 0 {
+		used := 1 + len(parts) - 1
+		for _, t := range tabs {
+			used += cells(label(t, short, tight))
+		}
+		if badge != "" {
+			used += cells(badge) + 2
+		}
+		// A cell kept free at the end, as at the start.
+		gap = max(1, a.tabsWidth-used-1)
+	}
+	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)) + strings.Repeat(" ", gap) + settings)
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.
@@ -157,8 +180,11 @@ func (a *App) switchTab(page string) {
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	case pageSandboxes:
-		a.tv.SetFocus(a.sandboxesPane.focusTarget())
-		a.visitSandboxes()
+		a.sandboxes.sync()
+		a.sandboxes.focusAgain()
+		if a.uniboxOn() {
+			a.visitSandboxes()
+		}
 	}
 	a.drawTabs()
 	if a.helpHint != nil {
@@ -173,7 +199,7 @@ func (a *App) switchTab(page string) {
 
 // tabKey switches tabs when the event is one of the tab shortcuts.
 func (a *App) tabKey(r rune) bool {
-	for _, t := range a.visibleTabs() {
+	for _, t := range tabs {
 		if t.key == r {
 			a.switchTab(t.page)
 			return true

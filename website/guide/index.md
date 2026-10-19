@@ -60,7 +60,7 @@ by hand. [First Setup](/guide/setup) goes through it.
 ## What you see
 
 ```
- Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Settings [5]
+ Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Sandboxes [5]      Settings [S]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -86,8 +86,8 @@ Five tabs, reached by their number, and a sixth with unibox:
 | **Merge requests** `2` | the merge requests open in them, with pipeline, approvals and threads |
 | **Worktrees** `3` | every worktree unagit made: branches, reviews, grouped worktrees |
 | **Activity** `4` | what runs in the background: watches, agents, open editors, the log |
-| **Settings** `5` | servers, tokens, groups, destinations, integrations, themes |
-| **Sandboxes** `6` | unibox's profiles, sandboxes and tasks, when unibox is installed |
+| **Sandboxes** `5` | unibox's sandboxes, their tasks, the profiles, secrets and values, when unibox is installed |
+| **Settings** `S` | servers, tokens, groups, destinations, integrations, themes |
 
 ## The three keys to remember
 

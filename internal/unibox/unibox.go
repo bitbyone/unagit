@@ -215,6 +215,13 @@ type Overview struct {
 	Runtimes     []Runtime
 	Profiles     []Profile
 	Sandboxes    []Sandbox
+	// Config, Secrets and Values are read beside the rest, but a failure
+	// of one leaves the screen standing: Unread says, by what it is, why
+	// it is missing.
+	Config  Config
+	Secrets Secrets
+	Values  Values
+	Unread  map[string]string
 }
 
 // Overview reads the profiles, the sandboxes with their tasks, the runtimes
@@ -233,7 +240,24 @@ func (c *Client) Overview() (Overview, error) {
 	run(3, func() (err error) { o.Runtimes, err = c.Runtimes(); return })
 	run(4, func() (err error) { o.Environments, err = c.Environments(); return })
 	run(5, func() (err error) { o.Context, err = c.Context(); return })
+	var extras [3]error
+	for i, read := range []func() error{
+		func() (err error) { o.Config, err = c.Config(); return },
+		func() (err error) { o.Secrets, err = c.Secrets(); return },
+		func() (err error) { o.Values, err = c.Values(); return },
+	} {
+		wg.Add(1)
+		go func() { defer wg.Done(); extras[i] = read() }()
+	}
 	wg.Wait()
+	for i, what := range []string{"configuration", "secrets", "values"} {
+		if extras[i] != nil {
+			if o.Unread == nil {
+				o.Unread = map[string]string{}
+			}
+			o.Unread[what] = extras[i].Error()
+		}
+	}
 	// The version first: a contract not understood explains every other
 	// failure.
 	for _, err := range errs {
@@ -386,6 +410,75 @@ func (c *Client) Environments() (string, error) {
 	}
 	err := c.read(&out, "config", "get", "environments")
 	return out.Value, err
+}
+
+// Config is unibox's own configuration, as unibox config get gives it.
+type Config struct {
+	Environments   string                    `json:"environments"`
+	DefaultRuntime string                    `json:"default_runtime,omitempty"`
+	Runtimes       map[string]RuntimeSetting `json:"runtimes,omitempty"`
+}
+
+// RuntimeSetting is what the user chose for a runtime; nil is unibox's
+// default.
+type RuntimeSetting struct {
+	On       *bool `json:"on,omitempty"`
+	StopIdle *bool `json:"stop_idle,omitempty"`
+}
+
+func (c *Client) Config() (Config, error) {
+	var out struct {
+		Value Config `json:"value"`
+	}
+	err := c.read(&out, "config", "get")
+	return out.Value, err
+}
+
+// Secrets are the tokens kept in the platform's store, by name: unibox
+// never gives a value, and unagit never asks for one.
+type Secrets struct {
+	Store string   `json:"store"`
+	Names []string `json:"secrets"`
+}
+
+func (c *Client) Secrets() (Secrets, error) {
+	var out Secrets
+	err := c.read(&out, "secret", "ls")
+	return out, err
+}
+
+// Values are the user's own values for what profiles ask of them: shared
+// by every profile, and each profile's own, which wins.
+type Values struct {
+	File     string                       `json:"file"`
+	Shared   map[string]string            `json:"vars"`
+	Profiles map[string]map[string]string `json:"profiles"`
+}
+
+func (c *Client) Values() (Values, error) {
+	var out Values
+	err := c.read(&out, "var", "ls")
+	return out, err
+}
+
+// Asked is a value a profile asks for, and where the one it gets comes
+// from: "every profile", "profile <name>" or "missing".
+type Asked struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Value       string `json:"value"`
+	From        string `json:"from"`
+}
+
+// Missing says whether a run of the profile stops for want of it.
+func (v Asked) Missing() bool { return v.From == "missing" }
+
+func (c *Client) Asked(profile string) ([]Asked, error) {
+	var out struct {
+		Vars []Asked `json:"vars"`
+	}
+	err := c.read(&out, "var", "ls", "-p", profile)
+	return out.Vars, err
 }
 
 // Context is the sandbox and profile unibox works in when not told, and

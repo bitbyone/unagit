@@ -136,12 +136,13 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["unibox"] = &integrationCard{
 		name: "unibox", command: "unibox",
-		description: "Runs coding agents in sandboxes. The Sandboxes tab [6] lists unibox's profiles, sandboxes and tasks; Open in Sandbox… starts an agent on a worktree in one.",
+		description: "Runs coding agents in sandboxes. The Sandboxes tab [5] shows the sandboxes, their tasks, the profiles and the secrets; Open in Sandbox… starts an agent on a worktree in one.",
 		enabled:     s.app.uniboxOn,
 		toggle: func() {
 			on := !s.app.uniboxOn()
 			s.app.cfg.Integrations.Unibox = &on
 			s.app.drawTabs()
+			s.app.sandboxes.sync()
 		},
 		found: s.app.uniboxFound,
 	}

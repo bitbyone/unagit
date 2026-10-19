@@ -130,7 +130,8 @@ func OK(message string) Answer {
 
 // Overview are the answers of an environments repository with one profile,
 // web, two runtimes, and two sandboxes of it: web-1 running with two tasks,
-// one of them with its agent at work, and web-2 stopped and empty.
+// one of them with its agent at work, and web-2 stopped and empty. Three
+// secrets are stored, and of the values web asks for, one is missing.
 func Overview() map[string]Answer {
 	return map[string]Answer{
 		"version --json":                  JSON(`{"api_version":1,"version":"0.3","profile_format":6}`),
@@ -146,6 +147,10 @@ func Overview() map[string]Answer {
 		"network port ls -s web-2 --json": JSON(`{"api_version":1,"sandbox":"web-2","running":false,"ports":[]}`),
 		"script ls -s web-1 --json":       JSON(`{"api_version":1,"sandbox":"web-1","profile":"web","scripts":{"reset-db":"reset-db.sh","update-skills":"update-skills.sh"}}`),
 		"script ls -s web-2 --json":       JSON(`{"api_version":1,"sandbox":"web-2","profile":"web","scripts":{"reset-db":"reset-db.sh","update-skills":"update-skills.sh"}}`),
+		"config get --json":               JSON(`{"api_version":1,"value":{"environments":"/envs","default_runtime":"sbx","runtimes":{"sbx":{"stop_idle":false}},"context":{"sandbox":"web-1"}}}`),
+		"secret ls --json":                JSON(`{"api_version":1,"store":"login keychain","secrets":["claude","copilot","github"]}`),
+		"var ls --json":                   JSON(`{"api_version":1,"file":"/home/.config/unibox/vars.toml","vars":{"git_name":"Dev"},"profiles":{"web":{"npm_scope":"acme"}}}`),
+		"var ls -p web --json":            JSON(`{"api_version":1,"profile":"web","vars":[{"name":"git_name","description":"your name in commits","value":"Dev","from":"every profile"},{"name":"npm_scope","description":"the npm scope","value":"acme","from":"profile web"},{"name":"jira_user","description":"your Jira login","value":"","from":"missing"}]}`),
 	}
 }
 

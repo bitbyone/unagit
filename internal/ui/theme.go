@@ -56,6 +56,7 @@ var (
 	glyphUnlisted                                                  string
 	glyphPrivate                                                   string
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft     string
+	glyphCPU, glyphMemory, glyphTask                               string
 	glyphIntegrationState, glyphEditorNeovim                       string
 	// agentIcons are the agents' icons by their id, empty without a Nerd
 	// Font.
@@ -200,6 +201,7 @@ func setTheme(t Theme) {
 	glyphUnlisted = g.Unlisted
 	glyphPrivate = g.Private
 	glyphRepos, glyphForgeGitHub, glyphForgeGitLab, glyphDraft = g.Repos, g.ForgeGitHub, g.ForgeGitLab, g.Draft
+	glyphCPU, glyphMemory, glyphTask = g.CPU, g.Memory, g.Task
 	glyphIntegrationState = g.IntegrationState
 	glyphEditorNeovim = g.EditorNeovim
 	glyphWatched = g.Watched

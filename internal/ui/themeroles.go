@@ -198,6 +198,8 @@ var colourRoles = []colourRole{
 	{"sandboxes.running", "state.good", "a sandbox running, a task's agent at work"},
 	{"sandboxes.stopped", "text.muted", "a sandbox stopped, its disk kept"},
 	{"sandboxes.problem", "state.warning", "an image outdated or missing, a profile that does not load"},
+	{"sandboxes.failed", "state.bad", "a command unibox could not carry out, in the log"},
+	{"sandboxes.resource", "text.muted", "the icons of a sandbox's processors, memory and tasks"},
 	{"sandboxes.agent", "agents.agent", ""},
 	{"sandboxes.branch", "column.branch", ""},
 	{"sandboxes.runtime", "text.muted", "the runtime a sandbox runs in"},
@@ -242,6 +244,7 @@ var colourRoles = []colourRole{
 	{"activity.card_icon", "text.accent", "an editor's icon and name on its card"},
 	{"tabs.name", "tabs.active", "the name of a tab not in front, in the tabs' accent"},
 	{"tabs.key", "text.dim", "the key after a tab's name that reaches it"},
+	{"tabs.off", "text.dim", "a tab with nothing to show, Sandboxes without unibox"},
 	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
 
 	// A toast is filled with its severity's colour. Unless a theme names

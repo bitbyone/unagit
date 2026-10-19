@@ -242,6 +242,12 @@ type Glyphs struct {
 	Draft       string `json:"draft"`
 	ForgeGitHub string `json:"forge_github"`
 	ForgeGitLab string `json:"forge_gitlab"`
+	// CPU, Memory and Task go before a sandbox's processors, its memory
+	// and its count of tasks on its card; icons alone, like the forges',
+	// the words standing in where there are none.
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+	Task   string `json:"task"`
 	// The coding agents' own icons, before an agent's name; icons alone,
 	// like the forges'.
 	AgentClaude   string `json:"agent_claude"`

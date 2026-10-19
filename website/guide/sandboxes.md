@@ -6,33 +6,34 @@ holding **tasks** - fresh clones of your repositories on a branch, with an
 agent working on them. Nothing of the host is mounted; the work leaves as
 pushes to the task's branch.
 
-unagit is one interface over it. The integration is on whenever `unibox` is
-on `PATH` (Settings › Integrations, under *Sandboxes*), and it adds the
-**Sandboxes** tab, `6`. Everything on the tab is read from unibox's `--json`
-and everything done there is a unibox command: unagit reads no profile's
-YAML and none of unibox's state, so it shows what unibox itself would say.
+unagit is one interface over it: the **Sandboxes** tab, `5`. Everything on
+it is read from unibox's `--json` and everything done there is a unibox
+command: unagit reads no profile's YAML and none of unibox's state, so it
+shows what unibox itself would say. The integration is on whenever `unibox`
+is on `PATH` (Settings › Integrations, under *Sandboxes*); without it the
+tab is grey, and going there says so and where to turn it on.
 
 ## The tab
 
-One tree: each profile, the sandboxes made from it, the tasks in each.
+It is laid out as Activity is, in panels; `Tab` goes round them, `h j k l`
+past a panel's edge to the one beside it, and each has a key of its own.
 
-| Column | Says |
-| --- | --- |
-| NAME | the profile, the sandbox under it, the task under that |
-| STATE | a profile's images (**built**, or which runtime's is outdated or missing), a sandbox running or stopped, a task ready or its agent **working** |
-| AGENT | a profile's agents, those at work in a sandbox, a task's own |
-| RUNTIME | the runtime a sandbox runs in, `sbx` or `msb` |
-| REPOS, BRANCH | a task's repositories and its branch |
-| MEM | a sandbox's memory |
+| Panel | Key | Shows |
+| --- | --- | --- |
+| **Sandboxes** | `B` | a card for each sandbox: running or stopped, its profile and runtime, processors, memory, tasks, how many an agent works on; the context marked |
+| **Environment** | `E` | the profiles' repository, the context, the runtimes, how many secrets and values are kept |
+| **Tasks** | `t` | every sandbox's tasks: the sandbox, ready or **working**, the agent, the repositories, the branch |
+| **Profiles** | `P` | each profile's images (**built**, or which runtime's is outdated or missing), its agents, how many sandboxes are made from it |
+| **Log** | `L` | every command unagit gave unibox, how it went and what unibox said; `Enter` shows it whole, `y` copies the command |
 
-A dot before a sandbox or a profile marks unibox's context - what its
-commands work in when they are not told. The detail beside the tree says the
-rest: a profile's images by runtime, its agents with how each signs in and
-how its commits credit it, its services and whether each token is stored,
-its network rules; a sandbox's runtime, resources, tasks, ports with their
-addresses, scripts; a task's repositories, branches and commit author. On a
-terminal narrower than 140 columns it goes under the tree and opens on
-`Enter`.
+The detail follows the panel with the focus: a profile's images by runtime,
+its agents with how each signs in and how its commits credit it, its
+services and whether each token is stored, its network rules, the values it
+asks for and which are missing; a sandbox's runtime, resources, tasks, ports
+with their addresses, scripts; a task's repositories, branches and commit
+author; the environment's runtimes and what is chosen for each, the secrets
+by name and your values. On a terminal narrower than 120 columns it goes
+under the tasks and opens on `Enter`.
 
 ## Tasks
 
@@ -60,7 +61,7 @@ sandbox and task.
 | `n` | **New Task…**: a worktree or a clone of yours, then the agent, then where |
 | `s` | a shell in the sandbox, in `/work` |
 | `p` | its ports: `Enter` publishes one or takes it back while it runs, `w` opens it |
-| `S` | run one of the profile's scripts now, in a log |
+| `!` | run one of the profile's scripts now, in a log |
 | `i` | the instructions its agents get |
 | `x` | stop it; its disk, caches and tasks stay |
 | `C` | recreate it from the profile as it is now, or rebuild the image first |
@@ -87,13 +88,26 @@ you choose **Push and Start**.
 | `O` | its directory in the editor |
 | `u` | make it the context |
 
-Tokens never pass through unagit. Signing in and adding a service run unibox
-in this terminal, where it asks for the token itself and keeps it in the
-platform's store.
+## Secrets, values and settings
 
-`:` has what the tab itself can do: read everything again (`r`), choose the
-environments repository among your clones, open it, validate the profiles,
-clear the context, prune the images unibox no longer needs.
+From any panel:
+
+| Key | |
+| --- | --- |
+| `K` | **Secrets…**: the tokens kept in the platform's store, by name - `a` stores one, `Enter` replaces it, `d` removes it |
+| `V` | **Values…**: your own values for what profiles ask of you - a name, a login - `Enter` sets one, `a` a new one, `d` removes one; a value a profile asks for and lacks is listed as **missing** |
+| `U` | **unibox Settings…**: the runtime new sandboxes get, which runtimes may be used, whether a sandbox stops when its last session ends |
+
+On the Environment panel `e` chooses the environments repository among your
+clones, `O` opens it, `c` clears the context. `:` has the rest: read
+everything again (`r`), validate the profiles, prune the images unibox no
+longer needs.
+
+Tokens never pass through unagit. Signing in, adding a service and storing a
+secret run unibox in this terminal, where it asks for the token on a hidden
+prompt and keeps it in the platform's store; unibox lists the secrets by name
+alone. A value is no secret - it is kept in `~/.config/unibox/vars.toml` -
+and is shown.
 
 ## From a worktree
 

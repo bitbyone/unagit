@@ -9,7 +9,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/agents"
-	"github.com/tobola/unagit/internal/fuzzy"
 	"github.com/tobola/unagit/internal/unibox"
 )
 
@@ -63,6 +62,7 @@ type sandboxDetail struct {
 	network  unibox.Network
 	ports    []unibox.Port
 	scripts  map[string]string
+	asked    []unibox.Asked
 }
 
 type sandboxRowKind int
@@ -156,7 +156,6 @@ func (a *App) refreshSandboxes() {
 			a.ubx = uniboxState{overview: o, err: err, read: true, at: time.Now(), details: map[string]*sandboxDetail{}}
 			a.sandboxRows = sandboxRows(o)
 			a.sandboxesPane.reload()
-			a.followSandboxDetail()
 		})
 	}()
 }
@@ -173,78 +172,6 @@ func (a *App) visitSandboxes() {
 	}
 }
 
-func (a *App) newSandboxesPane() *pane {
-	p := a.newPane("Sandboxes")
-	// Beside the list only where both have room; narrower, the detail goes
-	// under it and opens on Enter, as in the other lists.
-	p.stackBelow = sandboxesWide
-	// The tree's names and branches want more of the width than the
-	// detail's lines.
-	p.listWeight, p.detailWeight = 3, 2
-	p.body.ResizeItem(p.kept, 0, p.listWeight)
-	var filtered []int
-
-	p.headline = func() string {
-		var counts [3]int
-		for _, r := range a.sandboxRows {
-			counts[r.kind]++
-		}
-		text := fmt.Sprintf("%d profiles · %d sandboxes · %d tasks", counts[rowProfile], counts[rowSandbox], counts[rowTask])
-		if v := a.ubx.overview.Version.Version; v != "" {
-			text += " · unibox " + v
-		}
-		if env := a.ubx.overview.Environments; env != "" {
-			text += " · " + tildePath(env)
-		}
-		return tag(colMuted) + esc(text) + tagEnd
-	}
-	render := func(query string) {
-		filtered = filterSandboxRows(a.sandboxRows, query)
-		a.drawSandboxes(p, filtered)
-		p.updateHeader()
-	}
-	p.onQuery = render
-	p.reload = func() { render(p.query) }
-	p.onDetail = func(idx int, focus bool) {
-		if idx < 0 || idx >= len(a.sandboxRows) {
-			return
-		}
-		a.showSandboxDetail(a.sandboxRows[idx], focus)
-	}
-	p.onSelect = func() { a.followSandboxDetail() }
-	// Ctrl-O opens what a row has on this machine: a profile's directory of
-	// the environments repository; Alt-O asks which editor.
-	p.onOpen = func(ask bool) {
-		r, ok := a.selectedSandboxRow()
-		if !ok {
-			return
-		}
-		if r.kind != rowProfile {
-			a.flash("a sandbox and its tasks are in the VM - O on its profile opens the profile, s a shell in it")
-			return
-		}
-		a.openProfileDir(r.profile, ask)
-	}
-	p.selection = func() (string, []uiAction) {
-		r, ok := a.selectedSandboxRow()
-		if !ok {
-			return "", nil
-		}
-		return "Actions · " + sandboxRowName(r), a.sandboxRowActions(p, r)
-	}
-	p.screen = func() (string, []uiAction) { return "Sandboxes", a.sandboxesActions(p) }
-	return p
-}
-
-// selectedSandboxRow is the row under the cursor.
-func (a *App) selectedSandboxRow() (sandboxRow, bool) {
-	i := a.sandboxesPane.selectedIndex()
-	if i < 0 || i >= len(a.sandboxRows) {
-		return sandboxRow{}, false
-	}
-	return a.sandboxRows[i], true
-}
-
 // sandboxRowName is a row as a title names it.
 func sandboxRowName(r sandboxRow) string {
 	switch r.kind {
@@ -256,53 +183,13 @@ func sandboxRowName(r sandboxRow) string {
 	return "profile " + r.profile.Name
 }
 
-// filterSandboxRows keeps the rows a query finds, and what they are under:
-// a task found keeps its sandbox and its profile on screen, so it is still
-// plain where it is.
-func filterSandboxRows(rows []sandboxRow, query string) []int {
-	if strings.TrimSpace(query) == "" {
-		out := make([]int, len(rows))
-		for i := range rows {
-			out[i] = i
-		}
-		return out
-	}
-	keep := make([]bool, len(rows))
-	profileAt, sandboxAt := -1, -1
-	for i, r := range rows {
-		switch r.kind {
-		case rowProfile:
-			profileAt, sandboxAt = i, -1
-		case rowSandbox:
-			sandboxAt = i
-		}
-		if _, ok := fuzzy.Match(query, sandboxHay(r)); !ok {
-			continue
-		}
-		keep[i] = true
-		if profileAt >= 0 {
-			keep[profileAt] = true
-		}
-		if r.kind == rowTask && sandboxAt >= 0 {
-			keep[sandboxAt] = true
-		}
-	}
-	var out []int
-	for i, k := range keep {
-		if k {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
 // sandboxHay is what a row is found by.
 func sandboxHay(r sandboxRow) string {
 	switch r.kind {
 	case rowSandbox:
 		return r.sandbox.Name + " " + r.sandbox.Runtime + " " + r.sandbox.State
 	case rowTask:
-		hay := r.task.Name() + " " + r.task.ID + " " + r.task.Agent
+		hay := r.task.Name() + " " + r.task.ID + " " + r.task.Sandbox + " " + r.task.Agent
 		for _, repo := range r.task.Repositories {
 			hay += " " + repo.Name + " " + repo.Branch
 		}
@@ -437,7 +324,9 @@ func sandboxBranch(r sandboxRow) string {
 	return branch
 }
 
-func (a *App) drawSandboxes(p *pane, filtered []int) {
+// drawSandboxTasks fills the tasks: every sandbox's, by sandbox and name.
+func (a *App) drawSandboxTasks(p *pane) {
+	v := a.sandboxes
 	previous := p.selectedIndex()
 	p.table.Clear()
 	p.kept.reset()
@@ -449,84 +338,61 @@ func (a *App) drawSandboxes(p *pane, filtered []int) {
 		return
 	}
 
-	indent := map[sandboxRowKind]string{rowProfile: "", rowSandbox: "  ", rowTask: "    "}
-	var names, states, agentsW, runtimes, repos, branches []int
-	memW := headingWidth("MEM")
-	for _, idx := range filtered {
-		r := a.sandboxRows[idx]
-		names = append(names, cells(indent[r.kind]+sandboxName(r)))
+	var names, boxes, states, agentsW, repos, branches []int
+	for _, r := range v.tasks {
+		names = append(names, cells(r.task.Name()))
+		boxes = append(boxes, cells(r.sandbox.Name))
 		state, _ := a.sandboxState(r)
 		states = append(states, cells(state))
-		agentsW = append(agentsW, cells(sandboxAgents(r)))
-		if r.kind == rowSandbox {
-			runtimes = append(runtimes, cells(r.sandbox.Runtime))
-			memW = max(memW, cells(r.sandbox.Memory))
-		}
+		agentsW = append(agentsW, cells(agentLabel(r.task.Agent))+2)
 		repos = append(repos, cells(sandboxRepos(r)))
 		branches = append(branches, cells(sandboxBranch(r)))
 	}
-	markW := 2
-	nameCol := flexColumn("NAME", names, 14, 3)
-	stateCol := flexColumn("STATE", states, 10, 1)
+	nameCol := flexColumn("TASK", names, 10, 2)
+	boxCol := flexColumn("SANDBOX", boxes, 6, 1)
+	stateCol := flexColumn("STATE", states, 8, 1)
 	agentCol := flexColumn("AGENT", agentsW, 7, 1)
-	runtimeCol := flexColumn("RUNTIME", runtimes, 3, 0.5)
-	reposCol := flexColumn("REPOS", repos, 8, 0.8)
-	branchCol := flexColumn("BRANCH", branches, 10, 1.2)
-	memCol := fixedColumn(memW)
-	runtimeCol.drop, memCol.drop, reposCol.drop, agentCol.drop = 1, 2, 3, 4
-	spare := layoutColumns(p.contentWidth()-1, fixedColumn(markW), nameCol, stateCol, agentCol, runtimeCol, reposCol, branchCol, memCol)
-	fillW := max(0, spare-1)
+	reposCol := flexColumn("REPOS", repos, 8, 1)
+	branchCol := flexColumn("BRANCH", branches, 10, 1.5)
+	reposCol.drop, boxCol.drop, agentCol.drop = 1, 2, 3
+	layoutColumns(p.contentWidth()-1, fixedColumn(1), nameCol, boxCol, stateCol, agentCol, reposCol, branchCol)
 
 	heading := role("sandboxes.header")
-	header := []field{
-		{width: markW},
-		{text: "NAME", width: nameCol.width, colour: heading},
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons([]field{
+		{width: 1},
+		{text: "TASK", width: nameCol.width, colour: heading},
+		{text: "SANDBOX", width: boxCol.width, colour: heading},
 		{text: "STATE", width: stateCol.width, colour: heading},
 		{text: "AGENT", width: agentCol.width, colour: heading},
-		{text: "RUNTIME", width: runtimeCol.width, colour: heading},
 		{text: "REPOS", width: reposCol.width, colour: heading},
 		{text: "BRANCH", width: branchCol.width, colour: heading},
-	}
-	if fillW > 0 {
-		header = append(header, field{width: fillW})
-	}
-	header = append(header, field{text: "MEM", width: memCol.width, colour: heading, right: true})
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
+	}))).SetSelectable(false).SetExpansion(1))
 
-	current := a.ubx.overview.Context
-	for row, idx := range filtered {
-		r := a.sandboxRows[idx]
+	for i, r := range v.tasks {
 		state, stateRole := a.sandboxState(r)
-		nameRole := map[sandboxRowKind]string{rowProfile: "sandboxes.profile", rowSandbox: "sandboxes.sandbox", rowTask: "sandboxes.task"}[r.kind]
-		mark := "  "
-		if r.kind == rowSandbox && current.Set.Sandbox == r.sandbox.Name || r.kind == rowProfile && current.Set.Profile == r.profile.Name {
-			// The context: what unibox works in when a command is not told.
-			mark = tag(colAccent) + " " + glyphDot + tagEnd
+		agent := agentLabel(r.task.Agent)
+		if icon := agentIcons[r.task.Agent]; icon != "" {
+			agent = icon + " " + agent
 		}
-		runtime, memory := "", ""
-		if r.kind == rowSandbox {
-			runtime, memory = r.sandbox.Runtime, r.sandbox.Memory
-		}
-		cells := []field{
-			{raw: mark},
-			{text: indent[r.kind] + sandboxName(r), width: nameCol.width, colour: role(nameRole)},
+		p.table.SetCell(i+1, 0, tview.NewTableCell(rowText([]field{
+			{width: 1},
+			{text: r.task.Name(), width: nameCol.width, colour: role("sandboxes.task")},
+			{text: r.sandbox.Name, width: boxCol.width, colour: role("sandboxes.sandbox")},
 			{text: state, width: stateCol.width, colour: role(stateRole)},
-			{text: sandboxAgents(r), width: agentCol.width, colour: role("sandboxes.agent")},
-			{text: runtime, width: runtimeCol.width, colour: role("sandboxes.runtime")},
+			{text: agent, width: agentCol.width, colour: role("sandboxes.agent")},
 			{text: sandboxRepos(r), width: reposCol.width, colour: role("sandboxes.task")},
 			{text: sandboxBranch(r), width: branchCol.width, colour: role("sandboxes.branch"), shorten: shortenBranch},
-		}
-		if fillW > 0 {
-			cells = append(cells, field{width: fillW})
-		}
-		cells = append(cells, field{text: memory, width: memCol.width, colour: role("sandboxes.memory"), right: true})
-		p.table.SetCell(row+1, 0, tview.NewTableCell(rowText(cells)).SetReference(idx).SetExpansion(1))
+		})).SetReference(i).SetExpansion(1))
 	}
-	first := 0
-	if len(filtered) > 0 {
-		first = 1
+	if len(v.tasks) == 0 {
+		empty := "No task yet - n on a sandbox or a profile starts one, Open in Sandbox… on a worktree too."
+		if p.query != "" {
+			empty = "No task matches."
+		}
+		p.table.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+esc(empty)+tagEnd).SetSelectable(false).SetExpansion(1))
+		return
 	}
-	p.selectRow(previous, first)
+	p.selectRow(previous, 1)
 }
 
 // sandboxName is the NAME of a row, its indent left out.
@@ -557,45 +423,11 @@ func (a *App) sandboxesProblem() string {
 	return ""
 }
 
-// sandboxesWide is the width from which the detail stands beside the tree
-// and follows the cursor by itself.
-const sandboxesWide = 140
-
-// followSandboxDetail keeps the detail beside the list on the row under the
-// cursor, where there is room for both.
-func (a *App) followSandboxDetail() {
-	p := a.sandboxesPane
-	r, ok := a.selectedSandboxRow()
-	if !ok || a.sandboxesProblem() != "" {
-		// Taken away without moving the focus: a refresh can end while
-		// another tab is in front.
-		if p.detailShown {
-			p.stopDebounce()
-			p.body.RemoveItem(p.detail)
-			p.detailShown, p.detailFocused, p.detailFor = false, false, -1
-		}
-		return
-	}
-	if !p.detailShown && a.tabsWidth < sandboxesWide {
-		return
-	}
-	a.showSandboxDetail(r, false)
-}
-
-// showSandboxDetail fills the detail with a row's configuration, reading
-// what the overview does not hold the first time the row is looked at.
-func (a *App) showSandboxDetail(r sandboxRow, focus bool) {
-	p := a.sandboxesPane
-	p.detailFor = p.selectedIndex()
-	if !p.detailShown {
-		p.body.AddItem(p.detail, 0, p.detailWeight, false)
-		p.detailShown = true
-	}
-	title := sandboxRowName(r)
-	p.setDetail(title, a.sandboxDetailText(r))
-	if focus {
-		p.focusDetail()
-	}
+// readSandboxDetail reads what a row's detail shows besides the overview -
+// a profile's agents, services, network and values, a sandbox's ports and
+// scripts - the first time the row is looked at, and calls then on the
+// event loop once it is there.
+func (a *App) readSandboxDetail(r sandboxRow, then func()) {
 	if r.kind == rowTask {
 		return
 	}
@@ -616,25 +448,27 @@ func (a *App) showSandboxDetail(r sandboxRow, focus bool) {
 	go func() {
 		got := &sandboxDetail{}
 		var errs []error
+		keep := func(err error) {
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
 		if r.kind == rowProfile {
 			var err error
-			if got.agents, err = c.Agents(r.profile.Name); err != nil {
-				errs = append(errs, err)
-			}
-			if got.services, err = c.Services(r.profile.Name); err != nil {
-				errs = append(errs, err)
-			}
-			if got.network, err = c.Network(r.profile.Name); err != nil {
-				errs = append(errs, err)
-			}
+			got.agents, err = c.Agents(r.profile.Name)
+			keep(err)
+			got.services, err = c.Services(r.profile.Name)
+			keep(err)
+			got.network, err = c.Network(r.profile.Name)
+			keep(err)
+			got.asked, err = c.Asked(r.profile.Name)
+			keep(err)
 		} else {
 			var err error
-			if got.ports, err = c.Ports(r.sandbox.Name); err != nil {
-				errs = append(errs, err)
-			}
-			if got.scripts, err = c.Scripts(r.sandbox.Name); err != nil {
-				errs = append(errs, err)
-			}
+			got.ports, err = c.Ports(r.sandbox.Name)
+			keep(err)
+			got.scripts, err = c.Scripts(r.sandbox.Name)
+			keep(err)
 		}
 		if len(errs) > 0 {
 			got.err = errs[0]
@@ -644,9 +478,7 @@ func (a *App) showSandboxDetail(r sandboxRow, focus bool) {
 				return // refreshed since
 			}
 			a.ubx.details[key] = got
-			if now, ok := a.selectedSandboxRow(); ok && now.key() == key && p.detailShown {
-				p.setDetail(title, a.sandboxDetailText(now))
-			}
+			then()
 		})
 	}()
 }
@@ -708,6 +540,18 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 			d.kv("Denied", esc(strings.Join(extra.network.Deny, ", ")))
 			if len(extra.network.Allow)+len(extra.network.Deny) == 0 {
 				d.sub("the runtime's policy alone")
+			}
+			d.section("Values")
+			for _, v := range extra.asked {
+				switch {
+				case v.Missing():
+					d.kv(v.Name, tag(role("sandboxes.problem"))+"missing"+tagEnd+tag(colMuted)+esc(" · "+v.Description)+tagEnd)
+				default:
+					d.kv(v.Name, esc(v.Value)+tag(colMuted)+esc(" · "+v.From)+tagEnd)
+				}
+			}
+			if len(extra.asked) == 0 {
+				d.sub("it asks for none")
 			}
 		} else {
 			for _, ag := range pr.Agents {
@@ -786,6 +630,93 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 			}
 			d.kv("", tag(colMuted)+esc("commits as "+repo.Author)+tagEnd)
 		}
+	}
+	return d.String()
+}
+
+// environmentDetailText is what unibox works with on this machine: the
+// environments repository, the context, the runtimes and what is chosen
+// for each, the secrets by name and the values.
+func (a *App) environmentDetailText() string {
+	o := a.ubx.overview
+	d := &detailBuf{}
+	d.title("Environment")
+	d.sub("unibox " + o.Version.Version + " · profile format " + fmt.Sprint(o.Version.ProfileFormat))
+	d.blank()
+	d.kv("Repository", esc(firstOf(tildePath(o.Environments), "none - Set Environments Repository… (e)")))
+	set := o.Context.Set
+	switch {
+	case set.Sandbox != "" || set.Profile != "":
+		d.kv("Context", esc(strings.Trim(set.Sandbox+" · "+firstOf(set.Profile, o.Context.Profile), " ·")))
+	case o.Context.Sandbox != "" || o.Context.Profile != "":
+		d.kv("Context", esc(strings.Trim(o.Context.Sandbox+" · "+o.Context.Profile, " ·"))+tag(colMuted)+" · the only one"+tagEnd)
+	default:
+		d.kv("Context", tag(colMuted)+"none: commands are told"+tagEnd)
+	}
+	d.section("Runtimes")
+	for _, rt := range o.Runtimes {
+		var words []string
+		switch {
+		case !rt.Available:
+			words = append(words, "not installed")
+		case !rt.Enabled:
+			words = append(words, "turned off")
+		default:
+			words = append(words, "on")
+		}
+		if rt.Default {
+			words = append(words, "the default")
+		}
+		if rt.Experimental {
+			words = append(words, "experimental")
+		}
+		if set := o.Config.Runtimes[rt.Name]; set.StopIdle != nil {
+			if *set.StopIdle {
+				words = append(words, "stops when idle")
+			} else {
+				words = append(words, "keeps running when idle")
+			}
+		}
+		line := esc(strings.Join(words, " · "))
+		if rt.Error != "" {
+			line += " · " + tag(role("sandboxes.problem")) + esc(rt.Error) + tagEnd
+		}
+		d.kv(rt.Name, line)
+	}
+	d.section("Secrets")
+	if why := o.Unread["secrets"]; why != "" {
+		d.raw(tag(role("sandboxes.problem")) + esc(why) + tagEnd + "\n")
+	}
+	for _, name := range o.Secrets.Names {
+		d.kv(name, tag(colMuted)+"secret:"+esc(name)+tagEnd)
+	}
+	if len(o.Secrets.Names) == 0 {
+		d.sub("none stored")
+	} else if o.Secrets.Store != "" {
+		d.sub("in the " + o.Secrets.Store + "; their values never leave it")
+	}
+	d.section("Your values")
+	if why := o.Unread["values"]; why != "" {
+		d.raw(tag(role("sandboxes.problem")) + esc(why) + tagEnd + "\n")
+	}
+	for _, name := range sortedKeys(o.Values.Shared) {
+		d.kv(name, esc(o.Values.Shared[name])+tag(colMuted)+" · every profile"+tagEnd)
+	}
+	var profiles []string
+	for p := range o.Values.Profiles {
+		profiles = append(profiles, p)
+	}
+	sort.Strings(profiles)
+	for _, p := range profiles {
+		for _, name := range sortedKeys(o.Values.Profiles[p]) {
+			d.kv(name, esc(o.Values.Profiles[p][name])+tag(colMuted)+esc(" · profile "+p)+tagEnd)
+		}
+	}
+	if len(o.Values.Shared)+len(profiles) == 0 {
+		d.sub("none set")
+	}
+	if o.Values.File != "" {
+		d.sub("kept in " + tildePath(o.Values.File))
 	}
 	return d.String()
 }

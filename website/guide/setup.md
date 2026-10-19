@@ -1,7 +1,7 @@
 # First Setup
 
 There is nothing to edit by hand. Everything below happens in **Settings**
-(`5`), which unagit opens on its first start.
+(`S`), which unagit opens on its first start.
 
 ## 1. Choose a passphrase
 

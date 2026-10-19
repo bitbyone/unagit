@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"os/exec"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/unibox/uniboxtest"
@@ -39,19 +41,40 @@ func fakeUnibox(t *testing.T, more map[string]uniboxtest.Answer) (*uniboxtest.Fa
 func openSandboxes(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	waitFor(t, a, sc, "acme/gateway")
-	typeRunes(sc, "6")
+	typeRunes(sc, "5")
 	waitFor(t, a, sc, "billing-5e6f7a8b")
 }
 
-// selectSandboxRow puts the cursor on the row of a key.
+// selectSandboxRow puts the focus on the panel of a key - the tasks, the
+// cards, the profiles - and its cursor on the row.
 func selectSandboxRow(t *testing.T, a *App, key string) {
 	t.Helper()
 	found := onLoop(a, func() bool {
-		p := a.sandboxesPane
-		for row := 1; row < p.table.GetRowCount(); row++ {
-			if i, ok := p.table.GetCell(row, 0).GetReference().(int); ok && a.sandboxRows[i].key() == key {
-				p.table.Select(row, 0)
-				return true
+		v := a.sandboxes
+		switch key[:2] {
+		case "t:":
+			for i, r := range v.tasks {
+				if r.key() == key {
+					v.focus(v.pane.table)
+					v.pane.table.Select(i+1, 0)
+					return true
+				}
+			}
+		case "s:":
+			for i, r := range v.boxes {
+				if r.key() == key {
+					v.cards.at = i
+					v.focus(v.cards)
+					return true
+				}
+			}
+		case "p:":
+			for i, r := range v.profileRows {
+				if r.key() == key {
+					v.focus(v.profiles)
+					v.profiles.Select(i+1, 0)
+					return true
+				}
 			}
 		}
 		return false
@@ -60,9 +83,16 @@ func selectSandboxRow(t *testing.T, a *App, key string) {
 		t.Fatalf("no row %s", key)
 	}
 	waitEditorState(t, a, func() bool {
-		r, ok := a.selectedSandboxRow()
+		r, ok := a.sandboxes.chosen()
 		return ok && r.key() == key
 	})
+}
+
+// waitDetail waits for the detail to say something, on screen or below
+// what it shows.
+func waitDetail(t *testing.T, a *App, text string) {
+	t.Helper()
+	waitEditorState(t, a, func() bool { return strings.Contains(a.sandboxesPane.detail.GetText(true), text) })
 }
 
 // waitCalled waits for the stand-in to have been run with a command line.
@@ -71,56 +101,75 @@ func waitCalled(t *testing.T, a *App, fake *uniboxtest.Fake, line string) {
 	waitEditorState(t, a, func() bool { return fake.Called(line) })
 }
 
-// TestTheSandboxesTabShowsProfilesSandboxesAndTasks: one tree, each
-// profile with its sandboxes and each sandbox with its tasks, and the
-// detail beside it with what unibox says of the row.
-func TestTheSandboxesTabShowsProfilesSandboxesAndTasks(t *testing.T) {
+// TestTheSandboxesTabShowsItsPanels: the sandboxes as cards with their
+// state and resources, the environment beside them, the tasks of every
+// sandbox, the profiles and the log; the detail follows the panel with the
+// focus and says what unibox says of what it has chosen.
+func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	t.Parallel()
 	_, prepare := fakeUnibox(t, nil)
 	a, sc, _ := newTestAppSrv(t, prepare)
-	waitFor(t, a, sc, "[6]")
-	// Wide enough for the detail to stand beside the tree by itself.
-	resizeApp(a, sc, 180, 40)
+	waitFor(t, a, sc, "[5]")
+	// Wide enough for the detail to stand beside the tasks by itself.
+	resizeApp(a, sc, 180, 44)
 	openSandboxes(t, a, sc)
-	for _, want := range []string{"web-1", "web-2", "rate", "billing-5e6f7a8b", "broken", "does not load",
-		"msb outdated", "working", "running", "stopped", "8GiB", "feat/rate", "billing, gateway", "fix/round"} {
+	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Profiles [P]", "Log [L]",
+		"web-1 · context", "web-2", "web · sbx", "running", "no tasks", "stopped", "8GiB", "4 cpu", "2 tasks",
+		"rate", "billing-5e6f7a8b", "working", "feat/rate", "billing, gateway", "fix/round",
+		"broken", "does not load", "msb outdated", "/envs", "web-1 · web", "3 secrets · 2 values"} {
 		waitFor(t, a, sc, want)
 	}
 	text := a.screenText(sc)
-	if lineOf(text, "web-1") > lineOf(text, "rate") || lineOf(text, "rate") > lineOf(text, "web-2") {
-		t.Fatalf("not a tree:\n%s", text)
+	if lineOf(text, "web · sbx") > lineOf(text, "rate") || lineOf(text, "rate") > lineOf(text, "does not load") {
+		t.Fatalf("not cards, then tasks, then profiles:\n%s", text)
 	}
 	// The profile's detail is read from unibox: its services, whose token
-	// is stored and whose is not.
+	// is stored and whose is not, and the value it asks for that is
+	// missing.
 	selectSandboxRow(t, a, "p:web")
 	waitFor(t, a, sc, "token missing")
 	waitFor(t, a, sc, "jitpack.io")
+	waitDetail(t, a, "jira_user")
 	selectSandboxRow(t, a, "s:web-1")
 	waitFor(t, a, sc, "http://127.0.0.1:3000")
-	waitFor(t, a, sc, "update-skills")
+	waitDetail(t, a, "update-skills")
 	selectSandboxRow(t, a, "t:billing-5e6f7a8b")
 	waitFor(t, a, sc, "https://gl.test/acme/billing.git")
+	typeRunes(sc, "E")
+	waitFor(t, a, sc, "login keychain")
+	waitFor(t, a, sc, "keeps running when idle")
 
-	// The filter keeps what a task is under.
-	typeRunes(sc, "/fix/round")
-	waitGone(t, a, sc, "web-2")
-	waitFor(t, a, sc, "web-1")
+	// The filter narrows the tasks.
+	typeRunes(sc, "t/fix/round")
+	waitGone(t, a, sc, "feat/rate")
 	waitFor(t, a, sc, "billing-5e6f7a8b")
 }
 
-// TestWithoutUniboxThereIsNoSandboxesTab: a machine without unibox has no
-// tab that would only say it is missing, and 6 does nothing.
-func TestWithoutUniboxThereIsNoSandboxesTab(t *testing.T) {
+// TestWithoutUniboxTheSandboxesTabSaysSo: the tab is on the bar, grey,
+// and going there says in the middle of it that unibox is not there and
+// where it is turned on; Settings is S, at the bar's right end.
+func TestWithoutUniboxTheSandboxesTabSaysSo(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
-	waitFor(t, a, sc, "Settings [5]")
-	if strings.Contains(a.screenText(sc), "[6]") {
-		t.Fatal("a Sandboxes tab without unibox")
+	waitFor(t, a, sc, "Sandboxes [5]")
+	waitFor(t, a, sc, "Settings [S]")
+	bar := strings.Split(a.screenText(sc), "\n")[0]
+	if !strings.HasSuffix(strings.TrimRight(bar, " "), "Settings [S]") || strings.Index(bar, "Sandboxes [5]") > strings.Index(bar, "Settings [S]") {
+		t.Fatalf("Settings is not at the right end: %q", bar)
 	}
-	typeRunes(sc, "6")
-	if got := onLoop(a, a.currentTab); got != pageProjects {
-		t.Fatalf("6 went to %s", got)
+	typeRunes(sc, "5")
+	waitFor(t, a, sc, "Sandboxes are not available")
+	waitFor(t, a, sc, "unibox is not installed")
+	text := a.screenText(sc)
+	if line := lineOf(text, "Sandboxes are not available"); line < 6 {
+		t.Fatalf("the word is not in the middle of the tab, at line %d:\n%s", line, text)
 	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitEditorState(t, a, func() bool { return a.currentTab() == pageSettings && a.settings.current == sectionIntegrations })
+	typeRunes(sc, "1")
+	waitEditorState(t, a, func() bool { return a.currentTab() == pageProjects })
+	typeRunes(sc, "S")
+	waitEditorState(t, a, func() bool { return a.currentTab() == pageSettings })
 }
 
 // TestATaskResumesInAZellijSplit: o asks where, the places of the
@@ -220,6 +269,99 @@ func TestASandboxIsStoppedAndARefusalIsAWarning(t *testing.T) {
 	typeRunes(sc, "y")
 	waitCalled(t, a, fake, "sandbox rm web-1 --yes --json")
 	waitFor(t, a, sc, "push them first")
+	// The log has both, and how each went.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "push them first")
+	waitFor(t, a, sc, "Stopping web-1")
+	waitFor(t, a, sc, "Removing web-1")
+	got := onLoop(a, func() []string {
+		var levels []string
+		for _, e := range a.ubxLog {
+			levels = append(levels, e.title+": "+e.level)
+		}
+		return levels
+	})
+	if !slices.Equal(got, []string{"Stopping web-1: done", "Removing web-1: refused"}) {
+		t.Fatalf("log: %v", got)
+	}
+}
+
+// TestSecretsAreStoredInTheTerminalAndListedByName: K lists the secrets
+// by name; a new one is stored by unibox in this terminal, where it asks
+// for the token itself, and d removes one after asking.
+func TestSecretsAreStoredInTheTerminalAndListedByName(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"secret rm copilot --json": uniboxtest.OK("removed copilot"),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "Secrets · login keychain")
+	waitFor(t, a, sc, "secret:github")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "a")
+	waitFor(t, a, sc, "Store a secret")
+	typeRunes(sc, "jfrog")
+	pressButton(t, a, sc, frontForm(a), "Store")
+	waitCalled(t, a, fake, "secret set jfrog")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "storing secret jfrog - done") })
+
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "secret:copilot")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "j")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Remove secret copilot")
+	typeRunes(sc, "y")
+	waitCalled(t, a, fake, "secret rm copilot --json")
+}
+
+// TestAMissingValueIsSetForEveryProfile: V lists the values and what a
+// profile asks for that is missing; Enter on that one sets it, for every
+// profile unless chosen otherwise.
+func TestAMissingValueIsSetForEveryProfile(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 40)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "V")
+	waitFor(t, a, sc, "Your values")
+	for _, want := range []string{"git_name", "npm_scope", "profile web", "every profile", "jira_user", "missing"} {
+		waitFor(t, a, sc, want)
+	}
+	waitFor(t, a, sc, "NORMAL")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Set jira_user")
+	setField(t, a, frontForm(a), 0, "dev")
+	pressButton(t, a, sc, frontForm(a), "Set")
+	waitCalled(t, a, fake, "var set jira_user dev --json")
+}
+
+// TestUniboxSettingsSetOnlyWhatChanged: U is unibox's configuration as a
+// form, and saving it sets what was changed and nothing else.
+func TestUniboxSettingsSetOnlyWhatChanged(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "U")
+	waitFor(t, a, sc, "unibox settings")
+	waitFor(t, a, sc, "Default runtime")
+	waitFor(t, a, sc, "msb stops when idle")
+	form := frontForm(a)
+	onLoop(a, func() bool {
+		form.GetFormItemByLabel("msb stops when idle").(*tview.Checkbox).SetChecked(false)
+		return true
+	})
+	pressButton(t, a, sc, form, "Save")
+	waitCalled(t, a, fake, "config set runtimes.msb.stop_idle false --json")
+	for _, call := range fake.Calls() {
+		if strings.HasPrefix(call, "config set") && call != "config set runtimes.msb.stop_idle false --json" {
+			t.Fatalf("set what did not change: %v", fake.Calls())
+		}
+	}
 }
 
 // TestANewTaskIsCheckedThenRun: n on a sandbox asks what to work on and
@@ -256,7 +398,7 @@ func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	}
 }
 
-// TestTheSandboxesTabFitsEverySize: the tree and its detail stay inside
+// TestTheSandboxesTabFitsEverySize: the panels and the detail stay inside
 // their frames, every heading on screen, legible in the default theme.
 func TestTheSandboxesTabFitsEverySize(t *testing.T) {
 	t.Parallel()
@@ -266,8 +408,9 @@ func TestTheSandboxesTabFitsEverySize(t *testing.T) {
 	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
 	for _, size := range [][2]int{{80, 24}, {120, 34}, {200, 50}} {
 		resizeApp(a, sc, size[0], size[1])
-		waitFor(t, a, sc, "NAME")
+		waitFor(t, a, sc, "TASK")
 		waitFor(t, a, sc, "rate")
+		waitFor(t, a, sc, "web-1")
 		text := a.screenText(sc)
 		for _, line := range strings.Split(text, "\n") {
 			if cells(line) > size[0] {
@@ -275,5 +418,82 @@ func TestTheSandboxesTabFitsEverySize(t *testing.T) {
 			}
 		}
 		assertLegible(t, a, sc, "sandboxes")
+	}
+}
+
+// TestTheSandboxFormsFitTheirFrames: unibox's settings and a new value, at
+// several sizes - every field and button inside the frame, its border whole
+// on every row, every label on screen, legible.
+func TestTheSandboxFormsFitTheirFrames(t *testing.T) {
+	t.Parallel()
+	for _, size := range []struct{ w, h int }{{120, 34}, {100, 30}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			_, prepare := fakeUnibox(t, nil)
+			a, sc, _ := newTestAppSrv(t, prepare)
+			resizeApp(a, sc, size.w, size.h)
+			openSandboxes(t, a, sc)
+			typeRunes(sc, "U")
+			waitFor(t, a, sc, "unibox settings")
+			assertFormFits(t, a, sc, frontForm(a), "Default runtime", "sbx may be used", "msb stops when idle", "Save", "Cancel")
+			assertLegible(t, a, sc, "unibox settings")
+			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+			waitGone(t, a, sc, "unibox settings")
+
+			typeRunes(sc, "V")
+			waitFor(t, a, sc, "jira_user")
+			assertLegible(t, a, sc, "your values")
+			waitFor(t, a, sc, "NORMAL")
+			typeRunes(sc, "a")
+			waitFor(t, a, sc, "New value")
+			assertFormFits(t, a, sc, frontForm(a), "Name", "Value", "For", "every profile", "Set", "Cancel")
+			assertLegible(t, a, sc, "a new value")
+		})
+	}
+}
+
+// assertFormFits checks a form in its frame: its fields and buttons inside
+// it, its right border on every row - a field too wide is drawn over it,
+// whatever rectangle tview gave the field - and each of wants on screen.
+func assertFormFits(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Form, wants ...string) {
+	t.Helper()
+	type measured struct {
+		inner, frame rect
+		items        map[string]rect
+	}
+	m := onLoop(a, func() measured {
+		var out measured
+		x, y, w, h := form.GetInnerRect()
+		out.inner = rect{x, y, w, h}
+		x, y, w, h = form.GetRect()
+		out.frame = rect{x, y, w, h}
+		out.items = map[string]rect{}
+		for i := 0; i < form.GetFormItemCount(); i++ {
+			item := form.GetFormItem(i)
+			x, y, w, h := item.GetRect()
+			out.items[item.GetLabel()] = rect{x, y, w, h}
+		}
+		for i := 0; i < form.GetButtonCount(); i++ {
+			b := form.GetButton(i)
+			x, y, w, h := b.GetRect()
+			out.items["button "+b.GetLabel()] = rect{x, y, w, h}
+		}
+		return out
+	})
+	text := a.screenText(sc)
+	for label, r := range m.items {
+		if !r.within(m.inner) {
+			t.Errorf("%q is drawn at %v, outside the frame %v\n%s", label, r, m.inner, text)
+		}
+	}
+	for y := m.frame.y + 1; y < m.frame.y+m.frame.h-1; y++ {
+		if r, _ := cellAt(a, sc, m.frame.x+m.frame.w-1, y); r != '│' {
+			t.Errorf("row %d: the frame's right border is missing (%q):\n%s", y, r, text)
+			break
+		}
+	}
+	for _, want := range wants {
+		if !strings.Contains(text, want) {
+			t.Errorf("%q is not on screen:\n%s", want, text)
+		}
 	}
 }

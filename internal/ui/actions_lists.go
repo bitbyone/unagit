@@ -28,15 +28,9 @@ func (a *App) listActions(p *pane) []uiAction {
 			run: func() { a.switchTab(pageWorktrees) }},
 		{name: "Go to Activity", about: "What runs in the background and waits for you: the watches, the agents, the editors open, and what happened.", keys: "4", rank: 905, when: func() bool { return a.currentTab() != pageActivity },
 			run: func() { a.switchTab(pageActivity) }},
-		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "5", rank: 910, run: func() { a.switchTab(pageSettings) }},
-		{name: "Go to Sandboxes", about: "unibox's profiles, the sandboxes made from them and the tasks agents work on in each.", keys: "6", rank: 912,
-			when: func() bool { return a.uniboxOn() && a.currentTab() != pageSandboxes }, run: func() {
-				if !a.uniboxOn() {
-					a.flash("unibox is not installed, or turned off - see Settings › Integrations")
-					return
-				}
-				a.switchTab(pageSandboxes)
-			}},
+		{name: "Go to Sandboxes", about: "unibox's sandboxes, the tasks agents work on in them, the profiles they are made from.", keys: "5", rank: 908,
+			when: func() bool { return a.currentTab() != pageSandboxes }, run: func() { a.switchTab(pageSandboxes) }},
+		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "S", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},
 	}

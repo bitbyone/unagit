@@ -17,7 +17,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Settings [5]
+ Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Sandboxes [5]      Settings [S]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -65,7 +65,7 @@ make install     # -> ~/.local/bin/unagit
 
 `unagit --version` (or `unagit version`) prints the release it was built from.
 
-Nothing to edit by hand. In **Settings [5]** you add servers (`a`), paste a
+Nothing to edit by hand. In **Settings [S]** you add servers (`a`), paste a
 token, pick the groups you work with (`space`) and say where they should be
 cloned (`d`). GitLab wants a token with the `api` scope; GitHub wants `repo`
 **and `read:org`** - without the latter GitHub answers the organisation listing
@@ -656,13 +656,19 @@ in the order they are usually chosen.
 
 unibox runs coding agents in sandboxes: VMs made from profiles kept in an
 environments repository, each holding tasks - fresh clones on a branch with
-an agent on them. With `unibox` on PATH (Settings › Integrations, under
-*Sandboxes*) the **Sandboxes** tab, `6`, shows it as one tree: each profile
-with its images and agents, the sandboxes made from it - running or stopped,
-their runtime and memory - and the tasks in each, with their repositories,
-branch and agent, **working** while one is at it. The detail beside it has
-the rest: a profile's sign-ins, services and whether their tokens are
-stored, its network rules; a sandbox's resources, ports and scripts.
+an agent on them. The **Sandboxes** tab, `5`, is one interface over it, laid
+out as Activity is: the sandboxes as cards on top - running or stopped, their
+profile and runtime, processors, memory and tasks, the context marked -
+beside them the environment (the profiles' repository, the context, the
+runtimes, how many secrets and values are kept), then the tasks of every
+sandbox with their repositories, branch and agent, **working** while one is
+at it, and under them the profiles - their images, agents, how many
+sandboxes - and the log of every command unagit gave unibox and what it
+said. The detail follows the panel with the focus: a profile's sign-ins,
+services, network rules and the values it asks for; a sandbox's resources,
+ports and scripts; the environment's runtimes, secrets and values. Without
+`unibox` on PATH, or with it turned off in Settings › Integrations, the tab
+is grey and says so.
 
 Everything is read from unibox's `--json` and every change is a unibox
 command; unagit reads none of its files. On a task `o` resumes its agent and
@@ -672,11 +678,16 @@ in the picker finds each agent in each place (**Resume with Claude Code in
 Zellij Vertical Split**); `s` is a shell in it, `e` renames it, `d` removes
 it. On a sandbox `n` starts a new task on one of your worktrees or clones,
 checked first with `unibox task check` and pushed only on **Push and
-Start**; `p` its ports, `S` a script, `x` stop, `C` recreate, `d` remove. On
+Start**; `p` its ports, `!` a script, `x` stop, `C` recreate, `d` remove. On
 a profile `c` a new sandbox, `b` build, `D` changes since the build, `N` the
-network rules, `v` the services, `l` signs its agents in - in this terminal,
-where unibox asks for the tokens itself. **Open in Sandbox…** on a worktree,
-a grouped worktree or a clone starts a task from there. See the
+network rules, `v` the services, `l` signs its agents in. `K` lists the
+secrets by name and stores one, `V` sets your values - for every profile or
+one - and offers those a profile is missing, `U` is unibox's own settings:
+the default runtime, which runtimes may be used, whether an idle sandbox
+stops. A token never passes through unagit: signing in, adding a service and
+storing a secret run unibox in this terminal, where it asks for the token on
+a hidden prompt. **Open in Sandbox…** on a worktree, a grouped worktree or a
+clone starts a task from there. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
 
 ### Where things open
@@ -1333,7 +1344,8 @@ typing into it; while typing, `Esc` and then the letter press a button.
 | `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
 | `+` | find any repository of yours, in any group, and list it |
-| `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Activity · Settings · Sandboxes (with unibox) |
+| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Activity · Sandboxes |
+| `S` | Settings |
 | `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |

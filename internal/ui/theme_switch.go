@@ -142,9 +142,6 @@ func (a *App) remakeInterface(disk func()) {
 	a.activityPane.reload()
 	a.sandboxesPane.reload()
 	a.settings.reload()
-	if tab == pageSandboxes && !a.uniboxOn() {
-		tab = pageProjects
-	}
 	a.switchTab(tab)
 	if tab == pageSettings {
 		a.settings.selectSection(section)

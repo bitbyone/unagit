@@ -28,10 +28,11 @@ unagit's config.yaml keeps only what it must to be portable: whether
 unibox is on, and the environments repository as a repository of the
 list. The rest is unibox's.
 
-**A Sandboxes tab**, `6`, after Settings (`5` stays, as the messages that
-point at `Settings [5]` do). Three parts, each a list made the way the
-other screens' are (`pane.go`, its actions as `uiAction`s), filled from
-unibox's `--json`:
+**A Sandboxes tab**, `5`, with Settings on `S` at the bar's right end
+(first planned as `6` after Settings, which kept `5` for the messages that
+pointed at `Settings [5]`; they say `Settings [S]` now). Three parts, each
+a list made the way the other screens' are (`pane.go`, its actions as
+`uiAction`s), filled from unibox's `--json`:
 
 | part | rows | actions |
 | --- | --- | --- |
@@ -104,11 +105,18 @@ line" and "The boundary"); what unagit relies on in it:
 - `internal/unibox`: the client - the binary run with `--json`, decoded into
   unagit's own types, an `api_version` other than 1 refused; its stand-in
   for tests in `internal/unibox/uniboxtest`.
-- The Sandboxes tab (`sandboxes.go`, `sandboxes_actions.go`): one tree of
-  profiles, sandboxes and tasks rather than three lists, the detail beside
-  it read from `agent ls`, `service ls`, `network ls`, `network port ls`
-  and `script ls`. The tab is on the bar only while unibox is on, so `5`
-  stays Settings.
+- The Sandboxes tab, `5` (`sandboxes.go`, `sandboxes_view.go`,
+  `sandboxes_actions.go`, `sandboxes_config.go`), laid out as Activity is:
+  the sandboxes as cards and the environment beside them, the tasks and
+  the detail, the profiles and a log of every command given to unibox. The
+  detail follows the panel with the focus, read from `agent ls`, `service
+  ls`, `network ls`, `var ls -p`, `network port ls` and `script ls`.
+  Settings moved to `S`, at the bar's right end, so the screens are
+  numbered in a row; without unibox the tab is grey and says why.
+- Secrets by name (`secret ls`; `secret set` in this terminal, where
+  unibox asks for the token), the user's values (`var ls`, `var set`, `var
+  rm`, those a profile lacks offered first) and unibox's own settings
+  (`config get`, `config set` of what changed).
 - Resume (any of the profile's agents, every place), shells, New Task…
   with `task check` and a push only on request, stop, recreate, remove,
   ports, scripts, network rules, services, build, migrate, sign-in in this

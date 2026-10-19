@@ -102,7 +102,7 @@ func actionLists(a *App) map[string][]uiAction {
 			"sandbox":         {kind: rowSandbox, profile: web, sandbox: box},
 			"sandbox task":    {kind: rowTask, profile: web, sandbox: box, task: unibox.Task{ID: "t-1", Sandbox: "web-1", Agent: "claude"}},
 		} {
-			lists[name] = append(a.sandboxRowActions(a.sandboxesPane, r), a.sandboxesActions(a.sandboxesPane)...)
+			lists[name] = append(a.sandboxRowActions(r), a.sandboxesActions(a.sandboxesPane)...)
 		}
 		s := a.settings
 		was := s.current

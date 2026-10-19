@@ -25,10 +25,11 @@ import (
 // split or window of Zellij, herdr or Ghostty. What reads or changes
 // something runs behind the interface and says what unibox said.
 
-// sandboxRowActions are what can be done with the row under the cursor.
-func (a *App) sandboxRowActions(p *pane, r sandboxRow) []uiAction {
-	detail := uiAction{name: "Show Details", about: "Move into the detail beside the list: the row's whole configuration, as unibox reports it.",
-		keys: "Enter", rank: 5, run: p.enter}
+// sandboxRowActions are what can be done with a task, a sandbox's card or
+// a profile.
+func (a *App) sandboxRowActions(r sandboxRow) []uiAction {
+	detail := uiAction{name: "Show Details", about: "Move into the detail: the whole configuration, as unibox reports it.",
+		keys: "Enter", rank: 5, run: func() { a.sandboxes.openChosenDetail() }}
 	switch r.kind {
 	case rowTask:
 		return append(a.taskActions(r), detail)
@@ -123,7 +124,7 @@ func (a *App) sandboxActions(r sandboxRow) []uiAction {
 		{name: "Ports…", about: "The sandbox's ports: switch one on or off while it runs, or open one in the browser. The profile stays as it is.",
 			keys: "p", rank: 30, run: func() { a.showSandboxPorts(r) }},
 		{name: "Run Script…", about: "Run one of the profile's scripts in the sandbox now, in /work, its output in a log.",
-			keys: "S", rank: 35, run: func() { a.runSandboxScript(r) }},
+			keys: "!", rank: 35, run: func() { a.runSandboxScript(r) }},
 		{name: "Show Instructions", about: "The instructions the sandbox's agents get, as unibox puts them together, attached texts included.",
 			keys: "i", rank: 40, run: func() { a.showInstructions(s.Name, "") }},
 		{name: "Stop Sandbox", about: "Stop the VM; its disk, caches and tasks stay, and the next start boots it again. unibox refuses while an agent runs.",
@@ -170,22 +171,29 @@ func (a *App) profileActions(r sandboxRow) []uiAction {
 	}
 }
 
-// sandboxesActions are what the screen itself can do.
+// sandboxesActions are what the screen itself can do, from any panel.
 func (a *App) sandboxesActions(p *pane) []uiAction {
+	v := a.sandboxes
 	env := func() bool { return a.ubx.overview.Environments != "" }
 	return append([]uiAction{
-		{name: "Refresh", about: "Read the profiles, the sandboxes and their tasks from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
-		{name: "Set Environments Repository…", about: "Choose which of your clones holds the profiles; unibox config set environments keeps it.",
-			rank: 80, run: a.chooseEnvironments},
-		{name: "Open Environments Repository", about: "Open the repository of the profiles in the default editor.",
-			rank: 81, when: env, run: func() { a.openEnvironments() }},
+		{name: "Refresh", about: "Read the sandboxes, their tasks, the profiles and the environment from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
+		{name: "Go to Sandbox Cards", about: "Move to the cards of the sandboxes: h and l between them, their actions on each.", keys: "B", rank: 40,
+			run: func() { v.focus(v.cards) }},
+		{name: "Go to Tasks", about: "Move to the tasks of every sandbox, where agents are resumed.", keys: "t", rank: 41, run: func() { v.focus(p.table) }},
+		{name: "Go to Profiles", about: "Move to the profiles: their images, agents, services and network.", keys: "P", rank: 42,
+			when: func() bool { return v.lowerH > 0 }, run: func() { v.focus(v.profiles) }},
+		{name: "Go to Log", about: "Move to the log of what was asked of unibox and what it said.", keys: "L", rank: 43,
+			when: func() bool { return v.lowerH > 0 }, run: func() { v.focus(v.log) }},
+		{name: "Go to Environment", about: "Move to the environment: the profiles' repository, the context, the runtimes.", keys: "E", rank: 44,
+			run: func() { v.focus(v.env) }},
+		{name: "Secrets…", about: "The tokens kept in the platform's store for profiles to name: store one, replace it, remove it. No value is ever shown.",
+			keys: "K", rank: 50, run: a.showSecrets},
+		{name: "Values…", about: "Your own values for what profiles ask of you - a name, a login - shared or one profile's: set, change, remove.",
+			keys: "V", rank: 51, run: a.showValues},
+		{name: "unibox Settings…", about: "unibox's own configuration: the default runtime, which runtimes may be used, whether an idle sandbox stops.",
+			keys: "U", rank: 52, run: a.showUniboxSettings},
 		{name: "Validate Profiles", about: "Check the environments repository - its layout, every profile, every instruction text - in a log.",
 			rank: 82, when: env, run: func() { a.uniboxStream("Validating the profiles", "profile", "validate") }},
-		{name: "Clear Context", about: "Forget the sandbox and profile unibox commands work in when not told.",
-			rank: 84, when: func() bool {
-				c := a.ubx.overview.Context.Set
-				return c.Sandbox != "" || c.Profile != ""
-			}, run: func() { a.uniboxDo("Clearing the context", "context", "clear") }},
 		{name: "Prune Images…", about: "Remove the images unibox no longer needs: older builds, and those of profiles and sandboxes that are gone.",
 			rank: 85, run: func() {
 				a.confirmWith("Prune images", "Remove every image unibox no longer needs?", "Prune", nil, func() {
@@ -206,22 +214,30 @@ func (a *App) uniboxDo(title string, args ...string) {
 		return
 	}
 	job := a.startJob(title)
+	e := a.logUnibox(title, args...)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		said, err := c.Do(ctx, args...)
 		a.tv.QueueUpdateDraw(func() {
 			a.endJob(job)
+			e.end(a, said, err, refusal(err))
 			a.sayUnibox(title, said, err)
 			a.refreshSandboxes()
 		})
 	}()
 }
 
-func (a *App) sayUnibox(title, said string, err error) {
+// refusal says whether unibox refused: it keeps work it would lose, and
+// says how to go on.
+func refusal(err error) bool {
 	var failure *unibox.Error
+	return errors.As(err, &failure) && failure.Refused()
+}
+
+func (a *App) sayUnibox(title, said string, err error) {
 	switch {
-	case errors.As(err, &failure) && failure.Refused():
+	case refusal(err):
 		a.flash(err.Error())
 	case err != nil:
 		a.errorf("%v", err)
@@ -239,8 +255,22 @@ func (a *App) uniboxStream(title string, args ...string) {
 		a.flash(err.Error())
 		return
 	}
+	e := a.logUnibox(title, args...)
 	a.runTaskThen(title, func(log func(string)) (string, error) {
-		return "", c.Stream(context.Background(), log, args...)
+		var lines []string
+		err := c.Stream(context.Background(), func(line string) {
+			lines = append(lines, line)
+			log(line)
+		}, args...)
+		a.tv.QueueUpdateDraw(func() {
+			e.output = lines
+			said := ""
+			if len(lines) > 0 {
+				said = lines[len(lines)-1]
+			}
+			e.end(a, said, err, refusal(err))
+		})
+		return "", err
 	}, func(string) {
 		a.done(strings.ToLower(title[:1]) + title[1:] + " - done")
 		a.refreshSandboxes()
@@ -317,6 +347,7 @@ func (a *App) runSandboxAgent(what session.Record, place editorPlace, args []str
 	cmd := c.Command(args...)
 	cmd.Dir = what.Dir
 	name := agentLabel(what.Editor)
+	a.logTerminal(name+" in "+what.Label(), place, args)
 	go func() {
 		if place.client == nil {
 			what.Launcher = c.Binary
@@ -347,6 +378,7 @@ func (a *App) uniboxShell(title string, args ...string) {
 	}
 	here := "Suspend unagit and open the shell here; unagit comes back when it ends."
 	a.pickPlace(placeOfAgent, title+" · where", a.places(here, true), func(place editorPlace) {
+		a.logTerminal(title, place, args)
 		cmd := c.Command(args...)
 		cmd.Dir = paneDir()
 		go func() {
@@ -385,15 +417,29 @@ func (a *App) uniboxSignIn(title string, args ...string) {
 		return
 	}
 	cmd := c.Command(args...)
+	e := a.logUnibox(title, args...)
 	go func() {
 		err := a.runTerminalEditor(cmd, editors.Editor{Name: "unibox"})
 		a.tv.QueueUpdateDraw(func() {
+			e.end(a, "in this terminal", err, false)
 			if err == nil {
 				a.done(strings.ToLower(title[:1]) + title[1:] + " - done")
 			}
 			a.refreshSandboxes()
 		})
 	}()
+}
+
+// logTerminal writes down a command that runs an agent or a shell, and
+// where: what it does there is the terminal's to say.
+func (a *App) logTerminal(title string, place editorPlace, args []string) {
+	e := a.logUnibox(title, args...)
+	e.level = eventHere
+	e.said = "in this terminal"
+	if place.client != nil {
+		e.said = "in " + placeAbout(place)
+	}
+	a.sandboxes.drawLog()
 }
 
 // pickTaskAgent asks which of the profile's agents runs the task, then
@@ -412,23 +458,16 @@ func (a *App) pickTaskAgent(r sandboxRow) {
 	})
 }
 
-// renameTask asks for the task's new name.
+// renameTask asks for the task's new name; an empty one takes the name
+// away.
 func (a *App) renameTask(r sandboxRow) {
-	const label = "Name"
-	form := tview.NewForm()
-	styleForm(form)
-	form.AddInputField(label, r.task.Alias, 0, nil, nil)
-	form.AddButton("Rename", func() {
-		name := strings.TrimSpace(form.GetFormItemByLabel(label).(*tview.InputField).GetText())
-		a.closeModal(pageForm)
+	a.askText("Rename task "+r.task.ID, "Name", r.task.Alias, "Rename", nil, func(name string) {
 		if name == "" {
 			a.uniboxDo("Taking the name of "+r.task.ID+" away", "task", "rename", r.task.ID, "--reset")
 			return
 		}
 		a.uniboxDo("Renaming "+r.task.Name(), "task", "rename", r.task.ID, name)
 	})
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Rename task "+r.task.ID, form, 60, 7)
 }
 
 func (a *App) removeTask(r sandboxRow) {
@@ -498,25 +537,15 @@ func (a *App) askSandboxName(pr unibox.Profile, then func(string)) {
 	for n := 1; taken[suggested]; n++ {
 		suggested = fmt.Sprintf("%s-%d", pr.Name, n)
 	}
-	const label = "Name"
-	form := tview.NewForm()
-	styleForm(form)
-	form.AddInputField(label, suggested, 0, nil, nil)
-	form.AddButton("Create", func() {
-		name := strings.TrimSpace(form.GetFormItemByLabel(label).(*tview.InputField).GetText())
-		if name == "" {
-			a.flash("enter a name for the sandbox")
-			return
+	a.askText("New sandbox of "+pr.Name, "Name", suggested, "Create", func(name string) string {
+		switch {
+		case name == "":
+			return "enter a name for the sandbox"
+		case taken[name]:
+			return "a sandbox " + name + " exists already - choose another name"
 		}
-		if taken[name] {
-			a.flash("a sandbox " + name + " exists already - choose another name")
-			return
-		}
-		a.closeModal(pageForm)
-		then(name)
-	})
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("New sandbox of "+pr.Name, form, 60, 7)
+		return ""
+	}, then)
 }
 
 // ------------------------------------------------------------ a new task
@@ -904,9 +933,9 @@ func (a *App) showProfileNetwork(pr unibox.Profile) {
 			}
 		}
 		keys := []pickKey{
-			{keys: "a", hint: "a allow", name: "Allow Host…", about: "Let the profile's sandboxes reach a host the runtime's policy refuses.", run: ask("allow")},
-			{keys: "x", hint: "x deny", name: "Deny Host…", about: "Refuse the profile's sandboxes a host the runtime's policy allows.", run: ask("deny")},
-			{keys: "d", hint: "d remove", name: "Remove Rule", about: "Take the host back to the runtime's policy.",
+			{keys: "a", hint: "allow", name: "Allow Host…", about: "Let the profile's sandboxes reach a host the runtime's policy refuses.", run: ask("allow")},
+			{keys: "x", hint: "deny", name: "Deny Host…", about: "Refuse the profile's sandboxes a host the runtime's policy allows.", run: ask("deny")},
+			{keys: "d", hint: "remove", name: "Remove Rule", about: "Take the host back to the runtime's policy.",
 				when: func(it pickItem) bool { return it.Data != nil && it.Data.(networkRule).service == "" },
 				run: func(it pickItem) {
 					if it.Data == nil {
@@ -929,21 +958,12 @@ func (a *App) showProfileNetwork(pr unibox.Profile) {
 
 // askHost asks for a host name.
 func (a *App) askHost(title string, then func(string)) {
-	const label = "Host"
-	form := tview.NewForm()
-	styleForm(form)
-	form.AddInputField(label, "", 0, nil, nil)
-	form.AddButton("Add", func() {
-		host := strings.TrimSpace(form.GetFormItemByLabel(label).(*tview.InputField).GetText())
+	a.askText(title, "Host", "", "Add", func(host string) string {
 		if host == "" {
-			a.flash("enter a host, like jitpack.io")
-			return
+			return "enter a host, like jitpack.io"
 		}
-		a.closeModal(pageForm)
-		then(host)
-	})
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized(title, form, 60, 7)
+		return ""
+	}, then)
 }
 
 // showProfileServices lists a profile's services: a adds one - unibox asks
@@ -973,13 +993,13 @@ func (a *App) showProfileServices(pr unibox.Profile) {
 			items = append(items, pickItem{Label: s.Name, Sub: sub, About: about + ".", Data: s})
 		}
 		keys := []pickKey{
-			{keys: "a", hint: "a add", name: "Add Service…", about: "Sign the sandboxes in to a forge or a service; unibox asks for its token in this terminal.",
+			{keys: "a", hint: "add", name: "Add Service…", about: "Sign the sandboxes in to a forge or a service; unibox asks for its token in this terminal.",
 				run: func(pickItem) {
 					a.askServiceName(func(name string) {
 						a.uniboxSignIn("Adding "+name, "service", "add", name, "-p", pr.Name)
 					})
 				}},
-			{keys: "d", hint: "d remove", name: "Remove Service", about: "Take the service out of the profile, and its token unless another profile names it.",
+			{keys: "d", hint: "remove", name: "Remove Service", about: "Take the service out of the profile, and its token unless another profile names it.",
 				when: func(it pickItem) bool { return it.Data != nil },
 				run: func(it pickItem) {
 					if it.Data == nil {
@@ -1002,21 +1022,12 @@ func (a *App) showProfileServices(pr unibox.Profile) {
 // askServiceName asks what a new service is called: github, gitlab and
 // artifactory unibox knows by the name.
 func (a *App) askServiceName(then func(string)) {
-	const label = "Service"
-	form := tview.NewForm()
-	styleForm(form)
-	form.AddInputField(label, "", 0, nil, nil)
-	form.AddButton("Add", func() {
-		name := strings.TrimSpace(form.GetFormItemByLabel(label).(*tview.InputField).GetText())
+	a.askText("Add a service", "Service", "", "Add", func(name string) string {
 		if name == "" {
-			a.flash("enter a name: github, gitlab, artifactory, or one of your own")
-			return
+			return "enter a name: github, gitlab, artifactory, or one of your own"
 		}
-		a.closeModal(pageForm)
-		then(name)
-	})
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Add a service", form, 60, 7)
+		return ""
+	}, then)
 }
 
 // ----------------------------------------------------------- what is read

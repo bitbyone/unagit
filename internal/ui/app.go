@@ -163,11 +163,15 @@ type App struct {
 	mrsPane       *pane
 	worktreesPane *pane
 	settings      *settingsView
-	// sandboxesPane is unibox's profiles, sandboxes and tasks, ubx what was
-	// last read of them and sandboxRows the tree it is drawn as.
+	// sandboxesPane is the Sandboxes screen's tasks and sandboxes the rest
+	// of it, ubx what was last read of unibox, sandboxRows the profiles,
+	// their sandboxes and tasks as one tree, and ubxLog what was asked of
+	// unibox since unagit started.
 	sandboxesPane *pane
+	sandboxes     *sandboxesView
 	ubx           uniboxState
 	sandboxRows   []sandboxRow
+	ubxLog        []*uniboxEvent
 
 	// worktrees are the plain branch worktrees on disk, made from Repositories
 	// rather than for a merge request; refreshDisk fills them in.
@@ -507,6 +511,7 @@ func (a *App) Run() error {
 		a.markFocusedField(screen)
 		a.drawDialogWord(screen)
 		a.drawActivityHint(screen)
+		a.drawSandboxesHint(screen)
 		a.drawToasts(screen)
 	})
 
@@ -711,7 +716,7 @@ func (a *App) restoreFocus() {
 	case pageSettings:
 		a.tv.SetFocus(a.settings.focusTarget())
 	case pageSandboxes:
-		a.tv.SetFocus(a.sandboxesPane.focusTarget())
+		a.sandboxes.focusAgain()
 	}
 }
 

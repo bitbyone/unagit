@@ -38,6 +38,39 @@ func TestTheOverviewIsReadFromTheCommands(t *testing.T) {
 	if len(o.Runtimes) != 2 || !o.Runtimes[0].Default || !o.Runtimes[1].Experimental {
 		t.Fatalf("runtimes: %+v", o.Runtimes)
 	}
+	if o.Config.DefaultRuntime != "sbx" || o.Config.Runtimes["sbx"].StopIdle == nil || *o.Config.Runtimes["sbx"].StopIdle {
+		t.Fatalf("configuration: %+v", o.Config)
+	}
+	if len(o.Secrets.Names) != 3 || o.Secrets.Store != "login keychain" {
+		t.Fatalf("secrets: %+v", o.Secrets)
+	}
+	if o.Values.Shared["git_name"] != "Dev" || o.Values.Profiles["web"]["npm_scope"] != "acme" || len(o.Unread) != 0 {
+		t.Fatalf("values: %+v, unread %v", o.Values, o.Unread)
+	}
+}
+
+func TestWhatTheScreenCanDoWithoutStillLeavesTheOverview(t *testing.T) {
+	t.Parallel()
+	answers := uniboxtest.Overview()
+	answers["secret ls --json"] = uniboxtest.Failure("store_locked", "the login keychain is locked", 1)
+	o, err := unibox.New(uniboxtest.Install(t, answers).Path).Overview()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Sandboxes) != 2 || o.Unread["secrets"] != "the login keychain is locked" {
+		t.Fatalf("a failed listing of the secrets: %v, %d sandboxes", o.Unread, len(o.Sandboxes))
+	}
+}
+
+func TestAProfileSaysWhichOfItsValuesAreMissing(t *testing.T) {
+	t.Parallel()
+	asked, err := unibox.New(uniboxtest.Install(t, uniboxtest.Overview()).Path).Asked("web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 3 || asked[0].Missing() || !asked[2].Missing() || asked[2].Name != "jira_user" {
+		t.Fatalf("asked: %+v", asked)
+	}
 }
 
 func TestAnotherAPIVersionIsRefused(t *testing.T) {

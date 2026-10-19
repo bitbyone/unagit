@@ -192,7 +192,7 @@ func (a *App) newActivityPane() *pane {
 	p.table.SetTitle(panelTitle("Activity", "a"))
 
 	v.cards = newCardsView(a)
-	v.cards.SetInputCapture(v.panelKeys(v.cards, func(ev *tcell.EventKey) bool {
+	v.cards.SetInputCapture(a.panelKeys(v, v.cards, func(ev *tcell.EventKey) bool {
 		if v.cards.keys(ev) {
 			return true
 		}
@@ -206,7 +206,7 @@ func (a *App) newActivityPane() *pane {
 	watchingActs := func() (string, []uiAction) {
 		return "Watching", []uiAction{{name: "Watches…", about: "Everything watched in one list: go to one, or stop watching it.", keys: "Enter", rank: 10, run: a.showWatches}}
 	}
-	v.watching.SetInputCapture(v.panelKeys(v.watching, func(ev *tcell.EventKey) bool {
+	v.watching.SetInputCapture(a.panelKeys(v, v.watching, func(ev *tcell.EventKey) bool {
 		_, acts := watchingActs()
 		return runPanelKey(acts, ev)
 	}, watchingActs))
@@ -226,7 +226,7 @@ func (a *App) newActivityPane() *pane {
 			a.localHistoryAction(),
 		}
 	}
-	v.log.SetInputCapture(v.panelKeys(v.log, func(ev *tcell.EventKey) bool {
+	v.log.SetInputCapture(a.panelKeys(v, v.log, func(ev *tcell.EventKey) bool {
 		_, acts := logActs()
 		return runPanelKey(acts, ev)
 	}, logActs))
@@ -467,23 +467,36 @@ func (v *activityView) move(from tview.Primitive, dir rune) bool {
 	return true
 }
 
+// panelScreen is a screen of panels around a pane, as Activity and
+// Sandboxes are: Tab goes round them, h j k l to the one beside, and Esc
+// home to the pane's list.
+type panelScreen interface {
+	cycleKeys(*tcell.EventKey) bool
+	move(from tview.Primitive, dir rune) bool
+	focus(tview.Primitive)
+	home() *pane
+}
+
+func (v *activityView) home() *pane { return v.pane }
+
 // panelKeys are the keys of a panel that is not the pane's: its own first,
 // then going on to the panel beyond what it holds, Tab round, Esc back to
 // the list, its actions (Alt-Enter) and the screen's.
-func (v *activityView) panelKeys(self tview.Primitive, own func(*tcell.EventKey) bool, selection func() (string, []uiAction)) func(*tcell.EventKey) *tcell.EventKey {
+func (a *App) panelKeys(v panelScreen, self tview.Primitive, own func(*tcell.EventKey) bool, selection func() (string, []uiAction)) func(*tcell.EventKey) *tcell.EventKey {
 	return func(ev *tcell.EventKey) *tcell.EventKey {
-		a := v.app
 		if own(ev) || v.cycleKeys(ev) {
 			return nil
 		}
-		if a.actionKeys(ev, selection, v.pane.screen) {
+		if a.actionKeys(ev, selection, v.home().screen) {
 			return nil
 		}
 		if t, ok := self.(*tview.Table); ok {
 			first, last := selectableEnds(t)
 			row, _ := t.GetSelection()
 			if isKey(ev, 'k', tcell.KeyUp) && row <= first && v.move(self, 'k') ||
-				isKey(ev, 'j', tcell.KeyDown) && row >= last && v.move(self, 'j') {
+				isKey(ev, 'j', tcell.KeyDown) && row >= last && v.move(self, 'j') ||
+				isKey(ev, 'h', tcell.KeyLeft) && v.move(self, 'h') ||
+				isKey(ev, 'l', tcell.KeyRight) && v.move(self, 'l') {
 				return nil
 			}
 		} else {
@@ -499,7 +512,7 @@ func (v *activityView) panelKeys(self tview.Primitive, own func(*tcell.EventKey)
 		}
 		switch ev.Key() {
 		case tcell.KeyEsc:
-			v.focus(v.pane.table)
+			v.focus(v.home().table)
 			return nil
 		case tcell.KeyRune:
 			switch ev.Rune() {
@@ -874,9 +887,17 @@ func (c *cardsView) Draw(screen tcell.Screen) {
 // drawFrame fills a card's box and draws its border with a title, as a
 // bordered box draws its own.
 func (c *cardsView) drawFrame(screen tcell.Screen, x, y, width, h int, title string, chosen bool) int {
+	return drawCardFrame(screen, x, y, width, h, title, chosen, c.compact)
+}
+
+// drawCardFrame is a card of a band of cards - the editors open, the
+// sandboxes: its box of the card background, four lines high at most,
+// and its border with a title, as a bordered box draws its own. Compact,
+// it is one line without a border. It returns the lines it has.
+func drawCardFrame(screen tcell.Screen, x, y, width, h int, title string, chosen, compact bool) int {
 	fill := baseStyle().Background(colCard).Foreground(colText)
 	lines := min(h, 4)
-	if c.compact {
+	if compact {
 		lines = 1
 	}
 	for row := y; row < y+lines; row++ {
@@ -884,7 +905,7 @@ func (c *cardsView) drawFrame(screen tcell.Screen, x, y, width, h int, title str
 			screen.SetContent(col, row, ' ', nil, fill)
 		}
 	}
-	if c.compact {
+	if compact {
 		return lines
 	}
 	line := colBorder
@@ -1252,15 +1273,7 @@ func (a *App) drawActivityHint(screen tcell.Screen) {
 		return
 	}
 	panel, text := a.activity.hint()
-	if panel == nil {
-		return
-	}
-	x, y, w, h := panel.GetRect()
-	if w < 12 || h < 2 {
-		return
-	}
-	text = " " + litHint(text) + " "
-	tview.Print(screen, "["+":"+colBackground.String()+"]"+text, x+2, y+h-1, w-4, tview.AlignLeft, colDim)
+	drawPanelHint(screen, panel, text)
 }
 
 // focusAgain gives the focus back to the panel that had it, lit - the
