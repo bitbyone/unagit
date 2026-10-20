@@ -310,7 +310,7 @@ func helpRows() []helpLine {
 		key("x  C  d", "a sandbox: stop · recreate · remove"),
 		key("c  b  m", "a profile: new sandbox · build image · migrate"),
 		key("D  N  v", "a profile: changes since build · network · services"),
-		key("l  O", "a profile: sign agents in · open in the editor"),
+		key("A  O", "a profile: sign agents in · open in the editor"),
 		key("u", "make it unibox's context"),
 		key("K  V  U", "secrets · your values · unibox's settings"),
 		key("e  O  c", "environment: repository · open it · clear context"),

@@ -116,7 +116,7 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Profiles [P]", "Log [L]",
 		"web-1 · context", "web-2", "web · sbx", "running", "no tasks", "stopped", "8GiB", "4 cpu", "2 tasks",
 		"rate", "billing-5e6f7a8b", "working", "feat/rate", "billing, gateway", "fix/round",
-		"broken", "does not load", "msb outdated", "/envs", "web-1 · web", "3 secrets · 2 values"} {
+		"broken", "does not load", "/envs", "web-1 · web", "3 secrets · 2 values"} {
 		waitFor(t, a, sc, want)
 	}
 	text := a.screenText(sc)
@@ -126,10 +126,21 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	// The profile's detail is read from unibox: its services, whose token
 	// is stored and whose is not, and the value it asks for that is
 	// missing.
+	// The row says the default runtime's image; msb's, outdated, is
+	// the detail's alone, or it reads as the profile's own.
+	text = a.screenText(sc)
+	if i := lineOf(text, "Claude Code, Copilot"); i < 0 || !strings.Contains(strings.Split(text, "\n")[i], "built") || strings.Contains(strings.Split(text, "\n")[i], "msb") {
+		t.Fatalf("the row of web is not its sbx image:\n%s", text)
+	}
 	selectSandboxRow(t, a, "p:web")
+	waitFor(t, a, sc, "msb outdated")
 	waitFor(t, a, sc, "token missing")
 	waitFor(t, a, sc, "jitpack.io")
 	waitDetail(t, a, "jira_user")
+	// l moves to the log as it does from every panel; signing the
+	// agents in is A, and once took l away from moving.
+	typeRunes(sc, "l")
+	waitEditorState(t, a, func() bool { return a.tv.GetFocus() == a.sandboxes.log })
 	selectSandboxRow(t, a, "s:web-1")
 	waitFor(t, a, sc, "http://127.0.0.1:3000")
 	waitDetail(t, a, "update-skills")

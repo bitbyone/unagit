@@ -214,11 +214,10 @@ func (a *App) profileImages(p unibox.Profile) (string, bool) {
 	for name := range p.Images {
 		names = append(names, name)
 	}
+	def, _ := a.defaultRuntime()
 	rank := func(name string) int {
-		for _, rt := range a.ubx.overview.Runtimes {
-			if rt.Name == name && rt.Default {
-				return 0
-			}
+		if name == def {
+			return 0
 		}
 		return 1
 	}
@@ -236,6 +235,17 @@ func (a *App) profileImages(p unibox.Profile) (string, bool) {
 		problem = problem || state != "built"
 	}
 	return strings.Join(parts, " · "), problem
+}
+
+// defaultRuntime is the runtime unibox starts a sandbox in when not told,
+// while the runtimes have been read.
+func (a *App) defaultRuntime() (string, bool) {
+	for _, rt := range a.ubx.overview.Runtimes {
+		if rt.Default {
+			return rt.Name, true
+		}
+	}
+	return "", false
 }
 
 // sandboxState is a row's STATE: its words and the role they are drawn in.
@@ -263,7 +273,20 @@ func (a *App) sandboxState(r sandboxRow) (string, string) {
 	if r.profile.Error != "" {
 		return "does not load", "sandboxes.problem"
 	}
-	// The row says what needs doing; the detail has every runtime's image.
+	// The row says what the default runtime would start, which is what
+	// needs doing; the detail has every runtime's image. An image another
+	// runtime built once - msb's, tried and left - is not something to do,
+	// and on the row it read as the profile's own.
+	if rt, ok := a.defaultRuntime(); ok {
+		switch state := r.profile.Images[rt]; state {
+		case "":
+			return "no image", "sandboxes.problem"
+		case "built":
+			return "built", "sandboxes.stopped"
+		default:
+			return state, "sandboxes.problem"
+		}
+	}
 	var behind []string
 	for _, name := range sortedKeys(r.profile.Images) {
 		if state := r.profile.Images[name]; state != "built" {

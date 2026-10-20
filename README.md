@@ -680,7 +680,7 @@ it. On a sandbox `n` starts a new task on one of your worktrees or clones,
 checked first with `unibox task check` and pushed only on **Push and
 Start**; `p` its ports, `!` a script, `x` stop, `C` recreate, `d` remove. On
 a profile `c` a new sandbox, `b` build, `D` changes since the build, `N` the
-network rules, `v` the services, `l` signs its agents in. `K` lists the
+network rules, `v` the services, `A` signs its agents in. `K` lists the
 secrets by name and stores one, `V` sets your values - for every profile or
 one - and offers those a profile is missing, `U` is unibox's own settings:
 the default runtime, which runtimes may be used, whether an idle sandbox

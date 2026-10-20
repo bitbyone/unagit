@@ -162,7 +162,7 @@ func (a *App) profileActions(r sandboxRow) []uiAction {
 		{name: "Services…", about: "The forges and services the sandboxes are signed in to, and whether each token is stored: add, remove.",
 			keys: "v", rank: 33, run: func() { a.showProfileServices(pr) }},
 		{name: "Sign In Agents…", about: "Sign the profile's agents in, with unibox agent login in this terminal: the tokens go to the platform's store.",
-			keys: "l", rank: 34, run: func() { a.uniboxSignIn("Signing in the agents of "+pr.Name, "agent", "login", "-p", pr.Name) }},
+			keys: "A", rank: 34, run: func() { a.uniboxSignIn("Signing in the agents of "+pr.Name, "agent", "login", "-p", pr.Name) }},
 		{name: "Open in Editor", about: "Open the profile's directory of the environments repository in the default editor.",
 			keys: "O", rank: 40, when: func() bool { return a.ubx.overview.Environments != "" }, run: func() { a.openProfileDir(pr, false) }},
 		{name: "Use as Context", about: "Make this the profile unibox commands work in when they are not told.",

@@ -23,7 +23,7 @@ past a panel's edge to the one beside it, and each has a key of its own.
 | **Sandboxes** | `B` | a card for each sandbox: running or stopped, its profile and runtime, processors, memory, tasks, how many an agent works on; the context marked |
 | **Environment** | `E` | the profiles' repository, the context, the runtimes, how many secrets and values are kept |
 | **Tasks** | `t` | every sandbox's tasks: the sandbox, ready or **working**, the agent, the repositories, the branch |
-| **Profiles** | `P` | each profile's images (**built**, or which runtime's is outdated or missing), its agents, how many sandboxes are made from it |
+| **Profiles** | `P` | each profile's image for the default runtime (**built**, outdated or missing; the other runtimes' in the detail), its agents, how many sandboxes are made from it |
 | **Log** | `L` | every command unagit gave unibox, how it went and what unibox said; `Enter` shows it whole, `y` copies the command |
 
 The detail follows the panel with the focus: a profile's images by runtime,
@@ -84,7 +84,7 @@ you choose **Push and Start**.
 | `i` | the instructions its agents get |
 | `N` | its network rules: `a` allows a host, `x` denies one, `d` takes a rule back |
 | `v` | its services: `a` adds one, `d` takes one out |
-| `l` | sign its agents in |
+| `A` | sign its agents in |
 | `O` | its directory in the editor |
 | `u` | make it the context |
 
