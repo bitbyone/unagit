@@ -84,7 +84,7 @@ you choose **Push and Start**.
 | `i` | the instructions its agents get |
 | `N` | its network rules: `a` allows a host, `x` denies one, `d` takes a rule back |
 | `v` | its services: `a` adds one, `t` adds one whose token unagit keeps, `d` takes one out |
-| `A` | sign its agents in: `Enter` with a token unagit keeps, `u` with unibox's own sign-in |
+| `A` | sign its agents in: `Enter` with a token unagit keeps, `r` makes it again, `u` with unibox's own sign-in |
 | `O` | its directory in the editor |
 | `u` | make it the context |
 
@@ -108,8 +108,12 @@ A token goes one of two ways. With unibox's own sign-in, a service's `a` and
 storing a secret, unibox asks for it in this terminal, on a hidden prompt, and
 keeps it in the platform's store; unibox lists the secrets by name alone.
 
-Or unagit keeps it: `Enter` on an agent of `A`, and `t` in a profile's
-services, take a token into unagit's encrypted vault - beside your forge
+Or unagit keeps it. `Enter` on an agent of `A` makes the token first, as
+unibox's sign-in does - `claude setup-token` in this terminal, which signs
+your subscription in through the browser and prints the token, or the page
+where Copilot's or Codex's is made - and then asks for it on a hidden
+input; `r` makes a new one for an agent signed in already. That, and `t` in a
+profile's services, take a token into unagit's encrypted vault - beside your forge
 tokens, never among them - and have unibox write
 `unagit credential get <name>` into the profile as where it comes from. The runtime runs that
 command on the host whenever it wants the token, and it asks the running

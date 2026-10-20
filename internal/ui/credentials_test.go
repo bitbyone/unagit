@@ -3,12 +3,14 @@ package ui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/tobola/unagit/internal/credential"
+	"github.com/tobola/unagit/internal/testenv"
 	"github.com/tobola/unagit/internal/unibox/uniboxtest"
 )
 
@@ -159,5 +161,37 @@ func TestTheTokenFormsFitTheirFrames(t *testing.T) {
 			assertFormFits(t, a, sc, frontForm(a), "Service", "Kind", "Hosts", "Token", "Add", "Cancel")
 			assertLegible(t, a, sc, "a service with a token")
 		})
+	}
+}
+
+// TestSigningClaudeInRunsSetupTokenFirst: Enter on claude, not signed in
+// yet, runs claude setup-token in this terminal - its browser login - and
+// then asks for the token it printed.
+func TestSigningClaudeInRunsSetupTokenFirst(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	ran := filepath.Join(dir, "ran")
+	claude := filepath.Join(dir, "claude")
+	if err := testenv.WriteExecutable(claude, []byte("#!/bin/sh\necho \"$@\" > "+ran+"\n")); err != nil {
+		t.Fatal(err)
+	}
+	a, sc, _ := credentialApp(t, 140, 40)
+	onLoop(a, func() bool {
+		find := a.findExecutable
+		a.findExecutable = func(name string) (string, error) {
+			if name == "claude" {
+				return claude, nil
+			}
+			return find(name)
+		}
+		return true
+	})
+	selectSandboxRow(t, a, "p:web")
+	typeRunes(sc, "A")
+	waitFor(t, a, sc, "Sign in · web")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "claude setup-token printed")
+	if got, _ := os.ReadFile(ran); strings.TrimSpace(string(got)) != "setup-token" {
+		t.Fatalf("claude ran with %q", got)
 	}
 }

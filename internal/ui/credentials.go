@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/credential"
+	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/unibox"
 	"github.com/tobola/unagit/internal/watch"
@@ -138,11 +140,18 @@ func (a *App) storeCredential(c secret.Credential) bool {
 	return true
 }
 
+// agentTokenPages are where an agent's token is made, for the agents whose
+// token is made on a page rather than by a program.
+var agentTokenPages = map[string]string{
+	"copilot": "https://github.com/settings/personal-access-tokens/new",
+	"codex":   "https://platform.openai.com/api-keys",
+}
+
 // agentTokenHints says, per agent, which token signs it in.
 var agentTokenHints = map[string]string{
-	"claude":  "The token claude setup-token prints: it signs\nyour subscription in for a year.",
-	"copilot": "A fine-grained GitHub token with Account\npermissions > Copilot Requests: Read-only alone.",
-	"codex":   "An OpenAI API key.",
+	"claude":  "The token claude setup-token printed: it signs\nyour subscription in for a year.",
+	"copilot": "A fine-grained GitHub token, made on the page\njust opened: no repositories, Account permissions\n> Copilot Requests: Read-only, nothing else.",
+	"codex":   "An OpenAI API key, made on the page just opened.",
 }
 
 // signInAgents lists a profile's agents to sign in: Enter keeps the token
@@ -166,6 +175,8 @@ func (a *App) signInAgents(pr unibox.Profile) {
 		items = append(items, pickItem{Label: agentLabel(id), Sub: sub, About: about, Data: id})
 	}
 	keys := []pickKey{
+		{keys: "r", hint: "renew", name: "Renew Token…", about: "Make the agent's token again - claude setup-token, or the page where it is made - and keep the new one in unagit.",
+			run: func(it pickItem) { a.guideAgentToken(pr, it.Data.(string)) }},
 		{keys: "u", hint: "with unibox", name: "Sign In with unibox…", about: "unibox signs the agent in, in this terminal, and keeps its token in the platform's store.",
 			run: func(it pickItem) {
 				id := it.Data.(string)
@@ -173,19 +184,64 @@ func (a *App) signInAgents(pr unibox.Profile) {
 			}},
 	}
 	a.showPickerWith("Sign in · "+pr.Name, items, pickerOptions{pack: true, explain: true, keys: keys,
-		enterName: "Sign In with a Token in unagit…", enterAbout: "Type the agent's token; unagit keeps it and hands it to the sandboxes while it runs unlocked.", enterHint: "token in unagit"},
-		func(it pickItem) { a.askAgentToken(pr, it.Data.(string)) })
+		enterName: "Sign In with a Token in unagit…", enterAbout: "Make the agent's token - claude setup-token, or the page where it is made - and type it; unagit keeps it and hands it to the sandboxes while it runs unlocked.", enterHint: "token in unagit"},
+		func(it pickItem) {
+			id := it.Data.(string)
+			if _, ok := a.vault.Credential(id); ok {
+				// Signed in already: the form keeps the token when left
+				// empty, and r makes a new one.
+				a.askAgentToken(pr, id)
+				return
+			}
+			a.guideAgentToken(pr, id)
+		})
+}
+
+// guideAgentToken makes an agent's token the way unibox's own sign-in
+// does, then asks for it: claude setup-token in this terminal, which signs
+// the subscription in through the browser and prints the token, or the
+// page where the token is made. What setup-token prints is the user's to
+// copy - read from its output, the token would hang on the wording of a
+// program unagit does not own.
+func (a *App) guideAgentToken(pr unibox.Profile, id string) {
+	if page, ok := agentTokenPages[id]; ok {
+		_ = openBrowser(page)
+		a.askAgentToken(pr, id)
+		return
+	}
+	if id != "claude" {
+		a.askAgentToken(pr, id)
+		return
+	}
+	bin, err := a.executable("claude")
+	if err != nil {
+		a.askAgentToken(pr, id, "claude is not installed here: run claude setup-token\nwhere it is.")
+		return
+	}
+	cmd := exec.Command(bin, "setup-token")
+	go func() {
+		err := a.runTerminalEditor(cmd, editors.Editor{Name: "claude setup-token"})
+		a.tv.QueueUpdateDraw(func() {
+			a.askAgentToken(pr, id)
+			if err != nil {
+				a.flash(fmt.Sprintf("claude setup-token did not finish (%v) - run it yourself and type the token it prints", err))
+			}
+		})
+	}()
 }
 
 // askAgentToken takes an agent's token into the vault and has unibox name
 // unagit as its source in the profile.
-func (a *App) askAgentToken(pr unibox.Profile, id string) {
+func (a *App) askAgentToken(pr unibox.Profile, id string, notes ...string) {
 	hint, ok := agentTokenHints[id]
 	if !ok {
 		a.flash("unibox signs " + id + " in by no token - press u to sign it in with unibox")
 		return
 	}
 	_, stored := a.vault.Credential(id)
+	for _, n := range notes {
+		hint += "\n" + n
+	}
 	if stored {
 		hint += "\nLeave it empty to keep the stored one."
 	}

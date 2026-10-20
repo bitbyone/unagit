@@ -686,7 +686,8 @@ sandboxes, `V` sets your values - for every profile or
 one - and offers those a profile is missing, `U` is unibox's own settings:
 the default runtime, which runtimes may be used, whether an idle sandbox
 stops. A token is kept by unibox, which asks for it in this terminal, or by
-unagit: an agent signed in with `Enter` under `A`, or a service added with
+unagit: an agent signed in with `Enter` under `A` - which runs `claude
+setup-token`, or opens the page where the token is made, then asks for it - or a service added with
 `t` under `v`, keeps its token in unagit's vault, and the profile names
 `unagit credential get <name>` as its source. The runtime runs that on the
 host whenever it wants the token, and it asks the running, unlocked unagit
