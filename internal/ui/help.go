@@ -313,6 +313,7 @@ func helpRows() []helpLine {
 		key("A  O", "a profile: sign agents in · open in the editor"),
 		key("u", "make it unibox's context"),
 		key("K  V  U", "secrets · your values · unibox's settings"),
+		key("T", "tokens unagit keeps for the sandboxes"),
 		key("e  O  c", "environment: repository · open it · clear context"),
 		key("y", "the log: copy the event's command"),
 		key("r", "read everything from unibox again"),

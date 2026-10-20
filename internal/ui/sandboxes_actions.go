@@ -161,8 +161,8 @@ func (a *App) profileActions(r sandboxRow) []uiAction {
 			keys: "N", rank: 32, run: func() { a.showProfileNetwork(pr) }},
 		{name: "Services…", about: "The forges and services the sandboxes are signed in to, and whether each token is stored: add, remove.",
 			keys: "v", rank: 33, run: func() { a.showProfileServices(pr) }},
-		{name: "Sign In Agents…", about: "Sign the profile's agents in, with unibox agent login in this terminal: the tokens go to the platform's store.",
-			keys: "A", rank: 34, run: func() { a.uniboxSignIn("Signing in the agents of "+pr.Name, "agent", "login", "-p", pr.Name) }},
+		{name: "Sign In Agents…", about: "Sign the profile's agents in: a token kept in unagit's vault, or unibox's own sign-in in this terminal.",
+			keys: "A", rank: 34, run: func() { a.signInAgents(pr) }},
 		{name: "Open in Editor", about: "Open the profile's directory of the environments repository in the default editor.",
 			keys: "O", rank: 40, when: func() bool { return a.ubx.overview.Environments != "" }, run: func() { a.openProfileDir(pr, false) }},
 		{name: "Use as Context", about: "Make this the profile unibox commands work in when they are not told.",
@@ -188,6 +188,8 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 			run: func() { v.focus(v.env) }},
 		{name: "Secrets…", about: "The tokens kept in the platform's store for profiles to name: store one, replace it, remove it. No value is ever shown.",
 			keys: "K", rank: 50, run: a.showSecrets},
+		{name: "Tokens in unagit…", about: "The tokens unagit keeps for the sandboxes and hands out while it runs unlocked: replace one, remove it, copy its command.",
+			keys: "T", rank: 50, run: a.showCredentials},
 		{name: "Values…", about: "Your own values for what profiles ask of you - a name, a login - shared or one profile's: set, change, remove.",
 			keys: "V", rank: 51, run: a.showValues},
 		{name: "unibox Settings…", about: "unibox's own configuration: the default runtime, which runtimes may be used, whether an idle sandbox stops.",
@@ -999,6 +1001,8 @@ func (a *App) showProfileServices(pr unibox.Profile) {
 						a.uniboxSignIn("Adding "+name, "service", "add", name, "-p", pr.Name)
 					})
 				}},
+			{keys: "t", hint: "add with token in unagit", name: "Add Service with a Token in unagit…", about: "Sign the sandboxes in to a forge or a service by a token unagit keeps and hands out while it runs unlocked.",
+				run: func(pickItem) { a.askServiceToken(pr) }},
 			{keys: "d", hint: "remove", name: "Remove Service", about: "Take the service out of the profile, and its token unless another profile names it.",
 				when: func(it pickItem) bool { return it.Data != nil },
 				run: func(it pickItem) {

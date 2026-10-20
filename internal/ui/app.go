@@ -18,6 +18,7 @@ import (
 
 	"github.com/tobola/unagit/internal/chezmoi"
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/credential"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/github"
@@ -269,8 +270,13 @@ type App struct {
 	// watchShown is how far its events have been said here, watchSeen how
 	// far its user has looked, watchStarted set once the first state came.
 	// watchAsk* is a read asked for, for the follower to pass on.
-	watchStore     *watch.Store
-	watchID        string
+	watchStore *watch.Store
+	watchID    string
+	// credServer hands the sandboxes' tokens out while unlocked
+	// (credentials.go); credSocket puts its socket elsewhere, for a test,
+	// whose directory is too long a path for one.
+	credServer     *credential.Server
+	credSocket     string
 	watches        []watch.Watch
 	watchSnap      watch.Snapshot
 	watchShown     uint64
@@ -402,6 +408,10 @@ type tokenVault interface {
 	IDs() []string
 	Save(string) error
 	Rekey([]byte) error
+	Credential(string) (secret.Credential, bool)
+	SetCredential(secret.Credential)
+	RemoveCredential(string)
+	Credentials() []secret.Credential
 }
 
 func newApp(cfg *config.Config, vault tokenVault) *App {
@@ -533,6 +543,7 @@ func (a *App) Run() error {
 	go a.watchEditors(stopWatching)
 	go a.watchAgents(stopWatching)
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+	a.stopCredentials()
 	close(stopWatching)
 	// The watches' follower gives up its lock and its presence before
 	// unagit is gone, so another instance takes over at once.
@@ -592,6 +603,7 @@ func (a *App) start() {
 	}
 	a.loadIndexes()
 	a.startWatching()
+	a.serveCredentials()
 	a.detectChezmoi()
 	a.refreshDisk()
 	a.projectsPane.reload()

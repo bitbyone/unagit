@@ -1,6 +1,13 @@
 # Credentials for sandboxed agents
 
-A plan, not built yet. An agent in a unibox sandbox clones from and pushes
+Built (2026-10-20) with stored tokens: the socket, `unagit credential
+get <name>`, agents and services signed in from the Sandboxes tab, the
+tokens listed under `T`, every handout in Activity. Minting is not, and
+neither are grants by host: a request names the token alone, since sbx
+runs one command per service whatever its hosts and keeps the hosts itself.
+What follows is the plan as it was written, the decisions below included.
+
+An agent in a unibox sandbox clones from and pushes
 to the forges, and reaches other services the host authenticates to (an
 Artifactory, a registry). unibox already knows how to get a token there
 without the sandbox ever holding it; what it needs is a source for the

@@ -83,8 +83,8 @@ you choose **Push and Start**.
 | `D` | what changed since the last build |
 | `i` | the instructions its agents get |
 | `N` | its network rules: `a` allows a host, `x` denies one, `d` takes a rule back |
-| `v` | its services: `a` adds one, `d` takes one out |
-| `A` | sign its agents in |
+| `v` | its services: `a` adds one, `t` adds one whose token unagit keeps, `d` takes one out |
+| `A` | sign its agents in: `Enter` with a token unagit keeps, `u` with unibox's own sign-in |
 | `O` | its directory in the editor |
 | `u` | make it the context |
 
@@ -96,6 +96,7 @@ From any panel:
 | --- | --- |
 | `K` | **Secrets…**: the tokens kept in the platform's store, by name - `a` stores one, `Enter` replaces it, `d` removes it |
 | `V` | **Values…**: your own values for what profiles ask of you - a name, a login - `Enter` sets one, `a` a new one, `d` removes one; a value a profile asks for and lacks is listed as **missing** |
+| `T` | **Tokens in unagit…**: the tokens unagit keeps for the sandboxes - `Enter` replaces one, `d` removes it, `y` copies the command a profile names |
 | `U` | **unibox Settings…**: the runtime new sandboxes get, which runtimes may be used, whether a sandbox stops when its last session ends |
 
 On the Environment panel `e` chooses the environments repository among your
@@ -103,11 +104,27 @@ clones, `O` opens it, `c` clears the context. `:` has the rest: read
 everything again (`r`), validate the profiles, prune the images unibox no
 longer needs.
 
-Tokens never pass through unagit. Signing in, adding a service and storing a
-secret run unibox in this terminal, where it asks for the token on a hidden
-prompt and keeps it in the platform's store; unibox lists the secrets by name
-alone. A value is no secret - it is kept in `~/.config/unibox/vars.toml` -
-and is shown.
+A token goes one of two ways. With unibox's own sign-in, a service's `a` and
+storing a secret, unibox asks for it in this terminal, on a hidden prompt, and
+keeps it in the platform's store; unibox lists the secrets by name alone.
+
+Or unagit keeps it: `Enter` on an agent of `A`, and `t` in a profile's
+services, take a token into unagit's encrypted vault - beside your forge
+tokens, never among them - and have unibox write
+`unagit credential get <name>` into the profile as where it comes from. The runtime runs that
+command on the host whenever it wants the token, and it asks the running
+unagit over a socket of its own (`~/.config/unagit/run/credential.sock`):
+while unagit is closed or locked there is no socket, and a sandbox starting
+then fails and says to start unagit. No passphrase is asked for and none is
+kept. Every token handed out, and every name asked for that unagit does not
+keep, is in Activity.
+
+Any program of yours can ask while unagit runs unlocked, an agent outside a
+sandbox too: keep tokens there narrow, made for the sandboxes alone. A
+forge token unagit works with is never handed out.
+
+A value is no secret - it is kept in `~/.config/unibox/vars.toml` - and is
+shown.
 
 ## From a worktree
 

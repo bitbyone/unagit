@@ -681,12 +681,18 @@ checked first with `unibox task check` and pushed only on **Push and
 Start**; `p` its ports, `!` a script, `x` stop, `C` recreate, `d` remove. On
 a profile `c` a new sandbox, `b` build, `D` changes since the build, `N` the
 network rules, `v` the services, `A` signs its agents in. `K` lists the
-secrets by name and stores one, `V` sets your values - for every profile or
+secrets by name and stores one, `T` the tokens unagit keeps for the
+sandboxes, `V` sets your values - for every profile or
 one - and offers those a profile is missing, `U` is unibox's own settings:
 the default runtime, which runtimes may be used, whether an idle sandbox
-stops. A token never passes through unagit: signing in, adding a service and
-storing a secret run unibox in this terminal, where it asks for the token on
-a hidden prompt. **Open in Sandbox…** on a worktree, a grouped worktree or a
+stops. A token is kept by unibox, which asks for it in this terminal, or by
+unagit: an agent signed in with `Enter` under `A`, or a service added with
+`t` under `v`, keeps its token in unagit's vault, and the profile names
+`unagit credential get <name>` as its source. The runtime runs that on the
+host whenever it wants the token, and it asks the running, unlocked unagit
+over a socket - closed or locked, there is none, and nothing keeps the
+passphrase. Every handout is in Activity; a forge token is never one.
+**Open in Sandbox…** on a worktree, a grouped worktree or a
 clone starts a task from there. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
 

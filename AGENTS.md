@@ -34,6 +34,18 @@ it), no cache daemon, and never read the item yourself. Tests use a fake
 store; `UNAGIT_KEYCHAIN_TEST=1` runs the one test that touches the real
 keychain, with an item of its own.
 
+The second exception, also the user's (2026-10-20): the tokens kept **for
+unibox's sandboxes** (`secret.Credential`, beside the forge tokens and
+never among them) are handed to whoever asks `unagit credential get
+<name>` over `<config>/run/credential.sock` - while unagit runs unlocked
+and holds at least one, and at no other time (`internal/credential`,
+`ui/credentials.go`). That is how sbx gets them: it runs the command on
+the host whenever it wants the token. The peer check refuses other users,
+not other programs, so you could ask too - do not. Never hand out a forge
+token through it, never let the socket outlive the process or open while
+locked, never add a way to reach it without unagit running (the keychain
+passphrase included), and write every handout to Activity.
+
 ## Working here
 
 ```sh
@@ -156,7 +168,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 
 | Package | What it owns |
 | --- | --- |
-| `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where`, `version` |
+| `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where`, `credential get`, `version` |
 | `internal/version` | the release baked in at build time, or dev and its commit |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
@@ -164,6 +176,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/config` | `config.yaml`, instances, groups, roots, filters |
 | `internal/secret` | the vault, the passphrase prompt |
 | `internal/keychain` | the passphrase in the macOS keychain, when chosen |
+| `internal/credential` | the socket that hands the sandboxes' tokens out while unlocked, and its client |
 | `internal/index` | the on-disk JSON caches of the lists |
 | `internal/workspace` | clones, worktrees, the review arrangement |
 | `internal/gitx` | the git command line, credentials, error hints |

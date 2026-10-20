@@ -48,7 +48,7 @@ func rootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
 	// --version prints the version alone, the same line as unagit version.
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.AddCommand(attachCmd(), cdCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), versionCmd(),
+	root.AddCommand(attachCmd(), cdCmd(), credentialCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), versionCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root

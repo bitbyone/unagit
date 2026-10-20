@@ -2,6 +2,7 @@ package ui
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/tobola/unagit/internal/secret"
 )
@@ -12,6 +13,46 @@ import (
 type memoryVault struct {
 	tokens map[string]string
 	sealed *secret.Vault
+	// creds are read by the credential socket's goroutine, hence the lock.
+	mu    sync.Mutex
+	creds map[string]secret.Credential
+}
+
+func (v *memoryVault) Credential(name string) (secret.Credential, bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	c, ok := v.creds[name]
+	return c, ok && c.Token != ""
+}
+
+func (v *memoryVault) SetCredential(c secret.Credential) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.creds == nil {
+		v.creds = map[string]secret.Credential{}
+	}
+	if c.Token == "" {
+		c.Token = v.creds[c.Name].Token
+	}
+	v.creds[c.Name] = c
+}
+
+func (v *memoryVault) RemoveCredential(name string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	delete(v.creds, name)
+}
+
+func (v *memoryVault) Credentials() []secret.Credential {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	var out []secret.Credential
+	for _, c := range v.creds {
+		c.Token = ""
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 func (v *memoryVault) Token(id string) string { return v.tokens[id] }
@@ -47,6 +88,14 @@ func (v *memoryVault) prepare() error {
 	}
 	for id, token := range v.tokens {
 		v.sealed.Set(id, token)
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	for _, c := range v.sealed.Credentials() {
+		v.sealed.RemoveCredential(c.Name)
+	}
+	for _, c := range v.creds {
+		v.sealed.SetCredential(c)
 	}
 	return nil
 }

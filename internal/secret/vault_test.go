@@ -186,3 +186,41 @@ func index(s, sub string) int {
 	}
 	return -1
 }
+
+// TestSandboxCredentialsAreKeptApart: the tokens handed to sandboxes are
+// stored beside the forge tokens, never among them, survive a save, and
+// are listed without their values.
+func TestSandboxCredentialsAreKeptApart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tokens.enc")
+	v, err := NewVault([]byte("hunter2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.Set("work", "glpat-work")
+	v.SetCredential(Credential{Name: "claude", Kind: CredentialAgent, Token: "sk-ant-oat01-x"})
+	v.SetCredential(Credential{Name: "gitlab-2n", Kind: CredentialService, Hosts: []string{"gitlab.2n.cz"}, Token: "glpat-narrow"})
+	// New hosts without a token keep the token.
+	v.SetCredential(Credential{Name: "gitlab-2n", Kind: CredentialService, Hosts: []string{"gitlab.2n.cz", "git.2n.cz"}})
+	if err := v.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	back, err := OpenVault(path, []byte("hunter2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ids := back.IDs(); len(ids) != 1 || ids[0] != "work" {
+		t.Fatalf("a sandbox credential is among the forge tokens: %v", ids)
+	}
+	c, ok := back.Credential("gitlab-2n")
+	if !ok || c.Token != "glpat-narrow" || len(c.Hosts) != 2 {
+		t.Fatalf("credential = %+v, %v", c, ok)
+	}
+	list := back.Credentials()
+	if len(list) != 2 || list[0].Name != "claude" || list[0].Token != "" || list[1].Token != "" {
+		t.Fatalf("listed = %+v", list)
+	}
+	back.RemoveCredential("claude")
+	if _, ok := back.Credential("claude"); ok {
+		t.Fatal("a removed credential is still handed out")
+	}
+}
