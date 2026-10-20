@@ -40,6 +40,7 @@ upstream and names the ones it left alone.
 | `Ctrl-K` | **Changes**: the files not committed and their diffs. See [Changes and Commits](/guide/changes). |
 | `c` | commit the versioned files as they are on disk |
 | `P` | push, after showing what goes |
+| `n` | a merge request from the branch the clone has out, pushed first if origin lacks it |
 | `Ctrl-L` | the commit log. See [The Commit Log](/guide/commit-log). |
 | `J` | the pipeline's jobs. See [Pipelines](/guide/pipelines). |
 | `m` | that repository's merge requests |

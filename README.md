@@ -148,7 +148,8 @@ all and live only there.
   the cursor (or another you choose); it appears in the list with the cursor
   on it, and `Enter` switches to it when you want. A branch with a merge
   request open says `!12 open`; `m` on one without opens a merge request
-  from it, pushing it first if origin lacks it. `d` deletes it in the clone (origin keeps it), `D` in the clone
+  from it, pushing it first if origin lacks it - and `n` on the repository
+  itself does that for the branch the clone has out. `d` deletes it in the clone (origin keeps it), `D` in the clone
   and on origin, `Alt-D` on origin only (the clone keeps it, no longer
   tracking). The default branch and protected ones are never deleted, and
   one with an open merge request is not deleted on origin. One out in the

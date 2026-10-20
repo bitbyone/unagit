@@ -239,6 +239,7 @@ func helpRows() []helpLine {
 		key("Alt-P", "the same for every clone origin has moved past"),
 		key("c", "commit versioned files; push with it if you like"),
 		key("P", "push what origin lacks; asks, offers force push"),
+		key("n", "merge request from the clone's branch"),
 		key("Ctrl-W", "a worktree for a branch; n for a new one"),
 		key("space", "mark; Ctrl-W x H r p C y Ctrl-T/F act on all"),
 		key("m", "show only this repository's merge requests"),

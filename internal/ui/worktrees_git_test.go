@@ -511,6 +511,37 @@ func TestNewMergeRequestOffersToPushFirst(t *testing.T) {
 	}
 }
 
+// TestNewMergeRequestFromTheClone: n on a repository is the merge request
+// of the branch the clone has out, pushed first; on the default branch it
+// says to make another.
+func TestNewMergeRequestFromTheClone(t *testing.T) {
+	t.Parallel()
+	a, sc, srv := newTestAppSrv(t)
+	resizeApp(a, sc, 160, 44)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	p.rescan()
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "the default branch")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "the default branch")
+
+	gitIn(t, p.clone, "checkout", "-q", "-b", "feat/from-clone")
+	commitIn(t, p.clone, "n.txt", "Made in the clone")
+	p.rescan()
+	waitFor(t, a, sc, "feat/from-clone")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "push it and continue?")
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "New merge request")
+	if got := gitIn(t, p.origin, "rev-parse", "feat/from-clone"); got != gitIn(t, p.clone, "rev-parse", "HEAD") {
+		t.Error("the branch was not pushed before the form")
+	}
+	if srv.postedMR.Load() != nil {
+		t.Error("created before the form was sent")
+	}
+}
+
 func TestNewMergeRequestIsRefusedWhenOneIsAlreadyOpen(t *testing.T) {
 	t.Parallel()
 	a, sc, srv := newTestAppSrv(t)

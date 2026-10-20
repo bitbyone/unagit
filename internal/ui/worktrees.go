@@ -1199,7 +1199,31 @@ func mergeRequestDefaults(branch string, commits []gitx.CommitMsg) (title, descr
 
 // newMergeRequest starts creating a merge request for a worktree's branch.
 func (a *App) newMergeRequest(r worktreeRow) {
-	pr := a.worktreeProject(r)
+	st, known := a.wtRemote[r.Dir]
+	a.startMergeRequest(r, a.worktreeProject(r), st, known)
+}
+
+// projectMergeRequest starts creating a merge request for the branch the
+// main clone has out, as newMergeRequest does for a worktree's.
+func (a *App) projectMergeRequest(pr forge.Project) {
+	info := a.diskOf(pr.Instance, pr.PathWithNamespace)
+	switch {
+	case !info.Cloned:
+		a.flash(pr.PathWithNamespace + " is not cloned - a merge request goes from a branch of yours, b lists origin's")
+		return
+	case info.Branch == "" || info.Branch == pr.DefaultBranch:
+		a.flash("the clone is on " + pr.DefaultBranch + ", the default branch - a merge request goes from another into it; b makes one")
+		return
+	}
+	st, known := a.repoSync[projectKey{pr.Instance, pr.PathWithNamespace}]
+	r := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: info.Branch,
+		Dir: a.projectDir(pr.Instance, pr.PathWithNamespace)}
+	a.startMergeRequest(r, pr, st, known)
+}
+
+// startMergeRequest creates a merge request from a checkout's branch,
+// pushing it first, after asking, when origin lacks some of it.
+func (a *App) startMergeRequest(r worktreeRow, pr forge.Project, st remoteState, known bool) {
 	client := a.client(pr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
@@ -1209,7 +1233,6 @@ func (a *App) newMergeRequest(r worktreeRow) {
 		a.flash(fmt.Sprintf("!%d is already open for this branch", mr.IID))
 		return
 	}
-	st, known := a.wtRemote[r.Dir]
 	if why := pushBlocked(st, known); why != "" {
 		a.flash(why)
 		return
