@@ -130,7 +130,7 @@ func (a *App) sandboxActions(r sandboxRow) []uiAction {
 			keys: "i", rank: 40, run: func() { a.showInstructions(s.Name, "") }},
 		{name: "Stop Sandbox", about: "Stop the VM; its disk, caches and tasks stay, and the next start boots it again. unibox refuses while an agent runs.",
 			keys: "x", rank: 50, when: running, run: func() { a.uniboxDo("Stopping "+s.Name, "sandbox", "stop", s.Name) }},
-		{name: "Use as Context", about: "Make this the sandbox, and its profile the profile, unibox commands work in when they are not told.",
+		{name: "Use as unibox Context", about: "Make this the sandbox, and its profile the profile, unibox commands work in when they are not told.",
 			keys: "u", rank: 60, when: func() bool { return a.ubx.overview.Context.Set.Sandbox != s.Name },
 			run: func() { a.uniboxDo("Using "+s.Name, "context", "use", "-s", s.Name, "-p", s.Profile) }},
 		{name: "Recreate Sandbox…", about: "Build the image when it needs it and make the VM again from the profile as it is now. Work not pushed is never lost.",
@@ -166,7 +166,7 @@ func (a *App) profileActions(r sandboxRow) []uiAction {
 			keys: "A", rank: 34, run: func() { a.signInAgents(pr) }},
 		{name: "Open in Editor", about: "Open the profile's directory of the environments repository in the default editor.",
 			keys: "O", rank: 40, when: func() bool { return a.ubx.overview.Environments != "" }, run: func() { a.openProfileDir(pr, false) }},
-		{name: "Use as Context", about: "Make this the profile unibox commands work in when they are not told.",
+		{name: "Use as unibox Context", about: "Make this the profile unibox commands work in when they are not told.",
 			keys: "u", rank: 60, when: func() bool { return a.ubx.overview.Context.Set.Profile != pr.Name },
 			run: func() { a.uniboxDo("Using "+pr.Name, "context", "use", "-p", pr.Name) }},
 	}
@@ -178,7 +178,7 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 	env := func() bool { return a.ubx.overview.Environments != "" }
 	return append([]uiAction{
 		a.setupAction(),
-		{name: "Refresh", about: "Read the sandboxes, their tasks, the profiles and the environment from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
+		{name: "Refresh Sandboxes", about: "Read the sandboxes, their tasks, the profiles and the environment from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
 		{name: "Go to Sandbox Cards", about: "Move to the cards of the sandboxes: h and l between them, their actions on each.", keys: "B", rank: 40,
 			run: func() { v.focus(v.cards) }},
 		{name: "Go to Tasks", about: "Move to the tasks of every sandbox, where agents are resumed.", keys: "t", rank: 41, run: func() { v.focus(p.table) }},
@@ -188,17 +188,17 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 			when: func() bool { return v.lowerH > 0 }, run: func() { v.focus(v.log) }},
 		{name: "Go to Environment", about: "Move to the environment: the profiles' repository, the context, the runtimes.", keys: "E", rank: 44,
 			run: func() { v.focus(v.env) }},
-		{name: "Secrets…", about: "The tokens kept in the platform's store for profiles to name: store one, replace it, remove it. No value is ever shown.",
+		{name: "unibox Secrets…", about: "The tokens kept in the platform's store for profiles to name: store one, replace it, remove it. No value is ever shown.",
 			keys: "K", rank: 50, run: a.showSecrets},
-		{name: "Tokens in unagit…", about: "The tokens unagit keeps for the sandboxes and hands out while it runs unlocked: replace one, remove it, copy its command.",
+		{name: "Sandbox Tokens in unagit…", about: "The tokens unagit keeps for the sandboxes and hands out while it runs unlocked: replace one, remove it, copy its command.",
 			keys: "T", rank: 50, run: a.showCredentials},
-		{name: "Values…", about: "Your own values for what profiles ask of you - a name, a login - shared or one profile's: set, change, remove.",
+		{name: "unibox Values…", about: "Your own values for what profiles ask of you - a name, a login - shared or one profile's: set, change, remove.",
 			keys: "V", rank: 51, run: a.showValues},
 		{name: "unibox Settings…", about: "unibox's own configuration: the default runtime, which runtimes may be used, whether an idle sandbox stops.",
 			keys: "U", rank: 52, run: a.showUniboxSettings},
-		{name: "Validate Profiles", about: "Check the environments repository - its layout, every profile, every instruction text - in a log.",
+		{name: "Validate unibox Profiles", about: "Check the environments repository - its layout, every profile, every instruction text - in a log.",
 			rank: 82, when: env, run: func() { a.uniboxStream("Validating the profiles", "profile", "validate") }},
-		{name: "Prune Images…", about: "Remove the images unibox no longer needs: older builds, and those of profiles and sandboxes that are gone.",
+		{name: "Prune unibox Images…", about: "Remove the images unibox no longer needs: older builds, and those of profiles and sandboxes that are gone.",
 			rank: 85, run: func() {
 				a.confirmWith("Prune images", "Remove every image unibox no longer needs?", "Prune", nil, func() {
 					a.closeModal(pageConfirm)

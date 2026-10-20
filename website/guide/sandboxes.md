@@ -25,11 +25,11 @@ every time it opens:
 | **Sandboxes tab** on | turns the integration on |
 | **Runtime** ready - sbx signed in to Docker, say | runs what unibox suggests, such as `sbx login`, in this terminal |
 | **Environments repository**, where the profiles live | picks a clone to lay out with `unibox init --dir`, or **New Repository…** first |
-| **Profiles** | adds one: **New Profile…** with its name, agents, CPUs and memory, or **New Profile from Template…** |
+| **Profiles** | adds one: **New unibox Profile…** with its name, agents, CPUs and memory, or **unibox Profile from Template…** |
 | **Image** of each profile, for the default runtime | builds it, in a log |
-| each profile **ready to start** - its agents signed in, its values set | goes to what is missing: Sign In Agents…, Values…, Services… |
+| each profile **ready to start** - its agents signed in, its values set | goes to what is missing: Sign In Agents…, unibox Values…, Services… |
 
-**New Profile from Template…** copies a profile from a repository of yours
+**unibox Profile from Template…** copies a profile from a repository of yours
 that holds profiles. It lists your repositories, clones first, and clones the
 one picked when it is not. `unibox template inspect` reads it, and its
 profiles are listed with their agents, the values each asks for and the
@@ -123,9 +123,9 @@ From any panel:
 
 | Key | |
 | --- | --- |
-| `K` | **Secrets…**: the tokens kept in the platform's store, by name - `a` stores one, `Enter` replaces it, `d` removes it |
-| `V` | **Values…**: your own values for what profiles ask of you - a name, a login - `Enter` sets one, `a` a new one, `d` removes one; a value a profile asks for and lacks is listed as **missing** |
-| `T` | **Tokens in unagit…**: the tokens unagit keeps for the sandboxes - `Enter` replaces one, `d` removes it, `y` copies the command a profile names |
+| `K` | **unibox Secrets…**: the tokens kept in the platform's store, by name - `a` stores one, `Enter` replaces it, `d` removes it |
+| `V` | **unibox Values…**: your own values for what profiles ask of you - a name, a login - `Enter` sets one, `a` a new one, `d` removes one; a value a profile asks for and lacks is listed as **missing** |
+| `T` | **Sandbox Tokens in unagit…**: the tokens unagit keeps for the sandboxes - `Enter` replaces one, `d` removes it, `y` copies the command a profile names |
 | `U` | **unibox Settings…**: the runtime new sandboxes get, which runtimes may be used, whether a sandbox stops when its last session ends |
 
 On the Environment panel `e` chooses the environments repository among your

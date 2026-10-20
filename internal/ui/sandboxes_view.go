@@ -988,7 +988,7 @@ func (v *sandboxesView) envSelection() (string, []uiAction) {
 			keys: "e", rank: 10, run: a.chooseEnvironments},
 		{name: "Open Environments Repository", about: "Open the repository of the profiles in the default editor.",
 			keys: "O", rank: 20, when: func() bool { return a.ubx.overview.Environments != "" }, run: a.openEnvironments},
-		{name: "Clear Context", about: "Forget the sandbox and profile unibox commands work in when not told.",
+		{name: "Clear unibox Context", about: "Forget the sandbox and profile unibox commands work in when not told.",
 			keys: "c", rank: 30, when: a.contextSet, run: func() { a.uniboxDo("Clearing the context", "context", "clear") }},
 	}
 }

@@ -307,9 +307,9 @@ func (a *App) initUniboxHere(dir string) {
 // pickers and the guide.
 func (a *App) newProfileActions(env func() bool) []uiAction {
 	return []uiAction{
-		{name: "New Profile…", about: "Add a profile to the environments repository: its name, its agents, its resources.",
+		{name: "New unibox Profile…", about: "Add a profile to the environments repository: its name, its agents, its resources.",
 			rank: 80, when: env, run: a.askNewProfile},
-		{name: "New Profile from Template…", about: "Copy a profile from a repository of yours that holds profiles - a template - with unibox init --from; it is cloned first when it is not.",
+		{name: "unibox Profile from Template…", about: "Copy a profile from a repository of yours that holds profiles - a template - with unibox init --from; it is cloned first when it is not.",
 			rank: 81, when: env, aliases: []string{"template", "init --from"}, run: a.chooseTemplateRepository},
 	}
 }
@@ -321,7 +321,7 @@ func (a *App) chooseNewProfile() {
 	for i, act := range acts {
 		items[i] = pickItem{Label: act.name, About: act.about, Data: act.run}
 	}
-	a.showPickerWith("New profile", items, pickerOptions{explain: true, pack: true}, func(it pickItem) { it.Data.(func())() })
+	a.showPickerWith("Add a unibox profile", items, pickerOptions{explain: true, pack: true}, func(it pickItem) { it.Data.(func())() })
 }
 
 // chooseTemplateRepository lists the repositories to copy a profile from,
@@ -524,7 +524,7 @@ func (a *App) askNewProfile() {
 		a.uniboxStream("Adding profile "+name, args...)
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("New profile", form, 64, 22)
+	a.showFormModalSized("New unibox profile", form, 64, 22)
 }
 
 // setupAction lists the steps of setting unibox up; first in the pickers
