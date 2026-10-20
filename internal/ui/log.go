@@ -143,6 +143,9 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 				when: func(it pickItem) bool { return !at(it).Theirs }},
 			pickKey{keys: "u", name: "Undo Commit", about: "Take the newest commit back: its changes stay on disk, to be committed again. One on origin asks first: a force push follows.", run: func(it pickItem) { a.undoCommit(place, at(it), isHead(at(it)), again(it)) },
 				when: func(it pickItem) bool { return isHead(at(it)) }},
+			pickKey{keys: "P", hint: "push to here", name: "Push Up to Here…", about: "Send this commit to origin with those below it that origin lacks; the newer ones stay here.",
+				run:  func(it pickItem) { a.pushUpTo(place, at(it), again(it)) },
+				when: func(it pickItem) bool { c := at(it); return c.Unpushed || (place.upstream == "" && c.Local) }},
 			pickKey{keys: "R", name: "Recover from Reflog…", about: "Every place the branch has been, whatever moved it - a rebase or reset in a terminal too: go back to one.", marked: true,
 				run: func(it pickItem) {
 					branch := place.branch
@@ -995,6 +998,44 @@ func (a *App) undoCommit(place logPlace, c logCommit, newest bool, back func()) 
 	a.withRewriteWarnings(place.project, place.branch, func(warnings []string) {
 		a.confirmChoicesBack("Undo Commit", onOriginQuestion(shortSHA(c.SHA)+" is on origin. Undoing it"), warnings, []choice{{"Undo", undo}}, back)
 	})
+}
+
+// pushUpTo sends a commit of the branch and those below it origin lacks,
+// leaving the newer ones here: what is ready goes, what is not waits. It
+// asks first, saying what goes and what stays.
+func (a *App) pushUpTo(place logPlace, c logCommit, back func()) {
+	if !c.Unpushed && !(place.upstream == "" && c.Local) {
+		back()
+		a.flash(shortSHA(c.SHA) + " is on origin already - there is nothing below it to push")
+		return
+	}
+	pr := place.project
+	git := a.pathManager(pr.Instance, pr.PathWithNamespace).Git()
+	go func() {
+		sending, err := git.OutgoingTo(place.dir, c.SHA)
+		all, _ := git.OutgoingTo(place.dir, "HEAD")
+		a.tv.QueueUpdateDraw(func() {
+			if err != nil {
+				back()
+				a.errorf("reading what %s would send: %v", shortSHA(c.SHA), err)
+				return
+			}
+			body := fmt.Sprintf("Push %d commit(s) of [::b]%s[::-] to origin, up to %s?", len(sending), esc(place.branch), shortSHA(c.SHA)) +
+				outgoingList(sending)
+			if staying := all[:max(len(all)-len(sending), 0)]; len(staying) > 0 {
+				body += "\n\n" + tag(colMuted) + "These stay here:" + tagEnd + outgoingList(staying)
+			}
+			a.confirmChoicesBack("Push Up to Here", body, nil, []choice{{"Push", func() {
+				a.runTaskThen(fmt.Sprintf("Pushing %s up to %s", place.branch, shortSHA(c.SHA)), func(log func(string)) (string, error) {
+					_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).Git().PushUpTo(place.dir, c.SHA)
+					return "", err
+				}, func(string) {
+					a.afterGitChange()
+					place.reload(c.SHA, fmt.Sprintf("pushed %s up to %s", place.branch, shortSHA(c.SHA)))
+				})
+			}}}, back)
+		})
+	}()
 }
 
 // markedRun says why the commits marked are not one run of the branch's

@@ -45,6 +45,7 @@ origin lacks, `d` deletes one here, `D` deletes it on origin and here.
 | --- | --- |
 | `e` | edit a commit's message: the newest is amended, an older one written again and the later commits replayed |
 | `u` | undo the newest commit: it goes, its changes stay on disk |
+| `P` | push this commit and those below it; the newer ones stay here |
 | `space`, then `s` | squash marked commits next to each other into one |
 
 Squashing opens a form with their messages one after another, oldest first, to

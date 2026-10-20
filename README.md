@@ -140,7 +140,11 @@ all and live only there.
   clone** to it, so there is one working copy per repository, not a directory
   per branch. It is a plain checkout: nothing is fetched and no editor
   starts - `p` pulls, `Ctrl-O` opens - and the list closes, the row showing
-  the branch now out. `n` makes a new branch in the clone, starting from the one under
+  the branch now out. What is not committed goes along, as git carries it;
+  when the branch has its own version of a file you edited, unagit names the
+  files and offers Smart Checkout: your changes are shelved, the branch
+  checked out, and they are put back onto it - or, if they collide with it,
+  left on the shelf for Shelf…. `n` makes a new branch in the clone, starting from the one under
   the cursor (or another you choose); it appears in the list with the cursor
   on it, and `Enter` switches to it when you want. A branch with a merge
   request open says `!12 open`; `m` on one without opens a merge request
@@ -848,6 +852,9 @@ commit. `T` lists the tags on the commit and which of them origin has:
 `p` pushes one origin lacks, `d` deletes one here (origin keeps it, and the
 next fetch brings it back), `D` deletes it on origin and here, after
 asking. A deleted tag goes into the Activity log with the commit it was on.
+`P` on a commit not pushed yet sends it to origin with those below it,
+and leaves the newer ones here - what is ready goes, what is half done
+waits; the question lists both. It never forces.
 `e` edits the message of a commit - the newest is amended, an older one
 written again and the commits after it replayed onto it. `u` undoes the
 newest commit: the commit goes, its changes stay on disk to be committed

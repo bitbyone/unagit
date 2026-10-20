@@ -189,6 +189,7 @@ func helpRows() []helpLine {
 		key("D  Alt-D", "in the log: the commit · from it to now, in Hunk"),
 		key("C  B  e", "in the log: checkout · back to branch · edit message"),
 		key("u", "in the log: undo the newest commit"),
+		key("P", "in the log: push up to the commit"),
 		key("space  s", "in the log: mark commits · squash the marked"),
 		key("H", "in the log: rewrite history, to undo a change"),
 		key("R", "in the log: the reflog, to go back anywhere"),

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -323,17 +324,63 @@ const (
 
 // switchMainClone checks a branch out in the main clone and goes back to the
 // repositories, where the row shows the branch now out; a success needs no
-// more words than that. It opens no editor: opening is Ctrl-O's, when the
-// user wants it.
+// more words than that. What is not committed goes along, as git carries
+// it; changes to files the branch has otherwise are asked about, and Smart
+// Checkout shelves them around the switch. It opens no editor: opening is
+// Ctrl-O's, when the user wants it.
 func (a *App) switchMainClone(pr forge.Project, branch string) {
+	var way *gitx.ChangesInTheWay
 	a.runTaskThen(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
 		func(log func(string)) (string, error) {
 			_, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).SwitchBranch(pr, branch)
+			if errors.As(err, &way) {
+				return "", nil
+			}
+			return "", err
+		}, func(string) {
+			if way != nil {
+				a.offerSmartSwitch(pr, branch, way.Files)
+				return
+			}
+			a.refreshDisk()
+			a.projectsPane.reload()
+		})
+}
+
+// offerSmartSwitch asks what to do with changes a switch would overwrite.
+func (a *App) offerSmartSwitch(pr forge.Project, branch string, files []string) {
+	body := fmt.Sprintf("What is not committed in %s collides with [::b]%s[::-]:", esc(pr.PathWithNamespace), esc(branch)) +
+		fileList(files) +
+		"\n\nSmart Checkout shelves your changes, switches, and puts them back onto the branch. " +
+		"If they collide with it still, they stay on the shelf - Shelf… brings them back."
+	a.confirmChoices("Switch Branch", body, nil, []choice{{"Smart Checkout", func() { a.smartSwitch(pr, branch) }}})
+}
+
+// smartSwitch is the switch with the changes shelved around it.
+func (a *App) smartSwitch(pr forge.Project, branch string) {
+	a.runTaskThen(fmt.Sprintf("Switching %s to %s, the changes shelved", pr.PathWithNamespace, branch),
+		func(log func(string)) (string, error) {
+			_, _, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).SmartSwitch(pr, branch)
 			return "", err
 		}, func(string) {
 			a.refreshDisk()
 			a.projectsPane.reload()
+			a.done("switched to " + branch + ", your changes with it")
 		})
+}
+
+// fileList is the files of a question, one a line, a long list cut.
+func fileList(files []string) string {
+	const most = 8
+	lines := make([]string, 0, most+1)
+	for i, f := range files {
+		if i == most {
+			lines = append(lines, tag(colDim)+fmt.Sprintf("… and %d more", len(files)-most)+tagEnd)
+			break
+		}
+		lines = append(lines, "  "+esc(f))
+	}
+	return "\n\n" + strings.Join(lines, "\n")
 }
 
 // openMROn is the merge request open from a branch of a repository, if any.

@@ -248,6 +248,30 @@ func (g *Git) PushHead(dir string, force bool) (string, error) {
 	return branch, g.Push(dir, branch, false)
 }
 
+// PushUpTo sends the branch checked out to origin only as far as commit,
+// leaving what came after it here: the commit and everything below it that
+// origin lacks. It never forces, and the first time it makes origin's copy
+// the branch's upstream.
+func (g *Git) PushUpTo(dir, commit string) (string, error) {
+	branch, err := g.out(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("HEAD is detached - there is no branch to push")
+	}
+	tip, upErr := g.UpstreamTip(dir)
+	if upErr == nil && !g.IsAncestor(dir, tip, commit) {
+		return branch, fmt.Errorf("origin's %s is not below %s - pull, or push the whole branch with P", branch, shortID(commit))
+	}
+	if _, err := g.Run(dir, "push", "origin", commit+":refs/heads/"+branch); err != nil {
+		return branch, err
+	}
+	// A commit is not a branch, so push -u would set nothing: the push has
+	// made origin's copy, and the branch is pointed at it after.
+	if upErr != nil {
+		return branch, g.SetUpstream(dir, branch, branch)
+	}
+	return branch, nil
+}
+
 // Message is a commit's whole message, as it was written.
 func (g *Git) Message(dir, sha string) (string, error) {
 	return g.out(dir, "log", "-1", "--format=%B", sha)
@@ -257,9 +281,14 @@ func (g *Git) Message(dir, sha string) (string, error) {
 // id and subject: those the upstream lacks, or - for a branch origin does
 // not have yet - those on no branch of any remote.
 func (g *Git) Outgoing(dir string) ([]string, error) {
-	args := []string{"log", "--format=%h %s", "@{upstream}..HEAD"}
+	return g.OutgoingTo(dir, "HEAD")
+}
+
+// OutgoingTo is Outgoing of a push that stops at tip.
+func (g *Git) OutgoingTo(dir, tip string) ([]string, error) {
+	args := []string{"log", "--format=%h %s", "@{upstream}.." + tip}
 	if _, err := g.UpstreamTip(dir); err != nil {
-		args = []string{"log", "--format=%h %s", "HEAD", "--not", "--remotes"}
+		args = []string{"log", "--format=%h %s", tip, "--not", "--remotes"}
 	}
 	out, err := g.out(dir, args...)
 	if err != nil || out == "" {

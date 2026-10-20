@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 )
 
 func TestSanitize(t *testing.T) {
@@ -277,7 +279,9 @@ func TestSwitchBranchTakesWhatOriginGotSinceTheClone(t *testing.T) {
 	}
 }
 
-func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
+// TestSwitchBranchCarriesWhatIsNotCommitted: an edit to a file both
+// branches have alike goes along, as git carries it.
+func TestSwitchBranchCarriesWhatIsNotCommitted(t *testing.T) {
 	t.Parallel()
 	m, _, p := newManager(t, newOrigin(t))
 	dir, err := m.CloneProject(p)
@@ -287,11 +291,90 @@ func TestSwitchBranchRefusesDirtyTree(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("local edit\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.SwitchBranch(p, "feature/login"); err == nil {
-		t.Fatal("switching with uncommitted changes should fail")
+	if _, err := m.SwitchBranch(p, "feature/login"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Git().CurrentBranch(dir); got != "feature/login" {
+		t.Errorf("branch = %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "README.md")); string(got) != "local edit\n" {
+		t.Errorf("the edit did not come along: %q", got)
+	}
+}
+
+// divergedReadme is a clone on main with README.md edited at its top, and
+// a branch wide whose README.md has a line more at the bottom: a plain
+// switch is refused, though the two changes go together.
+func divergedReadme(t *testing.T) (*Manager, forge.Project, string) {
+	t.Helper()
+	m, _, p := newManager(t, newOrigin(t))
+	dir, err := m.CloneProject(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme := filepath.Join(dir, "README.md")
+	for _, step := range []struct{ branch, text string }{{"main", "a\nb\nc\nd\ne\n"}, {"wide", "a\nb\nc\nd\ne\nf\n"}} {
+		if step.branch != "main" {
+			git(t, dir, "checkout", "-q", "-b", step.branch)
+		}
+		if err := os.WriteFile(readme, []byte(step.text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, dir, "commit", "-qam", "readme on "+step.branch)
+	}
+	git(t, dir, "checkout", "-q", "main")
+	if err := os.WriteFile(readme, []byte("A\nb\nc\nd\ne\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return m, p, dir
+}
+
+// TestSwitchBranchSaysWhatIsInTheWay: changes to a file the branch has
+// otherwise are refused, named, and nothing moves.
+func TestSwitchBranchSaysWhatIsInTheWay(t *testing.T) {
+	t.Parallel()
+	m, p, dir := divergedReadme(t)
+	_, err := m.SwitchBranch(p, "wide")
+	var way *gitx.ChangesInTheWay
+	if !errors.As(err, &way) || len(way.Files) != 1 || way.Files[0] != "README.md" {
+		t.Fatalf("err = %v", err)
 	}
 	if got := m.Git().CurrentBranch(dir); got != "main" {
 		t.Errorf("branch changed to %q despite the error", got)
+	}
+}
+
+// TestSmartSwitchShelvesAroundTheCheckout: the changes in the way are
+// shelved, the branch checked out, and they come back onto it, the shelf
+// empty again; changes that collide stay on the shelf, the branch out.
+func TestSmartSwitchShelvesAroundTheCheckout(t *testing.T) {
+	t.Parallel()
+	m, p, dir := divergedReadme(t)
+	if _, shelf, err := m.SmartSwitch(p, "wide"); err != nil || shelf != "" {
+		t.Fatalf("shelf %q, err %v", shelf, err)
+	}
+	if got := m.Git().CurrentBranch(dir); got != "wide" {
+		t.Errorf("branch = %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "README.md")); string(got) != "A\nb\nc\nd\ne\nf\n" {
+		t.Errorf("README.md = %q", got)
+	}
+	if left, _ := m.Git().Shelves(dir); len(left) != 0 {
+		t.Errorf("left on the shelf: %+v", left)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("A\nb\nc\nd\ne\nF\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, shelf, err := m.SmartSwitch(p, "main")
+	if err == nil || shelf != "switching to main" {
+		t.Fatalf("shelf %q, err %v", shelf, err)
+	}
+	if got := m.Git().CurrentBranch(dir); got != "main" {
+		t.Errorf("branch = %q", got)
+	}
+	if left, _ := m.Git().Shelves(dir); len(left) != 1 || left[0].Name != shelf {
+		t.Errorf("the shelf: %+v", left)
 	}
 }
 

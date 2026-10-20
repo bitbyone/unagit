@@ -229,3 +229,35 @@ func TestWouldConflict(t *testing.T) {
 		t.Error("the forecast touched the checkout")
 	}
 }
+
+// TestPushUpToLeavesWhatCameAfter: origin gets the commit and those below
+// it, the newer stays here, and a branch new to origin tracks it after.
+func TestPushUpToLeavesWhatCameAfter(t *testing.T) {
+	t.Parallel()
+	origin, clone := repos(t)
+	g := New("", nil)
+	sh(t, clone, "checkout", "-q", "-b", "feat/x")
+	commit(t, clone, "x1.txt", "one")
+	commit(t, clone, "x2.txt", "two")
+	two := sh(t, clone, "rev-parse", "HEAD")
+	commit(t, clone, "x3.txt", "three")
+
+	if branch, err := g.PushUpTo(clone, two); err != nil || branch != "feat/x" {
+		t.Fatalf("branch %q, err %v", branch, err)
+	}
+	if got := sh(t, origin, "rev-parse", "feat/x"); got != two {
+		t.Errorf("origin has %s, want %s", got, two)
+	}
+	if got := g.BranchUpstreams(clone)["feat/x"]; got != (Upstream{Name: "origin/feat/x", Ahead: 1}) {
+		t.Errorf("upstream = %+v", got)
+	}
+	if out, _ := g.OutgoingTo(clone, "HEAD"); len(out) != 1 || !strings.HasSuffix(out[0], " three") {
+		t.Errorf("outgoing = %q", out)
+	}
+
+	// Below origin's copy there is nothing to push up to.
+	one := sh(t, clone, "rev-parse", "HEAD~2")
+	if _, err := g.PushUpTo(clone, one); err == nil {
+		t.Error("pushing up to a commit origin's copy is past was not refused")
+	}
+}

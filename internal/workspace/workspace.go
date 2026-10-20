@@ -575,9 +575,8 @@ func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if st := m.git.Status(dir); st.Dirty {
-		return dir, fmt.Errorf("the working tree has uncommitted changes - commit or stash them before switching branch")
-	}
+	// What is not committed goes along, as git carries it; only changes to
+	// files the branch has otherwise refuse, as *gitx.ChangesInTheWay.
 	m.log("Switching to %s", branch)
 	if m.git.LocalBranchExists(dir, branch) {
 		return dir, m.git.Checkout(dir, branch)
@@ -589,6 +588,35 @@ func (m *Manager) SwitchBranch(p forge.Project, branch string) (string, error) {
 		return dir, fmt.Errorf("branch %q not found locally or on origin", branch)
 	}
 	return dir, m.git.CheckoutTracking(dir, branch)
+}
+
+// SmartSwitch is SwitchBranch for changes in the way, as IntelliJ's smart
+// checkout has it: they are shelved, the branch is checked out, and they
+// are unshelved onto it. A switch that fails puts them back where they
+// were; changes that collide with the branch stay on the shelf, under the
+// name it answers, and the error says so.
+func (m *Manager) SmartSwitch(p forge.Project, branch string) (dir, shelf string, err error) {
+	dir = m.ProjectDir(p.PathWithNamespace)
+	shelf = "switching to " + branch
+	if err := m.git.Shelve(dir, shelf, nil); err != nil {
+		return dir, "", err
+	}
+	shelves, err := m.git.Shelves(dir)
+	if err != nil || len(shelves) == 0 {
+		return dir, shelf, fmt.Errorf("the changes are on the shelf as %q, but it cannot be read now: %v", shelf, err)
+	}
+	sha := shelves[0].SHA
+	if _, err := m.SwitchBranch(p, branch); err != nil {
+		if back := m.git.Unshelve(dir, sha, false); back != nil {
+			return dir, shelf, fmt.Errorf("%w\n\nyour changes are on the shelf as %q", err, shelf)
+		}
+		return dir, "", err
+	}
+	m.log("Unshelving the changes onto %s", branch)
+	if err := m.git.Unshelve(dir, sha, false); err != nil {
+		return dir, shelf, fmt.Errorf("switched to %s, but your changes collide with it - they are on the shelf as %q: %w", branch, shelf, err)
+	}
+	return dir, "", nil
 }
 
 // Removal describes what deleting a directory would throw away.

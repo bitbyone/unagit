@@ -239,14 +239,42 @@ func (g *Git) PullFF(dir string) error {
 
 // Checkout switches to an existing local branch.
 func (g *Git) Checkout(dir, branch string) error {
-	_, err := g.Run(dir, "checkout", branch)
-	return err
+	return inTheWay(g.Run(dir, "checkout", branch))
 }
 
 // CheckoutTracking creates a local branch tracking origin/<branch>.
 func (g *Git) CheckoutTracking(dir, branch string) error {
-	_, err := g.Run(dir, "checkout", "-b", branch, "--track", "origin/"+branch)
-	return err
+	return inTheWay(g.Run(dir, "checkout", "-b", branch, "--track", "origin/"+branch))
+}
+
+// ChangesInTheWay is a checkout git refused because what is not committed
+// would be overwritten by the branch's own version of those files. Changes
+// to files the two branches have alike go along, as git carries them, so
+// only these stand in the way.
+type ChangesInTheWay struct {
+	Files []string
+	err   error
+}
+
+func (e *ChangesInTheWay) Error() string {
+	return "what is not committed here collides with the branch: " + strings.Join(e.Files, ", ")
+}
+
+func (e *ChangesInTheWay) Unwrap() error { return e.err }
+
+// inTheWay turns git's refusal to overwrite changes into ChangesInTheWay,
+// the files it named with it; any other failure is left as it is.
+func inTheWay(out string, err error) error {
+	if err == nil || !strings.Contains(out, "would be overwritten by checkout") {
+		return err
+	}
+	e := &ChangesInTheWay{err: err}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "\t") {
+			e.Files = append(e.Files, strings.TrimSpace(line))
+		}
+	}
+	return e
 }
 
 // CreateBranch creates a local branch at startPoint without checking it out.

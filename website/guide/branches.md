@@ -14,6 +14,11 @@ copy per repository, not a directory per branch. It is a plain checkout:
 nothing is fetched and no editor starts (`p` pulls, `Ctrl-O` opens), and the
 list closes with the row showing the branch now out.
 
+What is not committed goes along, as git carries it. When the branch has its
+own version of a file you edited, unagit names the files and offers **Smart
+Checkout**: your changes are shelved, the branch checked out, and they are put
+back onto it. If they collide with it, they stay on the [shelf](/guide/shelf).
+
 ## Creating
 
 `n` makes a new branch in the clone, starting from the one under the cursor or
