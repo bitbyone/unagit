@@ -204,6 +204,9 @@ var colourRoles = []colourRole{
 	{"sandboxes.branch", "column.branch", ""},
 	{"sandboxes.runtime", "text.muted", "the runtime a sandbox runs in"},
 	{"sandboxes.memory", "column.size", ""},
+	{"sandboxes.allowed", "state.good", "a host the sandboxes may reach beyond the runtime's policy"},
+	{"sandboxes.denied", "state.bad", "a host the sandboxes may not reach"},
+	{"sandboxes.service", "text.accent", "a host the sandboxes reach for one of the profile's services"},
 	// An agent's mark in the lists, in the colour of what it is doing.
 	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
 	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},

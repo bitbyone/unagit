@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -268,7 +269,7 @@ func (a *App) uniboxStream(title string, args ...string) {
 			e.output = lines
 			said := ""
 			if len(lines) > 0 {
-				said = lines[len(lines)-1]
+				said = unibox.StripANSI(lines[len(lines)-1])
 			}
 			e.end(a, said, err, refusal(err))
 		})
@@ -346,7 +347,7 @@ func (a *App) runSandboxAgent(what session.Record, place editorPlace, args []str
 		a.flash(err.Error())
 		return
 	}
-	cmd := c.Command(args...)
+	cmd := c.CommandHolding(args...)
 	cmd.Dir = what.Dir
 	name := agentLabel(what.Editor)
 	a.logTerminal(name+" in "+what.Label(), place, args)
@@ -381,7 +382,7 @@ func (a *App) uniboxShell(title string, args ...string) {
 	here := "Suspend unagit and open the shell here; unagit comes back when it ends."
 	a.pickPlace(placeOfAgent, title+" · where", a.places(here, true), func(place editorPlace) {
 		a.logTerminal(title, place, args)
-		cmd := c.Command(args...)
+		cmd := c.CommandHolding(args...)
 		cmd.Dir = paneDir()
 		go func() {
 			if place.client == nil {
@@ -613,13 +614,74 @@ func (a *App) newSandboxTask(r sandboxRow) {
 	})
 }
 
-// openInSandboxAction is Open in Sandbox… for a row of the lists: dirs
-// are what it clones into the sandbox, and ok says whether it is on disk.
-func (a *App) openInSandboxAction(label string, dirs func() []string, ok func() bool) uiAction {
-	return uiAction{name: "Open in Sandbox…", about: "Clone it into a unibox sandbox at its branch, as the forge has it, and start an agent there: the sandbox, the agent, the place.",
-		rank: 620, aliases: []string{"unibox", "sandbox", "vm"},
-		when: func() bool { return a.uniboxOn() && (ok == nil || ok()) },
-		run:  func() { a.startInSandbox(label, dirs()) }}
+// openInSandboxActions are Open in Sandbox… for a row of the lists, and
+// its tiers as opening has them: "Sandbox with <agent>…" asking where, and
+// - found only by typing - each agent in each place at once; every one
+// asks which sandbox. dirs are what it clones into the sandbox, and ok
+// says whether it is on disk.
+func (a *App) openInSandboxActions(label string, dirs func() []string, ok func() bool) []uiAction {
+	can := func() bool { return a.uniboxOn() && (ok == nil || ok()) }
+	acts := []uiAction{{name: "Open in Sandbox…", about: "Clone it into a unibox sandbox at its branch, as the forge has it, and start an agent there: the sandbox, the agent, the place.",
+		rank: 620, aliases: []string{"unibox", "sandbox", "vm"}, when: can,
+		run: func() { a.startInSandbox(label, dirs()) }}}
+	if !a.uniboxOn() {
+		return acts
+	}
+	for _, id := range a.sandboxAgentIDs() {
+		ag := agentFor(id)
+		aliases := append([]string{"sandbox", "unibox"}, agentAliases[id]...)
+		acts = append(acts, uiAction{
+			name:  "Sandbox with " + ag.Name + "…",
+			about: "Clone it into a sandbox - which one first, the most used at the top, or a new one - and start " + ag.Name + " there: here, or in a tab, split or window.",
+			rank:  640, icon: agentIcons[id], aliases: aliases, when: can,
+			run: func() {
+				a.withSandboxes(func() {
+					a.pickSandbox(label, nil, id, func(start unibox.Start, _ unibox.Profile) {
+						start.Dirs, start.Agent = dirs(), id
+						a.pickPlace(placeOfAgent, label+" with "+ag.Name+" · where", a.agentPlaces(ag), func(place editorPlace) {
+							a.checkAndStart(start, label, place)
+						})
+					})
+				})
+			},
+		})
+		for _, place := range placesOf(a.agentPlaces(ag)) {
+			acts = append(acts, uiAction{
+				name:  "Sandbox with " + ag.Name + " in " + placeName(place),
+				about: "Clone it into a sandbox - which one first - and start " + ag.Name + " there, in " + placeAbout(place) + ".",
+				rank:  720, icon: agentIcons[id], filterOnly: true, prefer: placePrefer(place.where), when: can,
+				aliases: append(append([]string{}, aliases...), placeAliases(place.where)...),
+				run: func() {
+					a.withSandboxes(func() {
+						a.pickSandbox(label, nil, id, func(start unibox.Start, _ unibox.Profile) {
+							start.Dirs, start.Agent = dirs(), id
+							a.cfg.State.UsePlace(placeOfAgent, placeKeyOf(place))
+							a.saveState()
+							a.checkAndStart(start, label, place)
+						})
+					})
+				},
+			})
+		}
+	}
+	return acts
+}
+
+// sandboxAgentIDs are the agents a sandbox can run: those of the profiles
+// once unibox was read, or the ones unibox knows before.
+func (a *App) sandboxAgentIDs() []string {
+	if !a.ubx.read {
+		return []string{"claude", "codex", "copilot"}
+	}
+	var ids []string
+	for _, p := range a.ubx.overview.Profiles {
+		for _, id := range p.Agents {
+			if !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids
 }
 
 // startInSandbox is Open in Sandbox… of a worktree, a group or a clone:
@@ -659,57 +721,89 @@ func (a *App) withSandboxes(then func()) {
 	})
 }
 
-// pickStartSandbox asks which sandbox a task goes into: one of a profile's
-// - every profile's, without one - or a new one of it.
+// pickStartSandbox asks which sandbox a task goes into, then its agent.
 func (a *App) pickStartSandbox(start unibox.Start, label string, only *unibox.Profile) {
+	a.pickSandbox(label, only, "", func(chosen unibox.Start, pr unibox.Profile) {
+		start.Sandbox, start.Profile = chosen.Sandbox, chosen.Profile
+		a.pickStartAgent(start, label, pr)
+	})
+}
+
+// sandboxesChosen is what the sandboxes chosen for a task are counted under,
+// beside the places things are opened in.
+const sandboxesChosen = "sandbox"
+
+// pickSandbox asks which sandbox a task goes into - the most used first -
+// or makes a new one: of only's profile, of the profiles offering agent,
+// or of any. With no agent named, a sole choice is taken without asking;
+// with one, the sandbox is always asked for, being the question the
+// action was chosen to be asked.
+func (a *App) pickSandbox(label string, only *unibox.Profile, agent string, then func(unibox.Start, unibox.Profile)) {
 	o := a.ubx.overview
-	var items []pickItem
+	profileOf := map[string]unibox.Profile{}
+	for _, p := range o.Profiles {
+		profileOf[p.Name] = p
+	}
+	fits := func(p unibox.Profile) bool {
+		return (only == nil || p.Name == only.Name) && (agent == "" || slices.Contains(p.Agents, agent))
+	}
 	type choiceOf struct {
 		profile unibox.Profile
 		sandbox string
 		fresh   bool
 	}
-	for _, s := range o.Sandboxes {
-		if only != nil && s.Profile != only.Name {
+	uses := a.cfg.State.PlaceUses[sandboxesChosen]
+	boxes := slices.Clone(o.Sandboxes)
+	sort.SliceStable(boxes, func(i, j int) bool { return uses[boxes[i].Name] > uses[boxes[j].Name] })
+	var items []pickItem
+	for _, s := range boxes {
+		pr, ok := profileOf[s.Profile]
+		if !ok || !fits(pr) {
 			continue
-		}
-		var pr unibox.Profile
-		for _, p := range o.Profiles {
-			if p.Name == s.Profile {
-				pr = p
-			}
 		}
 		about := fmt.Sprintf("Profile %s, %s, %s. Its tasks share one VM: its memory, its Docker, its ports.", s.Profile, s.Runtime, counted(len(s.Tasks), "task", "tasks"))
 		items = append(items, pickItem{Label: s.Name, Sub: s.Profile + " · " + s.State, About: about, Data: choiceOf{profile: pr, sandbox: s.Name}})
 	}
 	for _, p := range o.Profiles {
-		if only != nil && p.Name != only.Name || p.Error != "" {
+		if !fits(p) || p.Error != "" {
 			continue
 		}
 		items = append(items, pickItem{Label: "New Sandbox of " + p.Name + "…", About: "A VM of its own for this task, made from " + p.Name + ": nothing it does reaches another task.",
 			Data: choiceOf{profile: p, fresh: true}})
 	}
 	if len(items) == 0 {
+		if agent != "" {
+			a.flash("no profile offers " + agentLabel(agent) + " - add it to one with unibox init <profile>")
+			return
+		}
 		a.flash("no profile to make a sandbox from - add one with unibox init <profile>")
 		return
 	}
 	pick := func(c choiceOf) {
-		start.Profile = c.profile.Name
+		start := unibox.Start{Profile: c.profile.Name}
 		if !c.fresh {
 			start.Sandbox = c.sandbox
-			a.pickStartAgent(start, label, c.profile)
+			a.cfg.State.UsePlace(sandboxesChosen, c.sandbox)
+			a.saveState()
+			then(start, c.profile)
 			return
 		}
 		a.askSandboxName(c.profile, func(name string) {
 			start.Sandbox = name
-			a.pickStartAgent(start, label, c.profile)
+			a.cfg.State.UsePlace(sandboxesChosen, name)
+			a.saveState()
+			then(start, c.profile)
 		})
 	}
-	if len(items) == 1 {
+	if len(items) == 1 && agent == "" {
 		pick(items[0].Data.(choiceOf))
 		return
 	}
-	a.showPickerWith(label+" · which sandbox", items, pickerOptions{pack: true, explain: true}, func(it pickItem) {
+	title := label + " · which sandbox"
+	if agent != "" {
+		title = label + " with " + agentLabel(agent) + " · which sandbox"
+	}
+	a.showPickerWith(title, items, pickerOptions{pack: true, explain: true}, func(it pickItem) {
 		pick(it.Data.(choiceOf))
 	})
 }
@@ -767,7 +861,11 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 			a.runSandboxAgent(what, place, append([]string{"run"}, start.Args()...))
 		}
 		var lines, warnings []string
-		unpushed := false
+		// unibox run asks on the terminal about a login and about local
+		// changes, pushes only with --push, and refuses anything else: a
+		// start it would refuse is not offered, or it only flashes its
+		// reason past and leaves an exit status behind.
+		unpushed, refused := false, false
 		for _, need := range check.Needs {
 			text := need.Message
 			if need.Repository != "" && !strings.Contains(text, need.Repository) {
@@ -777,7 +875,13 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 				warnings = append(warnings, text)
 				continue
 			}
-			unpushed = unpushed || need.Code == "branch_not_pushed"
+			switch need.Code {
+			case "branch_not_pushed", "branch_missing":
+				unpushed = true
+			case "login_required", "uncommitted", "local_commits":
+			default:
+				refused = true
+			}
 			lines = append(lines, text)
 		}
 		if check.Ready && len(warnings) == 0 {
@@ -785,22 +889,35 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 			return
 		}
 		body := "Start " + agentLabel(start.Agent) + " on " + label + " in " + start.Sandbox + "?"
+		if refused {
+			body = agentLabel(start.Agent) + " cannot start on " + label + " in " + start.Sandbox + " yet."
+		}
 		if len(lines) > 0 {
 			body += "\n\nunibox says:\n"
 			for _, l := range lines {
 				body += "  " + glyphDot + " " + esc(l) + "\n"
 			}
-			body += "\nunibox run sees to what it can, and says on the terminal what it cannot."
+			switch {
+			case refused:
+				body += "\nunibox run refuses to start until that is done."
+			case unpushed:
+				body += "\nunibox run starts once the branch is on the forge; it asks on the terminal about the rest."
+			default:
+				body += "\nunibox run asks about it on the terminal."
+			}
 		}
 		var choices []choice
-		if unpushed {
+		switch {
+		case refused:
+		case unpushed:
 			choices = append(choices, choice{"Push and Start", func() { a.closeModal(pageConfirm); run(true) }})
+		default:
+			label := "Start"
+			if len(lines) > 0 {
+				label = "Start Anyway"
+			}
+			choices = append(choices, choice{label, func() { a.closeModal(pageConfirm); run(false) }})
 		}
-		label := "Start"
-		if len(lines) > 0 {
-			label = "Start Anyway"
-		}
-		choices = append(choices, choice{label, func() { a.closeModal(pageConfirm); run(false) }})
 		a.confirmChoices("New task", body, warnings, choices)
 	})
 }
@@ -919,13 +1036,13 @@ func (a *App) showProfileNetwork(pr unibox.Profile) {
 	}, func(string) {
 		var items []pickItem
 		for _, h := range network.Allow {
-			items = append(items, pickItem{Label: h, Sub: "allowed", About: "The sandboxes may reach " + h + ", which the runtime's policy refuses.", Data: networkRule{host: h, allowed: true}})
+			items = append(items, pickItem{Label: h, Sub: "allowed", SubRole: "sandboxes.allowed", About: "The sandboxes may reach " + h + ", which the runtime's policy refuses.", Data: networkRule{host: h, allowed: true}})
 		}
 		for _, h := range network.Deny {
-			items = append(items, pickItem{Label: h, Sub: "denied", About: "The sandboxes may not reach " + h + ", which the runtime's policy allows.", Data: networkRule{host: h}})
+			items = append(items, pickItem{Label: h, Sub: "denied", SubRole: "sandboxes.denied", About: "The sandboxes may not reach " + h + ", which the runtime's policy allows.", Data: networkRule{host: h}})
 		}
 		for _, h := range sortedKeys(network.Services) {
-			items = append(items, pickItem{Label: h, Sub: "service " + network.Services[h], About: "Reached for service " + network.Services[h] + "; Services… changes it.", Data: networkRule{host: h, service: network.Services[h]}})
+			items = append(items, pickItem{Label: h, Sub: "service " + network.Services[h], SubRole: "sandboxes.service", About: "Reached for service " + network.Services[h] + "; Services… changes it.", Data: networkRule{host: h, service: network.Services[h]}})
 		}
 		ask := func(verb string) func(pickItem) {
 			return func(pickItem) {

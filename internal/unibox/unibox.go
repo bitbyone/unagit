@@ -18,10 +18,15 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 // APIVersion is the version of unibox's JSON contract this unagit is written
@@ -144,11 +149,28 @@ func firstLine(text, fallback string) string {
 }
 
 // Stream runs a command whose progress is worth reading - a build, a
-// recreation - and hands its output to say a line at a time.
+// recreation - and hands its output to say a line at a time, colours and
+// all: its output goes to a terminal of its own, so sbx and docker colour
+// it as they do on the user's. Its input stays none, so nothing it would
+// ask on a terminal waits for an answer, and docker's progress is plain,
+// line after line, rather than redrawn in place.
 func (c *Client) Stream(ctx context.Context, say func(string), args ...string) error {
 	cmd := exec.CommandContext(ctx, c.Binary, append(append([]string{}, args...), "--yes")...)
-	reader, writer := io.Pipe()
-	cmd.Stdout, cmd.Stderr = writer, writer
+	cmd.Env = append(os.Environ(), "BUILDKIT_PROGRESS=plain", "TERM=xterm-256color")
+	var reader io.Reader
+	var writer io.WriteCloser
+	if master, tty, err := pty.Open(); err == nil {
+		_ = pty.Setsize(master, &pty.Winsize{Rows: 50, Cols: 160})
+		defer master.Close()
+		// The child holds its own copy of the terminal; this one is closed
+		// once it started, so the master reads its end when it exits.
+		cmd.Stdout, cmd.Stderr = tty, tty
+		reader, writer = ptyReader{master}, tty
+	} else {
+		pr, pw := io.Pipe()
+		cmd.Stdout, cmd.Stderr = pw, pw
+		reader, writer = pr, pw
+	}
 	var last string
 	var mu sync.Mutex
 	done := make(chan struct{})
@@ -158,9 +180,9 @@ func (c *Client) Stream(ctx context.Context, say func(string), args ...string) e
 		scan.Buffer(make([]byte, 64*1024), 1024*1024)
 		for scan.Scan() {
 			line := strings.TrimRight(scan.Text(), "\r")
-			if strings.TrimSpace(line) != "" {
+			if plain := strings.TrimSpace(StripANSI(line)); plain != "" {
 				mu.Lock()
-				last = line
+				last = plain
 				mu.Unlock()
 			}
 			say(line)
@@ -168,6 +190,9 @@ func (c *Client) Stream(ctx context.Context, say func(string), args ...string) e
 		_, _ = io.Copy(io.Discard, reader)
 	}()
 	err := cmd.Start()
+	if _, isTTY := writer.(*os.File); isTTY {
+		_ = writer.Close()
+	}
 	if err == nil {
 		err = cmd.Wait()
 	}
@@ -179,6 +204,34 @@ func (c *Client) Stream(ctx context.Context, say func(string), args ...string) e
 		return c.failed(args, err, last)
 	}
 	return nil
+}
+
+// ptyReader reads a terminal's master end, taking the error Linux gives
+// once the other end is closed for the end of the output it is.
+type ptyReader struct{ f *os.File }
+
+func (r ptyReader) Read(b []byte) (int, error) {
+	n, err := r.f.Read(b)
+	if err != nil && errors.Is(err, syscall.EIO) {
+		err = io.EOF
+	}
+	return n, err
+}
+
+// ansiSequence is an escape sequence a terminal reads: a colour, a move
+// of the cursor, a title.
+var ansiSequence = regexp.MustCompile(`\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[@-Z\\-_])`)
+
+// StripANSI is text as it reads without the terminal's escape sequences.
+func StripANSI(s string) string { return ansiSequence.ReplaceAllString(s, "") }
+
+// CommandHolding is Command for what runs in a terminal of its own - an
+// agent, a shell: when unibox stops with an error it waits for Enter, so
+// what it said on the terminal is read before the terminal is unagit's
+// again, or its pane closes.
+func (c *Client) CommandHolding(args ...string) *exec.Cmd {
+	const hold = `"$@"; s=$?; if [ $s -ne 0 ] && [ $s -ne 130 ]; then printf '\nunibox stopped (exit %s) - press Enter to go back\n' "$s"; read _; fi; exit $s`
+	return exec.Command("/bin/sh", append([]string{"-c", hold, "unibox", c.Binary}, args...)...)
 }
 
 // Command is a command run on a terminal: an agent, a shell, a sign-in that

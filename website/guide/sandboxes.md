@@ -136,3 +136,14 @@ shown.
 and a clone, does the same as **New Task…** from the other side: the sandbox
 (one of a profile's, or **New Sandbox of &lt;profile&gt;…**), the agent, the
 place. A grouped worktree goes into one task with all its repositories.
+
+**Sandbox with &lt;agent&gt;…** names the agent at once, and typing finds it
+in each place too - **Sandbox with Claude Code in Ghostty Window**. Each
+asks which sandbox, the one chosen most often at the top, or a new one of a
+profile that offers the agent.
+
+unibox checks the task first. What `unibox run` asks about on the terminal -
+a login, local changes - is left to it; a branch the forge does not have is
+offered **Push and Start** alone, and anything run would refuse is said
+without a start to choose. Should run stop all the same, it waits for Enter,
+so what it said can be read.

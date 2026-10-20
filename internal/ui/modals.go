@@ -119,6 +119,9 @@ func (a *App) confirmChoicesBack(title, body string, warnings []string, choices 
 type pickItem struct {
 	Label string
 	Sub   string
+	// SubRole colours Sub, which is otherwise dim: a state that is the
+	// point of the row, such as a host allowed or denied.
+	SubRole string
 	// About is what the item is, in a sentence, for a picker that explains
 	// its items; it is searched as well. AboutMarkup, when set, is the
 	// same with colours, drawn in its place.
@@ -551,7 +554,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		for _, h := range hits {
 			label := h.it.Label
 			if h.it.Sub != "" && !h.it.Rule {
-				label += "   " + tag(colDim) + h.it.Sub + tagEnd
+				colour := colDim
+				if h.it.SubRole != "" {
+					colour = role(h.it.SubRole)
+				}
+				label += "   " + tag(colour) + h.it.Sub + tagEnd
 			}
 			shown, shownAt = append(shown, h.it), append(shownAt, h.at)
 			list.AddItem(label, "", 0, nil)

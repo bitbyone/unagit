@@ -279,7 +279,7 @@ func (a *App) askServiceToken(pr unibox.Profile) {
 	kind := addSelect(form, kindLabel, serviceKinds, 0)
 	form.AddInputField(hostsLabel, "", 0, nil, nil)
 	token := addPassword(form, tokenLabel, 0)
-	form.AddTextView("", "Hosts: empty for the kind's own - gitlab.com,\ngithub.com; github.com/<owner> for one owner.\nToken: a narrow one, for the sandboxes alone.", 0, 3, true, false)
+	form.AddTextView("", "Kind is unibox's preset: gitlab and github wire\nthe sandbox's git to the hosts; artifactory puts\nthe token in ARTIFACTORY_TOKEN; generic, the hosts\nalone. Hosts: empty for gitlab.com, github.com;\ngithub.com/<owner> for one owner.\nToken: a narrow one, for the sandboxes alone.", 0, 6, true, false)
 	form.AddButton("Add", func() {
 		name := strings.TrimSpace(form.GetFormItemByLabel(nameLabel).(*tview.InputField).GetText())
 		hosts := strings.FieldsFunc(form.GetFormItemByLabel(hostsLabel).(*tview.InputField).GetText(), func(r rune) bool { return r == ',' || r == ' ' })
@@ -307,7 +307,7 @@ func (a *App) askServiceToken(pr unibox.Profile) {
 		a.uniboxDo("Adding "+name+" with a token in unagit", args...)
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Add a service · "+pr.Name, form, 64, 16)
+	a.showFormModalSized("Add a service · "+pr.Name, form, 64, 19)
 }
 
 // showCredentials lists the tokens unagit keeps for the sandboxes: Enter

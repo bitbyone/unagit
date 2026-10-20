@@ -1241,7 +1241,7 @@ func (a *App) showUniboxEvent(e *uniboxEvent) {
 	if len(e.output) > 0 {
 		d.section("Output")
 		for _, line := range e.output {
-			d.raw(tag(colMuted) + esc(line) + tagEnd + "\n")
+			d.raw(tag(colMuted) + outputLine(line) + tagEnd + "\n")
 		}
 	}
 	a.showSandboxText(e.title, d.String())

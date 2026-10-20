@@ -1855,6 +1855,13 @@ func (a *App) runTaskThen(title string, fn func(log func(string)) (string, error
 	a.runTaskEnding(title, session.Record{}, nil, then, fn)
 }
 
+// outputLine is a line of a command's output as a log draws it: escaped,
+// in the colours a terminal would have shown it in (colourLine, as a CI
+// log), and ending where it began.
+func outputLine(line string) string {
+	return colourLine(noise.ReplaceAllString(line, "")) + "[-:-:-]"
+}
+
 // runTaskEnding runs fn under a log. What it returns is a directory to open
 // in the editor, unless then is given; then it is handed to then instead.
 func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Editor, then func(string), fn func(log func(string)) (string, error)) {
@@ -1891,7 +1898,7 @@ func (a *App) runTaskEnding(title string, what session.Record, ed *editors.Edito
 			if i == len(lines)-1 {
 				mark = last
 			}
-			b.WriteString(mark + tag(colMuted) + tview.Escape(line) + tagEnd + "\n")
+			b.WriteString(mark + tag(colMuted) + outputLine(line) + tagEnd + "\n")
 		}
 		view.SetText(b.String())
 		// Scrolled here, on the event loop, rather than from a changed

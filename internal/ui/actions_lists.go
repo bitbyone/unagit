@@ -85,7 +85,6 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Open", about: "Open the clone in your default editor, here, cloning it first when it is not on disk.", keys: "Ctrl-O", rank: 10, run: func() { p.onOpen(false) }},
 		a.openAction("repository", pr.PathWithNamespace, openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }}),
 		{name: "Open With…", about: "Choose the editor, then open the clone here.", keys: "Alt-O", rank: 15, run: func() { p.onOpen(true) }},
-		a.openInSandboxAction(pr.PathWithNamespace, func() []string { return []string{a.projectDir(pr.Instance, pr.PathWithNamespace)} }, cloned),
 		{name: "New Worktree…", about: "Check a branch out in a directory of its own beside the clone, an existing branch or a new one.", keys: "Ctrl-W", rank: 20, run: func() { a.showWorktreePicker(pr) }},
 		{name: "Pull", about: "Fetch origin and fast-forward the clone's branch when nothing local is in the way.", keys: "p", rank: 30, when: cloned, run: func() { a.updateProject(pr) }},
 		{name: "Commit…", about: "Commit the clone's changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: "c", rank: 32, when: edited, run: func() { a.commitProject(pr) }},
@@ -157,6 +156,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
+	acts = append(acts, a.openInSandboxActions(pr.PathWithNamespace, func() []string { return []string{a.projectDir(pr.Instance, pr.PathWithNamespace)} }, cloned)...)
 	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }
 
@@ -409,22 +409,22 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 		return a.keptReviewActions(p, r)
 	}
 	acts := a.worktreeActions(r, p.onOpen, "c")
+	acts = append(acts, a.openInSandboxActions(r.Path, func() []string {
+		if !r.grouped() {
+			return []string{r.Dir}
+		}
+		var dirs []string
+		for _, m := range r.Members {
+			dirs = append(dirs, m.Dir)
+		}
+		return dirs
+	}, nil)...)
 	return append(acts,
 		uiAction{name: "Refresh", about: "Fetch this worktree's repository, read its branch's pipeline and bring in its merge request's comments, leaving the rest as it is.", keys: "r", rank: 38,
 			run: func() { a.refreshWorktreeRow(r) }},
 		uiAction{name: "Show Commit Log", about: "The worktree's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: func() bool { return !r.grouped() },
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Open View", about: "Open the worktree's view: its state, commits and merge request, block by block.", keys: "Enter", rank: 5, run: p.enter},
-		a.openInSandboxAction(r.Path, func() []string {
-			if !r.grouped() {
-				return []string{r.Dir}
-			}
-			var dirs []string
-			for _, m := range r.Members {
-				dirs = append(dirs, m.Dir)
-			}
-			return dirs
-		}, nil),
 		uiAction{name: "Remove from Group…", about: "Remove one repository's worktree from the group; its branch stays.", keys: "x", rank: 65, when: func() bool { return r.grouped() },
 			run: func() { a.removeFromGroup(r) }},
 		uiAction{name: "Delete from Disk…", about: "Delete the worktree from disk; asks first and lists what would be lost.", keys: "d", rank: 800, run: func() {

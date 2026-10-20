@@ -3,6 +3,7 @@ package unibox_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -128,6 +129,29 @@ func TestAStreamHandsOverEveryLine(t *testing.T) {
 	err := c.Stream(context.Background(), func(string) {}, "profile", "build", "bad")
 	if err == nil || !strings.Contains(err.Error(), "fix line 3") {
 		t.Fatalf("a failed stream says its last line: %v", err)
+	}
+}
+
+// TestAStreamKeepsItsColours: a stream's output goes to a terminal, so
+// what colours only a terminal's output - sbx, docker - colours it; the
+// line that says why it failed is read without the colours.
+func TestAStreamKeepsItsColours(t *testing.T) {
+	t.Parallel()
+	bin := filepath.Join(t.TempDir(), "unibox")
+	script := "#!/bin/sh\nif [ -t 1 ] && ! [ -t 0 ]; then printf '\\033[32mbuilt\\033[0m\\n'; else echo plain; fi\nprintf '\\033[31mno room left\\033[0m\\n' >&2\nexit 1\n"
+	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	err := unibox.New(bin).Stream(context.Background(), func(s string) { lines = append(lines, s) }, "profile", "build", "web")
+	if len(lines) != 2 || lines[0] != "\x1b[32mbuilt\x1b[0m" {
+		t.Fatalf("lines: %q", lines)
+	}
+	if err == nil || !strings.HasSuffix(err.Error(), ": no room left") {
+		t.Fatalf("the failure is not its last line, plain: %v", err)
+	}
+	if unibox.StripANSI("a\x1b]0;title\x07b \x1b[1;38;5;208m[x]\x1b[m") != "ab [x]" {
+		t.Fatal("escape sequences are left in")
 	}
 }
 

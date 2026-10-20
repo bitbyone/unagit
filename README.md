@@ -694,7 +694,9 @@ host whenever it wants the token, and it asks the running, unlocked unagit
 over a socket - closed or locked, there is none, and nothing keeps the
 passphrase. Every handout is in Activity; a forge token is never one.
 **Open in Sandbox…** on a worktree, a grouped worktree or a
-clone starts a task from there. See the
+clone starts a task from there, and **Sandbox with Claude Code…** - or
+with Claude Code in a Ghostty window, found by typing - names the agent at
+once; each asks which sandbox, the most used first. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
 
 ### Where things open

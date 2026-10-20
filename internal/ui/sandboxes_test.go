@@ -398,9 +398,13 @@ func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "acme/gateway with Claude Code · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
-	waitFor(t, a, sc, "the forge has no branch main")
+	waitFor(t, a, sc, "push it first")
 	waitFor(t, a, sc, "the profile changed since the build")
-	keys := buttonKeys([]string{"Cancel", "Push and Start", "Start Anyway"})
+	// unibox run refuses a branch the forge lacks: no start without the push.
+	if strings.Contains(a.screenText(sc), "Start Anyway") {
+		t.Fatal("a start unibox would refuse is offered")
+	}
+	keys := buttonKeys([]string{"Cancel", "Push and Start"})
 	typeRunes(sc, string(keys[1]))
 	run := "run " + p.clone + " -s web-1 -p web --agent claude --push"
 	waitCalled(t, a, fake, run)
@@ -507,4 +511,33 @@ func assertFormFits(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview
 			t.Errorf("%q is not on screen:\n%s", want, text)
 		}
 	}
+}
+
+// TestASandboxWithAnAgentAsksTheSandboxMostUsedFirst: Sandbox with Claude
+// Code… on a repository asks which sandbox - the one chosen most often at
+// the top - then where, and runs the agent there.
+func TestASandboxWithAnAgentAsksTheSandboxMostUsedFirst(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":1,"ready":true,"needs":[],"repositories":[]}`),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	changeOnLoop(a, func() {
+		a.cfg.State.UsePlace(sandboxesChosen, "web-2")
+		a.refreshDisk()
+	})
+	pickMuxAction(t, a, sc, "Sandbox with Claude Code…")
+	waitFor(t, a, sc, "acme/gateway with Claude Code · which sandbox")
+	waitFor(t, a, sc, "New Sandbox of web…")
+	text := a.screenText(sc)
+	if lineOf(text, "web-2") > lineOf(text, "web-1 ") {
+		t.Fatalf("the sandbox chosen most is not first:\n%s", text)
+	}
+	waitFor(t, a, sc, "NORMAL")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "acme/gateway with Claude Code · where")
+	pickPlace(t, a, sc, "claude", "This Terminal")
+	waitCalled(t, a, fake, "run "+p.clone+" -s web-2 -p web --agent claude")
 }
