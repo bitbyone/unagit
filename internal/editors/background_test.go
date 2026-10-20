@@ -57,8 +57,10 @@ func TestASlowVersionIsAskedAgain(t *testing.T) {
 	if e.CanDetach() {
 		t.Fatal("a version not said in time was read")
 	}
-	// The second answer has the usual time, which a loaded machine needs.
-	versionTimeout = was
+	// What is tested is that it is asked again, not how fast it answers:
+	// under the race detector and the rest of the suite even the usual
+	// five seconds once ran out.
+	versionTimeout = time.Minute
 	write("#!/bin/sh\necho 'NVIM v0.12.0'\n")
 	if !e.CanDetach() {
 		t.Fatal("the slow answer was kept: the version was not asked again")

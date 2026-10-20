@@ -730,6 +730,15 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 		case <-time.After(patience):
 			t.Error("application did not stop")
 		}
+		// A read of the agents still running writes into a stand-in's
+		// directory, which the test is about to remove.
+		read := make(chan struct{})
+		go func() { a.readingAgents.Wait(); close(read) }()
+		select {
+		case <-read:
+		case <-time.After(patience):
+			t.Error("the agents are still being read")
+		}
 	})
 	sc.observeKeys(a)
 	return a, sc, stopped

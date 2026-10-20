@@ -103,6 +103,9 @@ type App struct {
 	editorMu sync.Mutex
 	// suspends counts the programs holding the terminal (suspend).
 	suspends sync.WaitGroup
+	// readingAgents counts the reads of the agents under way: herdr runs
+	// for each, and a test's teardown waits for it to have finished.
+	readingAgents sync.WaitGroup
 	// Visits are recorded by editor and removal workers; their switch and
 	// cached client are shared, while score snapshots belong to the loop.
 	zoxideOnce    sync.Once

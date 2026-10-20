@@ -98,8 +98,10 @@ func (a *App) refreshAgents() {
 	}
 	herdr := a.herdr()
 	a.agentsReading = true
+	a.readingAgents.Add(1)
 	go func() {
 		rows, err := readAgents(herdr, a.sessions)
+		a.readingAgents.Done()
 		a.tv.QueueUpdateDraw(func() {
 			a.agentsReading = false
 			a.agentsError = ""
