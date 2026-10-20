@@ -570,6 +570,32 @@ func (c *Client) Agents(profile string) ([]Agent, error) {
 	return out.Agents, err
 }
 
+// Template is what unibox template inspect tells of a template - a git URL
+// or a directory - before anything is copied from it.
+type Template struct {
+	Name     string            `json:"name"`
+	Source   string            `json:"source"`
+	Profiles []TemplateProfile `json:"profiles"`
+}
+
+// TemplateProfile is one profile a template offers: what it would bring,
+// whether the repository has one of its name already, or why it does not
+// load.
+type TemplateProfile struct {
+	Name    string            `json:"name"`
+	Agents  []string          `json:"agents"`
+	Vars    map[string]string `json:"vars"`
+	Secrets []string          `json:"secrets"`
+	Exists  bool              `json:"exists"`
+	Error   string            `json:"error,omitempty"`
+}
+
+func (c *Client) Template(source string) (Template, error) {
+	var out Template
+	err := c.read(&out, "template", "inspect", source)
+	return out, err
+}
+
 // Service is a forge or another host service a profile's sandboxes are
 // signed in to. Token says whether its token is stored, never what it is.
 type Service struct {

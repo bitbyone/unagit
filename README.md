@@ -677,7 +677,13 @@ is grey and says so. **Set Up unibox…** (`I`, or `Enter` on the grey tab)
 lists what a first sandbox needs - unibox, the runtime signed in, the
 environments repository, a profile, its image, its logins - each with how
 it stands, and `Enter` does a step; **Init unibox Here** on a repository of
-Repositories makes it the environments repository.
+Repositories makes it the environments repository. **New Profile from
+Template…** (the guide's Profiles step, or the tab's action picker) lists
+your repositories, clones first, reads the one picked with `unibox template
+inspect` - cloning it first when it is not - lists its profiles with their
+agents and what each will ask of you, and copies the one chosen with `unibox
+init <name> --from <clone> --use <profile>`, under another name when you
+have one of its.
 
 Everything is read from unibox's `--json` and every change is a unibox
 command; unagit reads none of its files. On a task `o` resumes its agent and

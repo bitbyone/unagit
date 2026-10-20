@@ -205,7 +205,7 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 					a.uniboxStream("Pruning images", "prune")
 				})
 			}},
-	}, a.listActions(p)...)
+	}, append(a.newProfileActions(env), a.listActions(p)...)...)
 }
 
 // uniboxDo runs a command that changes something, behind the interface,

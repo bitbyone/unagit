@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os/exec"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/unibox"
 )
 
@@ -156,10 +158,10 @@ func (a *App) setupSteps(o unibox.Overview, needs map[string][]unibox.Need) []se
 		names = append(names, p.Name)
 	}
 	prof := setupStep{name: "Profiles", state: strings.Join(names, ", "), done: len(names) > 0,
-		about: "A profile says what a sandbox is: its image, its agents, what it may reach. Enter adds another.", run: a.askNewProfile}
+		about: "A profile says what a sandbox is: its image, its agents, what it may reach. Enter adds another, new or copied from a template repository.", run: a.chooseNewProfile}
 	if len(names) == 0 {
 		prof.state = "none"
-		prof.about = "A profile says what a sandbox is: its image, its agents, what it may reach. Enter adds one: its name, its agents, its resources."
+		prof.about = "A profile says what a sandbox is: its image, its agents, what it may reach. Enter adds one: new, with its name, agents and resources, or copied from a template repository."
 	}
 	steps = append(steps, prof)
 
@@ -300,6 +302,180 @@ func (a *App) initUniboxHere(dir string) {
 		})
 	})
 }
+
+// newProfileActions are the two ways to add a profile, for the screen's
+// pickers and the guide.
+func (a *App) newProfileActions(env func() bool) []uiAction {
+	return []uiAction{
+		{name: "New Profile…", about: "Add a profile to the environments repository: its name, its agents, its resources.",
+			rank: 80, when: env, run: a.askNewProfile},
+		{name: "New Profile from Template…", about: "Copy a profile from a repository of yours that holds profiles - a template - with unibox init --from; it is cloned first when it is not.",
+			rank: 81, when: env, aliases: []string{"template", "init --from"}, run: a.chooseTemplateRepository},
+	}
+}
+
+// chooseNewProfile asks which way a profile is added.
+func (a *App) chooseNewProfile() {
+	acts := a.newProfileActions(func() bool { return true })
+	items := make([]pickItem, len(acts))
+	for i, act := range acts {
+		items[i] = pickItem{Label: act.name, About: act.about, Data: act.run}
+	}
+	a.showPickerWith("New profile", items, pickerOptions{explain: true, pack: true}, func(it pickItem) { it.Data.(func())() })
+}
+
+// chooseTemplateRepository lists the repositories to copy a profile from,
+// the clones first: a template is a repository laid out as unibox's.
+func (a *App) chooseTemplateRepository() {
+	type repo struct {
+		pr     forge.Project
+		cloned bool
+	}
+	var repos []repo
+	for _, pr := range a.projects {
+		repos = append(repos, repo{pr, a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned})
+	}
+	sort.SliceStable(repos, func(i, j int) bool {
+		if repos[i].cloned != repos[j].cloned {
+			return repos[i].cloned
+		}
+		return repos[i].pr.PathWithNamespace < repos[j].pr.PathWithNamespace
+	})
+	if len(repos) == 0 {
+		a.flash("no repositories are listed yet - r in Repositories reads them")
+		return
+	}
+	items := make([]pickItem, len(repos))
+	table := make([][]string, len(repos))
+	for i, r := range repos {
+		dir := a.projectDir(r.pr.Instance, r.pr.PathWithNamespace)
+		where := tag(colMuted) + esc(tildePath(dir)) + tagEnd
+		items[i] = pickItem{Data: r.pr, About: "Copy a profile from " + tildePath(dir) + ", as it is checked out there."}
+		if !r.cloned {
+			where = tag(colDim) + "not cloned" + tagEnd
+			items[i].About = "Clone it first, to " + tildePath(dir) + ", then copy a profile from it."
+		}
+		table[i] = []string{esc(r.pr.PathWithNamespace), where}
+	}
+	header, labels := pickTable([]string{"REPOSITORY", "CLONE"}, table)
+	for i := range items {
+		items[i].Label = labels[i]
+	}
+	a.showPickerWith("Template repository", items, pickerOptions{explain: true, header: header}, func(it pickItem) {
+		pr := it.Data.(forge.Project)
+		dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
+		if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+			a.chooseTemplateProfile(dir)
+			return
+		}
+		a.runTaskThen("Cloning "+pr.PathWithNamespace, func(log func(string)) (string, error) {
+			return a.newManager(pr.Instance, pr.PathWithNamespace, log).CloneProject(pr)
+		}, func(dir string) {
+			a.refreshDisk()
+			a.chooseTemplateProfile(dir)
+		})
+	})
+}
+
+// chooseTemplateProfile reads what a template offers and lists its
+// profiles, each with its agents and what it will ask for.
+func (a *App) chooseTemplateProfile(dir string) {
+	c, err := a.uniboxClient()
+	if err != nil {
+		a.flash(err.Error())
+		return
+	}
+	var t unibox.Template
+	a.loadThen("Reading the template", func(func(string)) (string, error) {
+		var err error
+		t, err = c.Template(dir)
+		return "", err
+	}, func(string) {
+		if len(t.Profiles) == 0 {
+			a.flash(tildePath(dir) + " holds no profiles - a template is an environments repository, its profiles under sandboxes/")
+			return
+		}
+		items := make([]pickItem, len(t.Profiles))
+		table := make([][]string, len(t.Profiles))
+		for i, p := range t.Profiles {
+			items[i] = pickItem{Data: p, About: templateProfileAbout(p)}
+			note := ""
+			switch {
+			case p.Error != "":
+				note = tag(role("sandboxes.problem")) + "does not load" + tagEnd
+			case p.Exists:
+				note = tag(colMuted) + "you have one of this name" + tagEnd
+			}
+			table[i] = []string{esc(p.Name), esc(strings.Join(agentLabels(p.Agents), ", ")), note}
+		}
+		header, labels := pickTable([]string{"PROFILE", "AGENTS", ""}, table)
+		for i := range items {
+			items[i].Label = labels[i]
+		}
+		a.showPickerWith("Profiles of template "+t.Name, items, pickerOptions{explain: true, pack: true, header: header}, func(it pickItem) {
+			a.askTemplateCopy(dir, it.Data.(unibox.TemplateProfile))
+		})
+	})
+}
+
+// templateProfileAbout says what copying a template's profile brings and
+// what it will ask of the user.
+func templateProfileAbout(p unibox.TemplateProfile) string {
+	if p.Error != "" {
+		return "It does not load: " + p.Error + "."
+	}
+	about := "Agents: " + firstOf(strings.Join(agentLabels(p.Agents), ", "), "none") + "."
+	if len(p.Vars) > 0 {
+		names := make([]string, 0, len(p.Vars))
+		for v := range p.Vars {
+			names = append(names, v)
+		}
+		sort.Strings(names)
+		about += " Asks for your values of " + strings.Join(names, ", ") + "."
+	}
+	if len(p.Secrets) > 0 {
+		about += " Needs the tokens " + strings.Join(p.Secrets, ", ") + "."
+	}
+	if p.Exists {
+		about += " You have a profile of this name: give the copy another."
+	}
+	return about
+}
+
+// agentLabels are agents by the names people know them by.
+func agentLabels(ids []string) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = agentLabel(id)
+	}
+	return out
+}
+
+// askTemplateCopy asks the name of the copy - the template's own unless
+// the repository has that one - and copies it with unibox init --from.
+func (a *App) askTemplateCopy(dir string, p unibox.TemplateProfile) {
+	name := p.Name
+	if p.Exists {
+		name = ""
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddInputField(labelProfileName, name, 0, nil, nil)
+	form.AddButton("Copy", func() {
+		name := strings.TrimSpace(form.GetFormItemByLabel(labelProfileName).(*tview.InputField).GetText())
+		if !credentialName.MatchString(name) {
+			a.flash("enter the copy's name: letters, digits, dots, dashes - like web")
+			return
+		}
+		a.closeModal(pageForm)
+		a.uniboxStream("Copying profile "+p.Name+" as "+name, "init", name, "--from", dir, "--use", p.Name)
+	})
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModalSized("Copy profile "+p.Name, form, 60, 7)
+}
+
+// labelProfileName is the label of a profile's name in its forms.
+const labelProfileName = "Name"
 
 // sandboxAgentChoices are the agents unibox installs in a new profile.
 var sandboxAgentChoices = []string{"claude", "codex", "copilot"}

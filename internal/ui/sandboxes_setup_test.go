@@ -121,3 +121,48 @@ func TestTheNewProfileFormFitsItsFrame(t *testing.T) {
 		})
 	}
 }
+
+// TestANewProfileIsCopiedFromATemplateRepository: the guide's Profiles
+// step offers a template; the repositories are listed, a clone's template
+// read with unibox template inspect, its profiles shown with what they
+// bring, and the one picked copied with init --from under a name of its
+// own when the repository has one of the template's.
+func TestANewProfileIsCopiedFromATemplateRepository(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"runtime ls --json":         uniboxtest.JSON(`{"api_version":1,"runtimes":[{"name":"sbx","available":true,"enabled":true,"default":true}]}`),
+		"task check * --json":       uniboxtest.JSON(`{"api_version":1,"ready":true,"needs":[],"repositories":[]}`),
+		"template inspect * --json": uniboxtest.JSON(`{"api_version":1,"name":"gateway","source":"/x","shared":[],"profiles":[{"name":"web","agents":["claude"],"vars":{"git_name":"your name"},"secrets":[],"exists":true},{"name":"data","agents":["codex"],"vars":{},"secrets":["pypi"],"exists":false}]}`),
+		"init * --yes":              {Out: "copied\n"},
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 44)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	changeOnLoop(a, a.refreshDisk)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "I")
+	waitFor(t, a, sc, "Set up unibox")
+	doSetupStep(t, a, sc, "Profiles")
+	waitFor(t, a, sc, "New Profile from Template")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Template repository")
+	waitFor(t, a, sc, "not cloned")
+	assertLegible(t, a, sc, "the template repositories")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Profiles of template gateway")
+	waitFor(t, a, sc, "you have one of this name")
+	waitFor(t, a, sc, "Asks for your values of git_name")
+	assertLegible(t, a, sc, "a template's profiles")
+	if !fake.Called("template inspect " + p.clone + " --json") {
+		t.Fatalf("the clone was not read as a template: %v", fake.Calls())
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Copy profile web")
+	form := frontForm(a)
+	assertFormFits(t, a, sc, form, "Name", "Copy", "Cancel")
+	setField(t, a, form, 0, "web2")
+	pressButton(t, a, sc, form, "Copy")
+	waitCalled(t, a, fake, "init web2 --from "+p.clone+" --use web --yes")
+}

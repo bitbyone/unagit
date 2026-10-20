@@ -25,9 +25,17 @@ every time it opens:
 | **Sandboxes tab** on | turns the integration on |
 | **Runtime** ready - sbx signed in to Docker, say | runs what unibox suggests, such as `sbx login`, in this terminal |
 | **Environments repository**, where the profiles live | picks a clone to lay out with `unibox init --dir`, or **New Repository…** first |
-| **Profiles** | adds one: its name, its agents, CPUs and memory, or a template to copy |
+| **Profiles** | adds one: **New Profile…** with its name, agents, CPUs and memory, or **New Profile from Template…** |
 | **Image** of each profile, for the default runtime | builds it, in a log |
 | each profile **ready to start** - its agents signed in, its values set | goes to what is missing: Sign In Agents…, Values…, Services… |
+
+**New Profile from Template…** copies a profile from a repository of yours
+that holds profiles. It lists your repositories, clones first, and clones the
+one picked when it is not. `unibox template inspect` reads it, and its
+profiles are listed with their agents, the values each asks for and the
+tokens it needs. The one picked is copied with
+`unibox init <name> --from <clone> --use <profile>`, under a name of your
+choosing when you have one of its already.
 
 A repository of your own becomes the environments repository from
 Repositories, too: create it as any other (**New Repository…** in the action
