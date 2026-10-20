@@ -157,8 +157,8 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 }
 
 // TestWithoutUniboxTheSandboxesTabSaysSo: the tab is on the bar, grey,
-// and going there says in the middle of it that unibox is not there and
-// where it is turned on; Settings is S, at the bar's right end.
+// and going there says in the middle of it that unibox is not there, and
+// Enter sets it up; Settings is S, at the bar's right end.
 func TestWithoutUniboxTheSandboxesTabSaysSo(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -175,8 +175,12 @@ func TestWithoutUniboxTheSandboxesTabSaysSo(t *testing.T) {
 	if line := lineOf(text, "Sandboxes are not available"); line < 6 {
 		t.Fatalf("the word is not in the middle of the tab, at line %d:\n%s", line, text)
 	}
+	// Enter sets unibox up, from installing it.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitEditorState(t, a, func() bool { return a.currentTab() == pageSettings && a.settings.current == sectionIntegrations })
+	waitFor(t, a, sc, "Set up unibox")
+	waitFor(t, a, sc, "Install unibox")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Install unibox")
 	typeRunes(sc, "1")
 	waitEditorState(t, a, func() bool { return a.currentTab() == pageProjects })
 	typeRunes(sc, "S")

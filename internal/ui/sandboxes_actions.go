@@ -177,6 +177,7 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 	v := a.sandboxes
 	env := func() bool { return a.ubx.overview.Environments != "" }
 	return append([]uiAction{
+		a.setupAction(),
 		{name: "Refresh", about: "Read the sandboxes, their tasks, the profiles and the environment from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
 		{name: "Go to Sandbox Cards", about: "Move to the cards of the sandboxes: h and l between them, their actions on each.", keys: "B", rank: 40,
 			run: func() { v.focus(v.cards) }},

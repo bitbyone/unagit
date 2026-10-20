@@ -668,7 +668,11 @@ said. The detail follows the panel with the focus: a profile's sign-ins,
 services, network rules and the values it asks for; a sandbox's resources,
 ports and scripts; the environment's runtimes, secrets and values. Without
 `unibox` on PATH, or with it turned off in Settings › Integrations, the tab
-is grey and says so.
+is grey and says so. **Set Up unibox…** (`I`, or `Enter` on the grey tab)
+lists what a first sandbox needs - unibox, the runtime signed in, the
+environments repository, a profile, its image, its logins - each with how
+it stands, and `Enter` does a step; **Init unibox Here** on a repository of
+Repositories makes it the environments repository.
 
 Everything is read from unibox's `--json` and every change is a unibox
 command; unagit reads none of its files. On a task `o` resumes its agent and

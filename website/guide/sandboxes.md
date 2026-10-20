@@ -11,7 +11,28 @@ it is read from unibox's `--json` and everything done there is a unibox
 command: unagit reads no profile's YAML and none of unibox's state, so it
 shows what unibox itself would say. The integration is on whenever `unibox`
 is on `PATH` (Settings › Integrations, under *Sandboxes*); without it the
-tab is grey, and going there says so and where to turn it on.
+tab is grey, and going there says so - `Enter` there sets it up.
+
+## Setting up
+
+**Set Up unibox…** (`I` on the tab, or `Enter` while the tab is grey) lists
+what a first sandbox needs, each with how it stands, read afresh from unibox
+every time it opens:
+
+| Step | `Enter` |
+| --- | --- |
+| **unibox** installed | copies `brew install unibox` |
+| **Sandboxes tab** on | turns the integration on |
+| **Runtime** ready - sbx signed in to Docker, say | runs what unibox suggests, such as `sbx login`, in this terminal |
+| **Environments repository**, where the profiles live | picks a clone to lay out with `unibox init --dir`, or **New Repository…** first |
+| **Profiles** | adds one: its name, its agents, CPUs and memory, or a template to copy |
+| **Image** of each profile, for the default runtime | builds it, in a log |
+| each profile **ready to start** - its agents signed in, its values set | goes to what is missing: Sign In Agents…, Values…, Services… |
+
+A repository of your own becomes the environments repository from
+Repositories, too: create it as any other (**New Repository…** in the action
+picker), then **Init unibox Here** on it. While another repository holds the
+profiles, it asks first; the old one stays as it is.
 
 ## The tab
 

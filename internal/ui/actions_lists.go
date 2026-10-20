@@ -156,6 +156,10 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
+	acts = append(acts, uiAction{name: "Init unibox Here", about: "Lay this clone out as unibox's environments repository - where the profiles live - and make it the one unibox uses.",
+		rank: 630, aliases: []string{"unibox", "sandbox", "environments", "setup"},
+		when: func() bool { _, err := a.executable("unibox"); return cloned() && err == nil },
+		run:  func() { a.initUniboxHere(a.projectDir(pr.Instance, pr.PathWithNamespace)) }})
 	acts = append(acts, a.openInSandboxActions(pr.PathWithNamespace, func() []string { return []string{a.projectDir(pr.Instance, pr.PathWithNamespace)} }, cloned)...)
 	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }

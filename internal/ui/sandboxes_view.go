@@ -278,9 +278,9 @@ func (v *sandboxesView) sync() {
 func (a *App) sandboxesOffText() string {
 	head := tag(role("sandboxes.problem")) + "[::b]Sandboxes are not available[::-]" + tagEnd + "\n\n"
 	if on := a.cfg.Integrations.Unibox; on != nil && !*on {
-		return head + "The unibox integration is turned off.\n" + tag(colMuted) + "Enter opens Settings › Integrations, where it is turned on." + tagEnd
+		return head + "The unibox integration is turned off.\n" + tag(colMuted) + "Enter sets unibox up, step by step; Settings › Integrations turns it on too." + tagEnd
 	}
-	return head + "unibox is not installed - unagit runs it from PATH.\n" + tag(colMuted) + "Install it, then Enter opens Settings › Integrations." + tagEnd
+	return head + "unibox is not installed - unagit runs it from PATH.\n" + tag(colMuted) + "Enter sets unibox up, step by step, from installing it." + tagEnd
 }
 
 // offKeys are the tab's keys while it only says unibox is not there: to
@@ -288,13 +288,17 @@ func (a *App) sandboxesOffText() string {
 func (v *sandboxesView) offKeys(ev *tcell.EventKey) *tcell.EventKey {
 	a := v.app
 	if a.actionKeys(ev, func() (string, []uiAction) { return "", nil }, func() (string, []uiAction) {
-		return "Sandboxes", append([]uiAction{a.integrationsAction()}, a.listActions(v.pane)[1:]...)
+		setup := a.setupAction()
+		setup.keys, setup.rank = "Enter", 5
+		integrations := a.integrationsAction()
+		integrations.keys = ""
+		return "Sandboxes", append([]uiAction{setup, integrations}, a.listActions(v.pane)[1:]...)
 	}) {
 		return nil
 	}
 	switch ev.Key() {
 	case tcell.KeyEnter:
-		a.integrationsAction().run()
+		a.showUniboxSetup()
 		return nil
 	case tcell.KeyRune:
 		switch ev.Rune() {

@@ -439,9 +439,9 @@ func (a *App) sandboxesProblem() string {
 	case a.ubx.err != nil:
 		return a.ubx.err.Error()
 	case a.ubx.overview.Environments == "" && len(a.sandboxRows) == 0:
-		return "no environments repository yet - choose one with Set Environments Repository… (:)"
+		return "no environments repository yet - I sets unibox up, step by step"
 	case len(a.sandboxRows) == 0:
-		return "no profiles in " + tildePath(a.ubx.overview.Environments) + " - add one with unibox init <profile>"
+		return "no profiles in " + tildePath(a.ubx.overview.Environments) + " - I sets unibox up, step by step"
 	}
 	return ""
 }
