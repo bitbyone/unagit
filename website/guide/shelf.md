@@ -18,6 +18,13 @@ commit has them.
 | `a` | apply it and keep it on the shelf |
 | `d` | delete it; Rewrite History can undo that |
 
+**Move Changes to New Worktree…**, among a repository's actions, uses the
+shelf to carry work begun in the clone elsewhere: it asks for a branch name,
+makes that branch in a worktree at the commit the clone has out, and moves
+what is not committed there, unversioned files too. The clone is left clean
+and Worktrees comes up with the cursor on the new one. A step that fails
+leaves the changes on the shelf.
+
 An unshelve that would collide, a file not committed here too or a change the
 branch has since made to the same lines, is refused before anything moves.
 

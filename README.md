@@ -944,6 +944,12 @@ The shelf is git's stash, read as a list: it is the repository's, shared by
 its worktrees, and what lazygit or `git stash` put there is on it too. A
 review worktree is never shelved: its changes are the merge request's.
 
+**Move Changes to New Worktree…**, among a repository's actions, carries
+work begun in the clone elsewhere: it asks for a branch name, makes that
+branch in a worktree at the commit the clone has out, and moves what is not
+committed there by the shelf, unversioned files too. The clone is left clean;
+a step that fails leaves the changes on the shelf.
+
 A detached HEAD is a checkout with no branch: you can commit there, but the
 commits belong to no branch, and unagit will not push them - make a branch
 with `n` first.

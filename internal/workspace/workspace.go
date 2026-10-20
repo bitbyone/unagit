@@ -619,6 +619,44 @@ func (m *Manager) SmartSwitch(p forge.Project, branch string) (dir, shelf string
 	return dir, "", nil
 }
 
+// MoveChangesToWorktree takes what is not committed in the clone into a new
+// branch, checked out in a worktree of its own at the commit the clone has
+// out: the work goes on there, and the clone is left as its last commit
+// has it. The changes travel by the shelf, so a step that fails leaves them
+// on it under the name it answers, never lost.
+func (m *Manager) MoveChangesToWorktree(p forge.Project, branch string) (wtDir, shelf string, err error) {
+	dir := m.ProjectDir(p.PathWithNamespace)
+	head, err := m.git.Run(dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", "", err
+	}
+	head = strings.TrimSpace(head)
+	if m.git.LocalBranchExists(dir, branch) {
+		return "", "", fmt.Errorf("%s already exists in the clone - pick another name", branch)
+	}
+	shelf = "moving to " + branch
+	if err := m.git.Shelve(dir, shelf, nil); err != nil {
+		return "", "", err
+	}
+	shelves, err := m.git.Shelves(dir)
+	if err != nil || len(shelves) == 0 {
+		return "", shelf, fmt.Errorf("the changes are on the shelf as %q, but it cannot be read now: %v", shelf, err)
+	}
+	sha := shelves[0].SHA
+	wtDir, err = m.WorktreeAt(p, branch, head)
+	if err != nil {
+		if back := m.git.Unshelve(dir, sha, false); back != nil {
+			return "", shelf, fmt.Errorf("%w\n\nyour changes are on the shelf as %q", err, shelf)
+		}
+		return "", "", err
+	}
+	m.log("Unshelving the changes into %s", wtDir)
+	if err := m.git.Unshelve(wtDir, sha, false); err != nil {
+		return wtDir, shelf, fmt.Errorf("the worktree is made, but your changes did not go into it - they are on the shelf as %q: %w", shelf, err)
+	}
+	return wtDir, "", nil
+}
+
 // Removal describes what deleting a directory would throw away.
 type Removal struct {
 	Dir      string

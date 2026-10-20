@@ -90,6 +90,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		{name: "Commit…", about: "Commit the clone's changes to versioned files with a message you write, and push them with it if you like; unversioned files stay out.", keys: "c", rank: 32, when: edited, run: func() { a.commitProject(pr) }},
 		{name: "Changes…", about: "The files not committed and their diffs: pick some to commit, roll changes back, delete unversioned files.", keys: "Ctrl-K", rank: 31, when: cloned, run: func() { a.showProjectChanges(pr) }},
 		{name: "Push", about: "Push the clone's branch to origin once it has commits origin lacks; asks first.", keys: "P", rank: 33, when: pushable, run: func() { a.pushProject(pr) }},
+		{name: "Move Changes to New Worktree…", about: "Take what is not committed in the clone, unversioned files too, to a new branch in a worktree of its own at the same commit; the clone is left clean.", rank: 36,
+			when: anyEdit, run: func() { a.moveChangesToWorktree(pr) }},
 		{name: "New Merge Request…", about: "Open a merge request on the server from the branch the clone has out, pushing it first when origin lacks some of it.", keys: "n", rank: 34,
 			when: func() bool {
 				info := a.diskOf(pr.Instance, pr.PathWithNamespace)

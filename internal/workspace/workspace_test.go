@@ -344,6 +344,40 @@ func TestSwitchBranchSaysWhatIsInTheWay(t *testing.T) {
 	}
 }
 
+// TestMoveChangesToWorktree: the edits and an unversioned file leave the
+// clone, clean again on its branch, for a new branch in a worktree at the
+// same commit; the shelf is empty after.
+func TestMoveChangesToWorktree(t *testing.T) {
+	t.Parallel()
+	m, p, dir := divergedReadme(t)
+	if err := os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	head := git(t, dir, "rev-parse", "HEAD")
+	wt, shelf, err := m.MoveChangesToWorktree(p, "feat/moved")
+	if err != nil || shelf != "" {
+		t.Fatalf("shelf %q, err %v", shelf, err)
+	}
+	if got := git(t, dir, "status", "--porcelain"); got != "" {
+		t.Errorf("the clone still has %q", got)
+	}
+	if got := m.Git().CurrentBranch(dir); got != "main" {
+		t.Errorf("the clone moved to %q", got)
+	}
+	if got := git(t, wt, "rev-parse", "HEAD"); got != head {
+		t.Errorf("the worktree is at %s, want %s", got, head)
+	}
+	if got := git(t, wt, "status", "--porcelain"); got != "M README.md\n?? new.txt" {
+		t.Errorf("the worktree has %q", got)
+	}
+	if left, _ := m.Git().Shelves(dir); len(left) != 0 {
+		t.Errorf("left on the shelf: %+v", left)
+	}
+	if _, _, err := m.MoveChangesToWorktree(p, "feat/moved"); err == nil {
+		t.Error("a branch that exists was taken again")
+	}
+}
+
 // TestSmartSwitchShelvesAroundTheCheckout: the changes in the way are
 // shelved, the branch checked out, and they come back onto it, the shelf
 // empty again; changes that collide stay on the shelf, the branch out.

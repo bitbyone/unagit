@@ -78,3 +78,35 @@ func TestPushUpToHere(t *testing.T) {
 		t.Errorf("origin's main is %s, want %s", got, ready)
 	}
 }
+
+// TestMoveChangesToNewWorktree: the action takes the clone's edits to a new
+// branch in a worktree, and Worktrees comes up with the cursor on it.
+func TestMoveChangesToNewWorktree(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	must(t, os.WriteFile(filepath.Join(p.clone, "half.txt"), []byte("half done\n"), 0o644))
+	p.rescan()
+
+	pickMuxAction(t, a, sc, "Move Changes to New Worktree")
+	waitFor(t, a, sc, "Move Changes to New Worktree")
+	typeRunes(sc, "feat/moved")
+	pressButton(t, a, sc, frontForm(a), "Create")
+	waitFor(t, a, sc, "Ctrl-O opens it")
+	waitFor(t, a, sc, "feat/moved")
+	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "" {
+		t.Errorf("the clone still has %q", got)
+	}
+	wt := onLoop(a, func() string {
+		for _, r := range a.worktrees {
+			if r.Branch == "feat/moved" {
+				return r.Dir
+			}
+		}
+		return ""
+	})
+	if got, _ := os.ReadFile(filepath.Join(wt, "half.txt")); string(got) != "half done\n" {
+		t.Errorf("half.txt in the worktree = %q", got)
+	}
+}

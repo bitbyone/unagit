@@ -870,6 +870,25 @@ func (a *App) showWorktreeAt(dir string) {
 	a.done("created " + tildePath(dir) + " · Ctrl-O opens it")
 }
 
+// moveChangesToWorktree asks for a branch name and takes the clone's
+// uncommitted work there, in a worktree of its own, the cursor on it after.
+func (a *App) moveChangesToWorktree(pr forge.Project) {
+	if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		a.flash(pr.PathWithNamespace + " is not cloned - there is nothing of yours to move")
+		return
+	}
+	a.askName("Move Changes to New Worktree", "", func(name string) {
+		a.runTaskThen(fmt.Sprintf("Moving the changes of %s to %s", pr.PathWithNamespace, name),
+			func(log func(string)) (string, error) {
+				dir, _, err := a.newManager(pr.Instance, pr.PathWithNamespace, log).MoveChangesToWorktree(pr, name)
+				return dir, err
+			}, func(dir string) {
+				a.afterGitChange()
+				a.showWorktreeAt(dir)
+			})
+	}, func() {})
+}
+
 // openWorktree opens the editor in a worktree as it is on disk.
 func (a *App) openWorktree(r worktreeRow, ed *editors.Editor) {
 	a.openWorktreeIn(r, ed, editorPlace{})
