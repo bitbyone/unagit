@@ -80,9 +80,21 @@ func (e Editor) ServerCommandAt(dir, socket, file string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.Args = append(cmd.Args, "--listen", socket)
+	cmd.Args = append(cmd.Args, "--listen", socket, "-c", letGoOfTerminal)
 	return cmd, nil
 }
+
+// letGoOfTerminal points the server's standard input, output and error at
+// /dev/null. Neovim's server inherits the terminal it was started in and
+// keeps it after :detach, for as long as it runs - past unagit's own exit.
+// With no interface attached a plugin takes itself for headless and writes
+// there: lazy.nvim's hourly check printed its fetches over unagit's screen
+// and, after unagit, over the shell. The interface draws through its own
+// process, so the server never needs the terminal. Without LuaJIT's ffi it
+// is left as it was.
+const letGoOfTerminal = "lua local ok, ffi = pcall(require, 'ffi'); " +
+	"local fd = vim.uv.fs_open('/dev/null', 'r+', 0); " +
+	"if ok and fd then pcall(ffi.cdef, 'int dup2(int, int);'); for i = 0, 2 do ffi.C.dup2(fd, i) end; vim.uv.fs_close(fd) end"
 
 // SocketAlive checks the listener without asking the editor to run code.
 // A busy editor may not handle RPC yet; that must not cost it its record.

@@ -119,7 +119,7 @@ func TestBackgroundCommandMapsEveryEditingMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := strings.Join(cmd.Args, " ")
-	for _, want := range []string{"--listen /tmp/short.sock", "nnoremap <C-z>", "inoremap <C-z>", "vnoremap <C-z>"} {
+	for _, want := range []string{"--listen /tmp/short.sock", "nnoremap <C-z>", "inoremap <C-z>", "vnoremap <C-z>", letGoOfTerminal} {
 		if !strings.Contains(args, want) {
 			t.Errorf("missing %q in %q", want, args)
 		}

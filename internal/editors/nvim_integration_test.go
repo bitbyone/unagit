@@ -27,7 +27,7 @@ func TestNeovimDetachesAndKeepsItsBuffers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	terminal, exited, _ := editorPTY(t, start)
+	terminal, exited, early := editorPTY(t, start)
 	waitEditor(t, func() bool { _, err := RemoteExpr(bin, socket, "1"); return err == nil })
 	if _, err := RemoteExpr(bin, socket, `execute('file draft.txt') . execute('call setline(1, "still here")')`); err != nil {
 		t.Fatal(err)
@@ -36,10 +36,21 @@ func TestNeovimDetachesAndKeepsItsBuffers(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitEditorExit(t, exited)
-	terminal.Close()
 	if !SocketAlive(socket) {
 		t.Fatal("detaching closed the server")
 	}
+	// What a plugin prints with nobody attached - lazy.nvim's checks - once
+	// went to the terminal, over unagit and over the shell after it.
+	if _, err := RemoteExpr(bin, socket, `luaeval('io.stdout:write("after detach") and io.stderr:write("after detach") and 1')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RemoteExpr(bin, socket, "1"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(early.String(), "after detach") {
+		t.Fatal("the detached server wrote to the terminal")
+	}
+	terminal.Close()
 	if dirty, err := Modified(bin, socket); err != nil || !dirty {
 		t.Fatalf("unsaved buffer lost: modified=%v, %v", dirty, err)
 	}
