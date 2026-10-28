@@ -26,6 +26,8 @@ type shelfScope struct {
 	dir     string
 	branch  string
 	done    string
+	// embed makes the shelf a screen of its own (standalone's Shelf tab).
+	embed *embedding
 }
 
 func (s shelfScope) label() string {
@@ -116,7 +118,7 @@ func (a *App) showShelf(s shelfScope) {
 
 // listShelf shows the shelf.
 func (a *App) listShelf(s shelfScope, rows []shelfRow) {
-	if len(rows) == 0 {
+	if len(rows) == 0 && s.embed == nil {
 		if back := a.peekBack(); back != nil {
 			back()
 		}
@@ -150,9 +152,13 @@ func (a *App) listShelf(s shelfScope, rows []shelfRow) {
 		items[i].Label = labels[i]
 	}
 	at := func(it pickItem) shelfRow { return it.Data.(shelfRow) }
-	again := a.backOr(func() { a.showShelf(shelfScope{project: s.project, dir: s.dir, branch: s.branch}) })
-	a.showPickerWith("Shelf · "+s.label(), items, pickerOptions{
-		wide: true, explain: true, header: header, enterHint: "details",
+	again := a.backOr(func() { a.showShelf(shelfScope{project: s.project, dir: s.dir, branch: s.branch, embed: s.embed}) })
+	title := "Shelf · " + s.label()
+	if len(rows) == 0 {
+		title += " · empty"
+	}
+	a.showPickerWith(title, items, pickerOptions{
+		wide: true, explain: true, header: header, enterHint: "details", embed: s.embed,
 		enterName: "Show Details", enterAbout: "What the shelf holds: each file with the lines it adds and deletes.",
 		keys: []pickKey{
 			{keys: "u", hint: "unshelve", name: "Unshelve", about: "Put the changes into this checkout and take them off the shelf; refused, nothing changes.",

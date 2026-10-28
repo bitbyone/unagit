@@ -758,6 +758,9 @@ type Config struct {
 	// that two configurations can live side by side - the tests run in
 	// parallel, each with a directory of its own.
 	dir string
+	// readOnly is a configuration only looked at: unagit standalone reads
+	// the user's theme and editors but leaves the files as they were.
+	readOnly bool
 }
 
 // Default returns a configuration with sane defaults filled in.
@@ -788,6 +791,13 @@ func Path() string { return filepath.Join(Dir(), "config.yaml") }
 // SetDir moves the configuration to another directory; everything it reads
 // and writes from then on is there.
 func (c *Config) SetDir(dir string) { c.dir = dir }
+
+// SetReadOnly makes Save and SaveState write nothing from now on, while
+// everything else of the configuration still changes in memory.
+func (c *Config) SetReadOnly() { c.readOnly = true }
+
+// ReadOnly reports whether the configuration is only looked at.
+func (c *Config) ReadOnly() bool { return c.readOnly }
 
 // Dir is the directory this configuration lives in: the one it was loaded
 // from or given, and the usual one otherwise.
@@ -833,10 +843,17 @@ func IndexPath(name string) string { return filepath.Join(Dir(), "index-"+name+"
 // everything can be set up from the Settings tab.
 func Load() (*Config, error) { return LoadFrom(Dir()) }
 
+// LoadReadOnly is Load for a configuration only looked at (SetReadOnly):
+// not even what an older version left to move is written.
+func LoadReadOnly() (*Config, error) { return loadFrom(Dir(), true) }
+
 // LoadFrom is Load from a directory of the caller's choosing.
-func LoadFrom(dir string) (*Config, error) {
+func LoadFrom(dir string) (*Config, error) { return loadFrom(dir, false) }
+
+func loadFrom(dir string, readOnly bool) (*Config, error) {
 	cfg := Default()
 	cfg.dir = dir
+	cfg.readOnly = readOnly
 	b, err := os.ReadFile(cfg.Path())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -931,6 +948,9 @@ func (c *Config) normalise() {
 
 // Save writes config.yaml, creating the config directory when needed.
 func (c *Config) Save() error {
+	if c.readOnly {
+		return nil
+	}
 	if err := os.MkdirAll(c.Dir(), 0o700); err != nil {
 		return err
 	}

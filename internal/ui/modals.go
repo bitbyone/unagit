@@ -275,6 +275,21 @@ type pickerOptions struct {
 	// marks' band, the cursor on to the next, the count in the title, and
 	// Esc clearing them before it closes the picker. Keys read them there.
 	marks *pickMarks
+	// embed makes the picker a screen rather than a dialog over one.
+	embed *embedding
+}
+
+// embedding is a picker that is a screen of its own - a tab of unagit
+// standalone - rather than a dialog: it fills its page, never closes, and
+// whatever its keys open goes over it. Opened again, it takes its own place
+// back. The keys it has no use for are the screen's, and so is :.
+type embedding struct {
+	page string
+	// screen names the screen and lists what it can do.
+	screen func() (string, []uiAction)
+	// shown tells whether the page is the one in front now; a picker read
+	// again behind another tab takes no keys from it.
+	shown func() bool
 }
 
 // pickMarks are the items marked in a picker that lets them be, by their
@@ -631,9 +646,39 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	if pageName == "" {
 		pageName = pagePicker
 	}
-	dismiss := func() { a.closeModal(pageName) }
-	// giveUp closes the picker with nothing chosen.
+	// embedScreen is a screen's actions beneath the picker's keys: a key the
+	// picker answers is not offered for something else.
+	var embedScreen func() (string, []uiAction)
+	if opts.embed != nil {
+		pageName = opts.embed.page
+		embedScreen = func() (string, []uiAction) {
+			title, acts := opts.embed.screen()
+			taken := []uiAction{{keys: "Enter"}, {keys: "/"}, {keys: "j"}, {keys: "k"}, {keys: "g"}, {keys: "G"}}
+			for _, k := range opts.keys {
+				taken = append(taken, uiAction{keys: k.keys})
+			}
+			if onNew != nil {
+				taken = append(taken, uiAction{keys: "n"})
+			}
+			if onDelete != nil {
+				taken = append(taken, uiAction{keys: "d"})
+			}
+			if marks != nil {
+				taken = append(taken, uiAction{keys: "space"})
+			}
+			return title, keysFreeOf(acts, taken)
+		}
+	}
+	dismiss := func() {
+		if opts.embed == nil {
+			a.closeModal(pageName)
+		}
+	}
+	// giveUp closes the picker with nothing chosen; a screen is not given up.
 	giveUp := func() {
+		if opts.embed != nil {
+			return
+		}
 		dismiss()
 		if opts.cancel != nil {
 			opts.cancel()
@@ -878,6 +923,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				retitle()
 				return nil
 			}
+			if opts.embed != nil {
+				return nil
+			}
 			giveUp()
 			if opts.back != nil {
 				opts.back()
@@ -918,6 +966,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				pass(-1)
 				return nil
 			case 'q':
+				if opts.embed != nil {
+					break
+				}
 				giveUp()
 				if opts.back != nil {
 					opts.back()
@@ -942,6 +993,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				return nil
 			}
 			// Runes are shortcuts in tview's List; nothing here uses them.
+			// A screen's own keys come after the picker's.
+			if opts.embed != nil {
+				a.actionKeys(ev, nil, embedScreen)
+			}
+			return nil
+		}
+		if opts.embed != nil && a.actionKeys(ev, nil, embedScreen) {
 			return nil
 		}
 		return ev
@@ -1098,7 +1156,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 	}
 	var page tview.Primitive
-	if opts.pack {
+	if opts.embed != nil {
+		page = frame
+	} else if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
 		page = modalFixed(frame, inner+2+2*pad, 2+1+visibleItems(items)+extra+footerLines)
 	} else if opts.wide {
@@ -1138,8 +1198,21 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			box.bright = true
 		}
 	}
-	a.pages.AddPage(pageName, page, true, true)
-	setMode(!opts.onList && (opts.filter || opts.query != ""))
+	if opts.embed != nil {
+		// A screen stays under every dialog, whenever it is read again, and
+		// takes the keys only when it is in front with nothing over it.
+		shown := opts.embed.shown()
+		a.pages.AddPage(pageName, page, true, shown)
+		a.pages.SendToBack(pageName)
+		focused := a.tv.GetFocus()
+		setMode(!opts.onList && opts.query != "")
+		if !shown || a.modalOpen() {
+			a.tv.SetFocus(focused)
+		}
+	} else {
+		a.pages.AddPage(pageName, page, true, true)
+		setMode(!opts.onList && (opts.filter || opts.query != ""))
+	}
 
 	same := opts.same
 	if same == nil {

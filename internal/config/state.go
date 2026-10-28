@@ -95,6 +95,9 @@ func (c *Config) loadState() {
 // SaveState writes the State, through a temporary file so a reader never
 // sees half of it.
 func (c *Config) SaveState() error {
+	if c.readOnly {
+		return nil
+	}
 	b, err := json.MarshalIndent(c.State, "", "  ")
 	if err != nil {
 		return err

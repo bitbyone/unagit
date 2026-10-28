@@ -24,9 +24,12 @@ func main() {
 // debug is --debug, for whichever command starts the interface.
 var debug bool
 
+// standalone is -s: the repository of a directory alone, no server.
+var standalone bool
+
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "unagit",
+		Use:   "unagit [-s [DIR]]",
 		Short: "GitLab TUI for cloning projects and reviewing merge requests",
 		Long: "unagit lists the projects and open merge requests of the GitLab groups you\n" +
 			"selected, clones them under a root directory and opens your editor there.\n\n" +
@@ -37,7 +40,16 @@ func rootCmd() *cobra.Command {
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if !standalone && len(args) > 0 {
+				return fmt.Errorf("unknown command %q for unagit - for one repository alone, unagit -s %s", args[0], args[0])
+			}
+			return cobra.MaximumNArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if standalone {
+				return runStandalone(args)
+			}
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -45,6 +57,8 @@ func rootCmd() *cobra.Command {
 			return ui.NewLocked(cfg).WithDebug(debug).Run()
 		},
 	}
+	root.Flags().BoolVarP(&standalone, "standalone", "s", false,
+		"work on the repository of DIR (default .) alone: its changes, log, branches and shelf, no server and no passphrase")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
 	// --version prints the version alone, the same line as unagit version.
 	root.SetVersionTemplate("{{.Version}}\n")
@@ -52,6 +66,24 @@ func rootCmd() *cobra.Command {
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
+}
+
+// runStandalone starts unagit on one repository. The configuration is
+// only read - the theme, the editors - and nothing of unagit's is written.
+func runStandalone(args []string) error {
+	dir := "."
+	if len(args) == 1 {
+		dir = args[0]
+	}
+	cfg, err := config.LoadReadOnly()
+	if err != nil {
+		return err
+	}
+	app, err := ui.NewStandalone(cfg, dir)
+	if err != nil {
+		return err
+	}
+	return app.WithDebug(debug).Run()
 }
 
 // launchCmd is what herdr and Ghostty run in a pane unagit opens: they take a

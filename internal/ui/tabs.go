@@ -44,6 +44,10 @@ func (a *App) tabOff(t tab) bool {
 // keys lose their brackets.
 func (a *App) drawTabs() {
 	current := a.currentTab()
+	shown := tabs
+	if a.solo != nil {
+		shown = soloTabs
+	}
 	// A tab reads as a panel's title does: its icon where the terminal has
 	// a Nerd Font, its name, and the key that reaches it after the name, in
 	// brackets and quieter - or bare where the bar is tight.
@@ -82,7 +86,7 @@ func (a *App) drawTabs() {
 	// room.
 	width := func(short, tight bool) int {
 		width := 1 + badgesWidth + 2
-		for _, t := range tabs {
+		for _, t := range shown {
 			width += cells(label(t, short, tight)) + 1
 		}
 		return width
@@ -99,7 +103,7 @@ func (a *App) drawTabs() {
 	}
 	var parts []string
 	settings := ""
-	for _, t := range tabs {
+	for _, t := range shown {
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
 		var text string
 		switch {
@@ -129,7 +133,7 @@ func (a *App) drawTabs() {
 	gap := 1
 	if a.tabsWidth > 0 {
 		used := 1 + len(parts) - 1
-		for _, t := range tabs {
+		for _, t := range shown {
 			used += cells(label(t, short, tight))
 		}
 		if badge != "" {
@@ -151,6 +155,10 @@ func (a *App) currentTab() string {
 
 // switchTab shows one of the main pages.
 func (a *App) switchTab(page string) {
+	if a.solo != nil {
+		a.switchSoloTab(page)
+		return
+	}
 	if a.currentTab() == pageActivity && page != pageActivity {
 		a.activityLeft = time.Now()
 	}

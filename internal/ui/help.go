@@ -32,6 +32,7 @@ const (
 	helpTags
 	helpTheme
 	helpSandboxes
+	helpStandalone
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
@@ -43,6 +44,14 @@ const (
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
 
 func (a *App) helpContext() (helpContext, string) {
+	if a.solo != nil {
+		for _, t := range soloTabs {
+			if t.page == a.currentTab() {
+				return helpStandalone, "standalone · " + t.title
+			}
+		}
+		return helpStandalone, "standalone"
+	}
 	switch a.currentTab() {
 	case pageProjects:
 		if a.projectsPane.detailFocused {
@@ -124,6 +133,22 @@ func contextHelpRows(context helpContext) []helpLine {
 	return rows
 }
 
+// soloHelpRows keeps of the help what standalone has: the rest is about
+// lists and servers it does not show.
+func soloHelpRows(rows []helpLine) []helpLine {
+	var out []helpLine
+	keep := false
+	for _, line := range rows {
+		if line.section != "" {
+			keep = line.scope&helpStandalone != 0
+		}
+		if keep {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 // helpLine is one row of the help: a section heading, or a key with what it
 // does. There are deliberately no paragraphs: the help is read at a glance,
 // key by key, and prose buried the keys every time it was allowed in. The
@@ -168,7 +193,21 @@ func helpRows() []helpLine {
 		key("h  ←  Esc", "back to the list"),
 		blank(),
 
-		section("Dialogs", 0),
+		section("Standalone · unagit -s", helpStandalone),
+		key("1 2 3 4", "Changes, Log, Branches, Shelf"),
+		key("Alt-Enter", "every action on the selection, with its key"),
+		key(":", "every action of the tab and the repository"),
+		key("p  P", "pull · push"),
+		key("C", "commit the changes to versioned files"),
+		key("f", "fetch origin and read everything again"),
+		key("R", "read the repository again"),
+		key("Ctrl-O  Alt-O", "open in the editor · in one you choose"),
+		key("D  Alt-D", "in Hunk: uncommitted · since the base"),
+		key("Ctrl-R", "rebase onto the base"),
+		key("q", "quit"),
+		blank(),
+
+		section("Dialogs", helpStandalone),
 		key("c  Esc", "cancel · go back"),
 		key("letter", "the button whose letter is lit"),
 		key("j k  Tab", "a form: from field to field, over the buttons"),
@@ -419,6 +458,7 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Command line · unagit ...", 0),
+		key("-s [DIR]", "standalone: one repository, git alone"),
 		key("cd", "a shell where unagit has an editor open"),
 		key("cd --print", "just that path, for cd \"$(...)\""),
 		key("sessions", "what is open"),
@@ -486,6 +526,9 @@ func (a *App) showHelp() {
 	box(table.Box, "unagit · keys · "+title).SetBorderPadding(0, 0, 2, 2)
 
 	rows := contextHelpRows(context)
+	if a.solo != nil {
+		rows = soloHelpRows(rows)
+	}
 	keyWidth := 0
 	for _, line := range rows {
 		keyWidth = max(keyWidth, len([]rune(line.keys)))

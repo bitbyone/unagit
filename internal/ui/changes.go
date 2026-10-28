@@ -41,6 +41,9 @@ type changesPlace struct {
 	what                session.Record
 	back                func()
 	afterCommit         func()
+	// embed makes the dialog a screen of its own, as a picker can be: a
+	// tab of unagit standalone, never closed, its keys before the screen's.
+	embed *embedding
 }
 
 // changesRow is a line of the list: a group's heading, or a file.
@@ -189,8 +192,16 @@ func (a *App) showChanges(place changesPlace) {
 	v.table.SetFocusFunc(func() { v.inDiff = false; a.changesFocus(v) })
 	v.diff.SetFocusFunc(func() { v.inDiff = true; a.changesFocus(v) })
 	a.changes = v
-	a.pages.AddPage(pageChanges, modalPct(v.frame, 94, 92), true, true)
-	a.tv.SetFocus(v.table)
+	if e := place.embed; e != nil {
+		a.pages.AddPage(e.page, v.frame, true, e.shown())
+		a.pages.SendToBack(e.page)
+		if e.shown() && !a.modalOpen() {
+			a.tv.SetFocus(v.table)
+		}
+	} else {
+		a.pages.AddPage(pageChanges, modalPct(v.frame, 94, 92), true, true)
+		a.tv.SetFocus(v.table)
+	}
 	a.renderChanges(v)
 	a.readChanges(v, true)
 }
@@ -199,6 +210,9 @@ func (a *App) showChanges(place changesPlace) {
 func (a *App) closeChanges() {
 	var back func()
 	if a.changes != nil {
+		if a.changes.place.embed != nil {
+			return
+		}
 		back = a.changes.place.back
 	}
 	a.changes = nil
@@ -637,7 +651,7 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 			a.tv.SetFocus(v.diff)
 		}
 		return nil
-	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'q':
+	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'q' && v.place.embed == nil:
 		a.closeChanges()
 		return nil
 	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == ' ':
@@ -658,7 +672,14 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 func (a *App) changesActionKeys(v *changesView, ev *tcell.EventKey) {
 	a.actionKeys(ev,
 		func() (string, []uiAction) { return "Actions · " + v.targetsName(), a.changesSelectionActions(v) },
-		func() (string, []uiAction) { return "Changes · " + v.place.title, a.changesScreenActions(v) })
+		func() (string, []uiAction) {
+			own := a.changesScreenActions(v)
+			if e := v.place.embed; e != nil {
+				title, screen := e.screen()
+				return title, joinActions(own, keysFreeOf(screen, append(own, a.changesSelectionActions(v)...)))
+			}
+			return "Changes · " + v.place.title, own
+		})
 }
 
 // changesDiffKeys answers the diff pane: it scrolls, and goes back. h

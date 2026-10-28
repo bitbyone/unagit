@@ -40,3 +40,26 @@ func TestBatchModeIsExplained(t *testing.T) {
 		t.Errorf("hint = %q", got)
 	}
 }
+
+// Without a token git asks the user's own credential helpers, as it would
+// in a terminal; with one, unagit's helper alone answers.
+func TestTheUsersCredentialHelpersAnswerWithoutAToken(t *testing.T) {
+	dir := t.TempDir()
+	sh(t, dir, "init", "-q")
+	sh(t, dir, "config", "credential.helper", "store --file=mine")
+	out, err := New("", nil).Run(dir, "config", "--get-all", "credential.helper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(out); got != "store --file=mine" {
+		t.Errorf("without a token git's helpers are %q, not the user's own", got)
+	}
+	out, err = New("a-token", nil).Run(dir, "config", "--get-all", "credential.helper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if last := lines[len(lines)-1]; last != credentialHelper {
+		t.Errorf("with a token the last helper is %q, not unagit's", last)
+	}
+}

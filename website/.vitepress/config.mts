@@ -30,6 +30,7 @@ const guideSidebar = [
         ],
       },
       { text: 'Following into a Shell', link: '/guide/shell' },
+      { text: 'One Repository Alone', link: '/guide/standalone' },
     ],
   },
   {

@@ -60,6 +60,8 @@ type logPlace struct {
 	// upstream is the branch's upstream as git names it, "" without one:
 	// the log says where it stands.
 	upstream string
+	// embed makes the log a screen of its own (standalone's Log tab).
+	embed *embedding
 }
 
 // historyLimit is how far back a log goes; it is for looking around, not
@@ -188,12 +190,16 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 			pickKey{keys: "T", hint: "tags", name: "Tags…", about: "The tags on this commit: push one to origin, or delete it here or everywhere.",
 				when: func(it pickItem) bool { return hasTag(at(it)) }, run: func(it pickItem) { a.showTags(place, at(it)) }})
 	}
+	// Standalone asks no server, which is where pipelines and pages are.
+	if a.solo == nil {
+		keys = append(keys,
+			pickKey{keys: "J", hint: "pipelines", name: "Show Pipelines…", about: "The pipelines that ran for this commit, and their jobs.", run: func(it pickItem) {
+				c := at(it)
+				a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
+			}, when: onServer},
+			browser)
+	}
 	keys = append(keys,
-		pickKey{keys: "J", hint: "pipelines", name: "Show Pipelines…", about: "The pipelines that ran for this commit, and their jobs.", run: func(it pickItem) {
-			c := at(it)
-			a.showCommitPipelines(commitCI(place.project.Instance, place.project, place.project.PathWithNamespace, c.SHA), again(it))
-		}, when: onServer},
-		browser,
 		pickKey{keys: "y", hint: "copy", name: "Copy…", about: "Copy the commit's id, link or reference; with commits marked, their ids or subjects, one a line.", marked: true,
 			run: func(it pickItem) {
 				if marked := markedNow(); len(marked) > 0 {
@@ -207,7 +213,8 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 	// should fit on a line or two rather than wrap down the side.
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
 		enterName: "Show Details", enterAbout: "The whole commit: its message, refs and the files it changed.",
-		relabel: func(items []pickItem, width int) { labelLog(items, commits, width, ends) }}
+		relabel: func(items []pickItem, width int) { labelLog(items, commits, width, ends) },
+		embed:   place.embed}
 	// Commits are marked to be squashed, which only a checkout can do.
 	if place.checkout {
 		opts.marks = marks

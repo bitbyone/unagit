@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -61,12 +62,18 @@ type branchScope struct {
 	// done is what was just done, and warn what could not be, said once the
 	// list is back over it.
 	done, warn string
+	// embed makes the list a screen of its own (standalone's Branches tab).
+	embed *embedding
 }
 
 // showBranchManager loads the branches of a repository and lists them.
 func (a *App) showBranchManager(scope branchScope) {
 	pr := scope.project
 	client := a.client(pr.Instance)
+	if client == nil && a.isSolo(pr.Instance, pr.PathWithNamespace) {
+		a.listOriginBranches(scope)
+		return
+	}
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(pr.Instance))
 		return
@@ -87,6 +94,23 @@ func (a *App) showBranchManager(scope branchScope) {
 		})
 		return "", nil
 	})
+}
+
+// listOriginBranches is showBranchManager for a repository no server is
+// asked about: origin's branches are what its last fetch left, read off
+// the event loop without a wait of its own, since nothing goes far.
+func (a *App) listOriginBranches(scope branchScope) {
+	pr := scope.project
+	dir := a.projectDir(pr.Instance, pr.PathWithNamespace)
+	go func() {
+		origin, head := a.pathManager(pr.Instance, pr.PathWithNamespace).Git().OriginBranches(dir)
+		remote := make([]forge.Branch, len(origin))
+		for i, b := range origin {
+			remote[i] = forge.Branch{Name: b.Name, Default: b.Name == head, CommittedDate: b.When, CommitTitle: b.Title}
+		}
+		branches := a.readBranches(pr, remote, true)
+		a.tv.QueueUpdateDraw(func() { a.listBranches(scope, branches) })
+	}()
 }
 
 // readBranches puts together what origin and the clone say of the branches.
@@ -126,6 +150,10 @@ func (a *App) readBranches(pr forge.Project, remote []forge.Branch, cloned bool)
 		for name, dir := range git.CheckedOut(mainDir) {
 			if b, ok := byName[name]; ok {
 				b.where, b.dir, b.inMain = checkoutName(dir, mainDir), dir, sameDir(dir, mainDir)
+				// Standalone's repository has no clone behind it.
+				if a.solo != nil && b.inMain {
+					b.where = "this repository"
+				}
 			}
 		}
 	}
@@ -251,11 +279,18 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 				a.showRewrites(rewriteScope{project: pr, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
 			}},
 		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.remote }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
-	}}
+	}, embed: scope.embed}
+	// Standalone asks no server, so it opens no merge request.
+	if a.solo != nil {
+		opts.keys = slices.DeleteFunc(opts.keys, func(k pickKey) bool { return k.keys == "m" })
+	}
 	var onSelect func(pickItem)
 	if scope.checkout {
 		opts.enterHint = "check out in the main clone"
 		opts.enterName, opts.enterAbout = "Check Out", "Switch the main clone to this branch."
+		if a.solo != nil {
+			opts.enterHint, opts.enterAbout = "check out", "Switch the repository to this branch."
+		}
 		onSelect = func(it pickItem) { a.switchMainClone(pr, it.Data.(branchInfo).name) }
 	}
 	a.showPickerWith("Branches - "+pr.PathWithNamespace, items, opts, onSelect)
@@ -481,7 +516,12 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 			if there {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				defer cancel()
-				if err := client.DeleteBranch(ctx, pr, b.name); err != nil {
+				if client == nil {
+					// Without a server, origin is told by git itself.
+					if err := mgr.Git().DeleteRemoteBranch(mainDir, b.name, b.name); err != nil {
+						return "", err
+					}
+				} else if err := client.DeleteBranch(ctx, pr, b.name); err != nil {
 					return "", err
 				}
 				log("deleted on origin")

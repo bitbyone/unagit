@@ -673,3 +673,40 @@ func TestRepositoriesChosenOnTheirOwn(t *testing.T) {
 		t.Error("a repository taken back is still covered")
 	}
 }
+
+// A configuration only looked at - unagit standalone's - writes nothing:
+// not what is changed in memory, not the state, not even what an older
+// version left in config.yaml to move out.
+func TestAReadOnlyConfigurationWritesNothing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	before := []byte("root_dir: ~/src\nintegrations:\n  agent_place: split\n")
+	if err := os.WriteFile(path, before, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadFrom(dir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ReadOnly() || cfg.State.AgentPlace != "split" {
+		t.Fatalf("the configuration was not read as it is: read-only %v, agent place %q", cfg.ReadOnly(), cfg.State.AgentPlace)
+	}
+	cfg.RootDir = "~/elsewhere"
+	cfg.State.SetLocalRepository("", "toolbox", "/tmp/toolbox")
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Errorf("config.yaml changed:\n%s", after)
+	}
+	if _, err := os.Stat(cfg.StatePath()); !os.IsNotExist(err) {
+		t.Errorf("the state was written: %v", err)
+	}
+}

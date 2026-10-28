@@ -168,7 +168,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 
 | Package | What it owns |
 | --- | --- |
-| `cmd/unagit` | cobra commands: the TUI, `cd`, `sessions`, `where`, `credential get`, `version` |
+| `cmd/unagit` | cobra commands: the TUI, `-s` standalone, `cd`, `sessions`, `where`, `credential get`, `version` |
 | `internal/version` | the release baked in at build time, or dev and its commit |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
@@ -196,7 +196,7 @@ the table+filter+detail widget both lists are made of, `projects.go` / `mrs.go`
 their contents, `detail.go` the right-hand column, `agents.go` / `agents_tab.go` the coding
 agents, `changes.go` the Changes dialog and `diffdraw.go` the diff it draws (chroma
 for the code, the theme's `diff.*` and `syntax.*` roles for the colours),
-`commit.go` the commit dialog,
+`commit.go` the commit dialog, `standalone.go` `unagit -s`,
 `activity.go` / `activity_screen.go` the Activity screen - the watches and the agents, the editors open, the histories ([docs/activity.md](docs/activity.md)) - `settings.go` the whole
 configuration UI, `comments.go` the conversation, `watch.go` / `watched.go` the
 watches' follower and what is done with a watch, `filters.go` the shared
@@ -347,6 +347,20 @@ watches are files of their own for the same reason. A new field of
 `config.Config` is a choice the user made in Settings, or it belongs
 elsewhere. (People counts once went into config.yaml, and the user's
 dotfiles repository changed with every merge request assigned.)
+
+**Standalone is the dialogs made screens.** `unagit -s [DIR]` works on one
+repository, any repository, with no vault and no server: its tabs are the
+Changes dialog, the commit log, the branches and the shelf, each the very
+dialog the full unagit opens, put on a page of its own (`embedding`, on a
+picker's options and on `changesPlace`) - never closed, a dialog it opens
+going over it, the keys it has no use for falling to the repository's
+actions (`soloScreenActions`, the worktree's own minus what needs a server).
+Do not build a second Changes or log for it. The repository is a worktree
+row under no server (`soloRow`), its directory held in `cfg.State` in
+memory, and the configuration is loaded read-only (`config.LoadReadOnly`):
+standalone writes nothing of unagit's. Without a token `gitx` leaves the
+user's own credential helpers in place, so git authenticates as it does in
+a terminal.
 
 **Explicit indexes.** The lists are JSON caches refreshed only on `r`/`p`/`m`,
 so startup is instant. `index.Version` goes up whenever a new field is added

@@ -359,6 +359,8 @@ type App struct {
 	// open; nil for a plain start.
 	goal *Goal
 
+	// solo is the repository of unagit standalone, nil in the full unagit.
+	solo *soloRepo
 	// wtView is the worktree view while it is open.
 	wtView *wtView
 
@@ -508,7 +510,12 @@ func (a *App) Run() error {
 	a.detectMultiplexer()
 	applyTheme()
 	a.chooseTheme()
-	layout := a.buildInterface()
+	var layout tview.Primitive
+	if a.solo != nil {
+		layout = a.buildStandalone()
+	} else {
+		layout = a.buildInterface()
+	}
 
 	a.tv.SetInputCapture(a.globalKeys)
 	a.tv.SetBeforeDrawFunc(func(screen tcell.Screen) bool {
@@ -537,14 +544,19 @@ func (a *App) Run() error {
 	}
 	stopWatching := make(chan struct{})
 	a.stopFollowing = stopWatching
-	if a.vault == nil {
+	switch {
+	case a.solo != nil:
+		a.startStandalone()
+	case a.vault == nil:
 		a.showUnlock()
-	} else {
+	default:
 		a.start()
 	}
 	go a.watchTheme(stopWatching)
 	go a.watchEditors(stopWatching)
-	go a.watchAgents(stopWatching)
+	if a.solo == nil {
+		go a.watchAgents(stopWatching)
+	}
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 	a.stopCredentials()
 	close(stopWatching)
@@ -717,6 +729,12 @@ func isModalPage(name string) bool {
 // restoreFocus focuses the visible tab again.
 func (a *App) restoreFocus() {
 	if a.modalOpen() {
+		return
+	}
+	if a.solo != nil {
+		if page := a.pages.GetPage(a.currentTab()); page != nil {
+			a.tv.SetFocus(page)
+		}
 		return
 	}
 	switch a.currentTab() {
@@ -985,6 +1003,11 @@ func (a *App) projectDir(instanceID, projectPath string) string {
 // cloneDir is where unagit clones a repository, and where its worktrees hang
 // even when chezmoi keeps the clone.
 func (a *App) cloneDir(instanceID, projectPath string) string {
+	// Standalone's repository is wherever it is, and its worktrees hang
+	// beside it as they would beside a clone of unagit's.
+	if a.isSolo(instanceID, projectPath) {
+		return a.solo.dir
+	}
 	return a.cfg.ProjectDir(a.cfg.Instance(instanceID), projectPath)
 }
 
@@ -1011,6 +1034,9 @@ func (a *App) newManager(instanceID, projectPath string, log func(string)) *work
 		LocalDirectory:   a.cfg.State.LocalRepository(instanceID, projectPath),
 		OnRemoved:        a.zoxideRemove,
 		ManagedDirectory: a.managedDir(instanceID, projectPath),
+	}
+	if a.isSolo(instanceID, projectPath) {
+		opts.ProjectDirectory = a.solo.dir
 	}
 	if inst := a.cfg.Instance(instanceID); inst != nil {
 		opts.ProjectDirectory = inst.ProjectDirs[projectPath]
@@ -1678,6 +1704,10 @@ func (a *App) refreshGroups() {
 // It reads .git/HEAD directly instead of shelling out to git, so it stays fast
 // even with hundreds of projects.
 func (a *App) refreshDisk() {
+	if a.solo != nil {
+		a.refreshSolo()
+		return
+	}
 	a.refreshOpenEditors()
 	// Counting what waits to be published reads a small file per worktree, and
 	// only means something when Incomm is in use.

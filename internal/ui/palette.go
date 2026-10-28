@@ -197,17 +197,30 @@ func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiActio
 // globalActions can be done from any screen: the : picker lists them after
 // the screen's own.
 func (a *App) globalActions() []uiAction {
+	if a.solo != nil {
+		// Standalone has no lists to find a repository in, watches nothing
+		// and runs no agents; the editors open and the theme are everyone's.
+		return []uiAction{a.runningEditorsAction("E"), a.themeAction(), a.redrawAction()}
+	}
 	return []uiAction{
 		a.runningEditorsAction("E"),
 		a.runningAgentsAction(""),
 		{name: "Find Repository…", about: "Every repository your accounts are members of, in groups you did not choose and hidden ones too: Enter brings it into Repositories.",
 			keys: "+", rank: 500, run: a.showFindRepository},
 		{name: "Watches…", about: "Everything watched in one list, from any screen: go to one, or stop watching it.", keys: "W", rank: 510, run: a.showWatches},
-		{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
-			rank: 900, run: a.showThemePicker},
-		{name: "Redraw Screen", about: "Send the whole screen to the terminal again, when it shows remains of what was there before.",
-			rank: 910, run: func() { a.tv.Sync() }},
+		a.themeAction(),
+		a.redrawAction(),
 	}
+}
+
+func (a *App) themeAction() uiAction {
+	return uiAction{name: "Switch Theme…", about: "Put another theme on, everywhere at once; the list opens on the one on now.",
+		rank: 900, run: a.showThemePicker}
+}
+
+func (a *App) redrawAction() uiAction {
+	return uiAction{name: "Redraw Screen", about: "Send the whole screen to the terminal again, when it shows remains of what was there before.",
+		rank: 910, run: func() { a.tv.Sync() }}
 }
 
 // showThemePicker lists the themes, each with its colours, the cursor on

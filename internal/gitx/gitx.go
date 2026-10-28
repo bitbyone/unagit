@@ -58,10 +58,17 @@ func (g *Git) Run(dir string, args ...string) (string, error) {
 // runEnv is Run with more of the environment: an author kept, an editor
 // that must not open.
 func (g *Git) runEnv(dir string, env []string, args ...string) (string, error) {
-	full := append([]string{
-		"-c", "credential.helper=",
-		"-c", "credential.helper=" + credentialHelper,
-	}, args...)
+	// Without a token of unagit's there is nothing of its own to hand git,
+	// and the user's credential helpers are left to answer as they would in
+	// a terminal: a repository unagit does not manage is worked on with the
+	// user's own credentials (unagit standalone).
+	full := args
+	if g.token != "" {
+		full = append([]string{
+			"-c", "credential.helper=",
+			"-c", "credential.helper=" + credentialHelper,
+		}, args...)
+	}
 
 	cmd := exec.Command("git", full...)
 	cmd.Dir = dir
@@ -541,6 +548,35 @@ func (g *Git) LocalBranches(dir string) []string {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+// OriginBranch is a branch of origin as the last fetch left it.
+type OriginBranch struct {
+	Name  string
+	When  time.Time
+	Title string
+}
+
+// OriginBranches lists origin's branches as last fetched, newest first,
+// and the one origin's HEAD names: what a forge would say of them, for a
+// repository no forge is asked about.
+func (g *Git) OriginBranches(dir string) (branches []OriginBranch, head string) {
+	out, err := g.out(dir, "for-each-ref", "--sort=-committerdate",
+		"--format=%(refname:lstrip=3)%00%(committerdate:unix)%00%(subject)", "refs/remotes/origin")
+	if err == nil && out != "" {
+		for _, line := range strings.Split(out, "\n") {
+			f := strings.SplitN(line, "\x00", 3)
+			if len(f) < 3 || f[0] == "HEAD" {
+				continue
+			}
+			unix, _ := strconv.ParseInt(f[1], 10, 64)
+			branches = append(branches, OriginBranch{Name: f[0], When: time.Unix(unix, 0), Title: f[2]})
+		}
+	}
+	if ref, err := g.out(dir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		head = strings.TrimPrefix(ref, "origin/")
+	}
+	return branches, head
 }
 
 // RemoteURL returns the address a remote points at.

@@ -1338,6 +1338,40 @@ Window editors open their own window and unagit carries on; `unagit cd` knows
 about them until unagit exits. On macOS, Alt needs the terminal to send Option
 as Meta (iTerm2: Profiles › Keys › Left Option key › Esc+).
 
+## One repository alone
+
+`unagit -s` works on the repository of a directory and nothing else - no
+server, no passphrase, no lists - which makes it a git interface for any
+repository, one unagit never cloned too:
+
+```sh
+unagit -s            # the repository you are in
+unagit -s ~/src/foo  # or the one of that directory
+```
+
+The repository's name, its branch, where that stands against origin and
+what is not committed head the screen, and under them four tabs, reached
+with `1` to `4`:
+
+- **Changes** - the Changes dialog as a screen: the files not committed and
+  their diffs, `x` to tick for the commit, `c` to commit, rollback, shelve.
+- **Log** - the commit log: diffs, checking out, squashing, editing a
+  message, pushing up to a commit, branches and tags at one.
+- **Branches** - local and origin's as the last fetch left them: check one
+  out with Enter, start one, delete here, on origin or everywhere.
+- **Shelf** - what was put aside, to unshelve, apply or delete.
+
+Everything unagit does with a worktree works from every tab - `p` pull, `P`
+push, `C` commit, `f` fetch, `Ctrl-R` rebase onto the base, the reflog,
+Rewrite History, opening in an editor - and `:` lists it all, the tab's own
+actions first. A key a tab uses for itself is the tab's: on the Log, `P`
+pushes up to the commit under the cursor. `q` quits.
+
+git runs with your own credentials: without a token of unagit's to hand it,
+your credential helpers and ssh agent answer as they do in a terminal.
+unagit's configuration is only read - the theme, the editors - and nothing
+of unagit's is written.
+
 ## Follow it into another terminal
 
 Opening an editor does not end unagit: it suspends itself and waits, so for as
