@@ -25,7 +25,7 @@ SHOTS = [
     ("merge-requests", [("keys", "2"), ("wait", 1.5), ("keys", "\r"), ("wait", 2.5)]),
     ("sandboxes", [("keys", "5"), ("wait", 2.5), ("keys", "j"), ("wait", 1.5)]),
 ]
-SOLO = ("standalone", [("wait", 2.5), ("keys", "j"), ("wait", 1.5)])
+SOLO = ("standalone", [("wait", 3.5)])
 
 
 def run(world, binary, args, steps_before, shots, out):
@@ -36,6 +36,9 @@ def run(world, binary, args, steps_before, shots, out):
         "TERM": "xterm-256color",
         "COLORTERM": "truecolor",
         "LANG": "C.UTF-8",
+        # The world's servers, answered by mock serve over TLS of its own.
+        "HTTPS_PROXY": "http://127.0.0.1:8929",
+        "SSL_CERT_FILE": os.path.join(world, "tls", "ca.pem"),
     }
     pid, fd = pty.fork()
     if pid == 0:

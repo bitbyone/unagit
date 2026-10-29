@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo shots video
+.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo demo-fresh shots video
 
 build: build-unagit
 
@@ -62,6 +62,10 @@ website:
 # sandboxes - with nothing of yours read or written; the passphrase is demo.
 demo:
 	website/shots/demo.sh
+
+# The same world with unagit not set up yet: the servers and groups to add.
+demo-fresh:
+	website/shots/demo.sh "$${TMPDIR:-/tmp}/unagit-demo" --fresh
 
 # The website's screenshots and the walk its home page plays, taken of
 # that world in a terminal.
