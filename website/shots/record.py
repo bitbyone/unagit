@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Record the landing page's walk through unagit as an asciicast: a shell
-in the mock world, unagit typed at its prompt and driven as a person
-would, at a person's pace, then unagit -s on one repository. Each scene
+"""Record the landing page's walk through unagit as an asciicast: unagit
+started in a world not set up yet (mock -fresh), driven as a person would,
+briskly - from adding the servers to a pipeline gone green. Each scene
 starts with a marker - its caption - which the page shows over the
 terminal.
 
@@ -21,37 +21,75 @@ import sys
 
 COLS, ROWS = 140, 38
 # Ctrl-A is Alt-Enter for terminals that keep Alt-Enter to themselves.
-ACTIONS, ESC, ENTER = "\x01", "\x1b", "\r"
+ACTIONS, ESC, ENTER, TAB, SPACE = "\x01", "\x1b", "\r", "\t", " "
+CTRL_F, CTRL_K, CTRL_L, CTRL_S, CTRL_U = "\x06", "\x0b", "\x0c", "\x13", "\x15"
 
-# The walk: ("caption", text) starts a scene, ("type", text) types at a
-# person's pace, ("key", text) sends at once, ("wait", seconds) watches.
+
+def server(name, host, token):
+    """Add a GitLab server in Settings: its name, address, where its
+    clones go, and a token."""
+    return [
+        ("key", "a"), ("wait", 0.5),
+        ("type", name), ("key", TAB), ("type", host), ("key", TAB), ("type", "~/src"), ("wait", 0.3),
+        ("key", ESC), ("key", "j"), ("key", "j"), ("key", "i"), ("type", token, 0.02), ("wait", 0.3),
+        ("key", ESC), ("key", "s"), ("wait", 0.9),
+    ]
+
+
+# The walk: ("caption", text) starts a scene, ("type", text[, pace])
+# types at a person's pace, ("key", text) sends at once, ("wait",
+# seconds) watches.
 SCENES = [
-    ("type", "unagit"), ("key", ENTER), ("wait", 1.4),
-    ("type", "demo"), ("wait", 0.3), ("key", ENTER), ("wait", 1.2),
-    ("caption", "Every repository on every server, in one list"),
-    ("wait", 2.0), ("key", "/"), ("type", "pay"), ("wait", 1.6), ("key", ESC), ("key", ESC), ("wait", 0.8),
-    ("caption", "Merge requests: pipeline, approvals, open threads"),
-    ("key", "2"), ("wait", 1.6), ("key", "j"), ("wait", 0.5), ("key", "j"), ("wait", 0.5), ("key", "k"), ("wait", 0.4), ("key", "k"),
-    ("wait", 0.6), ("key", ENTER), ("wait", 3.2), ("key", ESC), ("wait", 0.6),
-    ("caption", "Every action has a name - Alt-Enter lists them"),
-    ("key", ACTIONS), ("wait", 1.0), ("type", "review"), ("wait", 2.2), ("key", ESC), ("key", ESC), ("wait", 0.5),
-    ("key", "q"), ("wait", 0.8),
-    ("caption", "Any repository, no setup: unagit -s"),
-    ("type", "cd platform/api-gateway"), ("key", ENTER), ("wait", 0.4),
-    ("type", "unagit -s"), ("key", ENTER), ("wait", 2.4), ("key", "j"), ("wait", 1.6), ("key", "k"), ("wait", 0.8),
-    ("key", "c"), ("wait", 1.0), ("type", "Allow 20 sign-ins per client"), ("wait", 0.6), ("key", ESC), ("wait", 0.6),
-    ("key", "o"), ("wait", 2.6), ("key", "2"), ("wait", 2.6), ("key", "q"), ("wait", 1.5),
+    ("wait", 0.8), ("type", "demo"), ("key", ENTER), ("wait", 1.6),
+    ("caption", "Add your GitLab servers, and where their clones go"),
+    ("key", ESC), ("key", "l"), ("wait", 0.3),
+    *server("Northwind", "gitlab.northwind.dev", "glpat-x8Kq2vR7mN4tY9wZ"),
+    *server("GitLab.com", "gitlab.com", "glpat-Lm3pQ8sT1vX6zB2d"),
+    ("caption", "Pick the groups you work in"),
+    ("key", ESC), ("key", "j"), ("wait", 0.2), ("key", "j"), ("wait", 0.2), ("key", "l"), ("wait", 0.5),
+    ("key", "r"), ("wait", 1.2),
+    ("key", "j"), ("key", SPACE), ("wait", 0.3), ("key", "j"), ("key", SPACE), ("wait", 0.2), ("key", SPACE), ("wait", 0.3),
+    ("key", "j"), ("key", "j"), ("key", "j"), ("key", SPACE), ("wait", 0.6),
+    ("key", "p"), ("wait", 1.4), ("key", "m"), ("wait", 1.6),
+    ("caption", "Every repository of every server, in one list"),
+    ("key", "1"), ("wait", 1.8),
+    ("caption", "Find one and star it - or mark a few and star them all"),
+    ("key", "/"), ("type", "gate"), ("wait", 0.6), ("key", ESC), ("wait", 0.3), ("key", CTRL_F), ("wait", 0.9),
+    ("key", ESC), ("wait", 0.5), ("key", "j"), ("key", SPACE), ("wait", 0.3), ("key", SPACE), ("wait", 0.5),
+    ("key", ACTIONS), ("wait", 0.6), ("type", "star"), ("wait", 0.6), ("key", ENTER), ("wait", 1.2),
+    ("caption", "History, pipelines and job logs, right from the list"),
+    ("key", "g"), ("key", "g"), ("wait", 0.3), ("key", CTRL_L), ("wait", 1.4),
+    ("key", "J"), ("wait", 1.6), ("key", ENTER), ("wait", 2.6),
+    ("caption", "A flaky test? Run the job again"),
+    ("key", ESC), ("wait", 0.4), ("key", "R"), ("wait", 2.2), ("key", ESC), ("key", ESC), ("wait", 0.5),
+    ("caption", "Watch the branch: unagit follows its pipeline for you"),
+    ("key", ACTIONS), ("wait", 0.5), ("type", "watch"), ("wait", 0.5), ("key", ENTER), ("wait", 1.4),
+    ("caption", "Review: read the threads, answer, approve"),
+    ("key", "2"), ("wait", 1.2), ("key", "c"), ("wait", 2.2),
+    ("key", "i"), ("wait", 0.4), ("type", "Twenty works for me - the app backs off after three tries anyway.", 0.03),
+    ("wait", 0.3), ("key", CTRL_S), ("wait", 1.6), ("key", ESC), ("wait", 0.4),
+    ("key", ACTIONS), ("wait", 0.5), ("type", "approve"), ("wait", 0.5), ("key", ENTER), ("wait", 0.9), ("key", "a"), ("wait", 1.0),
+    ("key", "r"), ("wait", 1.4),
+    ("caption", "Your changes: read the diffs, commit and push"),
+    ("key", "1"), ("wait", 0.5), ("key", "/"), ("type", "identity"), ("wait", 0.4), ("key", ESC), ("wait", 0.4),
+    ("key", CTRL_K), ("wait", 1.6), ("key", "j"), ("wait", 0.4), ("key", "j"), ("wait", 1.4),
+    ("key", "j"), ("wait", 0.3), ("key", "j"), ("wait", 1.4), ("key", "x"), ("wait", 0.6),
+    ("key", "c"), ("wait", 0.6), ("type", "Finish the OAuth callback"), ("wait", 0.4), ("key", ESC), ("key", "p"), ("wait", 0.9),
+    ("key", "p"), ("wait", 2.4),
+    ("caption", "...and open the merge request"),
+    ("key", ESC), ("wait", 0.4), ("key", ACTIONS), ("wait", 0.5), ("type", "new merge"), ("wait", 0.5), ("key", ENTER), ("wait", 1.4),
+    ("key", CTRL_U), ("type", "Sign in with GitHub and Google"), ("wait", 0.6), ("key", ESC), ("key", "r"), ("wait", 2.4),
+    ("key", "c"), ("wait", 0.8),
+    ("caption", "Meanwhile: what happened, as it happened"),
+    ("wait", 1.0), ("key", "4"), ("wait", 3.6),
+    ("caption", "The watched branch is green again"),
+    ("key", "1"), ("wait", 0.4), ("key", ESC), ("wait", 0.4), ("key", "g"), ("key", "g"), ("wait", 1.2),
+    ("key", "J"), ("wait", 4.0),
 ]
 
 
 def main():
     world, out = os.path.abspath(sys.argv[1]), sys.argv[2]
-    # The walk is unagit's own: unibox's integration is off for it.
-    cfg = os.path.join(world, "config", "config.yaml")
-    with open(cfg) as f:
-        text = f.read()
-    with open(cfg, "w") as f:
-        f.write(text.replace("unibox: true", "unibox: false"))
     env = {
         "HOME": world,
         "PATH": os.path.join(world, "bin") + ":/usr/bin:/bin:/usr/local/bin",
@@ -59,22 +97,24 @@ def main():
         "TERM": "xterm-256color",
         "COLORTERM": "truecolor",
         "LANG": "C.UTF-8",
-        # A prompt in the theme's gold and teal.
-        "PS1": "\\[\\e[38;2;165;208;192m\\]\\w\\[\\e[0m\\] \\[\\e[38;2;194;152;93m\\]$\\[\\e[0m\\] ",
+        # The world's servers, answered by mock serve over TLS of its own.
+        "HTTPS_PROXY": "http://127.0.0.1:8929",
+        "SSL_CERT_FILE": os.path.join(world, "tls", "ca.pem"),
     }
+    binary = os.path.join(world, "bin", "unagit")
     pid, fd = pty.fork()
     if pid == 0:
         os.chdir(os.path.join(world, "src"))
-        os.execve("/bin/bash", ["bash", "--noprofile", "--norc", "-i"], env)
+        os.execve(binary, [binary], env)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
     rnd = random.Random(7)
     # A read can end inside a character; the decoder keeps its first bytes.
     decode = codecs.getincrementaldecoder("utf-8")("replace").decode
     events = []
-    start = None
+    start = time.time()
 
     def now():
-        return 0.0 if start is None else time.time() - start
+        return time.time() - start
 
     def pump(seconds):
         end = time.time() + seconds
@@ -89,25 +129,22 @@ def main():
                 if text:
                     events.append([round(now(), 4), "o", text])
 
-    pump(1.0)
-    # What the shell wrote as it started is the first frame, at once.
-    first = "".join(e[2] for e in events)
-    events.clear()
-    events.append([0.0, "o", "\x1b[2J\x1b[H" + first.split("\x1b[?2004h")[-1]])
-    start = time.time()
-    pump(0.6)
-    for kind, arg in SCENES:
+    for step in SCENES:
+        kind, arg = step[0], step[1]
         if kind == "wait":
             pump(arg)
         elif kind == "caption":
             events.append([round(now(), 4), "m", arg])
         elif kind == "key":
             os.write(fd, arg.encode())
-            pump(0.12)
+            pump(0.08)
         else:
+            pace = step[2] if len(step) > 2 else 0.055
             for ch in arg:
                 os.write(fd, ch.encode())
-                pump(rnd.uniform(0.06, 0.13))
+                pump(rnd.uniform(pace * 0.6, pace * 1.4))
+    # The last screen holds until the walk loops.
+    events.append([round(now(), 4), "o", ""])
     os.kill(pid, 9)
     header = {"version": 2, "width": COLS, "height": ROWS, "timestamp": int(time.time()),
               "title": "unagit", "env": {"TERM": "xterm-256color"}}
