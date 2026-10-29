@@ -712,8 +712,8 @@ func (v *sandboxesView) showDetail(r sandboxRow, focus bool) {
 	})
 }
 
-// showEnvDetail fills the detail with the environment: unibox's settings,
-// its runtimes, the secrets by name and the values.
+// showEnvDetail fills the detail with the environment: the context,
+// unibox's settings and the tokens sbx keeps.
 func (v *sandboxesView) showEnvDetail(focus bool) {
 	v.openDetail("Environment", func(int) string { return v.app.environmentDetailText() })
 	if focus {

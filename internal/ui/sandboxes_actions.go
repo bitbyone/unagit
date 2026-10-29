@@ -16,6 +16,7 @@ import (
 
 	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/unibox"
 )
@@ -671,11 +672,46 @@ func (a *App) newSandboxTask(r sandboxRow) {
 }
 
 // sandboxTarget is something a sandbox can work on: what it is called, its
-// directories, and whether they are cloned rather than mounted.
+// directories or forge addresses, whether they are cloned rather than
+// mounted, and the branch a clone is on when not its own.
 type sandboxTarget struct {
-	label string
-	dirs  []string
-	clone bool
+	label  string
+	dirs   []string
+	clone  bool
+	branch string
+}
+
+// projectTarget is a repository as a sandbox works on it: its clone
+// mounted, or, while it has none, cloned from the forge in the sandbox.
+func (a *App) projectTarget(pr forge.Project) sandboxTarget {
+	if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		return sandboxTarget{label: pr.PathWithNamespace, dirs: []string{a.projectDir(pr.Instance, pr.PathWithNamespace)}}
+	}
+	return sandboxTarget{label: pr.PathWithNamespace, dirs: []string{a.httpsAddress(pr)}, clone: true}
+}
+
+// httpsAddress is where a sandbox clones a repository from: unibox takes a
+// forge's HTTPS address, its token the proxy's, never the host's SSH key.
+func (a *App) httpsAddress(pr forge.Project) string {
+	if pr.HTTPURLToRepo != "" {
+		return pr.HTTPURLToRepo
+	}
+	if inst := a.cfg.Instance(pr.Instance); inst != nil && inst.URL != "" && pr.PathWithNamespace != "" {
+		return strings.TrimRight(inst.URL, "/") + "/" + pr.PathWithNamespace + ".git"
+	}
+	return ""
+}
+
+// mergeRequestTarget is a merge request as a sandbox works on it: its
+// repository cloned from the forge in the sandbox, on its source branch,
+// whatever is on disk.
+func (a *App) mergeRequestTarget(mr forge.MergeRequest) sandboxTarget {
+	path := a.projectPathOfMR(mr)
+	pr, ok := a.projByKey[projectKey{mr.Instance, path}]
+	if !ok {
+		pr = forge.Project{Instance: mr.Instance, PathWithNamespace: path}
+	}
+	return sandboxTarget{label: fmt.Sprintf("%s !%d", path, mr.IID), dirs: []string{a.httpsAddress(pr)}, clone: true, branch: mr.SourceBranch}
 }
 
 // openInSandboxActions are the sandbox's actions for a row of the lists:
@@ -737,7 +773,7 @@ func (a *App) openInSandboxActions(target func() sandboxTarget, ok func() bool) 
 // startTargetWith starts an agent on a target in a sandbox chosen, asking
 // where unless place says.
 func (a *App) startTargetWith(t sandboxTarget, start unibox.Start, agent string, place *editorPlace) {
-	start.Dirs, start.Clone, start.Agent = t.dirs, t.clone, agent
+	start.Dirs, start.Clone, start.Branch, start.Agent = t.dirs, t.clone, t.branch, agent
 	if place != nil {
 		a.cfg.State.UsePlace(placeOfAgent, placeKeyOf(*place))
 		a.saveState()
@@ -818,7 +854,7 @@ func (a *App) startInSandbox(t sandboxTarget) {
 	}
 	a.withSandboxes(func() {
 		a.pickSandbox(t.label, "", func(start unibox.Start) {
-			start.Dirs, start.Clone = t.dirs, t.clone
+			start.Dirs, start.Clone, start.Branch = t.dirs, t.clone, t.branch
 			c, _ := a.choiceNamed(start.Sandbox)
 			a.pickStartAgent(start, t.label, c.agents)
 		})
@@ -985,8 +1021,11 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 			start.Push = push
 			what := session.Record{Project: start.Sandbox + "/" + label, Mode: session.ModeBranch, Dir: paneDir(),
 				Editor: start.Agent, Sandbox: start.Sandbox}
-			if len(start.Dirs) > 0 {
+			if len(start.Dirs) > 0 && filepath.IsAbs(start.Dirs[0]) {
 				what.Dir = start.Dirs[0]
+			}
+			if start.Branch != "" {
+				what.Branch, what.Title = start.Branch, start.Branch
 			}
 			a.runSandboxAgent(what, place, start.RunArgs())
 		}

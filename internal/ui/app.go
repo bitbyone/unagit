@@ -168,7 +168,7 @@ type App struct {
 	worktreesPane *pane
 	settings      *settingsView
 	// sandboxesPane is the Sandboxes screen's tasks and sandboxes the rest
-	// of it, ubx what was last read of unibox, sandboxRows the profiles,
+	// of it, ubx what was last read of unibox, sandboxRows the envs,
 	// their sandboxes and tasks as one tree, and ubxLog what was asked of
 	// unibox since unagit started.
 	sandboxesPane *pane

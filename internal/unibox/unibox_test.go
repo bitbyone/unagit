@@ -200,4 +200,8 @@ func TestAStartNamesWhatItIsAsked(t *testing.T) {
 	if got := strings.Join(s.RunArgs(), " "); got != "run --repo /w/a --repo /w/b -s web -e web --clone --push --agent claude" {
 		t.Fatalf("run: %s", got)
 	}
+	s = unibox.Start{Sandbox: "web", Dirs: []string{"https://gl.test/acme/gateway.git"}, Branch: "feat/rate", Clone: true}
+	if got := strings.Join(s.Args(), " "); got != "--branch feat/rate --repo https://gl.test/acme/gateway.git -s web --clone" {
+		t.Fatalf("a branch of an address: %s", got)
+	}
 }

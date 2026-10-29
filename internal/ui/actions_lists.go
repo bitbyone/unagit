@@ -28,7 +28,7 @@ func (a *App) listActions(p *pane) []uiAction {
 			run: func() { a.switchTab(pageWorktrees) }},
 		{name: "Go to Activity", about: "What runs in the background and waits for you: the watches, the agents, the editors open, and what happened.", keys: "4", rank: 905, when: func() bool { return a.currentTab() != pageActivity },
 			run: func() { a.switchTab(pageActivity) }},
-		{name: "Go to Sandboxes", about: "unibox's sandboxes, the tasks agents work on in them, the profiles they are made from.", keys: "5", rank: 908,
+		{name: "Go to Sandboxes", about: "unibox's sandboxes, the tasks agents work on in them, the envs they are made from.", keys: "5", rank: 908,
 			when: func() bool { return a.currentTab() != pageSandboxes }, run: func() { a.switchTab(pageSandboxes) }},
 		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "S", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
@@ -168,14 +168,13 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 		rank: 630, aliases: []string{"unibox", "sandbox", "init", "setup"},
 		when: func() bool { _, err := a.executable("unibox"); return cloned() && err == nil },
 		run:  func() { a.initUniboxHere(a.projectDir(pr.Instance, pr.PathWithNamespace)) }})
-	acts = append(acts, a.openInSandboxActions(func() sandboxTarget {
-		return sandboxTarget{label: pr.PathWithNamespace, dirs: []string{a.projectDir(pr.Instance, pr.PathWithNamespace)}}
-	}, cloned)...)
+	acts = append(acts, a.openInSandboxActions(func() sandboxTarget { return a.projectTarget(pr) },
+		func() bool { return cloned() || a.httpsAddress(pr) != "" })...)
 	acts = append(acts, a.indexActions(pr.PathWithNamespace, func() string {
 		if cloned() {
 			return a.projectDir(pr.Instance, pr.PathWithNamespace)
 		}
-		return pr.HTTPURLToRepo
+		return a.httpsAddress(pr)
 	}, nil)...)
 	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }
@@ -279,6 +278,8 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Close Merge Request…", about: "Close it without merging; asks first. Its branch stays.", keys: "", rank: 790, run: func() { a.closeMR(mr) }},
 		{name: "Delete Worktrees…", about: "Delete its branch and review worktrees; asks first and lists what would be lost.", keys: "d", rank: 800, when: onDisk, run: func() { a.confirmDeleteMR(mr) }},
 	}
+	acts = append(acts, a.openInSandboxActions(func() sandboxTarget { return a.mergeRequestTarget(mr) },
+		func() bool { return mr.SourceBranch != "" && a.mergeRequestTarget(mr).dirs[0] != "" })...)
 	return append(acts, a.openingActions(
 		openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openMRIn(mr, ed, place) }},
 		openTarget{"Review", func(ed *editors.Editor, place editorPlace) { a.openMRReviewIn(mr, ed, place) }})...)
