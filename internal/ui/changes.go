@@ -80,6 +80,8 @@ type changesView struct {
 	shown   string
 	reading int
 	loaded  bool
+	// reads counts the reads asked for, applied the newest that arrived.
+	reads, applied int
 	// inDiff is whether the diff pane has the focus. It is noted by the
 	// panes' focus functions rather than asked of them: a TextView answers
 	// HasFocus under the lock its Focus holds while it calls them, and
@@ -233,15 +235,23 @@ func (a *App) reloadChanges() {
 }
 
 // readChanges asks git what is not committed, off the event loop. The
-// first read ticks every versioned file.
+// first read to arrive ticks every versioned file. Two reads can be under
+// way at once - standalone reads again as it starts - and they need not
+// arrive in order: an older one arriving last is dropped, or it would put
+// back what was on disk before, and the first to arrive unticked would
+// leave nothing to commit.
 func (a *App) readChanges(v *changesView, first bool) {
 	git := a.pathManager(v.place.instance, v.place.path).Git()
+	v.reads++
+	read := v.reads
 	go func() {
 		changes, err := git.Changes(v.place.dir)
 		a.tv.QueueUpdateDraw(func() {
-			if a.changes != v {
+			if a.changes != v || read < v.applied {
 				return
 			}
+			v.applied = read
+			first = first || !v.loaded
 			if err != nil {
 				a.errorf("reading the changes of %s: %v", v.place.title, err)
 				return
