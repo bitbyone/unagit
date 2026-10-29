@@ -1,11 +1,17 @@
 # Credentials for sandboxed agents
 
 Built (2026-10-20) with stored tokens: the socket, `unagit credential
-get <name>`, agents and services signed in from the Sandboxes tab, the
-tokens listed under `T`, every handout in Activity. Minting is not, and
-neither are grants by host: a request names the token alone, since sbx
-runs one command per service whatever its hosts and keeps the hosts itself.
-What follows is the plan as it was written, the decisions below included.
+get <name>`, the tokens listed under `T`, every handout in Activity.
+Minting is not, and neither are grants by host: a request names the token
+alone, since sbx runs one command per service whatever its hosts and keeps
+the hosts itself.
+
+Since unibox 2 (2026-10-29 in unagit) there are no profiles to write the
+command into: `t` among an env's tokens keeps the token in the vault under
+the service's name and runs `unibox secret set <service> -e <env> --command
+"unagit credential get <service>"`, so sbx keeps the command as the
+service's source. What follows is the plan as it was written for unibox 1,
+the decisions below included; its profile YAML is history.
 
 An agent in a unibox sandbox clones from and pushes
 to the forges, and reaches other services the host authenticates to (an

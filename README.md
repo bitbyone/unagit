@@ -659,59 +659,56 @@ in the order they are usually chosen.
 
 ### [unibox](https://github.com/bitbyone/unibox)
 
-unibox runs coding agents in sandboxes: VMs made from profiles kept in an
-environments repository, each holding tasks - fresh clones on a branch with
-an agent on them. The **Sandboxes** tab, `5`, is one interface over it, laid
-out as Activity is: the sandboxes as cards on top - running or stopped, their
-profile and runtime, processors, memory and tasks, the context marked -
-beside them the environment (the profiles' repository, the context, the
-runtimes, how many secrets and values are kept), then the tasks of every
-sandbox with their repositories, branch and agent, **working** while one is
-at it, and under them the profiles - their images, agents, how many
-sandboxes - and the log of every command unagit gave unibox and what it
-said. The detail follows the panel with the focus: a profile's sign-ins,
-services, network rules and the values it asks for; a sandbox's resources,
-ports and scripts; the environment's runtimes, secrets and values. Without
-`unibox` on PATH, or with it turned off in Settings › Integrations, the tab
-is grey and says so. **Set Up unibox…** (`I`, or `Enter` on the grey tab)
-lists what a first sandbox needs - unibox, the runtime signed in, the
-environments repository, a profile, its image, its logins - each with how
-it stands, and `Enter` does a step; **Init unibox Here** on a repository of
-Repositories makes it the environments repository. **unibox Profile from
-Template…** (the guide's Profiles step, or the tab's action picker) lists
-your repositories, clones first, reads the one picked with `unibox template
-inspect` - cloning it first when it is not - lists its profiles with their
-agents and what each will ask of you, and copies the one chosen with `unibox
-init <name> --from <clone> --use <profile>`, under another name when you
-have one of its.
+unibox runs coding agents in Docker Sandboxes (sbx) made from a team's env
+files: an **env** names a team's `*.sbxenv.yaml` files, the **sandbox** is
+the VM sbx creates from it, and each sandbox holds **tasks** - your
+checkouts mounted, or fresh clones from the forge - with an agent on them.
+The **Sandboxes** tab, `5`, is one interface over it, laid out as Activity
+is: the sandboxes as cards on top - running or stopped, their agents and
+tasks, the context marked - beside them the environment (the context, the
+default env, unibox's switches, the tokens sbx keeps), then the tasks of
+every sandbox with their repositories, branch and agent, **working** while
+one is at it, and under them the envs - each one's sandbox, what it lacks,
+its agent - and the log of every command unagit gave unibox and what it
+said. The detail follows the panel with the focus. Without `unibox` on
+PATH, or with it turned off in Settings › Integrations, the tab is grey and
+says so. **Set Up unibox…** (`I`, or `Enter` on the grey tab) lists what a
+first sandbox needs - the team's repository walked through `unibox init`,
+each env's values, its tokens, its sandbox, then unibox's doctor - and
+`Enter` does a step; **Set Up unibox from Here** on a clone runs `unibox
+init` on it.
 
+The **context** - the sandbox unibox works in when not told - rides on the
+tab bar after **Sandboxes [5]**, in a colour of its own, on every screen.
 Everything is read from unibox's `--json` and every change is a unibox
 command; unagit reads none of its files. On a task `o` resumes its agent and
-`a` another of the profile's, where you choose - this terminal, a Zellij or
+`a` another of the sandbox's, where you choose - this terminal, a Zellij or
 herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
 in the picker finds each agent in each place (**Resume with Claude Code in
-Zellij Vertical Split**); `s` is a shell in it, `e` renames it, `d` removes
-it. On a sandbox `n` starts a new task on one of your worktrees or clones,
-checked first with `unibox task check` and pushed only on **Push and
-Start**; `p` its ports, `!` a script, `x` stop, `C` recreate, `d` remove. On
-a profile `c` a new sandbox, `b` build, `D` changes since the build, `N` the
-network rules, `v` the services, `A` signs its agents in. `K` lists the
-secrets by name and stores one, `T` the tokens unagit keeps for the
-sandboxes, `V` sets your values - for every profile or
-one - and offers those a profile is missing, `U` is unibox's own settings:
-the default runtime, which runtimes may be used, whether an idle sandbox
-stops. A token is kept by unibox, which asks for it in this terminal, or by
-unagit: an agent signed in with `Enter` under `A` - which runs `claude
-setup-token`, or opens the page where the token is made, then asks for it - or a service added with
-`t` under `v`, keeps its token in unagit's vault, and the profile names
-`unagit credential get <name>` as its source. The runtime runs that on the
-host whenever it wants the token, and it asks the running, unlocked unagit
-over a socket - closed or locked, there is none, and nothing keeps the
-passphrase. Every handout is in Activity; a forge token is never one.
-**Open in Sandbox…** on a worktree, a grouped worktree or a
-clone starts a task from there, and **Sandbox with Claude Code…** - or
-with Claude Code in a Ghostty window, found by typing - names the agent at
-once; each asks which sandbox, the most used first. See the
+Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
+adds a repository, `e` renames it, `d` removes it. On a sandbox `n` starts a
+new task, checked first with `unibox task check` and pushed only on **Push
+and Start**; `p` its ports, `f` its network, `M` its resources, `x` stop,
+`C` recreate, `d` remove. On an env `c` creates its sandbox, `V` your
+values, `K` its tokens, `i` its repository index. `U` is unibox's own
+settings, `D` its doctor, `T` the tokens unagit keeps for the sandboxes. A
+token is stored by sbx, unibox asking for it in this terminal, or kept by
+unagit: `t` among an env's tokens - which runs `claude setup-token`, or
+opens the page where the token is made, then asks for it - keeps it in
+unagit's vault, and `unibox secret set --command` has sbx run `unagit
+credential get <service>` on the host whenever it wants the token. It asks
+the running, unlocked unagit over a socket - closed or locked, there is
+none, and nothing keeps the passphrase. Every handout is in Activity; a
+forge token is never one.
+
+From a repository, a worktree, a grouped worktree or a merge request,
+**Sandbox with Claude Code in web…** starts an agent in the context's
+sandbox, asking only where; **Sandbox with Claude Code…** asks which sandbox
+only when more than one runs it; **Open in Sandbox…** asks everything. A
+clone is mounted; a worktree - or each repository of a grouped one - is
+cloned in the sandbox at its branch, as unibox cannot mount a worktree; a
+merge request is cloned on its source branch. **Add to unibox Index…**
+names a repository in unibox's index of repositories. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
 
 ### Where things open
