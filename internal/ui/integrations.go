@@ -136,7 +136,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	}
 	byName["unibox"] = &integrationCard{
 		name: "unibox", command: "unibox",
-		description: "Runs coding agents in sandboxes. The Sandboxes tab [5] shows the sandboxes, their tasks, the profiles and the secrets; Open in Sandbox… starts an agent on a worktree in one.",
+		description: "Runs coding agents in Docker Sandboxes made from your team's envs. The Sandboxes tab [5] shows the sandboxes, their tasks and the envs; Sandbox with… starts an agent on a repository or a worktree in one.",
 		enabled:     s.app.uniboxOn,
 		toggle: func() {
 			on := !s.app.uniboxOn()

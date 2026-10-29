@@ -11,6 +11,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/agents"
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/unibox/uniboxtest"
 )
 
@@ -597,4 +598,32 @@ func TestTheContextsSandboxIsOfferedWithoutAsking(t *testing.T) {
 	waitFor(t, a, sc, "feat with Copilot CLI in web · where")
 	pickPlace(t, a, sc, "copilot", "This Terminal")
 	waitCalled(t, a, fake, "run --repo "+gateway+" --repo "+billing+" -s web --clone --agent copilot")
+}
+
+// TestAMergeRequestGoesIntoASandboxCloned: Sandbox with… on a merge
+// request clones its repository in the sandbox on its source branch,
+// whatever is on disk.
+func TestAMergeRequestGoesIntoASandboxCloned(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":true,"needs":[],"repositories":[]}`),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	openSandboxes(t, a, sc)
+	mr := onLoop(a, func() forge.MergeRequest { return a.mrs[0] })
+	url := onLoop(a, func() string { return a.mergeRequestTarget(mr).dirs[0] })
+	if url == "" || mr.SourceBranch == "" {
+		t.Fatalf("the fixture's merge request has no address or branch: %q %+v", url, mr)
+	}
+	changeOnLoop(a, func() {
+		for _, act := range a.mergeRequestActions(a.mrsPane, mr) {
+			if act.name == "Sandbox with Claude Code in web…" {
+				act.run()
+			}
+		}
+	})
+	waitFor(t, a, sc, "with Claude Code in web · where")
+	pickPlace(t, a, sc, "claude", "This Terminal")
+	waitCalled(t, a, fake, "run --branch "+mr.SourceBranch+" --repo "+url+" -s web --clone --agent claude")
 }

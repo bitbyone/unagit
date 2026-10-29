@@ -47,8 +47,8 @@ type uniboxState struct {
 	read     bool
 	loading  bool
 	at       time.Time
-	// details are what a row's detail shows besides the overview - a
-	// profile's agents and services, a sandbox's ports - by row key, read
+	// details are what a row's detail shows besides the overview - an
+	// env's values and tokens, a sandbox's ports - by row key, read
 	// when the row is first looked at and dropped with every refresh.
 	details map[string]*sandboxDetail
 }

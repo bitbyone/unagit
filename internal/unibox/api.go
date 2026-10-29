@@ -627,18 +627,22 @@ type Check struct {
 }
 
 // Start is a new task to run: the sandbox it goes into (made from Env when
-// unibox has none yet), the agent, and the directories it works on -
-// mounted, or cloned from the forge when Clone says so, which a git
-// worktree always is.
+// unibox has none yet), the agent, and the repositories it works on -
+// directories mounted, or cloned from the forge when Clone says so, which a
+// git worktree and an address always are - on Branch when it is given.
 type Start struct {
 	Sandbox, Env, Agent string
 	Dirs                []string
+	Branch              string
 	Clone, Push         bool
 }
 
 // Args are the arguments task check and run share; run adds the agent.
 func (s Start) Args() []string {
 	var args []string
+	if s.Branch != "" {
+		args = append(args, "--branch", s.Branch)
+	}
 	for _, d := range s.Dirs {
 		args = append(args, "--repo", d)
 	}
