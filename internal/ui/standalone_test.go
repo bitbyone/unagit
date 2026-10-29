@@ -128,6 +128,9 @@ func TestStandaloneLeavesTheServerOut(t *testing.T) {
 	dir, _ := soloFixture(t)
 	a, sc, _ := newSoloApp(t, dir)
 	waitFor(t, a, sc, "notes.txt")
+	// The actions offered depend on where the branch stands, read behind
+	// the interface: on a slower machine the picker could open before.
+	waitFor(t, a, sc, "1/1 uncommitted")
 	typeRunes(sc, ":")
 	waitFor(t, a, sc, "Go to Shelf")
 	text := a.screenText(sc)

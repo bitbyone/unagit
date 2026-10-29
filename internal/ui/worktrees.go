@@ -59,6 +59,9 @@ func (r worktreeRow) grouped() bool { return r.Members != nil }
 // remoteState is where a worktree's branch stands against origin. A worktree with
 // no entry yet is still being looked at.
 type remoteState struct {
+	// Branch is the branch the clone had out when this was read; a state of
+	// another branch says nothing of the one out now.
+	Branch     string
 	Unreadable bool // git could not be asked: the clone is gone or broken
 	Detached   bool
 	// From is the branch a detached HEAD came from and FromBehind how many
@@ -1142,8 +1145,8 @@ func (a *App) pushProject(pr forge.Project) {
 		a.flash(pr.PathWithNamespace + " is not cloned - there is nothing of yours to push")
 		return
 	}
-	st, known := a.repoSync[key]
-	if why := pushImpossible(st, known); why != "" {
+	st := a.freshRepoSync(pr, info.Branch)
+	if why := pushImpossible(st, true); why != "" {
 		a.flash(why)
 		return
 	}
@@ -1155,6 +1158,20 @@ func (a *App) pushProject(pr forge.Project) {
 	a.withOutgoing(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), dir, func(sending, removing []string) {
 		a.offerPush(pr, pr.PathWithNamespace, info.Branch, st.Upstream, sending, removing, func(force bool) { a.pushProjectNow(pr, dir, info.Branch, force) })
 	})
+}
+
+// freshRepoSync reads where a clone's branch stands from the refs on disk
+// now, and keeps it for the lists. What the lists show is read behind the
+// interface and can lag a commit, a squash or a checkout just made; a push
+// asked about that would offer the wrong push, or none.
+func (a *App) freshRepoSync(pr forge.Project, branch string) remoteState {
+	key := projectKey{pr.Instance, pr.PathWithNamespace}
+	st := readRemoteState(a.pathManager(pr.Instance, pr.PathWithNamespace).Git(), a.projectDir(pr.Instance, pr.PathWithNamespace), branch)
+	if a.repoSync == nil {
+		a.repoSync = map[projectKey]remoteState{}
+	}
+	a.repoSync[key] = st
+	return st
 }
 
 // pushProjectNow pushes a clone's branch, forced or not, under a log.
@@ -1234,9 +1251,11 @@ func (a *App) projectMergeRequest(pr forge.Project) {
 		a.flash("the clone is on " + pr.DefaultBranch + ", the default branch - a merge request goes from another into it; b makes one")
 		return
 	}
-	st, known := a.repoSync[projectKey{pr.Instance, pr.PathWithNamespace}]
+	var st remoteState
+	var known bool
 	r := worktreeRow{Instance: pr.Instance, Path: pr.PathWithNamespace, Branch: info.Branch,
 		Dir: a.projectDir(pr.Instance, pr.PathWithNamespace)}
+	st, known = a.freshRepoSync(pr, info.Branch), true
 	a.startMergeRequest(r, pr, st, known)
 }
 
