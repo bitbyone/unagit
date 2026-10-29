@@ -627,6 +627,12 @@ func (a *App) start() {
 	a.mrsPane.reload()
 	a.settings.reload()
 	a.switchTab(pageProjects)
+	// unibox is read behind the interface from the start, not first when
+	// its tab is opened: its context rides on the tab bar, and Sandbox
+	// with… in the context's sandbox is offered on every list.
+	if a.uniboxOn() {
+		a.refreshSandboxes()
+	}
 
 	switch {
 	case a.staleProjects || a.staleMRs:

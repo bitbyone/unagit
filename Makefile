@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo shots
+.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo shots video
 
 build: build-unagit
 
@@ -63,10 +63,16 @@ website:
 demo:
 	website/shots/demo.sh
 
-# The website's screenshots, taken of that world in a terminal.
+# The website's screenshots and the walk its home page plays, taken of
+# that world in a terminal.
 shots:
-	cd website && npm ci
+	cd website/shots && npm ci
 	website/shots/demo.sh "$${TMPDIR:-/tmp}/unagit-shots" --shots
+
+# The same walk as an MP4, for where the page's player cannot go.
+video:
+	cd website/shots && npm ci
+	website/shots/demo.sh "$${TMPDIR:-/tmp}/unagit-video" --video "$${VIDEO:-$$PWD/unagit.mp4}"
 
 website-dev:
 	cd website && npm install && npm run dev

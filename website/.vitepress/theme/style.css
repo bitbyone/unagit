@@ -1,32 +1,35 @@
 /*
- * The look follows the Vite+ documentation: a white page framed by thin
- * rules, one indigo for everything that can be followed, a sidebar on the
- * page's own background, and code on a quiet grey. It is built on the
- * default theme's variables, so whatever VitePress draws takes it up.
+ * The look follows the Vite+ documentation - a page framed by thin rules,
+ * a sidebar on the page's own background, code on a quiet fill - in the
+ * colours of unagit's retro-block theme: warm gold for everything that can
+ * be followed, muted teal beside it, on charcoal at night and on warm paper
+ * by day. It is built on the default theme's variables, so whatever
+ * VitePress draws takes it up.
  */
 
 :root {
-  --ug-brand: #4f30e8;
-  --ug-brand-hover: #3f22d6;
-  --ug-brand-soft: rgba(79, 48, 232, 0.08);
-  --ug-gold: #b8955a;
-  --ug-frame: #e7e7ec;
-  --ug-code-bg: #f6f6f8;
-  --ug-search-bg: #f2f2f5;
+  --ug-brand: #94692c;
+  --ug-brand-hover: #7d5822;
+  --ug-brand-soft: rgba(194, 152, 93, 0.14);
+  --ug-gold: #4f7f73;
+  --ug-frame: #e6ddd0;
+  --ug-code-bg: #f4eee4;
+  --ug-search-bg: #efe8dc;
+  --ug-shot-bg: #282527;
 
   --vp-c-brand-1: var(--ug-brand);
   --vp-c-brand-2: var(--ug-brand-hover);
   --vp-c-brand-3: var(--ug-brand);
   --vp-c-brand-soft: var(--ug-brand-soft);
 
-  --vp-c-bg: #ffffff;
-  --vp-c-bg-alt: #ffffff;
-  --vp-c-bg-soft: #f6f6f8;
+  --vp-c-bg: #fbf8f3;
+  --vp-c-bg-alt: #fbf8f3;
+  --vp-c-bg-soft: #f4eee4;
   --vp-c-divider: var(--ug-frame);
   --vp-c-gutter: var(--ug-frame);
-  --vp-c-text-1: #16161d;
-  --vp-c-text-2: #55555f;
-  --vp-c-text-3: #8a8a96;
+  --vp-c-text-1: #282527;
+  --vp-c-text-2: #5b524c;
+  --vp-c-text-3: #8a8078;
 
   --vp-nav-height: 80px;
   --vp-sidebar-bg-color: var(--vp-c-bg);
@@ -36,16 +39,16 @@
   --vp-code-bg: var(--ug-brand-soft);
   --vp-code-color: var(--ug-brand);
   --vp-code-block-bg: var(--ug-code-bg);
-  --vp-code-copy-code-bg: #ffffff;
+  --vp-code-copy-code-bg: #fbf8f3;
   --vp-code-line-height: 1.75;
 
   --vp-button-brand-bg: var(--ug-brand);
   --vp-button-brand-hover-bg: var(--ug-brand-hover);
   --vp-button-brand-active-bg: var(--ug-brand-hover);
-  --vp-button-alt-bg: #ffffff;
+  --vp-button-alt-bg: #fbf8f3;
   --vp-button-alt-border: var(--ug-frame);
-  --vp-button-alt-hover-bg: #f6f6f8;
-  --vp-button-alt-hover-border: #d6d6de;
+  --vp-button-alt-hover-bg: #f4eee4;
+  --vp-button-alt-hover-border: #d6cab8;
 
   --vp-home-hero-name-color: var(--vp-c-text-1);
   --vp-custom-block-tip-bg: var(--ug-brand-soft);
@@ -53,27 +56,27 @@
 }
 
 .dark {
-  --ug-brand: #8b93fa;
-  --ug-brand-hover: #a3a9fb;
-  --ug-brand-soft: rgba(107, 119, 248, 0.14);
-  --ug-gold: #d4b57c;
-  --ug-frame: #26262e;
-  --ug-code-bg: #16161c;
-  --ug-search-bg: #18181e;
+  --ug-brand: #c2985d;
+  --ug-brand-hover: #d4ab6e;
+  --ug-brand-soft: rgba(194, 152, 93, 0.14);
+  --ug-gold: #a5d0c0;
+  --ug-frame: #3a3537;
+  --ug-code-bg: #282527;
+  --ug-search-bg: #2d2a2c;
 
-  --vp-c-bg: #0c0c10;
-  --vp-c-bg-alt: #0c0c10;
-  --vp-c-bg-soft: #16161c;
-  --vp-c-text-1: #ececf1;
-  --vp-c-text-2: #a6a6b2;
-  --vp-c-text-3: #6e6e7a;
+  --vp-c-bg: #1f1c1e;
+  --vp-c-bg-alt: #1f1c1e;
+  --vp-c-bg-soft: #282527;
+  --vp-c-text-1: #eaeaea;
+  --vp-c-text-2: #cbcbcb;
+  --vp-c-text-3: #8a8078;
 
-  --vp-code-copy-code-bg: #1e1e26;
-  --vp-button-brand-text: #0c0c10;
-  --vp-button-brand-hover-text: #0c0c10;
+  --vp-code-copy-code-bg: #333033;
+  --vp-button-brand-text: #1d1b1c;
+  --vp-button-brand-hover-text: #1d1b1c;
   --vp-button-alt-bg: transparent;
-  --vp-button-alt-hover-bg: #16161c;
-  --vp-button-alt-hover-border: #34343e;
+  --vp-button-alt-hover-bg: #282527;
+  --vp-button-alt-hover-border: #4e4e4e;
 }
 
 /* The frame: two rules down the sides of the 1440px page, as Vite+ draws. */

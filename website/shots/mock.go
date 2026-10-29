@@ -51,6 +51,8 @@ func main() {
 	cfg.RootDir = "~/src"
 	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
 	cfg.NerdFont = config.NerdFontOff
+	// The website's look: warm gold and teal on charcoal.
+	cfg.Theme = "retro-block"
 	on := true
 	cfg.Integrations.Unibox = &on
 	gl := cfg.AddInstance(config.Instance{Name: "Northwind", URL: "http://127.0.0.1:" + port,
@@ -61,6 +63,8 @@ func main() {
 		Groups: []config.Group{{ID: 3, FullPath: "northwind-oss", Name: "northwind-oss", Scope: config.ScopeGroup}}})
 	ghID := gh.ID
 	check(cfg.Save())
+	// Commits made in the world are the demo user's, whoever runs it.
+	write(dir, ".gitconfig", "[user]\n\tname = Demo User\n\temail = demo@northwind.dev\n")
 
 	now := time.Now()
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
@@ -220,9 +224,16 @@ func seed(origin, clone, name string) {
 	git(clone, "push", "-q", "-u", "origin", "main")
 }
 
+// clock is when the next commit is made: the world's history spreads over
+// the days before it was laid out, not the second it took.
+var clock = time.Now().Add(-6 * 24 * time.Hour)
+
 func commit(dir, author, message string) {
 	email := strings.ToLower(strings.Fields(author)[0]) + "@northwind.dev"
+	clock = clock.Add(5*time.Hour + 17*time.Minute)
+	when := clock.Format(time.RFC3339)
 	cmd := exec.Command("git", "-c", "user.name="+author, "-c", "user.email="+email, "commit", "-q", "-m", message)
+	cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+when, "GIT_COMMITTER_DATE="+when)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

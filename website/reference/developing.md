@@ -27,7 +27,8 @@ commands and their measured costs are in
 
 ```sh
 make demo         # the real unagit over made-up data; the passphrase is demo
-make shots        # the website's screenshots, taken of the same world
+make shots        # the website's screenshots and the walk its home page plays
+make video        # that walk as unagit.mp4, for where the page's player cannot go
 ```
 
 `website/shots/` lays out a world of its own under `$TMPDIR/unagit-demo`: a
@@ -41,9 +42,16 @@ It needs Go and git.
 
 `make shots` drives that unagit in a pseudo-terminal (`shoot.py`, Python's
 standard library), replays what it wrote through xterm.js's emulator and
-draws each screen as an SVG (`render.mjs`) into `website/public/shots/`:
-the terminal's own cells, no browser and no screenshot tool. A new shot is
-a few keys in `shoot.py`; the mock data is `mock.go`.
+draws each screen as an SVG (`render.mjs`, `term-svg.mjs`) into
+`website/public/shots/`: the terminal's own cells, no browser and no
+screenshot tool. It then records the home page's walk (`record.py`): a
+shell, `unagit` typed at its prompt and driven at a person's pace, then
+`unagit -s` on one repository, kept as an asciicast whose markers are the
+captions; asciinema-player plays it on the page in a loop. `make video`
+renders the same walk frame by frame into an MP4 (`video.mjs`, ffmpeg). A
+new shot or scene is a few keys in `shoot.py` or `record.py`; the mock data
+is `mock.go`. The tools are `website/shots/package.json`'s, apart from the
+site's own.
 
 ## This website
 
