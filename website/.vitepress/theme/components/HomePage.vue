@@ -20,8 +20,10 @@ async function copy() {
   }
 }
 
-// The intro video, once there is one: a file under public/, or an
-// address. Until then the hero shows a screenshot in its place.
+// The walk through unagit the hero plays, recorded of the real unagit
+// over the demo world (make video). A finished video, once there is one -
+// a file under public/ or an address - takes its place.
+const introCast = '/shots/intro.cast.json'
 const introVideo = ''
 
 // Real screenshots of unagit over the made-up world of website/shots
@@ -148,8 +150,9 @@ const features = [
       </div>
     </section>
 
-    <section v-if="introVideo" class="screen" aria-label="unagit in a terminal">
-      <video class="intro" :src="introVideo.startsWith('/') ? withBase(introVideo) : introVideo" controls playsinline preload="metadata" />
+    <section class="screen" aria-label="unagit in a terminal">
+      <video v-if="introVideo" class="intro" :src="introVideo.startsWith('/') ? withBase(introVideo) : introVideo" autoplay muted loop playsinline />
+      <ClientOnly v-else><IntroPlayer :src="introCast" /></ClientOnly>
     </section>
 
     <section v-for="(shot, i) in shots" :key="shot.src" class="showcase" :class="{ flip: i % 2 === 1 }">
@@ -307,7 +310,7 @@ section {
   transition: background-color 0.2s, border-color 0.2s;
 }
 .btn.brand { background: var(--ug-brand); color: #fff; }
-.dark .btn.brand { color: #0c0c10; }
+.dark .btn.brand { color: #1d1b1c; }
 .btn.brand:hover { background: var(--ug-brand-hover); }
 .btn.alt { border-color: var(--ug-frame); color: var(--vp-c-text-1); }
 .btn.alt:hover { border-color: var(--vp-c-text-3); }
@@ -319,13 +322,13 @@ section {
   max-width: 1100px;
   height: auto;
   border-radius: 12px;
-  box-shadow: 0 24px 60px -24px rgba(20, 20, 40, 0.35);
+  box-shadow: 0 24px 60px -24px rgba(29, 27, 28, 0.45);
 }
 .intro {
   width: 100%;
   max-width: 1100px;
   border-radius: 12px;
-  background: #14141a;
+  background: #282527;
 }
 .showcase {
   display: grid;
