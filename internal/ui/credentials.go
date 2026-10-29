@@ -20,14 +20,14 @@ import (
 )
 
 // unagit keeps tokens for unibox's sandboxes in its vault, beside the
-// forge tokens and never among them, and hands them to the runtime that
-// asks over a socket of its own while it runs unlocked (internal/credential,
-// docs/sandbox-credentials.md). A profile names `unagit credential get
-// <name>` as the source of an agent's or a service's token; unibox writes
-// that into the profile and tells the runtime, so unagit writes no YAML.
-// Every handout and every refusal goes to the Activity log.
+// forge tokens and never among them, and hands them to sbx when it asks
+// over a socket of its own while unagit runs unlocked (internal/credential,
+// docs/sandbox-credentials.md). unibox secret set --command has sbx keep
+// `unagit credential get <service>` as the source of a service's token, so
+// unagit writes nothing of sbx's or unibox's. Every handout and every
+// refusal goes to the Activity log.
 
-// credentialName is what a stored token may be called: what a profile's
+// credentialName is what a stored token may be called: what sbx's
 // command names, so nothing a shell would read twice.
 var credentialName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
@@ -98,7 +98,7 @@ func handOut(vault tokenVault, store *watch.Store, r credential.Request, p crede
 	return c.Token, nil
 }
 
-// credentialCommand is the host command a profile names for a stored
+// credentialCommand is the host command sbx keeps for a stored
 // token: this unagit by an absolute path - the runtime runs it from no
 // directory and with no PATH of the user's - and its socket when it is
 // not where an unagit started without the environment would look.
@@ -140,89 +140,41 @@ func (a *App) storeCredential(c secret.Credential) bool {
 	return true
 }
 
-// agentTokenPages are where an agent's token is made, for the agents whose
-// token is made on a page rather than by a program.
-var agentTokenPages = map[string]string{
-	"copilot": "https://github.com/settings/personal-access-tokens/new",
-	"codex":   "https://platform.openai.com/api-keys",
-}
-
-// agentTokenHints says, per agent, which token signs it in.
-var agentTokenHints = map[string]string{
-	"claude":  "The token claude setup-token printed: it signs\nyour subscription in for a year.",
-	"copilot": "A fine-grained GitHub token, made on the page\njust opened: no repositories, Account permissions\n> Copilot Requests: Read-only, nothing else.",
-	"codex":   "An OpenAI API key, made on the page just opened.",
-}
-
-// signInAgents lists a profile's agents to sign in: Enter keeps the token
-// in unagit, u leaves it to unibox, which asks in this terminal.
-func (a *App) signInAgents(pr unibox.Profile) {
-	if len(pr.Agents) == 0 {
-		a.uniboxSignIn("Signing in the agents of "+pr.Name, "agent", "login", "-p", pr.Name)
+// guideSecretToken makes a service's token where it is made, then asks
+// for it: claude setup-token in this terminal for the subscription's
+// token, which signs it in through the browser and prints it, or the page
+// the env names. What setup-token prints is the user's to copy - read from
+// its output, the token would hang on the wording of a program unagit does
+// not own.
+func (a *App) guideSecretToken(e unibox.Env, s unibox.Secret) {
+	if a.vault == nil {
+		a.flash("the vault is locked - unlock unagit first")
 		return
 	}
-	var items []pickItem
-	for _, id := range pr.Agents {
-		sub, about := "", "Keep its token in unagit's vault; the profile names unagit credential get as its source."
-		if _, ok := agentTokenHints[id]; !ok {
-			about = "unibox has no token sign-in for it; u runs its own."
-		}
-		if a.vault != nil {
-			if _, ok := a.vault.Credential(id); ok {
-				sub = "token in unagit"
-			}
-		}
-		items = append(items, pickItem{Label: agentLabel(id), Sub: sub, About: about, Data: id})
-	}
-	keys := []pickKey{
-		{keys: "r", hint: "renew", name: "Renew Token…", about: "Make the agent's token again - claude setup-token, or the page where it is made - and keep the new one in unagit.",
-			run: func(it pickItem) { a.guideAgentToken(pr, it.Data.(string)) }},
-		{keys: "u", hint: "with unibox", name: "Sign In with unibox…", about: "unibox signs the agent in, in this terminal, and keeps its token in the platform's store.",
-			run: func(it pickItem) {
-				id := it.Data.(string)
-				a.uniboxSignIn("Signing in "+id+" of "+pr.Name, "agent", "login", id, "-p", pr.Name)
-			}},
-	}
-	a.showPickerWith("Sign in · "+pr.Name, items, pickerOptions{pack: true, explain: true, keys: keys,
-		enterName: "Sign In with a Token in unagit…", enterAbout: "Make the agent's token - claude setup-token, or the page where it is made - and type it; unagit keeps it and hands it to the sandboxes while it runs unlocked.", enterHint: "token in unagit"},
-		func(it pickItem) {
-			id := it.Data.(string)
-			if _, ok := a.vault.Credential(id); ok {
-				// Signed in already: the form keeps the token when left
-				// empty, and r makes a new one.
-				a.askAgentToken(pr, id)
-				return
-			}
-			a.guideAgentToken(pr, id)
-		})
-}
-
-// guideAgentToken makes an agent's token the way unibox's own sign-in
-// does, then asks for it: claude setup-token in this terminal, which signs
-// the subscription in through the browser and prints the token, or the
-// page where the token is made. What setup-token prints is the user's to
-// copy - read from its output, the token would hang on the wording of a
-// program unagit does not own.
-func (a *App) guideAgentToken(pr unibox.Profile, id string) {
-	if page, ok := agentTokenPages[id]; ok {
-		_ = openBrowser(page)
-		a.askAgentToken(pr, id)
+	if _, stored := a.vault.Credential(s.Service); stored {
+		// Kept already: the form keeps the token when left empty.
+		a.askSecretToken(e, s)
 		return
 	}
-	if id != "claude" {
-		a.askAgentToken(pr, id)
+	if s.Page != "" {
+		_ = openBrowser(s.Page)
+		a.askSecretToken(e, s)
+		return
+	}
+	if !claudeService(s) {
+		a.askSecretToken(e, s)
 		return
 	}
 	bin, err := a.executable("claude")
 	if err != nil {
-		a.askAgentToken(pr, id, "claude is not installed here: run claude setup-token\nwhere it is.")
+		a.askSecretToken(e, s, "claude is not installed here: run claude setup-token\nwhere it is.")
 		return
 	}
 	cmd := exec.Command(bin, "setup-token")
 	go func() {
 		err := a.runTerminalEditor(cmd, editors.Editor{Name: "claude setup-token"})
 		a.tv.QueueUpdateDraw(func() {
-			a.askAgentToken(pr, id)
+			a.askSecretToken(e, s)
 			if err != nil {
 				a.flash(fmt.Sprintf("claude setup-token did not finish (%v) - run it yourself and type the token it prints", err))
 			}
@@ -230,15 +182,28 @@ func (a *App) guideAgentToken(pr unibox.Profile, id string) {
 	}()
 }
 
-// askAgentToken takes an agent's token into the vault and has unibox name
-// unagit as its source in the profile.
-func (a *App) askAgentToken(pr unibox.Profile, id string, notes ...string) {
-	hint, ok := agentTokenHints[id]
-	if !ok {
-		a.flash("unibox signs " + id + " in by no token - press u to sign it in with unibox")
-		return
+// claudeService says whether a token is Claude's subscription, which
+// claude setup-token makes.
+func claudeService(s unibox.Secret) bool {
+	if s.Service == "anthropic" || s.Service == "claude" {
+		return true
 	}
-	_, stored := a.vault.Credential(id)
+	for _, k := range s.Kits {
+		if strings.Contains(k, "claude") {
+			return true
+		}
+	}
+	return false
+}
+
+// askSecretToken takes a service's token into the vault and has sbx keep
+// unagit as its source.
+func (a *App) askSecretToken(e unibox.Env, s unibox.Secret, notes ...string) {
+	_, stored := a.vault.Credential(s.Service)
+	hint := firstOf(s.Hint, "A token for "+s.Service+", for the sandboxes alone.")
+	if claudeService(s) && s.Hint == "" {
+		hint = "The token claude setup-token printed: it signs\nyour subscription in for a year."
+	}
 	for _, n := range notes {
 		hint += "\n" + n
 	}
@@ -250,68 +215,24 @@ func (a *App) askAgentToken(pr unibox.Profile, id string, notes ...string) {
 	field := addPassword(form, "Token", 0)
 	lines := strings.Count(hint, "\n") + 1
 	form.AddTextView("", hint, 0, lines, true, false)
-	form.AddButton("Sign In", func() {
+	form.AddButton("Keep", func() {
 		token := strings.TrimSpace(field.GetText())
 		if token == "" && !stored {
-			a.flash("enter the token - " + strings.ReplaceAll(strings.SplitN(hint, ":", 2)[0], "\n", " "))
+			a.flash("enter the token for " + s.Service)
 			return
 		}
-		if !a.storeCredential(secret.Credential{Name: id, Kind: secret.CredentialAgent, Token: token}) {
-			return
-		}
-		a.closeModal(pageForm)
-		a.uniboxDo("Signing "+id+" in through unagit", "agent", "login", id, "-p", pr.Name, "--command", a.credentialCommand(id))
-	})
-	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Sign in "+agentLabel(id)+" · "+pr.Name, form, 64, 7+lines)
-}
-
-// serviceKinds are the services unibox knows by kind, and their hosts
-// when none is given.
-var serviceKinds = []string{"gitlab", "github", "artifactory", "generic"}
-
-// askServiceToken adds a service to a profile whose token unagit keeps.
-func (a *App) askServiceToken(pr unibox.Profile) {
-	const nameLabel, kindLabel, hostsLabel, tokenLabel = "Service", "Kind", "Hosts", "Token"
-	form := tview.NewForm()
-	styleForm(form)
-	form.AddInputField(nameLabel, "", 0, nil, nil)
-	kind := addSelect(form, kindLabel, serviceKinds, 0)
-	form.AddInputField(hostsLabel, "", 0, nil, nil)
-	token := addPassword(form, tokenLabel, 0)
-	form.AddTextView("", "Kind is unibox's preset: gitlab and github wire\nthe sandbox's git to the hosts; artifactory puts\nthe token in ARTIFACTORY_TOKEN; generic, the hosts\nalone. Hosts: empty for gitlab.com, github.com;\ngithub.com/<owner> for one owner.\nToken: a narrow one, for the sandboxes alone.", 0, 6, true, false)
-	form.AddButton("Add", func() {
-		name := strings.TrimSpace(form.GetFormItemByLabel(nameLabel).(*tview.InputField).GetText())
-		hosts := strings.FieldsFunc(form.GetFormItemByLabel(hostsLabel).(*tview.InputField).GetText(), func(r rune) bool { return r == ',' || r == ' ' })
-		value := strings.TrimSpace(token.GetText())
-		_, k := kind.GetCurrentOption()
-		switch {
-		case !credentialName.MatchString(name):
-			a.flash("enter the service's name: letters, digits, dots, dashes - like gitlab-2n")
-			return
-		case value == "":
-			a.flash("enter the service's token")
-			return
-		case len(hosts) == 0 && (k == "artifactory" || k == "generic"):
-			a.flash("enter the hosts the token is for")
-			return
-		}
-		if !a.storeCredential(secret.Credential{Name: name, Kind: secret.CredentialService, Hosts: hosts, Token: value}) {
+		if !a.storeCredential(secret.Credential{Name: s.Service, Kind: secret.CredentialService, Hosts: s.Domains, Token: token}) {
 			return
 		}
 		a.closeModal(pageForm)
-		args := []string{"service", "add", name, "-p", pr.Name, "--kind", k, "--command", a.credentialCommand(name)}
-		for _, h := range hosts {
-			args = append(args, "--host", h)
-		}
-		a.uniboxDo("Adding "+name+" with a token in unagit", args...)
+		a.uniboxDo("Keeping "+s.Service+" in unagit", "secret", "set", s.Service, "-e", e.Name, "--command", a.credentialCommand(s.Service))
 	})
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
-	a.showFormModalSized("Add a service · "+pr.Name, form, 64, 19)
+	a.showFormModalSized("Token of "+s.Service+" · "+e.Name, form, 64, 7+lines)
 }
 
 // showCredentials lists the tokens unagit keeps for the sandboxes: Enter
-// replaces one, d removes it, y copies the command a profile names.
+// replaces one, d removes it, y copies the command sbx runs for it.
 func (a *App) showCredentials() {
 	if a.vault == nil {
 		a.flash("the vault is locked - unlock unagit first")
@@ -331,23 +252,23 @@ func (a *App) showCredentials() {
 		serving = "not handed out by this unagit"
 	}
 	if len(items) == 0 {
-		items = append(items, pickItem{Label: "no tokens yet", About: "Sign In Agents… (A) and Services… (v) of a profile keep a token here."})
+		items = append(items, pickItem{Label: "no tokens yet", About: "Tokens… (K) of an env keeps one here with t."})
 	}
 	named := func(it pickItem) bool { return it.Data != nil }
 	keys := []pickKey{
-		{keys: "y", hint: "copy command", name: "Copy Command", about: "Put the command that prints the token on the clipboard, for a profile written by hand.",
+		{keys: "y", hint: "copy command", name: "Copy Command", about: "Put the command that prints the token on the clipboard, for unibox secret set --command by hand.",
 			when: named, run: func(it pickItem) {
 				if c, ok := it.Data.(secret.Credential); ok {
 					a.yank("Command", a.credentialCommand(c.Name))
 				}
 			}},
-		{keys: "d", hint: "remove", name: "Remove Token…", about: "Take the token out of the vault; a profile that names it fails at its next start until it is stored again.",
+		{keys: "d", hint: "remove", name: "Remove Token…", about: "Take the token out of the vault; sbx fails to get it until it is stored again.",
 			when: named, run: func(it pickItem) {
 				c, ok := it.Data.(secret.Credential)
 				if !ok {
 					return
 				}
-				a.confirmWith("Remove token", "Remove token "+c.Name+" from unagit's vault?\n\nA profile that names it fails at its next start until it is stored again.", "Remove", nil, func() {
+				a.confirmWith("Remove token", "Remove token "+c.Name+" from unagit's vault?\n\nsbx fails to get it until it is stored again.", "Remove", nil, func() {
 					a.closeModal(pageConfirm)
 					a.vault.RemoveCredential(c.Name)
 					a.saveVault()
@@ -359,7 +280,7 @@ func (a *App) showCredentials() {
 			}},
 	}
 	a.showPickerWith("Tokens in unagit · "+serving, items, pickerOptions{pack: true, explain: true, keys: keys,
-		enterName: "Replace Token…", enterAbout: "Type a new value for the token; the profiles that name it take it at their next fetch.", enterHint: "replace"},
+		enterName: "Replace Token…", enterAbout: "Type a new value for the token; sbx takes it at its next fetch.", enterHint: "replace"},
 		func(it pickItem) {
 			if c, ok := it.Data.(secret.Credential); ok {
 				a.askReplaceCredential(c)

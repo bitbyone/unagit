@@ -19,8 +19,7 @@ import (
 func credentialApp(t *testing.T, w, h int) (*App, tcell.SimulationScreen, *uniboxtest.Fake) {
 	t.Helper()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
-		"agent login claude -p web --command * --json": uniboxtest.OK("profile web signs its agents in"),
-		"service add * --json":                         uniboxtest.OK("service gitlab-2n added"),
+		"secret set * --command * --json": uniboxtest.OK("sbx asks unagit for the token"),
 	})
 	dir, err := os.MkdirTemp("/tmp", "uc")
 	if err != nil {
@@ -52,30 +51,30 @@ func calledWith(t *testing.T, a *App, fake *uniboxtest.Fake, prefix string) stri
 	return line
 }
 
-// TestAnAgentSignsInWithATokenInUnagit: A on a profile lists its agents;
-// Enter takes a token into the vault, has unibox name unagit credential
-// get as its source, and from then on the socket hands it out - and says
-// so in Activity - while a name it does not keep is refused.
-func TestAnAgentSignsInWithATokenInUnagit(t *testing.T) {
+// TestATokenIsKeptInUnagit: t on a token of an env's takes it into the
+// vault, has sbx keep unagit credential get as its source, and from then
+// on the socket hands it out - and says so in Activity - while a name it
+// does not keep is refused.
+func TestATokenIsKeptInUnagit(t *testing.T) {
 	t.Parallel()
 	a, sc, fake := credentialApp(t, 140, 40)
-	selectSandboxRow(t, a, "p:web")
-	typeRunes(sc, "A")
-	waitFor(t, a, sc, "Sign in · web")
-	waitFor(t, a, sc, "Copilot")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "Tokens of web")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "t")
 	waitFor(t, a, sc, "claude setup-token")
 	typeRunes(sc, "sk-ant-oat01-secret")
-	pressButton(t, a, sc, frontForm(a), "Sign In")
+	pressButton(t, a, sc, frontForm(a), "Keep")
 
-	line := calledWith(t, a, fake, "agent login claude -p web --command ")
-	if !strings.Contains(line, " credential get claude --socket "+a.credentialSocket()) {
-		t.Fatalf("the profile is not told unagit's command: %q", line)
+	line := calledWith(t, a, fake, "secret set anthropic -e web --command ")
+	if !strings.Contains(line, " credential get anthropic --socket "+a.credentialSocket()) {
+		t.Fatalf("sbx is not told unagit's command: %q", line)
 	}
-	if strings.Contains(strings.Join(fake.Calls(), "\n"), "secret") && strings.Contains(strings.Join(fake.Calls(), "\n"), "sk-ant") {
+	if strings.Contains(strings.Join(fake.Calls(), "\n"), "sk-ant") {
 		t.Fatal("the token reached unibox's command line")
 	}
-	token, err := credential.Get(a.credentialSocket(), "claude")
+	token, err := credential.Get(a.credentialSocket(), "anthropic")
 	if err != nil || token != "sk-ant-oat01-secret" {
 		t.Fatalf("handed out %q, %v", token, err)
 	}
@@ -86,7 +85,7 @@ func TestAnAgentSignsInWithATokenInUnagit(t *testing.T) {
 	if !store {
 		t.Fatal("no store to write the handouts to")
 	}
-	events := a.watchStore.History("credential\x00claude")
+	events := a.watchStore.History("credential\x00anthropic")
 	if len(events) != 1 || events[0].Heading != "Token handed out" {
 		t.Fatalf("the handout is not in Activity: %+v", events)
 	}
@@ -97,39 +96,44 @@ func TestAnAgentSignsInWithATokenInUnagit(t *testing.T) {
 	// T lists it without its value; d takes it out, and the socket goes.
 	typeRunes(sc, "T")
 	waitFor(t, a, sc, "Tokens in unagit")
-	waitFor(t, a, sc, "agent")
+	waitFor(t, a, sc, "service")
 	if strings.Contains(a.screenText(sc), "sk-ant") {
 		t.Fatal("a token is shown")
 	}
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "Remove token claude")
+	waitFor(t, a, sc, "Remove token anthropic")
 	typeRunes(sc, "y")
 	waitEditorState(t, a, func() bool { return a.credServer == nil })
-	if _, err := credential.Get(a.credentialSocket(), "claude"); err == nil || !strings.Contains(err.Error(), "start it and unlock it") {
+	if _, err := credential.Get(a.credentialSocket(), "anthropic"); err == nil || !strings.Contains(err.Error(), "start it and unlock it") {
 		t.Fatalf("the socket outlived the last token: %v", err)
 	}
 }
 
-// TestAServiceIsAddedWithATokenInUnagit: t in a profile's services adds
-// one whose token unagit keeps; unibox is given the hosts and the command.
-func TestAServiceIsAddedWithATokenInUnagit(t *testing.T) {
-	t.Parallel()
+// TestATokenMadeOnAPageOpensItFirst: a token the env says is made on a
+// page opens the page, then asks for it; sbx is given the command alone.
+func TestATokenMadeOnAPageOpensItFirst(t *testing.T) {
+	opened := make(chan string, 1)
+	saved := openBrowser
+	openBrowser = func(url string) error { opened <- url; return nil }
+	t.Cleanup(func() { openBrowser = saved })
 	a, sc, fake := credentialApp(t, 140, 40)
-	selectSandboxRow(t, a, "p:web")
-	typeRunes(sc, "v")
-	waitFor(t, a, sc, "Services of web")
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "Tokens of web")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "j")
 	typeRunes(sc, "t")
-	waitFor(t, a, sc, "Add a service · web")
-	form := frontForm(a)
-	setField(t, a, form, 0, "gitlab-2n")
-	setField(t, a, form, 2, "gitlab.2n.cz")
-	setField(t, a, form, 3, "glpat-narrow")
-	pressButton(t, a, sc, form, "Add")
-	line := calledWith(t, a, fake, "service add gitlab-2n -p web --kind gitlab --command ")
-	if !strings.Contains(line, "credential get gitlab-2n") || !strings.Contains(line, "--host gitlab.2n.cz") || strings.Contains(line, "glpat") {
+	waitFor(t, a, sc, "Token of artifactory · web")
+	if url := <-opened; url != "https://artifactory.example.com/ui/user_profile" {
+		t.Fatalf("opened %q", url)
+	}
+	typeRunes(sc, "narrow")
+	pressButton(t, a, sc, frontForm(a), "Keep")
+	line := calledWith(t, a, fake, "secret set artifactory -e web --command ")
+	if !strings.Contains(line, "credential get artifactory") || strings.Contains(line, "narrow") {
 		t.Fatalf("unibox was told %q", line)
 	}
-	if token, err := credential.Get(a.credentialSocket(), "gitlab-2n"); err != nil || token != "glpat-narrow" {
+	if token, err := credential.Get(a.credentialSocket(), "artifactory"); err != nil || token != "narrow" {
 		t.Fatalf("handed out %q, %v", token, err)
 	}
 }
@@ -141,33 +145,23 @@ func TestTheTokenFormsFitTheirFrames(t *testing.T) {
 	for _, size := range []struct{ w, h int }{{120, 34}, {100, 30}, {80, 24}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			a, sc, _ := credentialApp(t, size.w, size.h)
-			selectSandboxRow(t, a, "p:web")
-			typeRunes(sc, "A")
-			waitFor(t, a, sc, "Sign in · web")
-			assertLegible(t, a, sc, "the agents to sign in")
-			sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-			waitFor(t, a, sc, "claude setup-token")
-			assertFormFits(t, a, sc, frontForm(a), "Token", "Sign In", "Cancel")
-			assertLegible(t, a, sc, "an agent's token")
-			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-			waitGone(t, a, sc, "claude setup-token")
-
-			selectSandboxRow(t, a, "p:web")
-			typeRunes(sc, "v")
-			waitFor(t, a, sc, "Services of web")
+			selectSandboxRow(t, a, "e:web")
+			typeRunes(sc, "K")
+			waitFor(t, a, sc, "Tokens of web")
+			assertLegible(t, a, sc, "the tokens of an env")
+			waitFor(t, a, sc, "NORMAL")
 			typeRunes(sc, "t")
-			waitFor(t, a, sc, "Add a service · web")
-			assertFormFits(t, a, sc, frontForm(a), "Service", "Kind", "Hosts", "Token", "Add", "Cancel")
-			assertLegible(t, a, sc, "a service with a token")
+			waitFor(t, a, sc, "claude setup-token")
+			assertFormFits(t, a, sc, frontForm(a), "Token", "Keep", "Cancel")
+			assertLegible(t, a, sc, "a token kept in unagit")
 		})
 	}
 }
 
-// TestSigningClaudeInRunsSetupTokenFirst: Enter on claude, not signed in
-// yet, runs claude setup-token in this terminal - its browser login - and
-// then asks for the token it printed.
-func TestSigningClaudeInRunsSetupTokenFirst(t *testing.T) {
+// TestKeepingClaudesTokenRunsSetupTokenFirst: t on Claude's token, not
+// kept yet, runs claude setup-token in this terminal - its browser login -
+// and then asks for the token it printed.
+func TestKeepingClaudesTokenRunsSetupTokenFirst(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	ran := filepath.Join(dir, "ran")
@@ -186,10 +180,11 @@ func TestSigningClaudeInRunsSetupTokenFirst(t *testing.T) {
 		}
 		return true
 	})
-	selectSandboxRow(t, a, "p:web")
-	typeRunes(sc, "A")
-	waitFor(t, a, sc, "Sign in · web")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "Tokens of web")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "t")
 	waitFor(t, a, sc, "claude setup-token printed")
 	if got, _ := os.ReadFile(ran); strings.TrimSpace(string(got)) != "setup-token" {
 		t.Fatalf("claude ran with %q", got)

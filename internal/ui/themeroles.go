@@ -190,23 +190,22 @@ var colourRoles = []colourRole{
 	{"agents.title", "column.name", "what the agent calls its conversation"},
 	{"agents.where", "text.muted", "where it runs"},
 	{"agents.path", "column.path", ""},
-	// Sandboxes: unibox's profiles, the VMs made from them, their tasks.
+	// Sandboxes: unibox's envs, the sandboxes made from them, their tasks.
 	{"sandboxes.header", "column.header", ""},
-	{"sandboxes.profile", "text.accent", "a profile, the heading of its sandboxes"},
+	{"sandboxes.env", "text.accent", "an env, the team's sbxenv files a sandbox is made from"},
 	{"sandboxes.sandbox", "column.name", "a sandbox"},
 	{"sandboxes.task", "column.name", "a task in a sandbox"},
 	{"sandboxes.running", "state.good", "a sandbox running, a task's agent at work"},
 	{"sandboxes.stopped", "text.muted", "a sandbox stopped, its disk kept"},
-	{"sandboxes.problem", "state.warning", "an image outdated or missing, a profile that does not load"},
+	{"sandboxes.problem", "state.warning", "a value or a token missing, an env that does not load"},
 	{"sandboxes.failed", "state.bad", "a command unibox could not carry out, in the log"},
 	{"sandboxes.resource", "text.muted", "the icons of a sandbox's processors, memory and tasks"},
 	{"sandboxes.agent", "agents.agent", ""},
 	{"sandboxes.branch", "column.branch", ""},
-	{"sandboxes.runtime", "text.muted", "the runtime a sandbox runs in"},
 	{"sandboxes.memory", "column.size", ""},
-	{"sandboxes.allowed", "state.good", "a host the sandboxes may reach beyond the runtime's policy"},
-	{"sandboxes.denied", "state.bad", "a host the sandboxes may not reach"},
-	{"sandboxes.service", "text.accent", "a host the sandboxes reach for one of the profile's services"},
+	{"sandboxes.allowed", "state.good", "a host a sandbox may reach beyond its env's"},
+	{"sandboxes.denied", "state.bad", "a host a sandbox may not reach"},
+	{"sandboxes.blocked", "state.warning", "a host the policy refused a sandbox lately"},
 	// An agent's mark in the lists, in the colour of what it is doing.
 	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
 	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},
@@ -249,6 +248,7 @@ var colourRoles = []colourRole{
 	{"tabs.key", "text.dim", "the key after a tab's name that reaches it"},
 	{"tabs.off", "text.dim", "a tab with nothing to show, Sandboxes without unibox"},
 	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
+	{"tabs.context", "text.accent", "on the Sandboxes tab: the sandbox unibox works in when not told"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
 	// them, its colours are worked out of the severity's and the

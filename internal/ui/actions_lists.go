@@ -164,11 +164,19 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
-	acts = append(acts, uiAction{name: "Init unibox Here", about: "Lay this clone out as unibox's environments repository - where the profiles live - and make it the one unibox uses.",
-		rank: 630, aliases: []string{"unibox", "sandbox", "environments", "setup"},
+	acts = append(acts, uiAction{name: "Set Up unibox from Here", about: "Run unibox init on this clone, your team's repository of sbxenv files: it finds every env there and walks you through them, in this terminal.",
+		rank: 630, aliases: []string{"unibox", "sandbox", "init", "setup"},
 		when: func() bool { _, err := a.executable("unibox"); return cloned() && err == nil },
 		run:  func() { a.initUniboxHere(a.projectDir(pr.Instance, pr.PathWithNamespace)) }})
-	acts = append(acts, a.openInSandboxActions(pr.PathWithNamespace, func() []string { return []string{a.projectDir(pr.Instance, pr.PathWithNamespace)} }, cloned)...)
+	acts = append(acts, a.openInSandboxActions(func() sandboxTarget {
+		return sandboxTarget{label: pr.PathWithNamespace, dirs: []string{a.projectDir(pr.Instance, pr.PathWithNamespace)}}
+	}, cloned)...)
+	acts = append(acts, a.indexActions(pr.PathWithNamespace, func() string {
+		if cloned() {
+			return a.projectDir(pr.Instance, pr.PathWithNamespace)
+		}
+		return pr.HTTPURLToRepo
+	}, nil)...)
 	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }
 
@@ -421,15 +429,18 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 		return a.keptReviewActions(p, r)
 	}
 	acts := a.worktreeActions(r, p.onOpen, "c")
-	acts = append(acts, a.openInSandboxActions(r.Path, func() []string {
+	// unibox cannot mount a git worktree, so a worktree or a group's
+	// members are cloned in the sandbox from the forge, at their branch.
+	acts = append(acts, a.openInSandboxActions(func() sandboxTarget {
+		t := sandboxTarget{label: r.Path, clone: true}
 		if !r.grouped() {
-			return []string{r.Dir}
+			t.dirs = []string{r.Dir}
+			return t
 		}
-		var dirs []string
 		for _, m := range r.Members {
-			dirs = append(dirs, m.Dir)
+			t.dirs = append(t.dirs, m.Dir)
 		}
-		return dirs
+		return t
 	}, nil)...)
 	return append(acts,
 		uiAction{name: "Refresh", about: "Fetch this worktree's repository, read its branch's pipeline and bring in its merge request's comments, leaving the rest as it is.", keys: "r", rank: 38,

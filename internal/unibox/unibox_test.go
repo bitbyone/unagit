@@ -21,92 +21,128 @@ func TestTheOverviewIsReadFromTheCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.Version.Version != "0.3" || o.Version.ProfileFormat != 6 || o.Environments != "/envs" {
-		t.Fatalf("version and repository: %+v", o)
+	if o.Version.Version != "0.5" || o.Default != "web" {
+		t.Fatalf("version and default env: %+v", o)
 	}
-	if len(o.Profiles) != 2 || o.Profiles[0].Images["sbx"] != "built" || o.Profiles[1].Error == "" {
-		t.Fatalf("profiles: %+v", o.Profiles)
+	if len(o.Envs) != 2 || o.Envs[0].Name != "api" || o.Envs[0].Sandbox != "api-box" || o.Envs[0].Agent != "codex" ||
+		len(o.Envs[0].Missing) != 1 || o.Envs[1].Repo != "/team" || o.Envs[1].Agent != "claude" {
+		t.Fatalf("envs: %+v", o.Envs)
 	}
-	if len(o.Sandboxes) != 2 || len(o.Sandboxes[0].Tasks) != 2 || o.Sandboxes[0].Tasks[0].Name() != "rate" {
+	if len(o.Sandboxes) != 1 || len(o.Sandboxes[0].Tasks) != 2 || o.Sandboxes[0].Tasks[0].Name() != "rate" {
 		t.Fatalf("sandboxes: %+v", o.Sandboxes)
 	}
-	if _, ok := o.Sandboxes[0].RunOf("gateway-1a2b3c4d"); !ok {
+	s := o.Sandboxes[0]
+	if _, ok := s.RunOf("gateway-1a2b3c4d"); !ok {
 		t.Fatal("the run of a task is not found")
 	}
-	if o.Context.Set.Sandbox != "web-1" || o.Context.Profile != "web" {
+	if got := strings.Join(s.AgentIDs(), ","); got != "claude,copilot" || !s.Has("copilot") || s.Has("codex") {
+		t.Fatalf("agents: %s", got)
+	}
+	if got := s.Tasks[0].HostPaths(); len(got) != 1 || got[0] != "/src/gateway" {
+		t.Fatalf("mounted: %v", got)
+	}
+	if o.Context.Name() != "web" || o.Context.Env != "web" {
 		t.Fatalf("context: %+v", o.Context)
 	}
-	if len(o.Runtimes) != 2 || !o.Runtimes[0].Default || !o.Runtimes[1].Experimental {
-		t.Fatalf("runtimes: %+v", o.Runtimes)
-	}
-	if o.Config.DefaultRuntime != "sbx" || o.Config.Runtimes["sbx"].StopIdle == nil || *o.Config.Runtimes["sbx"].StopIdle {
+	if o.Config.DefaultEnv != "web" || o.Config.StopIdle == nil || *o.Config.StopIdle {
 		t.Fatalf("configuration: %+v", o.Config)
 	}
-	if len(o.Secrets.Names) != 3 || o.Secrets.Store != "login keychain" {
-		t.Fatalf("secrets: %+v", o.Secrets)
-	}
-	if o.Values.Shared["git_name"] != "Dev" || o.Values.Profiles["web"]["npm_scope"] != "acme" || len(o.Unread) != 0 {
-		t.Fatalf("values: %+v, unread %v", o.Values, o.Unread)
+	if len(o.Secrets) != 2 || o.Secrets[1].Service != "github" || len(o.Secrets[1].UsedBy) != 2 || len(o.Unread) != 0 {
+		t.Fatalf("secrets: %+v, unread %v", o.Secrets, o.Unread)
 	}
 }
 
 func TestWhatTheScreenCanDoWithoutStillLeavesTheOverview(t *testing.T) {
 	t.Parallel()
 	answers := uniboxtest.Overview()
-	answers["secret ls --json"] = uniboxtest.Failure("store_locked", "the login keychain is locked", 1)
+	answers["secret ls --all --json"] = uniboxtest.Failure("error", "sbx is not signed in", 1)
+	answers["env show api --json"] = uniboxtest.Failure("error", "api.sbxenv.yaml: no such file", 1)
 	o, err := unibox.New(uniboxtest.Install(t, answers).Path).Overview()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(o.Sandboxes) != 2 || o.Unread["secrets"] != "the login keychain is locked" {
+	if len(o.Sandboxes) != 1 || o.Unread["secrets"] != "sbx is not signed in" {
 		t.Fatalf("a failed listing of the secrets: %v, %d sandboxes", o.Unread, len(o.Sandboxes))
+	}
+	if o.Envs[0].Error == "" || o.Envs[1].Error != "" {
+		t.Fatalf("an env that does not load: %+v", o.Envs)
 	}
 }
 
-func TestAProfileSaysWhichOfItsValuesAreMissing(t *testing.T) {
+func TestAnEnvSaysWhichOfItsArgsAreMissing(t *testing.T) {
 	t.Parallel()
-	asked, err := unibox.New(uniboxtest.Install(t, uniboxtest.Overview()).Path).Asked("web")
+	args, err := unibox.New(uniboxtest.Install(t, uniboxtest.Overview()).Path).Args("api")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(asked) != 3 || asked[0].Missing() || !asked[2].Missing() || asked[2].Name != "jira_user" {
-		t.Fatalf("asked: %+v", asked)
+	if len(args) != 1 || !args[0].Missing() || args[0].Name != "jira_user" {
+		t.Fatalf("args: %+v", args)
+	}
+}
+
+func TestTheSandboxDetailIsRead(t *testing.T) {
+	t.Parallel()
+	c := unibox.New(uniboxtest.Install(t, uniboxtest.Overview()).Path)
+	ports, err := c.Ports("web")
+	if err != nil || len(ports) != 2 || ports[0].Published[0].URL() != "http://127.0.0.1:3000" {
+		t.Fatalf("ports: %+v, %v", ports, err)
+	}
+	network, err := c.Network("web")
+	if err != nil || len(network.Rules) != 1 || network.Blocked[0].Count != 3 {
+		t.Fatalf("network: %+v, %v", network, err)
+	}
+	repos, err := c.Repos("web")
+	if err != nil || len(repos) != 1 || repos[0].Name != "adrs" || repos[0].Default != "always" {
+		t.Fatalf("repos: %+v, %v", repos, err)
+	}
+	secrets, err := c.Secrets("web")
+	if err != nil || len(secrets) != 2 || secrets[1].Stored || secrets[1].Page == "" {
+		t.Fatalf("secrets: %+v, %v", secrets, err)
+	}
+	res, err := c.Resources("web")
+	if err != nil || res.Resources.Memory != "8g" {
+		t.Fatalf("resources: %+v, %v", res, err)
 	}
 }
 
 func TestAnotherAPIVersionIsRefused(t *testing.T) {
 	t.Parallel()
 	answers := uniboxtest.Overview()
-	answers["version --json"] = uniboxtest.JSON(`{"api_version":2,"version":"9.0"}`)
+	answers["version --json"] = uniboxtest.JSON(`{"api_version":3,"version":"9.0"}`)
 	fake := uniboxtest.Install(t, answers)
 	_, err := unibox.New(fake.Path).Overview()
 	var version *unibox.VersionError
 	if !errors.As(err, &version) || !strings.Contains(err.Error(), "update unagit") {
 		t.Fatalf("a newer contract: %v", err)
 	}
+	answers["version --json"] = uniboxtest.JSON(`{"api_version":1,"version":"0.3","profile_format":6}`)
+	_, err = unibox.New(uniboxtest.Install(t, answers).Path).Overview()
+	if !errors.As(err, &version) || !strings.Contains(err.Error(), "update unibox") {
+		t.Fatalf("an older contract: %v", err)
+	}
 }
 
 func TestAFailureCarriesItsCodeAndStatus(t *testing.T) {
 	t.Parallel()
 	fake := uniboxtest.Install(t, map[string]uniboxtest.Answer{
-		"sandbox rm web-1 --json":   uniboxtest.Failure("unpushed_work", "task rate has unpushed commits - push them first", 4),
-		"sandbox stop web-1 --json": uniboxtest.OK("stopped web-1"),
+		"sandbox rm web --json":   uniboxtest.Failure("unpushed_work", "task rate has unpushed commits - push them first", 4),
+		"sandbox stop web --json": uniboxtest.OK("stopped web"),
 	})
 	c := unibox.New(fake.Path)
-	_, err := c.Do(context.Background(), "sandbox", "rm", "web-1")
+	_, err := c.Do(context.Background(), "sandbox", "rm", "web")
 	var failure *unibox.Error
 	if !errors.As(err, &failure) || failure.Code != "unpushed_work" || !failure.Refused() || !strings.Contains(err.Error(), "push them first") {
 		t.Fatalf("a refusal: %#v", err)
 	}
-	said, err := c.Do(context.Background(), "sandbox", "stop", "web-1")
-	if err != nil || said != "stopped web-1" {
+	said, err := c.Do(context.Background(), "sandbox", "stop", "web")
+	if err != nil || said != "stopped web" {
 		t.Fatalf("a change: %q, %v", said, err)
 	}
 }
 
 func TestAMissingBinarySaysToInstallIt(t *testing.T) {
 	t.Parallel()
-	_, err := unibox.New("/nonexistent/unibox").Profiles()
+	_, err := unibox.New("/nonexistent/unibox").Sandboxes()
 	if err == nil || !strings.Contains(err.Error(), "install it") {
 		t.Fatalf("missing binary: %v", err)
 	}
@@ -115,18 +151,18 @@ func TestAMissingBinarySaysToInstallIt(t *testing.T) {
 func TestAStreamHandsOverEveryLine(t *testing.T) {
 	t.Parallel()
 	fake := uniboxtest.Install(t, map[string]uniboxtest.Answer{
-		"profile build web --yes": {Out: "building web\nloaded unibox/web:1\n"},
-		"profile build bad --yes": {Out: "building bad\nthe Dockerfile does not parse - fix line 3\n", Status: 1},
+		"env update web --yes": {Out: "updating /team\nweb: up to date\n"},
+		"env update bad --yes": {Out: "updating /bad\nthe clone has local changes - fix line 3\n", Status: 1},
 	})
 	c := unibox.New(fake.Path)
 	var lines []string
-	if err := c.Stream(context.Background(), func(s string) { lines = append(lines, s) }, "profile", "build", "web"); err != nil {
+	if err := c.Stream(context.Background(), func(s string) { lines = append(lines, s) }, "env", "update", "web"); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(lines, "|") != "building web|loaded unibox/web:1" {
+	if strings.Join(lines, "|") != "updating /team|web: up to date" {
 		t.Fatalf("lines: %q", lines)
 	}
-	err := c.Stream(context.Background(), func(string) {}, "profile", "build", "bad")
+	err := c.Stream(context.Background(), func(string) {}, "env", "update", "bad")
 	if err == nil || !strings.Contains(err.Error(), "fix line 3") {
 		t.Fatalf("a failed stream says its last line: %v", err)
 	}
@@ -143,7 +179,7 @@ func TestAStreamKeepsItsColours(t *testing.T) {
 		t.Fatal(err)
 	}
 	var lines []string
-	err := unibox.New(bin).Stream(context.Background(), func(s string) { lines = append(lines, s) }, "profile", "build", "web")
+	err := unibox.New(bin).Stream(context.Background(), func(s string) { lines = append(lines, s) }, "env", "update", "web")
 	if len(lines) != 2 || lines[0] != "\x1b[32mbuilt\x1b[0m" {
 		t.Fatalf("lines: %q", lines)
 	}
@@ -157,8 +193,11 @@ func TestAStreamKeepsItsColours(t *testing.T) {
 
 func TestAStartNamesWhatItIsAsked(t *testing.T) {
 	t.Parallel()
-	s := unibox.Start{Sandbox: "web-1", Profile: "web", Agent: "claude", Dirs: []string{"/w/a", "/w/b"}, Push: true}
-	if got := strings.Join(s.Args(), " "); got != "/w/a /w/b -s web-1 -p web --agent claude --push" {
+	s := unibox.Start{Sandbox: "web", Env: "web", Agent: "claude", Dirs: []string{"/w/a", "/w/b"}, Clone: true, Push: true}
+	if got := strings.Join(s.Args(), " "); got != "--repo /w/a --repo /w/b -s web -e web --clone --push" {
 		t.Fatalf("args: %s", got)
+	}
+	if got := strings.Join(s.RunArgs(), " "); got != "run --repo /w/a --repo /w/b -s web -e web --clone --push --agent claude" {
+		t.Fatalf("run: %s", got)
 	}
 }

@@ -12,12 +12,12 @@ import (
 	"github.com/tobola/unagit/internal/unibox"
 )
 
-// The Sandboxes screen is one UI over unibox: its profiles, the sandboxes
-// made from each, and the tasks in each sandbox, as one tree. Everything on
-// it is read from unibox's --json and everything done on it is a unibox
-// command, so it shows what unibox itself would say and changes nothing
-// unibox would not. unagit reads none of unibox's files - not a profile's
-// YAML, not its state.
+// The Sandboxes screen is one UI over unibox: the envs a team describes as
+// sbx's env files, the sandbox sbx creates from each, and the tasks in each
+// sandbox. Everything on it is read from unibox's --json and everything
+// done on it is a unibox command, so it shows what unibox itself would say
+// and changes nothing unibox would not. unagit reads none of unibox's files
+// - not an sbxenv file, not its state.
 
 const pageSandboxes = "sandboxes"
 
@@ -55,31 +55,35 @@ type uniboxState struct {
 
 // sandboxDetail is what was read for one row's detail.
 type sandboxDetail struct {
-	loading  bool
-	err      error
-	agents   []unibox.Agent
-	services []unibox.Service
-	network  unibox.Network
-	ports    []unibox.Port
-	scripts  map[string]string
-	asked    []unibox.Asked
+	loading bool
+	err     error
+	// An env's: what it asks of the person, the tokens it needs and the
+	// repositories its tasks are given by name.
+	args    []unibox.Arg
+	secrets []unibox.Secret
+	repos   []unibox.IndexedRepo
+	// A sandbox's: its ports, its network rules and its resources.
+	ports     []unibox.Port
+	network   unibox.Network
+	resources unibox.Resources
 }
 
 type sandboxRowKind int
 
 const (
-	rowProfile sandboxRowKind = iota
+	rowEnv sandboxRowKind = iota
 	rowSandbox
 	rowTask
 )
 
-// sandboxRow is one row of the tree: a profile, a sandbox under it, or a
-// task under that. A row carries what is above it, so its actions need
-// nothing else.
+// sandboxRow is one row of the tree: an env, the sandbox made from it, or
+// a task in that. A row carries what is above it, so its actions need
+// nothing else; made says whether the env's sandbox exists.
 type sandboxRow struct {
 	kind    sandboxRowKind
-	profile unibox.Profile
+	env     unibox.Env
 	sandbox unibox.Sandbox
+	made    bool
 	task    unibox.Task
 }
 
@@ -91,7 +95,7 @@ func (r sandboxRow) key() string {
 	case rowTask:
 		return "t:" + r.task.ID
 	}
-	return "p:" + r.profile.Name
+	return "e:" + r.env.Name
 }
 
 // working says whether an agent unibox started works on the task now.
@@ -100,39 +104,64 @@ func (r sandboxRow) working() bool {
 	return ok
 }
 
-// sandboxRows lays the overview out as the tree: each profile, its
-// sandboxes by name, each sandbox's tasks by name. A sandbox whose profile
-// is gone from the repository still has its profile's row, saying so.
+// sandboxName is the sandbox a row stands for: its own, or the one its env
+// makes.
+func (r sandboxRow) sandboxName() string {
+	if r.sandbox.Name != "" {
+		return r.sandbox.Name
+	}
+	return firstOf(r.env.Sandbox, r.env.Name)
+}
+
+// sandboxRows lays the overview out as the tree: each env, its sandbox,
+// the sandbox's tasks by name. A sandbox whose env unibox no longer has
+// still has its env's row, saying so.
 func sandboxRows(o unibox.Overview) []sandboxRow {
-	profiles := append([]unibox.Profile(nil), o.Profiles...)
+	envs := append([]unibox.Env(nil), o.Envs...)
 	known := map[string]bool{}
-	for _, p := range profiles {
-		known[p.Name] = true
+	for _, e := range envs {
+		known[e.Name] = true
 	}
 	for _, s := range o.Sandboxes {
-		if !known[s.Profile] {
-			known[s.Profile] = true
-			profiles = append(profiles, unibox.Profile{Name: s.Profile, Error: "not in the environments repository any more"})
+		if !known[s.Env] {
+			known[s.Env] = true
+			envs = append(envs, unibox.Env{Name: s.Env, Sandbox: s.Name, Agent: s.Agent, Error: "unibox has no env of this name any more"})
 		}
 	}
-	sandboxes := append([]unibox.Sandbox(nil), o.Sandboxes...)
-	sort.SliceStable(sandboxes, func(i, j int) bool { return sandboxes[i].Name < sandboxes[j].Name })
 	var rows []sandboxRow
-	for _, p := range profiles {
-		rows = append(rows, sandboxRow{kind: rowProfile, profile: p})
-		for _, s := range sandboxes {
-			if s.Profile != p.Name {
+	for _, e := range envs {
+		s, made := sandboxOfEnv(o, e)
+		rows = append(rows, sandboxRow{kind: rowEnv, env: e, sandbox: s, made: made})
+		if !made {
+			continue
+		}
+		for _, box := range o.Sandboxes {
+			if box.Env != e.Name {
 				continue
 			}
-			rows = append(rows, sandboxRow{kind: rowSandbox, profile: p, sandbox: s})
-			tasks := append([]unibox.Task(nil), s.Tasks...)
+			rows = append(rows, sandboxRow{kind: rowSandbox, env: e, sandbox: box, made: true})
+			tasks := append([]unibox.Task(nil), box.Tasks...)
 			sort.SliceStable(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
 			for _, t := range tasks {
-				rows = append(rows, sandboxRow{kind: rowTask, profile: p, sandbox: s, task: t})
+				rows = append(rows, sandboxRow{kind: rowTask, env: e, sandbox: box, made: true, task: t})
 			}
 		}
 	}
 	return rows
+}
+
+// sandboxOfEnv is the sandbox an env made: the one of its name, else any
+// unibox keeps under the env.
+func sandboxOfEnv(o unibox.Overview, e unibox.Env) (unibox.Sandbox, bool) {
+	if s, ok := o.Sandbox(firstOf(e.Sandbox, e.Name)); ok && s.Env == e.Name {
+		return s, true
+	}
+	for _, s := range o.Sandboxes {
+		if s.Env == e.Name {
+			return s, true
+		}
+	}
+	return unibox.Sandbox{}, false
 }
 
 // refreshSandboxes reads unibox again, behind the interface. It runs on
@@ -156,6 +185,7 @@ func (a *App) refreshSandboxes() {
 			a.ubx = uniboxState{overview: o, err: err, read: true, at: time.Now(), details: map[string]*sandboxDetail{}}
 			a.sandboxRows = sandboxRows(o)
 			a.sandboxesPane.reload()
+			a.drawTabs()
 		})
 	}()
 }
@@ -180,14 +210,14 @@ func sandboxRowName(r sandboxRow) string {
 	case rowTask:
 		return "task " + r.task.Name()
 	}
-	return "profile " + r.profile.Name
+	return "env " + r.env.Name
 }
 
 // sandboxHay is what a row is found by.
 func sandboxHay(r sandboxRow) string {
 	switch r.kind {
 	case rowSandbox:
-		return r.sandbox.Name + " " + r.sandbox.Runtime + " " + r.sandbox.State
+		return r.sandbox.Name + " " + r.sandbox.Env + " " + r.sandbox.State + " " + strings.Join(r.sandbox.AgentIDs(), " ")
 	case rowTask:
 		hay := r.task.Name() + " " + r.task.ID + " " + r.task.Sandbox + " " + r.task.Agent
 		for _, repo := range r.task.Repositories {
@@ -195,7 +225,7 @@ func sandboxHay(r sandboxRow) string {
 		}
 		return hay
 	}
-	return r.profile.Name + " " + strings.Join(r.profile.Agents, " ")
+	return r.env.Name + " " + r.env.Sandbox + " " + r.env.Agent
 }
 
 // agentLabel is an agent as the screen names it: unagit's name for it
@@ -207,60 +237,26 @@ func agentLabel(id string) string {
 	return id
 }
 
-// profileImages is a profile's images by runtime, the default runtime
-// first, and whether any of them is not built.
-func (a *App) profileImages(p unibox.Profile) (string, bool) {
-	var names []string
-	for name := range p.Images {
-		names = append(names, name)
+// sandboxStateWords are a sandbox's state as the screen says it, and the
+// role it is drawn in.
+func sandboxStateWords(state string) (string, string) {
+	switch state {
+	case "running":
+		return glyphDot + " running", "sandboxes.running"
+	case "stopped":
+		return glyphRing + " stopped", "sandboxes.stopped"
+	case "missing", "unknown", "creating":
+		return glyphRing + " " + state, "sandboxes.problem"
 	}
-	def, _ := a.defaultRuntime()
-	rank := func(name string) int {
-		if name == def {
-			return 0
-		}
-		return 1
-	}
-	sort.SliceStable(names, func(i, j int) bool {
-		if rank(names[i]) != rank(names[j]) {
-			return rank(names[i]) < rank(names[j])
-		}
-		return names[i] < names[j]
-	})
-	var parts []string
-	problem := false
-	for _, name := range names {
-		state := p.Images[name]
-		parts = append(parts, name+" "+state)
-		problem = problem || state != "built"
-	}
-	return strings.Join(parts, " · "), problem
-}
-
-// defaultRuntime is the runtime unibox starts a sandbox in when not told,
-// while the runtimes have been read.
-func (a *App) defaultRuntime() (string, bool) {
-	for _, rt := range a.ubx.overview.Runtimes {
-		if rt.Default {
-			return rt.Name, true
-		}
-	}
-	return "", false
+	return glyphRing + " " + state, "sandboxes.stopped"
 }
 
 // sandboxState is a row's STATE: its words and the role they are drawn in.
+// An env says what stands between it and a start, else its sandbox's.
 func (a *App) sandboxState(r sandboxRow) (string, string) {
 	switch r.kind {
 	case rowSandbox:
-		switch r.sandbox.State {
-		case "running":
-			return glyphDot + " running", "sandboxes.running"
-		case "stopped":
-			return glyphRing + " stopped", "sandboxes.stopped"
-		case "missing", "unavailable":
-			return glyphRing + " " + r.sandbox.State, "sandboxes.problem"
-		}
-		return glyphRing + " " + r.sandbox.State, "sandboxes.stopped"
+		return sandboxStateWords(r.sandbox.State)
 	case rowTask:
 		if r.working() {
 			return spinnerGlyph(a.spinFrame) + " working", "sandboxes.running"
@@ -270,40 +266,19 @@ func (a *App) sandboxState(r sandboxRow) (string, string) {
 		}
 		return glyphRing + " " + r.task.State, "sandboxes.problem"
 	}
-	if r.profile.Error != "" {
-		return "does not load", "sandboxes.problem"
-	}
-	// The row says what the default runtime would start, which is what
-	// needs doing; the detail has every runtime's image. An image another
-	// runtime built once - msb's, tried and left - is not something to do,
-	// and on the row it read as the profile's own.
-	if rt, ok := a.defaultRuntime(); ok {
-		switch state := r.profile.Images[rt]; state {
-		case "":
-			return "no image", "sandboxes.problem"
-		case "built":
-			return "built", "sandboxes.stopped"
-		default:
-			return state, "sandboxes.problem"
-		}
-	}
-	var behind []string
-	for _, name := range sortedKeys(r.profile.Images) {
-		if state := r.profile.Images[name]; state != "built" {
-			behind = append(behind, name+" "+state)
-		}
-	}
 	switch {
-	case len(r.profile.Images) == 0:
-		return "no image", "sandboxes.problem"
-	case len(behind) > 0:
-		return strings.Join(behind, " · "), "sandboxes.problem"
+	case r.env.Error != "":
+		return "does not load", "sandboxes.problem"
+	case len(r.env.Missing) > 0:
+		return counted(len(r.env.Missing), "value missing", "values missing"), "sandboxes.problem"
+	case !r.made:
+		return "no sandbox", "sandboxes.stopped"
 	}
-	return "built", "sandboxes.stopped"
+	return sandboxStateWords(r.sandbox.State)
 }
 
-// sandboxAgents is a row's AGENT column: a profile's agents, the agents at
-// work in a sandbox, a task's own.
+// sandboxAgents is a row's AGENT column: the agents at work in a sandbox,
+// a task's own, an env's kit's.
 func sandboxAgents(r sandboxRow) string {
 	switch r.kind {
 	case rowSandbox:
@@ -317,7 +292,7 @@ func sandboxAgents(r sandboxRow) string {
 	case rowTask:
 		return r.task.Agent
 	}
-	return strings.Join(r.profile.Agents, ", ")
+	return r.env.Agent
 }
 
 // sandboxRepos is a task's REPOS column: its repositories by name.
@@ -408,7 +383,7 @@ func (a *App) drawSandboxTasks(p *pane) {
 		})).SetReference(i).SetExpansion(1))
 	}
 	if len(v.tasks) == 0 {
-		empty := "No task yet - n on a sandbox or a profile starts one, Open in Sandbox… on a worktree too."
+		empty := "No task yet - n on a sandbox or an env starts one, Sandbox with… on a repository or a worktree too."
 		if p.query != "" {
 			empty = "No task matches."
 		}
@@ -418,40 +393,26 @@ func (a *App) drawSandboxTasks(p *pane) {
 	p.selectRow(previous, 1)
 }
 
-// sandboxName is the NAME of a row, its indent left out.
-func sandboxName(r sandboxRow) string {
-	switch r.kind {
-	case rowSandbox:
-		return r.sandbox.Name
-	case rowTask:
-		return r.task.Name()
-	}
-	return r.profile.Name
-}
-
 // sandboxesProblem is why the screen has no rows: unibox missing, a
-// contract not understood, no environments repository - each with where to
-// set it.
+// contract not understood, no env yet - each with where to set it.
 func (a *App) sandboxesProblem() string {
 	switch {
 	case !a.ubx.read:
 		return ""
 	case a.ubx.err != nil:
 		return a.ubx.err.Error()
-	case a.ubx.overview.Environments == "" && len(a.sandboxRows) == 0:
-		return "no environments repository yet - I sets unibox up, step by step"
 	case len(a.sandboxRows) == 0:
-		return "no profiles in " + tildePath(a.ubx.overview.Environments) + " - I sets unibox up, step by step"
+		return "no env yet - I sets unibox up from your team's repository of sbxenv files"
 	}
 	return ""
 }
 
 // readSandboxDetail reads what a row's detail shows besides the overview -
-// a profile's agents, services, network and values, a sandbox's ports and
-// scripts - the first time the row is looked at, and calls then on the
+// an env's args, secrets and repositories, a sandbox's ports, network and
+// resources - the first time the row is looked at, and calls then on the
 // event loop once it is there.
 func (a *App) readSandboxDetail(r sandboxRow, then func()) {
-	if r.kind == rowTask {
+	if r.kind == rowTask || r.kind == rowEnv && r.env.Error != "" {
 		return
 	}
 	key := r.key()
@@ -476,21 +437,21 @@ func (a *App) readSandboxDetail(r sandboxRow, then func()) {
 				errs = append(errs, err)
 			}
 		}
-		if r.kind == rowProfile {
+		if r.kind == rowEnv {
 			var err error
-			got.agents, err = c.Agents(r.profile.Name)
+			got.args, err = c.Args(r.env.Name)
 			keep(err)
-			got.services, err = c.Services(r.profile.Name)
+			got.secrets, err = c.Secrets(r.env.Name)
 			keep(err)
-			got.network, err = c.Network(r.profile.Name)
-			keep(err)
-			got.asked, err = c.Asked(r.profile.Name)
+			got.repos, err = c.Repos(r.env.Name)
 			keep(err)
 		} else {
 			var err error
 			got.ports, err = c.Ports(r.sandbox.Name)
 			keep(err)
-			got.scripts, err = c.Scripts(r.sandbox.Name)
+			got.network, err = c.Network(r.sandbox.Name)
+			keep(err)
+			got.resources, err = c.Resources(r.sandbox.Name)
 			keep(err)
 		}
 		if len(errs) > 0 {
@@ -510,6 +471,7 @@ func (a *App) readSandboxDetail(r sandboxRow, then func()) {
 func (a *App) sandboxDetailText(r sandboxRow) string {
 	d := &detailBuf{}
 	extra := a.ubx.details[r.key()]
+	read := extra != nil && !extra.loading && extra.err == nil
 	reading := func() {
 		switch {
 		case extra == nil || extra.loading:
@@ -518,88 +480,113 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 			d.raw(tag(role("sandboxes.problem")) + esc(extra.err.Error()) + tagEnd + "\n")
 		}
 	}
+	problem := func(text string) string { return tag(role("sandboxes.problem")) + esc(text) + tagEnd }
+	muted := func(text string) string { return tag(colMuted) + esc(text) + tagEnd }
 	switch r.kind {
-	case rowProfile:
-		pr := r.profile
-		d.title(pr.Name)
-		d.sub("profile")
-		if pr.Error != "" {
+	case rowEnv:
+		e := r.env
+		d.title(e.Name)
+		d.sub("env")
+		if e.Error != "" {
 			d.blank()
-			d.raw(tag(role("sandboxes.problem")) + esc(pr.Error) + tagEnd + "\n")
+			d.raw(problem(e.Error) + "\n")
 		}
-		d.section("Images")
-		images, _ := a.profileImages(pr)
-		d.kv("By runtime", esc(images))
-		d.kv("Last commit", esc(pr.LastCommit))
-		if env := a.ubx.overview.Environments; env != "" {
-			d.kv("Directory", esc(tildePath(env+"/sandboxes/"+pr.Name)))
+		d.blank()
+		state, _ := a.sandboxState(r)
+		d.kv("State", esc(state))
+		d.kv("Sandbox", esc(r.sandboxName())+muted(map[bool]string{true: " · made", false: " · not made yet"}[r.made]))
+		d.kv("Agent", esc(agentLabel(e.Agent)))
+		if e.Name == a.ubx.overview.Default {
+			d.kv("Default", "new sandboxes come from it")
 		}
-		d.section("Agents")
-		if extra != nil && !extra.loading && extra.err == nil {
-			for _, ag := range extra.agents {
-				d.kv(agentLabel(ag.Agent), esc(ag.Auth))
-				d.kv("", tag(colMuted)+esc("credits "+ag.CoAuthor)+tagEnd)
+		d.section("Files")
+		for _, f := range e.Files {
+			d.kv("", esc(tildePath(f)))
+		}
+		if e.Repo != "" {
+			d.kv("Repository", esc(tildePath(e.Repo)))
+		}
+		if e.Source != "" {
+			d.kv("Cloned from", esc(e.Source))
+		}
+		if len(e.Kits) > 0 {
+			d.section("Kits")
+			for _, k := range e.Kits {
+				d.kv("", esc(k.Source))
 			}
-			if len(extra.agents) == 0 {
-				d.sub("none")
-			}
-			d.section("Services")
-			for _, s := range extra.services {
-				state := tag(role("sandboxes.running")) + "token stored" + tagEnd
-				if s.Token != "stored" {
-					state = tag(role("sandboxes.problem")) + "token " + esc(s.Token) + tagEnd
-				}
-				kind := ""
-				if s.Git {
-					kind = " · git"
-				}
-				d.kv(s.Name, esc(strings.Join(s.Hosts, ", ")+kind)+" · "+state)
-			}
-			if len(extra.services) == 0 {
-				d.sub("none - Add Service… signs the sandboxes in to a forge")
-			}
-			d.section("Network")
-			d.kv("Allowed", esc(strings.Join(extra.network.Allow, ", ")))
-			d.kv("Denied", esc(strings.Join(extra.network.Deny, ", ")))
-			if len(extra.network.Allow)+len(extra.network.Deny) == 0 {
-				d.sub("the runtime's policy alone")
-			}
-			d.section("Values")
-			for _, v := range extra.asked {
+		}
+		d.section("Your values")
+		if read {
+			for _, v := range extra.args {
 				switch {
 				case v.Missing():
-					d.kv(v.Name, tag(role("sandboxes.problem"))+"missing"+tagEnd+tag(colMuted)+esc(" · "+v.Description)+tagEnd)
+					d.kv(v.Name, problem("missing")+muted(" · "+v.Description))
 				default:
-					d.kv(v.Name, esc(v.Value)+tag(colMuted)+esc(" · "+v.From)+tagEnd)
+					d.kv(v.Name, esc(v.Value)+muted(" · "+v.From))
 				}
 			}
-			if len(extra.asked) == 0 {
+			if len(extra.args) == 0 {
 				d.sub("it asks for none")
 			}
-		} else {
-			for _, ag := range pr.Agents {
-				d.kv(agentLabel(ag), tag(colMuted)+"…"+tagEnd)
+			d.section("Tokens")
+			for _, s := range extra.secrets {
+				state := tag(role("sandboxes.running")) + "stored" + tagEnd
+				switch {
+				case !s.Stored && s.Optional:
+					state = muted("not stored, optional")
+				case !s.Stored:
+					state = problem("missing")
+				}
+				if s.Scope != "" && s.Scope != "global" {
+					state += muted(" · " + s.Scope)
+				}
+				d.kv(s.Service, state)
+				if s.Description != "" {
+					d.kv("", muted(s.Description))
+				}
 			}
+			if len(extra.secrets) == 0 {
+				d.sub("it needs none")
+			}
+			d.section("Repositories")
+			for _, repo := range extra.repos {
+				line := esc(repo.URL)
+				if repo.Default != "" && repo.Default != "off" {
+					line += muted(" · " + repo.Default)
+				}
+				d.kv(repo.Name, line)
+			}
+			if len(extra.repos) == 0 {
+				d.sub("none named")
+			}
+		} else {
 			reading()
 		}
 	case rowSandbox:
 		s := r.sandbox
 		d.title(s.Name)
-		d.sub("sandbox of " + s.Profile)
+		d.sub("sandbox of " + s.Env)
 		state, _ := a.sandboxState(r)
 		d.blank()
 		d.kv("State", esc(state))
-		d.kv("Runtime", esc(s.Runtime+" · "+s.RuntimeName))
-		d.kv("CPUs", esc(s.Settings.CPUs))
-		d.kv("Memory", esc(firstOf(s.Memory, s.Settings.Memory)))
-		d.kv("Image", esc(firstOf(s.Settings.Image, s.Settings.Dockerfile)))
-		d.kv("Instructions", esc(strings.Join(s.Instructions, ", ")))
+		var names []string
+		for _, id := range s.AgentIDs() {
+			names = append(names, agentLabel(id))
+		}
+		d.kv("Agents", esc(strings.Join(names, ", ")))
+		if s.Adopted {
+			d.kv("Adopted", "made with sbx, taken over by unibox")
+		}
 		if a.ubx.overview.Context.Set.Sandbox == s.Name {
 			d.kv("Context", "unibox works here when not told")
 		}
+		if read {
+			d.kv("CPUs", esc(firstOf(extra.resources.Resources.CPUs, "the env's")))
+			d.kv("Memory", esc(firstOf(extra.resources.Resources.Memory, "the env's")))
+		}
 		d.section("Tasks")
 		for _, t := range s.Tasks {
-			line := esc(t.Agent)
+			line := esc(agentLabel(t.Agent))
 			if _, ok := s.RunOf(t.ID); ok {
 				line += " · " + tag(role("sandboxes.running")) + "working" + tagEnd
 			}
@@ -608,10 +595,7 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 		if len(s.Tasks) == 0 {
 			d.sub("none - New Task… starts one")
 		}
-		d.section("Network")
-		d.kv("Allowed", esc(strings.Join(s.NetworkAllow, ", ")))
-		d.kv("Denied", esc(strings.Join(s.NetworkDeny, ", ")))
-		if extra != nil && !extra.loading && extra.err == nil {
+		if read {
 			d.section("Ports")
 			for _, port := range extra.ports {
 				d.kv(port.Name, esc(portLine(port)))
@@ -619,12 +603,19 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 			if len(extra.ports) == 0 {
 				d.sub("none")
 			}
-			d.section("Scripts")
-			for _, name := range sortedKeys(extra.scripts) {
-				d.kv(name, esc(extra.scripts[name]))
+			d.section("Network")
+			for _, rule := range extra.network.Rules {
+				ink := "sandboxes.allowed"
+				if rule.Decision != "allow" {
+					ink = "sandboxes.denied"
+				}
+				d.kv(rule.Host, tag(role(ink))+esc(rule.Decision)+tagEnd+muted(" · "+rule.From))
 			}
-			if len(extra.scripts) == 0 {
-				d.sub("none")
+			for _, b := range extra.network.Blocked {
+				d.kv(b.Host, tag(role("sandboxes.blocked"))+"refused"+tagEnd+muted(fmt.Sprintf(" · %d× · %s", b.Count, humanAge(b.LastSeen))))
+			}
+			if len(extra.network.Rules)+len(extra.network.Blocked) == 0 {
+				d.sub("the env's policy alone")
 			}
 		} else {
 			reading()
@@ -646,102 +637,73 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 		}
 		d.section("Repositories")
 		for _, repo := range t.Repositories {
-			d.kv(repo.Name, tag(role("sandboxes.branch"))+esc(repo.Branch)+tagEnd)
+			branch := tag(role("sandboxes.branch")) + esc(repo.Branch) + tagEnd
+			if repo.Context {
+				branch += muted(" · read only")
+			}
+			d.kv(repo.Name, branch)
 			d.kv("", esc(repo.URL))
 			if repo.Mounted {
 				d.kv("", "mounted from "+esc(tildePath(repo.HostPath)))
+			} else {
+				d.kv("", muted("cloned in the sandbox"))
 			}
-			d.kv("", tag(colMuted)+esc("commits as "+repo.Author)+tagEnd)
+			d.kv("", muted("commits as "+repo.Author))
 		}
 	}
 	return d.String()
 }
 
 // environmentDetailText is what unibox works with on this machine: the
-// environments repository, the context, the runtimes and what is chosen
-// for each, the secrets by name and the values.
+// context, its own settings and the tokens sbx keeps.
 func (a *App) environmentDetailText() string {
 	o := a.ubx.overview
 	d := &detailBuf{}
 	d.title("Environment")
-	d.sub("unibox " + o.Version.Version + " · profile format " + fmt.Sprint(o.Version.ProfileFormat))
+	d.sub("unibox " + o.Version.Version)
 	d.blank()
-	d.kv("Repository", esc(firstOf(tildePath(o.Environments), "none - Set Environments Repository… (e)")))
-	set := o.Context.Set
-	switch {
-	case set.Sandbox != "" || set.Profile != "":
-		d.kv("Context", esc(strings.Trim(set.Sandbox+" · "+firstOf(set.Profile, o.Context.Profile), " ·")))
-	case o.Context.Sandbox != "" || o.Context.Profile != "":
-		d.kv("Context", esc(strings.Trim(o.Context.Sandbox+" · "+o.Context.Profile, " ·"))+tag(colMuted)+" · the only one"+tagEnd)
+	switch set := o.Context; {
+	case set.Name() != "":
+		d.kv("Context", tag(role("tabs.context"))+esc(contextWords(set))+tagEnd)
+	case set.Sandbox != "" || set.Env != "":
+		d.kv("Context", esc(strings.Trim(set.Sandbox+" · "+set.Env, " ·"))+tag(colMuted)+" · the only one"+tagEnd)
 	default:
 		d.kv("Context", tag(colMuted)+"none: commands are told"+tagEnd)
 	}
-	d.section("Runtimes")
-	for _, rt := range o.Runtimes {
-		var words []string
-		switch {
-		case !rt.Available:
-			words = append(words, "not installed")
-		case !rt.Enabled:
-			words = append(words, "turned off")
-		default:
-			words = append(words, "on")
-		}
-		if rt.Default {
-			words = append(words, "the default")
-		}
-		if rt.Experimental {
-			words = append(words, "experimental")
-		}
-		if set := o.Config.Runtimes[rt.Name]; set.StopIdle != nil {
-			if *set.StopIdle {
-				words = append(words, "stops when idle")
-			} else {
-				words = append(words, "keeps running when idle")
-			}
-		}
-		line := esc(strings.Join(words, " · "))
-		if rt.Error != "" {
-			line += " · " + tag(role("sandboxes.problem")) + esc(rt.Error) + tagEnd
-		}
-		d.kv(rt.Name, line)
+	d.kv("Default env", esc(firstOf(o.Default, "none")))
+	d.section("Settings")
+	if why := o.Unread["configuration"]; why != "" {
+		d.raw(tag(role("sandboxes.problem")) + esc(why) + tagEnd + "\n")
 	}
-	d.section("Secrets")
+	for _, s := range uniboxSwitches {
+		d.kv(s.label, esc(switchWord(s.get(o.Config), s.unset)))
+	}
+	d.section("Tokens sbx keeps")
 	if why := o.Unread["secrets"]; why != "" {
 		d.raw(tag(role("sandboxes.problem")) + esc(why) + tagEnd + "\n")
 	}
-	for _, name := range o.Secrets.Names {
-		d.kv(name, tag(colMuted)+"secret:"+esc(name)+tagEnd)
-	}
-	if len(o.Secrets.Names) == 0 {
-		d.sub("none stored")
-	} else if o.Secrets.Store != "" {
-		d.sub("in the " + o.Secrets.Store + "; their values never leave it")
-	}
-	d.section("Your values")
-	if why := o.Unread["values"]; why != "" {
-		d.raw(tag(role("sandboxes.problem")) + esc(why) + tagEnd + "\n")
-	}
-	for _, name := range sortedKeys(o.Values.Shared) {
-		d.kv(name, esc(o.Values.Shared[name])+tag(colMuted)+" · every profile"+tagEnd)
-	}
-	var profiles []string
-	for p := range o.Values.Profiles {
-		profiles = append(profiles, p)
-	}
-	sort.Strings(profiles)
-	for _, p := range profiles {
-		for _, name := range sortedKeys(o.Values.Profiles[p]) {
-			d.kv(name, esc(o.Values.Profiles[p][name])+tag(colMuted)+esc(" · profile "+p)+tagEnd)
+	for _, s := range o.Secrets {
+		line := esc(s.Scope)
+		if len(s.UsedBy) > 0 {
+			line += tag(colMuted) + esc(" · "+strings.Join(s.UsedBy, ", ")) + tagEnd
 		}
+		d.kv(s.Service, line)
 	}
-	if len(o.Values.Shared)+len(profiles) == 0 {
-		d.sub("none set")
-	}
-	if o.Values.File != "" {
-		d.sub("kept in " + tildePath(o.Values.File))
+	if len(o.Secrets) == 0 {
+		d.sub("none stored")
+	} else {
+		d.sub("their values never leave sbx")
 	}
 	return d.String()
+}
+
+// contextWords are the context unibox works in when not told: a sandbox,
+// or an env whose sandbox is to be made.
+func contextWords(c unibox.Context) string {
+	if c.Set.Sandbox != "" {
+		return c.Set.Sandbox
+	}
+	return "env " + c.Set.Env
 }
 
 // portLine is a port as the detail says it: its mapping, and where it is
@@ -752,13 +714,16 @@ func portLine(p unibox.Port) string {
 	case len(p.Published) > 0:
 		var at []string
 		for _, pub := range p.Published {
-			at = append(at, fmt.Sprintf("http://%s:%d", firstOf(pub.HostIP, "127.0.0.1"), pub.HostPort))
+			at = append(at, pub.URL())
 		}
 		text += " · " + strings.Join(at, ", ")
 	case p.On:
 		text += " · on at the next start"
 	default:
 		text += " · off"
+	}
+	if p.Description != "" {
+		text += " · " + p.Description
 	}
 	return text
 }
@@ -782,8 +747,7 @@ func sortedKeys(m map[string]string) []string {
 }
 
 // uniboxFound is what Settings › Integrations says of the unibox found, as
-// the Sandboxes tab last read it: its release, the profile format it reads,
-// where the profiles are.
+// the Sandboxes tab last read it: its release and its envs.
 func (a *App) uniboxFound() string {
 	o := a.ubx.overview
 	switch {
@@ -792,9 +756,5 @@ func (a *App) uniboxFound() string {
 	case a.ubx.err != nil:
 		return a.ubx.err.Error()
 	}
-	text := fmt.Sprintf("unibox %s, profile format %d", o.Version.Version, o.Version.ProfileFormat)
-	if o.Environments != "" {
-		text += ", profiles in " + tildePath(o.Environments)
-	}
-	return text
+	return fmt.Sprintf("unibox %s, %s, %s", o.Version.Version, counted(len(o.Envs), "env", "envs"), counted(len(o.Sandboxes), "sandbox", "sandboxes"))
 }
