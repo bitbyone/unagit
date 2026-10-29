@@ -120,49 +120,46 @@ func JSON(doc string) Answer { return Answer{Out: doc} }
 
 // Failure answers a command the way unibox fails under --json.
 func Failure(code, message string, status int) Answer {
-	return Answer{Out: fmt.Sprintf(`{"api_version":1,"code":%q,"message":%q}`, code, message), Status: status}
+	return Answer{Out: fmt.Sprintf(`{"api_version":2,"code":%q,"message":%q}`, code, message), Status: status}
 }
 
 // OK answers a command that changes something.
 func OK(message string) Answer {
-	return Answer{Out: fmt.Sprintf(`{"api_version":1,"ok":true,"message":%q}`, message)}
+	return Answer{Out: fmt.Sprintf(`{"api_version":2,"ok":true,"message":%q}`, message)}
 }
 
-// Overview are the answers of an environments repository with one profile,
-// web, two runtimes, and two sandboxes of it: web-1 running with two tasks,
-// one of them with its agent at work, and web-2 stopped and empty. Three
-// secrets are stored, and of the values web asks for, one is missing.
+// Overview are the answers of two envs - web, with claude and copilot, and
+// api, whose sandbox is not made yet and which lacks a value - and the
+// sandbox of web, running, with two tasks, one of them with its agent at
+// work. The context is web's sandbox; two secrets are kept.
 func Overview() map[string]Answer {
 	return map[string]Answer{
-		"version --json":                  JSON(`{"api_version":1,"version":"0.3","profile_format":6}`),
-		"config get environments --json":  JSON(`{"api_version":1,"value":"/envs"}`),
-		"context --json":                  JSON(`{"api_version":1,"context":{"sandbox":"web-1"},"sandbox":"web-1","profile":"web"}`),
-		"runtime ls --json":               JSON(`{"api_version":1,"runtimes":[{"name":"sbx","available":true,"enabled":true,"default":true},{"name":"msb","available":true,"enabled":true,"experimental":true}]}`),
-		"profile ls --json":               JSON(`{"api_version":1,"profiles":[{"name":"web","agents":["claude","copilot"],"images":{"sbx":"built","msb":"outdated"},"last_commit":"2026-10-12"},{"name":"broken","agents":[],"images":{},"error":"profile format 4 - run unibox init broken"}]}`),
-		"sandbox ls --json":               JSON(overviewSandboxes),
-		"agent ls -p web --json":          JSON(`{"api_version":1,"profile":"web","agents":[{"agent":"claude","auth":"token secret:claude","co_author":"Claude <noreply@anthropic.com>","args":["--dangerously-skip-permissions"]},{"agent":"copilot","auth":"token secret:copilot","co_author":"Copilot <Copilot@users.noreply.github.com>","args":["--allow-all"]}]}`),
-		"service ls -p web --json":        JSON(`{"api_version":1,"profile":"web","services":[{"name":"github","git":true,"hosts":["github.com"],"token":"stored"},{"name":"artifactory","git":false,"hosts":["artifactory.example.com"],"token":"missing"}]}`),
-		"network ls -p web --json":        JSON(`{"api_version":1,"profile":"web","allow":["jitpack.io"],"deny":["gist.github.com"],"services":{"github.com":"github"}}`),
-		"network port ls -s web-1 --json": JSON(`{"api_version":1,"sandbox":"web-1","running":true,"ports":[{"name":"fe","port":"3000:3000","default":true,"named":true,"on":true,"published":[{"host_ip":"127.0.0.1","host_port":3000,"sandbox_port":3000,"protocol":"tcp"}]},{"name":"devtools","port":"9333:9222","named":true,"on":false,"published":[]}]}`),
-		"network port ls -s web-2 --json": JSON(`{"api_version":1,"sandbox":"web-2","running":false,"ports":[]}`),
-		"script ls -s web-1 --json":       JSON(`{"api_version":1,"sandbox":"web-1","profile":"web","scripts":{"reset-db":"reset-db.sh","update-skills":"update-skills.sh"}}`),
-		"script ls -s web-2 --json":       JSON(`{"api_version":1,"sandbox":"web-2","profile":"web","scripts":{"reset-db":"reset-db.sh","update-skills":"update-skills.sh"}}`),
-		"config get --json":               JSON(`{"api_version":1,"value":{"environments":"/envs","default_runtime":"sbx","runtimes":{"sbx":{"stop_idle":false}},"context":{"sandbox":"web-1"}}}`),
-		"secret ls --json":                JSON(`{"api_version":1,"store":"login keychain","secrets":["claude","copilot","github"]}`),
-		"var ls --json":                   JSON(`{"api_version":1,"file":"/home/.config/unibox/vars.toml","vars":{"git_name":"Dev"},"profiles":{"web":{"npm_scope":"acme"}}}`),
-		"var ls -p web --json":            JSON(`{"api_version":1,"profile":"web","vars":[{"name":"git_name","description":"your name in commits","value":"Dev","from":"every profile"},{"name":"npm_scope","description":"the npm scope","value":"acme","from":"profile web"},{"name":"jira_user","description":"your Jira login","value":"","from":"missing"}]}`),
+		"version --json":               JSON(`{"api_version":2,"version":"0.5"}`),
+		"env ls --json":                JSON(`{"api_version":2,"default":"web","envs":{"web":{"files":["/team/sandboxes/web.sbxenv.yaml"],"repo":"/team"},"api":{"files":["/team/sandboxes/api.sbxenv.yaml"],"repo":"/team"}}}`),
+		"env show web --json":          JSON(`{"api_version":2,"env":"web","sandbox":"web","sbxenv":{"files":["/team/sandboxes/web.sbxenv.yaml"],"agent":"claude","args":{"npm_scope":{"default":"acme"}},"kits":[{"source":"docker/claude"}]},"values":{},"missing":[]}`),
+		"env show api --json":          JSON(`{"api_version":2,"env":"api","sandbox":"api-box","sbxenv":{"files":["/team/sandboxes/api.sbxenv.yaml"],"agent":"codex","args":{"jira_user":{"required":true,"description":"your Jira login"}}},"values":{},"missing":["jira_user"]}`),
+		"context --json":               JSON(`{"api_version":2,"context":{"sandbox":"web"},"sandbox":"web","env":"web"}`),
+		"sandbox ls --json":            JSON(overviewSandboxes),
+		"config get --json":            JSON(`{"api_version":2,"value":{"default_env":"web","stop_idle":false,"context":{"sandbox":"web"}}}`),
+		"secret ls --all --json":       JSON(`{"api_version":2,"secrets":[{"service":"anthropic","scope":"global","kept":"stored","used_by":["web"],"needed":true},{"service":"github","scope":"global","kept":"stored","used_by":["web","api-box"],"needed":true}],"skipped_envs":[]}`),
+		"secret ls -e web --json":      JSON(`{"api_version":2,"env":"web","sandbox":"web","secrets":[{"service":"anthropic","kits":["docker/claude"],"stored":true,"scope":"global"},{"service":"artifactory","description":"the team's packages","stored":false,"page":"https://artifactory.example.com/ui/user_profile"}]}`),
+		"secret ls -e api --json":      JSON(`{"api_version":2,"env":"api","sandbox":"api-box","secrets":[{"service":"openai","stored":true}]}`),
+		"repo ls -e api --json":        JSON(`{"api_version":2,"env":"api","repos":{}}`),
+		"var ls -e web --json":         JSON(`{"api_version":2,"env":"web","file":"/home/.config/unibox/vars.toml","args":[{"name":"npm_scope","value":"acme","from":"default"}]}`),
+		"var ls -e api --json":         JSON(`{"api_version":2,"env":"api","file":"/home/.config/unibox/vars.toml","args":[{"name":"jira_user","value":"","from":"missing","description":"your Jira login"}]}`),
+		"repo ls -e web --json":        JSON(`{"api_version":2,"env":"web","repos":{"adrs":{"url":"https://gl.test/arch/adrs.git","default":"always","from":"repo","description":"the decisions"}}}`),
+		"port ls -s web --json":        JSON(`{"api_version":2,"sandbox":"web","running":true,"ports":[{"name":"fe","port":"3000:3000","team":true,"description":"the dev server","default":true,"named":true,"on":true,"published":[{"host_ip":"127.0.0.1","host_port":3000,"sandbox_port":3000,"protocol":"tcp"}]},{"name":"devtools","port":"9333:9222","named":true,"default":false,"on":false,"published":[]}]}`),
+		"network ls -s web --json":     JSON(`{"api_version":2,"sandbox":"web","rules":[{"decision":"allow","host":"jitpack.io","protocol":"tcp","from":"yours","sandbox":"web","applied":true}],"blocked":[{"host":"repo.example.com","reason":"not allowed","count":3,"last_seen":"2026-10-28T10:00:00Z"}]}`),
+		"sandbox resources web --json": JSON(`{"api_version":2,"sandbox":"web","env":"web","own":{},"resources":{"cpus":"4","memory":"8g"}}`),
 	}
 }
 
-const overviewSandboxes = `{"api_version":1,"sandboxes":[
-{"name":"web-1","runtime":"sbx","runtime_name":"unibox-web-1","profile":"web","state":"running","memory":"8GiB",
- "settings":{"dockerfile":"sandbox.dockerfile","cpus":"4","memory":"8GiB"},
- "network_allow":["jitpack.io"],
+const overviewSandboxes = `{"api_version":2,"sandboxes":[
+{"name":"web","env":"web","files":["/team/sandboxes/web.sbxenv.yaml"],"agent":"claude","agents":{"claude":["claude"],"copilot":["copilot"]},"state":"running",
  "tasks":[
-  {"id":"gateway-1a2b3c4d","alias":"rate","sandbox":"web-1","directory":"/work/gateway-1a2b3c4d","agent":"claude","state":"ready",
-   "repositories":[{"name":"gateway","url":"https://gl.test/acme/gateway.git","branch":"feat/rate","author":"Dev <dev@example.com>"}]},
-  {"id":"billing-5e6f7a8b","sandbox":"web-1","directory":"/work/billing-5e6f7a8b","agent":"copilot","state":"ready",
+  {"id":"gateway-1a2b3c4d","alias":"rate","sandbox":"web","directory":"/work/gateway-1a2b3c4d","agent":"claude","state":"ready",
+   "repositories":[{"name":"gateway","url":"https://gl.test/acme/gateway.git","branch":"feat/rate","host_path":"/src/gateway","mounted":true,"author":"Dev <dev@example.com>"}]},
+  {"id":"billing-5e6f7a8b","sandbox":"web","directory":"/work/billing-5e6f7a8b","agent":"copilot","state":"ready",
    "repositories":[{"name":"billing","url":"https://gl.test/acme/billing.git","branch":"fix/round","author":"Dev <dev@example.com>"},
                    {"name":"gateway","url":"https://gl.test/acme/gateway.git","branch":"fix/round","author":"Dev <dev@example.com>"}]}],
- "runs":[{"id":"r1","sandbox":"web-1","task":"gateway-1a2b3c4d","agent":"claude","pid":1,"since":"2026-10-19T08:00:00Z"}]},
-{"name":"web-2","runtime":"msb","runtime_name":"unibox-web-2","profile":"web","state":"stopped","tasks":[],"runs":[]}]}`
+ "runs":[{"id":"r1","sandbox":"web","task":"gateway-1a2b3c4d","agent":"claude","pid":1,"since":"2026-10-19T08:00:00Z"}]}]}`

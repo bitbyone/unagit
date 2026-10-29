@@ -95,12 +95,12 @@ func actionLists(a *App) map[string][]uiAction {
 			"marked repository": a.markedRepositoryActions(a.projectsPane, a.projects),
 			"changes":           append(append(a.changesSelectionActions(&changesView{}), a.changesScreenActions(&changesView{})...), a.globalActions()...),
 		}
-		web := unibox.Profile{Name: "web", Agents: []string{"claude", "copilot"}}
-		box := unibox.Sandbox{Name: "web-1", Profile: "web", State: "running"}
+		web := unibox.Env{Name: "web", Sandbox: "web", Agent: "claude"}
+		box := unibox.Sandbox{Name: "web", Env: "web", Agent: "claude", Agents: map[string][]string{"copilot": nil}, State: "running"}
 		for name, r := range map[string]sandboxRow{
-			"sandbox profile": {kind: rowProfile, profile: web},
-			"sandbox":         {kind: rowSandbox, profile: web, sandbox: box},
-			"sandbox task":    {kind: rowTask, profile: web, sandbox: box, task: unibox.Task{ID: "t-1", Sandbox: "web-1", Agent: "claude"}},
+			"sandbox env":  {kind: rowEnv, env: web, sandbox: box, made: true},
+			"sandbox":      {kind: rowSandbox, env: web, sandbox: box, made: true},
+			"sandbox task": {kind: rowTask, env: web, sandbox: box, made: true, task: unibox.Task{ID: "t-1", Sandbox: "web", Agent: "claude"}},
 		} {
 			lists[name] = append(a.sandboxRowActions(r), a.sandboxesActions(a.sandboxesPane)...)
 		}

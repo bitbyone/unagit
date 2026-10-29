@@ -9,13 +9,12 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/fuzzy"
-	"github.com/tobola/unagit/internal/unibox"
 )
 
 // sandboxesView is the Sandboxes screen, laid out as Activity is: a band
 // of cards on top - the sandboxes, and beside them the environment unibox
 // works in - the tasks with their detail under it, and at the bottom the
-// profiles and the log of what was asked of unibox. The pane is the tasks
+// envs and the log of what was asked of unibox. The pane is the tasks
 // and the detail; the detail follows whichever panel has the focus.
 type sandboxesView struct {
 	app  *App
@@ -28,16 +27,16 @@ type sandboxesView struct {
 	offText *tview.TextView
 	offOn   bool
 
-	band     *tview.Flex
-	cards    *sandboxCards
-	env      *tview.TextView
-	lower    *tview.Flex
-	profiles *tview.Table
-	log      *tview.Table
+	band  *tview.Flex
+	cards *sandboxCards
+	env   *tview.TextView
+	lower *tview.Flex
+	envs  *tview.Table
+	log   *tview.Table
 
-	// tasks, boxes and profileRows are what the panels show, the filter
-	// applied; profileRows' row r is the table's row r+1.
-	tasks, boxes, profileRows []sandboxRow
+	// tasks, boxes and envRows are what the panels show, the filter
+	// applied; envRows' row r is the table's row r+1.
+	tasks, boxes, envRows []sandboxRow
 	// logRows are the events of the log's rows, newest first.
 	logRows []*uniboxEvent
 
@@ -49,8 +48,8 @@ type sandboxesView struct {
 	// current is the panel with the focus, which alone is lit, and which
 	// the focus comes back to after a dialog.
 	current tview.Primitive
-	// profilesW is the profiles' inner width they were last laid out to.
-	profilesW int
+	// envsW is the envs' inner width they were last laid out to.
+	envsW int
 }
 
 const (
@@ -66,7 +65,7 @@ const (
 	sandboxCardWidth = 30
 	compactCardWidth = 20
 	// sandboxesLowerShare is the part of the rows under the band the
-	// profiles and the log take; sandboxesLowerLeast their fewest lines,
+	// envs and the log take; sandboxesLowerLeast their fewest lines,
 	// borders included, and sandboxesListLeast the tasks' fewest.
 	sandboxesLowerShare = 0.38
 	sandboxesLowerLeast = 5
@@ -98,7 +97,10 @@ func (a *App) newSandboxesPane() *pane {
 		}
 		parts = append(parts, tag(colMuted)+fmt.Sprintf("%s · %s · %s",
 			counted(len(o.Sandboxes), "sandbox", "sandboxes"), counted(len(v.tasks), "task", "tasks"),
-			counted(len(o.Profiles), "profile", "profiles"))+tagEnd)
+			counted(len(o.Envs), "env", "envs"))+tagEnd)
+		if name := o.Context.Name(); name != "" {
+			parts = append([]string{tag(role("tabs.context")) + glyphDot + " " + esc(contextWords(o.Context)) + tagEnd}, parts...)
+		}
 		if ver := o.Version.Version; ver != "" {
 			parts = append(parts, tag(colMuted)+"unibox "+esc(ver)+tagEnd)
 		}
@@ -111,7 +113,7 @@ func (a *App) newSandboxesPane() *pane {
 		v.fill(query)
 		a.drawSandboxTasks(p)
 		v.setTitles()
-		v.drawProfiles()
+		v.drawEnvs()
 		v.drawEnv()
 		v.drawLog()
 		v.followDetail()
@@ -137,11 +139,14 @@ func (a *App) newSandboxesPane() *pane {
 		if !ok {
 			return
 		}
-		if r.kind != rowProfile {
-			a.flash("a sandbox and its tasks are in the VM - O on a profile opens the profile, s a shell in it")
-			return
+		switch {
+		case r.kind == rowTask && len(r.task.HostPaths()) > 0:
+			a.openTaskCheckout(r.task, ask)
+		case r.kind == rowEnv:
+			a.openEnvFiles(r.env, ask)
+		default:
+			a.flash("a sandbox and the clones of its tasks are in the VM - s opens a shell in it")
 		}
-		a.openProfileDir(r.profile, ask)
 	}
 	p.selection = func() (string, []uiAction) {
 		r, ok := v.taskAt(p.selectedIndex())
@@ -191,21 +196,21 @@ func (a *App) newSandboxesPane() *pane {
 		AddItem(v.cards, 0, 1, false).
 		AddItem(v.env, envWidth, 0, false)
 
-	v.profiles = tview.NewTable().SetSelectable(true, false).SetSeparator(' ').SetFixed(1, 0)
-	v.profiles.SetSelectedStyle(styleSelected)
-	box(v.profiles.Box, "")
-	v.profiles.SetSelectionChangedFunc(func(int, int) { v.followDetail() })
-	v.profiles.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
-		if w-2 != v.profilesW {
-			v.profilesW = w - 2
-			go a.tv.QueueUpdateDraw(v.drawProfiles)
+	v.envs = tview.NewTable().SetSelectable(true, false).SetSeparator(' ').SetFixed(1, 0)
+	v.envs.SetSelectedStyle(styleSelected)
+	box(v.envs.Box, "")
+	v.envs.SetSelectionChangedFunc(func(int, int) { v.followDetail() })
+	v.envs.SetDrawFunc(func(_ tcell.Screen, x, y, w, h int) (int, int, int, int) {
+		if w-2 != v.envsW {
+			v.envsW = w - 2
+			go a.tv.QueueUpdateDraw(v.drawEnvs)
 		}
 		return x + 1, y + 1, w - 2, h - 2
 	})
-	v.profiles.SetInputCapture(a.panelKeys(v, v.profiles, func(ev *tcell.EventKey) bool {
-		_, acts := v.profileSelection()
+	v.envs.SetInputCapture(a.panelKeys(v, v.envs, func(ev *tcell.EventKey) bool {
+		_, acts := v.envRowSelection()
 		return runPanelKey(acts, ev)
-	}, v.profileSelection))
+	}, v.envRowSelection))
 
 	v.log = tview.NewTable().SetSelectable(true, false).SetSeparator(' ').SetFixed(1, 0)
 	v.log.SetSelectedStyle(styleSelected)
@@ -216,7 +221,7 @@ func (a *App) newSandboxesPane() *pane {
 	}, v.logSelection))
 
 	v.lower = tview.NewFlex().
-		AddItem(v.profiles, 0, 1, false).
+		AddItem(v.envs, 0, 1, false).
 		AddItem(v.log, 0, 1, false)
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
@@ -326,8 +331,8 @@ func (a *App) integrationsAction() uiAction {
 		}}
 }
 
-// layout shares the screen's height: the band its rows, the profiles and
-// the log their share, the tasks and the detail the rest - never fewer
+// layout shares the screen's height: the band its rows, the envs and the
+// log their share, the tasks and the detail the rest - never fewer
 // than sandboxesListLeast, for which the cards fold to a line first.
 func (v *sandboxesView) layout(h int) {
 	rows := h - 2
@@ -371,7 +376,7 @@ func (v *sandboxesView) roomForDetail() bool {
 // fill sorts what unibox said into the panels, keeping what the filter
 // finds: a task by its name, its sandbox, agent, repositories, branches.
 func (v *sandboxesView) fill(query string) {
-	v.tasks, v.boxes, v.profileRows = v.tasks[:0], v.boxes[:0], v.profileRows[:0]
+	v.tasks, v.boxes, v.envRows = v.tasks[:0], v.boxes[:0], v.envRows[:0]
 	if v.app.sandboxesProblem() != "" {
 		return
 	}
@@ -392,7 +397,7 @@ func (v *sandboxesView) fill(query string) {
 		case rowSandbox:
 			v.boxes = append(v.boxes, r)
 		default:
-			v.profileRows = append(v.profileRows, r)
+			v.envRows = append(v.envRows, r)
 		}
 	}
 }
@@ -404,22 +409,22 @@ func (v *sandboxesView) taskAt(i int) (sandboxRow, bool) {
 	return v.tasks[i], true
 }
 
-func (v *sandboxesView) profileAt() (sandboxRow, bool) {
-	row, _ := v.profiles.GetSelection()
-	if row < 1 || row > len(v.profileRows) {
+func (v *sandboxesView) envAt() (sandboxRow, bool) {
+	row, _ := v.envs.GetSelection()
+	if row < 1 || row > len(v.envRows) {
 		return sandboxRow{}, false
 	}
-	return v.profileRows[row-1], true
+	return v.envRows[row-1], true
 }
 
-// chosen is the row of the panel with the focus: the card, the profile or
-// the task under the cursor.
+// chosen is the row of the panel with the focus: the card, the env or the
+// task under the cursor.
 func (v *sandboxesView) chosen() (sandboxRow, bool) {
 	switch v.current {
 	case v.cards:
 		return v.cards.chosen()
-	case v.profiles:
-		return v.profileAt()
+	case v.envs:
+		return v.envAt()
 	case v.env, v.log:
 		return sandboxRow{}, false
 	}
@@ -432,7 +437,7 @@ func (v *sandboxesView) setTitles() {
 	v.pane.table.SetTitle(panelTitle("Tasks", "t"))
 	v.cards.SetTitle(panelTitle("Sandboxes", "B"))
 	v.env.SetTitle(panelTitle("Environment", "E"))
-	v.profiles.SetTitle(panelTitle("Profiles", "P"))
+	v.envs.SetTitle(panelTitle("Envs", "N"))
 	v.log.SetTitle(panelTitle("Log", "L"))
 }
 
@@ -489,7 +494,7 @@ func (v *sandboxesView) home() *pane { return v.pane }
 
 // move goes from a panel to the one beside it, h j k l as they lie on the
 // screen: the cards and the environment above, the tasks and the detail
-// side by side, the profiles and the log below.
+// side by side, the envs and the log below.
 func (v *sandboxesView) move(from tview.Primitive, dir rune) bool {
 	p := v.pane
 	lower := v.lowerH > 0
@@ -518,7 +523,7 @@ func (v *sandboxesView) move(from tview.Primitive, dir rune) bool {
 		case dir == 'j' && p.detailShown && p.bodyDirection == tview.FlexRow:
 			to = p.detail
 		case dir == 'j' && lower:
-			to = v.profiles
+			to = v.envs
 		case dir == 'l' && p.detailShown:
 			to = p.detail
 		}
@@ -531,7 +536,7 @@ func (v *sandboxesView) move(from tview.Primitive, dir rune) bool {
 		case dir == 'j' && lower:
 			to = v.log
 		}
-	case v.profiles:
+	case v.envs:
 		switch dir {
 		case 'k':
 			to = p.table
@@ -541,7 +546,7 @@ func (v *sandboxesView) move(from tview.Primitive, dir rune) bool {
 	case v.log:
 		switch {
 		case dir == 'h':
-			to = v.profiles
+			to = v.envs
 		case dir == 'k' && p.detailShown:
 			to = p.detail
 		case dir == 'k':
@@ -563,7 +568,7 @@ func (v *sandboxesView) panels() []tview.Primitive {
 		out = append(out, p.detail)
 	}
 	if v.lowerH > 0 {
-		out = append(out, v.profiles, v.log)
+		out = append(out, v.envs, v.log)
 	}
 	return out
 }
@@ -598,7 +603,7 @@ func (v *sandboxesView) focus(to tview.Primitive) {
 	v.current = to
 	v.lightBorders(to)
 	v.drawLog()
-	v.drawProfiles()
+	v.drawEnvs()
 	v.followDetail()
 	p.updateHeader()
 }
@@ -606,7 +611,7 @@ func (v *sandboxesView) focus(to tview.Primitive) {
 func (v *sandboxesView) lightBorders(to tview.Primitive) {
 	focusBox(v.cards.Box, to == v.cards)
 	focusBox(v.env.Box, to == v.env)
-	focusBox(v.profiles.Box, to == v.profiles)
+	focusBox(v.envs.Box, to == v.envs)
 	focusBox(v.log.Box, to == v.log)
 }
 
@@ -732,8 +737,8 @@ func (v *sandboxesView) openChosenDetail() {
 // ------------------------------------------------------------- the cards
 
 // sandboxCards draws the sandboxes as cards side by side, as Activity
-// draws the editors open: the state and the name in the border, the
-// profile and the runtime, then the resources and the tasks.
+// draws the editors open: the state and the name in the border, the env
+// and the agent, then the tasks.
 type sandboxCards struct {
 	*tview.Box
 	v *sandboxesView
@@ -747,7 +752,7 @@ func (c *sandboxCards) Draw(screen tcell.Screen) {
 	x, y, w, h := c.GetInnerRect()
 	boxes := c.v.boxes
 	if len(boxes) == 0 {
-		text := "No sandbox yet - c on a profile makes one, n starts a task in a new one."
+		text := "No sandbox yet - c on an env makes one, n starts a task and makes it on the way."
 		if problem := c.v.app.sandboxesProblem(); problem != "" {
 			text = "Nothing to show."
 		}
@@ -823,7 +828,7 @@ type sandboxUse struct {
 
 func useOf(r sandboxRow) sandboxUse {
 	s := r.sandbox
-	out := sandboxUse{cpus: s.Settings.CPUs, memory: firstOf(s.Memory, s.Settings.Memory), tasks: len(s.Tasks)}
+	out := sandboxUse{tasks: len(s.Tasks)}
 	for _, t := range s.Tasks {
 		if _, ok := s.RunOf(t.ID); ok {
 			out.working++
@@ -875,7 +880,15 @@ func (c *sandboxCards) drawCard(screen tcell.Screen, r sandboxRow, x, y, h int, 
 	resources := a.sandboxResources(useOf(r), on)
 	lines := drawCardFrame(screen, x, y, sandboxCardWidth, h, title, chosen, false)
 	inner := sandboxCardWidth - 4
-	where := esc(trunc(s.Profile+" · "+s.Runtime, inner-cells(s.State)-1))
+	var names []string
+	for _, id := range s.AgentIDs() {
+		names = append(names, agentLabel(id))
+	}
+	what := strings.Join(names, ", ")
+	if s.Env != s.Name {
+		what = "env " + s.Env + " · " + what
+	}
+	where := esc(trunc(what, inner-cells(s.State)-1))
 	tview.Print(screen, "["+colMuted.String()+on+"]"+where, x+2, y+1, inner, tview.AlignLeft, colMuted)
 	tview.Print(screen, "["+role(stateRole).String()+on+"]"+esc(s.State), x+2, y+1, inner, tview.AlignRight, colMuted)
 	if lines >= 4 {
@@ -920,9 +933,9 @@ func (c *sandboxCards) selection() (string, []uiAction) {
 
 // ------------------------------------------------------- the environment
 
-// drawEnv fills the Environment panel: where the profiles are, the
-// context, the runtimes, what is kept for the profiles - each on a line,
-// or all on one where the band is folded.
+// drawEnv fills the Environment panel: the context, the default env, the
+// switches that matter most, the tokens sbx keeps - each on a line, or the
+// context alone where the band is folded.
 func (v *sandboxesView) drawEnv() {
 	a := v.app
 	o := a.ubx.overview
@@ -930,153 +943,115 @@ func (v *sandboxesView) drawEnv() {
 		v.env.SetText(tag(colMuted) + "reading…" + tagEnd)
 		return
 	}
-	icon := func(name string) string {
-		if ic := columnIcons[name]; ic != "" {
-			return tag(colMuted) + ic + tagEnd + " "
-		}
-		return ""
-	}
-	repo := tag(role("sandboxes.problem")) + "no environments repository" + tagEnd
-	if o.Environments != "" {
-		repo = esc(tildePath(o.Environments))
-	}
 	context := tag(colMuted) + "no context" + tagEnd
-	if set := o.Context.Set; set.Sandbox != "" || set.Profile != "" {
-		context = tag(colAccent) + glyphDot + tagEnd + " " + esc(strings.Trim(set.Sandbox+" · "+firstOf(set.Profile, o.Context.Profile), " ·"))
+	if o.Context.Name() != "" {
+		context = tag(role("tabs.context")) + glyphDot + " " + esc(contextWords(o.Context)) + tagEnd + tag(colMuted) + " context" + tagEnd
 	}
-	var runtimes []string
-	for _, rt := range o.Runtimes {
-		word := rt.Name
-		switch {
-		case !rt.Available || !rt.Enabled:
-			word = tag(colMuted) + esc(rt.Name+" off") + tagEnd
-		case rt.Default:
-			word = "[::b]" + esc(rt.Name) + "[::-]"
-		default:
-			word = esc(word)
+	if v.cards.compact {
+		v.env.SetText(context)
+		return
+	}
+	def := tag(colMuted) + "default env " + tagEnd + esc(firstOf(o.Default, "none"))
+	var on []string
+	for _, s := range uniboxSwitches[:3] {
+		if v := s.get(o.Config); v != nil && *v || v == nil && s.unset {
+			on = append(on, s.short)
 		}
-		runtimes = append(runtimes, word)
 	}
-	values := len(o.Values.Shared)
-	for _, vs := range o.Values.Profiles {
-		values += len(vs)
-	}
-	kept := counted(len(o.Secrets.Names), "secret", "secrets") + " · " + counted(values, "value", "values")
+	switches := tag(colMuted) + "on: " + tagEnd + esc(firstOf(strings.Join(on, ", "), "nothing"))
+	kept := counted(len(o.Secrets), "token", "tokens") + " kept by sbx"
 	if len(o.Unread) > 0 {
 		kept += " · " + tag(role("sandboxes.problem")) + "not all read" + tagEnd
 	}
-	if v.cards.compact {
-		v.env.SetText(repo + tag(colMuted) + " · " + tagEnd + context)
-		return
-	}
-	v.env.SetText(strings.Join([]string{
-		icon("PATH") + repo,
-		context,
-		tag(colMuted) + "runtimes " + tagEnd + strings.Join(runtimes, tag(colMuted)+" · "+tagEnd),
-		tag(colMuted) + esc(kept) + tagEnd,
-	}, "\n"))
+	v.env.SetText(strings.Join([]string{context, def, switches, tag(colMuted) + kept + tagEnd}, "\n"))
 }
 
-// envSelection is what the Environment panel can do; the secrets, the
-// values and unibox's settings are the screen's, from any panel.
+// envSelection is what the Environment panel can do; the tokens and
+// unibox's settings are the screen's, from any panel.
 func (v *sandboxesView) envSelection() (string, []uiAction) {
 	a := v.app
 	return "Environment", []uiAction{
-		{name: "Show Details", about: "Move into the detail: unibox's settings, its runtimes, the secrets by name, your values.",
+		{name: "Show Details", about: "Move into the detail: the context, unibox's settings, the tokens sbx keeps.",
 			keys: "Enter", rank: 5, run: v.openChosenDetail},
-		{name: "Set Environments Repository…", about: "Choose which of your clones holds the profiles; unibox config set environments keeps it.",
-			keys: "e", rank: 10, run: a.chooseEnvironments},
-		{name: "Open Environments Repository", about: "Open the repository of the profiles in the default editor.",
-			keys: "O", rank: 20, when: func() bool { return a.ubx.overview.Environments != "" }, run: a.openEnvironments},
-		{name: "Clear unibox Context", about: "Forget the sandbox and profile unibox commands work in when not told.",
+		{name: "Clear unibox Context", about: "Forget the sandbox unibox commands - and unagit's Sandbox with… - work in when not told.",
 			keys: "c", rank: 30, when: a.contextSet, run: func() { a.uniboxDo("Clearing the context", "context", "clear") }},
 	}
 }
 
-func (a *App) contextSet() bool {
-	c := a.ubx.overview.Context.Set
-	return c.Sandbox != "" || c.Profile != ""
-}
+func (a *App) contextSet() bool { return a.ubx.overview.Context.Name() != "" }
 
-// ---------------------------------------------------------- the profiles
+// -------------------------------------------------------------- the envs
 
-// drawProfiles lists the profiles: the context marked, each one's images,
-// its agents and how many sandboxes are made from it.
-func (v *sandboxesView) drawProfiles() {
+// drawEnvs lists the envs: the context's marked, each one's sandbox and
+// its state, the agent its kit runs and how many tasks its sandbox holds.
+func (v *sandboxesView) drawEnvs() {
 	a := v.app
-	t := v.profiles
+	t := v.envs
 	row, _ := t.GetSelection()
 	t.Clear()
-	width := max(20, v.profilesW)
-	var names, states, agentsW []int
-	for _, r := range v.profileRows {
-		names = append(names, cells(r.profile.Name))
+	width := max(20, v.envsW)
+	var names, boxes, states, agentsW []int
+	for _, r := range v.envRows {
+		names = append(names, cells(r.env.Name))
+		boxes = append(boxes, cells(r.sandboxName()))
 		state, _ := a.sandboxState(r)
 		states = append(states, cells(state))
-		agentsW = append(agentsW, cells(profileAgentsText(r.profile)))
+		agentsW = append(agentsW, cells(agentLabel(r.env.Agent)))
 	}
-	boxesW := headingWidth("BOXES")
-	nameCol := flexColumn("PROFILE", names, 8, 2)
-	stateCol := flexColumn("IMAGES", states, 6, 1)
-	agentCol := flexColumn("AGENTS", agentsW, 6, 1)
-	agentCol.drop = 1
-	spare := layoutColumns(width-1, fixedColumn(2), nameCol, stateCol, agentCol, fixedColumn(boxesW))
+	tasksW := headingWidth("TASKS")
+	nameCol := flexColumn("ENV", names, 6, 2)
+	boxCol := flexColumn("SANDBOX", boxes, 6, 1)
+	stateCol := flexColumn("STATE", states, 6, 1)
+	agentCol := flexColumn("AGENT", agentsW, 6, 1)
+	agentCol.drop, boxCol.drop = 1, 2
+	spare := layoutColumns(width-1, fixedColumn(2), nameCol, boxCol, stateCol, agentCol, fixedColumn(tasksW))
 	head := role("sandboxes.header")
 	header := []field{
 		{width: 2},
-		{text: "PROFILE", width: nameCol.width, colour: head},
-		{text: "IMAGES", width: stateCol.width, colour: head},
-		{text: "AGENTS", width: agentCol.width, colour: head},
+		{text: "ENV", width: nameCol.width, colour: head},
+		{text: "SANDBOX", width: boxCol.width, colour: head},
+		{text: "STATE", width: stateCol.width, colour: head},
+		{text: "AGENT", width: agentCol.width, colour: head},
 	}
 	if spare > 1 {
 		header = append(header, field{width: spare - 1})
 	}
-	header = append(header, field{text: "BOXES", width: boxesW, colour: head, right: true})
+	header = append(header, field{text: "TASKS", width: tasksW, colour: head, right: true})
 	t.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(header))).SetSelectable(false).SetExpansion(1))
-	current := a.ubx.overview.Context.Set.Profile
-	for i, r := range v.profileRows {
+	ctx := a.ubx.overview.Context
+	for i, r := range v.envRows {
 		mark := field{width: 2}
-		if r.profile.Name == current {
-			mark = field{text: " " + glyphDot, width: 2, colour: colAccent}
+		if ctx.Set.Env == r.env.Name || ctx.Set.Sandbox != "" && ctx.Set.Sandbox == r.sandboxName() {
+			mark = field{text: " " + glyphDot, width: 2, colour: role("tabs.context")}
 		}
 		state, stateRole := a.sandboxState(r)
-		n := 0
-		for _, s := range a.ubx.overview.Sandboxes {
-			if s.Profile == r.profile.Name {
-				n++
-			}
+		tasks := ""
+		if r.made {
+			tasks = fmt.Sprint(len(r.sandbox.Tasks))
 		}
 		cells := []field{
 			mark,
-			{text: r.profile.Name, width: nameCol.width, colour: role("sandboxes.profile")},
+			{text: r.env.Name, width: nameCol.width, colour: role("sandboxes.env")},
+			{text: r.sandboxName(), width: boxCol.width, colour: role("sandboxes.sandbox")},
 			{text: state, width: stateCol.width, colour: role(stateRole)},
-			{text: profileAgentsText(r.profile), width: agentCol.width, colour: role("sandboxes.agent")},
+			{text: agentLabel(r.env.Agent), width: agentCol.width, colour: role("sandboxes.agent")},
 		}
 		if spare > 1 {
 			cells = append(cells, field{width: spare - 1})
 		}
-		cells = append(cells, field{text: fmt.Sprint(n), width: boxesW, colour: colMuted, right: true})
+		cells = append(cells, field{text: tasks, width: tasksW, colour: colMuted, right: true})
 		t.SetCell(i+1, 0, tview.NewTableCell(rowText(cells)).SetExpansion(1))
 	}
-	if len(v.profileRows) == 0 {
-		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+"No profiles."+tagEnd).SetSelectable(false))
+	if len(v.envRows) == 0 {
+		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+"No envs."+tagEnd).SetSelectable(false))
 	}
 	t.Select(min(max(row, 1), max(1, t.GetRowCount()-1)), 0)
 }
 
-// profileAgentsText is a profile's agents by unagit's names for them.
-func profileAgentsText(p unibox.Profile) string {
-	var names []string
-	for _, id := range p.Agents {
-		names = append(names, agentLabel(id))
-	}
-	return strings.Join(names, ", ")
-}
-
-func (v *sandboxesView) profileSelection() (string, []uiAction) {
-	r, ok := v.profileAt()
+func (v *sandboxesView) envRowSelection() (string, []uiAction) {
+	r, ok := v.envAt()
 	if !ok {
-		return "Profiles", nil
+		return "Envs", nil
 	}
 	return "Actions · " + sandboxRowName(r), v.app.sandboxRowActions(r)
 }
@@ -1274,9 +1249,9 @@ func (v *sandboxesView) hint() (tview.Primitive, string) {
 		}
 		return v.cards, join("n new task", "s shell", "p ports", "x stop")
 	case v.env.HasFocus():
-		return v.env, join("K secrets", "V values", "U settings")
-	case v.profiles.HasFocus():
-		return v.profiles, join("n task", "c sandbox", "b build", "v services")
+		return v.env, join("c clear context", "U settings", "D doctor")
+	case v.envs.HasFocus():
+		return v.envs, join("n new task", "c create", "V values", "K tokens")
 	case v.log.HasFocus():
 		return v.log, join("Enter show", "y copy command")
 	}

@@ -81,6 +81,13 @@ func (a *App) drawTabs() {
 	if badge != "" {
 		badgesWidth = cells(badge) + 1
 	}
+	// The sandbox unibox works in when not told - and every Sandbox with…
+	// across unagit with it - after the Sandboxes tab, in a colour of its
+	// own, so it is known before an agent is started there.
+	sandboxCtx := a.sandboxContextBadge()
+	if sandboxCtx != "" {
+		badgesWidth += cells(sandboxCtx) + 1
+	}
 	short, tight := false, false
 	// Settings is held apart from the screens by at least a separator's
 	// room.
@@ -122,6 +129,9 @@ func (a *App) drawTabs() {
 			// background whatever the tab's style.
 			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
 		}
+		if t.page == pageSandboxes && sandboxCtx != "" {
+			text += "[" + role("tabs.context").String() + ":" + colBackground.String() + ":b] " + esc(sandboxCtx) + "[-:-:-] "
+		}
 		if t.page == pageSettings {
 			settings = text
 			continue
@@ -139,10 +149,23 @@ func (a *App) drawTabs() {
 		if badge != "" {
 			used += cells(badge) + 2
 		}
+		if sandboxCtx != "" {
+			used += cells(sandboxCtx) + 2
+		}
 		// A cell kept free at the end, as at the start.
 		gap = max(1, a.tabsWidth-used-1)
 	}
 	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)) + strings.Repeat(" ", gap) + settings)
+}
+
+// sandboxContextBadge is unibox's context as the Sandboxes tab wears it:
+// the sandbox, or the env whose sandbox is to be made; empty while none is
+// chosen or unibox is off.
+func (a *App) sandboxContextBadge() string {
+	if !a.uniboxOn() || !a.ubx.read || a.ubx.err != nil || a.ubx.overview.Context.Name() == "" {
+		return ""
+	}
+	return glyphDot + contextWords(a.ubx.overview.Context)
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.

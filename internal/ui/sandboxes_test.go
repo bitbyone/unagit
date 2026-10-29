@@ -46,7 +46,7 @@ func openSandboxes(t *testing.T, a *App, sc tcell.SimulationScreen) {
 }
 
 // selectSandboxRow puts the focus on the panel of a key - the tasks, the
-// cards, the profiles - and its cursor on the row.
+// cards, the envs - and its cursor on the row.
 func selectSandboxRow(t *testing.T, a *App, key string) {
 	t.Helper()
 	found := onLoop(a, func() bool {
@@ -68,11 +68,11 @@ func selectSandboxRow(t *testing.T, a *App, key string) {
 					return true
 				}
 			}
-		case "p:":
-			for i, r := range v.profileRows {
+		case "e:":
+			for i, r := range v.envRows {
 				if r.key() == key {
-					v.focus(v.profiles)
-					v.profiles.Select(i+1, 0)
+					v.focus(v.envs)
+					v.envs.Select(i+1, 0)
 					return true
 				}
 			}
@@ -102,9 +102,10 @@ func waitCalled(t *testing.T, a *App, fake *uniboxtest.Fake, line string) {
 }
 
 // TestTheSandboxesTabShowsItsPanels: the sandboxes as cards with their
-// state and resources, the environment beside them, the tasks of every
-// sandbox, the profiles and the log; the detail follows the panel with the
-// focus and says what unibox says of what it has chosen.
+// state and tasks, the environment beside them, the tasks of every
+// sandbox, the envs and the log; the detail follows the panel with the
+// focus and says what unibox says of what it has chosen. The context is
+// on the tab itself.
 func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	t.Parallel()
 	_, prepare := fakeUnibox(t, nil)
@@ -113,42 +114,41 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	// Wide enough for the detail to stand beside the tasks by itself.
 	resizeApp(a, sc, 180, 44)
 	openSandboxes(t, a, sc)
-	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Profiles [P]", "Log [L]",
-		"web-1 · context", "web-2", "web · sbx", "running", "no tasks", "stopped", "8GiB", "4 cpu", "2 tasks",
+	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Envs [N]", "Log [L]",
+		"web · context", "Claude Code, Copi", "running", "2 tasks",
 		"rate", "billing-5e6f7a8b", "working", "feat/rate", "billing, gateway", "fix/round",
-		"broken", "does not load", "/envs", "web-1 · web", "3 secrets · 2 values"} {
+		"api-box", "1 value missing", "default env web", "2 tokens kept by sbx"} {
 		waitFor(t, a, sc, want)
 	}
 	text := a.screenText(sc)
-	if lineOf(text, "web · sbx") > lineOf(text, "rate") || lineOf(text, "rate") > lineOf(text, "does not load") {
-		t.Fatalf("not cards, then tasks, then profiles:\n%s", text)
+	if lineOf(text, "Claude Code, Copi") > lineOf(text, "rate") || lineOf(text, "rate") > lineOf(text, "1 value missing") {
+		t.Fatalf("not cards, then tasks, then envs:\n%s", text)
 	}
-	// The profile's detail is read from unibox: its services, whose token
-	// is stored and whose is not, and the value it asks for that is
-	// missing.
-	// The row says the default runtime's image; msb's, outdated, is
-	// the detail's alone, or it reads as the profile's own.
-	text = a.screenText(sc)
-	if i := lineOf(text, "Claude Code, Copilot"); i < 0 || !strings.Contains(strings.Split(text, "\n")[i], "built") || strings.Contains(strings.Split(text, "\n")[i], "msb") {
-		t.Fatalf("the row of web is not its sbx image:\n%s", text)
+	if bar := strings.Split(text, "\n")[0]; !strings.Contains(bar, "Sandboxes [5]  "+glyphDot+"web") {
+		t.Fatalf("the context is not on the tab: %q", bar)
 	}
-	selectSandboxRow(t, a, "p:web")
-	waitFor(t, a, sc, "msb outdated")
-	waitFor(t, a, sc, "token missing")
-	waitFor(t, a, sc, "jitpack.io")
+	// An env's detail is read from unibox: the token sbx lacks, its
+	// repositories, the value it asks for that is missing.
+	selectSandboxRow(t, a, "e:web")
+	waitDetail(t, a, "artifactory")
+	waitDetail(t, a, "adrs")
+	selectSandboxRow(t, a, "e:api")
 	waitDetail(t, a, "jira_user")
-	// l moves to the log as it does from every panel; signing the
-	// agents in is A, and once took l away from moving.
+	waitDetail(t, a, "not made yet")
+	// l moves to the log as it does from every panel.
 	typeRunes(sc, "l")
 	waitEditorState(t, a, func() bool { return a.tv.GetFocus() == a.sandboxes.log })
-	selectSandboxRow(t, a, "s:web-1")
+	selectSandboxRow(t, a, "s:web")
 	waitFor(t, a, sc, "http://127.0.0.1:3000")
-	waitDetail(t, a, "update-skills")
+	waitDetail(t, a, "jitpack.io")
+	waitDetail(t, a, "repo.example.com")
+	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
+	waitDetail(t, a, "mounted from /src/gateway")
 	selectSandboxRow(t, a, "t:billing-5e6f7a8b")
 	waitFor(t, a, sc, "https://gl.test/acme/billing.git")
 	typeRunes(sc, "E")
-	waitFor(t, a, sc, "login keychain")
-	waitFor(t, a, sc, "keeps running when idle")
+	waitDetail(t, a, "off, not chosen")
+	waitDetail(t, a, "anthropic")
 
 	// The filter narrows the tasks.
 	typeRunes(sc, "t/fix/round")
@@ -203,7 +203,7 @@ func TestATaskResumesInAZellijSplit(t *testing.T) {
 		waitFor(t, a, sc, want)
 	}
 	pickPlace(t, a, sc, "claude", "Zellij Split Right")
-	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "opened Claude Code in Zellij: web-1/rate") })
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "opened Claude Code in Zellij: web/rate") })
 	var split []string
 	for _, call := range tool.Calls(t) {
 		if slices.Contains(call.Args, "new-pane") {
@@ -214,7 +214,7 @@ func TestATaskResumesInAZellijSplit(t *testing.T) {
 		t.Fatalf("split: %v", split)
 	}
 	rows := a.sessions.List()
-	if len(rows) != 1 || rows[0].Editor != "claude" || rows[0].Sandbox != "web-1" || rows[0].Task != "gateway-1a2b3c4d" {
+	if len(rows) != 1 || rows[0].Editor != "claude" || rows[0].Sandbox != "web" || rows[0].Task != "gateway-1a2b3c4d" {
 		t.Fatalf("recorded: %+v", rows)
 	}
 }
@@ -241,7 +241,7 @@ func pickPlace(t *testing.T, a *App, sc tcell.SimulationScreen, agent, place str
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 }
 
-// TestATaskResumesWithAnotherAgentHere: a picks among the profile's
+// TestATaskResumesWithAnotherAgentHere: a picks among the sandbox's
 // agents, and in this terminal unibox resume has it until it ends.
 func TestATaskResumesWithAnotherAgentHere(t *testing.T) {
 	t.Parallel()
@@ -258,7 +258,7 @@ func TestATaskResumesWithAnotherAgentHere(t *testing.T) {
 	waitFor(t, a, sc, "Resume billing-5e6f7a8b with Claude Code · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
 	waitCalled(t, a, fake, "resume billing-5e6f7a8b --agent claude")
-	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "Claude Code ended in web-1/billing-5e6f7a8b") })
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "Claude Code ended in web/billing-5e6f7a8b") })
 }
 
 // TestASandboxIsStoppedAndARefusalIsAWarning: x stops the sandbox with
@@ -267,28 +267,29 @@ func TestATaskResumesWithAnotherAgentHere(t *testing.T) {
 func TestASandboxIsStoppedAndARefusalIsAWarning(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
-		"sandbox stop web-1 --json":     uniboxtest.OK("stopped web-1"),
-		"sandbox rm web-1 --yes --json": uniboxtest.Failure("unpushed_work", "task rate has commits not pushed - push them first", 4),
+		"sandbox stop web --json":     uniboxtest.OK("stopped web"),
+		"sandbox rm web --yes --json": uniboxtest.Failure("unpushed_work", "task rate has commits not pushed - push them first", 4),
 	})
 	a, sc, _ := newTestAppSrv(t, prepare)
 	openSandboxes(t, a, sc)
-	selectSandboxRow(t, a, "s:web-1")
+	selectSandboxRow(t, a, "s:web")
 	typeRunes(sc, "x")
-	waitCalled(t, a, fake, "sandbox stop web-1 --json")
-	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "stopped web-1") })
+	waitCalled(t, a, fake, "sandbox stop web --json")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "stopped web") })
 
-	selectSandboxRow(t, a, "s:web-1")
+	selectSandboxRow(t, a, "s:web")
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "Remove sandbox web-1")
+	waitFor(t, a, sc, "Remove sandbox web")
 	waitFor(t, a, sc, "its tasks go with it")
-	typeRunes(sc, "y")
-	waitCalled(t, a, fake, "sandbox rm web-1 --yes --json")
+	keys := buttonKeys([]string{"Cancel", "Remove", "Force Remove"})
+	typeRunes(sc, string(keys[1]))
+	waitCalled(t, a, fake, "sandbox rm web --yes --json")
 	waitFor(t, a, sc, "push them first")
 	// The log has both, and how each went.
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "push them first")
-	waitFor(t, a, sc, "Stopping web-1")
-	waitFor(t, a, sc, "Removing web-1")
+	waitFor(t, a, sc, "Stopping web")
+	waitFor(t, a, sc, "Removing web")
 	got := onLoop(a, func() []string {
 		var levels []string
 		for _, e := range a.ubxLog {
@@ -296,54 +297,55 @@ func TestASandboxIsStoppedAndARefusalIsAWarning(t *testing.T) {
 		}
 		return levels
 	})
-	if !slices.Equal(got, []string{"Stopping web-1: done", "Removing web-1: refused"}) {
+	if !slices.Equal(got, []string{"Stopping web: done", "Removing web: refused"}) {
 		t.Fatalf("log: %v", got)
 	}
 }
 
-// TestSecretsAreStoredInTheTerminalAndListedByName: K lists the secrets
-// by name; a new one is stored by unibox in this terminal, where it asks
-// for the token itself, and d removes one after asking.
-func TestSecretsAreStoredInTheTerminalAndListedByName(t *testing.T) {
+// TestAnEnvsTokensAreStoredInTheTerminal: K on an env lists the tokens its
+// sandboxes use and whether sbx has each; Enter has unibox ask for one in
+// this terminal, d has sbx forget one after asking.
+func TestAnEnvsTokensAreStoredInTheTerminal(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
-		"secret rm copilot --json": uniboxtest.OK("removed copilot"),
+		"secret rm anthropic -e web --scope global --json": uniboxtest.OK("removed anthropic"),
 	})
 	a, sc, _ := newTestAppSrv(t, prepare)
 	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "e:web")
 	typeRunes(sc, "K")
-	waitFor(t, a, sc, "Secrets · login keychain")
-	waitFor(t, a, sc, "secret:github")
-	waitFor(t, a, sc, "NORMAL")
-	typeRunes(sc, "a")
-	waitFor(t, a, sc, "Store a secret")
-	typeRunes(sc, "jfrog")
-	pressButton(t, a, sc, frontForm(a), "Store")
-	waitCalled(t, a, fake, "secret set jfrog")
-	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "storing secret jfrog - done") })
-
-	typeRunes(sc, "K")
-	waitFor(t, a, sc, "secret:copilot")
+	waitFor(t, a, sc, "Tokens of web")
+	waitFor(t, a, sc, "artifactory")
+	waitFor(t, a, sc, "missing")
 	waitFor(t, a, sc, "NORMAL")
 	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitCalled(t, a, fake, "secret set artifactory -e web")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "storing the token of artifactory - done") })
+
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "K")
+	waitFor(t, a, sc, "Tokens of web")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "k")
 	typeRunes(sc, "d")
-	waitFor(t, a, sc, "Remove secret copilot")
-	typeRunes(sc, "y")
-	waitCalled(t, a, fake, "secret rm copilot --json")
+	waitFor(t, a, sc, "anthropic?")
+	typeRunes(sc, string(buttonKeys([]string{"Cancel", "Remove"})[1]))
+	waitCalled(t, a, fake, "secret rm anthropic -e web --scope global --json")
 }
 
-// TestAMissingValueIsSetForEveryProfile: V lists the values and what a
-// profile asks for that is missing; Enter on that one sets it, for every
-// profile unless chosen otherwise.
-func TestAMissingValueIsSetForEveryProfile(t *testing.T) {
+// TestAMissingValueIsSetForTheEnv: V on an env lists what it asks of you;
+// Enter on a missing one sets it, for that env unless chosen otherwise.
+func TestAMissingValueIsSetForTheEnv(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, nil)
 	a, sc, _ := newTestAppSrv(t, prepare)
 	resizeApp(a, sc, 140, 40)
 	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "e:api")
 	typeRunes(sc, "V")
-	waitFor(t, a, sc, "Your values")
-	for _, want := range []string{"git_name", "npm_scope", "profile web", "every profile", "jira_user", "missing"} {
+	waitFor(t, a, sc, "Values of api")
+	for _, want := range []string{"jira_user", "missing", "your Jira login"} {
 		waitFor(t, a, sc, want)
 	}
 	waitFor(t, a, sc, "NORMAL")
@@ -351,7 +353,7 @@ func TestAMissingValueIsSetForEveryProfile(t *testing.T) {
 	waitFor(t, a, sc, "Set jira_user")
 	setField(t, a, frontForm(a), 0, "dev")
 	pressButton(t, a, sc, frontForm(a), "Set")
-	waitCalled(t, a, fake, "var set jira_user dev --json")
+	waitCalled(t, a, fake, "var set jira_user dev -e api --json")
 }
 
 // TestUniboxSettingsSetOnlyWhatChanged: U is unibox's configuration as a
@@ -363,17 +365,17 @@ func TestUniboxSettingsSetOnlyWhatChanged(t *testing.T) {
 	openSandboxes(t, a, sc)
 	typeRunes(sc, "U")
 	waitFor(t, a, sc, "unibox settings")
-	waitFor(t, a, sc, "Default runtime")
-	waitFor(t, a, sc, "msb stops when idle")
+	waitFor(t, a, sc, "Default env")
+	waitFor(t, a, sc, "Stop a sandbox when idle")
 	form := frontForm(a)
 	onLoop(a, func() bool {
-		form.GetFormItemByLabel("msb stops when idle").(*tview.Checkbox).SetChecked(false)
+		form.GetFormItemByLabel("Stop a sandbox when idle").(*tview.Checkbox).SetChecked(true)
 		return true
 	})
 	pressButton(t, a, sc, form, "Save")
-	waitCalled(t, a, fake, "config set runtimes.msb.stop_idle false --json")
+	waitCalled(t, a, fake, "config set stop_idle true --json")
 	for _, call := range fake.Calls() {
-		if strings.HasPrefix(call, "config set") && call != "config set runtimes.msb.stop_idle false --json" {
+		if strings.HasPrefix(call, "config set") && call != "config set stop_idle true --json" {
 			t.Fatalf("set what did not change: %v", fake.Calls())
 		}
 	}
@@ -381,20 +383,20 @@ func TestUniboxSettingsSetOnlyWhatChanged(t *testing.T) {
 
 // TestANewTaskIsCheckedThenRun: n on a sandbox asks what to work on and
 // with which agent, asks unibox what stands in the way, offers the push
-// it names, and runs unibox run with it.
+// it names, and runs unibox run with it - a clone mounted.
 func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
-		"task check * --json": uniboxtest.JSON(`{"api_version":1,"ready":false,"needs":[{"code":"branch_not_pushed","message":"the forge has no branch main - push it first","repository":"gateway"},{"code":"profile_changed","message":"the profile changed since the build","warning":true}],"repositories":[]}`),
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":false,"needs":[{"code":"branch_not_pushed","message":"the forge has no branch main - push it first","repository":"gateway"},{"code":"env_changed","message":"env web changed since sandbox web was created","warning":true}],"repositories":[]}`),
 	})
 	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	changeOnLoop(a, a.refreshDisk)
 	openSandboxes(t, a, sc)
-	selectSandboxRow(t, a, "s:web-1")
+	selectSandboxRow(t, a, "s:web")
 	typeRunes(sc, "n")
-	waitFor(t, a, sc, "New task · what to work on")
+	waitFor(t, a, sc, "New task in web · what to work on")
 	waitFor(t, a, sc, "NORMAL")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "acme/gateway · which agent")
@@ -403,16 +405,16 @@ func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway with Claude Code · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
 	waitFor(t, a, sc, "push it first")
-	waitFor(t, a, sc, "the profile changed since the build")
+	waitFor(t, a, sc, "env web changed")
 	// unibox run refuses a branch the forge lacks: no start without the push.
 	if strings.Contains(a.screenText(sc), "Start Anyway") {
 		t.Fatal("a start unibox would refuse is offered")
 	}
 	keys := buttonKeys([]string{"Cancel", "Push and Start"})
 	typeRunes(sc, string(keys[1]))
-	run := "run " + p.clone + " -s web-1 -p web --agent claude --push"
+	run := "run --repo " + p.clone + " -s web --push --agent claude"
 	waitCalled(t, a, fake, run)
-	if !fake.Called("task check " + p.clone + " -s web-1 -p web --agent claude --json") {
+	if !fake.Called("task check --repo " + p.clone + " -s web --json") {
 		t.Fatalf("not checked first: %v", fake.Calls())
 	}
 }
@@ -429,7 +431,7 @@ func TestTheSandboxesTabFitsEverySize(t *testing.T) {
 		resizeApp(a, sc, size[0], size[1])
 		waitFor(t, a, sc, "TASK")
 		waitFor(t, a, sc, "rate")
-		waitFor(t, a, sc, "web-1")
+		waitFor(t, a, sc, "web")
 		text := a.screenText(sc)
 		for _, line := range strings.Split(text, "\n") {
 			if cells(line) > size[0] {
@@ -453,18 +455,28 @@ func TestTheSandboxFormsFitTheirFrames(t *testing.T) {
 			openSandboxes(t, a, sc)
 			typeRunes(sc, "U")
 			waitFor(t, a, sc, "unibox settings")
-			assertFormFits(t, a, sc, frontForm(a), "Default runtime", "sbx may be used", "msb stops when idle", "Save", "Cancel")
+			assertFormFits(t, a, sc, frontForm(a), "Default env", "Stop a sandbox when idle", "Paste images from the clipboard", "Save", "Cancel")
 			assertLegible(t, a, sc, "unibox settings")
 			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 			waitGone(t, a, sc, "unibox settings")
 
+			selectSandboxRow(t, a, "e:api")
 			typeRunes(sc, "V")
 			waitFor(t, a, sc, "jira_user")
 			assertLegible(t, a, sc, "your values")
 			waitFor(t, a, sc, "NORMAL")
 			typeRunes(sc, "a")
 			waitFor(t, a, sc, "New value")
-			assertFormFits(t, a, sc, frontForm(a), "Name", "Value", "For", "every profile", "Set", "Cancel")
+			assertFormFits(t, a, sc, frontForm(a), "Name", "Value", "For", "this env", "Set", "Cancel")
+			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+			waitGone(t, a, sc, "New value")
+
+			selectSandboxRow(t, a, "s:web")
+			typeRunes(sc, "M")
+			waitFor(t, a, sc, "Resources of web")
+			assertFormFits(t, a, sc, frontForm(a), "CPUs", "Memory", "Set", "Cancel")
+			assertLegible(t, a, sc, "the resources")
 			assertLegible(t, a, sc, "a new value")
 		})
 	}
@@ -517,31 +529,72 @@ func assertFormFits(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview
 	}
 }
 
-// TestASandboxWithAnAgentAsksTheSandboxMostUsedFirst: Sandbox with Claude
-// Code… on a repository asks which sandbox - the one chosen most often at
-// the top - then where, and runs the agent there.
+// TestASandboxWithAnAgentAsksTheSandboxMostUsedFirst: Sandbox with
+// Claude Code… on a repository asks which sandbox only when more than one
+// runs it; Sandbox with Codex… does, the context's first, then the most
+// used, an env's sandbox not made yet among them - and runs the agent
+// there, the clone mounted.
 func TestASandboxWithAnAgentAsksTheSandboxMostUsedFirst(t *testing.T) {
 	t.Parallel()
-	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
-		"task check * --json": uniboxtest.JSON(`{"api_version":1,"ready":true,"needs":[],"repositories":[]}`),
-	})
+	answers := map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":true,"needs":[],"repositories":[]}`),
+	}
+	fake, prepare := fakeUnibox(t, answers)
 	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
-	changeOnLoop(a, func() {
-		a.cfg.State.UsePlace(sandboxesChosen, "web-2")
-		a.refreshDisk()
-	})
+	changeOnLoop(a, a.refreshDisk)
+	// Only web runs Claude Code: no question of which sandbox.
 	pickMuxAction(t, a, sc, "Sandbox with Claude Code…")
-	waitFor(t, a, sc, "acme/gateway with Claude Code · which sandbox")
-	waitFor(t, a, sc, "New Sandbox of web…")
-	text := a.screenText(sc)
-	if lineOf(text, "web-2") > lineOf(text, "web-1 ") {
-		t.Fatalf("the sandbox chosen most is not first:\n%s", text)
-	}
-	waitFor(t, a, sc, "NORMAL")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "acme/gateway with Claude Code · where")
+	waitFor(t, a, sc, "acme/gateway with Claude Code in web · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
-	waitCalled(t, a, fake, "run "+p.clone+" -s web-2 -p web --agent claude")
+	waitCalled(t, a, fake, "run --repo "+p.clone+" -s web --agent claude")
+
+	// Codex is api's, whose sandbox is made on the way.
+	pickMuxAction(t, a, sc, "Sandbox with Codex…")
+	waitFor(t, a, sc, "acme/gateway with Codex in api-box · where")
+	pickPlace(t, a, sc, "codex", "This Terminal")
+	waitCalled(t, a, fake, "run --repo "+p.clone+" -s api-box -e api --agent codex")
+}
+
+// TestTheContextsSandboxIsOfferedWithoutAsking: the context's sandbox has
+// actions of its own, which ask only where; a worktree goes in cloned.
+func TestTheContextsSandboxIsOfferedWithoutAsking(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":true,"needs":[],"repositories":[]}`),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	gateway, billing := t.TempDir(), t.TempDir()
+	waitFor(t, a, sc, "acme/gateway")
+	openSandboxes(t, a, sc)
+	acts := onLoop(a, func() []string {
+		var names []string
+		for _, act := range a.openInSandboxActions(func() sandboxTarget {
+			return sandboxTarget{label: "feat", dirs: []string{gateway, billing}, clone: true}
+		}, nil) {
+			names = append(names, act.name)
+		}
+		return names
+	})
+	for _, want := range []string{"Open in Sandbox…", "Sandbox with Claude Code…", "Sandbox with Claude Code in web…", "Sandbox with Copilot CLI in web…", "Sandbox with Codex…"} {
+		if !slices.Contains(acts, want) {
+			t.Fatalf("%q is not offered: %v", want, acts)
+		}
+	}
+	if slices.Contains(acts, "Sandbox with Codex in web…") {
+		t.Fatalf("an agent the context's sandbox lacks is offered in it: %v", acts)
+	}
+	changeOnLoop(a, func() {
+		for _, act := range a.openInSandboxActions(func() sandboxTarget {
+			return sandboxTarget{label: "feat", dirs: []string{gateway, billing}, clone: true}
+		}, nil) {
+			if act.name == "Sandbox with Copilot CLI in web…" {
+				act.run()
+			}
+		}
+	})
+	waitFor(t, a, sc, "feat with Copilot CLI in web · where")
+	pickPlace(t, a, sc, "copilot", "This Terminal")
+	waitCalled(t, a, fake, "run --repo "+gateway+" --repo "+billing+" -s web --clone --agent copilot")
 }
