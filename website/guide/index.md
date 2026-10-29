@@ -86,7 +86,7 @@ Five tabs, reached by their number, and a sixth with unibox:
 | **Merge requests** `2` | the merge requests open in them, with pipeline, approvals and threads |
 | **Worktrees** `3` | every worktree unagit made: branches, reviews, grouped worktrees |
 | **Activity** `4` | what runs in the background: watches, agents, open editors, the log |
-| **Sandboxes** `5` | unibox's sandboxes, their tasks, the profiles, secrets and values, when unibox is installed |
+| **Sandboxes** `5` | unibox's sandboxes, their tasks and the envs they are made from, when unibox is installed |
 | **Settings** `S` | servers, tokens, groups, destinations, integrations, themes |
 
 ## The three keys to remember

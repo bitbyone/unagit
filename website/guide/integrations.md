@@ -41,8 +41,8 @@ repository, a worktree or a review in an agent.
 
 ## Sandboxes
 
-[unibox](/guide/sandboxes): the sandboxes agents run in, their profiles and
-tasks, on a tab of their own.
+[unibox](/guide/sandboxes): the Docker Sandboxes agents run in, the envs they
+are made from and their tasks, on a tab of their own.
 
 ## Files and navigation
 

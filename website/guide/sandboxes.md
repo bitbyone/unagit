@@ -1,17 +1,27 @@
 # Sandboxes
 
-[unibox](https://github.com/bitbyone/unibox) runs coding agents in sandboxes:
-VMs made from **profiles** kept in an environments repository, each sandbox
-holding **tasks** - fresh clones of your repositories on a branch, with an
-agent working on them. Nothing of the host is mounted; the work leaves as
-pushes to the task's branch.
+[unibox](https://github.com/bitbyone/unibox) runs coding agents in Docker
+Sandboxes (sbx). A team describes its sandboxes in its own repository, as
+sbx's env files (`*.sbxenv.yaml`) and kits; an **env** names those files,
+the **sandbox** is the VM sbx creates from it, and each sandbox holds
+**tasks** - your checkouts mounted into it, or fresh clones from the forge,
+with an agent working on them.
 
 unagit is one interface over it: the **Sandboxes** tab, `5`. Everything on
 it is read from unibox's `--json` and everything done there is a unibox
-command: unagit reads no profile's YAML and none of unibox's state, so it
+command: unagit reads no sbxenv file and none of unibox's state, so it
 shows what unibox itself would say. The integration is on whenever `unibox`
 is on `PATH` (Settings › Integrations, under *Sandboxes*); without it the
 tab is grey, and going there says so - `Enter` there sets it up.
+
+## The context
+
+unibox works in a **context** - a sandbox, or an env whose sandbox is to be
+made - when a command is not told which. unagit shows it on the tab bar,
+after **Sandboxes [5]**, in a colour of its own (`●web`), on every screen,
+so you know where **Sandbox with…** goes before you start an agent. `u` on a
+sandbox or an env makes it the context, `c` on the Environment panel clears
+it.
 
 ## Setting up
 
@@ -23,24 +33,14 @@ every time it opens:
 | --- | --- |
 | **unibox** installed | copies `brew install unibox` |
 | **Sandboxes tab** on | turns the integration on |
-| **Runtime** ready - sbx signed in to Docker, say | runs what unibox suggests, such as `sbx login`, in this terminal |
-| **Environments repository**, where the profiles live | picks a clone to lay out with `unibox init --dir`, or **New Repository…** first |
-| **Profiles** | adds one: **New unibox Profile…** with its name, agents, CPUs and memory, or **unibox Profile from Template…** |
-| **Image** of each profile, for the default runtime | builds it, in a log |
-| each profile **ready to start** - its agents signed in, its values set | goes to what is missing: Sign In Agents…, unibox Values…, Services… |
+| **Envs** | picks your team's repository of sbxenv files - a clone, or a git address - and walks `unibox init` through it in this terminal: sbx, the envs, your values, tokens, sandboxes |
+| **Values** of each env | lists what it asks of you, the missing first |
+| **Tokens** of each env | lists the tokens its kits use and whether sbx has each |
+| **Sandbox** of each env | creates it in this terminal, where sbx asks to approve the env |
+| **unibox doctor** | runs it, and `Enter` on a check runs the command that fixes it |
 
-**unibox Profile from Template…** copies a profile from a repository of yours
-that holds profiles. It lists your repositories, clones first, and clones the
-one picked when it is not. `unibox template inspect` reads it, and its
-profiles are listed with their agents, the values each asks for and the
-tokens it needs. The one picked is copied with
-`unibox init <name> --from <clone> --use <profile>`, under a name of your
-choosing when you have one of its already.
-
-A repository of your own becomes the environments repository from
-Repositories, too: create it as any other (**New Repository…** in the action
-picker), then **Init unibox Here** on it. While another repository holds the
-profiles, it asks first; the old one stays as it is.
+**Set Up unibox from Here**, in the action picker of a cloned repository,
+runs `unibox init` on it directly.
 
 ## The tab
 
@@ -49,108 +49,107 @@ past a panel's edge to the one beside it, and each has a key of its own.
 
 | Panel | Key | Shows |
 | --- | --- | --- |
-| **Sandboxes** | `B` | a card for each sandbox: running or stopped, its profile and runtime, processors, memory, tasks, how many an agent works on; the context marked |
-| **Environment** | `E` | the profiles' repository, the context, the runtimes, how many secrets and values are kept |
+| **Sandboxes** | `B` | a card for each sandbox: running or stopped, its agents, its tasks and how many an agent works on; the context marked |
+| **Environment** | `E` | the context, the default env, unibox's switches, the tokens sbx keeps |
 | **Tasks** | `t` | every sandbox's tasks: the sandbox, ready or **working**, the agent, the repositories, the branch |
-| **Profiles** | `P` | each profile's image for the default runtime (**built**, outdated or missing; the other runtimes' in the detail), its agents, how many sandboxes are made from it |
+| **Envs** | `N` | each env, its sandbox, what stands between it and a start (a value missing) or its sandbox's state, its agent, its tasks |
 | **Log** | `L` | every command unagit gave unibox, how it went and what unibox said; `Enter` shows it whole, `y` copies the command |
 
-The detail follows the panel with the focus: a profile's images by runtime,
-its agents with how each signs in and how its commits credit it, its
-services and whether each token is stored, its network rules, the values it
-asks for and which are missing; a sandbox's runtime, resources, tasks, ports
-with their addresses, scripts; a task's repositories, branches and commit
-author; the environment's runtimes and what is chosen for each, the secrets
-by name and your values. On a terminal narrower than 120 columns it goes
-under the tasks and opens on `Enter`.
+The detail follows the panel with the focus: an env's files, kits, your
+values, the tokens it needs and its repository index; a sandbox's agents,
+resources, tasks, ports with their addresses, network rules and the hosts it
+was refused lately; a task's repositories - mounted from where, or cloned -
+branches and commit author; the context, unibox's settings and the tokens
+sbx keeps. On a terminal narrower than 120 columns it goes under the tasks
+and opens on `Enter`.
 
 ## Tasks
 
 | Key | |
 | --- | --- |
-| `o` | **Resume…** its own agent - here or in a tab, split or window; an agent at work is gone to instead |
-| `a` | **Resume with Agent…**: another of the profile's agents, then where |
+| `o` | **Resume…** its own agent on its last conversation - here or in a tab, split or window; an agent at work is gone to instead |
+| `a` | **Resume with Agent…**: another agent the sandbox has, then where |
 | `s` | a shell in the task's directory, in the sandbox |
+| `i` | the instructions its agent reads when a session starts, file by file |
+| `+` | add a repository of yours to it, even while its agent runs |
+| `O` | open the checkout mounted into it, on the host |
 | `e` | rename it; an empty name takes the alias away |
 | `y` | copy `unibox resume <task>` |
 | `w` | the forge's page of its repository |
-| `d` | remove it; unibox refuses while it has a session or work not pushed |
+| `d` | remove it; a mounted checkout is unmounted, never deleted; unibox refuses while it has a session or work not pushed |
 
-The places are those of [Coding Agents](/guide/agents): **This Terminal**,
+**Start Afresh…** in the picker runs the agent on a new conversation. The
+places are those of [Coding Agents](/guide/agents): **This Terminal**,
 Zellij and herdr tabs and splits, herdr's Unagit Agents workspace, Ghostty
 windows, tabs and splits. Typing in the action picker finds every agent in
 every place at once: **Resume with Claude Code in Zellij Vertical Split**,
 `cc split`. An agent started here is listed in **Activity**, with its
-sandbox and task.
+sandbox and task, under the checkout it works on when that is mounted.
 
 ## Sandboxes
 
 | Key | |
 | --- | --- |
-| `n` | **New Task…**: a worktree or a clone of yours, then the agent, then where |
-| `s` | a shell in the sandbox, in `/work` |
-| `p` | its ports: `Enter` publishes one or takes it back while it runs, `w` opens it |
-| `!` | run one of the profile's scripts now, in a log |
-| `i` | the instructions its agents get |
-| `x` | stop it; its disk, caches and tasks stay |
-| `C` | recreate it from the profile as it is now, or rebuild the image first |
-| `d` | remove it with its tasks, after a question naming them |
+| `n` | **New Task…**: a clone or a worktree of yours, then the agent, then where |
+| `s` | a shell in the sandbox |
+| `p` | its ports: `Enter` publishes one or takes it back while it runs, `w` opens it, `t` says whether it is on at each start |
+| `f` | its network: `a` allows a host, `x` denies one, `d` takes a rule of yours back, `Enter` allows a host it was refused |
+| `M` | its own CPUs and memory, over the env's, applied at the next recreate |
+| `x` | stop it; its disk and tasks stay |
+| `C` | recreate it from its env as it is now, keeping its tasks, in this terminal |
+| `d` | remove it with its tasks, after a question naming them; **Force Remove** for one with work not pushed or made with sbx |
 | `u` | make it the context |
 
 A new task is checked before it starts (`unibox task check`): what unibox
 names is shown, and a branch the forge does not have yet is pushed only when
 you choose **Push and Start**.
 
-## Profiles
+## Envs
 
 | Key | |
 | --- | --- |
-| `n` | a new task in one of its sandboxes, or a new sandbox of it |
-| `c` | a new sandbox, named by you |
-| `b` | build its image; **Rebuild Image** in the picker builds it from scratch |
-| `m` | migrate a profile of an older format (`unibox init <profile>`) |
-| `D` | what changed since the last build |
-| `i` | the instructions its agents get |
-| `N` | its network rules: `a` allows a host, `x` denies one, `d` takes a rule back |
-| `v` | its services: `a` adds one, `t` adds one whose token unagit keeps, `d` takes one out |
-| `A` | sign its agents in: `Enter` with a token unagit keeps, `r` makes it again, `u` with unibox's own sign-in |
-| `O` | its directory in the editor |
-| `u` | make it the context |
+| `n` | a new task in its sandbox, made on the way when it is not yet |
+| `c` | create its sandbox now, in this terminal |
+| `V` | **Values…**: what it asks of you - `Enter` sets one for this env, its repository's envs or every env, `a` a new one, `d` removes yours |
+| `K` | **Tokens…**: the tokens its kits use and whether sbx has each - `Enter` has unibox ask for one in this terminal, `t` keeps it in unagit, `a` asks for every missing one, `d` has sbx forget one |
+| `i` | **Repository Index…**: the repositories its tasks are given by name, the team's and yours - `a` names a clone of yours, `d` forgets one, `Enter` says whether a new task takes it |
+| `O` | the team's repository its files are in, in the editor |
+| `u` | make its sandbox the context |
 
-## Secrets, values and settings
+**Make Default Env**, **Update Env Files** and **Forget Env…** are in the
+picker.
+
+## Settings and the rest
 
 From any panel:
 
 | Key | |
 | --- | --- |
-| `K` | **unibox Secrets…**: the tokens kept in the platform's store, by name - `a` stores one, `Enter` replaces it, `d` removes it |
-| `V` | **unibox Values…**: your own values for what profiles ask of you - a name, a login - `Enter` sets one, `a` a new one, `d` removes one; a value a profile asks for and lacks is listed as **missing** |
-| `T` | **Sandbox Tokens in unagit…**: the tokens unagit keeps for the sandboxes - `Enter` replaces one, `d` removes it, `y` copies the command a profile names |
-| `U` | **unibox Settings…**: the runtime new sandboxes get, which runtimes may be used, whether a sandbox stops when its last session ends |
+| `U` | **unibox Settings…**: the default env, whether a sandbox stops when its last session ends, the SSH agent, editors over SSH, and sbx's switches |
+| `D` | **Run unibox Doctor**: every check, the failed first; `Enter` runs the unibox command that fixes one, in this terminal |
+| `T` | **Sandbox Tokens in unagit…**: the tokens unagit keeps for the sandboxes - `Enter` replaces one, `d` removes it, `y` copies its command |
 
-On the Environment panel `e` chooses the environments repository among your
-clones, `O` opens it, `c` clears the context. `:` has the rest: read
-everything again (`r`), validate the profiles, prune the images unibox no
-longer needs.
+`:` has the rest: read everything again (`r`), update the envs' files,
+prune, install or uninstall unibox's herdr plugin.
 
-A token goes one of two ways. With unibox's own sign-in, a service's `a` and
-storing a secret, unibox asks for it in this terminal, on a hidden prompt, and
-keeps it in the platform's store; unibox lists the secrets by name alone.
+## Tokens
 
-Or unagit keeps it. `Enter` on an agent of `A` makes the token first, as
-unibox's sign-in does - `claude setup-token` in this terminal, which signs
-your subscription in through the browser and prints the token, or the page
-where Copilot's or Codex's is made - and then asks for it on a hidden
-input; `r` makes a new one for an agent signed in already. That, and `t` in a
-profile's services, take a token into unagit's encrypted vault - beside your forge
-tokens, never among them - and have unibox write
-`unagit credential get <name>` into the profile as where it comes from. The runtime runs that
+A token goes one of two ways. unibox asks for it in this terminal, on a
+hidden prompt, offering the page where it is made, and hands it to sbx,
+which keeps it; nothing lists its value.
+
+Or unagit keeps it. `t` on a token of an env makes it first where that is
+how it is made - `claude setup-token` in this terminal for Claude's
+subscription, or the page the env names - then asks for it on a hidden
+input, keeps it in unagit's encrypted vault - beside your forge tokens,
+never among them - and has `unibox secret set --command` give sbx
+`unagit credential get <service>` as where it comes from. sbx runs that
 command on the host whenever it wants the token, and it asks the running
 unagit over a socket of its own (`~/.config/unagit/run/credential.sock`):
-while unagit is closed or locked there is no socket, and a sandbox starting
-then fails and says to start unagit. No passphrase is asked for and none is
-kept. Every token handed out, and every name asked for that unagit does not
-keep, is in Activity.
+while unagit is closed or locked there is no socket, and sbx is told to
+start unagit. No passphrase is asked for and none is kept. Every token
+handed out, and every name asked for that unagit does not keep, is in
+Activity.
 
 Any program of yours can ask while unagit runs unlocked, an agent outside a
 sandbox too: keep tokens there narrow, made for the sandboxes alone. A
@@ -159,20 +158,32 @@ forge token unagit works with is never handed out.
 A value is no secret - it is kept in `~/.config/unibox/vars.toml` - and is
 shown.
 
-## From a worktree
+## From anywhere in unagit
 
-**Open in Sandbox…**, in the action picker of a worktree, a grouped worktree
-and a clone, does the same as **New Task…** from the other side: the sandbox
-(one of a profile's, or **New Sandbox of &lt;profile&gt;…**), the agent, the
-place. A grouped worktree goes into one task with all its repositories.
+The action picker of a repository, a worktree, a grouped worktree and a
+merge request starts agents in sandboxes:
 
-**Sandbox with &lt;agent&gt;…** names the agent at once, and typing finds it
-in each place too - **Sandbox with Claude Code in Ghostty Window**. Each
-asks which sandbox, the one chosen most often at the top, or a new one of a
-profile that offers the agent.
+- **Sandbox with &lt;agent&gt; in &lt;context&gt;…** - the context's sandbox,
+  when it has the agent: only where is asked.
+- **Sandbox with &lt;agent&gt;…** - asks which sandbox only when more than one
+  runs the agent, the context's first, then the one chosen most often; an
+  env whose sandbox is not made yet is among them, and its sandbox is made
+  on the way. Typing finds it in each place too - **Sandbox with Claude
+  Code in Ghostty Window**.
+- **Open in Sandbox…** asks everything: the sandbox, the agent, the place.
+
+What goes in depends on what it is. A clone is **mounted**: the agent works
+on your files and your `.git` as they are. A worktree cannot be mounted, so
+it - or each repository of a grouped worktree, in one task - is **cloned**
+in the sandbox from the forge at its branch. A merge request is cloned on
+its source branch and a repository not cloned yet on its default one,
+whatever is on disk.
+
+**Add to unibox Index…** on a repository names it in unibox's index, for one
+env's tasks or every env's, and says whether a new task takes it.
 
 unibox checks the task first. What `unibox run` asks about on the terminal -
-a login, local changes - is left to it; a branch the forge does not have is
-offered **Push and Start** alone, and anything run would refuse is said
-without a start to choose. Should run stop all the same, it waits for Enter,
-so what it said can be read.
+a value missing, local changes - is left to it; a branch the forge does not
+have is offered **Push and Start** alone, and anything run would refuse is
+said without a start to choose. Should run stop all the same, it waits for
+Enter, so what it said can be read.
