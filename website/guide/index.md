@@ -59,26 +59,9 @@ by hand. [First Setup](/guide/setup) goes through it.
 
 ## What you see
 
-```
- Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Sandboxes [5]      Settings [S]
- /
-╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
-│   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
-│ ● acme/api-gateway  !42 Fix login rat…    7 ││ acme/api-gateway              │
-│ ○ acme/billing      !17 Invoice roundi…     ││ feat/rate → main              │
-│                                             ││                               │
-│                                             ││ MERGE REQUEST                 │
-│                                             ││ Author       jane (Jane Doe)  │
-│                                             ││ Created      3d ago           │
-│                                             ││ Reviewers    john             │
-│                                             ││ Approvals    1 of 2 · john    │
-│                                             ││ Pipeline     ● running        │
-╰─────────────────────────────────────────────╯╰───────────────────────────────╯
- DETAIL  84/84 merge requests · indexed 4m ago · scope all projects
- ? help · q quit
-```
+![unagit's merge requests, the detail of one beside the list](/shots/merge-requests.svg)
 
-Five tabs, reached by their number, and a sixth with unibox:
+Five tabs, reached by their number, and Settings at the right end:
 
 | Tab | What it holds |
 | --- | --- |
@@ -86,8 +69,19 @@ Five tabs, reached by their number, and a sixth with unibox:
 | **Merge requests** `2` | the merge requests open in them, with pipeline, approvals and threads |
 | **Worktrees** `3` | every worktree unagit made: branches, reviews, grouped worktrees |
 | **Activity** `4` | what runs in the background: watches, agents, open editors, the log |
-| **Sandboxes** `5` | unibox's sandboxes, their tasks and the envs they are made from, when unibox is installed |
+| **Sandboxes** `5` | unibox's sandboxes, their tasks and the envs they are made from; grey without unibox |
 | **Settings** `S` | servers, tokens, groups, destinations, integrations, themes |
+
+`unagit -s` is the other way in: one repository, its changes, log, branches
+and shelf, with no server and no setup. See
+[One Repository Alone](/guide/standalone).
+
+## Try it first
+
+`make demo`, in a checkout of unagit, runs the real unagit over a made-up
+world - two servers answered on your own machine, a dozen repositories,
+merge requests, clones with changes, a few sandboxes - and touches nothing
+of yours. The passphrase is `demo`.
 
 ## The three keys to remember
 
@@ -106,4 +100,5 @@ The pickers teach the keys as you use them. More in
 - [First Setup](/guide/setup): servers, tokens, groups and where they go
 - [The Lists](/guide/navigating): what the columns and markers say
 - [The Review Worktree](/guide/review): the feature the whole tool exists for
+- [One Repository Alone](/guide/standalone): `unagit -s`, a git interface for any checkout
 - [Tutorials](/tutorials/): step by step through the common jobs

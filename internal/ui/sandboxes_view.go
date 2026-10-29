@@ -48,8 +48,9 @@ type sandboxesView struct {
 	// current is the panel with the focus, which alone is lit, and which
 	// the focus comes back to after a dialog.
 	current tview.Primitive
-	// envsW is the envs' inner width they were last laid out to.
-	envsW int
+	// envsW is the envs' inner width they were last laid out to, envsRow
+	// the row their cursor was on when the focus left them.
+	envsW, envsRow int
 }
 
 const (
@@ -1044,6 +1045,17 @@ func (v *sandboxesView) drawEnvs() {
 	}
 	if len(v.envRows) == 0 {
 		t.SetCell(1, 0, tview.NewTableCell(" "+tag(colMuted)+"No envs."+tagEnd).SetSelectable(false))
+	}
+	// The band shows only where the keys go, as the log's does; the row
+	// under it is kept for when the focus comes back.
+	if t.HasFocus() {
+		row = max(row, v.envsRow)
+		t.SetSelectable(true, false)
+	} else {
+		if r, _ := t.GetSelection(); r > 0 {
+			v.envsRow = r
+		}
+		t.SetSelectable(false, false)
 	}
 	t.Select(min(max(row, 1), max(1, t.GetRowCount()-1)), 0)
 }
