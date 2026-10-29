@@ -21,6 +21,26 @@ import (
 // hide the round trips, few enough not to look like an attack on the server.
 const syncFanOut = 6
 
+// readRemoteState is where a clone's branch stands against origin, read
+// from the refs on disk.
+func readRemoteState(git *gitx.Git, dir, branch string) remoteState {
+	st := remoteState{Branch: branch, Busy: git.OperationInProgress(dir)}
+	st.Edits, st.Unversioned = editCounts(git, dir)
+	upstreams := git.BranchUpstreams(dir)
+	if u, ok := upstreams[branch]; ok {
+		st.Upstream = u
+		st.Conflicts = divergedConflicts(git, dir, u)
+	} else if upstreams == nil {
+		st.Unreadable = true
+	} else {
+		st = detachedState(git, dir)
+		st.Branch = branch
+		st.Busy = git.OperationInProgress(dir)
+		st.Edits, st.Unversioned = editCounts(git, dir)
+	}
+	return st
+}
+
 // loadRepoSync finds out where the branch of every main clone stands against
 // origin, in the background. Without fetch it reads the refs already on disk,
 // which costs a for-each-ref per clone; with fetch, as after r, each clone
@@ -78,19 +98,7 @@ func (a *App) loadRepoSync(fetch bool) {
 						failed = firstLine(err.Error())
 					}
 				}
-				st := remoteState{Busy: j.git.OperationInProgress(j.dir)}
-				st.Edits, st.Unversioned = editCounts(j.git, j.dir)
-				upstreams := j.git.BranchUpstreams(j.dir)
-				if u, ok := upstreams[j.branch]; ok {
-					st.Upstream = u
-					st.Conflicts = divergedConflicts(j.git, j.dir, u)
-				} else if upstreams == nil {
-					st.Unreadable = true
-				} else {
-					st = detachedState(j.git, j.dir)
-					st.Busy = j.git.OperationInProgress(j.dir)
-					st.Edits, st.Unversioned = editCounts(j.git, j.dir)
-				}
+				st := readRemoteState(j.git, j.dir, j.branch)
 				a.tv.QueueUpdateDraw(func() {
 					if a.repoSync == nil {
 						a.repoSync = map[projectKey]remoteState{}
