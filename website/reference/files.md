@@ -12,7 +12,8 @@
 ~/.config/unagit/themes/*.json    themes of your own
 ```
 
-`unagit where` prints the paths, and `UNAGIT_CONFIG_DIR` moves them.
+`$XDG_CONFIG_HOME/unagit` is used instead when that is set; `unagit where`
+prints the paths, and `UNAGIT_CONFIG_DIR` moves them.
 
 ## Portable and local
 
@@ -31,6 +32,8 @@ Everything else is this machine's, to sync another way or not at all:
 | `sessions/` | a file per open directory, named by pid; private (0700), since its sockets reach the editor |
 | `watch/` | the watches, each thing's history, `notify.log` |
 | `publications/` | the progress of a New Repository from Folder… |
+| `readmes/` | READMEs of starred repositories, as last read |
+| `run/credential.sock` | where sbx asks for sandbox tokens; there only while unagit runs unlocked |
 
 ## In your repositories
 

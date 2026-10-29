@@ -48,7 +48,7 @@ upstream and names the ones it left alone.
 
 ## Creating a repository
 
-**Create a New Repository** (`:` in Repositories) asks where, one of your
+**New Repository…** (`:` in Repositories) asks where, one of your
 groups or a subgroup, and for its name, description, visibility, first branch,
 a README, a license and a `.gitignore`. It is created on the server, cloned at
 once and listed with the cursor on it.

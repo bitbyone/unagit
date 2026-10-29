@@ -11,9 +11,10 @@ by heart.
 | `Alt-Enter`, `Ctrl-A` | every action on the row, the marks or the lit block, with its key |
 | `:` | every action of the screen |
 | `+` | find any repository of yours, in any group, and list it |
-| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Activity · Settings |
+| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Activity · Sandboxes |
+| `S` | Settings |
 | `Alt-A` | running agents; `Enter` goes to one |
-| `E` | running Neovims: `Enter` attaches, `a` asks where, `x` closes |
+| `E` | running Neovims: `Enter` attaches, `a` asks where, `x` closes (on Sandboxes, the Environment panel) |
 | `W` | every watch |
 | `/`, `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | the detail column, and into it |
@@ -74,6 +75,19 @@ by heart.
 | `V` | mark reviewed |
 | `H` | hide the author's merge requests |
 | `Ctrl-L` | the commits; `Ctrl-R` there reviews from one onwards |
+
+## Sandboxes
+
+| Key | |
+| --- | --- |
+| `B` `t` `N` `L` `E` | the panels: cards, tasks, envs, log, environment |
+| `o` `a` `s` `i` | a task: resume · with another agent · shell · instructions |
+| `n` `p` `f` `M` `x` `C` `d` | a sandbox: new task · ports · network · resources · stop · recreate · remove |
+| `c` `V` `K` `i` | an env: create its sandbox · values · tokens · repository index |
+| `u` | make it unibox's context |
+| `U` `D` `T` `I` | unibox's settings · doctor · tokens in unagit · set up |
+
+More in [Sandboxes](/guide/sandboxes).
 
 ## Branches
 

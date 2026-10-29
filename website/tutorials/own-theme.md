@@ -14,7 +14,7 @@ Pick one close to what you want, say **gruvbox-dark**.
 
 ## 2. Fork it
 
-Go to Settings (`5`) › Theme, put the cursor on the theme and press `f`. unagit
+Go to Settings (`S`) › Theme, put the cursor on the theme and press `f`. unagit
 writes it to
 
 ```
