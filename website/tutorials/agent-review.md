@@ -11,7 +11,7 @@ unagit's terminal until it ends.
 
 ## 1. Check the integration
 
-In Settings (`5`) › Integrations, the Claude Code card says **enabled**. If it
+In Settings (`S`) › Integrations, the Claude Code card says **enabled**. If it
 says **not installed**, `c` checks again once `claude` is on your `PATH`.
 
 ## 2. Pick the merge request

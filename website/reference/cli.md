@@ -7,6 +7,7 @@ any shell.
 
 ```sh
 unagit           # the interface
+unagit -s [DIR]  # one repository alone: no server, no passphrase
 unagit --debug   # with Settings › Debug, to fire toasts and notifications by hand
 unagit --version # the release it was built from
 ```
@@ -90,11 +91,23 @@ unagit version
 Prints the version, the same line as `unagit --version`. A build that is not a
 release prints `dev` and its commit.
 
+## unagit credential get
+
+```sh
+unagit credential get <name> [--socket PATH]
+```
+
+Prints a token kept in unagit for unibox's sandboxes, asked of the running,
+unlocked unagit over its socket; sbx runs it on the host when it wants the
+token. Closed or locked, unagit has no socket, and it fails saying so. See
+[Sandboxes](/guide/sandboxes#tokens-kept-by-unagit).
+
 ## Environment
 
 | Variable | Does |
 | --- | --- |
 | `UNAGIT_CONFIG_DIR` | where unagit keeps its files, instead of `~/.config/unagit` |
+| `XDG_CONFIG_HOME` | when set and `UNAGIT_CONFIG_DIR` is not, the files are in `$XDG_CONFIG_HOME/unagit` |
 
 No token, passphrase or other secret is ever read from the environment, a flag
 or a pipe.

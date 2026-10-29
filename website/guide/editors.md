@@ -12,7 +12,7 @@ macOS, the application in `/Applications`.
 | Key | In an editor's card |
 | --- | --- |
 | `e` | turn the editor off; it is then offered nowhere |
-| `f` | make it the default, marked `(default)`; `f` on the default leaves none |
+| `d` | make it the default, marked `(default)`; `d` on the default leaves none |
 | `o` | on the Custom card: its command, its arguments and whether it opens a window |
 
 Without a default that is installed and on, every open asks, the way Alt does.

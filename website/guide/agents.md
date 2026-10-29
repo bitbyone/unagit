@@ -7,9 +7,9 @@ their own, each on whenever its command is on `PATH`:
 | --- | --- | --- |
 | Claude Code | `claude` | `cc`, `claude` |
 | Codex | `codex` | `cx`, `codex` |
-| Copilot CLI | `copilot` | |
-| opencode | `opencode` | |
-| Antigravity | `agy` | |
+| Copilot CLI | `copilot` | `copilot` |
+| opencode | `opencode` | `oc`, `opencode` |
+| Antigravity | `agy` | `agy`, `antigravity` |
 
 ## Opening in an agent
 

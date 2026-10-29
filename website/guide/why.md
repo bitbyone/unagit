@@ -36,7 +36,8 @@ repository's object store.
 ## Nothing behind your back
 
 - **Instant startup.** The lists are cached on disk and refreshed only when you
-  ask. Nothing calls the API while you are not looking.
+  ask; only what you watch, and pipelines still running, is asked about by
+  itself.
 - **Your choices stay yours.** `config.yaml` changes only when you change a
   setting, so it can live in a dotfiles repository and travel between machines.
 - **Tokens are sealed.** They exist in plain text only in the memory of a

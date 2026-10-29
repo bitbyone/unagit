@@ -253,7 +253,7 @@ func helpRows() []helpLine {
 		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
 		key(editorGlyph(editors.Nvim), "this directory is open in Neovim"),
 		key(glyphAgent, "an agent works here; its colour, what it does"),
-		key(glyphWatched, "its pipelines are watched; see Watched (5)"),
+		key(glyphWatched, "its pipelines are watched; see Activity (4)"),
 		blank(),
 
 		section("Filters · shared by both lists", helpLists),

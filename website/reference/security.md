@@ -1,7 +1,8 @@
 # Security
 
 unagit holds tokens that can read and write your repositories. It keeps them
-out of reach of everything but a running unagit.
+out of reach of everything but a running unagit, which hands out only the
+tokens you keep for unibox's sandboxes.
 
 ## The vault
 
@@ -13,6 +14,14 @@ The passphrase is asked for in a dialog at every start. It is **never** read
 from a flag, an environment variable, a file or a pipe. That is deliberate: no
 script, and no coding agent working in a repository of yours, can feed unagit
 its passphrase or read the tokens.
+
+## Sandbox tokens
+
+A token you keep in unagit for unibox's sandboxes - never a forge token -
+is printed by `unagit credential get <name>` for whoever of your user asks,
+over a socket that exists only while unagit runs unlocked. sbx asks this
+way when a sandbox needs the token; any program of yours could, so keep such
+tokens narrow. Every handout is written to Activity.
 
 ## The macOS keychain
 
