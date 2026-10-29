@@ -222,3 +222,40 @@ func TestAWaitInADialogGivesBackTheWordItCovered(t *testing.T) {
 	waitFor(t, a, sc, "deleted feat/push on origin")
 	waitGone(t, a, sc, "reading worktree details")
 }
+
+// TestOverlappingWaitsKeepWhatWasSaidMeanwhile: two reads of the view
+// below overlap, and between them the user is told something. The first
+// to end leaves the other's spinner, and the last brings back what was
+// said - once, the first put back its own word from before it began, and
+// "opened in Zellij" was gone before anyone read it.
+func TestOverlappingWaitsKeepWhatWasSaidMeanwhile(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	drawn := func(step func()) {
+		ran := make(chan struct{})
+		a.tv.QueueUpdateDraw(func() { step(); close(ran) })
+		<-ran
+	}
+	drawn(func() { a.showPicker("Branches", []pickItem{{Label: "main"}}, func(pickItem) {}) })
+	waitFor(t, a, sc, "Branches")
+
+	first, firstEnded := make(chan struct{}), make(chan struct{})
+	second, secondEnded := make(chan struct{}), make(chan struct{})
+	drawn(func() {
+		a.waitInDialog("reading worktree details", func() error { <-first; return nil }, func(bool) { close(firstEnded) })
+	})
+	drawn(func() { a.done("opened in Zellij: feat-browse") })
+	drawn(func() {
+		a.waitInDialog("reading branches", func() error { <-second; return nil }, func(bool) { close(secondEnded) })
+	})
+	close(first)
+	<-firstEnded
+	if text := onLoop(a, func() string { return a.dialogSaid.text }); !strings.Contains(text, "reading branches") {
+		t.Fatalf("the first wait took the second's word away: %q", text)
+	}
+	close(second)
+	<-secondEnded
+	if text := onLoop(a, func() string { return a.dialogSaid.text }); !strings.Contains(text, "opened in Zellij: feat-browse") {
+		t.Fatalf("what was said between the waits is gone: %q", text)
+	}
+}

@@ -200,7 +200,9 @@ type App struct {
 	spinFrame int
 	// waits counts dialogs and text panels waiting on a request, which keep
 	// the spinner turning as jobs do; spinning is whether it turns.
-	waits                        int
+	waits int
+	// waitSeq numbers the waits, so each knows its own word.
+	waitSeq                      int
 	textWaits                    map[*tview.TextView]*textWait
 	spinning                     bool
 	refreshingMRs, refreshingPrj bool
@@ -824,8 +826,11 @@ type dialogWord struct {
 	on   tview.Primitive
 	text string
 	// waiting is a word of waitInDialog's: what the dialog waits for, with
-	// the spinner before it.
+	// the spinner before it. wait tells one wait's word from another's, and
+	// under is the word to bring back once the waiting is over.
 	waiting bool
+	wait    int
+	under   *dialogWord
 }
 
 // waitInDialog runs fn off the event loop while the dialog in front says in
@@ -838,19 +843,32 @@ type dialogWord struct {
 // user was just told.
 func (a *App) waitInDialog(text string, fn func() error, then func(stillOpen bool)) {
 	_, front := a.pages.GetFrontPage()
-	before := dialogWord{}
-	if a.dialogSaid.on == front && !a.dialogSaid.waiting {
-		before = a.dialogSaid
+	// Two waits can overlap on one dialog - a view reading again while it
+	// is still reading. The later one takes over the word to bring back,
+	// and the one that ends first leaves the other's alone: it once put
+	// back its own stale word over what was said meanwhile.
+	var under *dialogWord
+	switch {
+	case a.dialogSaid.on == front && a.dialogSaid.waiting:
+		under = a.dialogSaid.under
+	case a.dialogSaid.on == front:
+		was := a.dialogSaid
+		under = &was
 	}
-	a.dialogSaid = dialogWord{on: front, text: tag(colMuted) + esc(text) + tagEnd, waiting: true}
+	a.waitSeq++
+	wait := a.waitSeq
+	a.dialogSaid = dialogWord{on: front, text: tag(colMuted) + esc(text) + tagEnd, waiting: true, wait: wait, under: under}
 	a.waits++
 	a.keepSpinning()
 	go func() {
 		err := fn()
 		a.tv.QueueUpdateDraw(func() {
 			a.waits--
-			if a.dialogSaid.waiting && a.dialogSaid.on == front {
-				a.dialogSaid = before
+			if a.dialogSaid.waiting && a.dialogSaid.wait == wait {
+				a.dialogSaid = dialogWord{}
+				if under != nil {
+					a.dialogSaid = *under
+				}
 			}
 			if err != nil {
 				a.errorf("%v", err)
