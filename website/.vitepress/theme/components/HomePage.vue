@@ -20,6 +20,36 @@ async function copy() {
   }
 }
 
+// The intro video, once there is one: a file under public/, or an
+// address. Until then the hero shows a screenshot in its place.
+const introVideo = ''
+
+// Real screenshots of unagit over the made-up world of website/shots
+// (make shots), taken in a terminal and drawn as SVG.
+const shots = [
+  {
+    src: '/shots/merge-requests.svg',
+    title: 'Every merge request, with what it needs from you',
+    text: 'GitLab and GitHub in one list: the pipeline, approvals, threads still open, what is new since your last look. Enter opens the detail; Ctrl-R a review worktree where the whole change is pending edits.',
+    link: '/guide/review',
+    more: 'The review worktree',
+  },
+  {
+    src: '/shots/sandboxes.svg',
+    title: 'Agents in sandboxes, from any row',
+    text: 'With unibox, Sandbox with Claude Code… on a repository, a worktree or a merge request starts the agent in a Docker Sandbox. The Sandboxes tab shows what runs where; the context sits on the tab bar.',
+    link: '/guide/sandboxes',
+    more: 'Sandboxes',
+  },
+  {
+    src: '/shots/standalone.svg',
+    title: 'Any repository, no setup: unagit -s',
+    text: 'The changes, the log, the branches and the shelf of the repository you are in, with your own git credentials. No server, no passphrase, nothing written.',
+    link: '/guide/standalone',
+    more: 'One repository alone',
+  },
+]
+
 const features = [
   {
     title: 'One list, two forges',
@@ -28,18 +58,28 @@ const features = [
   },
   {
     title: 'Reviews as pending edits',
-    text: 'Ctrl-R builds a worktree where the whole merge request is one unstaged change. Your editor\'s gutter just works.',
+    text: 'The whole merge request as one unstaged change. Your editor\'s gutter and git diff just work.',
     link: '/guide/review',
   },
   {
     title: 'Worktrees, not clones',
-    text: 'One clone per repository and a worktree per merge request, so three reviews cost three checkouts.',
+    text: 'One clone per repository, a worktree per merge request: three reviews cost three checkouts.',
     link: '/guide/layout',
   },
   {
     title: 'Grouped worktrees',
-    text: 'Several repositories in one folder on one branch, opened as one, with their merge requests linked.',
+    text: 'Several repositories on one branch in one folder, opened as one, their merge requests linked.',
     link: '/guide/grouped-worktrees',
+  },
+  {
+    title: 'Agents in sandboxes',
+    text: 'Claude Code, Codex or Copilot on any repository or merge request, in a Docker Sandbox through unibox.',
+    link: '/guide/sandboxes',
+  },
+  {
+    title: 'One repository alone',
+    text: 'unagit -s is a git interface for any checkout: changes, log, branches, shelf. Nothing to set up.',
+    link: '/guide/standalone',
   },
   {
     title: 'Watching',
@@ -66,6 +106,11 @@ const features = [
     text: 'From the muted default to gruvbox and catppuccin, Nerd Font icons included, or one of your own.',
     link: '/guide/themes',
   },
+  {
+    title: 'Try it on made-up data',
+    text: 'make demo runs the real unagit over a world of its own: servers, merge requests, sandboxes.',
+    link: '/reference/developing',
+  },
 ]
 </script>
 
@@ -75,9 +120,8 @@ const features = [
       <p class="kicker"><b>U</b>niversal <b>Nav</b>igator <b>A</b>round <b>GIT</b></p>
       <h1>Every repository you work with.<br /><span>One keystroke to be inside it.</span></h1>
       <p class="lead">
-        unagit lists every repository on GitLab and GitHub, decides where each lands on disk,
-        and opens it in your editor. A merge request opens in a checkout where the whole change
-        is already sitting there as pending edits.
+        A terminal navigator over every repository on GitLab and GitHub: where each lands on
+        disk, getting into it, and merge requests reviewed as pending edits in your own editor.
       </p>
 
       <div class="install">
@@ -104,26 +148,17 @@ const features = [
       </div>
     </section>
 
-    <section class="screen" aria-label="unagit in a terminal">
-      <div class="window">
-        <div class="bar"><i /><i /><i /><span>unagit</span></div>
-        <pre class="tui"><span class="tabs"> <b>Repositories [1]</b> │ <em>Merge requests [2]</em> │ Worktrees [3] │ Activity [4] │ Settings [5]</span>
-<span class="dim"> /</span>
-╭ <b>Merge requests</b> ─────────────────────────────╮╭ <b>acme/api-gateway !42</b> ─────────╮
-│   <span class="dim">REPO              MR  TITLE           COM</span> ││ <em>!42</em>  Fix login rate limiting  │
-│ <span class="sel"><span class="ok">●</span> acme/api-gateway  <em>!42</em> Fix login rat…    <span class="warn">7</span> </span>││ <span class="dim">acme/api-gateway</span>              │
-│ <span class="dim">○</span> acme/billing      <em>!17</em> Invoice roundi…     ││ feat/rate → main              │
-│ <span class="dim">◐</span> acme/web          <em>!88</em> Draw new logs…    <span class="warn">2</span> ││                               │
-│                                             ││ <span class="dim">MERGE REQUEST</span>                 │
-│                                             ││ Author       jane (Jane Doe)  │
-│                                             ││ Created      3d ago           │
-│                                             ││ Reviewers    john             │
-│                                             ││ Approvals    1 of 2 · john    │
-│                                             ││ Pipeline     <span class="run">● running</span>        │
-╰─────────────────────────────────────────────╯╰───────────────────────────────╯
-<span class="status"> DETAIL </span> 84/84 merge requests · indexed 4m ago · scope all projects
-<span class="dim"> ? help · q quit</span></pre>
+    <section v-if="introVideo" class="screen" aria-label="unagit in a terminal">
+      <video class="intro" :src="introVideo.startsWith('/') ? withBase(introVideo) : introVideo" controls playsinline preload="metadata" />
+    </section>
+
+    <section v-for="(shot, i) in shots" :key="shot.src" class="showcase" :class="{ flip: i % 2 === 1 }">
+      <div class="copy-col">
+        <h2>{{ shot.title }}</h2>
+        <p>{{ shot.text }}</p>
+        <a :href="withBase(shot.link)">{{ shot.more }} →</a>
       </div>
+      <img class="shot" :src="withBase(shot.src)" :alt="shot.title" loading="lazy" />
     </section>
 
     <section class="arrangement">
@@ -278,44 +313,31 @@ section {
 .btn.alt:hover { border-color: var(--vp-c-text-3); }
 
 .screen { display: flex; justify-content: center; background: var(--ug-code-bg); }
-.window {
+.shot {
+  display: block;
   width: 100%;
-  max-width: 860px;
+  max-width: 1100px;
+  height: auto;
   border-radius: 12px;
-  overflow: hidden;
-  background: #14141a;
   box-shadow: 0 24px 60px -24px rgba(20, 20, 40, 0.35);
-  border: 1px solid #26262e;
 }
-.bar {
-  display: flex;
+.intro {
+  width: 100%;
+  max-width: 1100px;
+  border-radius: 12px;
+  background: #14141a;
+}
+.showcase {
+  display: grid;
+  gap: 32px;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: #1c1c24;
-  font-size: 12px;
-  color: #8a8a96;
 }
-.bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a3a46; }
-.bar span { margin-left: 8px; }
-.tui {
-  margin: 0;
-  padding: 18px 20px;
-  overflow-x: auto;
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  line-height: 1.55;
-  color: #c9c9d4;
+@media (min-width: 1100px) {
+  .showcase { grid-template-columns: 2fr 3fr; gap: 56px; }
+  .showcase.flip .copy-col { order: 2; }
 }
-.tui b { color: #ececf1; font-weight: 600; }
-.tui em { font-style: normal; color: #a3a9fb; }
-.tui .dim { color: #6e6e7a; }
-.tui .ok { color: #7fd49a; }
-.tui .warn { color: #e9b45a; }
-.tui .run { color: #6fb6f2; }
-.tui .sel { background: #2a2a40; }
-.tui .tabs b { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
-.tui .status { background: #8b93fa; color: #14141a; font-weight: 600; }
+.showcase p { margin: 16px 0; font-size: 17px; line-height: 1.75; color: var(--vp-c-text-2); }
+.showcase a { color: var(--ug-brand); font-weight: 500; }
 
 .arrangement {
   display: grid;

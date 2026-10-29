@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev
+.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo shots
 
 build: build-unagit
 
@@ -57,6 +57,16 @@ clean:
 # .github/workflows/website.yml; these build it or serve it while writing.
 website:
 	cd website && npm ci && npm run build
+
+# unagit over a made-up world - servers, repositories, merge requests,
+# sandboxes - with nothing of yours read or written; the passphrase is demo.
+demo:
+	website/shots/demo.sh
+
+# The website's screenshots, taken of that world in a terminal.
+shots:
+	cd website && npm ci
+	website/shots/demo.sh "$${TMPDIR:-/tmp}/unagit-shots" --shots
 
 website-dev:
 	cd website && npm install && npm run dev

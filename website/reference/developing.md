@@ -23,6 +23,28 @@ The internals, and the mistakes already made, are in
 commands and their measured costs are in
 [docs/testing.md](https://github.com/bitbyone/unagit/blob/main/docs/testing.md).
 
+## The demo world
+
+```sh
+make demo         # the real unagit over made-up data; the passphrase is demo
+make shots        # the website's screenshots, taken of the same world
+```
+
+`website/shots/` lays out a world of its own under `$TMPDIR/unagit-demo`: a
+configuration with two servers, their repositories and merge requests as
+the lists cache them, a vault sealed with `demo`, real clones with branches
+and uncommitted changes, and a unibox stand-in with a few sandboxes. Its
+`serve` answers on `127.0.0.1:8929` as both servers' GitLab would - a merge
+request's detail, commits, threads and approvals - so nothing leaves the
+machine, and `HOME` and unagit's configuration are the world's, not yours.
+It needs Go and git.
+
+`make shots` drives that unagit in a pseudo-terminal (`shoot.py`, Python's
+standard library), replays what it wrote through xterm.js's emulator and
+draws each screen as an SVG (`render.mjs`) into `website/public/shots/`:
+the terminal's own cells, no browser and no screenshot tool. A new shot is
+a few keys in `shoot.py`; the mock data is `mock.go`.
+
 ## This website
 
 The site is [VitePress](https://vitepress.dev), in `website/` of the same
