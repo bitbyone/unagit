@@ -27,11 +27,17 @@ onMounted(async () => {
     .map((l) => JSON.parse(l))
     .filter((e) => e[1] === 'm')
     .map((e) => [e[0], e[2]])
-  // The player measures its cell by the font it has: it has to be there.
-  await Promise.all([
-    document.fonts.load("16px 'unagit mono'"),
-    document.fonts.load("bold 16px 'unagit mono'"),
-  ]).catch(() => {})
+  // unagit mono: JetBrains Mono with Nerd Font's icons, as unagit is meant
+  // to be seen, its box lines drawn edge to edge of the cell as a terminal
+  // draws them (website/shots/fonts.py). It is added here, not in CSS, so
+  // its address carries the site's base in development too. The player
+  // measures its cell by the font it has, so it is loaded first.
+  await Promise.all(
+    [['400', 'regular'], ['700', 'bold']].map(async ([weight, file]) => {
+      const face = new FontFace('unagit mono', `url(${withBase(`/fonts/unagit-mono-${file}.woff2`)}) format('woff2')`, { weight })
+      document.fonts.add(await face.load())
+    }),
+  ).catch(() => {})
   if (!host.value) return
   player = create({ data: text }, host.value, {
     autoPlay: true,
@@ -103,25 +109,11 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* JetBrains Mono with Nerd Font's icons, as unagit is meant to be seen, its
-   box lines drawn edge to edge of the cell as a terminal draws them
-   (website/shots/fonts.py). */
-@font-face {
-  font-family: 'unagit mono';
-  src: url('/fonts/unagit-mono-regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: block;
-}
-@font-face {
-  font-family: 'unagit mono';
-  src: url('/fonts/unagit-mono-bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: block;
-}
-
-/* retro-block's palette for what the terminal draws in its own colours: the
-   shell, and anything unagit leaves at the terminal's defaults. */
-.asciinema-player-theme-retro-block {
+/* retro-block's palette for what the terminal draws in its own colours:
+   anything unagit leaves at the terminal's defaults, and the terminal's
+   margin. It has to outweigh the player's own black, whose stylesheet
+   comes after this one. */
+.ap-player.asciinema-player-theme-retro-block {
   --term-color-foreground: #cbcbcb;
   --term-color-background: #282527;
   --term-color-0: #1d1b1c;
