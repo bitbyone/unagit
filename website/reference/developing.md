@@ -55,12 +55,16 @@ job's log read and the job run again, its branch watched, a merge request
 answered and approved, changes committed and pushed and a merge request
 opened, the watch's news as it comes - kept as an asciicast whose markers
 are the captions, squeezed to the cells that changed (`squeeze.mjs`);
-asciinema-player plays it on the page in a loop, the box lines in a font of
-their own (`boxfont.py`) that draws them edge to edge of the cell, as a
-terminal does. `make video` renders the same walk frame by frame into an
-MP4 (`video.mjs`, ffmpeg). A new shot or scene is a few keys in `shoot.py`
-or `record.py`; the mock data is `mock.go`, the servers `serve.go`. The
-tools are `website/shots/package.json`'s, apart from the site's own.
+asciinema-player plays it on the page in a loop. `make video` renders the
+same walk frame by frame into an MP4 (`video.mjs`, ffmpeg). A new shot or
+scene is a few keys in `shoot.py` or `record.py`; the mock data is
+`mock.go`, the servers `serve.go`. The tools are
+`website/shots/package.json`'s, apart from the site's own. The terminal's
+font on the website - the player's, the screenshots' (each carries what it
+shows of it) and the video's - is unagit mono: JetBrains Mono with Nerd
+Font's icons, cut down to what unagit draws, its box lines drawn edge to
+edge of the cell as a terminal draws them. `fonts.py` makes it (`pip
+install fonttools brotli`); run it again when unagit draws a new icon.
 
 ## This website
 

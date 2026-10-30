@@ -19,10 +19,6 @@ onMounted(async () => {
     import('asciinema-player'),
     fetch(withBase(props.src)).then((r) => r.text()),
     import('asciinema-player/dist/bundle/asciinema-player.css'),
-    // The terminal's font, the same on every machine: the box font's grid
-    // is its grid.
-    import('@fontsource/jetbrains-mono/latin-400.css'),
-    import('@fontsource/jetbrains-mono/latin-700.css'),
   ])
   const markers: [number, string][] = text
     .split('\n')
@@ -31,11 +27,10 @@ onMounted(async () => {
     .map((l) => JSON.parse(l))
     .filter((e) => e[1] === 'm')
     .map((e) => [e[0], e[2]])
-  // The player measures its cell by the font it has: both have to be there.
+  // The player measures its cell by the font it has: it has to be there.
   await Promise.all([
-    document.fonts.load("16px 'JetBrains Mono'"),
-    document.fonts.load("bold 16px 'JetBrains Mono'"),
-    document.fonts.load("16px 'unagit box'", '─│'),
+    document.fonts.load("16px 'unagit mono'"),
+    document.fonts.load("bold 16px 'unagit mono'"),
   ]).catch(() => {})
   if (!host.value) return
   player = create({ data: text }, host.value, {
@@ -44,7 +39,7 @@ onMounted(async () => {
     controls: false,
     fit: 'width',
     theme: 'retro-block',
-    terminalFontFamily: "'unagit box', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+    terminalFontFamily: "'unagit mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
   })
   timer = setInterval(async () => {
     const t = await player!.getCurrentTime()
@@ -108,13 +103,19 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* The box lines and a pill's round ends, drawn edge to edge of the cell as
-   a terminal draws them (website/shots/boxfont.py); set in a font, they
-   stopped short of the row's height and the frames came out dashed. */
+/* JetBrains Mono with Nerd Font's icons, as unagit is meant to be seen, its
+   box lines drawn edge to edge of the cell as a terminal draws them
+   (website/shots/fonts.py). */
 @font-face {
-  font-family: 'unagit box';
-  src: url('/fonts/unagit-box.woff2') format('woff2');
-  unicode-range: U+2500-257F, U+E0B4, U+E0B6;
+  font-family: 'unagit mono';
+  src: url('/fonts/unagit-mono-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: 'unagit mono';
+  src: url('/fonts/unagit-mono-bold.woff2') format('woff2');
+  font-weight: 700;
   font-display: block;
 }
 

@@ -6,7 +6,9 @@ export const cellW = 8.4
 const cellH = 18
 const pad = 16
 const bar = 30
-const font = "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace"
+// unagit mono is JetBrains Mono with Nerd Font's icons (fonts.py); DejaVu
+// has what it lacks.
+const font = "'unagit mono', 'DejaVu Sans Mono', monospace"
 const defaultFg = '#cbcbcb'
 const defaultBg = '#282527'
 
