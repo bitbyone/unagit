@@ -19,8 +19,11 @@ const header = JSON.parse(lines[0])
 const events = lines.slice(1).map((l) => JSON.parse(l))
 const end = events[events.length - 1][0] + 1.5
 
-const fonts = new URL('./node_modules/dejavu-fonts-ttf/ttf/', import.meta.url).pathname
-const fontFiles = ['DejaVuSansMono.ttf', 'DejaVuSansMono-Bold.ttf', 'DejaVuSans.ttf'].map((f) => fonts + f)
+// unagit mono first (fonts.py), DejaVu for what it lacks.
+const own = new URL('./fonts/', import.meta.url).pathname
+const dejavu = new URL('./node_modules/dejavu-fonts-ttf/ttf/', import.meta.url).pathname
+const fontFiles = [...['unagit-mono-regular.ttf', 'unagit-mono-bold.ttf'].map((f) => own + f),
+  ...['DejaVuSansMono.ttf', 'DejaVuSansMono-Bold.ttf', 'DejaVuSans.ttf'].map((f) => dejavu + f)]
 
 const term = new xterm.Terminal({ cols: header.width, rows: header.height, allowProposedApi: true })
 const write = (data) => new Promise((resolve) => term.write(data, resolve))
@@ -46,7 +49,7 @@ for (let frame = 0; frame * (1 / fps) < end; frame++) {
   const svg = svgOf(term, 'unagit', caption)
   // An unchanged screen is the same picture: draw it once.
   if (svg !== last) {
-    lastPng = new Resvg(svg, { font: { fontFiles, loadSystemFonts: false, defaultFontFamily: 'DejaVu Sans Mono' }, fitTo: { mode: 'width', value: 1920 } }).render().asPng()
+    lastPng = new Resvg(svg, { font: { fontFiles, loadSystemFonts: false, defaultFontFamily: 'unagit mono' }, fitTo: { mode: 'width', value: 1920 } }).render().asPng()
     last = svg
   }
   if (!enc.stdin.write(lastPng)) await new Promise((r) => enc.stdin.once('drain', r))

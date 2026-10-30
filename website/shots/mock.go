@@ -287,7 +287,8 @@ func lay(dir string, fresh bool) {
 	cfg := config.Default()
 	cfg.SetDir(cfgDir)
 	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
-	cfg.NerdFont = config.NerdFontOff
+	// As unagit is meant to be seen: with Nerd Font's icons (fonts.py).
+	cfg.NerdFont = config.NerdFontOn
 	// The website's look: warm gold and teal on charcoal.
 	cfg.Theme = "retro-block"
 	v, err := secret.NewVault([]byte("demo"))

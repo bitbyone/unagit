@@ -12,7 +12,6 @@
     "vue": "^3.5.44"
   },
   "dependencies": {
-    "@fontsource/jetbrains-mono": "5.2.8",
     "asciinema-player": "3.17.0"
   }
 }
