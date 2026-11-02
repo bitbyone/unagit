@@ -219,7 +219,15 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 	if place.checkout {
 		opts.marks = marks
 	}
-	a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
+	lp := a.showPickerWith(place.title, items, opts, func(it pickItem) { a.showCommitDetail(place, at(it), again(it)) })
+	if e := place.embed; e != nil && e.cursor != nil {
+		e.cursor(func() string {
+			if it, ok := lp.current(); ok {
+				return at(it).SHA
+			}
+			return ""
+		})
+	}
 }
 
 // refWords is what points at a commit, as short as it reads: HEAD, the

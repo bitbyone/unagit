@@ -38,6 +38,7 @@ Everything unagit does with a worktree works from every tab:
 | `C` | commit the changes to versioned files |
 | `f` | fetch origin and read everything again |
 | `R` | read the repository again, the tab in front too |
+| `S` | settings: auto refresh |
 | `Ctrl-O` / `Alt-O` | open in the editor · in one you choose |
 | `D` / `Alt-D` | in Hunk: what is not committed · everything since the base |
 | `Ctrl-R` | rebase onto the base |
@@ -49,6 +50,18 @@ a key. `R` is the one exception: it reads the repository again on every
 tab, so the Log's Recover from Reflog and the Changes' Rollback are in `:`
 and Alt-Enter there, without a key.
 
+## Auto refresh
+
+`S` opens standalone's own Settings, which hold one choice: how often it
+looks whether the repository changed - a commit made in a terminal, a
+branch switched, a file edited - and reads it again if it did, off by
+default. While it is on, `auto refresh` stands beside `? help` at the bottom
+right. A change found while a dialog is open waits for the dialog to close,
+and the log read again keeps its cursor on the commit it was on.
+
+It is kept in `config.yaml`, under `standalone`, and is the one thing
+standalone writes there.
+
 ## What it leaves out
 
 Whatever needs a server: merge requests, pipelines, watches, a commit's
@@ -58,4 +71,4 @@ deleting one there is a `git push --delete`.
 git runs with your own credentials: without a token of unagit's to hand it,
 your credential helpers and ssh agent answer as they do in a terminal.
 unagit's configuration is only read, for the theme and the editors, and
-nothing of unagit's is written.
+nothing of unagit's is written but standalone's own Settings.

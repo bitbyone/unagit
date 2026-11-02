@@ -17,6 +17,9 @@ type statusLine struct {
 	row           *tview.Flex
 	inline, above *tview.TextView
 	jobs          string
+	// helpW is the room the help hint takes: "? help", and in standalone
+	// what is on beside it.
+	helpW int
 }
 
 // helpWidth is the room "? help" takes at the end of the line.
@@ -30,6 +33,7 @@ func newStatusLine(text, help *tview.TextView) *statusLine {
 		help:   help,
 		inline: tview.NewTextView().SetDynamicColors(true),
 		above:  tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetTextAlign(tview.AlignRight),
+		helpW:  helpWidth,
 	}
 	s.row = tview.NewFlex().
 		AddItem(text, 0, 1, false).
@@ -37,6 +41,13 @@ func newStatusLine(text, help *tview.TextView) *statusLine {
 		AddItem(help, helpWidth, 0, false)
 	s.Flex.AddItem(s.above, 0, 0, false).AddItem(s.row, 1, 0, false)
 	return s
+}
+
+// setHelp puts other markup where "? help" is, the room following it.
+func (s *statusLine) setHelp(markup string) {
+	s.help.SetText(markup)
+	s.helpW = tview.TaggedStringWidth(markup) + 2
+	s.row.ResizeItem(s.help, s.helpW, 0)
 }
 
 // setRight says what the right-hand end holds - the word last said and the
@@ -55,7 +66,7 @@ func (s *statusLine) fit(width int) int {
 		return 1
 	}
 	jobs := tview.TaggedStringWidth(s.jobs) + 2
-	if tview.TaggedStringWidth(s.text.GetText(false))+jobs+helpWidth <= width {
+	if tview.TaggedStringWidth(s.text.GetText(false))+jobs+s.helpW <= width {
 		s.row.ResizeItem(s.inline, jobs, 0)
 		s.Flex.ResizeItem(s.above, 0, 0)
 		return 1

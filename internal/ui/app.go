@@ -558,6 +558,8 @@ func (a *App) Run() error {
 	go a.watchEditors(stopWatching)
 	if a.solo == nil {
 		go a.watchAgents(stopWatching)
+	} else {
+		go a.pollSolo(stopWatching)
 	}
 	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
 	a.stopCredentials()

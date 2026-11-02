@@ -92,6 +92,10 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	if rootNote < root || !strings.Contains(text, "overrides it.") || strings.Contains(text, "Custom editor") {
 		t.Errorf("the notes are not whole, or not under their fields:\n%s", text)
 	}
+	// What unagit -s keeps in config.yaml is shown, and changed there.
+	if !strings.Contains(text, "unagit -s auto refresh: off.") || !strings.Contains(text, "It is set with S in unagit -s.") {
+		t.Errorf("standalone's auto refresh is not shown whole:\n%s", text)
+	}
 
 	form := a.settings.general
 	setField(t, a, form, 0, "/tmp/unagit-root")

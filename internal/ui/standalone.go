@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -19,7 +21,8 @@ import (
 // branches and its shelf are tabs, and every git action unagit has for a
 // worktree works on it. It runs on any repository, one unagit never cloned
 // too, and leaves unagit's files as they were: the configuration is read
-// for the theme and the editors, nothing is written back.
+// for the theme and the editors, and nothing is written back but what its
+// own Settings say (config.SaveStandalone).
 //
 // The tabs are the dialogs the full unagit opens over its lists, made
 // screens (embedding): the same keys, the same actions, the same look. The
@@ -51,6 +54,16 @@ type soloRepo struct {
 	// each is read again when it comes to the front, so a tab the user is
 	// on keeps its cursor.
 	stale map[string]bool
+	// cursors tell, by tab, what its cursor is on, for a tab that can be
+	// read again with the cursor where it was (embedding.cursor).
+	cursors map[string]func() string
+	// every is the auto refresh's period in units, 0 off - a copy of the
+	// configuration's for the poller, which runs off the event loop - and
+	// wake tells the poller it changed.
+	every atomic.Int64
+	wake  chan struct{}
+	// unit is a second; the tests make it shorter.
+	unit time.Duration
 }
 
 // NewStandalone builds the application for the repository dir is in,
@@ -68,7 +81,9 @@ func NewStandalone(cfg *config.Config, dir string) (*App, error) {
 	}
 	top = strings.TrimSpace(top)
 	a := NewLocked(cfg)
-	a.solo = &soloRepo{dir: top, name: filepath.Base(top), branch: soloBranch(git.CurrentBranch(top)), stale: map[string]bool{}}
+	a.solo = &soloRepo{dir: top, name: filepath.Base(top), branch: soloBranch(git.CurrentBranch(top)),
+		stale: map[string]bool{}, cursors: map[string]func() string{}, wake: make(chan struct{}, 1), unit: time.Second}
+	a.solo.every.Store(int64(cfg.Standalone.AutoRefresh))
 	return a, nil
 }
 
@@ -110,7 +125,7 @@ func (a *App) buildStandalone() tview.Primitive {
 		s.header.SetText(a.soloHeader())
 		return x, y, w, h
 	})
-	a.helpHint.SetText(litHint("? help"))
+	a.soloFooter()
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(s.header, 1, 0, false).
 		AddItem(a.tabs, 1, 0, false).
@@ -211,7 +226,11 @@ func (a *App) openSoloTab(page string) {
 		a.showChanges(changesPlace{path: r.Path, dir: r.Dir, title: r.Path + " · " + r.Branch, embed: embed,
 			what: session.Record{Project: r.Path, Title: r.Branch, Mode: session.ModeRepository}})
 	case pageSoloLog:
-		a.soloLog("", "")
+		focus := ""
+		if on := a.solo.cursors[page]; on != nil {
+			focus = on()
+		}
+		a.soloLog(focus, "")
 	case pageSoloBranches:
 		a.showBranchManager(branchScope{project: pr, checkout: true, focus: r.Branch, embed: embed})
 	case pageSoloShelf:
@@ -246,6 +265,7 @@ func (a *App) soloEmbedding(page string) *embedding {
 		screen: func() (string, []uiAction) { return a.solo.name, a.soloScreenActions() },
 		shown:  func() bool { return a.currentTab() == page },
 		keeps:  soloKeeps,
+		cursor: func(on func() string) { a.solo.cursors[page] = on },
 	}
 }
 
@@ -286,6 +306,8 @@ func (a *App) soloScreenActions() []uiAction {
 			run: a.fetchSolo},
 		uiAction{name: "Refresh All", about: "Read the repository again without asking origin: the branch, the changes, every tab.", keys: "R", rank: 9,
 			run: a.refreshSoloAll},
+		uiAction{name: "Settings…", about: "What standalone keeps in config.yaml: how often it looks whether the repository changed.", keys: "S", rank: 900,
+			run: a.soloSettings},
 		uiAction{name: "Help", about: "Every key of standalone, those of the tab in front lit.", keys: "?", rank: 950, run: a.showHelp},
 		uiAction{name: "Quit", about: "Leave unagit.", keys: "q", rank: 990, run: a.tv.Stop},
 	)
@@ -325,4 +347,125 @@ func keysFreeOf(acts, taken []uiAction) []uiAction {
 		out[i] = act
 	}
 	return out
+}
+
+// soloRefreshChoices are the periods auto refresh can look at the
+// repository every, in seconds; 0 is never.
+var soloRefreshChoices = []int{0, 2, 5, 10, 30, 60}
+
+// soloSettings is standalone's own Settings: one choice, kept in
+// config.yaml's standalone section and nowhere else.
+func (a *App) soloSettings() {
+	labels := make([]string, len(soloRefreshChoices))
+	at := 0
+	for i, n := range soloRefreshChoices {
+		labels[i] = fmt.Sprintf("every %d seconds", n)
+		if n == 0 {
+			labels[i] = "off"
+		}
+		if n == a.cfg.Standalone.AutoRefresh {
+			at = i
+		}
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	addSelect(form, labelAutoRefresh, labels, at)
+	form.AddButton("Save", func() {
+		i, _ := form.GetFormItemByLabel(labelAutoRefresh).(*tview.DropDown).GetCurrentOption()
+		a.closeModal(pageForm)
+		a.setAutoRefresh(soloRefreshChoices[max(i, 0)])
+	})
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	a.showFormModalSized("Settings · standalone", form, 52, 7)
+}
+
+// labelAutoRefresh is the one field of standalone's Settings.
+const labelAutoRefresh = "Auto refresh"
+
+// setAutoRefresh takes a new period, tells the poller and the footer, and
+// writes it down.
+func (a *App) setAutoRefresh(seconds int) {
+	a.cfg.Standalone.AutoRefresh = seconds
+	a.solo.every.Store(int64(seconds))
+	select {
+	case a.solo.wake <- struct{}{}:
+	default:
+	}
+	a.soloFooter()
+	if err := a.cfg.SaveStandalone(); err != nil {
+		a.errorf("auto refresh is on for now but not saved: %v - check that config.yaml can be written", err)
+		return
+	}
+	if seconds == 0 {
+		a.done("auto refresh off")
+		return
+	}
+	a.done(fmt.Sprintf("auto refresh every %d seconds", seconds))
+}
+
+// soloFooter puts "auto refresh" beside "? help" while it is on, so that
+// a log that moves by itself is known to.
+func (a *App) soloFooter() {
+	help := litHint("? help")
+	if a.solo.every.Load() > 0 {
+		help = tag(role("status.auto")) + "auto refresh" + tagEnd + "  " + help
+	}
+	a.settingsLine.setHelp(help)
+}
+
+// pollSolo looks at the repository every period while auto refresh is on,
+// and reads it again - the tab in front too - when it changed. A change
+// found while a dialog is open waits for the dialog to go: reading the tab
+// under it again would take it away.
+func (a *App) pollSolo(stop <-chan struct{}) {
+	s := a.solo
+	git := gitx.New("", nil)
+	seen := git.Fingerprint(s.dir)
+	for {
+		var tick <-chan time.Time
+		var timer *time.Timer
+		if every := s.every.Load(); every > 0 {
+			timer = time.NewTimer(time.Duration(every) * s.unit)
+			tick = timer.C
+		}
+		woken := false
+		select {
+		case <-stop:
+		case <-s.wake:
+			woken = true
+		case <-tick:
+		}
+		if timer != nil {
+			timer.Stop()
+		}
+		select {
+		case <-stop:
+			return
+		default:
+		}
+		if woken {
+			continue
+		}
+		now := git.Fingerprint(s.dir)
+		if now == "" || now == seen {
+			continue
+		}
+		read := make(chan bool, 1)
+		a.tv.QueueUpdateDraw(func() {
+			if a.modalOpen() {
+				read <- false
+				return
+			}
+			a.refreshSoloAll()
+			read <- true
+		})
+		select {
+		case <-stop:
+			return
+		case ok := <-read:
+			if ok {
+				seen = now
+			}
+		}
+	}
 }

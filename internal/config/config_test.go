@@ -710,3 +710,54 @@ func TestAReadOnlyConfigurationWritesNothing(t *testing.T) {
 		t.Errorf("the state was written: %v", err)
 	}
 }
+
+// Standalone writes its own section and nothing else, into the file as it
+// is on disk, whatever it changed in memory.
+func TestStandaloneSavesItsSectionAlone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("root_dir: ~/src\ntheme: nord\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadFrom(dir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RootDir = "~/elsewhere"
+	cfg.Standalone.AutoRefresh = 10
+	if err := cfg.SaveStandalone(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Standalone.AutoRefresh != 10 || again.RootDir != "~/src" || again.Theme != "nord" {
+		t.Errorf("config.yaml reads auto refresh %d, root %q, theme %q", again.Standalone.AutoRefresh, again.RootDir, again.Theme)
+	}
+	// The full unagit, which read the file before, saves something of its
+	// own: standalone's section stays as standalone left it.
+	full, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full.Standalone.AutoRefresh = 30
+	cfg.Standalone.AutoRefresh = 60
+	if err := cfg.SaveStandalone(); err != nil {
+		t.Fatal(err)
+	}
+	full.Theme = "dracula"
+	if err := full.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if again, err = LoadFrom(dir); err != nil || again.Standalone.AutoRefresh != 60 || again.Theme != "dracula" {
+		t.Errorf("after the full unagit saved, auto refresh is %d and the theme %q (%v)", again.Standalone.AutoRefresh, again.Theme, err)
+	}
+	cfg.Standalone.AutoRefresh = 0
+	if err := cfg.SaveStandalone(); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); strings.Contains(string(b), "standalone") {
+		t.Errorf("a standalone with nothing set is still written:\n%s", b)
+	}
+}

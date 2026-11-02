@@ -249,6 +249,7 @@ var colourRoles = []colourRole{
 	{"tabs.off", "text.dim", "a tab with nothing to show, Sandboxes without unibox"},
 	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
 	{"tabs.context", "text.accent", "on the Sandboxes tab: the sandbox unibox works in when not told"},
+	{"status.auto", "state.good", "beside the help: standalone looks at the repository by itself"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
 	// them, its colours are worked out of the severity's and the

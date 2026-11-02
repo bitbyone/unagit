@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -34,6 +35,12 @@ func soloFixture(t *testing.T) (dir, origin string) {
 // only read.
 func newSoloApp(t *testing.T, dir string) (*App, tcell.SimulationScreen, *config.Config) {
 	t.Helper()
+	return newSoloAppWith(t, dir, nil)
+}
+
+// newSoloAppWith is newSoloApp with the app changed before it starts.
+func newSoloAppWith(t *testing.T, dir string, before func(*App)) (*App, tcell.SimulationScreen, *config.Config) {
+	t.Helper()
 	cfg := config.Default()
 	cfg.SetDir(t.TempDir())
 	cfg.FavouriteEditor, cfg.Editor = "custom", "true"
@@ -41,6 +48,9 @@ func newSoloApp(t *testing.T, dir string) (*App, tcell.SimulationScreen, *config
 	app, err := NewStandalone(cfg, filepath.Join(dir, "."))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if before != nil {
+		before(app)
 	}
 	a, sc := startApp(t, app)
 	return a, sc, cfg
@@ -236,9 +246,83 @@ func TestStandaloneRefreshSeesACommitMadeElsewhere(t *testing.T) {
 	waitFor(t, a, sc, "Changes · toolbox")
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "↑2 unpushed")
-	if text := a.screenText(sc); strings.Contains(text, "Rollback") || strings.Contains(text, "roll back") {
+	if text := a.screenText(sc); strings.Contains(text, "Rollback") || strings.Contains(text, "rollback") {
 		t.Errorf("R on the changes rolls back instead of reading the repository again:\n%s", text)
 	}
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Add another from the terminal")
+}
+
+func TestStandaloneAutoRefreshFollowsTheRepository(t *testing.T) {
+	t.Parallel()
+	dir, _ := soloFixture(t)
+	// A second is a few milliseconds here.
+	a, sc, cfg := newSoloAppWith(t, dir, func(a *App) { a.solo.unit = 5 * time.Millisecond })
+	waitFor(t, a, sc, "notes.txt")
+	if text := a.screenText(sc); strings.Contains(text, "auto refresh") {
+		t.Fatalf("auto refresh is said to be on before it is:\n%s", text)
+	}
+	commitIn(t, dir, "first.go", "Add one before the log is open")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Add one before the log is open")
+	// The cursor goes to the second commit; it stays there when the log
+	// is read again.
+	typeRunes(sc, "j")
+
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, labelAutoRefresh)
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "every 2 seconds")
+	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyDown, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "every 5 seconds")
+	typeRunes(sc, "s")
+	waitFor(t, a, sc, "auto refresh  ? help")
+	assertLegible(t, a, sc, "auto refresh beside the help")
+
+	commitIn(t, dir, "tool.go", "Add a tool from the terminal")
+	waitFor(t, a, sc, "Add a tool from the terminal")
+	if got := onLoop(a, func() string { return a.solo.cursors[pageSoloLog]() }); got != gitIn(t, dir, "rev-parse", "HEAD~2") {
+		t.Errorf("the log read again has its cursor on %s, not on the commit it was on", got)
+	}
+
+	// Kept in config.yaml, and nothing else written there.
+	again, err := config.LoadFrom(cfg.Dir())
+	must(t, err)
+	if again.Standalone.AutoRefresh != 5 {
+		t.Errorf("config.yaml keeps auto refresh %d, not 5", again.Standalone.AutoRefresh)
+	}
+	entries, err := os.ReadDir(cfg.Dir())
+	must(t, err)
+	for _, e := range entries {
+		if e.Name() != "config.yaml" {
+			t.Errorf("standalone wrote %s into the configuration directory", e.Name())
+		}
+	}
+}
+
+func TestStandaloneSettingsFitTheirFrame(t *testing.T) {
+	t.Parallel()
+	for _, size := range []struct{ w, h int }{{160, 44}, {100, 30}, {60, 20}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			dir, _ := soloFixture(t)
+			a, sc, _ := newSoloApp(t, dir)
+			waitFor(t, a, sc, "notes.txt")
+			resizeApp(a, sc, size.w, size.h)
+			typeRunes(sc, "S")
+			waitFor(t, a, sc, labelAutoRefresh)
+			assertFormInFrame(t, a, sc, currentForm(a))
+			text := a.screenText(sc)
+			for _, want := range []string{"Settings · standalone", labelAutoRefresh, "off", "Save", "Cancel"} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%q is not on screen:\n%s", want, text)
+				}
+			}
+			assertLegible(t, a, sc, "standalone's settings")
+			sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			waitFor(t, a, sc, "every 60 seconds")
+			assertLegible(t, a, sc, "standalone's settings, the select open")
+		})
+	}
 }

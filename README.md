@@ -1364,12 +1364,16 @@ Rewrite History, opening in an editor - and `:` lists it all, the tab's own
 actions first. A key a tab uses for itself is the tab's: on the Log, `P`
 pushes up to the commit under the cursor. `R` is the exception, reading
 the repository again on every tab - the Log's reflog and the Changes'
-rollback are then in `:` alone. `q` quits.
+rollback are then in `:` alone. `S` is standalone's own Settings: auto
+refresh, which looks every few seconds whether the repository changed and
+reads it again if it did, and says `auto refresh` beside `? help` while it
+is on. `q` quits.
 
 git runs with your own credentials: without a token of unagit's to hand it,
 your credential helpers and ssh agent answer as they do in a terminal.
 unagit's configuration is only read - the theme, the editors - and nothing
-of unagit's is written.
+of unagit's is written but the `standalone` section of `config.yaml`, which
+its Settings keep.
 
 ## Follow it into another terminal
 

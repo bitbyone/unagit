@@ -181,6 +181,23 @@ func (g *Git) CurrentBranch(dir string) string {
 	return s
 }
 
+// Fingerprint is what a repository looks like from outside: what is
+// checked out, where every branch and tag points, and what is not
+// committed. Two equal fingerprints mean nothing worth reading again
+// changed; it is read without git's optional locks, so looking often never
+// gets in the way of a git run in a terminal.
+func (g *Git) Fingerprint(dir string) string {
+	status, err := g.Run(dir, "--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z")
+	if err != nil {
+		return ""
+	}
+	refs, err := g.Run(dir, "for-each-ref", "--format=%(objectname) %(refname)")
+	if err != nil {
+		return ""
+	}
+	return status + "\x00" + refs
+}
+
 // LocalBranchExists reports whether refs/heads/<branch> exists.
 func (g *Git) LocalBranchExists(dir, branch string) bool {
 	_, err := g.out(dir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)

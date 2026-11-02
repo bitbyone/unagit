@@ -291,6 +291,10 @@ type embedding struct {
 	// shown tells whether the page is the one in front now; a picker read
 	// again behind another tab takes no keys from it.
 	shown func() bool
+	// cursor is handed, by a tab that can be read again with its cursor
+	// where it was, how to tell what the cursor is on now: the log's
+	// commit, by its hash.
+	cursor func(on func() string)
 	// keeps are the screen's keys that mean the same on every tab, whatever
 	// the tab would do with them: its own action on one is left keyless,
 	// found in the action pickers instead.
@@ -453,6 +457,8 @@ type livePicker struct {
 	set func(title string, items []pickItem)
 	// setHeader puts new column names in, for rows whose columns widened.
 	setHeader func(header string)
+	// current is the item under the cursor, false when there is none.
+	current func() (pickItem, bool)
 }
 
 // widePct is how much of the screen across a wide picker takes.
@@ -1255,6 +1261,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	}
 	return &livePicker{
 		open: func() bool { return a.pages.GetPage(pageName) == page },
+		current: func() (pickItem, bool) {
+			if i := list.GetCurrentItem(); i >= 0 && i < len(shown) && !isRule(i) {
+				return shown[i], true
+			}
+			return pickItem{}, false
+		},
 		set: func(retitled string, next []pickItem) {
 			title = retitled
 			var current *pickItem

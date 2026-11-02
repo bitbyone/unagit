@@ -599,7 +599,8 @@ func (a *App) changesFocus(v *changesView) {
 func (v *changesView) listHint() string {
 	versioned, unversioned := split(v.targets())
 	parts := []string{"space mark", "x commit or not", "c commit"}
-	if len(versioned) > 0 {
+	// Standalone keeps R for reading the repository again.
+	if len(versioned) > 0 && v.place.embed.keyless("R") != "" {
 		parts = append(parts, "R rollback")
 	}
 	if len(unversioned) > 0 {

@@ -424,6 +424,7 @@ func (s *settingsView) fillGeneral() {
 		"overrides it.", 46, 2, true, false)
 	form.AddTextView("", "The editors, the custom one among them, are in\n"+
 		"Integrations.", 46, 2, true, false)
+	form.AddTextView("", standaloneNote(cfg.Standalone), 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
 		s.app.saveConfig()
@@ -442,6 +443,16 @@ func (s *settingsView) fillGeneral() {
 		form.SetFocus(item)
 		s.app.tv.SetFocus(form)
 	}
+}
+
+// standaloneNote says what unagit -s was set to in its own Settings, which
+// are changed there and nowhere else.
+func standaloneNote(st config.Standalone) string {
+	every := "off"
+	if st.AutoRefresh > 0 {
+		every = fmt.Sprintf("every %d seconds", st.AutoRefresh)
+	}
+	return "unagit -s auto refresh: " + every + ".\nIt is set with S in unagit -s."
 }
 
 // ------------------------------------------------------------------ servers

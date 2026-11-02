@@ -358,7 +358,13 @@ actions (`soloScreenActions`, the worktree's own minus what needs a server).
 Do not build a second Changes or log for it. The repository is a worktree
 row under no server (`soloRow`), its directory held in `cfg.State` in
 memory, and the configuration is loaded read-only (`config.LoadReadOnly`):
-standalone writes nothing of unagit's. Without a token `gitx` leaves the
+standalone writes nothing of unagit's but its own Settings (`S`), the
+`standalone` section of config.yaml, through `config.SaveStandalone`,
+which reads the file again and changes that section alone (the user
+chose that, 2026-11-02). Auto refresh polls `gitx.Fingerprint` and reads
+the repository again only when it changed and no dialog is open. `R`
+refreshes on every tab (`embedding.keeps`): a tab's own action on a kept
+key stays in the pickers, keyless. Without a token `gitx` leaves the
 user's own credential helpers in place, so git authenticates as it does in
 a terminal.
 

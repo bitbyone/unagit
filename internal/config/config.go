@@ -747,6 +747,9 @@ type Config struct {
 	// whatever the theme paints, so a translucent or blurred terminal shows
 	// through; every other colour still comes from the theme.
 	TerminalBackground bool `yaml:"terminal_background,omitempty"`
+	// Standalone is what unagit -s was told in its own Settings, and the
+	// one part of the configuration it writes (SaveStandalone).
+	Standalone Standalone `yaml:"standalone,omitempty"`
 
 	// Written by unagit before it grew multiple instances; read once and
 	// folded into Instances.
@@ -946,11 +949,27 @@ func (c *Config) normalise() {
 	}
 }
 
-// Save writes config.yaml, creating the config directory when needed.
+// Save writes config.yaml, creating the config directory when needed. The
+// standalone section is standalone's (SaveStandalone): it is kept as the
+// file has it, so a full unagit started earlier does not put back what it
+// read then.
 func (c *Config) Save() error {
 	if c.readOnly {
 		return nil
 	}
+	if b, err := os.ReadFile(c.Path()); err == nil {
+		var onDisk struct {
+			Standalone Standalone `yaml:"standalone"`
+		}
+		if yaml.Unmarshal(b, &onDisk) == nil {
+			c.Standalone = onDisk.Standalone
+		}
+	}
+	return c.write()
+}
+
+// write writes config.yaml as c has it.
+func (c *Config) write() error {
 	if err := os.MkdirAll(c.Dir(), 0o700); err != nil {
 		return err
 	}
@@ -960,6 +979,28 @@ func (c *Config) Save() error {
 		return err
 	}
 	return os.WriteFile(c.Path(), b, 0o600)
+}
+
+// Standalone is the configuration of unagit -s.
+type Standalone struct {
+	// AutoRefresh is how often, in seconds, standalone looks whether the
+	// repository changed and reads it again if it did; 0 never.
+	AutoRefresh int `yaml:"auto_refresh,omitempty"`
+}
+
+// SaveStandalone writes Standalone into config.yaml, read only or not, and
+// nothing else: the file is read again and only that section of it
+// changes, so whatever standalone holds in memory alone - or the full
+// unagit changed since - stays as the file has it.
+func (c *Config) SaveStandalone() error {
+	// Read as the full unagit reads it, so that what an older version left
+	// to move out of the file is moved, not lost.
+	onDisk, err := loadFrom(c.dir, false)
+	if err != nil {
+		return err
+	}
+	onDisk.Standalone = c.Standalone
+	return onDisk.write()
 }
 
 // Instance returns the instance with this id, or nil.
