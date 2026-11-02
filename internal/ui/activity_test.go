@@ -134,12 +134,16 @@ func TestActivityPanelsAreReachedByKeys(t *testing.T) {
 			return "?"
 		})
 	}
+	// Each Tab moves the focus on, so each is waited for until it has:
+	// a moment's sleep let a Tab not yet handled read as one that went
+	// nowhere.
 	var round []string
+	at := "list"
 	for range 5 {
 		sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
-		waitTrue(t, "Tab did not move", func() bool { return focused() != "?" })
-		time.Sleep(20 * time.Millisecond)
-		round = append(round, focused())
+		waitTrue(t, "Tab did not move from "+at, func() bool { now := focused(); return now != "?" && now != at })
+		at = focused()
+		round = append(round, at)
 	}
 	if got := strings.Join(round, " "); got != "detail log cards watching list" {
 		t.Fatalf("Tab went %s", got)
