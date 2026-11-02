@@ -94,7 +94,7 @@ func (a *App) newSandboxesPane() *pane {
 		}
 		var parts []string
 		if working > 0 {
-			parts = append(parts, tag(role("sandboxes.running"))+fmt.Sprintf("%d working", working)+tagEnd)
+			parts = append(parts, tag(role("sandboxes.running"))+fmt.Sprintf("%s %d active", glyphDot, working)+tagEnd)
 		}
 		parts = append(parts, tag(colMuted)+fmt.Sprintf("%s · %s · %s",
 			counted(len(o.Sandboxes), "sandbox", "sandboxes"), counted(len(v.tasks), "task", "tasks"),
@@ -815,7 +815,7 @@ func (a *App) sandboxResources(s sandboxUse, on string) string {
 	}
 	text := strings.Join(parts, "  ")
 	if s.working > 0 {
-		text += "  [" + role("sandboxes.running").String() + on + "]" + spinnerGlyph(a.spinFrame) + fmt.Sprintf(" %d", s.working)
+		text += "  [" + role("sandboxes.running").String() + on + "]" + glyphDot + fmt.Sprintf(" %d active", s.working)
 	}
 	return text
 }
@@ -1125,7 +1125,7 @@ func (e *uniboxEvent) end(a *App, said string, err error, refused bool) {
 func eventMark(level string) (string, string) {
 	switch level {
 	case eventUnderWay:
-		return spinnerGlyph(0), "sandboxes.running"
+		return glyphDot, "sandboxes.running"
 	case eventDone:
 		return glyphCheck, "sandboxes.running"
 	case eventRefused:
@@ -1163,9 +1163,6 @@ func (v *sandboxesView) drawLog() {
 	}))).SetSelectable(false).SetExpansion(1))
 	for i, e := range v.logRows {
 		glyph, colour := eventMark(e.level)
-		if e.level == eventUnderWay {
-			glyph = spinnerGlyph(a.spinFrame)
-		}
 		line := e.said
 		if line == "" {
 			line = e.level

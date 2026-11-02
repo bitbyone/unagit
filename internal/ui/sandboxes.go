@@ -259,7 +259,9 @@ func (a *App) sandboxState(r sandboxRow) (string, string) {
 		return sandboxStateWords(r.sandbox.State)
 	case rowTask:
 		if r.working() {
-			return spinnerGlyph(a.spinFrame) + " working", "sandboxes.running"
+			// unagit cannot tell what the agent is doing, only that a
+			// session of it is open: active, never "working".
+			return glyphDot + " active", "sandboxes.running"
 		}
 		if r.task.State == "ready" {
 			return glyphCheck + " ready", "sandboxes.stopped"
@@ -588,7 +590,7 @@ func (a *App) sandboxDetailText(r sandboxRow) string {
 		for _, t := range s.Tasks {
 			line := esc(agentLabel(t.Agent))
 			if _, ok := s.RunOf(t.ID); ok {
-				line += " · " + tag(role("sandboxes.running")) + "working" + tagEnd
+				line += " · " + tag(role("sandboxes.running")) + glyphDot + " active" + tagEnd
 			}
 			d.kv(t.Name(), line)
 		}

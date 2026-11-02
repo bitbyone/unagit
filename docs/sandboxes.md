@@ -76,7 +76,7 @@ forget yours), network
   address on its source branch, a repository not cloned on its default.
 - **Add to Unibox Index…** on a repository, or on every marked one at
   once: one env's index or every env's, and when a task takes it.
-- **Your Unibox Configuration…** (`Y`): what the person said, read from
+- **Your Unibox Configuration…** (`Y`), a tab per kind (`pickerOptions.tabs`): what the person said, read from
   `config get`, `var ls` of each env and `secret ls --all` - settings,
   values, ports, repositories and instructions by scope, network rules,
   tokens - each opened where it is managed, or forgotten (`config unset`,

@@ -47,7 +47,7 @@ it.
 | --- | --- | --- |
 | **Sandboxes** | `B` | a card each: running or stopped, its agents, its tasks |
 | **Environment** | `E` | the context, the default env, unibox's switches, the tokens sbx keeps |
-| **Tasks** | `t` | every sandbox's tasks, **working** while an agent is at it |
+| **Tasks** | `t` | every sandbox's tasks, **active** while an agent has a session in it |
 | **Envs** | `N` | each env, its sandbox, what it still lacks |
 | **Log** | `L` | every command given to unibox, and what it said |
 
@@ -60,11 +60,12 @@ one of yours and `d` forgets it. `U` is unibox's settings, `D` its doctor,
 
 ## Your configuration
 
-`Y` lists everything you said to unibox beside the teams' files: the
-settings, your values, ports and repositories for every env, an env
-repository's envs or one env, your instructions, the sandboxes' network
-rules and the tokens sbx keeps. `Enter` opens the dialog where one is
-managed, `d` forgets it where it was said.
+`Y` lists everything you said to unibox beside the teams' files, a tab for
+each kind: **Settings** (and your instructions), **Values**, **Ports** and
+**Repositories** - each for every env, an env repository's envs or one
+env - the **Tokens** sbx keeps and the sandboxes' **Network** rules. `Tab`
+or a tab's number goes to another; `Enter` opens the dialog where one is
+managed, `a` adds one, `d` forgets it where it was said.
 
 What sbx or unibox asks for - approving an env, a token - is asked in this
 terminal; unagit never sees a token unless you keep it in its vault.

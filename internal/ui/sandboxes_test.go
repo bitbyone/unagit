@@ -118,7 +118,7 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	openSandboxes(t, a, sc)
 	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Envs [N]", "Log [L]",
 		"web · context", "Claude Code, Copi", "running", "2 tasks",
-		"rate", "billing-5e6f7a8b", "working", "feat/rate", "billing, gateway", "fix/round",
+		"rate", "billing-5e6f7a8b", "active", "feat/rate", "billing, gateway", "fix/round",
 		"api-box", "1 value missing", "default env web", "2 tokens kept by sbx"} {
 		waitFor(t, a, sc, want)
 	}
@@ -666,8 +666,9 @@ func TestAnEnvsPortsAreAddedAndForgotten(t *testing.T) {
 }
 
 // TestYourConfigurationListsWhatYouSaid: Y lists everything the person
-// said to unibox - settings, repositories and ports by scope, the tokens
-// sbx keeps - and d forgets one where it was said.
+// said to unibox, a tab for each kind of thing - Tab or a tab's number
+// goes to another - and d forgets one where it was said, after which the
+// list opens again on the same tab.
 func TestYourConfigurationListsWhatYouSaid(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
@@ -678,16 +679,28 @@ func TestYourConfigurationListsWhatYouSaid(t *testing.T) {
 	openSandboxes(t, a, sc)
 	typeRunes(sc, "Y")
 	waitFor(t, a, sc, "Your Unibox configuration")
-	for _, want := range []string{"default env", "stop a sandbox when idle", "notes", "every env", "devtools", "env web", "anthropic", "github"} {
+	for _, want := range []string{"Settings 3", "Values 0", "Ports 1", "Repositories 1", "Tokens 2", "Network 0", "default env", "stop a sandbox when idle"} {
 		waitFor(t, a, sc, want)
 	}
+	assertLegible(t, a, sc, "Your Unibox configuration")
 	waitFor(t, a, sc, "NORMAL")
-	// default env, context, the switch, then notes, for every env.
-	typeRunes(sc, "jjj")
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	waitFor(t, a, sc, "No value of yours")
+	typeRunes(sc, "3")
+	waitFor(t, a, sc, "AT START")
+	waitFor(t, a, sc, "9333:9222")
+	typeRunes(sc, "5")
+	waitFor(t, a, sc, "USED BY")
+	waitFor(t, a, sc, "anthropic")
+	typeRunes(sc, "4")
+	waitFor(t, a, sc, "~/notes")
+	waitFor(t, a, sc, "NORMAL")
 	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Forget notes, named for every env?")
 	typeRunes(sc, string(buttonKeys([]string{"Cancel", "Forget"})[1]))
 	waitCalled(t, a, fake, "repo rm notes -e web -g --json")
+	waitFor(t, a, sc, "Your Unibox configuration")
+	waitFor(t, a, sc, "ADDRESS")
 }
 
 // TestMarkedRepositoriesGoIntoTheIndexTogether: Add to Unibox Index… on

@@ -232,7 +232,7 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 		{name: "Sandbox Tokens in unagit…", about: "The tokens unagit keeps for the sandboxes and hands to sbx while it runs unlocked: replace one, remove it, copy its command.",
 			keys: "T", rank: 50, run: a.showCredentials},
 		{name: "Your Unibox Configuration…", about: "Everything you said to Unibox, beside the teams' files, in one list: settings, values, ports, repositories, instructions, network rules and tokens - Enter manages one, d forgets it.",
-			keys: "Y", rank: 51, aliases: []string{"config", "settings", "secrets", "tokens", "ports", "overview"}, run: a.showYourConfig},
+			keys: "Y", rank: 51, aliases: []string{"config", "settings", "secrets", "tokens", "ports", "overview"}, run: func() { a.showYourConfig(0) }},
 		{name: "Unibox Settings…", about: "unibox's own configuration: the default env, whether an idle sandbox stops, the SSH agent, editors over SSH and sbx's switches.",
 			keys: "U", rank: 52, run: a.showUniboxSettings},
 		{name: "Update Env Files", about: "Fast-forward every repository of envs unibox cloned, and say what that changes.",

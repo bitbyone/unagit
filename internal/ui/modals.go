@@ -269,6 +269,10 @@ type pickerOptions struct {
 	// header names the columns of a picker whose items are a table's rows
 	// (pickTable), on a line of its own over them.
 	header string
+	// tabs parts what a picker lists into sections shown one at a time, as
+	// the main screens are tabs: a strip over the list names them, and Tab,
+	// Shift-Tab or a section's number opens the picker again on another.
+	tabs *pickTabs
 	// onList opens the picker on its list even with a query typed: one
 	// opened again as it was left (back.go).
 	onList bool
@@ -503,6 +507,66 @@ type pickKey struct {
 	// markedOnly is a key for the marked alone, like a squash: hinted
 	// only while something is marked.
 	markedOnly bool
+}
+
+// pickTabs are the sections of a picker (pickerOptions.tabs): their
+// names, how many items each holds, the one shown, and how to open the
+// picker on another.
+type pickTabs struct {
+	names  []string
+	counts []int
+	at     int
+	open   func(at int)
+	// rows and width are the most rows any section has and its widest
+	// row: every section is drawn that big, so the dialog keeps its size
+	// from tab to tab.
+	rows, width int
+}
+
+// strip is the line of the sections as the tab bar draws the main
+// screens: the one shown on the tabs' band, the others named in the tabs'
+// accent, each with its count and the number that reaches it.
+func (t *pickTabs) strip() string {
+	var parts []string
+	for i, name := range t.names {
+		count := ""
+		if i < len(t.counts) {
+			count = fmt.Sprintf(" %d", t.counts[i])
+		}
+		key := fmt.Sprintf("[%d]", i+1)
+		if i == t.at {
+			parts = append(parts, fmt.Sprintf("[%s::br] %s%s %s [-:-:-]", colTabActive.String(), esc(name), count, esc(key)))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf(" [%s]%s[-][%s]%s[-] [%s]%s[-] ", role("tabs.name").String(), esc(name), colMuted.String(), count, role("tabs.key").String(), esc(key)))
+	}
+	return strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator))
+}
+
+// to is the section a key goes to, or -1: Tab and Shift-Tab round them, a
+// digit straight to one.
+func (t *pickTabs) to(ev *tcell.EventKey) int {
+	n := len(t.names)
+	switch ev.Key() {
+	case tcell.KeyTab:
+		return (t.at + 1) % n
+	case tcell.KeyBacktab:
+		return (t.at + n - 1) % n
+	case tcell.KeyRune:
+		if r := ev.Rune(); r >= '1' && r <= '9' && int(r-'1') < n {
+			return int(r - '1')
+		}
+	}
+	return -1
+}
+
+// tabbedRows are the rows a picker is sized for: its own, or as many as
+// the tallest of its sections.
+func tabbedRows(items []pickItem, tabs *pickTabs) int {
+	if tabs != nil {
+		return max(visibleItems(items), tabs.rows)
+	}
+	return visibleItems(items)
 }
 
 // can reports whether a key can be done with an item.
@@ -936,6 +1000,15 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			a.showActions(tview.Escape(plainText(it.Label)), acts)
 			return nil
 		}
+		if opts.tabs != nil {
+			if to := opts.tabs.to(ev); to >= 0 {
+				if to != opts.tabs.at {
+					dismiss()
+					opts.tabs.open(to)
+				}
+				return nil
+			}
+		}
 		for _, k := range opts.keys {
 			if (uiAction{keys: k.keys}).matches(ev) {
 				if marks.count() > 0 && !k.marked {
@@ -1051,10 +1124,19 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		return ev
 	})
 
-	flex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(input, 1, 0, false)
+	flex := tview.NewFlex().SetDirection(tview.FlexRow)
+	strip := ""
+	if opts.tabs != nil {
+		strip = opts.tabs.strip()
+		// The strip and a blank line under it, so the sections read as
+		// tabs and not as the list's first row.
+		flex.AddItem(tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetText(strip), 1, 0, false).
+			AddItem(tview.NewTextView(), 1, 0, false)
+	}
+	flex.AddItem(input, 1, 0, false)
 	header := tview.NewTextView().SetDynamicColors(true).SetWrap(false)
-	if opts.header != "" {
+	// A section without columns still keeps their line, for the same size.
+	if opts.header != "" || opts.tabs != nil {
 		header.SetText(opts.header)
 		flex.AddItem(header, 1, 0, false)
 	}
@@ -1081,7 +1163,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		}
 		inner = max(inner, tview.TaggedStringWidth(row)+1)
 	}
-	inner = max(inner, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(opts.header)+1, 40)
+	inner = max(inner, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(opts.header)+1, tview.TaggedStringWidth(strip)+1, 40)
 	if opts.explain {
 		for _, it := range items {
 			for inner < 76 && len(tview.WordWrap(it.About, inner)) > explainLines {
@@ -1092,8 +1174,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	inner = min(inner, 76)
 
 	extra := 0
-	if opts.header != "" {
+	if opts.header != "" || opts.tabs != nil {
 		extra = 1
+	}
+	if opts.tabs != nil {
+		extra += 2
 	}
 	explain := func(int) {}
 	if opts.explain {
@@ -1129,6 +1214,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			lines = max(lines, len(tview.WordWrap(it.About, inner)))
 		}
 		lines = min(lines, explainLines)
+		if opts.tabs != nil {
+			lines = explainLines
+		}
 		// A rule above the explanation and one below it, so it reads as a
 		// pane of its own and not as the start of the key hints.
 		flex.AddItem(rule(), 1, 0, false).AddItem(about, lines, 0, false).AddItem(rule(), 1, 0, false)
@@ -1206,7 +1294,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		page = frame
 	} else if opts.pack {
 		footerLines := len(tview.WordWrap(normalHint(), inner))
-		page = modalFixed(frame, inner+2+2*pad, 2+1+visibleItems(items)+extra+footerLines)
+		page = modalFixed(frame, inner+2+2*pad, 2+1+tabbedRows(items, opts.tabs)+extra+footerLines)
 	} else if opts.wide {
 		// As wide as its longest row and as tall as its rows, up to most of
 		// the screen: a log of two commits is not a screenful of nothing
@@ -1231,10 +1319,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 			// inner is the width the explanations were measured at, so the
 			// pane under the list is as tall as they need.
-			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(header.GetText(false))+1, inner)
+			rows = max(rows, tview.TaggedStringWidth(title)+4, tview.TaggedStringWidth(header.GetText(false))+1, tview.TaggedStringWidth(strip)+1, inner)
+			if opts.tabs != nil {
+				rows = max(rows, opts.tabs.width+1)
+			}
 			width := min(most, rows+2+2*pad)
 			footerLines := len(tview.WordWrap(normalHint(), width-2-2*pad))
-			return width, min(h*85/100, 2+1+visibleItems(items)+extra+footerLines)
+			return width, min(h*85/100, 2+1+tabbedRows(items, opts.tabs)+extra+footerLines)
 		})
 	} else {
 		page = modalPct(frame, 70, 70)

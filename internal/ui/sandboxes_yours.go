@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os/exec"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -182,16 +181,6 @@ func (a *App) forgetPort(name, env, scope string) {
 
 // ----------------------------------------------- the whole configuration
 
-// yourSetting is one thing the person said to unibox, as the overview
-// lists it: what kind of thing, its name, its value, what it is for, and
-// where it is managed and how it is forgotten.
-type yourSetting struct {
-	kind, name, value, scope, about string
-	open                            func()
-	// forget takes it back; nil where it cannot be from here.
-	forget func()
-}
-
 // yourConfig is what the overview reads besides the overview of the
 // screen: unibox's configuration afresh, every env's values and the key
 // each env's repository is named under in env_repos.
@@ -202,9 +191,55 @@ type yourConfig struct {
 	envRepos map[string][]string
 }
 
+// yourSection is one tab of the overview: a kind of thing the person said,
+// as a table of its own, with what can be added to it.
+type yourSection struct {
+	name  string
+	heads []string
+	rows  []yourRow
+	// empty says what the tab would hold, while it holds nothing.
+	empty string
+	// add is the tab's a, nil where nothing is added from here.
+	add *pickKey
+}
+
+// width is the widest the section's table is laid out, or its word
+// while it is empty.
+func (s yourSection) width() int {
+	if len(s.rows) == 0 {
+		return tview.TaggedStringWidth(s.empty)
+	}
+	table := make([][]string, len(s.rows))
+	for i, r := range s.rows {
+		table[i] = r.cells
+	}
+	header, labels := pickTable(s.heads, table)
+	w := tview.TaggedStringWidth(header)
+	for _, l := range labels {
+		w = max(w, tview.TaggedStringWidth(l))
+	}
+	return w
+}
+
+// yourRow is one thing the person said: its cells, a sentence about it,
+// where it is managed, and how it is forgotten - nil where it cannot be
+// from here.
+type yourRow struct {
+	cells  []string
+	about  string
+	open   func()
+	forget *yourForget
+}
+
+// yourForget is a forget asked first, then run as a unibox command.
+type yourForget struct {
+	title, question, job string
+	args                 []string
+}
+
 // showYourConfig lists everything the person said to unibox, beside what
-// the teams' files say, in one place.
-func (a *App) showYourConfig() {
+// the teams' files say, a tab for each kind of thing, opened on tab at.
+func (a *App) showYourConfig(at int) {
 	c, err := a.uniboxClient()
 	if err != nil {
 		a.flash(err.Error())
@@ -238,56 +273,99 @@ func (a *App) showYourConfig() {
 			}
 			return "", nil
 		}, func(string) {
-			a.showYourSettings(a.yourSettings(got))
+			a.showYourSection(a.yourSections(got), at)
 		})
 	})
 }
 
-// showYourSettings is the overview's picker.
-func (a *App) showYourSettings(settings []yourSetting) {
-	table := make([][]string, len(settings))
-	items := make([]pickItem, len(settings))
-	for i, s := range settings {
-		table[i] = []string{tag(colMuted) + esc(s.kind) + tagEnd, tag(role("sandboxes.task")) + esc(s.name) + tagEnd,
-			tag(colText) + esc(s.value) + tagEnd, tag(colMuted) + esc(s.scope) + tagEnd}
-		items[i] = pickItem{About: s.about, Data: s}
+// showYourSection is the overview on one of its tabs.
+func (a *App) showYourSection(sections []yourSection, at int) {
+	at = min(max(at, 0), len(sections)-1)
+	sec := sections[at]
+	tabs := &pickTabs{at: at, open: func(to int) { a.showYourSection(sections, to) }}
+	for _, s := range sections {
+		tabs.names = append(tabs.names, s.name)
+		tabs.counts = append(tabs.counts, len(s.rows))
+		tabs.rows = max(tabs.rows, len(s.rows), 1)
+		tabs.width = max(tabs.width, s.width())
 	}
-	header, labels := pickTable([]string{"KIND", "NAME", "VALUE", "FOR"}, table)
-	for i := range items {
-		items[i].Label = labels[i]
+	header := ""
+	var items []pickItem
+	if len(sec.rows) == 0 {
+		items = []pickItem{{Label: tag(colMuted) + esc(sec.empty) + tagEnd, About: sec.empty}}
+	} else {
+		table := make([][]string, len(sec.rows))
+		for i, r := range sec.rows {
+			table[i] = r.cells
+		}
+		var labels []string
+		header, labels = pickTable(sec.heads, table)
+		for i, r := range sec.rows {
+			items = append(items, pickItem{Label: labels[i], About: r.about, Data: r})
+		}
 	}
-	if len(items) == 0 {
-		a.note("you have said nothing to Unibox yet - the teams' files say it all")
-		return
+	row := func(it pickItem) (yourRow, bool) { r, ok := it.Data.(yourRow); return r, ok }
+	keys := []pickKey{}
+	if sec.add != nil {
+		keys = append(keys, *sec.add)
 	}
-	forgettable := func(it pickItem) bool { s, ok := it.Data.(yourSetting); return ok && s.forget != nil }
-	keys := []pickKey{
-		{keys: "d", hint: "forget", name: "Forget…", about: "Take back what you said, where you said it; the teams' word, or Unibox's default, stands again.",
-			when: forgettable, run: func(it pickItem) {
-				s := it.Data.(yourSetting)
-				if s.forget == nil {
-					a.flash("this one is not forgotten from here - Enter opens where it is managed")
-					return
-				}
-				s.forget()
-			}},
-	}
-	a.showPickerWith("Your Unibox configuration", items, pickerOptions{wide: true, explain: true, header: header, keys: keys,
-		enterName: "Manage…", enterAbout: "Open the dialog where this is managed: the settings, the env's values, ports, index or tokens, the sandbox's network.", enterHint: "manage"},
+	keys = append(keys, pickKey{keys: "d", hint: "forget", name: "Forget…", about: "Take back what you said, where you said it; the teams' word, or Unibox's default, stands again.",
+		when: func(it pickItem) bool { r, ok := row(it); return ok && r.forget != nil },
+		run: func(it pickItem) {
+			r, ok := row(it)
+			if !ok || r.forget == nil {
+				a.flash("this one is not forgotten from here - Enter opens where it is managed")
+				return
+			}
+			f := r.forget
+			a.confirmWith(f.title, f.question, "Forget", nil, func() {
+				a.closeModal(pageConfirm)
+				a.uniboxDoThen(f.job, func() { a.showYourConfig(at) }, f.args...)
+			})
+		}})
+	a.showPickerWith("Your Unibox configuration", items, pickerOptions{wide: true, explain: true, header: header, keys: keys, tabs: tabs,
+		enterName: "Manage…", enterAbout: "Open the dialog where this is managed: the settings, an env's values, ports, index or tokens, a sandbox's network.", enterHint: "manage"},
 		func(it pickItem) {
-			if s, ok := it.Data.(yourSetting); ok && s.open != nil {
-				s.open()
+			r, ok := row(it)
+			switch {
+			case !ok && sec.add != nil:
+				sec.add.run(it)
+			case ok && r.open != nil:
+				r.open()
+			case ok:
+				a.note("this is written in Unibox's config.yaml - unibox config path names it")
 			}
 		})
 }
 
-// yourSettings lays out what was read as the overview's rows: the
-// settings, then values, ports, repositories, instructions, network rules
-// and tokens, each by scope - every env, an env repository's, an env's.
-func (a *App) yourSettings(got yourConfig) []yourSetting {
+// Cells of the overview's tables, each in the colour of what it says.
+func nameCell(s string) string  { return tag(role("sandboxes.task")) + esc(s) + tagEnd }
+func valueCell(s string) string { return tag(colText) + esc(s) + tagEnd }
+func quietCell(s string) string { return tag(colMuted) + esc(s) + tagEnd }
+
+// stateCell is a cell that says on or off: on in the colour of what runs.
+func stateCell(s string, on bool) string {
+	if on {
+		return tag(role("sandboxes.running")) + esc(s) + tagEnd
+	}
+	return tag(role("sandboxes.stopped")) + esc(s) + tagEnd
+}
+
+// scopeWords are a scope as the FOR column says it.
+func scopeWords(scope string) string {
+	switch {
+	case strings.HasPrefix(scope, "env "):
+		return strings.TrimPrefix(scope, "env ")
+	case strings.HasPrefix(scope, "repo "):
+		return "envs of " + strings.TrimPrefix(scope, "repo ")
+	}
+	return scope
+}
+
+// yourSections lays out what was read as the overview's tabs.
+func (a *App) yourSections(got yourConfig) []yourSection {
 	cfg := got.config
 	o := a.ubx.overview
-	var out []yourSetting
 	envNamed := func(name string) (unibox.Env, bool) {
 		if e := o.Env(name); e != nil {
 			return *e, true
@@ -295,8 +373,7 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 		return unibox.Env{}, false
 	}
 	// anEnv is an env to manage a scope's things through: the env itself,
-	// one of the env repository's, the context's or the default for every
-	// env.
+	// one of the env repository's, else the context's or the default.
 	anEnv := func(scope string) (unibox.Env, bool) {
 		switch {
 		case strings.HasPrefix(scope, "env "):
@@ -309,13 +386,12 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 			}
 			return unibox.Env{}, false
 		}
-		for _, name := range []string{o.Context.Set.Env, o.Default, cfg.DefaultEnv} {
-			if e, ok := envNamed(name); ok {
-				return e, true
-			}
-		}
+		names := []string{o.Context.Set.Env, o.Default, cfg.DefaultEnv}
 		if s, ok := o.Sandbox(o.Context.Set.Sandbox); ok {
-			if e, ok := envNamed(s.Env); ok {
+			names = append([]string{s.Env}, names...)
+		}
+		for _, name := range names {
+			if e, ok := envNamed(name); ok {
 				return e, true
 			}
 		}
@@ -328,47 +404,66 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 		return func() {
 			e, ok := anEnv(scope)
 			if !ok {
-				a.flash("Unibox knows no env of " + strings.TrimPrefix(scope, "repo ") + " to manage it through")
+				a.flash("Unibox knows no env of " + scopeWords(scope) + " to manage it through")
 				return
 			}
 			open(e)
 		}
 	}
+	// envFlags are -e with an env of a scope, and the flag the scope takes.
+	envFlags := func(scope, kind string) ([]string, bool) {
+		e, ok := anEnv(scope)
+		if !ok {
+			return nil, false
+		}
+		switch kind {
+		case "yours-all":
+			return []string{"-e", e.Name, "-g"}, true
+		case "yours-env-repo":
+			return []string{"-e", e.Name, "--env-repo"}, true
+		}
+		return []string{"-e", e.Name}, true
+	}
+	defaultEnv, haveEnv := anEnv("every env")
+	addKey := func(name, about string, run func(unibox.Env)) *pickKey {
+		if !haveEnv {
+			return nil
+		}
+		return &pickKey{keys: "a", hint: "add", name: name, about: about, run: func(pickItem) { run(defaultEnv) }}
+	}
 
-	// The settings.
+	settings := yourSection{name: "Settings", heads: []string{"SETTING", "VALUE", "FOR"},
+		empty: "Nothing set - Unibox's defaults stand; U changes them."}
 	if cfg.DefaultEnv != "" {
-		out = append(out, yourSetting{kind: "setting", name: "default env", value: cfg.DefaultEnv, scope: "Unibox",
+		settings.rows = append(settings.rows, yourRow{cells: []string{nameCell("default env"), valueCell(cfg.DefaultEnv), quietCell("Unibox")},
 			about: "The env a sandbox is created from when none is named.", open: a.showUniboxSettings,
-			forget: a.forgetConfig("default_env", "the default env")})
+			forget: &yourForget{"Forget setting", "Forget the default env? Unibox asks again which env, or takes the only one.", "Forgetting the default env", []string{"config", "unset", "default_env"}}})
 	}
 	if ctx := o.Context; ctx.Name() != "" {
-		out = append(out, yourSetting{kind: "setting", name: "context", value: contextWords(ctx), scope: "Unibox",
-			about: "The sandbox Unibox commands - and Sandbox with… across unagit - work in when they are not told.",
-			open:  func() { a.sandboxes.focus(a.sandboxes.env) },
-			forget: func() {
-				a.confirmWith("Clear context", "Forget the context, "+contextWords(ctx)+"?", "Clear", nil, func() {
-					a.closeModal(pageConfirm)
-					a.uniboxDo("Clearing the context", "context", "clear")
-				})
-			}})
+		settings.rows = append(settings.rows, yourRow{cells: []string{nameCell("context"), valueCell(contextWords(ctx)), quietCell("Unibox")},
+			about:  "The sandbox Unibox commands - and Sandbox with… across unagit - work in when they are not told.",
+			open:   func() { a.sandboxes.focus(a.sandboxes.env) },
+			forget: &yourForget{"Clear context", "Forget the context, " + contextWords(ctx) + "?", "Clearing the context", []string{"context", "clear"}}})
 	}
 	for _, sw := range uniboxSwitches {
-		if v := sw.get(cfg); v != nil {
-			out = append(out, yourSetting{kind: "setting", name: strings.ToLower(sw.label[:1]) + sw.label[1:], value: switchWord(v, sw.unset), scope: "Unibox",
-				about: sw.label + " - " + sw.key + " in Unibox's config.yaml.", open: a.showUniboxSettings,
-				forget: a.forgetConfig(sw.key, strings.ToLower(sw.label[:1])+sw.label[1:])})
+		v := sw.get(cfg)
+		if v == nil {
+			continue
 		}
+		name := strings.ToLower(sw.label[:1]) + sw.label[1:]
+		settings.rows = append(settings.rows, yourRow{cells: []string{nameCell(name), stateCell(switchWord(v, sw.unset), *v), quietCell("Unibox")},
+			about: sw.label + " - " + sw.key + " in Unibox's config.yaml.", open: a.showUniboxSettings,
+			forget: &yourForget{"Forget setting", "Forget what you said of " + name + "? Unibox's default stands again.", "Forgetting " + name, []string{"config", "unset", sw.key}}})
 	}
 
 	// The values: what each env asks for that the person gave, once for a
 	// value given for every env or every env of a repository.
+	values := yourSection{name: "Values", heads: []string{"NAME", "VALUE", "FOR"},
+		empty: "No value of yours - a sets one; what an env asks for is under V on it."}
+	values.add = addKey("New Value…", "Set a value of your own by name, for an env, its repository's envs or every env.",
+		func(e unibox.Env) { a.askValue(valueRow{env: e.Name}, true) })
 	seen := map[string]bool{}
-	var envNames []string
-	for name := range got.values {
-		envNames = append(envNames, name)
-	}
-	sort.Strings(envNames)
-	for _, env := range envNames {
+	for _, env := range sortedKeys(got.values) {
 		for _, v := range got.values[env] {
 			scope := ""
 			switch v.From {
@@ -377,7 +472,7 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 			case "global":
 				scope = "every env"
 			case "env-repo":
-				scope = "repo of " + env
+				scope = "envs of " + env + "'s repository"
 			default:
 				continue
 			}
@@ -385,23 +480,29 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 				continue
 			}
 			seen[v.Name+"\x00"+scope] = true
-			v, env := v, env
 			about := firstOf(v.Description, "A value of yours") + "."
 			if v.From == "undeclared" {
 				about += " The env no longer asks for it."
 			}
-			out = append(out, yourSetting{kind: "value", name: v.Name, value: v.Value, scope: scope, about: about,
+			value := valueCell(v.Value)
+			if v.Value == "" {
+				value = quietCell("empty")
+			}
+			values.rows = append(values.rows, yourRow{cells: []string{nameCell(v.Name), value, quietCell(scopeWords(scope))}, about: about,
 				open: through("env "+env, a.showValues),
-				forget: func() {
-					a.confirmWith("Remove value", fmt.Sprintf("Remove your %s (%s)?", v.Name, scope), "Remove", nil, func() {
-						a.closeModal(pageConfirm)
-						a.uniboxDo("Removing "+v.Name, append([]string{"var", "rm", v.Name}, valueScope(v.From, env)...)...)
-					})
-				}})
+				forget: &yourForget{"Remove value", fmt.Sprintf("Remove your %s, set for %s?", v.Name, scopeWords(scope)), "Removing " + v.Name,
+					append([]string{"var", "rm", v.Name}, valueScope(v.From, env)...)}})
 		}
 	}
 
 	// Ports, repositories and instructions, by scope.
+	ports := yourSection{name: "Ports", heads: []string{"NAME", "MAPPING", "AT START", "FOR"},
+		empty: "No port of yours - a names one; an env's are under p on it."}
+	ports.add = addKey("Add Port…", "Name a port of yours - a mapping such as 8080 or 8080:3000 - for an env, its repository's envs or every env.",
+		func(e unibox.Env) { a.askPort(e.Name) })
+	repos := yourSection{name: "Repositories", heads: []string{"NAME", "ADDRESS", "TAKEN", "FOR"},
+		empty: "No repository of yours - a names a clone; Add to Unibox Index… on repositories does too."}
+	repos.add = addKey("Add Repository…", "Name a clone of yours for an env's tasks, mounted where it is.", a.pickIndexSource)
 	type scoped struct {
 		scope, kind string
 		cfg         unibox.ScopeConfig
@@ -414,76 +515,103 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 		scopes = append(scopes, scoped{"env " + name, "yours", cfg.EnvConfigs[name].ScopeConfig})
 	}
 	for _, sc := range scopes {
-		sc := sc
 		for _, name := range sortedKeys(sc.cfg.Ports) {
 			p := sc.cfg.Ports[name]
-			value := firstOf(p.Port, "the team's")
+			start := stateCell("off", false)
 			if p.Default {
-				value += " · on at start"
-			} else {
-				value += " · off at start"
+				start = stateCell("on", true)
 			}
-			s := yourSetting{kind: "port", name: name, value: value, scope: sc.scope,
-				about: "A port you named, or one of the team's you switched, for " + sc.scope + ".",
-				open:  through(sc.scope, a.showEnvPorts)}
-			if p.Port != "" {
-				s.forget = func() {
-					e, ok := anEnv(sc.scope)
-					if !ok {
-						a.flash("Unibox knows no env of " + strings.TrimPrefix(sc.scope, "repo ") + " to forget it through")
-						return
-					}
-					a.forgetPort(name, e.Name, sc.kind)
+			mapping := valueCell(p.Port)
+			about := "A port you named for " + scopeWords(sc.scope) + "."
+			if p.Port == "" {
+				mapping = quietCell("the team's")
+				about = "A port the team names, which you switched at start for " + scopeWords(sc.scope) + "."
+			}
+			r := yourRow{cells: []string{nameCell(name), mapping, start, quietCell(scopeWords(sc.scope))}, about: about,
+				open: through(sc.scope, a.showEnvPorts)}
+			if flags, ok := envFlags(sc.scope, sc.kind); ok {
+				if p.Port != "" {
+					r.forget = &yourForget{"Forget port", "Forget your port " + name + ", named for " + scopeWords(sc.scope) + "?\n\nA sandbox publishing it stops.", "Forgetting port " + name,
+						append([]string{"port", "rm", name}, flags...)}
+				} else if sc.kind == "yours" {
+					r.forget = &yourForget{"Forget port", "Take back what you said of " + name + "? The team's word stands.", "Taking back " + name,
+						append([]string{"port", "default", name, "-"}, flags...)}
 				}
-			} else if e, ok := anEnv(sc.scope); ok && sc.kind == "yours" {
-				s.forget = func() { a.uniboxDo("Taking back what you said of "+name, "port", "default", name, "-", "-e", e.Name) }
 			}
-			out = append(out, s)
+			ports.rows = append(ports.rows, r)
 		}
 		for _, name := range sortedKeys(sc.cfg.Repos) {
-			r := sc.cfg.Repos[name]
-			value := r.URL
-			if r.Default != "" {
-				value += " · " + r.Default
+			repo := sc.cfg.Repos[name]
+			taken := stateCell(firstOf(repo.Default, "off"), repo.Default == "always" || repo.Default == "on")
+			r := yourRow{cells: []string{nameCell(name), valueCell(repo.URL), taken, quietCell(scopeWords(sc.scope))},
+				about: firstOf(repo.Description, "A repository you named for the tasks of "+scopeWords(sc.scope)) + ".",
+				open:  through(sc.scope, a.showRepoIndex)}
+			if flags, ok := envFlags(sc.scope, sc.kind); ok {
+				r.forget = &yourForget{"Forget repository", "Forget " + name + ", named for " + scopeWords(sc.scope) + "?", "Forgetting " + name,
+					append([]string{"repo", "rm", name}, flags...)}
 			}
-			out = append(out, yourSetting{kind: "repository", name: name, value: value, scope: sc.scope,
-				about: firstOf(r.Description, "A repository you named for the tasks of "+sc.scope) + ".",
-				open:  through(sc.scope, a.showRepoIndex),
-				forget: func() {
-					e, ok := anEnv(sc.scope)
-					if !ok {
-						a.flash("Unibox knows no env of " + strings.TrimPrefix(sc.scope, "repo ") + " to forget it through")
-						return
-					}
-					args := []string{"repo", "rm", name, "-e", e.Name}
-					switch sc.kind {
-					case "yours-all":
-						args = append(args, "-g")
-					case "yours-env-repo":
-						args = append(args, "--env-repo")
-					}
-					a.confirmWith("Forget repository", "Forget "+name+", named for "+sc.scope+"?", "Forget", nil, func() {
-						a.closeModal(pageConfirm)
-						a.uniboxDo("Forgetting "+name, args...)
-					})
-				}})
+			repos.rows = append(repos.rows, r)
 		}
 		if text := strings.TrimSpace(sc.cfg.Instructions); text != "" {
 			first, _, _ := strings.Cut(text, "\n")
-			out = append(out, yourSetting{kind: "instructions", name: "for agents", value: first, scope: sc.scope,
-				about: "What you tell every task's agents in " + sc.scope + ", under instructions in Unibox's config.yaml: " + text})
+			settings.rows = append(settings.rows, yourRow{cells: []string{nameCell("instructions"), valueCell(first), quietCell(scopeWords(sc.scope))},
+				about: "What you tell every task's agents in " + scopeWords(sc.scope) + ": " + text})
 		}
 	}
 
+	// The tokens sbx keeps.
+	tokens := yourSection{name: "Tokens", heads: []string{"SERVICE", "KEPT", "SCOPE", "USED BY"},
+		empty: "sbx keeps no token - K on an env stores what it needs."}
+	for _, s := range got.secrets {
+		kept := firstOf(s.Kept, "stored")
+		if a.vault != nil {
+			if _, ok := a.vault.Credential(s.Service); ok {
+				kept += " · in unagit"
+			}
+		}
+		used := quietCell(strings.Join(s.UsedBy, ", "))
+		about := "A token sbx keeps"
+		if len(s.UsedBy) > 0 {
+			about += ", used by " + strings.Join(s.UsedBy, ", ")
+		}
+		if !s.Needed {
+			used = quietCell("no env needs it")
+			about += "; no env needs it now"
+		}
+		about += ". Its value is never shown."
+		args := []string{"secret", "rm", s.Service}
+		switch {
+		case strings.HasPrefix(s.Scope, "env "):
+			args = append(args, "--scope", "env", "-e", strings.TrimPrefix(s.Scope, "env "))
+		case strings.HasPrefix(s.Scope, "sandbox "):
+			args = append(args, "--scope", "sandbox", "-s", strings.TrimPrefix(s.Scope, "sandbox "))
+		default:
+			args = append(args, "--scope", "global")
+			if len(s.UsedBy) > 0 {
+				args = append(args, "-e", s.UsedBy[0])
+			}
+		}
+		env := ""
+		if strings.HasPrefix(s.Scope, "env ") {
+			env = strings.TrimPrefix(s.Scope, "env ")
+		} else if len(s.UsedBy) > 0 {
+			env = s.UsedBy[0]
+		}
+		tokens.rows = append(tokens.rows, yourRow{cells: []string{nameCell(s.Service), stateCell(kept, true), quietCell(firstOf(s.Scope, "global")), used}, about: about,
+			open:   through("env "+env, a.showSecrets),
+			forget: &yourForget{"Remove token", "Have sbx forget the " + firstOf(s.Scope, "global") + " token of " + s.Service + "?\n\nEvery sandbox that takes it goes without until it is stored again.", "Removing the token of " + s.Service, args}})
+	}
+
 	// The sandboxes' network rules.
+	network := yourSection{name: "Network", heads: []string{"HOST", "RULE", "SANDBOX"},
+		empty: "No rule of yours - f on a sandbox allows or denies a host."}
 	for _, name := range sortedKeys(cfg.Sandboxes) {
 		for _, rule := range cfg.Sandboxes[name].Network {
-			decision, host := "allow", rule.Allow
+			decision, host, ink := "allow", rule.Allow, "sandboxes.allowed"
 			if rule.Deny != "" {
-				decision, host = "deny", rule.Deny
+				decision, host, ink = "deny", rule.Deny, "sandboxes.denied"
 			}
-			name := name
-			out = append(out, yourSetting{kind: "network", name: host, value: decision, scope: "sandbox " + name,
+			network.rows = append(network.rows, yourRow{cells: []string{nameCell(host), tag(role(ink)) + decision + tagEnd, quietCell(name)},
 				about: fmt.Sprintf("You %s %s for sandbox %s, over its env's rules.", map[string]string{"allow": "let it reach", "deny": "keep it from"}[decision], host, name),
 				open: func() {
 					s, ok := o.Sandbox(name)
@@ -492,75 +620,12 @@ func (a *App) yourSettings(got yourConfig) []yourSetting {
 						return
 					}
 					a.showSandboxNetwork(sandboxRow{kind: rowSandbox, sandbox: s, made: true})
-				}})
+				},
+				forget: &yourForget{"Remove rule", "Take back your rule for " + host + " in sandbox " + name + "?", "Removing the rule for " + host,
+					[]string{"network", "rm", host, "-s", name}}})
 		}
 	}
-
-	// The tokens sbx keeps.
-	for _, s := range got.secrets {
-		s := s
-		// sbx says stored, or the command it runs for the token.
-		value := firstOf(s.Kept, "stored")
-		if value == "sbx" {
-			value = "kept by sbx"
-		}
-		if a.vault != nil {
-			if _, ok := a.vault.Credential(s.Service); ok {
-				value += " · in unagit"
-			}
-		}
-		about := "A token sbx keeps"
-		if len(s.UsedBy) > 0 {
-			about += ", used by " + strings.Join(s.UsedBy, ", ")
-		}
-		if !s.Needed {
-			about += "; no env needs it now"
-		}
-		about += ". Its value is never shown."
-		out = append(out, yourSetting{kind: "token", name: s.Service, value: value, scope: s.Scope, about: about,
-			open: func() {
-				env := ""
-				if strings.HasPrefix(s.Scope, "env ") {
-					env = strings.TrimPrefix(s.Scope, "env ")
-				} else if len(s.UsedBy) > 0 {
-					env = s.UsedBy[0]
-				}
-				through("env "+env, a.showSecrets)()
-			},
-			forget: func() { a.forgetToken(s) }})
-	}
-	return out
-}
-
-// forgetConfig is the forget of one of unibox's settings: config unset.
-func (a *App) forgetConfig(key, what string) func() {
-	return func() {
-		a.confirmWith("Forget setting", "Forget what you said of "+what+"? Unibox's default stands again.", "Forget", nil, func() {
-			a.closeModal(pageConfirm)
-			a.uniboxDo("Forgetting "+what, "config", "unset", key)
-		})
-	}
-}
-
-// forgetToken has sbx forget a token where it is kept: globally, or an
-// env's or a sandbox's own.
-func (a *App) forgetToken(s unibox.KeptSecret) {
-	args := []string{"secret", "rm", s.Service}
-	switch {
-	case strings.HasPrefix(s.Scope, "env "):
-		args = append(args, "--scope", "env", "-e", strings.TrimPrefix(s.Scope, "env "))
-	case strings.HasPrefix(s.Scope, "sandbox "):
-		args = append(args, "--scope", "sandbox", "-s", strings.TrimPrefix(s.Scope, "sandbox "))
-	default:
-		args = append(args, "--scope", "global")
-		if len(s.UsedBy) > 0 {
-			args = append(args, "-e", s.UsedBy[0])
-		}
-	}
-	a.confirmWith("Remove token", "Have sbx forget the "+firstOf(s.Scope, "global")+" token of "+s.Service+"?\n\nEvery sandbox that takes it goes without until it is stored again.", "Remove", nil, func() {
-		a.closeModal(pageConfirm)
-		a.uniboxDo("Removing the token of "+s.Service, args...)
-	})
+	return []yourSection{settings, values, ports, repos, tokens, network}
 }
 
 // scpAddress is a git address written as scp writes one, git@host:path.

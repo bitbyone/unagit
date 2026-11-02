@@ -669,7 +669,7 @@ The **Sandboxes** tab, `5`, is one interface over it, laid out as Activity
 is: the sandboxes as cards on top - running or stopped, their agents and
 tasks, the context marked - beside them the environment (the context, the
 default env, unibox's switches, the tokens sbx keeps), then the tasks of
-every sandbox with their repositories, branch and agent, **working** while
+every sandbox with their repositories, branch and agent, **active** while
 one is at it, and under them the envs - each one's sandbox, what it lacks,
 its agent - and the log of every command unagit gave unibox and what it
 said. The detail follows the panel with the focus. Without `unibox` on
@@ -698,9 +698,10 @@ forgets it. On an env `c` creates its sandbox, `V` your values, `K` its
 tokens, `p` its ports - the team's and yours, made or not - `i` its
 repository index. `U` is unibox's own settings, `D` its doctor, `T` the
 tokens unagit keeps for the sandboxes, and `Y` **Your Unibox
-Configuration…**: everything you said to unibox in one list - settings,
-values, ports, repositories, instructions, network rules, the tokens sbx
-keeps - each managed with `Enter` or forgotten with `d`. A
+Configuration…**: everything you said to unibox, a tab for each kind -
+settings, values, ports, repositories, the tokens sbx keeps, network rules
+- `Tab` or a tab's number between them, `Enter` managing one, `a` adding,
+`d` forgetting. A
 token is stored by sbx, unibox asking for it in this terminal, or kept by
 unagit: `t` among an env's tokens - which runs `claude setup-token`, or
 opens the page where the token is made, then asks for it - keeps it in
