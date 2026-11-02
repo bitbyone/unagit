@@ -200,7 +200,7 @@ func helpRows() []helpLine {
 		key("p  P", "pull · push"),
 		key("C", "commit the changes to versioned files"),
 		key("f", "fetch origin and read everything again"),
-		key("R", "read the repository again"),
+		key("R", "read the repository again, on every tab"),
 		key("Ctrl-O  Alt-O", "open in the editor · in one you choose"),
 		key("D  Alt-D", "in Hunk: uncommitted · since the base"),
 		key("Ctrl-R", "rebase onto the base"),

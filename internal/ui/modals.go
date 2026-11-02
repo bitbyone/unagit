@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -290,6 +291,32 @@ type embedding struct {
 	// shown tells whether the page is the one in front now; a picker read
 	// again behind another tab takes no keys from it.
 	shown func() bool
+	// keeps are the screen's keys that mean the same on every tab, whatever
+	// the tab would do with them: its own action on one is left keyless,
+	// found in the action pickers instead.
+	keeps []string
+}
+
+// keyless is a tab's key as the tab may use it: none when the screen keeps
+// it, and any key outside an embedding.
+func (e *embedding) keyless(keys string) string {
+	if e != nil && slices.Contains(e.keeps, keys) {
+		return ""
+	}
+	return keys
+}
+
+// keylessActions is acts with the keys the screen keeps taken off.
+func (e *embedding) keylessActions(acts []uiAction) []uiAction {
+	if e == nil || len(e.keeps) == 0 {
+		return acts
+	}
+	out := make([]uiAction, len(acts))
+	for i, act := range acts {
+		act.keys = e.keyless(act.keys)
+		out[i] = act
+	}
+	return out
 }
 
 // pickMarks are the items marked in a picker that lets them be, by their
@@ -481,6 +508,14 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		opts.back = claimed
 	}
 	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
+	if opts.embed != nil {
+		keys := make([]pickKey, len(opts.keys))
+		for i, k := range opts.keys {
+			k.keys = opts.embed.keyless(k.keys)
+			keys[i] = k
+		}
+		opts.keys = keys
+	}
 	list := tview.NewList().ShowSecondaryText(false)
 	list.SetHighlightFullLine(true)
 	list.SetMainTextColor(colText)

@@ -211,3 +211,34 @@ func TestStandaloneRefusesADirectoryOutsideARepository(t *testing.T) {
 		t.Errorf("standalone outside a repository says %v", err)
 	}
 }
+
+func TestStandaloneRefreshSeesACommitMadeElsewhere(t *testing.T) {
+	t.Parallel()
+	dir, _ := soloFixture(t)
+	a, sc, _ := newSoloApp(t, dir)
+	waitFor(t, a, sc, "notes.txt")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Start the toolbox")
+
+	// A commit made in a terminal beside unagit: R reads it in, on
+	// whichever tab it is pressed.
+	commitIn(t, dir, "tool.go", "Add a tool from the terminal")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "Add a tool from the terminal")
+
+	if text := a.screenText(sc); strings.Contains(text, "Reflog") {
+		t.Errorf("R on the log recovers from the reflog instead of reading the repository again:\n%s", text)
+	}
+
+	// On the changes, where the full unagit's R rolls back.
+	commitIn(t, dir, "more.go", "Add another from the terminal")
+	typeRunes(sc, "1")
+	waitFor(t, a, sc, "Changes · toolbox")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "↑2 unpushed")
+	if text := a.screenText(sc); strings.Contains(text, "Rollback") || strings.Contains(text, "roll back") {
+		t.Errorf("R on the changes rolls back instead of reading the repository again:\n%s", text)
+	}
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Add another from the terminal")
+}

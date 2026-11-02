@@ -680,13 +680,15 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 // lists those of the marked rows or the row under the cursor, : the
 // dialog's own.
 func (a *App) changesActionKeys(v *changesView, ev *tcell.EventKey) {
+	e := v.place.embed
+	selection := func() []uiAction { return e.keylessActions(a.changesSelectionActions(v)) }
 	a.actionKeys(ev,
-		func() (string, []uiAction) { return "Actions · " + v.targetsName(), a.changesSelectionActions(v) },
+		func() (string, []uiAction) { return "Actions · " + v.targetsName(), selection() },
 		func() (string, []uiAction) {
-			own := a.changesScreenActions(v)
-			if e := v.place.embed; e != nil {
+			own := e.keylessActions(a.changesScreenActions(v))
+			if e != nil {
 				title, screen := e.screen()
-				return title, joinActions(own, keysFreeOf(screen, append(own, a.changesSelectionActions(v)...)))
+				return title, joinActions(own, keysFreeOf(screen, append(own, selection()...)))
 			}
 			return "Changes · " + v.place.title, own
 		})

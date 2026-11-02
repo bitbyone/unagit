@@ -37,7 +37,7 @@ Everything unagit does with a worktree works from every tab:
 | `p` / `P` | pull · push |
 | `C` | commit the changes to versioned files |
 | `f` | fetch origin and read everything again |
-| `R` | read the repository again |
+| `R` | read the repository again, the tab in front too |
 | `Ctrl-O` / `Alt-O` | open in the editor · in one you choose |
 | `D` / `Alt-D` | in Hunk: what is not committed · everything since the base |
 | `Ctrl-R` | rebase onto the base |
@@ -45,7 +45,9 @@ Everything unagit does with a worktree works from every tab:
 
 A key the tab uses for itself is the tab's: on the Log, `P` pushes up to the
 commit under the cursor, and the repository's Push is still in `:`, without
-a key.
+a key. `R` is the one exception: it reads the repository again on every
+tab, so the Log's Recover from Reflog and the Changes' Rollback are in `:`
+and Alt-Enter there, without a key.
 
 ## What it leaves out
 

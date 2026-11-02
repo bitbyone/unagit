@@ -245,8 +245,15 @@ func (a *App) soloEmbedding(page string) *embedding {
 		page:   page,
 		screen: func() (string, []uiAction) { return a.solo.name, a.soloScreenActions() },
 		shown:  func() bool { return a.currentTab() == page },
+		keeps:  soloKeeps,
 	}
 }
+
+// soloKeeps are the keys that do the same on every tab: R reads the
+// repository again even where the full unagit's dialog would recover from
+// the reflog (the log) or roll back (the changes) - those stay in the
+// action pickers, keyless.
+var soloKeeps = []string{"R"}
 
 // soloLeavesOut are the worktree's actions standalone has no use for: what
 // needs a server, and what a tab of its own already is.
@@ -278,22 +285,26 @@ func (a *App) soloScreenActions() []uiAction {
 		uiAction{name: "Fetch", about: "Fetch origin and read the repository again: where the branch stands, the changes, the tabs.", keys: "f", rank: 8,
 			run: a.fetchSolo},
 		uiAction{name: "Refresh All", about: "Read the repository again without asking origin: the branch, the changes, every tab.", keys: "R", rank: 9,
-			run: func() {
-				a.refreshSolo()
-				a.solo.stale[a.currentTab()] = true
-				a.switchTab(a.currentTab())
-			}},
+			run: a.refreshSoloAll},
 		uiAction{name: "Help", about: "Every key of standalone, those of the tab in front lit.", keys: "?", rank: 950, run: a.showHelp},
 		uiAction{name: "Quit", about: "Leave unagit.", keys: "q", rank: 990, run: a.tv.Stop},
 	)
 }
 
+// refreshSoloAll reads the repository again, the tab in front too: a
+// commit made in a terminal beside unagit shows up in the log.
+func (a *App) refreshSoloAll() {
+	a.refreshSolo()
+	a.solo.stale[a.currentTab()] = true
+	a.switchTab(a.currentTab())
+}
+
 // fetchSolo fetches origin, then reads everything again.
 func (a *App) fetchSolo() {
 	r := a.soloRow()
-	a.runTask("Fetching "+r.Path, func(log func(string)) (string, error) {
+	a.runTaskThen("Fetching "+r.Path, func(log func(string)) (string, error) {
 		return "", a.newManager(r.Instance, r.Path, log).Git().Fetch(r.Dir)
-	})
+	}, func(string) { a.refreshSoloAll() })
 }
 
 // keysFreeOf is acts without the keys that taken already have: a screen's

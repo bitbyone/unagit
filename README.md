@@ -1362,7 +1362,9 @@ Everything unagit does with a worktree works from every tab - `p` pull, `P`
 push, `C` commit, `f` fetch, `Ctrl-R` rebase onto the base, the reflog,
 Rewrite History, opening in an editor - and `:` lists it all, the tab's own
 actions first. A key a tab uses for itself is the tab's: on the Log, `P`
-pushes up to the commit under the cursor. `q` quits.
+pushes up to the commit under the cursor. `R` is the exception, reading
+the repository again on every tab - the Log's reflog and the Changes'
+rollback are then in `:` alone. `q` quits.
 
 git runs with your own credentials: without a token of unagit's to hand it,
 your credential helpers and ssh agent answer as they do in a terminal.
