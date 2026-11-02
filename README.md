@@ -479,8 +479,10 @@ Every other force push is chosen in a question - **Force Push** beside
 **Push** in `P`'s, or the commit dialog's **Commit and Force Push** - and
 its lease is origin's copy as last fetched.
 
-A branch made outside unagit has no base, so `Ctrl-R` and `Alt-D` are not
-offered for it. **Set Base…** (in the actions, `Alt-Enter`; in Repositories
+A branch made outside unagit has no base of its own. Origin's default
+branch stands in for it: `Alt-D` diffs against it and `Ctrl-R` rebases onto
+it when asked, but `p` does not rebase a branch not pushed yet onto a base
+nobody set, nor is the branch measured against it. **Set Base…** (in the actions, `Alt-Enter`; in Repositories
 too, for a clone on a branch other than the default) picks one from the
 repository's branches - the base there is first, then the default branch,
 then the target of the merge request open from the branch - and records it as
@@ -1346,7 +1348,8 @@ unagit -s            # the repository you are in
 unagit -s ~/src/foo  # or the one of that directory
 ```
 
-The repository's name, its branch, where that stands against origin and
+The repository's name, its branch, its base - origin's default branch,
+said so, until Set Base… records one - where that stands against origin and
 what is not committed head the screen, and under them four tabs, reached
 with `1` to `4`:
 

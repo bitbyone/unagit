@@ -80,6 +80,10 @@ type remoteState struct {
 	Base       string
 	Onto       string
 	BaseBehind int
+	// BaseGuessed says Base was never recorded and is origin's default
+	// branch: enough to diff against and to rebase onto when asked, never
+	// what Pull rebases onto by itself, nor measured against.
+	BaseGuessed bool
 	// ForceFrom is where origin's copy stood when unagit rebased the branch
 	// away from it, while origin still has exactly that: a force push may
 	// replace it. Anything pushed since leaves it empty, and the branch reads
@@ -243,10 +247,15 @@ func remoteStateOf(git *gitx.Git, r worktreeRow, upstreams map[string]gitx.Upstr
 	if st.Base == "" {
 		st.Base = r.Base
 	}
+	if st.Base == "" {
+		if head := git.OriginHead(r.Dir); head != "" && head != r.Branch {
+			st.Base, st.BaseGuessed = head, true
+		}
+	}
 	if st.Upstream.Name == "" {
 		st.Own = git.OwnCommits(r.Dir)
 	}
-	if st.Base != "" && st.Upstream.Name == "" {
+	if st.Base != "" && !st.BaseGuessed && st.Upstream.Name == "" {
 		st.Onto = git.BaseRef(r.Dir, st.Base)
 		if st.Onto != "" {
 			st.BaseBehind = git.Count(r.Dir, "HEAD.."+st.Onto)

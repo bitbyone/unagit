@@ -225,6 +225,9 @@ type updateItem struct {
 	path     string
 	dir      string
 	base     string
+	// guessed says base is origin's default branch, never recorded
+	// (remoteState.BaseGuessed).
+	guessed bool
 	// notes is where its Incomm comments live, re-anchored once it moved: the
 	// worktree itself, or the folder of the group it belongs to.
 	notes string
@@ -308,7 +311,8 @@ func (a *App) worktreeItems(rows []worktreeRow) []updateItem {
 				base = m.Base
 			}
 			label := m.Path + " (" + m.Branch + ")"
-			items = append(items, updateItem{label: label, instance: m.Instance, path: m.Path, dir: m.Dir, base: base, notes: r.Dir})
+			items = append(items, updateItem{label: label, instance: m.Instance, path: m.Path, dir: m.Dir, base: base,
+				guessed: a.wtRemote[m.Dir].BaseGuessed && base == a.wtRemote[m.Dir].Base, notes: r.Dir})
 		}
 	}
 	return items
@@ -341,6 +345,13 @@ func (a *App) updateAllWorktrees() {
 // lines would interleave into nonsense. One that cannot be updated without a
 // conflict is left as it was and named at the end.
 func (a *App) updateMany(title string, items []updateItem) {
+	// A pull rebases an unpushed branch onto the base it was made from, and
+	// only one recorded is known to be that.
+	for i := range items {
+		if items[i].guessed {
+			items[i].base = ""
+		}
+	}
 	a.moveMany(title, items, (*workspace.Manager).UpdateBranch)
 }
 

@@ -383,3 +383,49 @@ func TestStandaloneKeepsItsTabsWhenTheThemeChanges(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "standalone in another theme")
 }
+
+// TestStandaloneGuessesTheBaseUntilOneIsSet: a branch made in a terminal
+// has no base of unagit's; origin's default branch stands in for it - said
+// so in the header, offered to diff against and to rebase onto - but Pull
+// rebases only onto a base recorded, and Set Base… makes it the branch's
+// own.
+func TestStandaloneGuessesTheBaseUntilOneIsSet(t *testing.T) {
+	t.Parallel()
+	dir, origin := soloFixture(t)
+	gitIn(t, dir, "remote", "set-head", "origin", "main")
+	gitIn(t, dir, "checkout", "-q", "-b", "feature")
+	commitIn(t, dir, "f.go", "Add a feature")
+	// origin's main moves on, as somebody else's push would make it.
+	other := filepath.Join(t.TempDir(), "other")
+	gitIn(t, filepath.Dir(other), "clone", "-q", origin, other)
+	commitIn(t, other, "o.go", "Move main on")
+	gitIn(t, other, "push", "-q", "origin", "main")
+	gitIn(t, dir, "fetch", "-q")
+	parent := gitIn(t, dir, "rev-parse", "HEAD~1")
+
+	a, sc, _ := newSoloApp(t, dir)
+	waitFor(t, a, sc, "based on main (origin's default)")
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Show Changes Since Base")
+	waitFor(t, a, sc, "Rebase onto Base")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Rebase onto Base")
+
+	// Pull does not take the guess for the branch's base.
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "no upstream to update from")
+	if got := gitIn(t, dir, "rev-parse", "HEAD~1"); got != parent {
+		t.Errorf("Pull rebased the branch onto a base nobody set: its parent is %s, not %s", got, parent)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Set Base…")
+	typeRunes(sc, "set base")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Base of feature")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "feature is now based on main")
+	waitGone(t, a, sc, "(origin's default)")
+	waitFor(t, a, sc, "based on main")
+}

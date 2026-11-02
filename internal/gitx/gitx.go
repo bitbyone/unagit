@@ -590,10 +590,17 @@ func (g *Git) OriginBranches(dir string) (branches []OriginBranch, head string) 
 			branches = append(branches, OriginBranch{Name: f[0], When: time.Unix(unix, 0), Title: f[2]})
 		}
 	}
-	if ref, err := g.out(dir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
-		head = strings.TrimPrefix(ref, "origin/")
+	return branches, g.OriginHead(dir)
+}
+
+// OriginHead is origin's default branch as the clone knows it
+// (refs/remotes/origin/HEAD), "" when it knows none.
+func (g *Git) OriginHead(dir string) string {
+	ref, err := g.out(dir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	if err != nil {
+		return ""
 	}
-	return branches, head
+	return strings.TrimPrefix(ref, "origin/")
 }
 
 // RemoteURL returns the address a remote points at.

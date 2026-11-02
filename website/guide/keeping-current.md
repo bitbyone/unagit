@@ -42,7 +42,9 @@ meantime makes git refuse instead of being lost.
 
 ## A branch made elsewhere
 
-A branch made outside unagit has no base, so `Ctrl-R` is not offered for it.
+A branch made outside unagit has no base of its own. Origin's default branch
+stands in for it: `Alt-D` diffs against it and `Ctrl-R` rebases onto it when
+asked, but `p` rebases an unpushed branch only onto a base that was set.
 
 - **Set Base…** (in `Alt-Enter`) picks one from the repository's branches and
   records it as unagit would have.

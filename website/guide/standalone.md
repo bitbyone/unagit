@@ -13,8 +13,9 @@ unagit -s ~/src/foo  # or the one of that directory
 
 ![unagit -s on a repository: the changes not committed, one file's diff](/shots/standalone.svg)
 
-The top line is the repository: its name, the branch checked out, where
-that stands against origin, what is not committed, and where it is on disk.
+The top line is the repository: its name, the branch checked out, the base
+it is compared with (origin's default branch, said so, until **Set Base…**
+records one), where that stands against origin, what is not committed, and where it is on disk.
 Under it are four tabs, reached with `1` to `4`. Each is the dialog the
 full unagit opens over its lists, made a screen: the same keys, the same
 actions.
