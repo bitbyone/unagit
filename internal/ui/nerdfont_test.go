@@ -382,3 +382,22 @@ func TestIntegrationsWearTheirIcons(t *testing.T) {
 	focusCard(t, a, sc, "Incomm")
 	waitFor(t, a, sc, "╭ Incomm")
 }
+
+// TestStandalonesTabsHaveTheirIcons: with a Nerd Font, each tab of
+// standalone carries the icon unagit draws the same thing with elsewhere.
+// Serial: the glyphs are the process's.
+func TestStandalonesTabsHaveTheirIcons(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	dir, _ := soloFixture(t)
+	a, sc, _ := newSoloApp(t, dir)
+	waitFor(t, a, sc, "notes.txt")
+	changeOnLoop(a, func() { nerdFont = true; setTheme(loadThemes("").byName[defaultThemeName]); a.drawTabs() })
+	for _, want := range []string{" Changes [1]", " Log [2]", " Branches [3]", " Shelf [4]"} {
+		waitFor(t, a, sc, want)
+	}
+	assertLegible(t, a, sc, "standalone's tabs with icons")
+	// Where the bar is too narrow for them, the icons go before a tab does.
+	resizeApp(a, sc, 50, 20)
+	waitFor(t, a, sc, "Shelf 4")
+}

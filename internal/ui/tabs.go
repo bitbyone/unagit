@@ -50,13 +50,15 @@ func (a *App) drawTabs() {
 	}
 	// A tab reads as a panel's title does: its icon where the terminal has
 	// a Nerd Font, its name, and the key that reaches it after the name, in
-	// brackets and quieter - or bare where the bar is tight.
+	// brackets and quieter - or bare where the bar is tight, and without
+	// the icon where even that does not fit.
+	iconless := false
 	tabParts := func(t tab, short, tight bool) (name, key string) {
 		name = t.title
 		if short {
 			name = t.short
 		}
-		if icon := columnIcons[t.title]; icon != "" {
+		if icon := columnIcons[t.title]; icon != "" && !iconless {
 			name = icon + " " + name
 		}
 		if tight {
@@ -107,6 +109,7 @@ func (a *App) drawTabs() {
 		short = true
 	default:
 		short, tight = true, true
+		iconless = !fits(true, true)
 	}
 	var parts []string
 	settings := ""
