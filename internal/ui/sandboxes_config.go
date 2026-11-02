@@ -8,6 +8,7 @@ import (
 
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/unibox"
 )
 
@@ -264,7 +265,7 @@ func (a *App) showRepoIndex(e unibox.Env) {
 			items = append(items, pickItem{Label: r.Name, Sub: sub, About: about + ".", Data: r})
 		}
 		if len(items) == 0 {
-			items = append(items, pickItem{Label: "no repositories named", About: "a names one of yours - a clone of the list - for the env's tasks; Add to unibox Index… on a repository does too."})
+			items = append(items, pickItem{Label: "no repositories named", About: "a names one of yours - a clone of the list - for the env's tasks; Add to Unibox Index… on a repository does too."})
 		}
 		yours := func(it pickItem) bool {
 			r, ok := it.Data.(unibox.IndexedRepo)
@@ -340,16 +341,49 @@ func (a *App) pickIndexSource(e unibox.Env) {
 // for an env's tasks, or every env's, so a task is given it by name.
 func (a *App) indexActions(label string, source func() string, ok func() bool) []uiAction {
 	can := func() bool { return a.uniboxOn() && (ok == nil || ok()) && source() != "" }
-	return []uiAction{{name: "Add to unibox Index…", about: "Name it in unibox's index of repositories, for one env's tasks or every env's, so a task is given it by name: which env, then how.",
+	return []uiAction{{name: "Add to Unibox Index…", about: "Name it in Unibox's index of repositories, for one env's tasks or every env's, so a task is given it by name: which env, then how.",
 		rank: 650, aliases: []string{"unibox", "repo add", "index"}, when: can,
 		run: func() {
-			a.withSandboxes(func() { a.pickIndexEnv(label, source()) })
+			a.withSandboxes(func() { a.pickIndexEnv(label, []string{source()}) })
 		}}}
 }
 
-// pickIndexEnv asks which env's index a repository goes into, every env's
-// included, then when a task takes it.
-func (a *App) pickIndexEnv(label, source string) {
+// indexSource is what unibox's index is given for a repository: its clone,
+// mounted where it is, or else the forge's address to clone.
+func (a *App) indexSource(pr forge.Project) string {
+	if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+		return a.projectDir(pr.Instance, pr.PathWithNamespace)
+	}
+	return a.httpsAddress(pr)
+}
+
+// markedIndexAction names every marked repository in unibox's index at
+// once: one env, one say about when a task takes them, for all.
+func (a *App) markedIndexAction(p *pane, picked []forge.Project) uiAction {
+	return uiAction{name: "Add to Unibox Index…", about: "Name every marked repository in Unibox's index, for one env's tasks or every env's: which env, then how - the same for all.",
+		rank: 65, aliases: []string{"unibox", "repo add", "index"}, when: a.uniboxOn,
+		run: func() {
+			var sources []string
+			for _, pr := range picked {
+				if source := a.indexSource(pr); source != "" {
+					sources = append(sources, source)
+				}
+			}
+			if len(sources) == 0 {
+				a.flash("none of the marked repositories is cloned or has an address to clone")
+				return
+			}
+			p.marks = nil
+			p.reload()
+			a.withSandboxes(func() {
+				a.pickIndexEnv(counted(len(sources), "repository", "repositories"), sources)
+			})
+		}}
+}
+
+// pickIndexEnv asks which env's index the repositories go into, every
+// env's included, then when a task takes them.
+func (a *App) pickIndexEnv(label string, sources []string) {
 	items := []pickItem{{Label: "Every Env", About: "Name it for every env's tasks.", Data: ""}}
 	for _, e := range a.ubx.overview.Envs {
 		items = append(items, pickItem{Label: e.Name, Sub: tildePath(e.Repo), About: "Name it for the tasks of " + e.Name + ".", Data: e.Name})
@@ -361,13 +395,21 @@ func (a *App) pickIndexEnv(label, source string) {
 			defaults = append(defaults, pickItem{Label: d.label, About: d.about, Data: d.value})
 		}
 		a.showPickerWith(label+" · when a task takes it", defaults, pickerOptions{pack: true, explain: true}, func(d pickItem) {
-			args := []string{"repo", "add", source, "--default", d.Data.(string)}
-			if env == "" {
-				args = append(args, "-g")
-			} else {
-				args = append(args, "-e", env)
+			var commands [][]string
+			for _, source := range sources {
+				args := []string{"repo", "add", source, "--default", d.Data.(string)}
+				if env == "" {
+					args = append(args, "-g")
+				} else {
+					args = append(args, "-e", env)
+				}
+				commands = append(commands, args)
 			}
-			a.uniboxDo("Adding "+label+" to unibox's index", args...)
+			if len(commands) == 1 {
+				a.uniboxDo("Adding "+label+" to Unibox's index", commands[0]...)
+				return
+			}
+			a.uniboxDoEach("Adding "+label+" to Unibox's index", commands)
 		})
 	})
 }
@@ -444,7 +486,7 @@ func (a *App) showUniboxSettings() {
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
 	// A line for each item and one between them, the buttons and the hint
 	// under them, the border.
-	a.showFormModalSized("unibox settings", form, 64, 2*(1+len(uniboxSwitches))+5)
+	a.showFormModalSized("Unibox settings", form, 64, 2*(1+len(uniboxSwitches))+5)
 }
 
 // uniboxDoAll runs several commands in turn, as one job, stopping at the

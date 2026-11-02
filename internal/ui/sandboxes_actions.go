@@ -156,7 +156,7 @@ func (a *App) sandboxActions(r sandboxRow) []uiAction {
 			keys: "M", rank: 34, aliases: []string{"cpu", "memory"}, run: func() { a.askResources(r) }},
 		{name: "Stop Sandbox", about: "Stop the VM; its disk and its tasks stay, and the next session starts it again. unibox refuses while a session runs.",
 			keys: "x", rank: 50, when: running, run: func() { a.uniboxDo("Stopping "+s.Name, "sandbox", "stop", s.Name) }},
-		{name: "Use as unibox Context", about: "Make this the sandbox unibox commands - and Sandbox with… across unagit - work in when they are not told.",
+		{name: "Use as Unibox Context", about: "Make this the sandbox unibox commands - and Sandbox with… across unagit - work in when they are not told.",
 			keys: "u", rank: 60, when: func() bool { return a.ubx.overview.Context.Set.Sandbox != s.Name },
 			run: func() { a.uniboxDo("Using "+s.Name, "context", "use", "-s", s.Name) }},
 		{name: "Recreate Sandbox…", about: "Make the sandbox again from its env as it is now, keeping its tasks: mounts made again, clones cloned again. sbx asks in the terminal.",
@@ -182,9 +182,11 @@ func (a *App) envActions(r sandboxRow) []uiAction {
 			keys: "V", rank: 20, when: loads, run: func() { a.showValues(e) }},
 		{name: "Tokens…", about: "The tokens the env's sandboxes use and whether sbx has each: store one in this terminal, keep it in unagit, remove it. No value is ever shown.",
 			keys: "K", rank: 22, when: loads, aliases: []string{"secrets", "sign in"}, run: func() { a.showSecrets(e) }},
+		{name: "Ports…", about: "The env's ports, the team's and yours, whether its sandbox is made or not: name one of yours, forget it, say whether each is on at start.",
+			keys: "p", rank: 23, when: loads, run: func() { a.showEnvPorts(e) }},
 		{name: "Repository Index…", about: "The repositories the env's tasks are given by name - the team's and yours: add one, remove yours, say whether a new task takes it.",
 			keys: "i", rank: 24, when: loads, aliases: []string{"repos"}, run: func() { a.showRepoIndex(e) }},
-		{name: "Use as unibox Context", about: "Make this env's sandbox the one unibox commands - and Sandbox with… across unagit - work in when they are not told.",
+		{name: "Use as Unibox Context", about: "Make this env's sandbox the one unibox commands - and Sandbox with… across unagit - work in when they are not told.",
 			keys: "u", rank: 60, when: func() bool { return ctx.Set.Env != e.Name && ctx.Set.Sandbox != r.sandboxName() },
 			run: func() {
 				if r.made {
@@ -215,7 +217,7 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 	v := a.sandboxes
 	return append([]uiAction{
 		a.setupAction(),
-		{name: "Refresh Sandboxes", about: "Read the sandboxes, their tasks, the envs and the environment from unibox again.", keys: "r", rank: 30, run: a.refreshSandboxes},
+		{name: "Refresh All", about: "Read the sandboxes, their tasks, the envs and the environment from Unibox again; it is read by itself too when the tab or the terminal comes to the front.", keys: "R", rank: 10, run: a.refreshSandboxes},
 		{name: "Go to Sandbox Cards", about: "Move to the cards of the sandboxes: h and l between them, their actions on each.", keys: "B", rank: 40,
 			run: func() { v.focus(v.cards) }},
 		{name: "Go to Tasks", about: "Move to the tasks of every sandbox, where agents are resumed.", keys: "t", rank: 41, run: func() { v.focus(p.table) }},
@@ -225,15 +227,17 @@ func (a *App) sandboxesActions(p *pane) []uiAction {
 			when: func() bool { return v.lowerH > 0 }, run: func() { v.focus(v.log) }},
 		{name: "Go to Environment", about: "Move to the environment: the context, unibox's settings, the tokens sbx keeps.", keys: "E", rank: 44,
 			run: func() { v.focus(v.env) }},
-		{name: "Run unibox Doctor", about: "Check sbx, every env, your values and tokens and the sandboxes, each with the command that fixes it; Enter runs that command.",
+		{name: "Run Unibox Doctor", about: "Check sbx, every env, your values and tokens and the sandboxes, each with the command that fixes it; Enter runs that command.",
 			keys: "D", rank: 45, aliases: []string{"check", "diagnose"}, run: a.showDoctor},
 		{name: "Sandbox Tokens in unagit…", about: "The tokens unagit keeps for the sandboxes and hands to sbx while it runs unlocked: replace one, remove it, copy its command.",
 			keys: "T", rank: 50, run: a.showCredentials},
-		{name: "unibox Settings…", about: "unibox's own configuration: the default env, whether an idle sandbox stops, the SSH agent, editors over SSH and sbx's switches.",
+		{name: "Your Unibox Configuration…", about: "Everything you said to Unibox, beside the teams' files, in one list: settings, values, ports, repositories, instructions, network rules and tokens - Enter manages one, d forgets it.",
+			keys: "Y", rank: 51, aliases: []string{"config", "settings", "secrets", "tokens", "ports", "overview"}, run: a.showYourConfig},
+		{name: "Unibox Settings…", about: "unibox's own configuration: the default env, whether an idle sandbox stops, the SSH agent, editors over SSH and sbx's switches.",
 			keys: "U", rank: 52, run: a.showUniboxSettings},
 		{name: "Update Env Files", about: "Fast-forward every repository of envs unibox cloned, and say what that changes.",
 			rank: 82, aliases: []string{"pull", "env update"}, run: func() { a.uniboxStream("Updating the envs", "env", "update") }},
-		{name: "Prune unibox…", about: "Forget the sandboxes sbx no longer has, and unmount what no task uses.",
+		{name: "Prune Unibox…", about: "Forget the sandboxes sbx no longer has, and unmount what no task uses.",
 			rank: 85, run: func() {
 				a.confirmWith("Prune", "Forget the sandboxes sbx no longer has and unmount what no task uses?", "Prune", nil, func() {
 					a.closeModal(pageConfirm)
@@ -276,6 +280,53 @@ func (a *App) uniboxDoThen(title string, then func(), args ...string) {
 			a.refreshSandboxes()
 			if err == nil && then != nil {
 				then()
+			}
+		})
+	}()
+}
+
+// uniboxDoEach runs several commands that change something, one after
+// another, as one job; each is logged on its own, and unlike uniboxDoAll
+// a failure does not stop the rest - they are independent, as each
+// repository named in an index is. It says how many went through, and
+// the first failure.
+func (a *App) uniboxDoEach(title string, commands [][]string) {
+	c, err := a.uniboxClient()
+	if err != nil {
+		a.flash(err.Error())
+		return
+	}
+	job := a.startJob(title)
+	events := make([]*uniboxEvent, len(commands))
+	for i, args := range commands {
+		events[i] = a.logUnibox(title, args...)
+	}
+	go func() {
+		failed, first := 0, error(nil)
+		for i, args := range commands {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			said, err := c.Do(ctx, args...)
+			cancel()
+			if err != nil {
+				failed++
+				if first == nil {
+					first = err
+				}
+			}
+			e := events[i]
+			a.tv.QueueUpdateDraw(func() { e.end(a, said, err, refusal(err)) })
+		}
+		a.tv.QueueUpdateDraw(func() {
+			a.endJob(job)
+			a.refreshSandboxes()
+			done := len(commands) - failed
+			switch {
+			case failed == 0:
+				a.done(fmt.Sprintf("%s - %d done", strings.ToLower(title[:1])+title[1:], done))
+			case done == 0:
+				a.errorf("%v", first)
+			default:
+				a.flash(fmt.Sprintf("%d of %d done; the first that failed: %v - the log of the Sandboxes tab has each", done, len(commands), first))
 			}
 		})
 	}()
@@ -1137,11 +1188,10 @@ func (a *App) showSandboxPorts(r sandboxRow) {
 		ports, err = c.Ports(s.Name)
 		return "", err
 	}, func(string) {
-		if len(ports) == 0 {
-			a.note(s.Name + " has no ports - the team names them beside its sbxenv file, you under ports in unibox's config.yaml")
-			return
-		}
 		var items []pickItem
+		if len(ports) == 0 {
+			items = append(items, pickItem{Label: "no ports named", About: "The team names them beside its sbxenv file; a names one of yours."})
+		}
 		for _, p := range ports {
 			state := "off"
 			if p.On || len(p.Published) > 0 {
@@ -1154,26 +1204,49 @@ func (a *App) showSandboxPorts(r sandboxRow) {
 		}
 		browse := a.browserKey("w", "browser", "Open in Browser", "Open the port where it is published on this machine; the list stays open.",
 			func(it pickItem) string {
-				p := it.Data.(unibox.Port)
-				if len(p.Published) == 0 {
+				p, ok := it.Data.(unibox.Port)
+				if !ok || len(p.Published) == 0 {
 					return ""
 				}
 				return p.Published[0].URL()
 			})
-		browse.when = func(it pickItem) bool { return len(it.Data.(unibox.Port).Published) > 0 }
+		browse.when = func(it pickItem) bool { p, ok := it.Data.(unibox.Port); return ok && len(p.Published) > 0 }
+		named := func(it pickItem) bool { _, ok := it.Data.(unibox.Port); return ok }
 		atStart := pickKey{keys: "t", hint: "at start", name: "Switch On at Start", about: "Say, for you, whether the port is published at each start of the env's sandboxes.",
-			run: func(it pickItem) {
-				p := it.Data.(unibox.Port)
+			when: named, run: func(it pickItem) {
+				p, ok := it.Data.(unibox.Port)
+				if !ok {
+					return
+				}
 				to := "on"
 				if p.Default {
 					to = "off"
 				}
 				a.uniboxDo("Port "+p.Name+" "+to+" at start", "port", "default", p.Name, to, "-e", s.Env)
 			}}
-		a.showPickerWith("Ports of "+s.Name, items, pickerOptions{pack: true, explain: true, keys: []pickKey{browse, atStart},
+		add := pickKey{keys: "a", hint: "add", name: "Add Port…", about: "Name a port of yours - a mapping such as 8080 or 8080:3000 - for the env, its repository's envs or every env; a running sandbox publishes it.",
+			run: func(pickItem) { a.askPort(s.Env) }}
+		yours := func(it pickItem) bool {
+			p, ok := it.Data.(unibox.Port)
+			return ok && strings.HasPrefix(p.From, "yours") && !p.Team
+		}
+		forget := pickKey{keys: "d", hint: "forget", name: "Forget Port…", about: "Forget a port you named and stop publishing it; the team's stay.",
+			when: yours, run: func(it pickItem) {
+				if !yours(it) {
+					a.flash("a port the team names stays - t says whether it is on at start, for you")
+					return
+				}
+				p := it.Data.(unibox.Port)
+				a.forgetPort(p.Name, s.Env, p.From)
+			}}
+		a.showPickerWith("Ports of "+s.Name, items, pickerOptions{pack: true, explain: true, keys: []pickKey{browse, atStart, add, forget},
 			enterName: "Switch On or Off", enterAbout: "Publish the port while the sandbox runs, or take it back; what the files say stays as it is."},
 			func(it pickItem) {
-				p := it.Data.(unibox.Port)
+				p, ok := it.Data.(unibox.Port)
+				if !ok {
+					a.askPort(s.Env)
+					return
+				}
 				if p.On || len(p.Published) > 0 {
 					a.uniboxDo("Taking "+p.Name+" back", "port", "off", p.Name, "-s", s.Name)
 					return

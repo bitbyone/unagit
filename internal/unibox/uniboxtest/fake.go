@@ -136,11 +136,11 @@ func Overview() map[string]Answer {
 	return map[string]Answer{
 		"version --json":               JSON(`{"api_version":2,"version":"0.5"}`),
 		"env ls --json":                JSON(`{"api_version":2,"default":"web","envs":{"web":{"files":["/team/sandboxes/web.sbxenv.yaml"],"repo":"/team"},"api":{"files":["/team/sandboxes/api.sbxenv.yaml"],"repo":"/team"}}}`),
-		"env show web --json":          JSON(`{"api_version":2,"env":"web","sandbox":"web","sbxenv":{"files":["/team/sandboxes/web.sbxenv.yaml"],"agent":"claude","args":{"npm_scope":{"default":"acme"}},"kits":[{"source":"docker/claude"}]},"values":{},"missing":[]}`),
+		"env show web --json":          JSON(`{"api_version":2,"env":"web","sandbox":"web","sbxenv":{"files":["/team/sandboxes/web.sbxenv.yaml"],"agent":"claude","args":{"npm_scope":{"default":"acme"}},"kits":[{"source":"docker/claude"}]},"values":{},"missing":[],"ports":{"fe":{"port":"3000:3000","team":true,"description":"the dev server","default":true},"devtools":{"port":"9333:9222","default":false}}}`),
 		"env show api --json":          JSON(`{"api_version":2,"env":"api","sandbox":"api-box","sbxenv":{"files":["/team/sandboxes/api.sbxenv.yaml"],"agent":"codex","args":{"jira_user":{"required":true,"description":"your Jira login"}}},"values":{},"missing":["jira_user"]}`),
 		"context --json":               JSON(`{"api_version":2,"context":{"sandbox":"web"},"sandbox":"web","env":"web"}`),
 		"sandbox ls --json":            JSON(overviewSandboxes),
-		"config get --json":            JSON(`{"api_version":2,"value":{"default_env":"web","stop_idle":false,"context":{"sandbox":"web"}}}`),
+		"config get --json":            JSON(`{"api_version":2,"value":{"default_env":"web","stop_idle":false,"context":{"sandbox":"web"},"repos":{"notes":{"url":"~/notes","default":"on"}},"envs":{"web":{"files":["/team/sandboxes/web.sbxenv.yaml"],"repo":"/team","ports":{"devtools":{"port":"9333:9222","default":false}}}}}}`),
 		"secret ls --all --json":       JSON(`{"api_version":2,"secrets":[{"service":"anthropic","scope":"global","kept":"stored","used_by":["web"],"needed":true},{"service":"github","scope":"global","kept":"stored","used_by":["web","api-box"],"needed":true}],"skipped_envs":[]}`),
 		"secret ls -e web --json":      JSON(`{"api_version":2,"env":"web","sandbox":"web","secrets":[{"service":"anthropic","kits":["docker/claude"],"stored":true,"scope":"global"},{"service":"artifactory","description":"the team's packages","stored":false,"page":"https://artifactory.example.com/ui/user_profile"}]}`),
 		"secret ls -e api --json":      JSON(`{"api_version":2,"env":"api","sandbox":"api-box","secrets":[{"service":"openai","stored":true}]}`),
@@ -148,7 +148,7 @@ func Overview() map[string]Answer {
 		"var ls -e web --json":         JSON(`{"api_version":2,"env":"web","file":"/home/.config/unibox/vars.toml","args":[{"name":"npm_scope","value":"acme","from":"default"}]}`),
 		"var ls -e api --json":         JSON(`{"api_version":2,"env":"api","file":"/home/.config/unibox/vars.toml","args":[{"name":"jira_user","value":"","from":"missing","description":"your Jira login"}]}`),
 		"repo ls -e web --json":        JSON(`{"api_version":2,"env":"web","repos":{"adrs":{"url":"https://gl.test/arch/adrs.git","default":"always","from":"repo","description":"the decisions"}}}`),
-		"port ls -s web --json":        JSON(`{"api_version":2,"sandbox":"web","running":true,"ports":[{"name":"fe","port":"3000:3000","team":true,"description":"the dev server","default":true,"named":true,"on":true,"published":[{"host_ip":"127.0.0.1","host_port":3000,"sandbox_port":3000,"protocol":"tcp"}]},{"name":"devtools","port":"9333:9222","named":true,"default":false,"on":false,"published":[]}]}`),
+		"port ls -s web --json":        JSON(`{"api_version":2,"sandbox":"web","running":true,"ports":[{"name":"fe","port":"3000:3000","team":true,"description":"the dev server","default":true,"named":true,"on":true,"published":[{"host_ip":"127.0.0.1","host_port":3000,"sandbox_port":3000,"protocol":"tcp"}]},{"name":"devtools","port":"9333:9222","from":"yours","named":true,"default":false,"on":false,"published":[]}]}`),
 		"network ls -s web --json":     JSON(`{"api_version":2,"sandbox":"web","rules":[{"decision":"allow","host":"jitpack.io","protocol":"tcp","from":"yours","sandbox":"web","applied":true}],"blocked":[{"host":"repo.example.com","reason":"not allowed","count":3,"last_seen":"2026-10-28T10:00:00Z"}]}`),
 		"sandbox resources web --json": JSON(`{"api_version":2,"sandbox":"web","env":"web","own":{},"resources":{"cpus":"4","memory":"8g"}}`),
 	}

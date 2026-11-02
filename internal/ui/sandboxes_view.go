@@ -974,7 +974,7 @@ func (v *sandboxesView) envSelection() (string, []uiAction) {
 	return "Environment", []uiAction{
 		{name: "Show Details", about: "Move into the detail: the context, unibox's settings, the tokens sbx keeps.",
 			keys: "Enter", rank: 5, run: v.openChosenDetail},
-		{name: "Clear unibox Context", about: "Forget the sandbox unibox commands - and unagit's Sandbox with… - work in when not told.",
+		{name: "Clear Unibox Context", about: "Forget the sandbox unibox commands - and unagit's Sandbox with… - work in when not told.",
 			keys: "c", rank: 30, when: a.contextSet, run: func() { a.uniboxDo("Clearing the context", "context", "clear") }},
 	}
 }

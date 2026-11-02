@@ -178,12 +178,39 @@ func (c *Client) Envs() ([]Env, string, error) {
 type ShownEnv struct {
 	Env     string `json:"env"`
 	Sandbox string `json:"sandbox"`
-	SBX     struct {
+	// Ports are the env's, the team's and the person's, by name.
+	Ports map[string]EnvPort `json:"ports"`
+	SBX   struct {
 		Agent string            `json:"agent"`
 		Args  map[string]EnvArg `json:"args"`
 		Kits  []EnvKit          `json:"kits"`
 	} `json:"sbxenv"`
 	Missing []string `json:"missing"`
+}
+
+// EnvPort is one of an env's ports as env show says it: the mapping,
+// whether the team names it, and whether its sandboxes start with it.
+type EnvPort struct {
+	Name        string `json:"-"`
+	Port        string `json:"port"`
+	Description string `json:"description,omitempty"`
+	Team        bool   `json:"team,omitempty"`
+	Default     bool   `json:"default"`
+}
+
+// EnvPorts are an env's ports, by name.
+func (c *Client) EnvPorts(env string) ([]EnvPort, error) {
+	shown, err := c.ShowEnv(env)
+	if err != nil {
+		return nil, err
+	}
+	ports := make([]EnvPort, 0, len(shown.Ports))
+	for name, p := range shown.Ports {
+		p.Name = name
+		ports = append(ports, p)
+	}
+	sort.Slice(ports, func(i, j int) bool { return ports[i].Name < ports[j].Name })
+	return ports, nil
 }
 
 func (c *Client) ShowEnv(name string) (ShownEnv, error) {
@@ -346,6 +373,51 @@ type Config struct {
 	RememberHostCommands *bool  `json:"remember_host_commands,omitempty"`
 	ClaudeRemoteControl  *bool  `json:"claude_remote_control,omitempty"`
 	ClipboardImagePaste  *bool  `json:"clipboard_image_paste,omitempty"`
+
+	// What the person says beside the switches, each for every env, for
+	// every env of one env repository (by its host and path) or for one
+	// env - the overview of their configuration is read from these.
+	Ports        map[string]PortConfig      `json:"ports,omitempty"`
+	Repos        map[string]IndexedRepo     `json:"repos,omitempty"`
+	Instructions string                     `json:"instructions,omitempty"`
+	EnvRepos     map[string]ScopeConfig     `json:"env_repos,omitempty"`
+	EnvConfigs   map[string]EnvConfig       `json:"envs,omitempty"`
+	Sandboxes    map[string]SandboxSettings `json:"sandboxes,omitempty"`
+}
+
+// PortConfig is a port as the person names it: the mapping, empty where
+// they only switch one the team names, and whether it is on at start.
+type PortConfig struct {
+	Port    string `json:"port,omitempty"`
+	Default bool   `json:"default"`
+}
+
+// ScopeConfig is what the person says for one scope: ports, repositories
+// and instructions.
+type ScopeConfig struct {
+	Ports        map[string]PortConfig  `json:"ports,omitempty"`
+	Repos        map[string]IndexedRepo `json:"repos,omitempty"`
+	Instructions string                 `json:"instructions,omitempty"`
+}
+
+// EnvConfig is what the person says for one env, and where its files are.
+type EnvConfig struct {
+	ScopeConfig
+	Files  []string `json:"files,omitempty"`
+	Repo   string   `json:"repo,omitempty"`
+	Source string   `json:"source,omitempty"`
+}
+
+// SandboxSettings is what the person keeps for one sandbox.
+type SandboxSettings struct {
+	Network []HostRule `json:"network,omitempty"`
+}
+
+// HostRule is a host the person lets a sandbox reach, or keeps it from.
+type HostRule struct {
+	Allow    string `json:"allow,omitempty"`
+	Deny     string `json:"deny,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
 }
 
 func (c *Client) Config() (Config, error) {

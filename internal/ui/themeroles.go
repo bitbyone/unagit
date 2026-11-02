@@ -248,7 +248,8 @@ var colourRoles = []colourRole{
 	{"tabs.key", "text.dim", "the key after a tab's name that reaches it"},
 	{"tabs.off", "text.dim", "a tab with nothing to show, Sandboxes without unibox"},
 	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
-	{"tabs.context", "text.accent", "on the Sandboxes tab: the sandbox unibox works in when not told"},
+	{"tabs.context", "text.muted", "on the Sandboxes tab: the sandbox unibox works in when not told"},
+	{"tabs.context_on", "tabs.active", "the same on the tab's band while it is in front, between the band and its ink"},
 	{"status.auto", "state.good", "beside the help: standalone looks at the repository by itself"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
@@ -292,6 +293,13 @@ func activityRoles(t Theme, roles map[string]tcell.Color) {
 		"diff.deleted_fill":       diffFill(roles["toast.danger.background"]),
 		"activity.lit":            shade(colour(t.Background), 0.035),
 	}
+	// The context on the Sandboxes tab's band, part of the way from the
+	// band's colour to its ink - the theme's background, which a reversed
+	// band shows its text in. Without one to start from it is the band's
+	// own ink, unbolded.
+	if t.Roles["tabs.context_on"] == "" {
+		roles["tabs.context_on"] = mix(colour(t.Background), colour(t.Tabs.Active), 0.4)
+	}
 	for key, c := range derived {
 		if t.Roles[key] == "" && c != tcell.ColorDefault {
 			roles[key] = c
@@ -312,6 +320,18 @@ func shade(background tcell.Color, step float64) tcell.Color {
 		step = -step
 	}
 	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
+}
+
+// mix is the colour a share of the way from one colour to another, in
+// Oklab, so the halfway point looks halfway; ColorDefault where either is
+// the terminal's own.
+func mix(from, to tcell.Color, share float64) tcell.Color {
+	if from == tcell.ColorDefault || to == tcell.ColorDefault || !from.Valid() || !to.Valid() {
+		return tcell.ColorDefault
+	}
+	f, t := toOklab(from), toOklab(to)
+	l, ca, cb := f.l+(t.l-f.l)*share, f.a+(t.a-f.a)*share, f.b+(t.b-f.b)*share
+	return fromOklch(l, math.Hypot(ca, cb), math.Atan2(cb, ca)*180/math.Pi, 0, 0)
 }
 
 // diffFill is a diff's line fill worked out of a toast's: darker and

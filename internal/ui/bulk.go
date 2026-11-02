@@ -116,6 +116,7 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 		{name: "Copy All…", about: "Copy the links, paths, clone addresses or directories of the marked repositories, one a line.", keys: "y", rank: 70, run: func() {
 			a.yankProjects(picked)
 		}},
+		a.markedIndexAction(p, picked),
 		{name: "Toggle Mark", about: "Mark the row under the cursor, or take its mark away.", keys: "space", rank: 20, run: p.toggleMark},
 		{name: "Clear Marks", about: "Take every mark away.", keys: "Esc", rank: 900, run: p.clearMarks},
 	}

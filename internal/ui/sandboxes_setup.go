@@ -30,7 +30,7 @@ type setupStep struct {
 func (a *App) showUniboxSetup() {
 	if _, err := a.executable("unibox"); err != nil {
 		a.showSetupSteps([]setupStep{{
-			name: "Install unibox", state: "not installed",
+			name: "Install Unibox", state: "not installed",
 			about: "unagit runs unibox from PATH: brew install unibox, or make install in its repository. Enter copies the brew command; open this again with I once it is installed.",
 			run:   func() { a.yank("Install command", "brew install unibox") },
 		}})
@@ -161,7 +161,7 @@ func (a *App) showSetupSteps(steps []setupStep) {
 		}
 		items = append(items, pickItem{Label: mark + s.name, Sub: sub, SubRole: role, About: s.about, Data: s})
 	}
-	a.showPickerWith("Set up unibox", items, pickerOptions{pack: true, explain: true,
+	a.showPickerWith("Set up Unibox", items, pickerOptions{pack: true, explain: true,
 		enterName: "Do This Step", enterAbout: "Do what the step needs, or do it again; I lists the steps afresh.", enterHint: "do it"},
 		func(it pickItem) {
 			s := it.Data.(setupStep)
@@ -208,7 +208,7 @@ func (a *App) initUniboxHere(dir string) {
 // setupAction lists the steps of setting unibox up; first in the pickers
 // while a first sandbox still lacks something.
 func (a *App) setupAction() uiAction {
-	act := uiAction{name: "Set Up unibox…", about: "What a first sandbox needs - unibox, the team's repository and its envs, your values, the tokens, the sandbox - each with how it stands; Enter does a step.",
+	act := uiAction{name: "Set Up Unibox…", about: "What a first sandbox needs - unibox, the team's repository and its envs, your values, the tokens, the sandbox - each with how it stands; Enter does a step.",
 		keys: "I", rank: 60, aliases: []string{"init", "onboarding", "setup"}, run: a.showUniboxSetup}
 	if a.setupWanted() {
 		act.rank = 1

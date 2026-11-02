@@ -674,14 +674,16 @@ one is at it, and under them the envs - each one's sandbox, what it lacks,
 its agent - and the log of every command unagit gave unibox and what it
 said. The detail follows the panel with the focus. Without `unibox` on
 PATH, or with it turned off in Settings › Integrations, the tab is grey and
-says so. **Set Up unibox…** (`I`, or `Enter` on the grey tab) lists what a
+says so. **Set Up Unibox…** (`I`, or `Enter` on the grey tab) lists what a
 first sandbox needs - the team's repository walked through `unibox init`,
 each env's values, its tokens, its sandbox, then unibox's doctor - and
-`Enter` does a step; **Set Up unibox from Here** on a clone runs `unibox
+`Enter` does a step; **Set Up Unibox from Here** on a clone runs `unibox
 init` on it.
 
 The **context** - the sandbox unibox works in when not told - rides on the
-tab bar after **Sandboxes [5]**, in a colour of its own, on every screen.
+tab bar inside **Sandboxes [5]**, quieter than its name, on every screen.
+unibox is read again when the tab or the terminal comes to the front, and
+on `R`.
 Everything is read from unibox's `--json` and every change is a unibox
 command; unagit reads none of its files. On a task `o` resumes its agent and
 `a` another of the sandbox's, where you choose - this terminal, a Zellij or
@@ -691,9 +693,14 @@ Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
 adds a repository, `e` renames it, `d` removes it. On a sandbox `n` starts a
 new task, checked first with `unibox task check` and pushed only on **Push
 and Start**; `p` its ports, `f` its network, `M` its resources, `x` stop,
-`C` recreate, `d` remove. On an env `c` creates its sandbox, `V` your
-values, `K` its tokens, `i` its repository index. `U` is unibox's own
-settings, `D` its doctor, `T` the tokens unagit keeps for the sandboxes. A
+`C` recreate, `d` remove; among the ports `a` names one of yours and `d`
+forgets it. On an env `c` creates its sandbox, `V` your values, `K` its
+tokens, `p` its ports - the team's and yours, made or not - `i` its
+repository index. `U` is unibox's own settings, `D` its doctor, `T` the
+tokens unagit keeps for the sandboxes, and `Y` **Your Unibox
+Configuration…**: everything you said to unibox in one list - settings,
+values, ports, repositories, instructions, network rules, the tokens sbx
+keeps - each managed with `Enter` or forgotten with `d`. A
 token is stored by sbx, unibox asking for it in this terminal, or kept by
 unagit: `t` among an env's tokens - which runs `claude setup-token`, or
 opens the page where the token is made, then asks for it - keeps it in
@@ -709,8 +716,9 @@ sandbox, asking only where; **Sandbox with Claude Code…** asks which sandbox
 only when more than one runs it; **Open in Sandbox…** asks everything. A
 clone is mounted; a worktree - or each repository of a grouped one - is
 cloned in the sandbox at its branch, as unibox cannot mount a worktree; a
-merge request is cloned on its source branch. **Add to unibox Index…**
-names a repository in unibox's index of repositories. See the
+merge request is cloned on its source branch. **Add to Unibox Index…**
+names a repository in unibox's index of repositories - on marked
+repositories, all of them at once. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).
 
 ### Where things open

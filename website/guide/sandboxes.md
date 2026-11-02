@@ -29,12 +29,15 @@ sandbox at its branch; so is a merge request, on its source branch, with
 nothing needed on disk. Typing finds each agent in each place:
 **Sandbox with Codex in Zellij Tab**.
 
-**Add to unibox Index…** on a repository names it for unibox's tasks.
+**Add to Unibox Index…** on a repository names it for unibox's tasks; on
+marked repositories it names them all, asking which index and when once.
 
 ## The context
 
-The sandbox unibox works in when not told is on the tab bar, after
-**Sandboxes [5]**, in a colour of its own, on every screen. `u` on a
+The sandbox unibox works in when not told is on the tab bar, inside
+**Sandboxes [5]** and quieter than its name, on every screen. unibox is
+read again when the tab or the terminal comes to the front; `R` reads it
+at once. `u` on a
 sandbox or an env makes it the context; `c` on the Environment panel clears
 it.
 
@@ -50,9 +53,18 @@ it.
 
 On a task `o` resumes its agent, `a` with another, `s` opens a shell, `i`
 shows what the agent is told. On a sandbox `n` starts a task, `p` `f` `M`
-are its ports, network and resources, `C` recreates it. On an env `V` and
-`K` are your values and its tokens. `U` is unibox's settings, `D` its
-doctor, `I` setting up step by step. `?` has every key.
+are its ports, network and resources, `C` recreates it. On an env `V`, `K`
+and `p` are your values, its tokens and its ports; among ports `a` names
+one of yours and `d` forgets it. `U` is unibox's settings, `D` its doctor,
+`I` setting up step by step. `?` has every key.
+
+## Your configuration
+
+`Y` lists everything you said to unibox beside the teams' files: the
+settings, your values, ports and repositories for every env, an env
+repository's envs or one env, your instructions, the sandboxes' network
+rules and the tokens sbx keeps. `Enter` opens the dialog where one is
+managed, `d` forgets it where it was said.
 
 What sbx or unibox asks for - approving an env, a token - is asked in this
 terminal; unagit never sees a token unless you keep it in its vault.

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -125,7 +126,7 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	if lineOf(text, "Claude Code, Copi") > lineOf(text, "rate") || lineOf(text, "rate") > lineOf(text, "1 value missing") {
 		t.Fatalf("not cards, then tasks, then envs:\n%s", text)
 	}
-	if bar := strings.Split(text, "\n")[0]; !strings.Contains(bar, "Sandboxes [5]  "+glyphDot+"web") {
+	if bar := strings.Split(text, "\n")[0]; !strings.Contains(bar, "Sandboxes [5] "+glyphDot+" web") {
 		t.Fatalf("the context is not on the tab: %q", bar)
 	}
 	// An env's detail is read from unibox: the token sbx lacks, its
@@ -178,10 +179,10 @@ func TestWithoutUniboxTheSandboxesTabSaysSo(t *testing.T) {
 	}
 	// Enter sets unibox up, from installing it.
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "Set up unibox")
-	waitFor(t, a, sc, "Install unibox")
+	waitFor(t, a, sc, "Set up Unibox")
+	waitFor(t, a, sc, "Install Unibox")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Install unibox")
+	waitGone(t, a, sc, "Install Unibox")
 	typeRunes(sc, "1")
 	waitEditorState(t, a, func() bool { return a.currentTab() == pageProjects })
 	typeRunes(sc, "S")
@@ -365,7 +366,7 @@ func TestUniboxSettingsSetOnlyWhatChanged(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t, prepare)
 	openSandboxes(t, a, sc)
 	typeRunes(sc, "U")
-	waitFor(t, a, sc, "unibox settings")
+	waitFor(t, a, sc, "Unibox settings")
 	waitFor(t, a, sc, "Default env")
 	waitFor(t, a, sc, "Stop a sandbox when idle")
 	form := frontForm(a)
@@ -455,11 +456,11 @@ func TestTheSandboxFormsFitTheirFrames(t *testing.T) {
 			resizeApp(a, sc, size.w, size.h)
 			openSandboxes(t, a, sc)
 			typeRunes(sc, "U")
-			waitFor(t, a, sc, "unibox settings")
+			waitFor(t, a, sc, "Unibox settings")
 			assertFormFits(t, a, sc, frontForm(a), "Default env", "Stop a sandbox when idle", "Paste images from the clipboard", "Save", "Cancel")
-			assertLegible(t, a, sc, "unibox settings")
+			assertLegible(t, a, sc, "Unibox settings")
 			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-			waitGone(t, a, sc, "unibox settings")
+			waitGone(t, a, sc, "Unibox settings")
 
 			selectSandboxRow(t, a, "e:api")
 			typeRunes(sc, "V")
@@ -626,4 +627,118 @@ func TestAMergeRequestGoesIntoASandboxCloned(t *testing.T) {
 	waitFor(t, a, sc, "with Claude Code in web · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
 	waitCalled(t, a, fake, "run --branch "+mr.SourceBranch+" --repo "+url+" -s web --clone --agent claude")
+}
+
+// TestAnEnvsPortsAreAddedAndForgotten: p on an env lists its ports, the
+// team's and yours, whether a sandbox is made or not; a names one of
+// yours, d forgets one after asking, and a team's cannot be.
+func TestAnEnvsPortsAreAddedAndForgotten(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"port add api 8080 -e web --json": uniboxtest.OK("added api"),
+		"port rm devtools -e web --json":  uniboxtest.OK("forgot devtools"),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "Ports of web")
+	for _, want := range []string{"devtools", "9333:9222", "fe", "on at start", "team"} {
+		waitFor(t, a, sc, want)
+	}
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "a")
+	waitFor(t, a, sc, "New port · web")
+	assertLegible(t, a, sc, "New port · web")
+	setField(t, a, frontForm(a), 0, "api")
+	setField(t, a, frontForm(a), 1, "8080")
+	pressButton(t, a, sc, frontForm(a), "Add")
+	waitCalled(t, a, fake, "port add api 8080 -e web --json")
+
+	selectSandboxRow(t, a, "e:web")
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "Ports of web")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Forget your port devtools, named for")
+	typeRunes(sc, string(buttonKeys([]string{"Cancel", "Forget"})[1]))
+	waitCalled(t, a, fake, "port rm devtools -e web --json")
+}
+
+// TestYourConfigurationListsWhatYouSaid: Y lists everything the person
+// said to unibox - settings, repositories and ports by scope, the tokens
+// sbx keeps - and d forgets one where it was said.
+func TestYourConfigurationListsWhatYouSaid(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"repo rm notes -e web -g --json": uniboxtest.OK("forgot notes"),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 40)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "Y")
+	waitFor(t, a, sc, "Your Unibox configuration")
+	for _, want := range []string{"default env", "stop a sandbox when idle", "notes", "every env", "devtools", "env web", "anthropic", "github"} {
+		waitFor(t, a, sc, want)
+	}
+	waitFor(t, a, sc, "NORMAL")
+	// default env, context, the switch, then notes, for every env.
+	typeRunes(sc, "jjj")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Forget notes, named for every env?")
+	typeRunes(sc, string(buttonKeys([]string{"Cancel", "Forget"})[1]))
+	waitCalled(t, a, fake, "repo rm notes -e web -g --json")
+}
+
+// TestMarkedRepositoriesGoIntoTheIndexTogether: Add to Unibox Index… on
+// marked repositories asks once which index and when, then names each.
+func TestMarkedRepositoriesGoIntoTheIndexTogether(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"repo add * --json": uniboxtest.OK("named"),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	sources := onLoop(a, func() []string {
+		var out []string
+		for _, pr := range a.projects[:2] {
+			out = append(out, a.indexSource(pr))
+		}
+		return out
+	})
+	changeOnLoop(a, func() { a.markedIndexAction(a.projectsPane, a.projects[:2]).run() })
+	waitFor(t, a, sc, "2 repositories · into which index")
+	waitFor(t, a, sc, "NORMAL")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "2 repositories · when a task takes it")
+	waitFor(t, a, sc, "NORMAL")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	for _, source := range sources {
+		waitCalled(t, a, fake, "repo add "+source+" --default always -g --json")
+	}
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "2 done") })
+}
+
+// TestTheSandboxesAreReadAgainWhenTheTerminalComesBack: unibox may have
+// changed in another window, so focus regained reads it again once what
+// is shown is not fresh.
+func TestTheSandboxesAreReadAgainWhenTheTerminalComesBack(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	reads := func() int {
+		n := 0
+		for _, c := range fake.Calls() {
+			if c == "sandbox ls --json" {
+				n++
+			}
+		}
+		return n
+	}
+	waitEditorState(t, a, func() bool { return !a.ubx.loading })
+	before := reads()
+	changeOnLoop(a, func() { a.ubx.at = a.ubx.at.Add(-time.Minute) })
+	must(t, sc.PostEvent(tcell.NewEventFocus(true)))
+	waitEditorState(t, a, func() bool { return reads() > before })
 }

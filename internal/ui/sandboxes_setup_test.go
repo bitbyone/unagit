@@ -48,7 +48,7 @@ func TestTheSetupSaysWhereUniboxStands(t *testing.T) {
 	resizeApp(a, sc, 140, 44)
 	openSandboxes(t, a, sc)
 	typeRunes(sc, "I")
-	waitFor(t, a, sc, "Set up unibox")
+	waitFor(t, a, sc, "Set up Unibox")
 	for _, want := range []string{"installed 0.5", "Sandboxes tab", "Envs", "api, web", "Values of api", "1 missing",
 		"Tokens of web", "Sandbox api-box", "not made", "Sandbox web", "unibox doctor"} {
 		waitFor(t, a, sc, want)
@@ -56,7 +56,7 @@ func TestTheSetupSaysWhereUniboxStands(t *testing.T) {
 	doSetupStep(t, a, sc, "Sandbox api-box")
 	waitCalled(t, a, fake, "sandbox create -e api")
 	typeRunes(sc, "I")
-	waitFor(t, a, sc, "Set up unibox")
+	waitFor(t, a, sc, "Set up Unibox")
 	doSetupStep(t, a, sc, "Tokens of web")
 	waitFor(t, a, sc, "Tokens of web")
 	waitFor(t, a, sc, "artifactory")
@@ -70,7 +70,7 @@ func TestSetUpUniboxFromHereRunsInit(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	changeOnLoop(a, a.refreshDisk)
-	pickMuxAction(t, a, sc, "Set Up unibox from Here")
+	pickMuxAction(t, a, sc, "Set Up Unibox from Here")
 	waitCalled(t, a, fake, "init "+p.clone)
 }
 
@@ -83,7 +83,7 @@ func TestTheSetupFitsItsFrame(t *testing.T) {
 			resizeApp(a, sc, size.w, size.h)
 			openSandboxes(t, a, sc)
 			typeRunes(sc, "I")
-			waitFor(t, a, sc, "Set up unibox")
+			waitFor(t, a, sc, "Set up Unibox")
 			assertLegible(t, a, sc, "the setup")
 		})
 	}

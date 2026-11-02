@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -66,9 +67,20 @@ func (a *App) drawTabs() {
 		}
 		return name, "[" + string(t.key) + "]"
 	}
+	// The sandbox unibox works in when not told - and every Sandbox with…
+	// across unagit with it - inside the Sandboxes tab, after its key and
+	// quieter than its name, so it is known before an agent is started
+	// there and still reads as part of the tab.
+	sandboxCtx := a.sandboxContextBadge()
+	context := func(t tab) string {
+		if t.page != pageSandboxes || sandboxCtx == "" {
+			return ""
+		}
+		return " " + sandboxCtx
+	}
 	label := func(t tab, short, tight bool) string {
 		name, key := tabParts(t, short, tight)
-		return " " + name + " " + key + " "
+		return " " + name + " " + key + context(t) + " "
 	}
 	// One dot and a number after the Activity tab, from every screen: how
 	// much has happened since it was last looked at - a watch's news, a
@@ -82,13 +94,6 @@ func (a *App) drawTabs() {
 	badgesWidth := 0
 	if badge != "" {
 		badgesWidth = cells(badge) + 1
-	}
-	// The sandbox unibox works in when not told - and every Sandbox with…
-	// across unagit with it - after the Sandboxes tab, in a colour of its
-	// own, so it is known before an agent is started there.
-	sandboxCtx := a.sandboxContextBadge()
-	if sandboxCtx != "" {
-		badgesWidth += cells(sandboxCtx) + 1
 	}
 	short, tight := false, false
 	// Settings is held apart from the screens by at least a separator's
@@ -118,22 +123,34 @@ func (a *App) drawTabs() {
 		var text string
 		switch {
 		case t.page == current:
-			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), tview.Escape(label(t, short, tight)))
+			name, key := tabParts(t, short, tight)
+			text = fmt.Sprintf("[%s::br]%s[-:-:-]", colTabActive.String(), tview.Escape(" "+name+" "+key))
+			if ctx := context(t); ctx != "" {
+				// On the band, not reversed: reversing would make the
+				// quieter ink the band's colour.
+				if ink := role("tabs.context_on"); ink != tcell.ColorDefault {
+					text += fmt.Sprintf("[%s:%s:-]%s[-:-:-]", ink.String(), colTabActive.String(), tview.Escape(ctx))
+				} else {
+					text += fmt.Sprintf("[%s::r]%s[-:-:-]", colTabActive.String(), tview.Escape(ctx))
+				}
+			}
+			text += fmt.Sprintf("[%s::br] [-:-:-]", colTabActive.String())
 		case a.tabOff(t):
 			text = fmt.Sprintf("[%s]%s[-]", role("tabs.off").String(), tview.Escape(label(t, short, tight)))
 		default:
 			// The name in the tabs' accent, the key quieter after it: the
 			// names are what is read.
 			name, key := tabParts(t, short, tight)
-			text = fmt.Sprintf(" [%s]%s[-] [%s]%s[-] ", role("tabs.name").String(), tview.Escape(name), role("tabs.key").String(), tview.Escape(key))
+			text = fmt.Sprintf(" [%s]%s[-] [%s]%s[-]", role("tabs.name").String(), tview.Escape(name), role("tabs.key").String(), tview.Escape(key))
+			if ctx := context(t); ctx != "" {
+				text += fmt.Sprintf("[%s]%s[-]", role("tabs.context").String(), tview.Escape(ctx))
+			}
+			text += " "
 		}
 		if t.page == pageActivity && badge != "" {
 			// Outside the tab's own band, a cell off it, on the screen's
 			// background whatever the tab's style.
 			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
-		}
-		if t.page == pageSandboxes && sandboxCtx != "" {
-			text += "[" + role("tabs.context").String() + ":" + colBackground.String() + ":b] " + esc(sandboxCtx) + "[-:-:-] "
 		}
 		if t.page == pageSettings {
 			settings = text
@@ -152,9 +169,6 @@ func (a *App) drawTabs() {
 		if badge != "" {
 			used += cells(badge) + 2
 		}
-		if sandboxCtx != "" {
-			used += cells(sandboxCtx) + 2
-		}
 		// A cell kept free at the end, as at the start.
 		gap = max(1, a.tabsWidth-used-1)
 	}
@@ -168,7 +182,7 @@ func (a *App) sandboxContextBadge() string {
 	if !a.uniboxOn() || !a.ubx.read || a.ubx.err != nil || a.ubx.overview.Context.Name() == "" {
 		return ""
 	}
-	return glyphDot + contextWords(a.ubx.overview.Context)
+	return glyphDot + " " + contextWords(a.ubx.overview.Context)
 }
 
 // currentTab returns the page name of the visible tab, ignoring modals.

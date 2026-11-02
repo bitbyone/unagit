@@ -164,18 +164,13 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			return info.Cloned || len(info.MRs) > 0
 		}, run: func() { a.manageWorktrees(pr) }},
 	}
-	acts = append(acts, uiAction{name: "Set Up unibox from Here", about: "Run unibox init on this clone, your team's repository of sbxenv files: it finds every env there and walks you through them, in this terminal.",
+	acts = append(acts, uiAction{name: "Set Up Unibox from Here", about: "Run unibox init on this clone, your team's repository of sbxenv files: it finds every env there and walks you through them, in this terminal.",
 		rank: 630, aliases: []string{"unibox", "sandbox", "init", "setup"},
 		when: func() bool { _, err := a.executable("unibox"); return cloned() && err == nil },
 		run:  func() { a.initUniboxHere(a.projectDir(pr.Instance, pr.PathWithNamespace)) }})
 	acts = append(acts, a.openInSandboxActions(func() sandboxTarget { return a.projectTarget(pr) },
 		func() bool { return cloned() || a.httpsAddress(pr) != "" })...)
-	acts = append(acts, a.indexActions(pr.PathWithNamespace, func() string {
-		if cloned() {
-			return a.projectDir(pr.Instance, pr.PathWithNamespace)
-		}
-		return a.httpsAddress(pr)
-	}, nil)...)
+	acts = append(acts, a.indexActions(pr.PathWithNamespace, func() string { return a.indexSource(pr) }, nil)...)
 	return append(acts, a.openingActions(openTarget{"Open", func(ed *editors.Editor, place editorPlace) { a.openProjectIn(pr, ed, place) }})...)
 }
 

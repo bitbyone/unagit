@@ -125,6 +125,12 @@ func (a *App) SetScreen(s tcell.Screen) {
 			a.tv.QueueUpdateDraw(func() {
 				a.refreshLocal()
 				a.reloadChanges()
+				// A sandbox may have been made, a task started or the
+				// context changed by unibox in another terminal; the
+				// context rides on the tab bar from every screen.
+				if a.solo == nil && a.uniboxOn() && a.ubx.read {
+					a.visitSandboxes()
+				}
 			})
 		}()
 	}}

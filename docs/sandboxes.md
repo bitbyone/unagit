@@ -54,11 +54,13 @@ line" and "The boundary"); what unagit relies on in it:
   and in the tab's own headline (`sandboxContextBadge`).
 - Tasks: resume (any agent of the sandbox, afresh with `--new`), shell,
   instructions, add a repository, open the mounted checkout, rename,
-  remove. Sandboxes: new task, shell, ports (on, off, on at start), network
+  remove. Sandboxes: new task, shell, ports (on, off, on at start, add and
+forget yours), network
   (allow, deny, take back, allow what was refused), resources, stop,
   recreate, remove and force remove, the context. Envs: new task, create the
   sandbox, values (this env, its repository's, every env), tokens (in the
-  terminal, or kept in unagit), the repository index, the context, default
+  terminal, or kept in unagit), ports (whether a sandbox is made or not:
+  on at start, add and forget yours), the repository index, the context, default
   env, update the files, forget.
 - unibox's settings (the default env and the switches), doctor with its
   fixes run in the terminal, prune, herdr's plugin, setup step by step
@@ -72,8 +74,15 @@ line" and "The boundary"); what unagit relies on in it:
   is mounted; a worktree cannot be, so it - each member of a group - is
   cloned at its branch; a merge request is cloned from the forge's HTTPS
   address on its source branch, a repository not cloned on its default.
-- **Add to unibox Index…** on a repository: one env's index or every
-  env's, and when a task takes it.
+- **Add to Unibox Index…** on a repository, or on every marked one at
+  once: one env's index or every env's, and when a task takes it.
+- **Your Unibox Configuration…** (`Y`): what the person said, read from
+  `config get`, `var ls` of each env and `secret ls --all` - settings,
+  values, ports, repositories and instructions by scope, network rules,
+  tokens - each opened where it is managed, or forgotten (`config unset`,
+  `var rm`, `port rm`/`port default -`, `repo rm`, `secret rm`).
+- unibox is read again on `R`, when the tab comes to the front and when the
+  terminal regains focus, unless what is shown was read a moment ago.
 - Credentials from unagit's vault: `secret set <service> -e <env>
   --command "unagit credential get <service>"`
   ([sandbox-credentials.md](sandbox-credentials.md)).
