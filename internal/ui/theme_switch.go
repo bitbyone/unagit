@@ -131,6 +131,10 @@ func (a *App) repaintInterface() {
 
 func (a *App) remakeInterface(disk func()) {
 	tab := a.currentTab()
+	if a.solo != nil {
+		a.remakeStandalone(tab)
+		return
+	}
 	section, inside := sectionGeneral, false
 	if a.settings != nil {
 		section, inside = a.settings.current, a.settings.contentFocused

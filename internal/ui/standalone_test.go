@@ -256,13 +256,13 @@ func TestStandaloneRefreshSeesACommitMadeElsewhere(t *testing.T) {
 func TestStandaloneAutoRefreshFollowsTheRepository(t *testing.T) {
 	t.Parallel()
 	dir, _ := soloFixture(t)
+	commitIn(t, dir, "first.go", "Add one before the log is open")
 	// A second is a few milliseconds here.
 	a, sc, cfg := newSoloAppWith(t, dir, func(a *App) { a.solo.unit = 5 * time.Millisecond })
-	waitFor(t, a, sc, "notes.txt")
+	waitFor(t, a, sc, "Changes · toolbox")
 	if text := a.screenText(sc); strings.Contains(text, "auto refresh") {
 		t.Fatalf("auto refresh is said to be on before it is:\n%s", text)
 	}
-	commitIn(t, dir, "first.go", "Add one before the log is open")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Add one before the log is open")
 	// The cursor goes to the second commit; it stays there when the log
@@ -325,4 +325,61 @@ func TestStandaloneSettingsFitTheirFrame(t *testing.T) {
 			assertLegible(t, a, sc, "standalone's settings, the select open")
 		})
 	}
+}
+
+func TestStandaloneEscClearsTheLogsFilter(t *testing.T) {
+	t.Parallel()
+	dir, _ := soloFixture(t)
+	commitIn(t, dir, "tool.go", "Add a tool")
+	a, sc, _ := newSoloApp(t, dir)
+	waitFor(t, a, sc, "Changes · toolbox")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Add a tool")
+	typeRunes(sc, "/")
+	waitFor(t, a, sc, "FILTER")
+	typeRunes(sc, "Start")
+	waitGone(t, a, sc, "Add a tool")
+	// The first Esc stops typing and keeps the filter, as in every list;
+	// the next clears it, since a tab is not closed.
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "NORMAL")
+	if text := a.screenText(sc); strings.Contains(text, "Add a tool") {
+		t.Fatalf("the first Esc dropped the filter:\n%s", text)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Add a tool")
+	waitFor(t, a, sc, "Start the toolbox")
+}
+
+// TestStandaloneKeepsItsTabsWhenTheThemeChanges: the screen is made again
+// in the new colours - standalone's own, not the full unagit's - with the
+// tab that was in front and the log's cursor where it was. Serial: the
+// theme is the process's.
+func TestStandaloneKeepsItsTabsWhenTheThemeChanges(t *testing.T) {
+	restoreDefaultTheme(t)
+	dir, _ := soloFixture(t)
+	commitIn(t, dir, "tool.go", "Add a tool")
+	a, sc, _ := newSoloApp(t, dir)
+	waitFor(t, a, sc, "Changes · toolbox")
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Start the toolbox")
+	typeRunes(sc, "j")
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Switch Theme…")
+	typeRunes(sc, "switch theme")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "put on")
+	// The cursor tries a theme on the screen beneath; the tabs stay.
+	typeRunes(sc, "j")
+	waitFor(t, a, sc, "Commit Log · main")
+	waitFor(t, a, sc, "Log [2]")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Theme: ")
+	for _, want := range []string{"Commit Log · main", "Add a tool", "Start the toolbox", "Changes [1]", "? help"} {
+		waitFor(t, a, sc, want)
+	}
+	if got := onLoop(a, func() string { return a.solo.cursors[pageSoloLog]() }); got != gitIn(t, dir, "rev-parse", "HEAD~1") {
+		t.Errorf("after the theme the log's cursor is on %s, not on the commit it was on", got)
+	}
+	assertLegible(t, a, sc, "standalone in another theme")
 }

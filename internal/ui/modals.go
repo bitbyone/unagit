@@ -964,7 +964,12 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				retitle()
 				return nil
 			}
+			// A screen is not closed, so its filter goes the way a
+			// dialog's goes with it: Esc after Esc, the filter cleared.
 			if opts.embed != nil {
+				if input.GetText() != "" {
+					input.SetText("")
+				}
 				return nil
 			}
 			giveUp()

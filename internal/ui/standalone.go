@@ -166,10 +166,25 @@ func (a *App) startStandalone() {
 	// Held in memory only: the state is never saved here.
 	a.cfg.State.SetLocalRepository("", s.name, s.dir)
 	a.readSolo(s.branch)
+	// Every tab is read here, so none is stale yet: read again on coming
+	// to the front, a tab would be swapped under the keys typed into it.
 	for _, t := range soloTabs {
 		a.openSoloTab(t.page)
+		delete(s.stale, t.page)
 	}
 	a.switchTab(pageSoloChanges)
+}
+
+// remakeStandalone is remakeInterface for standalone: its own screen made
+// again in the theme now on, every tab read into it - the log's cursor on
+// the commit it was on - and the tab that was in front brought back.
+func (a *App) remakeStandalone(tab string) {
+	a.tv.SetRoot(a.buildStandalone(), true)
+	for _, t := range soloTabs {
+		a.openSoloTab(t.page)
+		delete(a.solo.stale, t.page)
+	}
+	a.switchTab(tab)
 }
 
 // refreshSolo is refreshDisk for standalone: what is checked out may have
