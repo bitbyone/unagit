@@ -390,6 +390,8 @@ func (f *watchFollower) turn() {
 	if watchesMoved {
 		if ws, err := f.store.Watches(); err == nil {
 			f.watches = ws
+		} else {
+			f.again("watches.json")
 		}
 	}
 	f.present()
@@ -398,6 +400,8 @@ func (f *watchFollower) turn() {
 	} else if f.moved("state.json") {
 		if snap, err := f.store.State(); err == nil {
 			f.snap = snap
+		} else {
+			f.again("state.json")
 		}
 	}
 	f.deliver()
@@ -450,6 +454,12 @@ func (f *watchFollower) moved(name string) bool {
 	f.stamps[name] = stamp
 	return true
 }
+
+// again forgets a file's stamp after it could not be read, so the next
+// look reads it again. Windows refuses a file for the moment another
+// instance replaces it; kept, the stamp said it was read, and a new watch
+// stayed "reading…" until the file changed once more.
+func (f *watchFollower) again(name string) { delete(f.stamps, name) }
 
 // present writes what this instance says of itself when it changed: whether
 // its terminal is in front, how far its user has looked, and what it asks
