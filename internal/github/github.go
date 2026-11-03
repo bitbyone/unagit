@@ -1176,6 +1176,20 @@ func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.Pipelin
 	if path == "" || ref == "" {
 		return nil, nil
 	}
+	// The workflow runs, newest first, are the pipelines where the
+	// repository builds with Actions: each with its number, what started
+	// it and who, the older ones too.
+	runs := url.Values{}
+	if ref == branch {
+		runs.Set("branch", branch)
+	} else {
+		runs.Set("head_sha", ref)
+	}
+	if pipes, err := c.workflowRuns(ctx, path, runs); err == nil && len(pipes) > 0 {
+		return pipes, nil
+	}
+	// Without Actions, or a token that may not read them, what the
+	// checks of the commit add up to is its one pipeline.
 	var pipe *forge.Pipeline
 	var err error
 	if ref == branch {
@@ -1224,14 +1238,102 @@ func (c *Client) runStarters(ctx context.Context, path, sha string) map[int64]*f
 	return out
 }
 
-// Jobs is the check runs of the commit a pipeline stands for.
+// workflowRuns lists the workflow runs that match q as pipelines.
+func (c *Client) workflowRuns(ctx context.Context, path string, q url.Values) ([]forge.Pipeline, error) {
+	var raw struct {
+		Runs []struct {
+			ID         int       `json:"id"`
+			Name       string    `json:"name"`
+			Number     int       `json:"run_number"`
+			Event      string    `json:"event"`
+			Status     string    `json:"status"`
+			Conclusion string    `json:"conclusion"`
+			HeadBranch string    `json:"head_branch"`
+			HeadSHA    string    `json:"head_sha"`
+			HTMLURL    string    `json:"html_url"`
+			CreatedAt  time.Time `json:"created_at"`
+			UpdatedAt  time.Time `json:"updated_at"`
+			StartedAt  time.Time `json:"run_started_at"`
+			Actor      struct {
+				Login string `json:"login"`
+			} `json:"triggering_actor"`
+		} `json:"workflow_runs"`
+	}
+	q.Set("per_page", "50")
+	if _, err := c.get(ctx, "/repos/"+path+"/actions/runs", q, &raw); err != nil {
+		return nil, err
+	}
+	pipes := make([]forge.Pipeline, 0, len(raw.Runs))
+	for _, r := range raw.Runs {
+		pipe := forge.Pipeline{ID: r.ID, Name: r.Name, Number: r.Number, Status: checkStatus(r.Status, r.Conclusion),
+			Ref: r.HeadBranch, SHA: r.HeadSHA, WebURL: r.HTMLURL, Source: r.Event,
+			CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: r.StartedAt}
+		if r.Actor.Login != "" {
+			pipe.User = &forge.User{Username: r.Actor.Login}
+		}
+		pipes = append(pipes, pipe)
+	}
+	return pipes, nil
+}
+
+// Jobs is the jobs of a workflow run, earlier attempts with them, or for a
+// pipeline that is not one the check runs of the commit it stands for.
 func (c *Client) Jobs(ctx context.Context, p forge.Project, pipe forge.Pipeline) ([]forge.Job, error) {
+	if pipe.Name != "" && pipe.ID != 0 {
+		return c.runJobs(ctx, p.PathWithNamespace, pipe)
+	}
 	ref := pipe.SHA
 	if ref == "" {
 		ref = pipe.Ref
 	}
 	_, jobs, err := c.checkRuns(ctx, p.PathWithNamespace, ref, pipe.Ref)
 	return jobs, err
+}
+
+// runJobs is the jobs of one workflow run, every attempt, an earlier one
+// marked as run again. They are Actions jobs, so each has its log.
+func (c *Client) runJobs(ctx context.Context, path string, pipe forge.Pipeline) ([]forge.Job, error) {
+	var raw struct {
+		Jobs []struct {
+			ID         int64      `json:"id"`
+			Name       string     `json:"name"`
+			Status     string     `json:"status"`
+			Conclusion string     `json:"conclusion"`
+			HTMLURL    string     `json:"html_url"`
+			StartedAt  *time.Time `json:"started_at"`
+			Completed  *time.Time `json:"completed_at"`
+		} `json:"jobs"`
+	}
+	q := url.Values{}
+	q.Set("filter", "all")
+	q.Set("per_page", "100")
+	if _, err := c.get(ctx, "/repos/"+path+"/actions/runs/"+strconv.Itoa(pipe.ID)+"/jobs", q, &raw); err != nil {
+		return nil, err
+	}
+	jobs := make([]forge.Job, 0, len(raw.Jobs))
+	for _, j := range raw.Jobs {
+		job := forge.Job{ID: j.ID, Name: j.Name, Stage: "github-actions", Status: checkStatus(j.Status, j.Conclusion),
+			WebURL: j.HTMLURL, User: pipe.User}
+		if j.StartedAt != nil {
+			job.StartedAt = *j.StartedAt
+			if j.Completed != nil {
+				job.Duration = j.Completed.Sub(*j.StartedAt).Seconds()
+			}
+		}
+		jobs = append(jobs, job)
+	}
+	forge.MarkRetried(jobs)
+	// A job's attempts together, in the order the first of them ran, the
+	// newest last - as the check runs are listed.
+	sort.SliceStable(jobs, func(i, k int) bool { return jobs[i].ID < jobs[k].ID })
+	first := map[string]int{}
+	for i, j := range jobs {
+		if _, ok := first[j.Name]; !ok {
+			first[j.Name] = i
+		}
+	}
+	sort.SliceStable(jobs, func(i, k int) bool { return first[jobs[i].Name] < first[jobs[k].Name] })
+	return jobs, nil
 }
 
 // CommitFiles is what GitHub counts a commit changed, file by file.

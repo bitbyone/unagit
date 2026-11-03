@@ -881,6 +881,11 @@ func (a *App) pipelineItems(instance string, pipes []forge.Pipeline, current int
 // pipelineID is how a pipeline is named: its number, or its commit where
 // it has none (GitHub's).
 func pipelineID(p forge.Pipeline) string {
+	if p.Name != "" {
+		// A GitHub run is known by its workflow and its number in it; its
+		// ID is eleven digits nobody reads.
+		return fmt.Sprintf("%s #%d", p.Name, p.Number)
+	}
 	if p.ID == 0 {
 		return shortSHA(p.SHA)
 	}

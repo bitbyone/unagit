@@ -957,3 +957,45 @@ func TestABranchsPipelineIsItsNewestRun(t *testing.T) {
 		t.Fatalf("pipelines = %+v, err = %v", pipes, err)
 	}
 }
+
+// TestWorkflowRunsAreThePipelines: a branch that builds with Actions lists
+// its workflow runs, newest first, each a pipeline with its workflow, its
+// number, what started it and who; a run's jobs are its Actions jobs, a
+// job's attempts together and the earlier one marked as run again.
+func TestWorkflowRunsAreThePipelines(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/actions/runs", `{"workflow_runs":[
+		{"id":41616057419,"name":"test","run_number":213,"event":"push","status":"completed","conclusion":"success",
+		 "head_branch":"main","head_sha":"new","html_url":"https://github.com/acme/api/actions/runs/41616057419",
+		 "created_at":"2026-11-03T09:00:00Z","run_started_at":"2026-11-03T09:00:05Z","triggering_actor":{"login":"jane"}},
+		{"id":41600000000,"name":"website","run_number":40,"event":"workflow_dispatch","status":"in_progress",
+		 "head_branch":"main","head_sha":"old","created_at":"2026-11-02T09:00:00Z"}]}`)
+	s.handle("/repos/acme/api/actions/runs/41616057419/jobs", `{"jobs":[
+		{"id":12,"name":"windows","status":"completed","conclusion":"success"},
+		{"id":10,"name":"test (macos-latest, test-fast)","status":"completed","conclusion":"failure",
+		 "started_at":"2026-11-03T09:00:10Z","completed_at":"2026-11-03T09:00:46Z"},
+		{"id":15,"name":"test (macos-latest, test-fast)","status":"completed","conclusion":"success"}]}`)
+	p := forge.Project{PathWithNamespace: "acme/api"}
+	pipes, err := s.client().Pipelines(context.Background(), p, forge.PipelineQuery{Ref: "main"})
+	if err != nil || len(pipes) != 2 {
+		t.Fatalf("pipelines = %+v, err = %v", pipes, err)
+	}
+	run := pipes[0]
+	if run.ID != 41616057419 || run.Name != "test" || run.Number != 213 || run.Source != "push" || run.Status != "success" ||
+		run.SHA != "new" || run.User == nil || run.User.Username != "jane" || run.StartedAt.IsZero() {
+		t.Errorf("the newest run = %+v", run)
+	}
+	if pipes[1].Status != "running" || pipes[1].Source != "workflow_dispatch" {
+		t.Errorf("the older run = %+v", pipes[1])
+	}
+	jobs, err := s.client().Jobs(context.Background(), p, run)
+	if err != nil || len(jobs) != 3 {
+		t.Fatalf("jobs = %+v, err = %v", jobs, err)
+	}
+	if jobs[0].ID != 10 || !jobs[0].Retried || jobs[1].ID != 15 || jobs[1].Retried || jobs[2].Name != "windows" {
+		t.Errorf("jobs = %+v", jobs)
+	}
+	if jobs[0].Stage != "github-actions" || jobs[0].Duration != 36 || jobs[0].User == nil {
+		t.Errorf("a job = %+v", jobs[0])
+	}
+}

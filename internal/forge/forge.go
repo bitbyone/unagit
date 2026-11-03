@@ -277,6 +277,10 @@ type Pipeline struct {
 	// whom it was started by, nil where the forge does not say.
 	StartedAt time.Time `json:"started_at"`
 	User      *User     `json:"user,omitempty"`
+	// Name and Number are a GitHub workflow run's: its workflow and which
+	// run of it this is, "" and 0 on GitLab, where the ID says it all.
+	Name   string `json:"name,omitempty"`
+	Number int    `json:"number,omitempty"`
 }
 
 // PipelineQuery says whose pipelines to list: a merge request's, a
