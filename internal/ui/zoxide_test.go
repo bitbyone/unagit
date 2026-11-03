@@ -97,12 +97,12 @@ func TestZoxideVisitsAndRemoval(t *testing.T) {
 func TestZoxideScoresOrderRepositoriesAndWorktrees(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
-	a := &App{cfg: &config.Config{RootDir: filepath.FromSlash("/root")}, zoxideScores: map[string]float64{
-		filepath.FromSlash("/root/acme/a"): 1, filepath.FromSlash("/root/acme/.unagit/a/review-7-x"): 90,
-		filepath.FromSlash("/root/acme/.unagit/ab/wt-other"):           900,
-		filepath.FromSlash("/root/acme/.unagit/a/review-7-x/internal"): 5000,
-		filepath.FromSlash("/root/acme/b"):                             30, filepath.FromSlash("/root/acme/z"): 0,
-		filepath.FromSlash("/root/acme/a.reviews/legacy"): 91,
+	a := &App{cfg: &config.Config{RootDir: testenv.Abs("/root")}, zoxideScores: map[string]float64{
+		testenv.Abs("/root/acme/a"): 1, testenv.Abs("/root/acme/.unagit/a/review-7-x"): 90,
+		testenv.Abs("/root/acme/.unagit/ab/wt-other"):           900,
+		testenv.Abs("/root/acme/.unagit/a/review-7-x/internal"): 5000,
+		testenv.Abs("/root/acme/b"):                             30, testenv.Abs("/root/acme/z"): 0,
+		testenv.Abs("/root/acme/a.reviews/legacy"): 91,
 	}}
 	projects := []forge.Project{
 		{PathWithNamespace: "acme/unknown-old", LastActivityAt: now.Add(-time.Hour)},

@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tobola/unagit/internal/forge"
 )
@@ -36,12 +37,21 @@ func TestPrivateRepositoriesKeepTheirMarkBeforeTheForge(t *testing.T) {
 			changeOnLoop(a, func() { a.cfg.Filters.GroupRepositories = grouped; a.projectsPane.reload() })
 			for _, width := range []int{120, 80, 60} {
 				resizeApp(a, sc, width, 26)
-				text := a.screenText(sc)
 				prefix := mark + " "
 				if forgeIcon != "" {
 					prefix += forgeIcon + " "
 				}
-				if strings.Count(text, " "+mark+" ") != 1 || width >= 80 && !strings.Contains(lineAt(text, "gateway"), prefix) {
+				marked := func(text string) bool {
+					return strings.Count(text, " "+mark+" ") == 1 && (width < 80 || strings.Contains(lineAt(text, "gateway"), prefix))
+				}
+				// The columns are laid out again for the new width after
+				// the frame that shows it; a slow machine draws that one
+				// a moment later.
+				text := a.screenText(sc)
+				for deadline := time.Now().Add(patience); !marked(text) && time.Now().Before(deadline); text = a.screenText(sc) {
+					time.Sleep(20 * time.Millisecond)
+				}
+				if !marked(text) {
 					t.Errorf("nerd=%v grouped=%v width=%d: no private mark before the forge:\n%s", nerd, grouped, width, text)
 				}
 				for _, name := range []string{"billing", "internal", "unknown"} {
