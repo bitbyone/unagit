@@ -71,7 +71,7 @@ it.
 | Panel | Key | |
 | --- | --- | --- |
 | **Sandboxes** | `B` | a card each: running or stopped, its agents, its tasks |
-| **Environment** | `E` | the context, the default env, unibox's switches, the tokens sbx keeps |
+| **Environment** | `e` | the context, the default env, unibox's switches, the tokens sbx keeps |
 | **Tasks** | `t` | every sandbox's tasks, **active** while an agent has a session in it |
 | **Envs** | `N` | each env, its sandbox, what it still lacks |
 | **Log** | `L` | every command given to unibox, and what it said |

@@ -116,7 +116,7 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	// Wide enough for the detail to stand beside the tasks by itself.
 	resizeApp(a, sc, 180, 44)
 	openSandboxes(t, a, sc)
-	for _, want := range []string{"Sandboxes [B]", "Environment [E]", "Tasks [t]", "Envs [N]", "Log [L]",
+	for _, want := range []string{"Sandboxes [B]", "Environment [e]", "Tasks [t]", "Envs [N]", "Log [L]",
 		"web · context", "Claude Code, Copi", "running", "2 tasks",
 		"rate", "billing-5e6f7a8b", "active", "feat/rate", "billing, gateway", "fix/round",
 		"api-box", "1 value missing", "default env web", "2 tokens kept by sbx"} {
@@ -148,9 +148,13 @@ func TestTheSandboxesTabShowsItsPanels(t *testing.T) {
 	waitDetail(t, a, "mounted from /src/gateway")
 	selectSandboxRow(t, a, "t:billing-5e6f7a8b")
 	waitFor(t, a, sc, "https://gl.test/acme/billing.git")
-	typeRunes(sc, "E")
+	typeRunes(sc, "e")
 	waitDetail(t, a, "off, not chosen")
 	waitDetail(t, a, "anthropic")
+	// E is the editors open, here as on every screen.
+	typeRunes(sc, "E")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "no running editors") })
+	waitEditorState(t, a, func() bool { return a.tv.GetFocus() == a.sandboxes.env })
 
 	// The filter narrows the tasks.
 	typeRunes(sc, "t/fix/round")
@@ -848,5 +852,59 @@ func TestNoTokenMissingOffersNothingToStore(t *testing.T) {
 	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "sbx has every token api needs") })
 	if slices.Contains(fake.Calls(), "secret set -e api") {
 		t.Fatal("unibox was run with nothing to store")
+	}
+}
+
+// TestOnlyTheFocusedPanelHasABand: with the keys on the envs, the tasks'
+// list draws no selection band - two bands left it unclear which list j
+// and k move - and it has it again once the focus comes back.
+func TestOnlyTheFocusedPanelHasABand(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 40)
+	openSandboxes(t, a, sc)
+	waitFor(t, a, sc, "billing-5e6f7a8b")
+	_, band, _ := styleSelected.Decompose()
+	// banded is whether the row naming text is drawn on the selection band.
+	banded := func(text string) bool {
+		return onLoop(a, func() bool {
+			cells, w, h := sc.GetContents()
+			for y := 0; y < h; y++ {
+				var b strings.Builder
+				for x := 0; x < w; x++ {
+					if r := cells[y*w+x].Runes; len(r) > 0 {
+						b.WriteRune(r[0])
+					} else {
+						b.WriteRune(' ')
+					}
+				}
+				// The list is the left of the screen; the detail's title
+				// names the task too.
+				if at := strings.Index(b.String(), text); at >= 0 && len([]rune(b.String()[:at])) < w/2 {
+					x := len([]rune(b.String()[:at]))
+					_, bg, _ := cells[y*w+x].Style.Decompose()
+					return bg.Hex() == band.Hex()
+				}
+			}
+			return false
+		})
+	}
+	task := "billing-5e6f7a8b"
+	selectSandboxRow(t, a, "t:"+task)
+	waitTrue(t, "the selected task is not on the band", func() bool { return banded(task) })
+	typeRunes(sc, "N")
+	waitTrue(t, "N did not go to the envs", func() bool { return onLoop(a, func() bool { return a.sandboxes.envs.HasFocus() }) })
+	waitTrue(t, "the tasks kept their band beside the envs'", func() bool { return !banded(task) })
+	typeRunes(sc, "t")
+	waitTrue(t, "the band did not come back to the tasks", func() bool { return banded(task) })
+	if got := onLoop(a, func() string {
+		r, _ := a.sandboxes.pane.table.GetSelection()
+		if r < 1 || r > len(a.sandboxes.tasks) {
+			return ""
+		}
+		return a.sandboxes.tasks[r-1].key()
+	}); got != "t:"+task {
+		t.Fatalf("the task under the cursor became %q", got)
 	}
 }

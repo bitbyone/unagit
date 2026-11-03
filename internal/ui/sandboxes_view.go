@@ -172,6 +172,8 @@ func (a *App) newSandboxesPane() *pane {
 		v.lightBorders(to)
 		v.followDetail()
 	}
+	// The list's band goes while another panel has the keys.
+	p.kept.quiet = func() bool { return v.current != nil && v.current != p.table && v.current != p.detail }
 	p.table.SetTitle(panelTitle("Tasks", "t"))
 
 	v.cards = &sandboxCards{Box: tview.NewBox(), v: v}
@@ -437,7 +439,7 @@ func (v *sandboxesView) chosen() (sandboxRow, bool) {
 func (v *sandboxesView) setTitles() {
 	v.pane.table.SetTitle(panelTitle("Tasks", "t"))
 	v.cards.SetTitle(panelTitle("Sandboxes", "B"))
-	v.env.SetTitle(panelTitle("Environment", "E"))
+	v.env.SetTitle(panelTitle("Environment", "e"))
 	v.envs.SetTitle(panelTitle("Envs", "N"))
 	v.log.SetTitle(panelTitle("Log", "L"))
 }

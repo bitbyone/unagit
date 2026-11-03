@@ -726,7 +726,7 @@ command; unagit reads none of its files. On a task `o` resumes its agent and
 herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
 in the picker finds each agent in each place (**Resume with Claude Code in
 Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
-adds a repository, `e` renames it, `d` removes it. On a sandbox `n` starts a
+adds a repository, `Ctrl-E` renames it, `d` removes it. On a sandbox `n` starts a
 new task, checked first with `unibox task check` and pushed only on **Push
 and Start**; `p` its ports, `f` its network, `M` its resources, `x` stop,
 `C` recreate, `d` remove; among the ports `a` names one of yours and `d`

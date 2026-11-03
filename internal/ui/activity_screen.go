@@ -189,6 +189,8 @@ func (a *App) newActivityPane() *pane {
 		v.drawLog()
 	}
 	p.onSelect = v.lightLog
+	// The list's band goes while another panel has the keys.
+	p.kept.quiet = func() bool { return v.current != nil && v.current != p.table && v.current != p.detail }
 	p.table.SetTitle(panelTitle("Activity", "a"))
 
 	v.cards = newCardsView(a)

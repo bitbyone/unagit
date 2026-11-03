@@ -48,6 +48,11 @@ type keptTable struct {
 	*tview.Table
 	fixed int
 	kept  map[int][]keptMarkup
+	// quiet, when set and true, draws the table without its selection
+	// band: the keys have gone to another panel of the screen, and two
+	// bands would leave it unclear which list they move. The row under it
+	// stays selected for when the focus comes back.
+	quiet func() bool
 }
 
 func newKeptTable(t *tview.Table, fixed int) *keptTable {
@@ -65,8 +70,16 @@ func (k *keptTable) keep(row int, m keptMarkup) {
 }
 
 func (k *keptTable) Draw(screen tcell.Screen) {
-	k.Table.Draw(screen)
 	selected, _ := k.GetSelection()
+	if k.quiet != nil && k.quiet() {
+		rows, columns := k.GetSelectable()
+		k.SetSelectable(false, false)
+		k.Table.Draw(screen)
+		k.SetSelectable(rows, columns)
+		selected = -1
+	} else {
+		k.Table.Draw(screen)
+	}
 	x, y, _, h := k.GetInnerRect()
 	offset, _ := k.GetOffset()
 	for row, marks := range k.kept {
