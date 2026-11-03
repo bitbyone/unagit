@@ -269,7 +269,11 @@ func jobChanges(w watch.Watch, before, after watch.State, news func(watch.Level,
 	if len(moved) == 0 {
 		return nil
 	}
-	where := fmt.Sprintf("in pipeline #%d of %s", after.Pipeline, w.Subject())
+	// GitHub's checks of a commit have no number: "pipeline #0" said nothing.
+	where := "in the pipeline of " + w.Subject()
+	if after.Pipeline != 0 {
+		where = fmt.Sprintf("in pipeline #%d of %s", after.Pipeline, w.Subject())
+	}
 	var started, startedByHand, passed, failed []watch.JobState
 	by := ""
 	for i, j := range moved {

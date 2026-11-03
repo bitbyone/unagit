@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,4 +43,44 @@ func TestWorkflowRunsListAsPipelines(t *testing.T) {
 			assertLegible(t, a, sc, "the workflow runs")
 		})
 	}
+}
+
+// TestAListOfPipelinesFollowsTheOnesUnderWay: while a pipeline of the list
+// runs or waits, the list is read again and put in place, the cursor where
+// it was - a run that passed says so there, not only in a toast - and the
+// following stops once nothing moves.
+func TestAListOfPipelinesFollowsTheOnesUnderWay(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 120, 34)
+	changeOnLoop(a, func() { a.ciEvery = 50 * time.Millisecond })
+	var done atomic.Bool
+	read := func() []forge.Pipeline {
+		status := "pending"
+		if done.Load() {
+			status = "success"
+		}
+		return []forge.Pipeline{
+			{ID: 2, Name: "test", Number: 84, Status: status, Ref: "main", Source: "push"},
+			{ID: 1, Name: "test", Number: 83, Status: "success", Ref: "main", Source: "push"},
+		}
+	}
+	changeOnLoop(a, func() {
+		target, err := a.branchCI(a.projects[0].Instance, "acme/gateway", "main")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		target.pipelines = func(context.Context, forge.Provider) ([]forge.Pipeline, error) { return read(), nil }
+		a.listPipelines(target, read(), 0, nil)
+	})
+	waitFor(t, a, sc, "Pipelines · acme/gateway · main · following")
+	waitFor(t, a, sc, "pending")
+	typeRunes(sc, "j")
+	waitFor(t, a, sc, "test #83 · success")
+	done.Store(true)
+	waitGone(t, a, sc, "following")
+	waitGone(t, a, sc, "pending")
+	waitFor(t, a, sc, "test #83 · success")
 }

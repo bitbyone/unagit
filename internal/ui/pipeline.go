@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -810,33 +811,92 @@ func (a *App) listPipelines(target ciTarget, pipes []forge.Pipeline, current int
 			start = i
 		}
 	}
+	// list is the pipelines as last read; the follower puts them again.
+	list := &pipelinesState{pipes: pipes}
 	items, header := a.pipelineItems(target.instance, pipes, current)
 	at := func(it pickItem) forge.Pipeline { return it.Data.(forge.Pipeline) }
 	again := func(it pickItem) func() {
-		return func() { a.listPipelines(target, pipes, at(it).ID, back) }
+		return func() { a.listPipelines(target, list.pipes, at(it).ID, back) }
 	}
 	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "jobs", back: back, header: header,
 		enterName: "Show Jobs", enterAbout: "List the pipeline's jobs, earlier attempts with them.",
+		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
 		keys: []pickKey{
 			a.browserKey("w", "browser", "Open Pipeline in Browser", "The pipeline's page on the forge; the list stays open.",
 				func(it pickItem) string { return at(it).WebURL }),
 		}}
-	picker := a.showPickerWith("Pipelines · "+target.label, items, opts, func(it pickItem) {
+	picker := a.showPickerWith(list.title(target), items, opts, func(it pickItem) {
 		a.showPipeline(target.ofPipeline(at(it), again(it)), 0)
 	})
-	running := func() bool {
-		for _, p := range pipes {
-			if p.Status == "running" {
-				return true
-			}
-		}
-		return false
+	put := func() {
+		items, header := a.pipelineItems(target.instance, list.pipes, current)
+		picker.setHeader(header)
+		picker.set(list.title(target), items)
 	}
-	if running() {
-		go a.turnWhile(picker.open, running, func() {
-			items, header := a.pipelineItems(target.instance, pipes, current)
-			picker.setHeader(header)
-			picker.set("Pipelines · "+target.label, items)
+	if list.moving() {
+		go a.followPipelines(target, list, picker, put)
+		go a.turnWhile(picker.open, list.running, put)
+	}
+}
+
+// pipelinesState is the pipelines of a list as last read.
+type pipelinesState struct {
+	pipes []forge.Pipeline
+	// failed is why the last reading did not get through, "" when it did.
+	failed string
+}
+
+// moving reports whether a pipeline of the list will change by itself.
+func (s *pipelinesState) moving() bool {
+	return slices.ContainsFunc(s.pipes, func(p forge.Pipeline) bool { return ciStateOf(p.Status) == ciRunning })
+}
+
+// running reports whether a mark shown turns.
+func (s *pipelinesState) running() bool {
+	return slices.ContainsFunc(s.pipes, func(p forge.Pipeline) bool { return p.Status == "running" })
+}
+
+// title is the list's title, and whether it is being followed.
+func (s *pipelinesState) title(target ciTarget) string {
+	title := "Pipelines · " + esc(target.label)
+	if s.moving() {
+		title += " · following"
+		if s.failed != "" {
+			title += " · " + tag(colWarn) + "reading failed: " + esc(s.failed) + tagEnd
+		}
+	}
+	return title
+}
+
+// followPipelines reads the list again every so often while a pipeline of
+// it runs or waits its turn, and puts it in the picker, until the picker
+// is closed or nothing moves any more - a pipeline that passed while the
+// list was open says so there, not only in a toast.
+func (a *App) followPipelines(target ciTarget, list *pipelinesState, picker *livePicker, put func()) {
+	client := a.client(target.instance)
+	if client == nil || target.pipelines == nil {
+		return
+	}
+	for {
+		time.Sleep(a.followEvery())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		var still bool
+		if !a.onLoopWait(ctx, func() { still = picker.open() && list.moving() }) || !still {
+			cancel()
+			return
+		}
+		pipes, err := target.pipelines(ctx, client)
+		cancel()
+		a.tv.QueueUpdateDraw(func() {
+			if !picker.open() {
+				return
+			}
+			if err != nil {
+				list.failed = firstLine(err.Error())
+			} else if len(pipes) > 0 {
+				list.pipes, list.failed = pipes, ""
+			}
+			put()
 		})
 	}
 }
