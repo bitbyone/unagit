@@ -77,7 +77,10 @@ Timings and the fixture strategy are in [docs/testing.md](docs/testing.md);
 measure an uncached run before changing the parallel limit.
 
 A release is a tag `vX.Y` - two numbers, nothing else - on a commit of
-main. Every push and pull request runs `.github/workflows/test.yml` (Linux
+main; a test build for the nightly channel is `vX.Y-pre.N` there, released
+the same way but as a GitHub prerelease, never the latest, writing
+`Formula/unagit-nightly.rb` (whole, from the tag) and
+`bucket/unagit-nightly.json` and leaving the stable ones as they are. Every push and pull request runs `.github/workflows/test.yml` (Linux
 with the race detector, macOS without - its runtime crashes children
 there - Windows under Git's bash, and `make cross`, which builds and vets
 all six platforms; read-only token); `.github/workflows/release.yml` waits
@@ -93,8 +96,8 @@ builds from source and refuses if the tag has moved - only a build with a C
 compiler has the keychain, so no compiled macOS or Linux binary is
 published; Windows' archives are, for Scoop. The version is baked in
 with `-X …/internal/version.Version=X.Y` (no `v`); any other build is `dev`
-with its commit. Do not edit the formula's tag or revision, or the
-manifest, by hand.
+with its commit. Do not edit the formulas' tags or revisions, or the
+manifests, by hand: change the workflow that writes them.
 
 **Every platform.** unagit runs on macOS, Linux and Windows. What differs by
 system is in `internal/platform` behind build tags - locks, whether a

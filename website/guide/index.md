@@ -36,6 +36,17 @@ scoop bucket add unagit https://github.com/bitbyone/unagit
 scoop install unagit
 ```
 
+### Nightly
+
+Test builds, released before a version is final, have a channel of their
+own in the same tap and bucket. It installs the same `unagit` command, so it
+replaces the stable one rather than standing beside it.
+
+```sh
+brew install unagit-nightly       # Homebrew
+scoop install unagit-nightly      # Scoop
+```
+
 ### From a checkout
 
 ```sh
