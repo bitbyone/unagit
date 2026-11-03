@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -49,6 +50,21 @@ func waitForPath(t *testing.T, a *App, sc tcell.SimulationScreen, path string, e
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("%s: exists should be %v\n%s", path, exists, a.screenText(sc))
+}
+
+// waitForWorktree waits until git can read the worktree at dir: its
+// directory comes first, and git worktree add is still filling it in for a
+// moment after - longer on a slow machine.
+func waitForWorktree(t *testing.T, a *App, sc tcell.SimulationScreen, dir string) {
+	t.Helper()
+	deadline := time.Now().Add(patience)
+	for time.Now().Before(deadline) {
+		if exec.Command("git", "-C", dir, "rev-parse", "HEAD").Run() == nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("%s: git never read it as a worktree\n%s", dir, a.screenText(sc))
 }
 
 func TestGroupedWorktreeHoldsEveryMarkedRepository(t *testing.T) {

@@ -133,7 +133,7 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 	dir := onLoop(a, func() string {
 		return a.pathManager(a.projects[0].Instance, "acme/gateway").WorktreeDir("acme/gateway", "at-"+first[:7])
 	})
-	waitForPath(t, a, sc, dir, true)
+	waitForWorktree(t, a, sc, dir)
 	if got := gitIn(t, dir, "rev-parse", "HEAD"); got != first {
 		t.Errorf("the worktree is at %s, want %s", got, first)
 	}

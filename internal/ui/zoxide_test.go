@@ -120,16 +120,16 @@ func TestZoxideScoresOrderRepositoriesAndWorktrees(t *testing.T) {
 		t.Fatalf("repository inherited a sibling's visits: %v", n)
 	}
 	a.worktrees = []worktreeRow{
-		{Dir: "/unknown-old", Moved: now.Add(-time.Hour)},
-		{Dir: "/root/acme/.unagit/a/review-7-x", Moved: now},
-		{Dir: "/unknown-new", Moved: now},
-		{Dir: "/root/acme/.unagit/ab/wt-other", Moved: now},
+		{Dir: testenv.Abs("/unknown-old"), Moved: now.Add(-time.Hour)},
+		{Dir: testenv.Abs("/root/acme/.unagit/a/review-7-x"), Moved: now},
+		{Dir: testenv.Abs("/unknown-new"), Moved: now},
+		{Dir: testenv.Abs("/root/acme/.unagit/ab/wt-other"), Moved: now},
 	}
 	a.cfg.Filters.SetOrder(config.ListWorktrees, config.SortFrecency)
 	hits = allHits(len(a.worktrees))
 	a.sortWorktrees(hits)
 	sameOrder(t, "worktree visits", order(hits, func(i int) string { return a.worktrees[i].Dir }),
-		[]string{"/root/acme/.unagit/ab/wt-other", "/root/acme/.unagit/a/review-7-x", "/unknown-new", "/unknown-old"})
+		[]string{testenv.Abs("/root/acme/.unagit/ab/wt-other"), testenv.Abs("/root/acme/.unagit/a/review-7-x"), testenv.Abs("/unknown-new"), testenv.Abs("/unknown-old")})
 }
 
 func TestZoxideCardAndSortPicker(t *testing.T) {
