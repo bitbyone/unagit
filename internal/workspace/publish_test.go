@@ -271,7 +271,7 @@ func TestFailedFirstCommitLeavesChosenFilesUnversioned(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(p.Directory, "chosen"), []byte("keep"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := testenv.WriteExecutable(filepath.Join(p.Directory, ".git", "hooks", "pre-commit"), []byte("#!/bin/sh\nexit 1\n")); err != nil {
+	if err := testenv.WriteScript(t, filepath.Join(p.Directory, ".git", "hooks", "pre-commit"), []byte("#!/bin/sh\nexit 1\n")); err != nil {
 		t.Fatal(err)
 	}
 	_, err := gitx.New("", nil).CommitPaths(p.Directory, "First", []gitx.Change{{Path: "chosen", Kind: gitx.Unversioned}})

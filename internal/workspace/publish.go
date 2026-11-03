@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // LocalFolder is read before anything is initialised or sent to a server.
@@ -351,9 +351,9 @@ func lockPublication(path string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := platform.Lock(f, false); err != nil {
 		f.Close()
 		return nil, fmt.Errorf("this publication is already running; wait for it to finish")
 	}
-	return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
+	return func() { _ = platform.Unlock(f); _ = f.Close() }, nil
 }

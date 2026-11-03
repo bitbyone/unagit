@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit test test-fast integration integration-image install clean fmt website website-dev demo demo-fresh shots video
+.PHONY: build build-unagit cross test test-fast integration integration-image install clean fmt website website-dev demo demo-fresh shots video
 
 build: build-unagit
 
@@ -13,6 +13,19 @@ LDFLAGS := $(if $(VERSION),-X github.com/tobola/unagit/internal/version.Version=
 
 build-unagit:
 	go build -ldflags "$(LDFLAGS)" -o unagit ./cmd/unagit
+
+# cross builds unagit for every system it runs on, without cgo - the
+# keychain, the one part that needs it, is macOS's and left out - to see
+# that each still compiles; nothing it makes is published.
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+
+cross:
+	set -e; for p in $(PLATFORMS); do \
+		os=$${p%/*}; arch=$${p#*/}; exe=unagit; [ $$os = windows ] && exe=unagit.exe; \
+		echo "$$os/$$arch"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o dist/$$os-$$arch/$$exe ./cmd/unagit; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go vet ./...; \
+	done
 
 test:
 	go test -race ./...
@@ -51,7 +64,7 @@ install: build
 	done
 
 clean:
-	rm -f $(BINS)
+	rm -rf $(BINS) dist
 
 # The website is VitePress in website/, published to GitHub Pages by
 # .github/workflows/website.yml; these build it or serve it while writing.

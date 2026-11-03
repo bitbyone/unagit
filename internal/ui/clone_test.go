@@ -22,7 +22,7 @@ func TestCloneRepositoriesWithoutEditor(t *testing.T) {
 	}
 	marker := filepath.Join(t.TempDir(), "editor-opened")
 	editor := filepath.Join(t.TempDir(), "editor")
-	must(t, testenv.WriteExecutable(editor, []byte("#!/bin/sh\nprintf opened > \"$1\"\n")))
+	must(t, testenv.WriteScript(t, editor, []byte("#!/bin/sh\nprintf opened > \"$1\"\n")))
 	visits, _, prepare := fakeZoxide(t)
 	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")

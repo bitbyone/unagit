@@ -1009,7 +1009,12 @@ func CopyToClipboard(text string) error {
 	case "darwin":
 		candidates = [][]string{{"pbcopy"}}
 	case "windows":
-		candidates = [][]string{{"clip"}}
+		// clip reads the console's code page, so text beyond ASCII is
+		// handed to PowerShell, read as UTF-8; clip is for a system
+		// without it.
+		utf8 := "[Console]::InputEncoding=[Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd())"
+		candidates = [][]string{{"pwsh", "-NoProfile", "-NonInteractive", "-Command", utf8},
+			{"powershell", "-NoProfile", "-NonInteractive", "-Command", utf8}, {"clip"}}
 	default:
 		if os.Getenv("WAYLAND_DISPLAY") != "" {
 			candidates = append(candidates, []string{"wl-copy"})

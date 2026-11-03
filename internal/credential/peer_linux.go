@@ -6,6 +6,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Supported says whether the tokens can be handed out here at all: the
+// peer of a socket can be checked.
+const Supported = true
+
 // peerOf is the uid and pid of the process at the other end.
 func peerOf(c *net.UnixConn) (uid, pid int, err error) {
 	raw, err := c.SyscallConn()

@@ -43,7 +43,7 @@ func fakeIncomm(t *testing.T) (bin, dir string) {
 	t.Helper()
 	bin, dir = t.TempDir(), t.TempDir()
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(fakeScript)); err != nil {
+	if err := testenv.WriteScript(t, filepath.Join(bin, "incomm"), []byte(fakeScript)); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "code.go"), []byte("first\nsecond\n"), 0o644); err != nil {
@@ -271,7 +271,7 @@ func TestImportFailureReachesTheCaller(t *testing.T) {
 	// version and list work, everything else fails: a failed write must
 	// propagate, because it gates starting the editor.
 	script := "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = version ]; then echo '{\"formatVersion\":2}'; exit 0; fi\n  if [ \"$a\" = list ]; then echo '{\"notes\":[]}'; exit 0; fi\ndone\nexit 1\n"
-	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(script)); err != nil {
+	if err := testenv.WriteScript(t, filepath.Join(bin, "incomm"), []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	err := Import(context.Background(), dir, forge.MergeRequest{}, []forge.Note{{ID: 1, Thread: "a", Body: "x", Path: "code.go", Line: 1}}, nil)
@@ -283,7 +283,7 @@ func TestImportFailureReachesTheCaller(t *testing.T) {
 func TestImportRefusesAnOldCLI(t *testing.T) {
 	bin, dir := fakeIncomm(t)
 	// A 1.0.x CLI has no version command, and would drop audience and source.
-	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte("#!/bin/sh\necho 'unknown command' >&2\nexit 1\n")); err != nil {
+	if err := testenv.WriteScript(t, filepath.Join(bin, "incomm"), []byte("#!/bin/sh\necho 'unknown command' >&2\nexit 1\n")); err != nil {
 		t.Fatal(err)
 	}
 	err := Import(context.Background(), dir, forge.MergeRequest{}, []forge.Note{{ID: 1, Body: "x", Path: "code.go", Line: 1}}, nil)

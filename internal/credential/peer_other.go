@@ -7,6 +7,9 @@ import (
 	"net"
 )
 
+// Supported says whether the tokens can be handed out here at all.
+const Supported = false
+
 // peerOf cannot tell who is at the other end here, so nobody is answered.
 func peerOf(*net.UnixConn) (uid, pid int, err error) {
 	return -1, 0, errors.New("the peer of a socket cannot be checked on this platform")

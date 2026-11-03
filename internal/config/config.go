@@ -1150,7 +1150,8 @@ func Tilde(p string) string {
 }
 
 func Expand(p string) string {
-	if p == "~" || strings.HasPrefix(p, "~/") {
+	// ~\ is how a path under the home directory is typed on Windows.
+	if p == "~" || strings.HasPrefix(p, "~/") || (filepath.Separator == '\\' && strings.HasPrefix(p, `~\`)) {
 		home, err := os.UserHomeDir()
 		if err == nil {
 			return filepath.Join(home, strings.TrimPrefix(p, "~"))

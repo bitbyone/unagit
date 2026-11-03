@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // LaunchVariable carries what `unagit launch` runs. herdr types a line into
@@ -75,14 +75,14 @@ func RunLaunch() error {
 		return fmt.Errorf("%s is not installed or not on PATH: %w", l.Args[0], err)
 	}
 	if l.CloseGhostty == "" {
-		return syscall.Exec(bin, l.Args, os.Environ())
+		return platform.Exec(bin, l.Args, os.Environ())
 	}
 	cmd := exec.Command(bin, l.Args[1:]...)
 	cmd.Args[0] = l.Args[0]
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	// The terminal's keys are the program's: Ctrl-C reaches it, not this
 	// launcher waiting for it.
-	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT)
+	platform.IgnoreInterrupts()
 	runErr := cmd.Run()
 	closeGhostty(l)
 	if runErr != nil {

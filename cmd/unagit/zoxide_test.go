@@ -44,7 +44,7 @@ func TestShellCommandsRecordZoxideVisits(t *testing.T) {
 	defer close()
 	log := filepath.Join(dir, "calls")
 	tool := filepath.Join(dir, "zoxide")
-	if err := testenv.WriteExecutable(tool, []byte("#!/bin/sh\nif [ \"$1\" = add ]; then printf '%s\\n' \"$3\" >> \"$ZO_TEST_LOG\"; fi\n")); err != nil {
+	if err := testenv.WriteScript(t, tool, []byte("#!/bin/sh\nif [ \"$1\" = add ]; then printf '%s\\n' \"$3\" >> \"$ZO_TEST_LOG\"; fi\n")); err != nil {
 		t.Fatal(err)
 	}
 	run := func(args ...string) string {
@@ -89,7 +89,7 @@ func TestShellCommandsRecordZoxideVisits(t *testing.T) {
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
-	if err := testenv.WriteExecutable(tool, []byte("#!/bin/sh\necho failure >&2\nexit 1\n")); err != nil {
+	if err := testenv.WriteScript(t, tool, []byte("#!/bin/sh\necho failure >&2\nexit 1\n")); err != nil {
 		t.Fatal(err)
 	}
 	if got := run("go", "--print", "gateway"); got != clone+"\n" {
@@ -97,7 +97,7 @@ func TestShellCommandsRecordZoxideVisits(t *testing.T) {
 	}
 	// Nor does a configuration that cannot be read keep cd from an open
 	// editor's directory; zoxide, whose switch it holds, is left alone.
-	if err := testenv.WriteExecutable(tool, []byte("#!/bin/sh\nif [ \"$1\" = add ]; then printf '%s\\n' \"$3\" >> \"$ZO_TEST_LOG\"; fi\n")); err != nil {
+	if err := testenv.WriteScript(t, tool, []byte("#!/bin/sh\nif [ \"$1\" = add ]; then printf '%s\\n' \"$3\" >> \"$ZO_TEST_LOG\"; fi\n")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(cfg.Path(), []byte("instances: [unclosed\n"), 0o600); err != nil {

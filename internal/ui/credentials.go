@@ -43,7 +43,9 @@ func (a *App) credentialSocket() string {
 // token for the sandboxes; without one there is nothing to hand out and no
 // socket. It runs on the loop, again whenever a token is stored.
 func (a *App) serveCredentials() {
-	if a.credServer != nil || a.vault == nil || len(a.vault.Credentials()) == 0 {
+	// Where the peer of a socket cannot be checked nobody is answered, so
+	// no socket is opened either.
+	if !credential.Supported || a.credServer != nil || a.vault == nil || len(a.vault.Credentials()) == 0 {
 		return
 	}
 	vault, store := a.vault, a.watchStore

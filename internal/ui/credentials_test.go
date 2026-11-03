@@ -166,7 +166,7 @@ func TestKeepingClaudesTokenRunsSetupTokenFirst(t *testing.T) {
 	dir := t.TempDir()
 	ran := filepath.Join(dir, "ran")
 	claude := filepath.Join(dir, "claude")
-	if err := testenv.WriteExecutable(claude, []byte("#!/bin/sh\necho \"$@\" > "+ran+"\n")); err != nil {
+	if err := testenv.WriteScript(t, claude, []byte("#!/bin/sh\necho \"$@\" > "+ran+"\n")); err != nil {
 		t.Fatal(err)
 	}
 	a, sc, _ := credentialApp(t, 140, 40)

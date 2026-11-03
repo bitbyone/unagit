@@ -27,7 +27,7 @@ func fakeAgents(t *testing.T, herdr string, ids ...string) (string, func(*App)) 
 	for _, id := range ids {
 		ag, _ := agents.ByID(id)
 		bin := filepath.Join(dir, ag.Command)
-		must(t, testenv.WriteExecutable(bin, []byte("#!/bin/sh\nprintf '%s %s\\n' \""+id+"\" \"$PWD\" >> '"+log+"'\n")))
+		must(t, testenv.WriteScript(t, bin, []byte("#!/bin/sh\nprintf '%s %s\\n' \""+id+"\" \"$PWD\" >> '"+log+"'\n")))
 		bins[ag.Command] = bin
 	}
 	if herdr != "" {

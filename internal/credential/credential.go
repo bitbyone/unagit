@@ -55,6 +55,10 @@ type Handler func(Request, Peer) (string, error)
 // ErrServed means another unagit serves the socket already.
 var ErrServed = errors.New("another unagit hands out the sandbox credentials already")
 
+// ErrUnsupported is a system where the peer of a socket cannot be checked,
+// so the tokens are handed to nobody.
+var ErrUnsupported = errors.New("unagit hands out the sandbox tokens only on macOS and Linux; store them with unibox secret set instead")
+
 // timeout bounds a connection on both sides: the runtime waits on the
 // client, and a stuck peer must not hold a goroutine for long.
 const timeout = 5 * time.Second
@@ -73,6 +77,9 @@ type Server struct {
 // Serve listens at path and answers each connection with h. A socket left
 // by a run that crashed is taken over; a live one is another unagit's.
 func Serve(path string, h Handler) (*Server, error) {
+	if !Supported {
+		return nil, ErrUnsupported
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -158,6 +165,9 @@ func (s *Server) Close() error {
 
 // Get asks the socket at path for the token stored under name.
 func Get(path, name string) (string, error) {
+	if !Supported {
+		return "", ErrUnsupported
+	}
 	c, err := net.DialTimeout("unix", path, timeout)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT) {

@@ -26,7 +26,7 @@ func fakeZoxide(t *testing.T) (log, scores string, prepare func(*App)) {
 	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 	bin := filepath.Join(dir, "zoxide")
 	script := "#!/bin/sh\nprintf '%s\\t' \"$@\" >> " + quote(log) + "\nprintf '\\n' >> " + quote(log) + "\nif [ \"$1\" = query ]; then cat " + quote(scores) + "; fi\n"
-	must(t, testenv.WriteExecutable(bin, []byte(script)))
+	must(t, testenv.WriteScript(t, bin, []byte(script)))
 	must(t, os.WriteFile(scores, nil, 0o644))
 	must(t, os.WriteFile(log, nil, 0o644))
 	return log, scores, func(a *App) {

@@ -39,7 +39,7 @@ func fakeMachine(t *testing.T, bins map[string]string, apps ...string) {
 func TestDetectFindsToolboxScripts(t *testing.T) {
 	fakeMachine(t, nil, "IntelliJ IDEA.app")
 	script := filepath.Join(ScriptDirs()[0], "idea")
-	if err := testenv.WriteExecutable(script, []byte("#!/bin/sh\n")); err != nil {
+	if err := testenv.WriteScript(t, script, []byte("#!/bin/sh\n")); err != nil {
 		t.Fatal(err)
 	}
 	e, _ := Pick(Detect(CustomSpec{}), Idea)

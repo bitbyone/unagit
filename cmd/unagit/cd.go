@@ -1,16 +1,18 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/platform"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/ui"
 	"github.com/tobola/unagit/internal/zoxide"
@@ -75,16 +77,14 @@ func cdCmd() *cobra.Command {
 
 // enter replaces unagit with a shell in the directory. Replacing rather than
 // spawning keeps the process tree flat, hands job control straight to the
-// shell and lets its exit status be ours.
+// shell and lets its exit status be ours; Windows cannot replace a
+// process, so there unagit waits behind the shell instead.
 func enter(r session.Record) error {
 	from, _ := os.Getwd()
 	if err := os.Chdir(r.Dir); err != nil {
 		return fmt.Errorf("%s: %w", r.Dir, err)
 	}
-	sh := os.Getenv("SHELL")
-	if sh == "" {
-		sh = "/bin/sh"
-	}
+	sh := userShell()
 	if !filepath.IsAbs(sh) {
 		found, err := exec.LookPath(sh)
 		if err != nil {
@@ -103,7 +103,7 @@ func enter(r session.Record) error {
 		"OLDPWD":    from,
 		"UNAGIT_CD": r.Dir,
 	})
-	return syscall.Exec(sh, []string{filepath.Base(sh)}, env)
+	return platform.Exec(sh, []string{filepath.Base(sh)}, env)
 }
 
 // environ is the environment with those names set to those values, replacing
@@ -168,4 +168,21 @@ func sessionsConfig() (cfg *config.Config, readable bool) {
 		return cfg, false
 	}
 	return cfg, true
+}
+
+// userShell is the shell the user works in: $SHELL, else the system's own
+// - sh, or on Windows PowerShell when there is one and cmd when not.
+func userShell() string {
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
+	}
+	if runtime.GOOS != "windows" {
+		return "/bin/sh"
+	}
+	for _, sh := range []string{"pwsh", "powershell"} {
+		if found, err := exec.LookPath(sh); err == nil {
+			return found
+		}
+	}
+	return cmp.Or(os.Getenv("COMSPEC"), "cmd.exe")
 }

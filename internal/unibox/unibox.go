@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -230,6 +231,13 @@ func StripANSI(s string) string { return ansiSequence.ReplaceAllString(s, "") }
 // what it said on the terminal is read before the terminal is unagit's
 // again, or its pane closes.
 func (c *Client) CommandHolding(args ...string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		// No sh there: unagit holds it itself.
+		if self, err := os.Executable(); err == nil {
+			return exec.Command(self, append([]string{"hold", "--", c.Binary}, args...)...)
+		}
+		return c.Command(args...)
+	}
 	const hold = `"$@"; s=$?; if [ $s -ne 0 ] && [ $s -ne 130 ]; then printf '\nunibox stopped (exit %s) - press Enter to go back\n' "$s"; read _; fi; exit $s`
 	return exec.Command("/bin/sh", append([]string{"-c", hold, "unibox", c.Binary}, args...)...)
 }

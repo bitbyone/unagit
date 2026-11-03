@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/tobola/unagit/internal/platform"
 	"golang.org/x/term"
 )
 
@@ -14,15 +15,18 @@ import (
 // It deliberately refuses to fall back to a pipe so secrets can never be fed
 // in from a script, an environment variable or a command line argument.
 func ReadPassphrase(prompt string) ([]byte, error) {
-	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	in, out, err := platform.OpenTTY()
 	if err != nil {
 		return nil, errors.New("a terminal is required to enter secrets")
 	}
-	defer tty.Close()
+	defer in.Close()
+	if out != in {
+		defer out.Close()
+	}
 
-	fmt.Fprint(tty, prompt)
-	b, err := term.ReadPassword(int(tty.Fd()))
-	fmt.Fprintln(tty)
+	fmt.Fprint(out, prompt)
+	b, err := term.ReadPassword(int(in.Fd()))
+	fmt.Fprintln(out)
 	if err != nil {
 		return nil, err
 	}

@@ -175,7 +175,7 @@ func TestAStreamKeepsItsColours(t *testing.T) {
 	t.Parallel()
 	bin := filepath.Join(t.TempDir(), "unibox")
 	script := "#!/bin/sh\nif [ -t 1 ] && ! [ -t 0 ]; then printf '\\033[32mbuilt\\033[0m\\n'; else echo plain; fi\nprintf '\\033[31mno room left\\033[0m\\n' >&2\nexit 1\n"
-	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
+	if err := testenv.WriteScript(t, bin, []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	var lines []string

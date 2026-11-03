@@ -6,6 +6,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -188,6 +189,8 @@ func SystemCommand() string {
 		return "osascript"
 	case "linux", "freebsd", "openbsd":
 		return "notify-send"
+	case "windows":
+		return "powershell"
 	}
 	return ""
 }
@@ -211,6 +214,16 @@ func SystemNotify(title, subtitle, body string) error {
 			body = subtitle + "\n" + body
 		}
 		cmd = exec.CommandContext(ctx, "notify-send", "--app-name=unagit", title, body)
+	case "powershell":
+		// A toast of two lines: the title, then what it is about and the
+		// news.
+		if subtitle != "" {
+			body = subtitle + " - " + body
+		}
+		// The words go in the environment, never into the script, so no
+		// title can be read as PowerShell.
+		cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", windowsToast)
+		cmd.Env = append(os.Environ(), "UNAGIT_TOAST_TITLE="+clean(title), "UNAGIT_TOAST_BODY="+clean(body))
 	default:
 		return fmt.Errorf("this system has no notifier unagit knows; choose the terminal in Settings › Integrations")
 	}
@@ -219,6 +232,17 @@ func SystemNotify(title, subtitle, body string) error {
 	}
 	return nil
 }
+
+// windowsToast shows a toast of the system's under Windows PowerShell's
+// own name: Windows shows one only for an application it knows, and
+// PowerShell is on every Windows unagit runs on.
+const windowsToast = `[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$x = $t.GetElementsByTagName('text')
+$x.Item(0).AppendChild($t.CreateTextNode($env:UNAGIT_TOAST_TITLE)) > $null
+$x.Item(1).AppendChild($t.CreateTextNode($env:UNAGIT_TOAST_BODY)) > $null
+$id = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($id).Show([Windows.UI.Notifications.ToastNotification]::new($t))`
 
 // appleString quotes s for AppleScript.
 func appleString(s string) string {

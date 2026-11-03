@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,7 +31,9 @@ type versionProbe struct {
 // a busy machine - and that once cost a Neovim being put aside for as long
 // as unagit ran.
 func (e Editor) CanDetach() bool {
-	if e.ID != Nvim || !e.Found || !e.Terminal {
+	// On Windows Neovim listens on a named pipe and Ctrl-Z suspends
+	// nothing, so an editor there stays in front until it is quit.
+	if e.ID != Nvim || !e.Found || !e.Terminal || runtime.GOOS == "windows" {
 		return false
 	}
 	probe := &versionProbe{run: sync.OnceValues(func() (bool, bool) {

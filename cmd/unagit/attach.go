@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/platform"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/ui"
 	"github.com/tobola/unagit/internal/zoxide"
@@ -48,7 +48,7 @@ func attachCmd() *cobra.Command {
 			if tool := zoxide.New(); readable && tool.Enabled(cfg.Integrations.Zoxide) {
 				_ = tool.Add(chosen.Dir)
 			}
-			return syscall.Exec(remote.Path, remote.Args, environ(map[string]string{"PWD": chosen.Dir}))
+			return platform.Exec(remote.Path, remote.Args, environ(map[string]string{"PWD": chosen.Dir}))
 		},
 	}
 }

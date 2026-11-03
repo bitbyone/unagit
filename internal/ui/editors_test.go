@@ -40,8 +40,8 @@ func useFavourite(a *App, id string) {
 func fakeEditorsOnPath(t *testing.T) (marker string) {
 	bin := t.TempDir()
 	marker = filepath.Join(t.TempDir(), "zed-opened")
-	must(t, testenv.WriteExecutable(filepath.Join(bin, "nvim"), []byte("#!/bin/sh\nexit 0\n")))
-	must(t, testenv.WriteExecutable(filepath.Join(bin, "zed"),
+	must(t, testenv.WriteScript(t, filepath.Join(bin, "nvim"), []byte("#!/bin/sh\nexit 0\n")))
+	must(t, testenv.WriteScript(t, filepath.Join(bin, "zed"),
 		[]byte("#!/bin/sh\nprintf '%s\\n%s\\n' \"$PWD\" \"$1\" > "+marker+"\n")))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	saved := editors.AppDirs

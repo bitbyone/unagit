@@ -52,7 +52,7 @@ func TestFindAsksChezmoiForItsWorkingTree(t *testing.T) {
 	}
 	bin := filepath.Join(t.TempDir(), "chezmoi")
 	script := "#!/bin/sh\n[ \"$1\" = --no-tty ] && [ \"$2\" = git ] && [ \"$3\" = -- ] || exit 2\nshift 3\ncd '" + repo + "' && exec git \"$@\"\n"
-	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
+	if err := testenv.WriteScript(t, bin, []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	got, err := Find(bin)

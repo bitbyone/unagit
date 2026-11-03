@@ -81,7 +81,7 @@ func Install(t *testing.T, answers map[string]Answer) *Fake {
 		fmt.Fprintf(&script, "  %s) cat '%s'; exit %d;;\n", casePattern(p), out, answers[p].Status)
 	}
 	script.WriteString("  *) ;;\nesac\n")
-	if err := testenv.WriteExecutable(f.Path, []byte(script.String())); err != nil {
+	if err := testenv.WriteScript(t, f.Path, []byte(script.String())); err != nil {
 		t.Fatal(err)
 	}
 	return f

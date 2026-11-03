@@ -3,13 +3,19 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/platform"
 	"github.com/tobola/unagit/internal/ui"
 	"github.com/tobola/unagit/internal/version"
 )
@@ -62,7 +68,7 @@ func rootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
 	// --version prints the version alone, the same line as unagit version.
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.AddCommand(attachCmd(), cdCmd(), credentialCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), versionCmd(),
+	root.AddCommand(attachCmd(), cdCmd(), credentialCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), holdCmd(), versionCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
@@ -96,6 +102,53 @@ func launchCmd() *cobra.Command {
 		Args:   cobra.NoArgs,
 		RunE:   func(*cobra.Command, []string) error { return mux.RunLaunch() },
 	}
+}
+
+// holdCmd runs a program and, when it fails, waits for Enter before the
+// terminal is unagit's again, so what it said can be read: what sh does
+// for unibox elsewhere, for Windows, which has no sh.
+func holdCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:                "hold -- program [args...]",
+		Short:              "Run a program, waiting for Enter when it fails",
+		Hidden:             true,
+		DisableFlagParsing: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) > 0 && args[0] == "--" {
+				args = args[1:]
+			}
+			if len(args) == 0 {
+				return fmt.Errorf("unagit hold runs a program unagit gives it; it is not for typing")
+			}
+			os.Exit(hold(args, os.Stdin, os.Stdout))
+			return nil
+		},
+	}
+}
+
+// hold runs args with the terminal and, when the program fails other than
+// by being interrupted, says so and waits for a line before handing back
+// its exit code.
+func hold(args []string, in io.Reader, out io.Writer) int {
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	platform.IgnoreInterrupts()
+	code := 0
+	if err := cmd.Run(); err != nil {
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) {
+			fmt.Fprintf(out, "\n%s could not start: %v - press Enter to go back\n", filepath.Base(args[0]), err)
+			_, _ = bufio.NewReader(in).ReadString('\n')
+			return 1
+		}
+		code = exit.ExitCode()
+	}
+	// 130 is an interrupt, which the person asked for and has seen.
+	if code != 0 && code != 130 {
+		fmt.Fprintf(out, "\n%s stopped (exit %d) - press Enter to go back\n", filepath.Base(args[0]), code)
+		_, _ = bufio.NewReader(in).ReadString('\n')
+	}
+	return code
 }
 
 // goalCmd starts the TUI with a merge request to open straight away: the

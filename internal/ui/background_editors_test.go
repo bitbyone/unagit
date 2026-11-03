@@ -323,7 +323,7 @@ func TestAWaitingWindowLauncherHoldsNoOtherOpen(t *testing.T) {
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "pid")
 	launcher := filepath.Join(dir, "editor")
-	must(t, testenv.WriteExecutable(launcher, []byte("#!/bin/sh\necho $$ > "+pidFile+"\nexec sleep 60\n")))
+	must(t, testenv.WriteScript(t, launcher, []byte("#!/bin/sh\necho $$ > "+pidFile+"\nexec sleep 60\n")))
 	t.Cleanup(func() {
 		if b, err := os.ReadFile(pidFile); err == nil {
 			var pid int

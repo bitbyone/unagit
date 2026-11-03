@@ -18,11 +18,11 @@ import (
 	"path/filepath"
 	"sort"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // Modes a directory can be open in.
@@ -314,13 +314,4 @@ func unique(out []Record) []Record {
 
 // alive reports whether a process is still running. Signal 0 asks the kernel
 // that question without disturbing it.
-func alive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return p.Signal(syscall.Signal(0)) == nil
-}
+func alive(pid int) bool { return platform.Alive(pid) }

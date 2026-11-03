@@ -105,7 +105,7 @@ func fakeIncommCLI(t *testing.T) {
 	t.Helper()
 	bin := t.TempDir()
 	script := "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = version ]; then echo '{\"version\":\"1.1.0\",\"formatVersion\":2}'; exit 0; fi\ndone\necho '{\"changed\":0}'\n"
-	if err := testenv.WriteExecutable(filepath.Join(bin, "incomm"), []byte(script)); err != nil {
+	if err := testenv.WriteScript(t, filepath.Join(bin, "incomm"), []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))

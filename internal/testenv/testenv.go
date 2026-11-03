@@ -82,9 +82,23 @@ func Isolate() func() {
 	}
 	bin := filepath.Join(root, "bin")
 	must(os.MkdirAll(bin, 0o700))
-	for _, tool := range Tools {
-		if found, err := exec.LookPath(tool); err == nil {
-			must(os.Symlink(found, filepath.Join(bin, tool)))
+	path := bin
+	if runtime.GOOS == "windows" {
+		// A program on Windows loads its libraries from beside itself, so
+		// a link to git.exe elsewhere would not start: the directories the
+		// tools are in go on PATH instead, after the stand-ins'.
+		seen := map[string]bool{}
+		for _, tool := range Tools {
+			if found, err := exec.LookPath(tool); err == nil && !seen[filepath.Dir(found)] {
+				seen[filepath.Dir(found)] = true
+				path += string(os.PathListSeparator) + filepath.Dir(found)
+			}
+		}
+	} else {
+		for _, tool := range Tools {
+			if found, err := exec.LookPath(tool); err == nil {
+				must(os.Symlink(found, filepath.Join(bin, tool)))
+			}
 		}
 	}
 
@@ -125,7 +139,7 @@ func Isolate() func() {
 		"XDG_CACHE_HOME":      filepath.Join(home, ".cache"),
 		"UNAGIT_CONFIG_DIR":   filepath.Join(root, "unagit"),
 		"_ZO_DATA_DIR":        filepath.Join(root, "zoxide"),
-		"PATH":                bin,
+		"PATH":                path,
 		"GIT_CONFIG_GLOBAL":   gitconfig,
 		"GIT_CONFIG_NOSYSTEM": "1",
 		"GIT_TERMINAL_PROMPT": "0",
@@ -135,6 +149,13 @@ func Isolate() func() {
 	}
 	for key, value := range goEnv {
 		set[key] = value
+	}
+	if runtime.GOOS == "windows" {
+		// Windows finds the home and the configuration through these, not
+		// HOME and XDG.
+		set["USERPROFILE"] = home
+		set["APPDATA"] = filepath.Join(home, "AppData", "Roaming")
+		set["LOCALAPPDATA"] = filepath.Join(home, "AppData", "Local")
 	}
 	for key, value := range set {
 		os.Setenv(key, value)
@@ -173,6 +194,24 @@ func WriteExecutable(path string, content []byte) error {
 	syscall.ForkLock.RLock()
 	defer syscall.ForkLock.RUnlock()
 	return os.WriteFile(path, content, 0o755)
+}
+
+// WriteScript writes a stand-in shell script, and skips the test on
+// Windows, which runs no script by itself: a test standing in for a program
+// with sh runs where sh is the system's.
+func WriteScript(t testing.TB, path string, script []byte) error {
+	t.Helper()
+	NeedScripts(t)
+	return WriteExecutable(path, script)
+}
+
+// NeedScripts skips the test on Windows, for one whose stand-ins are shell
+// scripts or whose program exists only on Unix.
+func NeedScripts(t testing.TB) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("its stand-ins are shell scripts, which Windows does not run")
+	}
 }
 
 // minGit is the oldest git the tests run with: merge-tree --write-tree,

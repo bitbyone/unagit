@@ -2,7 +2,6 @@ package workspace
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,9 +10,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // CheckMove refuses layouts whose other checkouts or external git storage would
@@ -104,7 +103,7 @@ func (p *Publication) MoveLocal(target, journal string) error {
 	}
 	source := p.Directory
 	err = renameUnused(source, target)
-	if errors.Is(err, syscall.EXDEV) {
+	if platform.CrossDevice(err) {
 		err = copyLocalFolder(source, target, func() error {
 			p.Directory, p.MoveTo, p.MoveSource = target, "", source
 			return p.Save(journal)

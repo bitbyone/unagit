@@ -45,7 +45,7 @@ func TestASlowVersionIsAskedAgain(t *testing.T) {
 	bin := dir + "/nvim"
 	write := func(script string) {
 		t.Helper()
-		if err := testenv.WriteExecutable(bin+".new", []byte(script)); err != nil {
+		if err := testenv.WriteScript(t, bin+".new", []byte(script)); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.Rename(bin+".new", bin); err != nil {

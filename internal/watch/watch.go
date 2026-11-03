@@ -24,8 +24,9 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // KindPipeline is a watch on the pipelines of a merge request or a branch.
@@ -269,10 +270,10 @@ func (s *Store) Change(change func([]Watch) []Watch) ([]Watch, error) {
 		return nil, err
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+	if err := platform.Lock(lock, true); err != nil {
 		return nil, err
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer platform.Unlock(lock)
 	watches, err := s.Watches()
 	if err != nil {
 		return nil, err
@@ -313,7 +314,7 @@ type Poller struct{ f *os.File }
 // Release lets another instance poll.
 func (p *Poller) Release() {
 	if p != nil && p.f != nil {
-		syscall.Flock(int(p.f.Fd()), syscall.LOCK_UN)
+		platform.Unlock(p.f)
 		p.f.Close()
 		p.f = nil
 	}
@@ -332,9 +333,9 @@ func (s *Store) TryPoll() (*Poller, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := platform.Lock(f, false); err != nil {
 		f.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
+		if errors.Is(err, platform.ErrBusy) {
 			return nil, false, nil
 		}
 		return nil, false, err
@@ -440,13 +441,4 @@ func readJSON(path string, v any) error {
 
 // alive reports whether a process still runs; signal 0 asks without
 // disturbing it.
-func alive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return p.Signal(syscall.Signal(0)) == nil
-}
+func alive(pid int) bool { return platform.Alive(pid) }

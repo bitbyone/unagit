@@ -10,8 +10,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // Every change unagit makes to a branch's history - a squash, a message
@@ -233,10 +234,10 @@ func (g *Git) withRecord(dir string, change func(all []Rewrite) ([]Rewrite, erro
 		return err
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+	if err := platform.Lock(lock, true); err != nil {
 		return err
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer platform.Unlock(lock)
 	all, err := change(readRewrites(path))
 	if err != nil {
 		return err

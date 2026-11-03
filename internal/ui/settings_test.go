@@ -675,7 +675,7 @@ func TestIncommIntegrationSetting(t *testing.T) {
 	if onLoop(a, func() bool { return a.cfg.Integrations.Incomm }) {
 		t.Fatal("missing binary can be enabled")
 	}
-	if err := testenv.WriteExecutable(bin+"/incomm", []byte("#!/bin/sh\nexit 0\n")); err != nil {
+	if err := testenv.WriteScript(t, bin+"/incomm", []byte("#!/bin/sh\nexit 0\n")); err != nil {
 		t.Fatal(err)
 	}
 	typeRunes(sc, "c")

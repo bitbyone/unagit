@@ -10,8 +10,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // What happened to a watched thing - and to an agent - is kept as its
@@ -57,10 +58,10 @@ func (s *Store) AppendHistory(once bool, events ...Event) error {
 		return err
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+	if err := platform.Lock(lock, true); err != nil {
 		return err
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer platform.Unlock(lock)
 	byKey := map[string][]Event{}
 	var keys []string
 	for _, e := range events {

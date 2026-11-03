@@ -50,7 +50,7 @@ func TestCommandsUseArgumentsAndRespectEnvironment(t *testing.T) {
 	log := filepath.Join(dir, "calls")
 	bin := filepath.Join(dir, "zoxide")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$_ZO_EXCLUDE_DIRS\" \"$@\" >> \"$ZO_TEST_LOG\"\nif [ \"$1\" = query ]; then printf '9.5 /a path\\n'; fi\n"
-	if err := testenv.WriteExecutable(bin, []byte(script)); err != nil {
+	if err := testenv.WriteScript(t, bin, []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
@@ -94,7 +94,7 @@ func TestSlowToolHasABoundedWait(t *testing.T) {
 	t.Setenv("UNAGIT_ZOXIDE_TIMEOUT", "")
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "zoxide")
-	if err := testenv.WriteExecutable(bin, []byte("#!/bin/sh\nexec /bin/sleep 5\n")); err != nil {
+	if err := testenv.WriteScript(t, bin, []byte("#!/bin/sh\nexec /bin/sleep 5\n")); err != nil {
 		t.Fatal(err)
 	}
 	c := Find(func(string) (string, error) { return bin, nil })
