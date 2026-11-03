@@ -212,3 +212,36 @@ func TestAStartNamesWhatItIsAsked(t *testing.T) {
 		t.Fatalf("repositories of their own: %s", got)
 	}
 }
+
+// TestADoctorWithFailedChecksIsAnAnswer: doctor exits 4 when a check
+// fails, its checks on stdout and its progress on stderr; the checks are
+// the answer, never "checking sbx..." as an error. A command that fails
+// outright is said by the line unibox marks as its own, not its progress.
+func TestADoctorWithFailedChecksIsAnAnswer(t *testing.T) {
+	t.Parallel()
+	bin := filepath.Join(t.TempDir(), "unibox")
+	script := `#!/bin/sh
+case "$1" in
+doctor)
+	echo 'checking sbx...' >&2
+	echo 'planning env web...' >&2
+	echo '{"api_version":2,"checks":[{"area":"sbx","name":"installed","status":"pass","message":"found"},{"area":"env web","name":"secret github","status":"fail","message":"not stored","hint":"unibox secret set -e web github"}]}'
+	exit 4;;
+*)
+	echo 'checking sbx...' >&2
+	echo 'unibox: sbx is not signed in; run sbx login' >&2
+	exit 1;;
+esac
+`
+	if err := testenv.WriteScript(t, bin, []byte(script)); err != nil {
+		t.Fatal(err)
+	}
+	checks, err := unibox.New(bin).Doctor()
+	if err != nil || len(checks) != 2 || checks[1].Status != "fail" {
+		t.Fatalf("doctor: %+v, %v", checks, err)
+	}
+	_, err = unibox.New(bin).Sandboxes()
+	if err == nil || !strings.HasSuffix(err.Error(), ": sbx is not signed in; run sbx login") {
+		t.Fatalf("the failure is said by its progress: %v", err)
+	}
+}

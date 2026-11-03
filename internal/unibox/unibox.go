@@ -110,6 +110,11 @@ func (c *Client) jsonAnswer(ctx context.Context, out any, args ...string) (envel
 	if env.APIVersion != APIVersion {
 		return env, &VersionError{Got: env.APIVersion}
 	}
+	if out != nil && runErr != nil {
+		// A command that fails can still answer in full - doctor with its
+		// failed checks - and its caller decides what the answer is worth.
+		_ = json.Unmarshal(stdout.Bytes(), out)
+	}
 	if runErr != nil {
 		status := 1
 		var exit *exec.ExitError
@@ -118,7 +123,7 @@ func (c *Client) jsonAnswer(ctx context.Context, out any, args ...string) (envel
 		}
 		message := env.Message
 		if message == "" {
-			message = firstLine(stderr.String(), runErr.Error())
+			message = saidLine(stderr.String(), runErr.Error())
 		}
 		return env, &Error{Code: env.Code, Message: message, Status: status}
 	}
@@ -135,18 +140,28 @@ func (c *Client) failed(args []string, err error, stderr string) error {
 	if errors.As(err, &notFound) || errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("unibox is not installed at %s - install it, see Settings › Integrations", c.Binary)
 	}
-	return fmt.Errorf("unibox %s: %s", strings.Join(args, " "), firstLine(stderr, err.Error()))
+	return fmt.Errorf("unibox %s: %s", strings.Join(args, " "), saidLine(stderr, err.Error()))
 }
 
-// firstLine is the first line of what a command said, without unibox's own
-// "unibox:" before it, or the fallback when it said nothing.
-func firstLine(text, fallback string) string {
+// saidLine is what a failed command said went wrong, without unibox's own
+// "unibox:" before it, or the fallback when it said nothing. unibox writes
+// its progress to the same stream before the error - "checking sbx..." -
+// so the line it marks as its own wins, and else the last one.
+func saidLine(text, fallback string) string {
+	said := ""
 	for _, line := range strings.Split(text, "\n") {
-		if line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "unibox:")); line != "" {
-			return line
+		line = strings.TrimSpace(line)
+		if rest, ok := strings.CutPrefix(line, "unibox:"); ok && strings.TrimSpace(rest) != "" {
+			return strings.TrimSpace(rest)
+		}
+		if line != "" {
+			said = line
 		}
 	}
-	return fallback
+	if said == "" {
+		return fallback
+	}
+	return said
 }
 
 // Stream runs a command whose progress is worth reading - an update of the
