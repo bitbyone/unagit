@@ -160,7 +160,8 @@ func (m *Manager) moveOnto(dir, branch, upstream string) (string, error) {
 			return "", err
 		}
 		incoming := map[string]bool{}
-		out, _ := m.trimmed(dir, "diff", "--name-only", base, upstream)
+		// Both ends of a rename: an edit to the file it moves away collides.
+		out, _ := m.trimmed(dir, "diff", "--name-only", "--no-renames", base, upstream)
 		for _, f := range strings.Split(out, "\n") {
 			incoming[f] = true
 		}

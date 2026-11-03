@@ -542,3 +542,56 @@ func TestReviewIgnoresAnUncommittedCommentStore(t *testing.T) {
 		t.Errorf("info/exclude = %q, want the pattern once", data)
 	}
 }
+
+// TestAReviewOfARenameOpensAgain: a merge request that renames a file has
+// git's rename detection call the new file R, not A; it was left untracked,
+// the diff passed it over, and opening the review again failed - the reset
+// left it on disk and read-tree would not overwrite it - or put the old
+// file back beside it and counted the change as the reviewer's own edits.
+func TestAReviewOfARenameOpensAgain(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	work := filepath.Join(dir, "work")
+	bare := filepath.Join(dir, "origin.git")
+	git(t, dir, "init", "--bare", "--initial-branch=main", bare)
+	git(t, dir, "init", "--initial-branch=main", work)
+	write(t, work, "emailing.adoc", strings.Repeat("a line that stays the same\n", 20))
+	write(t, work, "keep.txt", "a\n")
+	git(t, work, "add", ".")
+	git(t, work, "commit", "-m", "initial")
+	git(t, work, "remote", "add", "origin", bare)
+	git(t, work, "push", "origin", "main")
+	base := git(t, work, "rev-parse", "HEAD")
+	git(t, work, "checkout", "-b", "feature/login")
+	git(t, work, "mv", "emailing.adoc", "email-dispatcher.adoc")
+	write(t, work, "email-dispatcher.adoc", strings.Repeat("a line that stays the same\n", 20)+"one more\n")
+	write(t, work, "business-emails.adoc", "new\n")
+	git(t, work, "add", "-A")
+	git(t, work, "commit", "-m", "rename")
+	git(t, work, "push", "origin", "feature/login")
+	git(t, work, "push", "origin", "HEAD:refs/merge-requests/1/head")
+	head := git(t, work, "rev-parse", "HEAD")
+
+	m, p := newReviewManager(t, bare)
+	review, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := func() string { return git(t, review, "diff", "--no-renames", "--name-status") }
+	want := "A\tbusiness-emails.adoc\nA\temail-dispatcher.adoc\nD\temailing.adoc"
+	if got := pending(); got != want {
+		t.Fatalf("pending change:\n%s\nwant:\n%s", got, want)
+	}
+	if untracked := git(t, review, "ls-files", "--others", "--exclude-standard"); untracked != "" {
+		t.Fatalf("left untracked: %s", untracked)
+	}
+	if edits := m.OwnEdits(review); len(edits) != 0 {
+		t.Fatalf("the merge request counted as the reviewer's edits: %v", edits)
+	}
+	if _, err := m.EnsureMRReview(reviewMR(), p, Review{BaseSHA: base, HeadSHA: head}); err != nil {
+		t.Fatalf("opening the review again: %v", err)
+	}
+	if got := pending(); got != want {
+		t.Fatalf("pending change after opening again:\n%s\nwant:\n%s", got, want)
+	}
+}

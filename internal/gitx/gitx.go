@@ -666,7 +666,7 @@ func (g *Git) ResetHard(dir, commit string) error {
 
 // UnstagedFiles lists the files the working tree changes on top of the index.
 func (g *Git) UnstagedFiles(dir string) []string {
-	return g.names(dir, "diff", "--name-only")
+	return g.names(dir, "diff", "--name-only", "--no-renames")
 }
 
 // ChangedSince lists the working tree files that differ from a commit. In a
@@ -679,7 +679,7 @@ func (g *Git) UnstagedFiles(dir string) []string {
 // on disk exactly as the commit has it. So a path whose file is the
 // commit's own blob is no edit.
 func (g *Git) ChangedSince(dir, commit string) []string {
-	changed := g.names(dir, "diff", "--name-only", commit)
+	changed := g.names(dir, "diff", "--name-only", "--no-renames", commit)
 	if len(changed) == 0 {
 		return nil
 	}
@@ -723,8 +723,12 @@ func (g *Git) ChangedSince(dir, commit string) []string {
 }
 
 // AddedPaths lists the files head adds on top of base.
+//
+// Renames are not looked for: git finds them by default, and a file the
+// merge request renames was then no file it adds - left untracked, the
+// diff passed it over and the next reset could not put it back.
 func (g *Git) AddedPaths(dir, base, head string) []string {
-	return g.names(dir, "diff", "--name-only", "--diff-filter=A", base, head)
+	return g.names(dir, "diff", "--name-only", "--no-renames", "--diff-filter=A", base, head)
 }
 
 func (g *Git) names(dir string, args ...string) []string {
