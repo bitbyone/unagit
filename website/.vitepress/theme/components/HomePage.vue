@@ -122,7 +122,7 @@ const features = [
       <p class="kicker"><b>U</b>niversal <b>N</b>avigator <b>A</b>round <b>GIT</b></p>
       <h1>Every repository you work with.<br /><span>All in one place, all in reach.</span></h1>
       <p class="lead">
-        One terminal list of every repository you work with, on every GitLab and GitHub server —
+        One terminal list of every repository you work with, on every GitLab and GitHub server:
         cloned, branched and opened in your editor or an agent in a keystroke.
       </p>
 
