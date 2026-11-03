@@ -67,7 +67,9 @@ func TestSavingGeneralKeepsTheKeyboard(t *testing.T) {
 
 func waitFocus(t *testing.T, a *App, ok func() bool) {
 	t.Helper()
-	for i := 0; i < 100; i++ {
+	// As long as any wait may take: a program run on the way - yazi, an
+	// editor - suspends and resumes the screen, slower under load.
+	for deadline := time.Now().Add(patience); time.Now().Before(deadline); {
 		if onLoop(a, ok) {
 			return
 		}
