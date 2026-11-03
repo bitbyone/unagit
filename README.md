@@ -684,6 +684,16 @@ sbx, your values, the tokens, the sandboxes - is `unibox init --file …`
 asking in this terminal. A repository not cloned is cloned first, by
 unagit or by unibox under its own data directory.
 
+The tab counts, from every screen, what the sandboxes still lack
+(`Sandboxes [5] !2`): an env that does not load or wants a value of yours,
+a sandbox older than its env. Only unibox's doctor knows the last, so
+unagit asks it when you open the doctor (`D`) and right after a pull - or a
+rebase - moves the team's repository an env is read from: a sandbox made
+before the move reads **env changed** among the envs, and unagit offers to
+recreate it then and there. **Delete from Disk…** on a clone that a task
+mounts says so in its question, first when an agent's session is open in
+it.
+
 The **context** - the sandbox unibox works in when not told - rides on the
 tab bar inside **Sandboxes [5]**, quieter than its name, on every screen.
 unibox is read again when the tab or the terminal comes to the front, and

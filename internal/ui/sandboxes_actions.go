@@ -643,7 +643,7 @@ func (a *App) recreateSandbox(r sandboxRow) {
 	body := fmt.Sprintf("Make %s again from env %s as it is now?\n\nIts tasks stay: mounts are made again, clones cloned again; work not pushed makes unibox refuse. sbx asks in this terminal to approve the env.", s.Name, s.Env)
 	a.confirmWith("Recreate sandbox", body, "Recreate", nil, func() {
 		a.closeModal(pageConfirm)
-		a.uniboxHere("Recreating "+s.Name, "sandbox", "recreate", s.Name)
+		a.recreateDrifted([]string{s.Name})
 	})
 }
 
@@ -1443,6 +1443,7 @@ func (a *App) showDoctor() {
 		checks, err = c.Doctor()
 		return "", err
 	}, func(string) {
+		a.setDrift(checks)
 		rank := map[string]int{"fail": 0, "warn": 1, "pass": 2}
 		sort.SliceStable(checks, func(i, j int) bool { return rank[checks[i].Status] < rank[checks[j].Status] })
 		var items []pickItem

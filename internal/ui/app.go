@@ -176,6 +176,10 @@ type App struct {
 	ubx           uniboxState
 	sandboxRows   []sandboxRow
 	ubxLog        []*uniboxEvent
+	// ubxDrift are the sandboxes unibox's doctor last said are older than
+	// their env, by name. The overview cannot say it, so it outlives the
+	// refreshes and changes only when the doctor is asked again.
+	ubxDrift map[string]bool
 
 	// worktrees are the plain branch worktrees on disk, made from Repositories
 	// rather than for a merge request; refreshDisk fills them in.

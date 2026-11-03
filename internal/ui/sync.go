@@ -14,6 +14,7 @@ import (
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -370,7 +371,31 @@ func (a *App) rebaseWorktree(r worktreeRow) {
 func (a *App) moveMany(title string, items []updateItem, move func(*workspace.Manager, string, string) (string, error)) {
 	integrate := a.cfg.Integrations.Incomm
 	since := time.Now()
-	a.runTaskNoting(title, func(log func(string)) (string, error) {
+	// A team's repository an env is read from may move under a sandbox
+	// made from it: its HEAD before and after says whether to ask.
+	var dirs []string
+	for _, it := range items {
+		dirs = append(dirs, it.dir)
+	}
+	envDirs := a.envRepoDirs(dirs)
+	// Asked once the log has closed, so the question that may follow is
+	// not taken for a dialog in the way.
+	var moved []string
+	a.runTaskEnding(title, session.Record{}, nil, func(outcome string) {
+		a.note(outcome)
+		a.checkDriftAfterMove(a.envsOfRepos(moved))
+	}, func(log func(string)) (string, error) {
+		heads := map[string]string{}
+		for _, d := range envDirs {
+			heads[d], _ = gitx.New("", nil).RevParse(d, "HEAD")
+		}
+		defer func() {
+			for d, before := range heads {
+				if after, _ := gitx.New("", nil).RevParse(d, "HEAD"); after != before {
+					moved = append(moved, d)
+				}
+			}
+		}()
 		// A rebase is written down; the Activity log hears of it, once a
 		// repository, whose worktrees share one record.
 		defer func() {

@@ -273,6 +273,8 @@ func (a *App) sandboxState(r sandboxRow) (string, string) {
 		return "does not load", "sandboxes.problem"
 	case len(r.env.Missing) > 0:
 		return counted(len(r.env.Missing), "value missing", "values missing"), "sandboxes.problem"
+	case r.made && a.drifted(r.sandboxName()):
+		return "env changed", "sandboxes.problem"
 	case !r.made:
 		return "no sandbox", "sandboxes.stopped"
 	}

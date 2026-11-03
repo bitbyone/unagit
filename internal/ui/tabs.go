@@ -91,9 +91,19 @@ func (a *App) drawTabs() {
 	if n := a.activityNews(); n > 0 {
 		badge = fmt.Sprintf("%s%d", glyphDot, n)
 	}
+	// And after the Sandboxes tab, in the colour of a problem, how many
+	// things the sandboxes still lack: news the screen itself would only
+	// tell once opened.
+	problems := ""
+	if n := a.sandboxProblems(); n > 0 {
+		problems = fmt.Sprintf("%s%d", glyphTabProblem, n)
+	}
 	badgesWidth := 0
 	if badge != "" {
 		badgesWidth = cells(badge) + 1
+	}
+	if problems != "" {
+		badgesWidth += cells(problems) + 1
 	}
 	short, tight := false, false
 	// Settings is held apart from the screens by at least a separator's
@@ -152,6 +162,9 @@ func (a *App) drawTabs() {
 			// background whatever the tab's style.
 			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
 		}
+		if t.page == pageSandboxes && problems != "" {
+			text += "[" + role("tabs.problem").String() + ":" + colBackground.String() + ":b] " + esc(problems) + "[-:-:-] "
+		}
 		if t.page == pageSettings {
 			settings = text
 			continue
@@ -168,6 +181,9 @@ func (a *App) drawTabs() {
 		}
 		if badge != "" {
 			used += cells(badge) + 2
+		}
+		if problems != "" {
+			used += cells(problems) + 2
 		}
 		// A cell kept free at the end, as at the start.
 		gap = max(1, a.tabsWidth-used-1)

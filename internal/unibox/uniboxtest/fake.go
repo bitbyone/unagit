@@ -27,6 +27,9 @@ type Fake struct {
 	// Path is the stand-in, for an app's findExecutable.
 	Path string
 	log  string
+	// files are where each pattern's answer is kept, which Answer
+	// rewrites.
+	files map[string]string
 }
 
 // Install writes a stand-in answering each command line - its arguments
@@ -50,7 +53,7 @@ func Install(t *testing.T, answers map[string]Answer) *Fake {
 			time.Sleep(20 * time.Millisecond)
 		}
 	})
-	f := &Fake{Path: filepath.Join(dir, "unibox"), log: filepath.Join(dir, "calls")}
+	f := &Fake{Path: filepath.Join(dir, "unibox"), log: filepath.Join(dir, "calls"), files: map[string]string{}}
 	patterns := make([]string, 0, len(answers))
 	for p := range answers {
 		patterns = append(patterns, p)
@@ -74,6 +77,7 @@ func Install(t *testing.T, answers map[string]Answer) *Fake {
 		if err := os.WriteFile(out, []byte(answers[p].Out), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		f.files[p] = out
 		fmt.Fprintf(&script, "  %s) cat '%s'; exit %d;;\n", casePattern(p), out, answers[p].Status)
 	}
 	script.WriteString("  *) ;;\nesac\n")
@@ -91,6 +95,25 @@ func casePattern(p string) string {
 		parts[i] = "'" + strings.ReplaceAll(part, "'", `'\''`) + "'"
 	}
 	return strings.Join(parts, "*")
+}
+
+// Answer changes what a command line installed with an answer answers
+// from now on: for what only a test's own directories can say, which are
+// made after the stand-in. Its status stays.
+func (f *Fake) Answer(t *testing.T, pattern, out string) {
+	t.Helper()
+	file, ok := f.files[pattern]
+	if !ok {
+		t.Fatalf("the stand-in has no answer for %q to change", pattern)
+	}
+	// Renamed into place: a read under way sees the old answer or the
+	// new one, never half of it.
+	if err := os.WriteFile(file+".new", []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(file+".new", file); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Calls are the command lines run so far, in order.

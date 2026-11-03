@@ -361,6 +361,8 @@ func helpRows() []helpLine {
 		key("y", "the log: copy the event's command"),
 		key("R", "read everything from Unibox again"),
 		key("STATE", "an env's missing values · running · an agent"),
+		key("env changed", "an env: its sandbox older than it - C recreates"),
+		key(glyphTabProblem+"2", "by the tab: how many things the sandboxes lack"),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail),

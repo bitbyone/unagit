@@ -248,6 +248,7 @@ var colourRoles = []colourRole{
 	{"tabs.key", "text.dim", "the key after a tab's name that reaches it"},
 	{"tabs.off", "text.dim", "a tab with nothing to show, Sandboxes without unibox"},
 	{"tabs.new", "text.accent", "on the Activity tab: how much happened since it was last opened"},
+	{"tabs.problem", "sandboxes.problem", "after the Sandboxes tab: how many things a sandbox still lacks"},
 	{"tabs.context", "text.muted", "on the Sandboxes tab: the sandbox unibox works in when not told"},
 	{"tabs.context_on", "tabs.active", "the same on the tab's band while it is in front, between the band and its ink"},
 	{"status.auto", "state.good", "beside the help: standalone looks at the repository by itself"},

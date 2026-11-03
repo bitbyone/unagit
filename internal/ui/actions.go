@@ -42,6 +42,21 @@ func (a *App) confirmDeleteProject(pr forge.Project) {
 	for _, g := range a.groupMembersOf(pr.Instance, path) {
 		warnings = append(warnings, "grouped worktree "+g+" holds a worktree of it, which would break")
 	}
+	// A clone a sandbox's task mounts is the agent's work too; chezmoi's
+	// checkout stays, so only a clone deleted is asked about.
+	mounted := r.Dir
+	if ws.Managed() {
+		mounted = ""
+	}
+	a.mountWarnings(mounted, func(mounts []string) {
+		a.confirmDeleteProjectWith(pr, ws, body, append(mounts, warnings...))
+	})
+}
+
+// confirmDeleteProjectWith is confirmDeleteProject's question, once it
+// knows what to warn of.
+func (a *App) confirmDeleteProjectWith(pr forge.Project, ws *workspace.Manager, body string, warnings []string) {
+	path := pr.PathWithNamespace
 	a.confirm("Delete repository", body, warnings, func() {
 		local := a.cfg.State.LocalRepository(pr.Instance, path) != "" && !ws.Managed()
 		a.runTaskThen("Deleting "+path, func(log func(string)) (string, error) {

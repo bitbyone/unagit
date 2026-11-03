@@ -341,6 +341,10 @@ type Glyphs struct {
 	// View options: an eye and the eye struck through.
 	ColumnShown  string `json:"column_shown"`
 	ColumnHidden string `json:"column_hidden"`
+	// TabProblem stands after the Sandboxes tab, with how many things a
+	// sandbox still lacks: a value, an env that does not load, a sandbox
+	// older than its env.
+	TabProblem string `json:"tab_problem"`
 	// Spinner is the frames of what turns while a job runs behind the
 	// interface, one character each, in order.
 	Spinner string `json:"spinner"`
@@ -639,7 +643,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.elided": g.Elided,
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits,
 		"glyphs.ci_unknown": g.CIUnknown, "glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,
-		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden,
+		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden, "glyphs.tab_problem": g.TabProblem,
 		"glyphs.toast_info": g.ToastInfo, "glyphs.toast_success": g.ToastSuccess,
 		"glyphs.toast_warning": g.ToastWarning, "glyphs.toast_danger": g.ToastDanger,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,

@@ -44,6 +44,19 @@ the questions are always unibox's own; afterwards the step-by-step setup
 cloned first: by unagit where it keeps its clones, or by unibox under its
 own data directory, which `unibox env update` keeps current.
 
+## What is missing
+
+The tab counts, from every screen, what stands between the sandboxes and a
+start: `Sandboxes [5] !2` - an env that does not load or wants a value of
+yours, a sandbox older than its env. That last one only unibox's doctor
+can tell, so unagit asks it when you open the doctor (`D`), and right
+after a pull moves the team's repository an env is read from: the env
+then reads **env changed**, and unagit offers to recreate its sandbox.
+
+A clone that a task mounts is the agent's work as well: **Delete from
+Disk…** names the task in its question, first when a session of its agent
+is open.
+
 ## The context
 
 The sandbox unibox works in when not told is on the tab bar, inside
