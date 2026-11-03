@@ -144,8 +144,8 @@ func (a *App) sandboxActions(r sandboxRow) []uiAction {
 	s := r.sandbox
 	running := func() bool { return s.State == "running" }
 	return []uiAction{
-		{name: "New Task…", about: "Put a checkout of yours into this sandbox - mounted, or cloned when it is a worktree - and start an agent on it: the agent, then where.",
-			keys: "n", rank: 10, run: func() { a.newSandboxTask(r) }},
+		{name: "New Task…", about: "Start an agent on a new task in this sandbox: as many repositories as it needs - your checkouts, worktrees, the env's index - its name, branch, how they get in, the agent, then where.",
+			keys: "n", rank: 10, run: func() { a.newTaskIn(r) }},
 		{name: "Open Shell…", about: "A shell in the sandbox: here, or in a tab, split or window. It counts as a session while it is open.",
 			keys: "s", rank: 20, run: func() { a.uniboxShell("Shell in "+s.Name, "sandbox", "shell", s.Name) }},
 		{name: "Ports…", about: "The sandbox's ports, the team's and yours: switch one on or off while it runs, open one in the browser, say whether it is on at each start.",
@@ -174,8 +174,8 @@ func (a *App) envActions(r sandboxRow) []uiAction {
 	notMade := func() bool { return !r.made && e.Error == "" }
 	ctx := a.ubx.overview.Context
 	return []uiAction{
-		{name: "New Task…", about: "Put a checkout of yours into this env's sandbox - made on the way when it is not yet - and start an agent on it.",
-			keys: "n", rank: 10, when: loads, run: func() { a.newSandboxTask(r) }},
+		{name: "New Task…", about: "Start an agent on a new task in this env's sandbox - made on the way when it is not yet - with as many repositories as it needs.",
+			keys: "n", rank: 10, when: loads, run: func() { a.newTaskIn(r) }},
 		{name: "Create Sandbox…", about: "Create the env's sandbox, " + r.sandboxName() + ", without a task in it: in this terminal, where sbx asks to approve the env and unibox for a value it lacks.",
 			keys: "c", rank: 15, when: notMade, run: func() { a.uniboxHere("Creating "+r.sandboxName(), "sandbox", "create", "-e", e.Name) }},
 		{name: "Values…", about: "What the env asks of you - a login, a name - and what you gave: set, change, remove, for this env, its repository's or every env.",
@@ -694,32 +694,6 @@ func (s taskSource) about() string {
 		return "Clone " + strings.Join(tildePaths(s.dirs), ", ") + " in the sandbox from the forge, at " + firstOf(s.branch, "its branch") + "; a worktree is never mounted."
 	}
 	return "Mount " + strings.Join(tildePaths(s.dirs), ", ") + " into the sandbox: the agent works on your files and .git as they are."
-}
-
-// newSandboxTask starts a task from the Sandboxes screen: what to work on,
-// the agent, the place - in the row's sandbox, or its env's made on the way.
-func (a *App) newSandboxTask(r sandboxRow) {
-	sources := a.taskSources()
-	if len(sources) == 0 {
-		a.flash("nothing is on disk to put into a sandbox - clone a repository or make a worktree first")
-		return
-	}
-	var items []pickItem
-	for _, s := range sources {
-		sub := s.branch
-		if s.clone {
-			sub = strings.TrimSpace(sub + " · clone")
-		}
-		items = append(items, pickItem{Label: s.label, Sub: sub, About: s.about(), Data: s})
-	}
-	a.showPickerWith("New task in "+r.sandboxName()+" · what to work on", items, pickerOptions{explain: true}, func(it pickItem) {
-		src := it.Data.(taskSource)
-		start := unibox.Start{Dirs: src.dirs, Clone: src.clone, Sandbox: r.sandboxName()}
-		if !r.made {
-			start.Env = r.env.Name
-		}
-		a.pickStartAgent(start, src.label, rowAgents(r))
-	})
 }
 
 // sandboxTarget is something a sandbox can work on: what it is called, its

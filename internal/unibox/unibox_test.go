@@ -204,4 +204,11 @@ func TestAStartNamesWhatItIsAsked(t *testing.T) {
 	if got := strings.Join(s.Args(), " "); got != "--branch feat/rate --repo https://gl.test/acme/gateway.git -s web --clone" {
 		t.Fatalf("a branch of an address: %s", got)
 	}
+	// Each repository's own branch follows it; the task's name and --only
+	// come after them all, a shared branch before.
+	s = unibox.Start{Sandbox: "web", Branch: "feat/x", Task: "rate", Only: true,
+		Repos: []unibox.StartRepo{{Source: "/w/a"}, {Source: "https://gl.test/acme/b.git", Branch: "fix/b"}, {Source: "notes"}}}
+	if got := strings.Join(s.Args(), " "); got != "--branch feat/x --repo /w/a --repo https://gl.test/acme/b.git --branch fix/b --repo notes --task rate --only -s web" {
+		t.Fatalf("repositories of their own: %s", got)
+	}
 }

@@ -727,8 +727,13 @@ herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
 in the picker finds each agent in each place (**Resume with Claude Code in
 Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
 adds a repository, `Ctrl-E` renames it, `d` removes it. On a sandbox `n` starts a
-new task, checked first with `unibox task check` and pushed only on **Push
-and Start**; `p` its ports, `f` its network, `M` its resources, `x` stop,
+new task - `Ctrl-S` does from any screen, in the context's sandbox, the
+repository or worktree under the cursor marked: Space marks as many
+repositories as it needs among your clones, worktrees and the env's index
+(its `on` and `always` ones marked to begin with), then a form names the
+task and its branch, mounts the checkouts or clones them all from the forge,
+pushes or not and picks the agent. It is checked first with `unibox task
+check` and pushed only on **Push and Start**; `p` its ports, `f` its network, `M` its resources, `x` stop,
 `C` recreate, `d` remove; among the ports `a` names one of yours and `d`
 forgets it. On an env `c` creates its sandbox, `V` your values, `K` its
 tokens, `p` its ports - the team's and yours, made or not - `i` its

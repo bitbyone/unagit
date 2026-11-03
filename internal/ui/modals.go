@@ -243,6 +243,10 @@ type pickerOptions struct {
 	// enterName and enterAbout name what Enter does to an item, for the
 	// item's actions (Alt-Enter); unset, Enter is not offered there.
 	enterName, enterAbout string
+	// enterMarked lets Enter go on while items are marked, for a picker
+	// whose Enter takes the marked when there are any (a new task's
+	// repositories); otherwise Enter works on one item and says so.
+	enterMarked bool
 	// same tells whether two items are the same thing, for a picker whose
 	// items are put again while it is open: the cursor stays on it. Unset,
 	// the labels are compared.
@@ -813,7 +817,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		if i < 0 || i >= len(shown) || onSelect == nil || isRule(i) {
 			return
 		}
-		if marks.count() > 0 {
+		if marks.count() > 0 && !opts.enterMarked {
 			a.flash(oneItemOnly(opts.enterName))
 			return
 		}

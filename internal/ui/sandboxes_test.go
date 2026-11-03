@@ -387,15 +387,18 @@ func TestUniboxSettingsSetOnlyWhatChanged(t *testing.T) {
 	}
 }
 
-// TestANewTaskIsCheckedThenRun: n on a sandbox asks what to work on and
-// with which agent, asks unibox what stands in the way, offers the push
-// it names, and runs unibox run with it - a clone mounted.
+// TestANewTaskIsCheckedThenRun: n on a sandbox lists what a task can be
+// given - the env's index, its always one marked, and the user's clones -
+// several marked at once; the form names the task and picks the agent;
+// unibox is asked what stands in the way, the push it names is offered,
+// and unibox run gets exactly what was chosen.
 func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	t.Parallel()
 	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
 		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":false,"needs":[{"code":"branch_not_pushed","message":"the forge has no branch main - push it first","repository":"gateway"},{"code":"env_changed","message":"env web changed since sandbox web was created","warning":true}],"repositories":[]}`),
 	})
 	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 120, 34)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
 	changeOnLoop(a, a.refreshDisk)
@@ -403,12 +406,20 @@ func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	selectSandboxRow(t, a, "s:web")
 	typeRunes(sc, "n")
 	waitFor(t, a, sc, "New task in web · what to work on")
+	waitFor(t, a, sc, "index · always")
+	waitFor(t, a, sc, "1 marked")
 	waitFor(t, a, sc, "NORMAL")
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "j ")
+	waitFor(t, a, sc, "2 marked")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "acme/gateway · which agent")
+	waitFor(t, a, sc, "New task in web · adrs, acme/gateway")
+	waitFor(t, a, sc, "Esc stop typing")
+	typeRunes(sc, "rate-fix")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "NORMAL")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "acme/gateway with Claude Code · where")
+	typeRunes(sc, string(buttonKeys([]string{"Start", "Repositories", "Cancel"})[0]))
+	waitFor(t, a, sc, "rate-fix with Claude Code · where")
 	pickPlace(t, a, sc, "claude", "This Terminal")
 	waitFor(t, a, sc, "push it first")
 	waitFor(t, a, sc, "env web changed")
@@ -418,11 +429,53 @@ func TestANewTaskIsCheckedThenRun(t *testing.T) {
 	}
 	keys := buttonKeys([]string{"Cancel", "Push and Start"})
 	typeRunes(sc, string(keys[1]))
-	run := "run --repo " + p.clone + " -s web --push --agent claude"
+	run := "run --repo adrs --repo " + p.clone + " --task rate-fix --only -s web --push --agent claude"
 	waitCalled(t, a, fake, run)
-	if !fake.Called("task check --repo " + p.clone + " -s web --json") {
+	if !fake.Called("task check --repo adrs --repo " + p.clone + " --task rate-fix --only -s web --json") {
 		t.Fatalf("not checked first: %v", fake.Calls())
 	}
+}
+
+// TestTheNewTaskFormFitsItsFrame: the form of a new task keeps its fields
+// inside its frame at every size, legible.
+func TestTheNewTaskFormFitsItsFrame(t *testing.T) {
+	t.Parallel()
+	for _, size := range []struct{ w, h int }{{120, 34}, {100, 30}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			_, prepare := fakeUnibox(t, nil)
+			a, sc, _ := newTestAppSrv(t, prepare)
+			resizeApp(a, sc, size.w, size.h)
+			openSandboxes(t, a, sc)
+			selectSandboxRow(t, a, "s:web")
+			typeRunes(sc, "n")
+			waitFor(t, a, sc, "New task in web · what to work on")
+			assertLegible(t, a, sc, "what a new task works on")
+			waitFor(t, a, sc, "NORMAL")
+			sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+			waitFor(t, a, sc, "New task in web · adrs")
+			assertFormFits(t, a, sc, frontForm(a), "Name", "Branch", "Checkouts", "Push the branch", "Agent", "Start", "Repositories", "Cancel")
+			assertLegible(t, a, sc, "the form of a new task")
+		})
+	}
+}
+
+// TestANewTaskStartsFromAnyScreen: Ctrl-S on the repositories opens the
+// new task in the context's sandbox with the repository under the cursor
+// marked beside the index's own.
+func TestANewTaskStartsFromAnyScreen(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 120, 34)
+	waitFor(t, a, sc, "acme/gateway")
+	newRealProject(t, a, "acme/gateway")
+	changeOnLoop(a, a.refreshDisk)
+	changeOnLoop(a, func() {
+		a.projectsPane.selectWhere(func(i int) bool { return a.projects[i].PathWithNamespace == "acme/gateway" })
+	})
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "what to work on")
+	waitFor(t, a, sc, "2 marked")
 }
 
 // TestTheSandboxesTabFitsEverySize: the panels and the detail stay inside

@@ -77,7 +77,9 @@ it.
 | **Log** | `L` | every command given to unibox, and what it said |
 
 On a task `o` resumes its agent, `a` with another, `s` opens a shell, `i`
-shows what the agent is told. On a sandbox `n` starts a task, `p` `f` `M`
+shows what the agent is told. On a sandbox `n` starts a task - `Ctrl-S` from any screen, in the
+context's sandbox: Space marks its repositories, then a form takes its
+name, branch, checkouts, push and agent. `p` `f` `M`
 are its ports, network and resources, `C` recreates it. On an env `V`, `K`
 and `p` are your values, its tokens and its ports; among ports `a` names
 one of yours and `d` forgets it. `U` is unibox's settings, `D` its doctor,

@@ -707,6 +707,21 @@ type Start struct {
 	Dirs                []string
 	Branch              string
 	Clone, Push         bool
+	// Repos are repositories each with a branch of its own, after Dirs:
+	// a directory, an HTTPS address or a name of the env's index.
+	Repos []StartRepo
+	// Task names the task; unibox names it after its first repository
+	// when it is not.
+	Task string
+	// Only takes the repositories named alone, not those the index says
+	// every task takes - what was chosen is what the task gets.
+	Only bool
+}
+
+// StartRepo is one repository of a start, with the branch it is on when
+// not the start's.
+type StartRepo struct {
+	Source, Branch string
 }
 
 // Args are the arguments task check and run share; run adds the agent.
@@ -717,6 +732,19 @@ func (s Start) Args() []string {
 	}
 	for _, d := range s.Dirs {
 		args = append(args, "--repo", d)
+	}
+	// A --branch after a --repo is that repository's alone.
+	for _, r := range s.Repos {
+		args = append(args, "--repo", r.Source)
+		if r.Branch != "" {
+			args = append(args, "--branch", r.Branch)
+		}
+	}
+	if s.Task != "" {
+		args = append(args, "--task", s.Task)
+	}
+	if s.Only {
+		args = append(args, "--only")
 	}
 	if s.Sandbox != "" {
 		args = append(args, "-s", s.Sandbox)

@@ -178,6 +178,7 @@ func helpRows() []helpLine {
 		key("Ctrl-A", "the same, where the terminal keeps Alt-Enter"),
 		key(":", "every action of the screen, with its key"),
 		key("+", "find any repository of yours and list it"),
+		key("Ctrl-S", "new sandbox task, from anywhere"),
 		key("j  k", "move up and down"),
 		key("g  G", "first · last").in(helpLists | helpWorktreeList),
 		key("/", "filter: fuzzy, spaces separate terms").in(helpLists | helpWorktreeList),
