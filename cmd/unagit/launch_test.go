@@ -64,6 +64,26 @@ func TestLaunchRunsWhatItIsGivenAndClosesGhostty(t *testing.T) {
 		t.Error("the note of the terminal was left behind")
 	}
 
+	// The PATH is unagit's, not the terminal's: Ghostty hands the launcher
+	// launchd's, without Homebrew's, and what it runs looks its own up.
+	tools := filepath.Join(dir, "tools")
+	if err := os.Mkdir(tools, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := testenv.WriteScript(t, filepath.Join(tools, "only-here"), []byte("#!/bin/sh\nprintf found > \"$1\"\n")); err != nil {
+		t.Fatal(err)
+	}
+	spec, _ := json.Marshal(map[string]any{"dir": work, "args": []string{"sh", "-c", `only-here "$1"`, "x", out},
+		"path": tools + string(os.PathListSeparator) + os.Getenv("PATH")})
+	cmd := exec.Command(bin, "launch")
+	cmd.Env = append(os.Environ(), mux.LaunchVariable+"="+string(spec))
+	if text, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("launch with unagit's PATH: %v\n%s", err, text)
+	}
+	if got, _ := os.ReadFile(out); string(got) != "found" {
+		t.Fatalf("a program on unagit's PATH was not found: %q", got)
+	}
+
 	// Typed by hand, it says what it is for.
 	if text, err := exec.Command(bin, "launch").CombinedOutput(); err == nil {
 		t.Fatalf("launch without a command succeeded: %s", text)

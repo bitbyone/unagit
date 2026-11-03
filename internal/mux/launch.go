@@ -25,11 +25,19 @@ type launch struct {
 	// open until a key is pressed; the launcher closes it instead.
 	CloseGhostty string `json:"close_ghostty,omitempty"`
 	Osascript    string `json:"osascript,omitempty"`
+	// Path is unagit's PATH. Ghostty runs a command it is handed from
+	// AppleScript with the application's environment - launchd's bare
+	// PATH, without Homebrew's - so a program found from unagit, unibox
+	// say, then could not find its own (sbx).
+	Path string `json:"path,omitempty"`
 }
 
 func launchValue(l launch) (string, error) {
 	if len(l.Args) == 0 {
 		return "", fmt.Errorf("nothing to run; choose an editor or an agent")
+	}
+	if l.Path == "" {
+		l.Path = os.Getenv("PATH")
 	}
 	b, err := json.Marshal(l)
 	return string(b), err
@@ -65,6 +73,9 @@ func RunLaunch() error {
 		return fmt.Errorf("unagit launch was given nothing it can run; open it again from unagit")
 	}
 	os.Unsetenv(LaunchVariable)
+	if l.Path != "" {
+		os.Setenv("PATH", l.Path)
+	}
 	if l.Dir != "" {
 		if err := os.Chdir(l.Dir); err != nil {
 			return fmt.Errorf("cannot go to %s: %w", l.Dir, err)
