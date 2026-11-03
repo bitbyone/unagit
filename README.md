@@ -57,11 +57,26 @@ brew install unagit
 unagit           # asks for a passphrase, then walks you into Settings
 ```
 
+On Windows, with Scoop, from the bucket in this repository; it installs the
+release's archive, checked against its SHA-256:
+
+```powershell
+scoop bucket add unagit https://github.com/bitbyone/unagit
+scoop install unagit
+```
+
 Or from a checkout:
 
 ```sh
 make install     # -> ~/.local/bin/unagit
 ```
+
+unagit runs on macOS, Linux and Windows. On Windows the integrations with
+nothing to stand on there stay off: Zellij, herdr and Ghostty, the keychain,
+Neovim put aside with `Ctrl-Z`, and handing the sandbox tokens to unibox.
+The configuration is under `%USERPROFILE%\.config\unagit`, as `~/.config/unagit`
+elsewhere, and `unagit cd` starts PowerShell (or `$SHELL`) with unagit
+waiting behind it.
 
 `unagit --version` (or `unagit version`) prints the release it was built from.
 

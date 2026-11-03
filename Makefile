@@ -1,7 +1,7 @@
 BINS := unagit
 PREFIX ?= $(HOME)/.local
 
-.PHONY: build build-unagit cross test test-fast integration integration-image install clean fmt website website-dev demo demo-fresh shots video
+.PHONY: build build-unagit cross dist test test-fast integration integration-image install clean fmt website website-dev demo demo-fresh shots video
 
 build: build-unagit
 
@@ -26,6 +26,25 @@ cross:
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o dist/$$os-$$arch/$$exe ./cmd/unagit; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go vet ./...; \
 	done
+
+# dist builds what a release publishes: an archive for Windows on each
+# architecture, unagit.exe and its licence at its top, and their SHA-256
+# sums, for the Scoop manifest. macOS and Linux are not among them -
+# Homebrew builds from source there, and only that build has the keychain.
+DIST_PLATFORMS := windows/amd64 windows/arm64
+
+dist:
+	@test -n "$(VERSION)" || { echo "dist needs VERSION, the release's version without its v"; exit 1; }
+	rm -rf dist
+	set -e; for p in $(DIST_PLATFORMS); do \
+		os=$${p%/*}; arch=$${p#*/}; name=unagit_$(VERSION)_$${os}_$${arch}; \
+		mkdir -p dist/$$name; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o dist/$$name/unagit.exe ./cmd/unagit; \
+		cp LICENSE README.md dist/$$name/; \
+		(cd dist/$$name && zip -q ../$$name.zip *); \
+		rm -rf dist/$$name; \
+	done
+	cd dist && if command -v sha256sum >/dev/null; then sha256sum *.zip; else shasum -a 256 *.zip; fi > checksums.txt
 
 test:
 	go test -race ./...

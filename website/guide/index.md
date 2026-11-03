@@ -26,6 +26,16 @@ brew tap bitbyone/unagit https://github.com/bitbyone/unagit
 brew install unagit
 ```
 
+### Scoop (Windows)
+
+The bucket lives in unagit's own repository too. Scoop installs the
+release's archive for your architecture, checked against its SHA-256.
+
+```powershell
+scoop bucket add unagit https://github.com/bitbyone/unagit
+scoop install unagit
+```
+
 ### From a checkout
 
 ```sh
@@ -45,6 +55,12 @@ A build that is not a release calls itself `dev`, with its commit.
 
 On macOS the passphrase can be kept in the keychain only in a build made with a
 C compiler: the Xcode Command Line Tools, which `git` there needs anyway.
+
+unagit runs on macOS, Linux and Windows. On Windows, what has nothing to stand
+on there stays off: Zellij, herdr and Ghostty, the keychain, Neovim put aside
+with `Ctrl-Z`, and handing the sandbox tokens to unibox. The configuration is
+in `%USERPROFILE%\.config\unagit`, and `unagit cd` starts PowerShell (or
+`$SHELL`) with unagit waiting behind it.
 
 ## Start it
 

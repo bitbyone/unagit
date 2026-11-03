@@ -52,6 +52,8 @@ passphrase included), and write every handout to Activity.
 make build            # the unagit binary
 make test             # go test -race ./...
 make test-fast        # go test ./... while iterating; race still before commit
+make cross            # build and vet for Linux, macOS and Windows, amd64 and arm64
+make dist VERSION=X.Y # the Windows archives a release publishes, for Scoop
 make integration      # the suite on Linux, then real Neovim, incomm, Zellij, herdr - in Docker
 gofmt -l . && go vet ./...
 ```
@@ -77,16 +79,38 @@ measure an uncached run before changing the parallel limit.
 A release is a tag `vX.Y` - two numbers, nothing else - on a commit of
 main. Every push and pull request runs `.github/workflows/test.yml` (Linux
 with the race detector, macOS without - its runtime crashes children
-there; read-only token); `.github/workflows/release.yml` waits for that
-run of the tagged commit to have passed - it does not run the tests again -
-builds the tag, checks that `unagit --version` prints `X.Y`, and only then
-lets a last job - the one that may write, running none of the repository's
-code - point `Formula/unagit.rb` at the tag and its commit and push it to
-main. Keep that split: a step that runs the code never holds a token that
-writes, and actions are pinned by commit. Homebrew builds from source and refuses if
-the tag has moved; nothing compiled is published. The version is baked in
+there - Windows under Git's bash, and `make cross`, which builds and vets
+all six platforms; read-only token); `.github/workflows/release.yml` waits
+for that run of the tagged commit to have passed - it does not run the
+tests again - builds the tag, checks that `unagit --version` prints `X.Y`,
+and builds the Windows archives (`make dist`); only then do the jobs that
+may write, running none of the repository's code, publish those archives
+as the tag's GitHub release and point `Formula/unagit.rb` at the tag and
+its commit and `bucket/unagit.json` (Scoop) at the archives and their sums,
+and push them to main. Keep that split: a step that runs the code never
+holds a token that writes, and actions are pinned by commit. Homebrew
+builds from source and refuses if the tag has moved - only a build with a C
+compiler has the keychain, so no compiled macOS or Linux binary is
+published; Windows' archives are, for Scoop. The version is baked in
 with `-X …/internal/version.Version=X.Y` (no `v`); any other build is `dev`
-with its commit. Do not edit the formula's tag or revision by hand.
+with its commit. Do not edit the formula's tag or revision, or the
+manifest, by hand.
+
+**Every platform.** unagit runs on macOS, Linux and Windows. What differs by
+system is in `internal/platform` behind build tags - locks, whether a
+process runs, handing the terminal to another program (`Exec`: replacing
+the process on Unix, waiting behind it on Windows), the terminal itself
+(`OpenTTY`), a rename across file systems - never a `syscall.Flock` or a
+`/dev/tty` written into another package. `GOOS=windows go vet ./...`
+checks it from any machine, and `make cross` checks all six. Where a
+feature has nothing to stand on - the sandbox tokens' socket without a peer
+check (`credential.Supported`), Neovim put aside with Ctrl-Z, the
+multiplexers, the keychain - it stays off there rather than half-working.
+`sh` is not on Windows: what unagit runs through it elsewhere (holding
+unibox's terminal after a failure) is `unagit hold` there. A test whose
+stand-in is a shell script writes it with `testenv.WriteScript`, which
+skips the test on Windows; `testenv.NeedScripts` skips one whose program
+exists only on Unix.
 
 Commit and push every finished change, in every repository you touched (unagit
 and `../incomm`), without waiting to be asked: the user wants nothing left
@@ -170,6 +194,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | --- | --- |
 | `cmd/unagit` | cobra commands: the TUI, `-s` standalone, `cd`, `sessions`, `where`, `credential get`, `version` |
 | `internal/version` | the release baked in at build time, or dev and its commit |
+| `internal/platform` | what differs by system: file locks, process liveness, exec, the terminal, cross-device renames |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
 | `internal/gitlab` | REST v4 client answering in forge's words |
 | `internal/github` | github.com client, same |
