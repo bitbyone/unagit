@@ -958,6 +958,25 @@ func TestABranchsPipelineIsItsNewestRun(t *testing.T) {
 	}
 }
 
+// TestAWorkflowWaitingItsTurnKeepsTheBranchPending: a run waiting behind
+// another of its concurrency group has no check runs yet, so the head's
+// checks - another workflow's, passed - said success; the commit's runs say
+// one has not finished, and the branch is pending, or running while one
+// runs.
+func TestAWorkflowWaitingItsTurnKeepsTheBranchPending(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs",
+		`{"check_runs":[{"id":1,"name":"build","status":"completed","conclusion":"success","head_sha":"head"}]}`)
+	s.handle("/repos/acme/api/actions/runs", `{"workflow_runs":[
+		{"id":2,"name":"website","status":"completed","conclusion":"success","head_sha":"head"},
+		{"id":3,"name":"test","status":"waiting","head_sha":"head"}]}`)
+	p := forge.Project{PathWithNamespace: "acme/api", DefaultBranch: "main"}
+	pipe, jobs, err := s.client().BranchPipelineJobs(context.Background(), p, "main")
+	if err != nil || pipe == nil || pipe.Status != "pending" || len(jobs) != 1 {
+		t.Fatalf("pipeline = %+v, jobs = %+v, err = %v", pipe, jobs, err)
+	}
+}
+
 // TestWorkflowRunsAreThePipelines: a branch that builds with Actions lists
 // its workflow runs, newest first, each a pipeline with its workflow, its
 // number, what started it and who; a run's jobs are its Actions jobs, a

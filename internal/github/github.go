@@ -1104,11 +1104,53 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 			worst = job.Status
 		}
 	}
+	// A workflow run waiting for its turn - behind another of the same
+	// concurrency group - has no check runs yet: the commit's checks then
+	// said success while its tests had not started.
+	if rank[worst] < rank["pending"] {
+		switch c.unfinishedRun(ctx, path, raw.CheckRuns[0].HeadSHA) {
+		case "running":
+			worst = "running"
+		case "pending":
+			worst = "pending"
+		}
+	}
 	sha := ref
 	if ref == branch {
 		sha = ""
 	}
 	return &forge.Pipeline{Status: worst, SHA: sha, Ref: branch}, jobs, nil
+}
+
+// unfinishedRun is how far the furthest workflow run of a commit that has
+// not finished is: running, pending while it waits, or "" when every run
+// has finished or the token may not read Actions.
+func (c *Client) unfinishedRun(ctx context.Context, path, sha string) string {
+	if sha == "" {
+		return ""
+	}
+	var raw struct {
+		Runs []struct {
+			Status string `json:"status"`
+		} `json:"workflow_runs"`
+	}
+	q := url.Values{}
+	q.Set("head_sha", sha)
+	q.Set("per_page", "50")
+	if _, err := c.get(ctx, "/repos/"+path+"/actions/runs", q, &raw); err != nil {
+		return ""
+	}
+	out := ""
+	for _, r := range raw.Runs {
+		switch r.Status {
+		case "completed":
+		case "in_progress":
+			return "running"
+		default:
+			out = "pending"
+		}
+	}
+	return out
 }
 
 // checkStatus puts a check run's state into GitLab's words.
