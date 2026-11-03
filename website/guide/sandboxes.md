@@ -32,6 +32,18 @@ nothing needed on disk. Typing finds each agent in each place:
 **Add to Unibox Index…** on a repository names it for unibox's tasks; on
 marked repositories it names them all, asking which index and when once.
 
+## Setting up from a repository
+
+**Unibox Init…** on your team's repository of sbxenv files lists every
+`*.sbxenv.yaml` in it, each marked **new** or with the env unibox already
+made of it. `Enter` sets up the file under the cursor; `i` every file, or
+only the marked ones (`space`). What follows is `unibox init` itself in
+this terminal - sbx's sign-in, your values, the tokens, the sandboxes - so
+the questions are always unibox's own; afterwards the step-by-step setup
+(`I`) says what is still missing. A repository that is not cloned yet is
+cloned first: by unagit where it keeps its clones, or by unibox under its
+own data directory, which `unibox env update` keeps current.
+
 ## The context
 
 The sandbox unibox works in when not told is on the tab bar, inside

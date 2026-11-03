@@ -677,8 +677,12 @@ PATH, or with it turned off in Settings › Integrations, the tab is grey and
 says so. **Set Up Unibox…** (`I`, or `Enter` on the grey tab) lists what a
 first sandbox needs - the team's repository walked through `unibox init`,
 each env's values, its tokens, its sandbox, then unibox's doctor - and
-`Enter` does a step; **Set Up Unibox from Here** on a clone runs `unibox
-init` on it.
+`Enter` does a step. **Unibox Init…** on a repository (`Alt-Enter`) lists
+its sbxenv files, each new or the env it already is; `Enter` sets up the
+one under the cursor and `i` every file, or the marked, and the rest -
+sbx, your values, the tokens, the sandboxes - is `unibox init --file …`
+asking in this terminal. A repository not cloned is cloned first, by
+unagit or by unibox under its own data directory.
 
 The **context** - the sandbox unibox works in when not told - rides on the
 tab bar inside **Sandboxes [5]**, quieter than its name, on every screen.

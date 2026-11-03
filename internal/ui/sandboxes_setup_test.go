@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,16 +64,81 @@ func TestTheSetupSaysWhereUniboxStands(t *testing.T) {
 	waitFor(t, a, sc, "artifactory")
 }
 
-// TestSetUpUniboxFromHereRunsInit: on a clone - the team's repository of
-// sbxenv files - unibox init walks it in this terminal.
-func TestSetUpUniboxFromHereRunsInit(t *testing.T) {
-	t.Parallel()
+// uniboxInitFixture is a clone of acme/gateway holding the team's sbxenv
+// files, two of them and one in a directory unibox passes over.
+func uniboxInitFixture(t *testing.T) (*App, tcell.SimulationScreen, *uniboxtest.Fake, string) {
+	t.Helper()
 	a, sc, fake := setupFixture(t)
 	waitFor(t, a, sc, "acme/gateway")
 	p := newRealProject(t, a, "acme/gateway")
+	for _, f := range []string{"sandboxes/dev.sbxenv.yaml", "sandboxes/ci.sbxenv.yaml", ".hidden/old.sbxenv.yaml", "node_modules/x/y.sbxenv.yaml"} {
+		must(t, os.MkdirAll(filepath.Join(p.clone, filepath.Dir(f)), 0o755))
+		must(t, os.WriteFile(filepath.Join(p.clone, f), []byte("sandbox: x\n"), 0o644))
+	}
 	changeOnLoop(a, a.refreshDisk)
-	pickMuxAction(t, a, sc, "Set Up Unibox from Here")
-	waitCalled(t, a, fake, "init "+p.clone)
+	return a, sc, fake, p.clone
+}
+
+// TestUniboxInitPicksTheFiles: on a clone, Unibox Init lists its sbxenv
+// files and hands the one chosen to unibox init, in this terminal; i
+// hands every file.
+func TestUniboxInitPicksTheFiles(t *testing.T) {
+	t.Parallel()
+	a, sc, fake, clone := uniboxInitFixture(t)
+	pickMuxAction(t, a, sc, "Unibox Init")
+	waitFor(t, a, sc, "Unibox Init · acme/gateway")
+	waitFor(t, a, sc, "sandboxes/dev.sbxenv.yaml")
+	text := dumpScreen(sc)
+	if strings.Contains(text, "old.sbxenv") || strings.Contains(text, "y.sbxenv") {
+		t.Errorf("hidden directories and node_modules are no part of the repository:\n%s", text)
+	}
+	ci, dev := filepath.Join(clone, "sandboxes/ci.sbxenv.yaml"), filepath.Join(clone, "sandboxes/dev.sbxenv.yaml")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitCalled(t, a, fake, "init --file "+ci+" "+clone)
+	waitFor(t, a, sc, "Set up Unibox")
+	sc.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
+	// The guide went back to the files it was opened from.
+	waitGone(t, a, sc, "Set up Unibox")
+	waitFor(t, a, sc, "Unibox Init · acme/gateway")
+	typeRunes(sc, "i")
+	waitCalled(t, a, fake, "init --file "+ci+" --file "+dev+" "+clone)
+	// With files marked, i takes those alone.
+	waitFor(t, a, sc, "Set up Unibox")
+	sc.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Unibox Init · acme/gateway")
+	typeRunes(sc, "jj ")
+	waitFor(t, a, sc, "1 marked")
+	typeRunes(sc, "i")
+	waitCalled(t, a, fake, "init --file "+dev+" "+clone)
+}
+
+// TestUniboxInitClonesFirst: a repository not cloned is cloned by unibox
+// itself when the person says so, from the address unagit would use.
+func TestUniboxInitClonesFirst(t *testing.T) {
+	t.Parallel()
+	a, sc, fake := setupFixture(t)
+	waitFor(t, a, sc, "acme/gateway")
+	address := onLoop(a, func() string { return a.uniboxCloneAddress(a.projects[0]) })
+	pickMuxAction(t, a, sc, "Unibox Init")
+	waitFor(t, a, sc, "is not cloned")
+	// The question's buttons answer to their lit letters.
+	keys := buttonKeys([]string{"Cancel", "Clone Here", "Let Unibox Clone"})
+	typeRunes(sc, string(keys[2]))
+	waitCalled(t, a, fake, "init "+address)
+}
+
+// TestUniboxInitFitsItsFrame: the files' picker at several sizes.
+func TestUniboxInitFitsItsFrame(t *testing.T) {
+	t.Parallel()
+	for _, size := range []struct{ w, h int }{{120, 34}, {100, 30}, {80, 26}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			a, sc, _, _ := uniboxInitFixture(t)
+			resizeApp(a, sc, size.w, size.h)
+			pickMuxAction(t, a, sc, "Unibox Init")
+			waitFor(t, a, sc, "Unibox Init · acme/gateway")
+			assertLegible(t, a, sc, "unibox init")
+		})
+	}
 }
 
 // TestTheSetupFitsItsFrame: at several sizes.
