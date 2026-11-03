@@ -4,6 +4,7 @@ import { withBase } from 'vitepress'
 
 const installs = {
   Homebrew: 'brew tap bitbyone/unagit https://github.com/bitbyone/unagit\nbrew install unagit',
+  'Scoop (Windows)': 'scoop bucket add unagit https://github.com/bitbyone/unagit\nscoop install unagit',
   'From source': 'git clone https://github.com/bitbyone/unagit\ncd unagit && make install',
 }
 type Way = keyof typeof installs
@@ -257,6 +258,7 @@ section {
 }
 .install-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 6px;
   border-bottom: 1px solid var(--ug-frame);
