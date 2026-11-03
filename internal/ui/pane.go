@@ -43,7 +43,13 @@ type pane struct {
 	width         int    // inner width of the table, for column layout
 	bodyDirection int    // current tview.Flex direction of body, so we only set it on change
 	lastQuery     string // the query the rows were last drawn for
-	detailSeq     int    // guards against a stale async detail arriving late
+	// chosen says the person has put the cursor somewhere - a key in the
+	// list, a click, a row picked for them - since it last went to the
+	// top. Until then it stays on the first row: what loads at start
+	// puts the list in order again, and the cursor following the row it
+	// started on scrolled the rows above it out of sight.
+	chosen        bool
+	detailSeq     int // guards against a stale async detail arriving late
 	detailShown   bool
 	detailFocused bool
 	query         string
@@ -476,6 +482,7 @@ func opensPicker(ev *tcell.EventKey) bool {
 
 // tableKeys implements NORMAL mode.
 func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
+	p.chosen = true
 	if p.extraKeys != nil && p.extraKeys(ev) {
 		return nil
 	}
@@ -623,6 +630,14 @@ func (p *pane) selectRow(previous, first int) {
 		_, ok := cell.GetReference().(int)
 		return ok
 	}
+	if previous >= 0 && p.query == p.lastQuery && !p.chosen {
+		// Nobody has moved yet: the top of the list, whatever is on it.
+		p.lastQuery = p.query
+		_, column := p.table.GetOffset()
+		p.table.SetOffset(0, column)
+		p.table.Select(first, 0)
+		return
+	}
 	if previous >= 0 && p.query == p.lastQuery {
 		for row := 1; row < p.table.GetRowCount(); row++ {
 			cell := p.table.GetCell(row, 0)
@@ -690,6 +705,7 @@ func (p *pane) toTop() {
 		}
 		p.updateHeader()
 	}
+	p.chosen = false
 	for row := 1; row < p.table.GetRowCount(); row++ {
 		if _, ok := p.table.GetCell(row, 0).GetReference().(int); ok {
 			_, column := p.table.GetOffset()
@@ -750,6 +766,7 @@ func (p *pane) marked() []int {
 func (p *pane) selectWhere(match func(i int) bool) {
 	for row := 1; row < p.table.GetRowCount(); row++ {
 		if i, ok := p.table.GetCell(row, 0).GetReference().(int); ok && match(i) {
+			p.chosen = true
 			p.table.Select(row, 0)
 			return
 		}
