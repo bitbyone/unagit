@@ -1133,7 +1133,9 @@ func (c *Config) tildePaths() {
 }
 
 // Tilde is Expand the other way round: a path inside the home directory
-// written from ~. Anything else - relative, or elsewhere - is left as it is.
+// written from ~, with forward slashes whatever the system, so config.yaml
+// carried to another machine - another system too - means the same there.
+// Anything else - relative, or elsewhere - is left as it is.
 func Tilde(p string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" || !filepath.IsAbs(p) {
@@ -1144,7 +1146,7 @@ func Tilde(p string) string {
 	case clean == home:
 		return "~"
 	case strings.HasPrefix(clean, home+string(filepath.Separator)):
-		return "~" + strings.TrimPrefix(clean, home)
+		return "~" + filepath.ToSlash(strings.TrimPrefix(clean, home))
 	}
 	return p
 }

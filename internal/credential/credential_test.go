@@ -11,6 +11,9 @@ import (
 // shortDir is a directory whose socket path fits the 104 bytes macOS
 // allows; a test's own temporary directory there is longer.
 func shortDir(t *testing.T) string {
+	if !Supported {
+		t.Skip("the sandbox tokens are handed out on macOS and Linux alone")
+	}
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "uc")
 	if err != nil {

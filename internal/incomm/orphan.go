@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // formatVersion is the notes format the appended orphan is written in: it
@@ -129,7 +130,7 @@ func appendOrphan(ctx context.Context, dir string, note forge.Note, content, aut
 	if err := tmp.Close(); err != nil {
 		return "", err
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := platform.Replace(tmp.Name(), path); err != nil {
 		return "", err
 	}
 	return id, nil

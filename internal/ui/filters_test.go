@@ -409,7 +409,7 @@ func TestPathColumnShowsWhereItIsCloned(t *testing.T) {
 	}
 	// The path is shortened to the column, by what tells it apart, so what
 	// is checked is that its start, up to where it is cut, is the clone's.
-	start := strings.Index(row, " /")
+	start := strings.Index(row, " "+want[:2])
 	if start < 0 {
 		t.Fatalf("the row shows no path: %q", row)
 	}

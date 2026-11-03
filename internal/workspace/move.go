@@ -239,18 +239,7 @@ func copyLocalFolder(source, target string, installed func() error) error {
 	return nil
 }
 
-func syncPath(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	err = f.Sync()
-	closeErr := f.Close()
-	if err != nil {
-		return err
-	}
-	return closeErr
-}
+func syncPath(path string) error { return platform.SyncPath(path) }
 
 // A copied file must reach the destination disk before its source can go.
 func syncCopiedFolder(root string) error {

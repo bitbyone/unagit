@@ -46,6 +46,7 @@ var buildTool = sync.OnceValues(func() ([]byte, error) {
 })
 
 func New(t *testing.T) Tool {
+	testenv.UnixOnly(t, "Zellij runs on Unix alone")
 	t.Helper()
 	dir := t.TempDir()
 	tool := Tool{filepath.Join(dir, "zellij"), filepath.Join(dir, "calls"), filepath.Join(dir, "panes"), filepath.Join(dir, "failure"), filepath.Join(dir, "gate")}
@@ -152,6 +153,7 @@ func standBytes(source string) ([]byte, error) {
 }
 
 func newStand(t *testing.T, source, name, warm string) Stand {
+	testenv.UnixOnly(t, "herdr and Ghostty run on Unix alone")
 	t.Helper()
 	dir := t.TempDir()
 	s := Stand{Binary: filepath.Join(dir, name), Log: filepath.Join(dir, "calls"), Failure: filepath.Join(dir, "failure"), dir: dir}

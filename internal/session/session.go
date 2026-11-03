@@ -119,7 +119,7 @@ func (s *Store) write(path string, r Record) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(f.Name(), path)
+	return platform.Replace(f.Name(), path)
 }
 
 func (s *Store) secureDirectory() error {

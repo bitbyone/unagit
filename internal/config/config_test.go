@@ -3,10 +3,12 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/tobola/unagit/internal/testenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +44,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if !inst.HasGroup(7) || inst.HasGroup(8) {
 		t.Errorf("groups = %v", inst.Groups)
 	}
-	if fi, err := os.Stat(Path()); err != nil || fi.Mode().Perm() != 0o600 {
+	if fi, err := os.Stat(Path()); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600) {
 		t.Errorf("config permissions = %v (%v)", fi.Mode().Perm(), err)
 	}
 }
@@ -195,19 +197,19 @@ func TestGroupOwns(t *testing.T) {
 
 // TestRootFor walks the three levels a clone directory can come from.
 func TestRootFor(t *testing.T) {
-	cfg := &Config{RootDir: "/base"}
+	cfg := &Config{RootDir: testenv.Abs("/base")}
 	inst := cfg.AddInstance(Instance{URL: "https://gl.example", Groups: []Group{
 		{ID: 1, FullPath: "acme", Scope: ScopeSubgroups},
 		{ID: 2, FullPath: "acme/platform", Scope: ScopeSubgroups, RootDir: "platform"},
-		{ID: 3, FullPath: "acme/secret", Scope: ScopeSubgroups, RootDir: "/elsewhere/secret"},
+		{ID: 3, FullPath: "acme/secret", Scope: ScopeSubgroups, RootDir: testenv.Abs("/elsewhere/secret")},
 	}})
 
 	cases := []struct{ path, want string }{
-		{"acme/tools/cli", "/base"},                 // nothing overrides
-		{"acme/platform/api", "/base/platform"},     // relative, from the base
-		{"acme/platform/sub/api", "/base/platform"}, // subgroups inherit it
-		{"acme/secret/vault", "/elsewhere/secret"},  // absolute replaces it
-		{"other/thing", "/base"},                    // not ours
+		{"acme/tools/cli", testenv.Abs("/base")},                 // nothing overrides
+		{"acme/platform/api", testenv.Abs("/base/platform")},     // relative, from the base
+		{"acme/platform/sub/api", testenv.Abs("/base/platform")}, // subgroups inherit it
+		{"acme/secret/vault", testenv.Abs("/elsewhere/secret")},  // absolute replaces it
+		{"other/thing", testenv.Abs("/base")},                    // not ours
 	}
 	for _, c := range cases {
 		if got := cfg.RootFor(inst, c.path); got != c.want {
@@ -216,14 +218,14 @@ func TestRootFor(t *testing.T) {
 	}
 
 	// An instance level root sits between the two.
-	inst.RootDir = "/work"
-	if got := cfg.RootFor(inst, "acme/tools/cli"); got != "/work" {
+	inst.RootDir = testenv.Abs("/work")
+	if got := cfg.RootFor(inst, "acme/tools/cli"); got != testenv.Abs("/work") {
 		t.Errorf("instance root ignored: %q", got)
 	}
-	if got := cfg.RootFor(inst, "acme/platform/api"); got != "/work/platform" {
+	if got := cfg.RootFor(inst, "acme/platform/api"); got != testenv.Abs("/work/platform") {
 		t.Errorf("group root should be relative to the instance root: %q", got)
 	}
-	if got := cfg.RootFor(inst, "acme/secret/vault"); got != "/elsewhere/secret" {
+	if got := cfg.RootFor(inst, "acme/secret/vault"); got != testenv.Abs("/elsewhere/secret") {
 		t.Errorf("absolute group root should win outright: %q", got)
 	}
 }
@@ -233,15 +235,15 @@ func TestExpand(t *testing.T) {
 	if got := Expand("~/x"); got != filepath.Join(home, "x") {
 		t.Errorf("Expand(~/x) = %q", got)
 	}
-	if got := Expand("/abs/path"); got != "/abs/path" {
+	if got := Expand(testenv.Abs("/abs/path")); got != testenv.Abs("/abs/path") {
 		t.Errorf("Expand mangled an absolute path: %q", got)
 	}
 }
 
 func TestDirHonoursXDG(t *testing.T) {
 	t.Setenv("UNAGIT_CONFIG_DIR", "")
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg")
-	if got := Dir(); got != "/tmp/xdg/unagit" {
+	t.Setenv("XDG_CONFIG_HOME", testenv.Abs("/tmp/xdg"))
+	if got := Dir(); got != testenv.Abs("/tmp/xdg/unagit") {
 		t.Errorf("Dir() = %q", got)
 	}
 }
@@ -408,15 +410,15 @@ func TestFiltersSurviveTheFile(t *testing.T) {
 }
 
 func TestExactProjectDirectory(t *testing.T) {
-	cfg := &Config{RootDir: "/base"}
-	inst := &Instance{RootDir: "/server", Groups: []Group{{FullPath: "group/sub", RootDir: "/group", Scope: ScopeSubgroups}}, ProjectDirs: map[string]string{"group/sub/app": "/custom/renamed"}}
-	if got := cfg.ProjectDir(inst, "group/sub/app"); got != "/custom/renamed" {
+	cfg := &Config{RootDir: testenv.Abs("/base")}
+	inst := &Instance{RootDir: testenv.Abs("/server"), Groups: []Group{{FullPath: "group/sub", RootDir: testenv.Abs("/group"), Scope: ScopeSubgroups}}, ProjectDirs: map[string]string{"group/sub/app": testenv.Abs("/custom/renamed")}}
+	if got := cfg.ProjectDir(inst, "group/sub/app"); got != testenv.Abs("/custom/renamed") {
 		t.Fatalf("override = %q", got)
 	}
-	if got := cfg.ProjectDir(inst, "group/sub/other"); got != "/group/group/sub/other" {
+	if got := cfg.ProjectDir(inst, "group/sub/other"); got != testenv.Abs("/group/group/sub/other") {
 		t.Fatalf("inherited = %q", got)
 	}
-	if got := cfg.ProjectDir(&Instance{}, "group/sub/app"); got != "/base/group/sub/app" {
+	if got := cfg.ProjectDir(&Instance{}, "group/sub/app"); got != testenv.Abs("/base/group/sub/app") {
 		t.Fatalf("another server = %q", got)
 	}
 }
@@ -428,6 +430,7 @@ func TestPathsAreKeptFromHome(t *testing.T) {
 	t.Setenv("UNAGIT_CONFIG_DIR", t.TempDir())
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home on Windows
 
 	c := Default()
 	if c.RootDir != "~/unagit" {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // Version is the shape of the cached indexes. It goes up whenever a field is
@@ -155,7 +156,7 @@ func Save(path string, v any) error {
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return platform.Replace(tmp, path)
 }
 
 // DedupeProjects removes projects seen through more than one selected group

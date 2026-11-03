@@ -8,11 +8,14 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // Install keeps each fake editor and its processes owned by this test.
 // Callers are serial because PATH is process state.
 func Install(t *testing.T) (string, string) {
+	testenv.UnixOnly(t, "a Neovim put aside lives on a Unix socket")
 	t.Helper()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "nvim")
@@ -43,6 +46,7 @@ func Install(t *testing.T) (string, string) {
 
 // ShortDir leaves room for a Unix socket even on macOS's long temp root.
 func ShortDir(t *testing.T) string {
+	testenv.UnixOnly(t, "a Neovim put aside lives on a Unix socket")
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "ug-")
 	if err != nil {

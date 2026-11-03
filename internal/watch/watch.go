@@ -422,7 +422,7 @@ func (s *Store) writeJSON(name string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), path)
+	return platform.Replace(f.Name(), path)
 }
 
 func readJSON(path string, v any) error {

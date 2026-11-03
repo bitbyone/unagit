@@ -3,6 +3,7 @@ package secret
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -173,7 +174,8 @@ func TestVaultFileIsNotReadable(t *testing.T) {
 	if index(string(raw), "glpat-super-secret") >= 0 {
 		t.Fatal("the token is in the file in the clear")
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+	// Windows keeps who may read it in an ACL, not in these bits.
+	if fi, _ := os.Stat(path); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Errorf("permissions = %v", fi.Mode().Perm())
 	}
 }

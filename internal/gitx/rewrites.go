@@ -179,6 +179,7 @@ func (g *Git) rewritesPath(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	common = filepath.FromSlash(common)
 	if !filepath.IsAbs(common) {
 		common = filepath.Join(dir, common)
 	}
@@ -250,7 +251,7 @@ func (g *Git) withRecord(dir string, change func(all []Rewrite) ([]Rewrite, erro
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return platform.Replace(tmp, path)
 }
 
 func readRewrites(path string) []Rewrite {

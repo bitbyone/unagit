@@ -170,7 +170,7 @@ func (p *Publication) Save(path string) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	if err := os.Rename(f.Name(), path); err != nil {
+	if err := platform.Replace(f.Name(), path); err != nil {
 		return err
 	}
 	return syncPath(filepath.Dir(path))

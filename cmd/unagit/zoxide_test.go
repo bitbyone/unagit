@@ -17,7 +17,7 @@ import (
 func TestShellCommandsRecordZoxideVisits(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "unagit")
+	bin := filepath.Join(dir, testenv.Exe("unagit"))
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}

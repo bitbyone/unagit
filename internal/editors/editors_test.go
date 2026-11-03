@@ -135,7 +135,7 @@ func TestCommandOfAMissingEditorIsRefused(t *testing.T) {
 func TestCommandAtKeepsTheProjectAndOpensTheFile(t *testing.T) {
 	fakeMachine(t, map[string]string{"nvim": "/bin/nvim", "idea": "/bin/idea", "code": "/bin/code", "zed": "/bin/zed", "hx": "/bin/hx"})
 	all := Detect(CustomSpec{Command: "hx", Args: []string{"--clean"}, Terminal: true})
-	dir, file := "/work/app", "/work/app/a file's.go"
+	dir, file := testenv.Abs("/work/app"), testenv.Abs("/work/app/a file's.go")
 	for id, want := range map[string][]string{
 		Nvim:   {"/bin/nvim", file},
 		Idea:   {"/bin/idea", dir, "--line", "1", file},
@@ -162,11 +162,12 @@ func TestCommandAtUsesTheMacApplication(t *testing.T) {
 	fakeMachine(t, nil, "IntelliJ IDEA.app", "Visual Studio Code.app", "Zed.app")
 	for _, id := range []string{Idea, Code, Zed} {
 		e, _ := Pick(Detect(CustomSpec{}), id)
-		cmd, err := e.CommandAt("/work/app", "/work/app/a.go")
+		dir, file := testenv.Abs("/work/app"), testenv.Abs("/work/app/a.go")
+		cmd, err := e.CommandAt(dir, file)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"open", "-a", e.appPath, "/work/app", "/work/app/a.go"}
+		want := []string{"open", "-a", e.appPath, dir, file}
 		if !reflect.DeepEqual(cmd.Args, want) {
 			t.Errorf("%s: %v, want %v", id, cmd.Args, want)
 		}

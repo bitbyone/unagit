@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"github.com/tobola/unagit/internal/unibox"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/unibox"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"

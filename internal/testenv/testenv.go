@@ -45,6 +45,10 @@ func Main(m *testing.M) {
 // PATH, and returns what removes them. For a package whose TestMain does
 // more than Main.
 func Isolate() func() {
+	if long := longTemp(); long != "" {
+		os.Setenv("TMP", long)
+		os.Setenv("TEMP", long)
+	}
 	root, err := os.MkdirTemp("", "unagit-test-")
 	if err != nil {
 		fail(err)
@@ -206,11 +210,19 @@ func WriteScript(t testing.TB, path string, script []byte) error {
 }
 
 // NeedScripts skips the test on Windows, for one whose stand-ins are shell
-// scripts or whose program exists only on Unix.
+// scripts.
 func NeedScripts(t testing.TB) {
 	t.Helper()
+	UnixOnly(t, "its stand-ins are shell scripts, which Windows does not run")
+}
+
+// UnixOnly skips the test on Windows, saying why: what it tests is not
+// there - Zellij, herdr, Ghostty, a Neovim put aside on a socket, the
+// sandbox tokens' socket, file permissions.
+func UnixOnly(t testing.TB, why string) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
-		t.Skip("its stand-ins are shell scripts, which Windows does not run")
+		t.Skip(why)
 	}
 }
 

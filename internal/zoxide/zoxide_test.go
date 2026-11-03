@@ -15,11 +15,12 @@ import (
 
 func TestScoresKeepPathsWithSpaces(t *testing.T) {
 	t.Parallel()
-	got, err := parseScores("  12.5 /work/review with spaces\n\t0.25\t/work/a [b] \n\n0 /work/zero\n")
+	a, b, c := testenv.Abs("/work/review with spaces"), testenv.Abs("/work/a [b] "), testenv.Abs("/work/zero")
+	got, err := parseScores("  12.5 " + a + "\n\t0.25\t" + b + "\n\n0 " + c + "\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]float64{"/work/review with spaces": 12.5, "/work/a [b] ": .25, "/work/zero": 0}
+	want := map[string]float64{a: 12.5, b: .25, c: 0}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("scores = %#v, want %#v", got, want)
 	}

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -73,7 +74,8 @@ func TestTwoProcessesDoNotCollide(t *testing.T) {
 
 	// A second, live process: this test's own, under another name.
 	other := Record{PID: os.Getppid(), Dir: t.TempDir(), Project: "acme/other"}
-	b := []byte(`{"pid":` + itoa(other.PID) + `,"dir":"` + other.Dir + `","project":"acme/other"}`)
+	// Marshalled, so a Windows path's backslashes are escaped.
+	b, _ := json.Marshal(map[string]any{"pid": other.PID, "dir": other.Dir, "project": "acme/other"})
 	if err := os.WriteFile(filepath.Join(dir, "sessions", itoa(other.PID)+".json"), b, 0o600); err != nil {
 		t.Fatal(err)
 	}

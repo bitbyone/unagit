@@ -135,7 +135,7 @@ func (s *Store) writeLines(path string, b []byte) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), path)
+	return platform.Replace(f.Name(), path)
 }
 
 func eventLines(events []Event) []byte {

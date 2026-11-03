@@ -4,12 +4,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 // changesFixture is a clone with one file of every kind: changed, added,
 // deleted, renamed, unversioned in a folder of its own.
+
+// literal is a file whose name git would read as a pattern unless told it
+// is a path: a star where the system allows one, brackets on Windows, which
+// does not.
+var literal = map[bool]string{false: "*.txt", true: "[a].txt"}[runtime.GOOS == "windows"]
+
 func changesFixture(t *testing.T) string {
 	t.Helper()
 	_, clone := repos(t)
@@ -23,7 +30,7 @@ func changesFixture(t *testing.T) string {
 	sh(t, clone, "mv", "old.txt", "new.txt")
 	must(t, os.MkdirAll(filepath.Join(clone, "dir"), 0o755))
 	write(t, clone, "dir/loose.txt", "loose\n")
-	write(t, clone, "*.txt", "a star\n")
+	write(t, clone, literal, "a star\n")
 	return clone
 }
 
@@ -43,7 +50,7 @@ func TestChangesNameEveryKind(t *testing.T) {
 	for _, c := range changes {
 		got = append(got, c.Path+"<"+c.From+">"+string("MADRCU"[c.Kind]))
 	}
-	want := "a.txt<>M added.txt<>A gone.txt<>D new.txt<old.txt>R *.txt<>U dir/loose.txt<>U"
+	want := "a.txt<>M added.txt<>A gone.txt<>D new.txt<old.txt>R " + literal + "<>U dir/loose.txt<>U"
 	if strings.Join(got, " ") != want {
 		t.Errorf("changes:\n got %s\nwant %s", strings.Join(got, " "), want)
 	}
@@ -75,12 +82,12 @@ func TestCommitPathsTakesWhatIsChosen(t *testing.T) {
 	g := New("", nil)
 	sha, err := g.CommitPaths(clone, "Take two", []Change{
 		{Path: "new.txt", From: "old.txt", Kind: Renamed},
-		{Path: "*.txt", Kind: Unversioned},
+		{Path: literal, Kind: Unversioned},
 	})
 	if err != nil || sha == "" {
 		t.Fatalf("commit = %q, %v", sha, err)
 	}
-	if got := sh(t, clone, "show", "--name-status", "--format=", "-M", "HEAD"); got != "A\t*.txt\nR100\told.txt\tnew.txt" {
+	if got := sh(t, clone, "show", "--name-status", "--format=", "-M", "HEAD"); got != "A\t"+literal+"\nR100\told.txt\tnew.txt" {
 		t.Errorf("committed:\n%s", got)
 	}
 	if got := sh(t, clone, "status", "--porcelain", "--untracked-files=all"); got != "M a.txt\nA  added.txt\nD  gone.txt\n?? dir/loose.txt" {
@@ -100,7 +107,7 @@ func TestRollbackPutsBackWhatHeadHas(t *testing.T) {
 		{Path: "gone.txt", Kind: Deleted},
 		{Path: "new.txt", From: "old.txt", Kind: Renamed},
 	}))
-	if got := sh(t, clone, "status", "--porcelain", "--untracked-files=all"); got != "?? *.txt\n?? added.txt\n?? dir/loose.txt\n?? new.txt" {
+	if got := sh(t, clone, "status", "--porcelain", "--untracked-files=all"); got != "?? "+literal+"\n?? added.txt\n?? dir/loose.txt\n?? new.txt" {
 		t.Errorf("after the rollback:\n%s", got)
 	}
 	for _, name := range []string{"gone.txt", "old.txt"} {
@@ -124,8 +131,8 @@ func TestDeleteUnversionedRefusesAVersionedFile(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(clone, "dir/loose.txt")); err != nil {
 		t.Error("a refusal still deleted something")
 	}
-	must(t, g.DeleteUnversioned(clone, []string{"dir/loose.txt", "*.txt"}))
-	for _, name := range []string{"dir/loose.txt", "*.txt", "a.txt"} {
+	must(t, g.DeleteUnversioned(clone, []string{"dir/loose.txt", literal}))
+	for _, name := range []string{"dir/loose.txt", literal, "a.txt"} {
 		_, err := os.Stat(filepath.Join(clone, name))
 		if gone := os.IsNotExist(err); gone != (name != "a.txt") {
 			t.Errorf("%s: gone %v", name, gone)
@@ -140,14 +147,14 @@ func TestAddFilesMakesThemAdded(t *testing.T) {
 	clone := changesFixture(t)
 	g := New("", nil)
 	write(t, clone, "*.go", "a star\n")
-	must(t, g.AddFiles(clone, []string{"dir/loose.txt", "*.txt"}))
+	must(t, g.AddFiles(clone, []string{"dir/loose.txt", literal}))
 	changes, err := g.Changes(clone)
 	must(t, err)
 	kinds := map[string]ChangeKind{}
 	for _, c := range changes {
 		kinds[c.Path] = c.Kind
 	}
-	for path, want := range map[string]ChangeKind{"dir/loose.txt": Added, "*.txt": Added, "*.go": Unversioned} {
+	for path, want := range map[string]ChangeKind{"dir/loose.txt": Added, literal: Added, "*.go": Unversioned} {
 		if kinds[path] != want {
 			t.Errorf("%s is %d, want %d", path, kinds[path], want)
 		}
@@ -184,12 +191,12 @@ func TestIgnoreAnchorsEachPathLiterally(t *testing.T) {
 	clone := changesFixture(t)
 	write(t, clone, ".gitignore", "*.log")
 	write(t, clone, "notes.md", "n\n")
-	must(t, New("", nil).Ignore(clone, []string{"dir/loose.txt", "*.txt"}))
-	if got, _ := os.ReadFile(filepath.Join(clone, ".gitignore")); string(got) != "*.log\n/dir/loose.txt\n/\\*.txt\n" {
+	must(t, New("", nil).Ignore(clone, []string{"dir/loose.txt", literal}))
+	if got, _ := os.ReadFile(filepath.Join(clone, ".gitignore")); string(got) != "*.log\n/dir/loose.txt\n/\\"+literal+"\n" {
 		t.Errorf(".gitignore = %q", got)
 	}
 	status := sh(t, clone, "status", "--porcelain", "--untracked-files=all")
-	for _, gone := range []string{"loose.txt", "*.txt"} {
+	for _, gone := range []string{"loose.txt", literal} {
 		if strings.Contains(status, gone) {
 			t.Errorf("%s is still listed:\n%s", gone, status)
 		}

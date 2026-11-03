@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/url"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -43,7 +44,7 @@ func Find(bin string) (Checkout, error) {
 	if err != nil || origin == "" {
 		return Checkout{}, errors.New("chezmoi's repository has no origin to pair with a server")
 	}
-	return Checkout{Dir: dir, Origin: origin}, nil
+	return Checkout{Dir: filepath.FromSlash(dir), Origin: origin}, nil
 }
 
 // Same says whether two remote addresses name one repository, whatever the

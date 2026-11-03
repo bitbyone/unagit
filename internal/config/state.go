@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // State is what unagit learns by being used on this machine - where things
@@ -109,7 +111,7 @@ func (c *Config) SaveState() error {
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, c.StatePath())
+	return platform.Replace(tmp, c.StatePath())
 }
 
 // moveStateOut takes what older versions kept in config.yaml into the

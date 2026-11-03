@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -173,7 +174,7 @@ func fakeGitLab(t *testing.T) *fakeServer {
 		f.postedProject.Store(string(b))
 		url, _ := f.newRepoURL.Load().(string)
 		json(w, `{"id":3,"name":"tool","path_with_namespace":"acme/tool","default_branch":"main",
-			"web_url":"https://gl.test/acme/tool","http_url_to_repo":"`+url+`"}`)
+			"web_url":"https://gl.test/acme/tool","http_url_to_repo":`+strconv.Quote(url)+`}`)
 	})
 	mux.HandleFunc("/api/v4/projects/3", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PUT" {

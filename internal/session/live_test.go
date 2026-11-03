@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // TestAnotherProcessCanReadIt is the point of the whole thing: while one
@@ -17,7 +19,7 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 	defer s.Open(Record{Dir: worktree, Project: "my2n/ng/calling", IID: 19, Mode: ModeReview})()
 
 	// A separate process, reading the same store through the command itself.
-	binary := filepath.Join(t.TempDir(), "unagit")
+	binary := filepath.Join(t.TempDir(), testenv.Exe("unagit"))
 	build := exec.Command("go", "build", "-o", binary, "../../cmd/unagit")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("building the command: %v\n%s", err, out)

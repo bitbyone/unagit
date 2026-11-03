@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // buildUnagit is the binary herdr and Ghostty start as the launcher.
 func buildUnagit(t *testing.T) string {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "unagit")
+	bin := filepath.Join(t.TempDir(), testenv.Exe("unagit"))
 	_, here, _, _ := runtime.Caller(0)
 	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(filepath.Dir(here), "..", "..", "cmd", "unagit")).CombinedOutput(); err != nil {
 		t.Fatalf("build unagit: %v\n%s", err, out)

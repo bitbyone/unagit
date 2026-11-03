@@ -331,7 +331,7 @@ func (g *Git) CheckedOut(mainDir string) map[string]string {
 	dir := ""
 	for _, line := range strings.Split(out, "\n") {
 		if rest, ok := strings.CutPrefix(line, "worktree "); ok {
-			dir = rest
+			dir = filepath.FromSlash(rest)
 		}
 		if branch, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
 			found[branch] = dir
@@ -349,8 +349,9 @@ func (g *Git) WorktreeDirs(mainDir string) []string {
 	}
 	var dirs []string
 	for _, line := range strings.Split(out, "\n") {
+		// git names a path with forward slashes on Windows too.
 		if rest, ok := strings.CutPrefix(line, "worktree "); ok {
-			dirs = append(dirs, rest)
+			dirs = append(dirs, filepath.FromSlash(rest))
 		}
 	}
 	return dirs
@@ -517,6 +518,7 @@ func (g *Git) OperationInProgress(dir string) string {
 		if i >= len(ops) {
 			break
 		}
+		path = filepath.FromSlash(path)
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(dir, path)
 		}
@@ -741,7 +743,7 @@ func (g *Git) Exclude(dir, pattern string) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(common, "info", "exclude")
+	path := filepath.Join(filepath.FromSlash(common), "info", "exclude")
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err

@@ -9,6 +9,7 @@ import (
 
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/muxtest"
+	"github.com/tobola/unagit/internal/testenv"
 )
 
 // TestLaunchRunsWhatItIsGivenAndClosesGhostty: `unagit launch` is what a
@@ -17,8 +18,9 @@ import (
 // terminal afterwards, which Ghostty would keep open until a key.
 func TestLaunchRunsWhatItIsGivenAndClosesGhostty(t *testing.T) {
 	t.Parallel()
+	testenv.UnixOnly(t, "unagit launch is run by herdr and Ghostty, which are Unix's")
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "unagit")
+	bin := filepath.Join(dir, testenv.Exe("unagit"))
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}

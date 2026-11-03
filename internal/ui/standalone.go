@@ -79,7 +79,7 @@ func NewStandalone(cfg *config.Config, dir string) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s is not in a git repository - give unagit -s the path of one", abs)
 	}
-	top = strings.TrimSpace(top)
+	top = filepath.FromSlash(strings.TrimSpace(top))
 	a := NewLocked(cfg)
 	a.solo = &soloRepo{dir: top, name: filepath.Base(top), branch: soloBranch(git.CurrentBranch(top)),
 		stale: map[string]bool{}, cursors: map[string]func() string{}, wake: make(chan struct{}, 1), unit: time.Second}

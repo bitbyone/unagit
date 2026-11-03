@@ -3,13 +3,14 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tobola/unagit/internal/config"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/tobola/unagit/internal/config"
 
 	"github.com/rivo/tview"
 )
@@ -286,7 +287,9 @@ func (s *settingsView) showForkForm(from string) {
 	form := tview.NewForm()
 	styleForm(form)
 	form.AddInputField("Name", from+"-mine", 0, nil, nil)
-	form.AddTextView("", "Written to "+tview.Escape(tildePath(a.cfg.ThemesDir()))+"/<name>.json with every colour and glyph in it, and put on.", 0, 2, true, false)
+	// The file by its place in unagit's configuration: the whole path, long
+	// on some systems, wrapped the sentence out of the frame.
+	form.AddTextView("", "Written to themes"+string(filepath.Separator)+"<name>.json in unagit's configuration with every colour and glyph in it, and put on.", 0, 2, true, false)
 	fork := func() {
 		name := strings.TrimSpace(form.GetFormItemByLabel("Name").(*tview.InputField).GetText())
 		a.closeModal(pageForm)

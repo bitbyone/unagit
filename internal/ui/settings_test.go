@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -223,17 +224,17 @@ func TestGroupRootOverrideMovesTheClone(t *testing.T) {
 	waitFor(t, a, sc, "Clone directory · acme")
 
 	form := currentForm(a)
-	setField(t, a, form, 0, "/tmp/unagit-acme")
+	setField(t, a, form, 0, testenv.Abs("/tmp/unagit-acme"))
 	pressButton(t, a, sc, form, "Save")
 
 	after := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") })
 	if after == before {
 		t.Fatalf("the clone directory did not move: %s", after)
 	}
-	if !strings.HasPrefix(after, "/tmp/unagit-acme/") {
+	if !strings.HasPrefix(after, testenv.Abs("/tmp/unagit-acme")+string(filepath.Separator)) {
 		t.Fatalf("clone directory = %s", after)
 	}
-	if got := onLoop(a, func() string { return a.cfg.Instance(id).Group(1).RootDir }); got != "/tmp/unagit-acme" {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).Group(1).RootDir }); got != testenv.Abs("/tmp/unagit-acme") {
 		t.Errorf("stored root = %q", got)
 	}
 
@@ -259,13 +260,13 @@ func TestServerRootOverrideAppliesToEverythingOnIt(t *testing.T) {
 	typeRunes(sc, "d")
 	waitFor(t, a, sc, "Clone directory · acme")
 	form := currentForm(a)
-	setField(t, a, form, 0, "/tmp/unagit-server")
+	setField(t, a, form, 0, testenv.Abs("/tmp/unagit-server"))
 	pressButton(t, a, sc, form, "Save")
 
-	if got := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") }); !strings.HasPrefix(got, "/tmp/unagit-server/") {
+	if got := onLoop(a, func() string { return a.projectDir(id, "acme/gateway") }); !strings.HasPrefix(got, testenv.Abs("/tmp/unagit-server")+string(filepath.Separator)) {
 		t.Fatalf("clone directory = %s", got)
 	}
-	if got := onLoop(a, func() string { return a.cfg.Instance(id).RootDir }); got != "/tmp/unagit-server" {
+	if got := onLoop(a, func() string { return a.cfg.Instance(id).RootDir }); got != testenv.Abs("/tmp/unagit-server") {
 		t.Errorf("stored server root = %q", got)
 	}
 }
