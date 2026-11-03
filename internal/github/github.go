@@ -995,7 +995,42 @@ func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch
 	if branch == "" || p.PathWithNamespace == "" {
 		return nil, nil, nil
 	}
-	return c.checkRuns(ctx, p.PathWithNamespace, branch, branch)
+	return c.branchRuns(ctx, p.PathWithNamespace, branch)
+}
+
+// branchRuns is the newest pipeline of a branch, as GitLab means it: the
+// checks of its head, or when the head has none - pushed by a workflow's
+// own token, skipped by a filter on paths - those of the newest commit of
+// the branch a workflow ran for. Asking the head alone said a branch with
+// runs had no pipeline.
+func (c *Client) branchRuns(ctx context.Context, path, branch string) (*forge.Pipeline, []forge.Job, error) {
+	pipe, jobs, err := c.checkRuns(ctx, path, branch, branch)
+	if err != nil || pipe != nil {
+		return pipe, jobs, err
+	}
+	sha := c.latestRunSHA(ctx, path, branch)
+	if sha == "" {
+		return nil, nil, nil
+	}
+	return c.checkRuns(ctx, path, sha, branch)
+}
+
+// latestRunSHA is the commit the newest workflow run of a branch ran for,
+// "" when it has none or the token may not read Actions.
+func (c *Client) latestRunSHA(ctx context.Context, path, branch string) string {
+	var raw struct {
+		Runs []struct {
+			HeadSHA string `json:"head_sha"`
+		} `json:"workflow_runs"`
+	}
+	q := url.Values{}
+	q.Set("branch", branch)
+	q.Set("per_page", "1")
+	q.Set("exclude_pull_requests", "true")
+	if _, err := c.get(ctx, "/repos/"+path+"/actions/runs", q, &raw); err != nil || len(raw.Runs) == 0 {
+		return ""
+	}
+	return raw.Runs[0].HeadSHA
 }
 
 // checkRuns reads the check runs of a commit - a SHA or a branch - as jobs,
@@ -1141,7 +1176,14 @@ func (c *Client) Pipelines(ctx context.Context, p forge.Project, q forge.Pipelin
 	if path == "" || ref == "" {
 		return nil, nil
 	}
-	pipe, _, err := c.checkRuns(ctx, path, ref, branch)
+	var pipe *forge.Pipeline
+	var err error
+	if ref == branch {
+		// A branch's pipelines are its newest one, wherever it ran.
+		pipe, _, err = c.branchRuns(ctx, path, branch)
+	} else {
+		pipe, _, err = c.checkRuns(ctx, path, ref, branch)
+	}
 	if err != nil || pipe == nil {
 		return nil, err
 	}

@@ -935,3 +935,25 @@ func TestSetDefaultBranchAfterPublishing(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestABranchsPipelineIsItsNewestRun: a head with no checks - pushed by a
+// workflow's own token, or skipped by a filter on paths - is not a branch
+// without a pipeline; its pipeline is the newest run of the branch, read
+// from the commit that run was for.
+func TestABranchsPipelineIsItsNewestRun(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs", `{"check_runs":[]}`)
+	s.handle("/repos/acme/api/commits/main/status", `{"state":"pending","total_count":0}`)
+	s.handle("/repos/acme/api/actions/runs", `{"workflow_runs":[{"head_sha":"older","check_suite_id":9}]}`)
+	s.handle("/repos/acme/api/commits/older/check-runs",
+		`{"check_runs":[{"id":1,"name":"test","status":"completed","conclusion":"failure","head_sha":"older"}]}`)
+	p := forge.Project{PathWithNamespace: "acme/api", DefaultBranch: "main"}
+	pipe, jobs, err := s.client().BranchPipelineJobs(context.Background(), p, "main")
+	if err != nil || pipe == nil || pipe.Status != "failed" || pipe.SHA != "older" || pipe.Ref != "main" || len(jobs) != 1 {
+		t.Fatalf("pipeline = %+v, jobs = %+v, err = %v", pipe, jobs, err)
+	}
+	pipes, err := s.client().Pipelines(context.Background(), p, forge.PipelineQuery{Ref: "main"})
+	if err != nil || len(pipes) != 1 || pipes[0].SHA != "older" {
+		t.Fatalf("pipelines = %+v, err = %v", pipes, err)
+	}
+}
