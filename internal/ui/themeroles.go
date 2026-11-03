@@ -195,6 +195,7 @@ var colourRoles = []colourRole{
 	{"sandboxes.env", "text.accent", "an env, the team's sbxenv files a sandbox is made from"},
 	{"sandboxes.sandbox", "column.name", "a sandbox"},
 	{"sandboxes.task", "column.name", "a task in a sandbox"},
+	{"sandboxes.task_name", "tags.azure.ink", "a task's name in the list of tasks, blue so it stands apart from its repositories"},
 	{"sandboxes.running", "state.good", "a sandbox running, a task's agent at work"},
 	{"sandboxes.stopped", "text.muted", "a sandbox stopped, its disk kept"},
 	{"sandboxes.problem", "state.warning", "a value or a token missing, an env that does not load"},

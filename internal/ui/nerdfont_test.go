@@ -434,6 +434,23 @@ func TestATasksAgentIsAnIconBeforeItsName(t *testing.T) {
 		}
 	}
 	rightEdge("billing-5e6f7a8b", "fix/round")
+	// The task's name is blue, apart from its repositories - seen on a row
+	// off the cursor, whose band has an ink of its own.
+	text := a.screenText(sc)
+	line := ""
+	for _, l := range strings.Split(text, "\n") {
+		if strings.Contains(l, "│ ") && strings.Contains(l, " rate ") && strings.Contains(l, "feat/rate") {
+			line = l
+			break
+		}
+	}
+	y := lineOf(text, line)
+	x := len([]rune(line[:strings.Index(line, " rate ")+1]))
+	_, style := cellAt(a, sc, x, y)
+	want := onLoop(a, func() tcell.Color { return role("sandboxes.task_name") })
+	if fg(style).Hex() != want.Hex() || want.Hex() == onLoop(a, func() tcell.Color { return role("sandboxes.task") }).Hex() {
+		t.Fatalf("the task's name is %v, want %v apart from its repositories'", fg(style), want)
+	}
 
 	changeOnLoop(a, func() {
 		nerdFont = true

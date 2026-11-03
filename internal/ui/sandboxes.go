@@ -397,7 +397,7 @@ func (a *App) drawSandboxTasks(p *pane) {
 			row[0] = field{text: agentIcons[r.task.Agent], width: 1, colour: role("sandboxes.agent")}
 		}
 		row = append(row,
-			field{text: r.task.Name(), width: nameCol.width, colour: role("sandboxes.task")},
+			field{text: r.task.Name(), width: nameCol.width, colour: role("sandboxes.task_name")},
 			field{text: r.sandbox.Name, width: boxCol.width, colour: role("sandboxes.sandbox")},
 			field{text: state, width: stateCol.width, colour: role(stateRole)})
 		if !icons {
