@@ -755,3 +755,98 @@ func TestTheSandboxesAreReadAgainWhenTheTerminalComesBack(t *testing.T) {
 	must(t, sc.PostEvent(tcell.NewEventFocus(true)))
 	waitEditorState(t, a, func() bool { return reads() > before })
 }
+
+// TestASandboxsPortsSayOnInTheirColour: p on a sandbox lays its ports out
+// as a table, and a port on now is in the colour of what runs while one
+// off is not - the two once read alike.
+func TestASandboxsPortsSayOnInTheirColour(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 120, 34)
+	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "s:web")
+	typeRunes(sc, "p")
+	waitFor(t, a, sc, "Ports of web")
+	waitFor(t, a, sc, "MAPPING")
+	waitFor(t, a, sc, "devtools")
+	ink := func(name string) tcell.Color {
+		return onLoop(a, func() tcell.Color {
+			cells, w, h := sc.GetContents()
+			for y := 0; y < h; y++ {
+				var b strings.Builder
+				for x := 0; x < w; x++ {
+					if r := cells[y*w+x].Runes; len(r) > 0 {
+						b.WriteRune(r[0])
+					} else {
+						b.WriteRune(' ')
+					}
+				}
+				line := []rune(b.String())
+				at := strings.Index(string(line), name+" ")
+				if at < 0 {
+					continue
+				}
+				// The NOW column follows the mapping: the first on or off after it.
+				rest := string(line)[at:]
+				for _, word := range []string{" on ", " off "} {
+					if i := strings.Index(rest, word); i >= 0 {
+						x := len([]rune(string(line)[:at+i+1]))
+						fg, _, _ := cells[y*w+x].Style.Decompose()
+						return fg
+					}
+				}
+			}
+			return tcell.ColorDefault
+		})
+	}
+	on, off := ink("fe"), ink("devtools")
+	if on == off {
+		t.Fatalf("on and off ports are both drawn in %v", on)
+	}
+	if want := onLoop(a, func() tcell.Color { return role("sandboxes.running") }); on.Hex() != want.Hex() {
+		t.Fatalf("an on port is %v, want the running colour %v", on, want)
+	}
+}
+
+// TestAKeptTokenIsStoredAgainFromYourConfiguration: Enter on the overview's
+// Tokens tab has unibox ask for the token again in this terminal, rather
+// than opening the env's list of tokens with the same row in it.
+func TestAKeptTokenIsStoredAgainFromYourConfiguration(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 40)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "Y")
+	waitFor(t, a, sc, "Your Unibox configuration")
+	waitFor(t, a, sc, "NORMAL")
+	typeRunes(sc, "5")
+	waitFor(t, a, sc, "USED BY")
+	waitFor(t, a, sc, "store again")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitCalled(t, a, fake, "secret set anthropic -e web")
+	waitFor(t, a, sc, "Your Unibox configuration")
+	waitFor(t, a, sc, "USED BY")
+}
+
+// TestNoTokenMissingOffersNothingToStore: with every token stored, a in
+// an env's tokens is not offered, and pressed says so instead of handing
+// the terminal to unibox only to have it say the same and return.
+func TestNoTokenMissingOffersNothingToStore(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	changeOnLoop(a, func() { a.showSecrets(*a.ubx.overview.Env("api")) })
+	waitFor(t, a, sc, "Tokens of api")
+	waitFor(t, a, sc, "NORMAL")
+	if text := a.screenText(sc); strings.Contains(text, "store missing") {
+		t.Fatalf("a is offered with nothing missing:\n%s", text)
+	}
+	typeRunes(sc, "a")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "sbx has every token api needs") })
+	if slices.Contains(fake.Calls(), "secret set -e api") {
+		t.Fatal("unibox was run with nothing to store")
+	}
+}

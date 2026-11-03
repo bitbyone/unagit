@@ -201,6 +201,9 @@ type yourSection struct {
 	empty string
 	// add is the tab's a, nil where nothing is added from here.
 	add *pickKey
+	// enter names what Enter does on the tab's rows, where that is not
+	// opening the dialog the row is managed in.
+	enter *pickKey
 }
 
 // width is the widest the section's table is laid out, or its word
@@ -323,8 +326,12 @@ func (a *App) showYourSection(sections []yourSection, at int) {
 				a.uniboxDoThen(f.job, func() { a.showYourConfig(at) }, f.args...)
 			})
 		}})
+	enter := pickKey{name: "Manage…", about: "Open the dialog where this is managed: the settings, an env's values, ports or index, a sandbox's network.", hint: "manage"}
+	if sec.enter != nil {
+		enter = *sec.enter
+	}
 	a.showPickerWith("Your Unibox configuration", items, pickerOptions{wide: true, explain: true, header: header, keys: keys, tabs: tabs,
-		enterName: "Manage…", enterAbout: "Open the dialog where this is managed: the settings, an env's values, ports, index or tokens, a sandbox's network.", enterHint: "manage"},
+		enterName: enter.name, enterAbout: enter.about, enterHint: enter.hint},
 		func(it pickItem) {
 			r, ok := row(it)
 			switch {
@@ -560,8 +567,11 @@ func (a *App) yourSections(got yourConfig) []yourSection {
 	}
 
 	// The tokens sbx keeps.
+	// Enter stores one again, in place: the env's own list of tokens
+	// would only show the same row once more.
 	tokens := yourSection{name: "Tokens", heads: []string{"SERVICE", "KEPT", "SCOPE", "USED BY"},
-		empty: "sbx keeps no token - K on an env stores what it needs."}
+		empty: "sbx keeps no token - K on an env stores what it needs.",
+		enter: &pickKey{name: "Store Token Again…", about: "Have unibox ask for a new value of the token in this terminal, on a hidden prompt, where it is kept now; sbx keeps it.", hint: "store again"}}
 	for _, s := range got.secrets {
 		kept := firstOf(s.Kept, "stored")
 		if a.vault != nil {
@@ -591,14 +601,20 @@ func (a *App) yourSections(got yourConfig) []yourSection {
 				args = append(args, "-e", s.UsedBy[0])
 			}
 		}
-		env := ""
-		if strings.HasPrefix(s.Scope, "env ") {
-			env = strings.TrimPrefix(s.Scope, "env ")
-		} else if len(s.UsedBy) > 0 {
-			env = s.UsedBy[0]
+		store := []string{"secret", "set", s.Service}
+		switch {
+		case strings.HasPrefix(s.Scope, "env "):
+			store = append(store, "--scope", "env", "-e", strings.TrimPrefix(s.Scope, "env "))
+		case strings.HasPrefix(s.Scope, "sandbox "):
+			store = append(store, "--scope", "sandbox", "-s", strings.TrimPrefix(s.Scope, "sandbox "))
+		case len(s.UsedBy) > 0:
+			store = append(store, "-e", s.UsedBy[0])
 		}
+		service := s.Service
 		tokens.rows = append(tokens.rows, yourRow{cells: []string{nameCell(s.Service), stateCell(kept, true), quietCell(firstOf(s.Scope, "global")), used}, about: about,
-			open:   through("env "+env, a.showSecrets),
+			open: func() {
+				a.uniboxHereThen("Storing the token of "+service, func() { a.showYourConfig(yourTokensTab) }, store...)
+			},
 			forget: &yourForget{"Remove token", "Have sbx forget the " + firstOf(s.Scope, "global") + " token of " + s.Service + "?\n\nEvery sandbox that takes it goes without until it is stored again.", "Removing the token of " + s.Service, args}})
 	}
 
@@ -627,6 +643,9 @@ func (a *App) yourSections(got yourConfig) []yourSection {
 	}
 	return []yourSection{settings, values, ports, repos, tokens, network}
 }
+
+// yourTokensTab is where the overview's tokens are, to come back to.
+const yourTokensTab = 4
 
 // scpAddress is a git address written as scp writes one, git@host:path.
 var scpAddress = regexp.MustCompile(`^(?:[A-Za-z0-9._-]+@)?([A-Za-z0-9.-]+):([^/\\][^:]*)$`)

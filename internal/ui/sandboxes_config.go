@@ -35,7 +35,11 @@ func (a *App) showSecrets(e unibox.Env) {
 		return "", err
 	}, func(string) {
 		var items []pickItem
+		missing := 0
 		for _, s := range secrets {
+			if !s.Stored && !s.Optional {
+				missing++
+			}
 			sub, role := "stored", "sandboxes.running"
 			switch {
 			case !s.Stored && s.Optional:
@@ -66,6 +70,11 @@ func (a *App) showSecrets(e unibox.Env) {
 			return
 		}
 		named := func(it pickItem) bool { _, ok := it.Data.(unibox.Secret); return ok }
+		// With nothing missing a is not hinted, and pressed it says so.
+		storeMissing := ""
+		if missing > 0 {
+			storeMissing = "store missing"
+		}
 		keys := []pickKey{
 			{keys: "t", hint: "token in unagit", name: "Keep Token in unagit…", about: "Type the token into unagit's vault; sbx asks unagit for it, by unagit credential get, while unagit runs unlocked.",
 				when: named, run: func(it pickItem) {
@@ -73,8 +82,15 @@ func (a *App) showSecrets(e unibox.Env) {
 						a.guideSecretToken(e, s)
 					}
 				}},
-			{keys: "a", hint: "all missing", name: "Store Every Missing Token…", about: "Have unibox ask for each token sbx lacks, one after another, in this terminal.",
-				run: func(pickItem) { a.uniboxHere("Storing the tokens of "+e.Name, "secret", "set", "-e", e.Name) }},
+			{keys: "a", hint: storeMissing, name: "Store Every Missing Token…", about: "Have unibox ask for each token sbx lacks, one after another, in this terminal.",
+				when: func(pickItem) bool { return missing > 0 },
+				run: func(pickItem) {
+					if missing == 0 {
+						a.note("sbx has every token " + e.Name + " needs")
+						return
+					}
+					a.uniboxHere("Storing the tokens of "+e.Name, "secret", "set", "-e", e.Name)
+				}},
 			{keys: "d", hint: "remove", name: "Remove Token…", about: "Have sbx forget the token; the env's sandboxes go without it until it is stored again.",
 				when: func(it pickItem) bool { s, ok := it.Data.(unibox.Secret); return ok && s.Stored },
 				run: func(it pickItem) {

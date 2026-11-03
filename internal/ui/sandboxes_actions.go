@@ -1189,18 +1189,28 @@ func (a *App) showSandboxPorts(r sandboxRow) {
 		return "", err
 	}, func(string) {
 		var items []pickItem
-		if len(ports) == 0 {
-			items = append(items, pickItem{Label: "no ports named", About: "The team names them beside its sbxenv file; a names one of yours."})
-		}
-		for _, p := range ports {
-			state := "off"
-			if p.On || len(p.Published) > 0 {
-				state = "on"
+		table := make([][]string, len(ports))
+		for i, p := range ports {
+			on := p.On || len(p.Published) > 0
+			now, start, whose := "off", "off at start", "yours"
+			if on {
+				now = "on"
 			}
 			if p.Default {
-				state += " · at start"
+				start = "on at start"
 			}
-			items = append(items, pickItem{Label: p.Name, Sub: p.Port + " · " + state, About: portLine(p), Data: p})
+			if p.Team {
+				whose = "team"
+			}
+			table[i] = []string{nameCell(p.Name), valueCell(p.Port), stateCell(now, on), stateCell(start, p.Default), quietCell(whose)}
+			items = append(items, pickItem{About: portLine(p), Data: p})
+		}
+		header, labels := pickTable([]string{"NAME", "MAPPING", "NOW", "START", "WHOSE"}, table)
+		for i := range items {
+			items[i].Label = labels[i]
+		}
+		if len(items) == 0 {
+			items = append(items, pickItem{Label: "no ports named", About: "The team names them beside its sbxenv file; a names one of yours."})
 		}
 		browse := a.browserKey("w", "browser", "Open in Browser", "Open the port where it is published on this machine; the list stays open.",
 			func(it pickItem) string {
@@ -1239,8 +1249,8 @@ func (a *App) showSandboxPorts(r sandboxRow) {
 				p := it.Data.(unibox.Port)
 				a.forgetPort(p.Name, s.Env, p.From)
 			}}
-		a.showPickerWith("Ports of "+s.Name, items, pickerOptions{pack: true, explain: true, keys: []pickKey{browse, atStart, add, forget},
-			enterName: "Switch On or Off", enterAbout: "Publish the port while the sandbox runs, or take it back; what the files say stays as it is."},
+		a.showPickerWith("Ports of "+s.Name, items, pickerOptions{pack: true, explain: true, header: header, keys: []pickKey{browse, atStart, add, forget},
+			enterName: "Switch On or Off", enterAbout: "Publish the port while the sandbox runs, or take it back; what the files say stays as it is.", enterHint: "on/off"},
 			func(it pickItem) {
 				p, ok := it.Data.(unibox.Port)
 				if !ok {
