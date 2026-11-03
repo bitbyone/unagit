@@ -17,6 +17,9 @@ import (
 // does not.
 var literal = map[bool]string{false: "*.txt", true: "[a].txt"}[runtime.GOOS == "windows"]
 
+// literalToo is another, which the first would match as a pattern.
+var literalToo = map[bool]string{false: "*.go", true: "[b].go"}[runtime.GOOS == "windows"]
+
 func changesFixture(t *testing.T) string {
 	t.Helper()
 	_, clone := repos(t)
@@ -146,7 +149,7 @@ func TestAddFilesMakesThemAdded(t *testing.T) {
 	t.Parallel()
 	clone := changesFixture(t)
 	g := New("", nil)
-	write(t, clone, "*.go", "a star\n")
+	write(t, clone, literalToo, "a star\n")
 	must(t, g.AddFiles(clone, []string{"dir/loose.txt", literal}))
 	changes, err := g.Changes(clone)
 	must(t, err)
@@ -154,7 +157,7 @@ func TestAddFilesMakesThemAdded(t *testing.T) {
 	for _, c := range changes {
 		kinds[c.Path] = c.Kind
 	}
-	for path, want := range map[string]ChangeKind{"dir/loose.txt": Added, literal: Added, "*.go": Unversioned} {
+	for path, want := range map[string]ChangeKind{"dir/loose.txt": Added, literal: Added, literalToo: Unversioned} {
 		if kinds[path] != want {
 			t.Errorf("%s is %d, want %d", path, kinds[path], want)
 		}

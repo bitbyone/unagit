@@ -3,6 +3,7 @@ package mux_test
 import (
 	"encoding/json"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func TestHerdrIsFoundInsideItAndFromOutside(t *testing.T) {
 		t.Fatalf("places inside: %v", c.Places())
 	}
 	outside := mux.DetectHerdr(func(string) string { return "" }, lookup)
-	if outside == nil || outside.SourcePane != "" || !strings.HasSuffix(outside.Session, "/.config/herdr/herdr.sock") {
+	if outside == nil || outside.SourcePane != "" || !strings.HasSuffix(outside.Session, filepath.FromSlash("/.config/herdr/herdr.sock")) {
 		t.Fatalf("outside herdr: %+v", outside)
 	}
 	if !reflect.DeepEqual(outside.Places(), []mux.Placement{mux.Window}) {

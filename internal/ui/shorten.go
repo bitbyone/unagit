@@ -1,6 +1,9 @@
 package ui
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // minPath is the narrowest a directory column is let shrink to before it
 // is left out: enough for the start and most of the directory's own name.
@@ -32,7 +35,7 @@ func middleCut(s string, n int) string {
 // joinSegments puts segments back together, a run of collapsed ones (nil
 // marks one) written as a single mark: never two dots, which would read as
 // the folder above.
-func joinSegments(segs []*string, mark string) string {
+func joinSegments(segs []*string, mark, sep string) string {
 	var parts []string
 	for i, s := range segs {
 		switch {
@@ -42,7 +45,17 @@ func joinSegments(segs []*string, mark string) string {
 			parts = append(parts, mark)
 		}
 	}
-	return strings.Join(parts, "/")
+	return strings.Join(parts, sep)
+}
+
+// pathSep is what separates a directory's folders as it is written: a
+// backslash in a Windows path, a slash everywhere else - and in a path
+// from ~ that Windows writes with slashes.
+func pathSep(s string) string {
+	if filepath.Separator == '\\' && strings.Contains(s, `\`) {
+		return `\`
+	}
+	return "/"
 }
 
 // elided is what stands for the folders a directory leaves out, and
@@ -82,14 +95,14 @@ func shortenRepo(s string, n int) string {
 		segs[i] = &parts[i]
 	}
 	for i := 0; i < len(parts)-1; i++ {
-		over := cells(joinSegments(segs, elidedGroups())) - n
+		over := cells(joinSegments(segs, elidedGroups(), "/")) - n
 		if keep := cells(parts[i]) - over; keep >= minCut && keep < cells(parts[i]) {
 			cut := middleCut(parts[i], keep)
 			segs[i] = &cut
-			return joinSegments(segs, elidedGroups())
+			return joinSegments(segs, elidedGroups(), "/")
 		}
 		segs[i] = nil
-		if out := joinSegments(segs, elidedGroups()); cells(out) <= n {
+		if out := joinSegments(segs, elidedGroups(), "/"); cells(out) <= n {
 			return out
 		}
 	}
@@ -123,7 +136,8 @@ func shortenPath(s string, n int) string {
 	if cells(s) <= n {
 		return s
 	}
-	parts := strings.Split(s, "/")
+	sep := pathSep(s)
+	parts := strings.Split(s, sep)
 	if len(parts) < 3 {
 		return middleCut(s, n)
 	}
@@ -146,7 +160,7 @@ func shortenPath(s string, n int) string {
 				cut := middleCut(between[i], widths[i])
 				segs = append(segs, &cut)
 			}
-			return joinSegments(append(segs, &last), elided())
+			return joinSegments(append(segs, &last), elided(), sep)
 		}
 		out := render()
 		for spare := n - cells(out); spare > 0; {
@@ -186,11 +200,12 @@ func shortenPath(s string, n int) string {
 // directory column this much before the other columns' extras, and the rest
 // of the path only after them.
 func pathGist(s string) int {
-	parts := strings.Split(s, "/")
+	sep := pathSep(s)
+	parts := strings.Split(s, sep)
 	if len(parts) <= 4 {
 		return cells(s)
 	}
-	return cells(parts[0] + "/" + elided() + "/" + strings.Join(parts[len(parts)-2:], "/"))
+	return cells(parts[0] + sep + elided() + sep + strings.Join(parts[len(parts)-2:], sep))
 }
 
 // minBranchRest is the fewest cells the part of a branch after its kind is

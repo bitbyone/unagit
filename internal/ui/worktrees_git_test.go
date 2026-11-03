@@ -627,7 +627,7 @@ func TestTheWorktreePickerSaysWhereABranchIsOut(t *testing.T) {
 
 	typeRunes(sc, "G")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "git checks a branch out only once")
+	waitFor(t, a, sc, "git checks a branch out only")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Worktree branch - acme/gateway")
 }

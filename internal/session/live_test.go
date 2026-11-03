@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -49,7 +50,11 @@ func TestAnotherProcessCanReadIt(t *testing.T) {
 	}
 
 	// Without --print it is the shell itself that ends up there, which is the
-	// whole point: feed one a command and see where it thinks it is.
+	// whole point: feed one a command and see where it thinks it is. A Unix
+	// shell's, which reads commands from a pipe without a prompt.
+	if runtime.GOOS == "windows" {
+		return
+	}
 	cmd = exec.Command(binary, "cd", "calling")
 	cmd.Env = append(os.Environ(), "UNAGIT_CONFIG_DIR="+home, "_ZO_DATA_DIR="+filepath.Join(home, "zoxide"), "SHELL=/bin/sh")
 	cmd.Stdin = strings.NewReader("pwd; echo \"$UNAGIT_CD\"\n")

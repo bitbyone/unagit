@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -103,5 +104,18 @@ func TestShortenBranch(t *testing.T) {
 	}
 	if got := shortenBranch("main-but-very-long-indeed", 12); got != "main-but…eed" {
 		t.Errorf("a branch without a kind keeps its start: %q", got)
+	}
+}
+
+// TestAWindowsPathIsShortenedByItsFolders: a path written with backslashes
+// keeps its drive and its directory, the folders between cut, as a Unix
+// path keeps ~ or / and its directory.
+func TestAWindowsPathIsShortenedByItsFolders(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("a backslash separates folders on Windows alone")
+	}
+	got := shortenPath(`C:\Users\someone\workspace\websites\tobolovi-com`, 30)
+	if !strings.HasPrefix(got, `C:\`) || !strings.HasSuffix(got, `\tobolovi-com`) || cells(got) > 30 {
+		t.Errorf("shortened to %q", got)
 	}
 }

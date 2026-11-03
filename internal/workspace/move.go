@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/tobola/unagit/internal/gitx"
@@ -196,10 +197,8 @@ func copyLocalFolder(source, target string, installed func() error) error {
 	}
 	defer os.RemoveAll(temp)
 	copyDir := filepath.Join(temp, "repository")
-	// cp -a keeps filesystem metadata, symlinks and hard links, including git's
-	// own files. The manifest separately checks the contents before any deletion.
-	if output, err := exec.Command("cp", "-a", source, copyDir).CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot copy the folder; source kept: %w: %s", err, strings.TrimSpace(string(output)))
+	if err := copyFolder(source, copyDir); err != nil {
+		return err
 	}
 	copied, err := folderContents(copyDir)
 	if err != nil {
@@ -266,4 +265,74 @@ func syncCopiedFolder(root string) error {
 		}
 	}
 	return nil
+}
+
+// copyFolder copies a folder whole. cp -a keeps filesystem metadata,
+// symlinks and hard links, including git's own files; Windows has no cp, so
+// there the folder is copied here, file by file, keeping each one's mode
+// and time. The manifest checks the contents either way before anything is
+// deleted.
+func copyFolder(source, target string) error {
+	if runtime.GOOS != "windows" {
+		if output, err := exec.Command("cp", "-a", source, target).CombinedOutput(); err != nil {
+			return fmt.Errorf("cannot copy the folder; source kept: %w: %s", err, strings.TrimSpace(string(output)))
+		}
+		return nil
+	}
+	err := filepath.WalkDir(source, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(target, rel)
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		switch {
+		case info.IsDir():
+			return os.MkdirAll(dest, info.Mode().Perm()|0o700)
+		case info.Mode()&os.ModeSymlink != 0:
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, dest)
+		default:
+			if err := copyFile(path, dest, info); err != nil {
+				return err
+			}
+			return os.Chtimes(dest, info.ModTime(), info.ModTime())
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("cannot copy the folder; source kept: %w", err)
+	}
+	return nil
+}
+
+// copyFile copies one file with its mode.
+func copyFile(source, target string, info fs.FileInfo) error {
+	in, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, info.Mode().Perm()|0o200)
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err = out.Close(); err != nil {
+		return err
+	}
+	// Written writable, then given back the source's mode: git keeps its
+	// objects read-only.
+	return os.Chmod(target, info.Mode().Perm())
 }
