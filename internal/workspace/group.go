@@ -11,6 +11,7 @@ import (
 
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // A grouped worktree is one directory holding a worktree of several
@@ -253,7 +254,7 @@ func (m *Manager) RemoveGroupMember(projectPath, dir string) error {
 			m.log("! worktree remove failed, deleting the directory directly")
 		}
 	}
-	if err := os.RemoveAll(dir); err != nil {
+	if err := platform.RemoveAll(dir); err != nil {
 		return err
 	}
 	m.removed(dir)

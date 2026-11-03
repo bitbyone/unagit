@@ -52,3 +52,18 @@ func SyncPath(path string) error {
 	}
 	return err
 }
+
+// RemoveAll removes a directory and what is in it. Windows refuses while
+// another process has a file in it open or its directory as its own - a
+// git that unagit's background read started a moment before - so it tries
+// again for a few seconds before giving up.
+func RemoveAll(path string) error {
+	var err error
+	for wait := 10 * time.Millisecond; wait < 4*time.Second; wait *= 2 {
+		if err = os.RemoveAll(path); err == nil || !busy(err) {
+			return err
+		}
+		time.Sleep(wait)
+	}
+	return err
+}

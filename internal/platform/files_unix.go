@@ -21,3 +21,7 @@ func SyncPath(path string) error {
 	}
 	return err
 }
+
+// RemoveAll removes a directory and what is in it; Unix removes a file
+// another process has open, so there is nothing to wait for.
+func RemoveAll(path string) error { return os.RemoveAll(path) }

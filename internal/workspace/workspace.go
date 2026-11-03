@@ -27,6 +27,7 @@ import (
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
+	"github.com/tobola/unagit/internal/platform"
 )
 
 // Options is everything a Manager needs to know. The root is resolved by the
@@ -727,7 +728,7 @@ func (m *Manager) RemoveProject(projectPath string) error {
 		}
 		entries, _ := os.ReadDir(root)
 		m.log("Removing %s", root)
-		if err := os.RemoveAll(root); err != nil {
+		if err := platform.RemoveAll(root); err != nil {
 			return err
 		}
 		for _, entry := range entries {
@@ -764,7 +765,7 @@ func (m *Manager) RemoveDirectory(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil
 	}
-	if err := os.RemoveAll(dir); err != nil {
+	if err := platform.RemoveAll(dir); err != nil {
 		return err
 	}
 	m.removed(dir)
@@ -861,7 +862,7 @@ func (m *Manager) RemoveWorktreeDir(projectPath, dir string) error {
 			m.log("! worktree remove failed, deleting the directory directly")
 		}
 	}
-	if err := os.RemoveAll(dir); err != nil {
+	if err := platform.RemoveAll(dir); err != nil {
 		return err
 	}
 	m.removed(dir)

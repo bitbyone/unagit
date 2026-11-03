@@ -229,7 +229,7 @@ func copyLocalFolder(source, target string, installed func() error) error {
 	if err = installed(); err != nil {
 		return fmt.Errorf("both folders were kept because move progress could not be saved: %w", err)
 	}
-	if err = os.RemoveAll(source); err != nil {
+	if err = platform.RemoveAll(source); err != nil {
 		return fmt.Errorf("copy is complete at %s, but the source could not be fully removed: %w", target, err)
 	}
 	if err = syncPath(filepath.Dir(source)); err != nil {

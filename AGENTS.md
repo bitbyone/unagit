@@ -103,7 +103,8 @@ manifests, by hand: change the workflow that writes them.
 system is in `internal/platform` behind build tags - locks, whether a
 process runs, handing the terminal to another program (`Exec`: replacing
 the process on Unix, waiting behind it on Windows), the terminal itself
-(`OpenTTY`), a rename across file systems - never a `syscall.Flock` or a
+(`OpenTTY`), a rename across file systems, removing a directory another
+process holds for a moment (`RemoveAll`) - never a `syscall.Flock` or a
 `/dev/tty` written into another package. `GOOS=windows go vet ./...`
 checks it from any machine, and `make cross` checks all six. Where a
 feature has nothing to stand on - the sandbox tokens' socket without a peer
