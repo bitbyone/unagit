@@ -56,7 +56,14 @@ func (a *App) refreshZoxide() {
 		return
 	}
 	go func() {
+		// A read that fails is tried again a little later: it is a local
+		// file, and one start of zoxide refused on a loaded machine left
+		// the counts at nothing until the next tab switch.
 		scores, err := a.zoxideTool().Scores()
+		for wait := 200 * time.Millisecond; err != nil && wait <= time.Second; wait *= 2 {
+			time.Sleep(wait)
+			scores, err = a.zoxideTool().Scores()
+		}
 		a.tv.QueueUpdateDraw(func() {
 			if gen != a.zoxideGen {
 				return

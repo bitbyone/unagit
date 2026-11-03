@@ -134,7 +134,7 @@ func TestZoxideScoresOrderRepositoriesAndWorktrees(t *testing.T) {
 
 func TestZoxideCardAndSortPicker(t *testing.T) {
 	t.Parallel()
-	_, scores, prepare := fakeZoxide(t)
+	calls, scores, prepare := fakeZoxide(t)
 	a, sc, _ := newTestAppSrv(t, prepare)
 	waitFor(t, a, sc, "acme/gateway")
 	root := onLoop(a, func() string { return a.cfg.Root() })
@@ -176,7 +176,16 @@ func TestZoxideCardAndSortPicker(t *testing.T) {
 		t.Fatal("disabled choice was not saved")
 	}
 	typeRunes(sc, "e")
-	waitFor(t, a, sc, "1 directory known under your roots")
+	// Turned on again, the scores are read again; if they never come, the
+	// calls zoxide got say whether it was asked.
+	deadline := time.Now().Add(patience)
+	for !strings.Contains(a.screenText(sc), "1 directory known under your roots") {
+		if time.Now().After(deadline) {
+			asked, _ := os.ReadFile(calls)
+			t.Fatalf("the scores did not come back; zoxide was asked:\n%s\n%s", asked, a.screenText(sc))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	typeRunes(sc, "1")
 	changeOnLoop(a, func() { a.showSortPicker() })
 	waitFor(t, a, sc, "by frecency")
