@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -340,6 +341,9 @@ func (a *App) drawSandboxTasks(p *pane) {
 		return
 	}
 
+	// The agent is an icon before the task's name where every agent has
+	// one; without the icons - no Nerd Font - it keeps a column of its own.
+	icons := true
 	var names, boxes, states, agentsW, repos, branches []int
 	for _, r := range v.tasks {
 		names = append(names, cells(r.task.Name()))
@@ -349,6 +353,7 @@ func (a *App) drawSandboxTasks(p *pane) {
 		agentsW = append(agentsW, cells(agentLabel(r.task.Agent))+2)
 		repos = append(repos, cells(sandboxRepos(r)))
 		branches = append(branches, cells(sandboxBranch(r)))
+		icons = icons && agentIcons[r.task.Agent] != ""
 	}
 	nameCol := flexColumn("TASK", names, 10, 2)
 	boxCol := flexColumn("SANDBOX", boxes, 6, 1)
@@ -357,34 +362,54 @@ func (a *App) drawSandboxTasks(p *pane) {
 	reposCol := flexColumn("REPOS", repos, 8, 1)
 	branchCol := flexColumn("BRANCH", branches, 10, 1.5)
 	reposCol.drop, boxCol.drop, agentCol.drop = 1, 2, 3
-	layoutColumns(p.contentWidth()-1, fixedColumn(1), nameCol, boxCol, stateCol, agentCol, reposCol, branchCol)
+	cols := []*listColumn{fixedColumn(1), nameCol, boxCol, stateCol, agentCol, reposCol, branchCol}
+	if icons {
+		agentCol.width = 0
+		cols = slices.Delete(cols, 4, 5)
+	}
+	spare := layoutColumns(p.contentWidth()-1, cols...)
+	// What the columns leave goes between the task and where it works, so
+	// the repositories and the branch stand at the right edge.
+	gap := field{width: max(0, spare-1)}
 
 	heading := role("sandboxes.header")
-	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons([]field{
+	head := []field{
 		{width: 1},
 		{text: "TASK", width: nameCol.width, colour: heading},
 		{text: "SANDBOX", width: boxCol.width, colour: heading},
 		{text: "STATE", width: stateCol.width, colour: heading},
-		{text: "AGENT", width: agentCol.width, colour: heading},
-		{text: "REPOS", width: reposCol.width, colour: heading},
-		{text: "BRANCH", width: branchCol.width, colour: heading},
-	}))).SetSelectable(false).SetExpansion(1))
+	}
+	if !icons {
+		head = append(head, field{text: "AGENT", width: agentCol.width, colour: heading})
+	}
+	if spare > 1 {
+		head = append(head, gap)
+	}
+	head = append(head,
+		field{text: "REPOS", width: reposCol.width, colour: heading},
+		field{text: "BRANCH", width: branchCol.width, colour: heading})
+	p.table.SetCell(0, 0, tview.NewTableCell(rowText(withHeadingIcons(head))).SetSelectable(false).SetExpansion(1))
 
 	for i, r := range v.tasks {
 		state, stateRole := a.sandboxState(r)
-		agent := agentLabel(r.task.Agent)
-		if icon := agentIcons[r.task.Agent]; icon != "" {
-			agent = icon + " " + agent
+		row := []field{{width: 1}}
+		if icons {
+			row[0] = field{text: agentIcons[r.task.Agent], width: 1, colour: role("sandboxes.agent")}
 		}
-		p.table.SetCell(i+1, 0, tview.NewTableCell(rowText([]field{
-			{width: 1},
-			{text: r.task.Name(), width: nameCol.width, colour: role("sandboxes.task")},
-			{text: r.sandbox.Name, width: boxCol.width, colour: role("sandboxes.sandbox")},
-			{text: state, width: stateCol.width, colour: role(stateRole)},
-			{text: agent, width: agentCol.width, colour: role("sandboxes.agent")},
-			{text: sandboxRepos(r), width: reposCol.width, colour: role("sandboxes.task")},
-			{text: sandboxBranch(r), width: branchCol.width, colour: role("sandboxes.branch"), shorten: shortenBranch},
-		})).SetReference(i).SetExpansion(1))
+		row = append(row,
+			field{text: r.task.Name(), width: nameCol.width, colour: role("sandboxes.task")},
+			field{text: r.sandbox.Name, width: boxCol.width, colour: role("sandboxes.sandbox")},
+			field{text: state, width: stateCol.width, colour: role(stateRole)})
+		if !icons {
+			row = append(row, field{text: agentLabel(r.task.Agent), width: agentCol.width, colour: role("sandboxes.agent")})
+		}
+		if spare > 1 {
+			row = append(row, gap)
+		}
+		row = append(row,
+			field{text: sandboxRepos(r), width: reposCol.width, colour: role("sandboxes.task")},
+			field{text: sandboxBranch(r), width: branchCol.width, colour: role("sandboxes.branch"), shorten: shortenBranch})
+		p.table.SetCell(i+1, 0, tview.NewTableCell(rowText(row)).SetReference(i).SetExpansion(1))
 	}
 	if len(v.tasks) == 0 {
 		empty := "No task yet - n on a sandbox or an env starts one, Sandbox with… on a repository or a worktree too."

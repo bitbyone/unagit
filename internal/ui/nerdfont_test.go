@@ -401,3 +401,50 @@ func TestStandalonesTabsHaveTheirIcons(t *testing.T) {
 	resizeApp(a, sc, 50, 20)
 	waitFor(t, a, sc, "Shelf 4")
 }
+
+// TestATasksAgentIsAnIconBeforeItsName: with the icons on, a task's agent
+// is its icon in the list's first column and AGENT goes; without them the
+// column stays, as an icon cannot say it. Either way the repositories and
+// the branch stand at the right edge, what is left over before them.
+// Serial: the glyphs are the process's.
+func TestATasksAgentIsAnIconBeforeItsName(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont = false })
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 160, 40)
+	openSandboxes(t, a, sc)
+	waitFor(t, a, sc, "billing-5e6f7a8b")
+	waitFor(t, a, sc, "AGENT")
+	// rightEdge is whether the line naming text ends its branch next to
+	// the tasks' right border.
+	rightEdge := func(text, branch string) {
+		t.Helper()
+		screen := a.screenText(sc)
+		// The tasks' panel is the first between two borders.
+		left := ""
+		for _, line := range strings.Split(screen, "\n") {
+			if parts := strings.Split(line, "│"); len(parts) > 2 && strings.Contains(parts[1], text) {
+				left = parts[1]
+				break
+			}
+		}
+		if !strings.HasSuffix(strings.TrimRight(left, " "), branch) || len(left)-len(strings.TrimRight(left, " ")) > 2 {
+			t.Fatalf("the branch is not at the right edge:\n%q\n%s", left, screen)
+		}
+	}
+	rightEdge("billing-5e6f7a8b", "fix/round")
+
+	changeOnLoop(a, func() {
+		nerdFont = true
+		setTheme(loadThemes("").byName[defaultThemeName])
+		a.drawSandboxTasks(a.sandboxes.pane)
+	})
+	icon := onLoop(a, func() string { return agentIcons["copilot"] })
+	waitFor(t, a, sc, icon+" billing-5e6f7a8b")
+	if text := a.screenText(sc); strings.Contains(lineAt(text, "TASK"), "AGENT") {
+		t.Fatalf("AGENT stays beside the icons:\n%s", text)
+	}
+	rightEdge("billing-5e6f7a8b", "fix/round")
+	assertLegible(t, a, sc, "the tasks with their agents' icons")
+}
