@@ -19,12 +19,22 @@ const doctorSaysWebIsOlder = `{"api_version":2,"checks":[
 {"area":"Sandboxes","name":"old","status":"warn","message":"sbx no longer has it","hint":"unibox prune forgets it, or unibox sandbox recreate old makes it again"},
 {"area":"sbx","name":"signed in","status":"pass","message":"yes"}]}`
 
-// waitUnibox reads unibox again and waits until what it said holds.
+// waitUnibox reads unibox again until what it said holds. A read under
+// way may have begun before the answer changed, and a refresh asked
+// meanwhile is dropped, so it asks again each time none is under way.
 func waitUnibox(t *testing.T, a *App, holds func(unibox.Overview) bool) {
 	t.Helper()
-	changeOnLoop(a, a.refreshSandboxes)
 	deadline := time.Now().Add(patience)
-	for !onLoop(a, func() bool { return a.ubx.read && !a.ubx.loading && holds(a.ubx.overview) }) {
+	for !onLoop(a, func() bool {
+		if a.ubx.loading {
+			return false
+		}
+		if a.ubx.read && holds(a.ubx.overview) {
+			return true
+		}
+		a.refreshSandboxes()
+		return false
+	}) {
 		if time.Now().After(deadline) {
 			t.Fatal("unibox never said what the test waits for")
 		}
