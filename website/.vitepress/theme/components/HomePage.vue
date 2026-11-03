@@ -119,11 +119,11 @@ const features = [
 <template>
   <div class="home">
     <section class="hero">
-      <p class="kicker"><b>U</b>niversal <b>Nav</b>igator <b>A</b>round <b>GIT</b></p>
-      <h1>Every repository you work with.<br /><span>One keystroke to be inside it.</span></h1>
+      <p class="kicker"><b>U</b>niversal <b>N</b>avigator <b>A</b>round <b>GIT</b></p>
+      <h1>Every repository you work with.<br /><span>All in one place, all in reach.</span></h1>
       <p class="lead">
-        A terminal navigator over every repository on GitLab and GitHub: where each lands on
-        disk, getting into it, and merge requests reviewed as pending edits in your own editor.
+        One terminal list of every repository you work with, on every GitLab and GitHub server —
+        cloned, branched and opened in your editor or an agent in a keystroke.
       </p>
 
       <div class="install">
