@@ -17,7 +17,7 @@ closes it; `line` cannot name an AppleScript variable; Ghostty refuses
 
 Then the Agents tab ([4]; Settings moved to [5]; since merged into Activity, [activity.md](activity.md)): the agents unagit started
 - herdr's others are not shown - with herdr's state, the count waiting on
-the tab, Alt-A for a picker of them, and herdr's Ghostty terminal brought
+the tab, Running Agents… (in `:`) for a picker of them, and herdr's Ghostty terminal brought
 forward by the title herdr gives it, "<host>: <workspace>". Whether
 Ghostty's `focus` slides a hidden quick terminal out is still to be seen
 in use.
@@ -163,7 +163,7 @@ are offered only from inside, as Zellij's are.
 
 **Start Agent…** on a repository, a merge request (its branch worktree, or
 the review worktree with a first prompt) or a worktree. It prepares the
-directory as Ctrl-O does, then:
+directory as `o` does, then:
 
 - inside herdr: in a new tab or a split beside unagit, chosen like the
   editor placements;

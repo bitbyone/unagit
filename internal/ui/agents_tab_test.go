@@ -130,14 +130,14 @@ func TestAnAgentIsClosedOnlyAfterAsking(t *testing.T) {
 	}
 }
 
-// TestRunningAgentsFromAnyScreen: Alt-A lists the agents over whatever is
+// TestRunningAgentsFromAnyScreen: Running Agents… lists the agents over whatever is
 // in front, and Enter goes to one.
 func TestRunningAgentsFromAnyScreen(t *testing.T) {
 	t.Parallel()
 	a, sc, h, _, _, pane := agentsFixture(t)
 	changeOnLoop(a, a.agentsNowAsk)
 	waitEditorState(t, a, func() bool { return len(a.agentRows) == 2 })
-	sc.InjectKey(tcell.KeyRune, 'a', tcell.ModAlt)
+	changeOnLoop(a, a.showRunningAgents)
 	waitFor(t, a, sc, "Running agents")
 	waitFor(t, a, sc, "Rewrite the parser")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)

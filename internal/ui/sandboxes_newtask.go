@@ -36,7 +36,7 @@ type taskDraft struct {
 // unibox's context, and what the screen has under its cursor marked.
 func (a *App) newTaskAction() uiAction {
 	return uiAction{name: "New Sandbox Task…", about: "Start an agent on a new task in a sandbox - the context's, or another - with as many repositories as it needs, its name, branch, how each gets in and whether to push.",
-		keys: "Ctrl-S", rank: 505, aliases: []string{"unibox", "task", "sandbox"},
+		keys: "", rank: 505, aliases: []string{"unibox", "task", "sandbox"},
 		when: a.uniboxOn, run: func() { a.newTaskFromScreen() }}
 }
 

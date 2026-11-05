@@ -222,18 +222,18 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 		waitGone(t, a, sc, "unagit · keys")
 	}
-	check("Repositories", []string{"C", "Ctrl-O", "Ctrl-G"}, []string{"Ctrl-F Ctrl-B"})
+	check("Repositories", []string{"C", "o", "z"}, []string{"Ctrl-F Ctrl-B"})
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	check("Merge requests", []string{"Ctrl-R", "C", "Ctrl-G"}, []string{"Ctrl-F Ctrl-B"})
+	check("Merge requests", []string{"Ctrl-R", "C", "z"}, []string{"Ctrl-F Ctrl-B"})
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Jane Doe")
 	check("Merge request detail", []string{"Ctrl-R", "Ctrl-F Ctrl-B"}, []string{"e"})
 	typeRunes(sc, "S")
 	waitFor(t, a, sc, "Default root")
-	check("Settings", []string{}, []string{"Ctrl-O", "a e t v d"})
+	check("Settings", []string{}, []string{"o", "a e t v d"})
 	openSection(t, a, sc, sectionGitLab)
-	check("Servers", []string{"a e t v d"}, []string{"Ctrl-O", "r  p  m"})
+	check("Servers", []string{"a e t v d"}, []string{"o", "r  p  m"})
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	openSection(t, a, sc, sectionGeneral)
 	a.tv.QueueUpdateDraw(func() {
@@ -241,6 +241,6 @@ func TestHelpUsesTheOpeningContext(t *testing.T) {
 		form.SetFocus(form.GetFormItemCount())
 		a.tv.SetFocus(form)
 	})
-	check("General settings", []string{"s  r", "?"}, []string{"Ctrl-O", "a e t v d"})
+	check("General settings", []string{"s  r", "?"}, []string{"o", "a e t v d"})
 
 }

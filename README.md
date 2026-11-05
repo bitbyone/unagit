@@ -104,8 +104,7 @@ C compiler (the Xcode Command Line Tools, which `git` there needs anyway).
 say what is on disk, and the path column says where - which matters once
 different groups live in different places.
 
-**Nothing has to be remembered.** `Alt-Enter` (or `Ctrl-A`, for a terminal
-that keeps Alt-Enter for itself) lists everything that can be done with the
+**Nothing has to be remembered.** `.` (or `Alt-Enter`) lists everything that can be done with the
 row under the cursor - or with the selected rows, or the lit block of a
 worktree's view, or the section of Settings - and `:` everything the screen
 itself can do. Each action has its key beside it, so the list teaches the keys
@@ -117,9 +116,16 @@ by what it does; `Enter` does it, the arrows move, and `Esc` goes to the list
 (`j`/`k`) - or, with nothing typed, closes it. Some actions are rare enough to have no key at
 all and live only there.
 
-**The keys are yours to change.** A terminal or a multiplexer can keep a key
-for itself: Zellij takes `Ctrl-O`, `Ctrl-T`, `Ctrl-G` and `Ctrl-S`, Windows
-Terminal `Alt-Enter`, tmux its prefix. `keybinds.toml` beside `config.yaml`
+**The keys keep out of the way.** Navigation comes first and no action takes
+its keys; then the letter is the action's own (`d` delete, `t` tags, `L` log),
+small for what stays local or can be undone and capital for the bigger form of
+the same verb (`p` pull, `P` push; `r` refresh one, `R` all). Ctrl is only for
+leaving unagit (`Ctrl-R` review) and for the few keys no terminal or
+multiplexer keeps (`Ctrl-W`, `Ctrl-E`); nothing needs Alt, which a Mac's
+terminal does not send. What is rare has no key and lives in the pickers.
+
+**The keys are yours to change.** A terminal or a multiplexer can still keep a
+key for itself: tmux its prefix, a terminal its own shortcuts. `keybinds.toml` beside `config.yaml`
 gives any action another key, several, or none:
 
 ```toml
@@ -182,16 +188,16 @@ its keys.
 
 - `C` clones it to disk without opening the editor. `Ctrl-C` is left to end
   unagit, as it ends any program in a terminal.
-- `Ctrl-O` opens your editor in it at once, as it is on disk - no fetch, no
+- `o` opens your editor in it at once, as it is on disk - no fetch, no
   pull. Only a repository not cloned yet is cloned first. The lists say where
   everything stands, and `p` updates it first when you want that. The same
-  goes for `Ctrl-O` in Merge requests and Worktrees.
+  goes for `o` in Merge requests and Worktrees.
 - `b` manages the branches. Each says whether it is in the clone, on origin
   or both and how far apart (`↑2 ↓1`), whether it is checked out and where,
   and whether it is the default or protected. `Enter` switches **that same
   clone** to it, so there is one working copy per repository, not a directory
   per branch. It is a plain checkout: nothing is fetched and no editor
-  starts - `p` pulls, `Ctrl-O` opens - and the list closes, the row showing
+  starts - `p` pulls, `o` opens - and the list closes, the row showing
   the branch now out. What is not committed goes along, as git carries it;
   when the branch has its own version of a file you edited, unagit names the
   files and offers Smart Checkout: your changes are shelved, the branch
@@ -202,7 +208,7 @@ its keys.
   request open says `!12 open`; `m` on one without opens a merge request
   from it, pushing it first if origin lacks it - and `n` on the repository
   itself does that for the branch the clone has out. `d` deletes it in the clone (origin keeps it), `D` in the clone
-  and on origin, `Alt-D` on origin only (the clone keeps it, no longer
+  and on origin, **Delete on Origin…** (in `.`) on origin only (the clone keeps it, no longer
   tracking). The default branch and protected ones are never deleted, and
   one with an open merge request is not deleted on origin. One out in the
   main clone cannot be deleted there; one out in a worktree - unagit's or
@@ -216,7 +222,7 @@ its keys.
 - `Ctrl-W` gives a branch a worktree of its own instead (`n` for a new
   branch). A branch git will not check out again - out in the main clone or
   in another worktree - is listed last, dimmed, with where it is out. Nothing opens: unagit moves to Worktrees with the cursor on it, and
-  `Ctrl-O` opens it when you want.
+  `o` opens it when you want.
 - `RMT` (remote) says where the clone's branch stands against origin: `✓` up to
   date, `↓3` behind, `↑2` commits of yours not pushed, `↑2↓3` both. It is read
   from the refs on disk, so it costs nothing, and read again whenever you
@@ -248,7 +254,7 @@ its keys.
   question lists the commits that go - and
   offers **Force Push** beside **Push**; a branch origin has moved past is
   offered Force Push alone - or pull first, to keep both.
-- `Ctrl-K` opens **Changes**, IntelliJ's commit window: on the left the
+- `s` opens **Changes**, IntelliJ's commit window: on the left the
   files not committed in two groups - *Changes*, the versioned ones, and
   *Unversioned Files* - each name in the colour of what happened to it
   (changed blue, added green, deleted grey, unversioned red-brown); on the
@@ -269,11 +275,11 @@ its keys.
   unversioned files - each after asking, and saying what of the marked it
   leaves - and `x` ticks them. `d` therefore never deletes what is merely
   ticked. `Esc` takes the marks away before it closes the dialog;
-  `Alt-Enter` lists what can be done with the marked rows or the one under
+  `.` lists what can be done with the marked rows or the one under
   the cursor, `:` what the dialog can do. A rolled back added file stays on
   disk, unversioned; an unversioned file is never rolled back, only
-  deleted. `Ctrl-O` opens the whole working tree in your editor with the
-  file under the cursor in front (`Alt-O` asks which editor). Each file says
+  deleted. `o` opens the whole working tree in your editor with the
+  file under the cursor in front (**Open With…** in `.` asks which editor). Each file says
   how many of its lines were added and deleted (`+12 −3`, quieter than
   its name). `/` narrows the list to the paths that match, `Esc` widens it
   again. `y` copies the marked files' paths - from the repository's root
@@ -290,11 +296,11 @@ its keys.
   rebase of your commits and uncommitted edits onto origin when there is. If
   that would conflict - your edits touch a file origin changed, or your commits
   clash with origin's - it refuses and leaves the clone exactly as it was, for
-  you to sort out by hand. `Alt-P` does the same for every clone at once,
+  you to sort out by hand. `U` does the same for every clone at once,
   passing over those without an upstream and naming the ones it left alone.
 - `m` jumps to that repository's merge requests, `w` opens it in the browser,
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
-- `/` fuzzy-finds, `L` hides everything you have not cloned (also in `v`), `x` hides a
+- `/` fuzzy-finds, **only what is cloned** in `v` hides everything you have not cloned, `x` hides a
   repository you never want to see.
 - `v` also lists the columns in the order they stand, each with an eye: space
   hides one or shows it again, in Merge requests and Worktrees too. What you
@@ -327,9 +333,9 @@ its keys.
   above the status line.
 - Space marks rows in Repositories and Merge requests, and the keys then
   act on every marked row at once: `x` and `H` hide, `r` refreshes, `p`
-  pulls, `C` clones, `Ctrl-T` tags, `Ctrl-F` stars, `y` copies one of each
+  pulls, `C` clones, `t` tags, `*` stars, `y` copies one of each
   a line, `V` marks merge requests reviewed, `Ctrl-W` makes one grouped
-  worktree of repositories. Alt-Enter lists what the marks can do. `:` in
+  worktree of repositories. `.` lists what the marks can do. `:` in
   Repositories also pulls every favourite at once.
 - Repositories' `SIZE` is what a clone takes on disk with all its
   worktrees - its merge requests', reviews', branches', grouped ones' -
@@ -391,7 +397,7 @@ its keys.
   unpushed commits, your own edits in a review, comments not yet published.
   Those are kept, and named; `d` on the repository in Repositories deletes
   them. A kept review is also a row of Worktrees, marked with an eye and its
-  merge request's number, its edits your own: Enter or `Ctrl-O` opens it,
+  merge request's number, its edits your own: Enter or `o` opens it,
   `d` deletes it.
 - `H` on a merge request hides its author's merge requests - Renovate's, a
   CI bot's - and the header counts the hidden authors. `x` there does the
@@ -443,12 +449,12 @@ it); `Ctrl-W` on a selection then asks for:
 
 In Worktrees the group is one row marked `◆`, `REPOS` says how many it holds,
 and `Enter` opens it as a view of its own (see below).
-`Ctrl-O` opens the folder, `p` updates every repository in it (see below), `P`
+`o` opens the folder, `p` updates every repository in it (see below), `P`
 pushes every repository that has commits origin lacks - a branch with nothing
 of its own yet stays local, rather than leaving an empty branch on origin -
 and `d` deletes the worktrees - the branches and the main clones stay. A
 branch pushed too early is taken off origin again from a repository's
-branches (`b` on its block in the view, `Alt-D` on the branch).
+branches (`b` on its block in the view, **Delete on Origin…** on the branch).
 
 A group grows and shrinks a repository at a time. `a` lists the repositories
 not in it yet, filtered as you type; the one picked gets the group's branch,
@@ -514,7 +520,7 @@ as a clone does in Repositories - a pushed branch is never rebased onto its
 base, since that would rewrite what origin has and need a force push, which
 unagit does not do. The same rules apply: a fast-forward when nothing local is
 in the way, a rebase otherwise, and nothing at all when that would conflict.
-`R` fetches first, `Alt-P` updates every worktree. Whether a rebase would
+`R` fetches first, `U` updates every worktree. Whether a rebase would
 stop on a conflict is forecast before anything is tried - git merges the two
 in memory - so `RMT` says `↓2 behind main · conflicts` (or `diverged ·
 conflicts`) ahead of time, the detail names the files, and `p` or `Ctrl-R`
@@ -532,9 +538,9 @@ Every other force push is chosen in a question - **Force Push** beside
 its lease is origin's copy as last fetched.
 
 A branch made outside unagit has no base of its own. Origin's default
-branch stands in for it: `Alt-D` diffs against it and `Ctrl-R` rebases onto
+branch stands in for it: `B` diffs against it and `Ctrl-R` rebases onto
 it when asked, but `p` does not rebase a branch not pushed yet onto a base
-nobody set, nor is the branch measured against it. **Set Base…** (in the actions, `Alt-Enter`; in Repositories
+nobody set, nor is the branch measured against it. **Set Base…** (in the actions, `.`; in Repositories
 too, for a clone on a branch other than the default) picks one from the
 repository's branches - the base there is first, then the default branch,
 then the target of the merge request open from the branch - and records it as
@@ -604,10 +610,10 @@ worktree, every repository in one review. A merge request with nothing on
 disk gets its review made first - the repository cloned if need be - so `D`
 down the list never stops to ask for `C`.
 
-`Alt-D` in Repositories and Worktrees shows everything since the branch's
+`B` in Repositories and Worktrees shows everything since the branch's
 base instead: its commits and what is not committed, measured from a
 worktree's base or a clone's upstream. One commit at a time is the commit
-log's - `Ctrl-L`, then `D` on the commit.
+log's - `L`, then `d` on the commit.
 
 Hunk reads one repository at a time, so for a grouped worktree unagit puts the
 changes of its repositories together into one patch, new files included, and
@@ -635,7 +641,7 @@ the repository like any other.
 
 ### [Zellij](https://zellij.dev)
 
-Inside Zellij, the selection action picker (`Alt-Enter` or `Ctrl-A`) has
+Inside Zellij, the selection action picker (`.` or `Alt-Enter`) has
 **Open in Zellij Tab**, **Open in Zellij Vertical Split** (beside unagit)
 and **Open in Zellij Horizontal Split** (below it), and a merge request the
 same with **Review**. They are found by typing - `tab`, `split` or `vs`,
@@ -644,7 +650,7 @@ when the default opens a window. `O` (**Open…**) chooses the editor and
 the place in one form. The opening keys keep using unagit's own terminal.
 
 A repository is cloned if needed; a merge request gets its branch worktree,
-as with `Ctrl-O`. A worktree or the lit block of its view opens its own
+as with `o`. A worktree or the lit block of its view opens its own
 directory, and a group opens its folder. Tabs are named after the repository,
 merge request, branch or group. Unagit stays usable while the editor runs.
 The pane closes when its editor exits.
@@ -655,7 +661,7 @@ session, including after unagit exits; a later instance finds them again.
 Neovim in a pane is the same Neovim as in unagit's own terminal: it runs
 until `:qa`, and **Ctrl-Z** puts it aside - the pane closes, the editor
 runs on with its buffers and unsaved changes, and `E` lists it. Opening its
-directory again brings it back where you ask: `Ctrl-O` or Enter in `E` in
+directory again brings it back where you ask: `o` or Enter in `E` in
 unagit's terminal, a tab or split in a pane of its own. While it still has
 its pane, opening the directory goes to that pane instead of starting a
 second Neovim. From a unagit outside that Zellij session the pane cannot be
@@ -703,7 +709,7 @@ Claude Code, Codex, Copilot CLI, opencode and Antigravity are integrations of
 their own, each on whenever its command (`claude`, `codex`, `copilot`,
 `opencode`, `agy`) is on PATH. Each adds **Open with <agent>…** to the
 actions of a repository, a merge request and a worktree, and **Review with
-<agent>…** to a merge request's: the directory is prepared as `Ctrl-O`
+<agent>…** to a merge request's: the directory is prepared as `o`
 prepares it - cloned, the branch worktree made - or the review as `Ctrl-R`
 makes it, the change unstaged, and then the agent starts there, where you
 choose: **This Terminal** (unagit is suspended until the agent ends), a tab
@@ -729,7 +735,7 @@ PATH, or with it turned off in Settings › Integrations, the tab is grey and
 says so. **Set Up Unibox…** (`I`, or `Enter` on the grey tab) lists what a
 first sandbox needs - the team's repository walked through `unibox init`,
 each env's values, its tokens, its sandbox, then unibox's doctor - and
-`Enter` does a step. **Unibox Init…** on a repository (`Alt-Enter`) lists
+`Enter` does a step. **Unibox Init…** on a repository (`.`) lists
 its sbxenv files, each new or the env it already is; `Enter` sets up the
 one under the cursor and `i` every file, or the marked, and the rest -
 sbx, your values, the tokens, the sandboxes - is `unibox init --file …`
@@ -751,13 +757,13 @@ tab bar inside **Sandboxes [5]**, quieter than its name, on every screen.
 unibox is read again when the tab or the terminal comes to the front, and
 on `R`.
 Everything is read from unibox's `--json` and every change is a unibox
-command; unagit reads none of its files. On a task `o` resumes its agent and
+command; unagit reads none of its files. On a task `r` resumes its agent and
 `a` another of the sandbox's, where you choose - this terminal, a Zellij or
 herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
 in the picker finds each agent in each place (**Resume with Claude Code in
 Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
 adds a repository, `Ctrl-E` renames it, `d` removes it. On a sandbox `n` starts a
-new task - `Ctrl-S` does from any screen, in the context's sandbox, the
+new task - **New Sandbox Task…** (in `:`) does from any screen, in the context's sandbox, the
 repository or worktree under the cursor marked: Space marks as many
 repositories as it needs among your clones, worktrees and the env's index
 (its `on` and `always` ones marked to begin with), then a form names the
@@ -799,8 +805,8 @@ Opening is three questions: what - the clone, a merge request's branch or
 its review, a worktree - with what, and where. The action pickers answer
 them in three tiers:
 
-- at the top, **Open** (`Ctrl-O`) and **Review** (`Ctrl-R`) in the default
-  editor here, **Open With…** (`Alt-O`) in an editor you choose, and
+- at the top, **Open** (`o`) and **Review** (`Ctrl-R`) in the default
+  editor here, **Open With…** (in `.`) in an editor you choose, and
   **Open…** (`O`), a form of all three questions - Branch or Review on a
   merge request, an editor or an agent that is on, and the places that one
   can go - filled in as it was last used for that kind of row;
@@ -827,14 +833,14 @@ waiting is on the tab from every screen. `Enter` goes to the agent: its herdr ta
 pane or its Ghostty terminal; with Ghostty on and unagit outside herdr, the
 Ghostty terminal herdr runs in comes forward too - a quick terminal included
 - found by the title herdr gives it, `<host>: <workspace>`. `x` closes an
-agent in herdr after asking, `Ctrl-O` opens its directory in the editor, and
-`Alt-A` lists the agents over any screen. In herdr the agent's icon is drawn
+agent in herdr after asking, `o` opens its directory in the editor, and
+**Running Agents…** (in `:`) lists the agents over any screen. In herdr the agent's icon is drawn
 from the Nerd Font where the terminal has one.
 
 ### [Yazi](https://yazi-rs.github.io)
 
 With `yazi` on PATH, **Browse Files** appears in the selection action picker
-(`Alt-Enter` or `Ctrl-A`) on repositories, merge requests, worktrees and the
+(`.` or `Alt-Enter`) on repositories, merge requests, worktrees and the
 lit block of the worktree view. Settings › Integrations › Yazi `e` turns it
 off. A repository is cloned if needed; a merge request opens its review
 worktree first, its branch worktree otherwise, or prepares a review when
@@ -870,7 +876,7 @@ forgets its directory, and deleting a group forgets its members and folder.
 Zoxide's own `_ZO_EXCLUDE_DIRS` rules apply. A missing or failing zoxide never
 prevents an editor or shell from opening.
 
-Choose **by frecency** in `o`, the sort picker, in Repositories or Worktrees
+Choose **by frecency** in the order (`v`, then **order**) in Repositories or Worktrees
 for frequent and recent visits first. A repository takes the highest score
 of its clone and worktrees, including the older layout and grouped members.
 Unknown directories follow known ones; equal scores and unknown rows use
@@ -908,11 +914,11 @@ tip of the target branch - otherwise a target that moved on would show its own
 commits backwards in your diff.
 
 Notes you type into the files survive reopening, and a force push on the other
-side is picked up on the next review. `Ctrl-O` gives you the ordinary branch
+side is picked up on the next review. `o` gives you the ordinary branch
 checkout instead, when you mean to commit and push; it opens as it is, and
 `p` brings it to the merge request's head.
 
-When the author answers your comments in new commits, `Ctrl-L` lists the
+When the author answers your comments in new commits, `L` lists the
 commits with the ones you have not reviewed marked `●` and the cursor on the
 oldest of them - a rebase does not fool it - and `Ctrl-R` there reopens the
 review with only that commit and what follows pending. The list comes from
@@ -923,7 +929,7 @@ The same commit log opens on a repository and a worktree too, and what it
 offers follows from where it was opened. `Enter` shows a commit's detail -
 author, date, branches and tags pointing at it, the whole message, the files
 it changed - and `Esc` comes back to the list. `D` shows the commit in Hunk,
-`Alt-D` everything from it to the working tree; a commit not on disk yet is
+`D` everything from it to the working tree; a commit not on disk yet is
 brought first - the repository cloned, the merge request fetched - so a log
 can be paged through without stopping to clone. In a clone or a worktree `C`
 checks the commit out with a detached HEAD: the branch column then shows
@@ -944,7 +950,7 @@ waits; the question lists both. It never forces.
 `e` edits the message of a commit - the newest is amended, an older one
 written again and the commits after it replayed onto it. `u` undoes the
 newest commit: the commit goes, its changes stay on disk to be committed
-again. Both are among a commit's actions (`Alt-Enter`), offered only where
+again. Both are among a commit's actions (`.`), offered only where
 they can be done.
 `w` opens the commit on the server, and `y` copies its id, its link, a
 markdown link, or a link with text for a chat: repository, branch, commit
@@ -1063,7 +1069,7 @@ alike:
   (auto-merge on GitHub, where the repository has to allow it). The merge is
   of the head the list has seen: a push since then is refused rather than
   merged unread, and unagit says to look first.
-- `Ctrl-D` marks a merge request as a draft, or a draft as ready.
+- **Mark as Draft** (in `.`) marks a merge request as a draft, and **Mark Ready** a draft as ready.
 - `a` (**Add/Change Assignee…**) lists who it can be assigned to - the
   repository's members on GitLab, on GitHub whoever can be assigned there,
   the author included. Who is assigned stands at the top, above a line, to
@@ -1084,7 +1090,7 @@ alike:
   request by them. A pill takes its label's hue, worked out in the theme's
   own colours the way the tags' are, so a red label is a red pill in any
   theme.
-- **Close Merge Request…** (in `Alt-Enter`, no key of its own) closes it
+- **Close Merge Request…** (in `.`, no key of its own) closes it
   without merging, after asking. Its branch stays.
 
 After each the row is asked about again, so the list shows what the server
@@ -1093,7 +1099,7 @@ now has.
 ## Watching
 
 What you are waiting for need not be on screen. **Watch Merge Request**,
-in the actions (`Alt-Enter`) of a merge request or of its pipeline's jobs,
+in the actions (`.`) of a merge request or of its pipeline's jobs,
 follows the merge request in the background - its pipeline whatever its
 head ran, a push moving the watch on to the new one, its commits, comments
 and approvals. **Watch Branch**, in those of a repository, a worktree or a
@@ -1135,7 +1141,7 @@ Each panel names the key that goes to it in its title (`a` the list, `d`,
 `h` `j` `k` `l` go on past the edge of what a panel holds - `j` on the
 list's last row into the log, `k` on its first up to the cards - `Tab`
 goes round the panels and `Esc` comes back to the list. On a card,
-`Alt-Enter` lists what can be done with that editor; `E`, from any
+`.` lists what can be done with that editor; `E`, from any
 screen, lists every editor open. Each
 watched thing and each agent keeps its story for a month or 200 events,
 under `~/.config/unagit/watch/history/`.
@@ -1233,7 +1239,7 @@ machines, what you happen to wait for here is not.
   conversation and the worktree view show an animated spinner while loading.
   Repository and merge request detail reads also appear as jobs in the main
   lists' status lines.
-- **An order for each list.** `o` sorts the list on screen, and each list
+- **An order for each list.** `v` › **order** sorts the list on screen, and each list
   keeps its own: every one by activity or by name; Repositories also by
   edits, by size, or by remote - the furthest behind origin first, then any
   other clone out of step with it (diverged, unpushed, no upstream, a failed
@@ -1243,17 +1249,17 @@ machines, what you happen to wait for here is not.
   zoxide visits. Rows that tie stay in the order of their activity.
 - **Tags of your own.** Settings › Tags holds them - `oss`, `personal`, `work`,
   `private`, `fork`, `hobby` and `tooling` to start with - each a light ink on
-  a deep fill, in one of sixteen colours. `Ctrl-T` in Repositories puts them on
+  a deep fill, in one of sixteen colours. `t` in Repositories puts them on
   a repository; `t` in Settings › Groups & roots puts them on a whole server
   or on a group, and everything below wears them too unless it takes one off.
   They have a column of their own after the names. `f` shows only the
   repositories wearing all of the tags you pick, so each tag more narrows the
   list further; `F` shows every repository again, and `v` hides the column. The pills end rounded, which needs a Nerd Font; `s` in Settings ›
   Tags switches to half circles or square ends.
-- **Favourites.** `Ctrl-F` stars a repository or a merge request. A flat list
+- **Favourites.** `*` stars a repository or a merge request. A flat list
   shows the favourites first, in the usual order, above a line; a grouped one
   only marks them with `★`. Favourites first can be turned off in the order
-  picker (`o`). A starred merge request is forgotten once a refresh no longer
+  picker (`v` › **order**). A starred merge request is forgotten once a refresh no longer
   lists it, merged or closed.
 - **Instant startup.** The lists are cached on disk and only refreshed when you
   ask; nothing hits the API behind your back.
@@ -1276,7 +1282,7 @@ glyphs that say what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `
 borders). Settings › Theme lists them with a strip of their colours; `Enter`
 puts one on at once and remembers it. From any screen, `:` › Switch Theme…
 lists them too, the one on under the cursor - over a dialog as well, where
-`:` offers what can be done from anywhere and `Alt-Enter` on a list what
+`:` offers what can be done from anywhere and `.` on a list what
 can be done with its item. Over a main screen that list tries each theme as
 the cursor comes to it: the screen behind is drawn in it, undimmed, the list
 on a darker background of its own, and only `Enter` keeps it - `Esc` puts
@@ -1373,9 +1379,9 @@ scale - in sixteen shades worked out between them, as faded as the ends.
 
 ## Editors
 
-Everything that opens a directory - `Ctrl-O`, `Ctrl-R` -
-opens it in your default editor. Hold Alt with the same key (`Alt-O`,
-`Alt-R`, ...) and unagit asks which one first. Settings › Integrations has
+Everything that opens a directory - `o`, `Ctrl-R` -
+opens it in your default editor. **Open With…** and **Review With…** (in
+`.`), or `O`, ask which one first. Settings › Integrations has
 a card for each editor - Neovim, IntelliJ IDEA, VS Code, Zed and a custom
 one - saying whether it was found: a launcher on `PATH` or in JetBrains
 Toolbox's scripts folder first, then, on macOS, the application in
@@ -1403,7 +1409,7 @@ closes. `v` can hide the marks column.
 Opening the same directory in Neovim again attaches to it. Before it is
 shown, Neovim reads again whatever changed on disk while it was aside - a
 review reset for a force push, a branch pulled - so its buffers and gutter
-are the files as they are. Alt-O still lets you choose a different editor.
+are the files as they are. Open With… still lets you choose a different editor.
 
 Quitting unagit leaves the editors aside running. The next instance finds
 them, and `unagit attach [query]` returns to one from a shell without opening
@@ -1494,43 +1500,42 @@ typing into it; while typing, `Esc` and then the letter press a button.
 
 | Key | |
 | --- | --- |
-| `Alt-Enter` `Ctrl-A` | every action on the row, the selection or the lit block, with its key |
+| `.` `Alt-Enter` | every action on the row, the selection or the lit block, with its key |
 | `:` | every action of the screen, with its key |
 | `+` | find any repository of yours, in any group, and list it |
 | `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Activity · Sandboxes |
 | `S` | Settings |
-| `Alt-A` | running agents: Enter goes to one |
 | `/` `Esc` | fuzzy filter · leave it, clear it, close the detail |
 | `Enter` | detail column, and jump into it |
 | `e` | in Repositories: set the exact destination before cloning; blank restores inherited roots |
 | `C` | clone without opening the editor; a merge request's review worktree |
-| `Ctrl-O` | open the editor as it is on disk; clones only what is missing |
+| `o` | open the editor as it is on disk; clones only what is missing |
 | `E` | running Neovims: Enter attaches here, a asks where, x closes |
 | `Ctrl-Z` in Neovim | put it aside and return to unagit (0.12+) |
 | `p` | update: a fast-forward, or a rebase of your work; never a conflict |
-| `Alt-O` `Alt-R` … | the same, in an editor you choose |
+| `O` | open with what, and where: editor or agent |
 | `Ctrl-R` | open a merge request for review - the change as pending edits |
 | `y` | copy the link, reference, branch or directory |
-| `Ctrl-L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` details |
-| `D` `Alt-D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
+| `L` | commit log: the clone's branch, a merge request's commits, a worktree's branch; `Enter` details |
+| `d` `D` `C` `n` `Ctrl-W` | in the log: diff · diff since · check out · branch · worktree at the commit |
 | `e` | in the log: edit the message of a commit not pushed yet |
 | `t` `T` | in the log: a tag on the commit, pushed unless you say not · its tags: push, delete here or everywhere |
 | `Ctrl-R` | in a merge request's log: review from the commit to the head |
 | `B` | back to the branch a commit was checked out from |
 | `c` `A` | read and write comments · approve |
-| `M` `Ctrl-D` `a` `s` `t` | in Merge requests: merge · draft · assignee · reviewer · labels |
-| `D` `Alt-D` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
-| `p` `Alt-P` | in Repositories: pull or rebase onto origin · every clone at once |
+| `M` `a` `s` `t` | in Merge requests: merge · assignee · reviewer · labels |
+| `D` `B` | in Hunk: what is not committed (a review: the whole merge request) · since the base |
+| `p` `U` | in Repositories: pull or rebase onto origin · every clone at once |
 | `c` `P` | in Repositories and Worktrees: commit the versioned files, push with it if you like · push, asking first |
-| `Ctrl-K` | the changes: files not committed and their diffs; `x` ticks for the commit, `c` commits, `space` marks, `R` rolls back, `A` adds to git, `d` deletes |
+| `s` | the changes: files not committed and their diffs; `x` ticks for the commit, `c` commits, `space` marks, `R` rolls back, `A` adds to git, `d` deletes |
 | `space` `Ctrl-W` | in Repositories: select several · one grouped worktree of them |
 | `b` `m` `f` | branches · merge requests of this repo · limit to a repo |
 | `n` | in branches: a new branch from the one under the cursor |
-| `d` `D` `Alt-D` | in branches: delete in the clone · everywhere · on origin |
-| `L` `x` `X` `o` `Ctrl-G` | cloned only · hide · hidden list · order · group the list |
+| `d` `D` | in branches: delete in the clone · everywhere |
+| `x` `X` `v` `z` | hide · hidden list · view: order, cloned only, columns · group the list |
 | `H` `v` | in Merge requests: hide the author's merge requests · view options, the hidden authors |
-| `Ctrl-F` | star or unstar a favourite |
-| `Ctrl-T` `f` `F` | in Repositories: tag · show only some tags · every tag again |
+| `*` | star or unstar a favourite |
+| `t` `f` `F` | in Repositories: tag · show only some tags · every tag again |
 | `v` | what the list shows - grouping, favourites first, and in every list which columns |
 | `d` `w` | delete from disk · open in the browser |
 | `r` `R` | refresh the row under the cursor · the whole list |

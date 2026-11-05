@@ -5,8 +5,8 @@ backend; this change does not install it or offer tmux actions.
 
 ## Opening editors in Zellij
 
-Three actions appear in the selection action picker (`Alt-Enter` or
-`Ctrl-A`) while unagit runs inside Zellij:
+Three actions appear in the selection action picker (`.` or
+`Alt-Enter`) while unagit runs inside Zellij:
 
 - **Open in New Tab** opens a named tab.
 - **Open in Vertical Split** opens beside unagit, with a vertical divider.
@@ -18,7 +18,7 @@ editor; if the default is missing or opens a window, the shared picker
 asks among installed terminal editors.
 
 A repository opens its clone, cloning first if needed. A merge request
-opens its branch worktree, preparing it as `Ctrl-O` does. A worktree opens
+opens its branch worktree, preparing it as `o` does. A worktree opens
 its directory. In a grouped worktree's view the action uses the lit block:
 the group's folder, or the member's directory. Tabs use the repository name,
 `repository !42`, `repository · branch`, or the group folder's name.
@@ -59,7 +59,7 @@ drops the pane and is an editor aside like any other (`session.records`
 writes that down, so later readers do not ask Zellij about it). One Neovim
 per directory holds throughout: opening a directory whose Neovim has a
 live pane in this session focuses that pane (`focus-pane-id`); one aside
-comes back in unagit's terminal (`Ctrl-O`, `E`) or in a new tab or split
+comes back in unagit's terminal (`o`, `E`) or in a new tab or split
 running `nvim --server <socket> --remote-ui`, whose pane the record then
 names. When the configuration directory leaves no room for a socket path,
 the pane opens without one and is still found by its pane.

@@ -76,8 +76,8 @@ it.
 | **Envs** | `N` | each env, its sandbox, what it still lacks |
 | **Log** | `L` | every command given to unibox, and what it said |
 
-On a task `o` resumes its agent, `a` with another, `s` opens a shell, `i`
-shows what the agent is told. On a sandbox `n` starts a task - `Ctrl-S` from any screen, in the
+On a task `r` resumes its agent, `a` with another, `s` opens a shell, `i`
+shows what the agent is told. On a sandbox `n` starts a task - **New Sandbox Task…** in `:` from any screen, in the
 context's sandbox: Space marks its repositories, then a form takes its
 name, branch, checkouts, push and agent. `p` `f` `M`
 are its ports, network and resources, `C` recreates it. On an env `V`, `K`

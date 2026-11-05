@@ -29,7 +29,7 @@ alone, or pull first to keep both.
 
 ## The Changes dialog
 
-`Ctrl-K` opens **Changes**, IntelliJ's commit window:
+`s` opens **Changes**, IntelliJ's commit window:
 
 - On the left, the files not committed in two groups: **Changes**, the
   versioned ones, and **Unversioned Files**. Each name has the colour of what
@@ -57,7 +57,7 @@ selection:
 | `s` | shelve the changes. See [The Shelf](/guide/shelf). |
 | `y` | copy paths, folders, or the changes as a patch for `git apply` |
 | `D` | show them in Hunk |
-| `Ctrl-O` | open the working tree in your editor, the file under the cursor in front |
+| `o` | open the working tree in your editor, the file under the cursor in front |
 | `Tab`, `l` | go into the diff to scroll it; `h` comes back |
 
 A rolled back file that was added stays on disk, unversioned. An unversioned

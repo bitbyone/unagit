@@ -7,7 +7,7 @@ unagit knows. Verified with Yazi 26.9.1.
 ## Yazi from unagit
 
 **Browse Files** has no key and lives in the selection action picker
-(`Alt-Enter` or `Ctrl-A`). Repositories use their clone, cloning first if
+(`.` or `Alt-Enter`). Repositories use their clone, cloning first if
 needed. Merge requests prefer an existing review, then a branch worktree,
 and prepare a review if neither exists. Worktrees and the lit block of the
 worktree view use their directory; a group uses its folder.

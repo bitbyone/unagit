@@ -3,8 +3,6 @@ package ui
 import (
 	"os"
 	"testing"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 // TestReviewStartListsCommitsWithoutCloning: the log draws its list from the forge;
@@ -15,7 +13,7 @@ func TestReviewStartListsCommitsWithoutCloning(t *testing.T) {
 	a, sc := newTestApp(t)
 	openMRDetail(t, a, sc)
 
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	waitFor(t, a, sc, "beef1230  "+glyphCommit+" Token bucket")
 

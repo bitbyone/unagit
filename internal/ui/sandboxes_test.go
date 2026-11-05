@@ -203,7 +203,7 @@ func TestATaskResumesInAZellijSplit(t *testing.T) {
 	a, sc, _ := newTestAppSrv(t, prepareMux, prepare)
 	openSandboxes(t, a, sc)
 	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
-	typeRunes(sc, "o")
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Resume rate with Claude Code · where")
 	for _, want := range []string{"This Terminal", "Zellij Tab", "Zellij Split Right"} {
 		waitFor(t, a, sc, want)
@@ -473,7 +473,7 @@ func TestANewTaskStartsFromAnyScreen(t *testing.T) {
 	changeOnLoop(a, func() {
 		a.projectsPane.selectWhere(func(i int) bool { return a.projects[i].PathWithNamespace == "acme/gateway" })
 	})
-	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	pickAction(t, a, sc, ":", "New Sandbox Task…")
 	waitFor(t, a, sc, "what to work on")
 	waitFor(t, a, sc, "2 marked")
 }

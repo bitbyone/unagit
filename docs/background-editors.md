@@ -39,7 +39,7 @@ is new.
 
 ## How it goes
 
-**Opening** (Ctrl-O and every other opening action, as now). For Neovim
+**Opening** (`o` and every other opening action, as now). For Neovim
 0.12 or newer unagit runs `nvim --listen <socket> -c <the Ctrl-Z mapping>`
 in the directory. The socket lives in `<config>/sessions/`:
 
@@ -68,10 +68,10 @@ list. Its keys, each with a name and an about as `pickKey` asks:
   changes it attaches instead, so the question is asked where the changes
   can be seen.
 
-**Opening what is already open.** Ctrl-O on a repository, a merge request
+**Opening what is already open.** `o` on a repository, a merge request
 or a worktree whose directory has a running editor attaches to it instead
 of starting a second one: two Neovims on one directory fight over swap
-files and over the review worktree. Alt-O still chooses an editor, and
+files and over the review worktree. Open With… still chooses an editor, and
 choosing another (IDEA, Zed) is allowed.
 
 **The lists** mark a row whose directory has a running editor, aside or

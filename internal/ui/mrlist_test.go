@@ -262,7 +262,7 @@ func TestALogFollowsTheTerminal(t *testing.T) {
 	commitIn(t, p.clone, "b.txt", long)
 	p.rescan()
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	waitFor(t, a, sc, long[:90])
 	resizeApp(a, sc, 100, 30)

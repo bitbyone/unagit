@@ -36,7 +36,7 @@ soon as it is found, and `e` in its card turns it off.
 | Key | Shows |
 | --- | --- |
 | `D` | what the row's working tree has not committed: staged, unstaged and new files |
-| `Alt-D` | everything since the branch's base: its commits and what is not committed |
+| `B` | everything since the branch's base: its commits and what is not committed |
 | `D` in a commit log | one commit |
 
 In a review worktree, `D` is the whole merge request. A merge request with

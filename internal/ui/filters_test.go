@@ -34,7 +34,7 @@ func cloneOnDisk(t *testing.T, a *App, instance, path string) {
 	<-done
 }
 
-// TestClonedOnlyNarrowsBothLists: one key, both tabs.
+// TestClonedOnlyNarrowsBothLists: one setting, both tabs.
 func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -42,7 +42,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 	cloneOnDisk(t, a, a.cfg.Instances[0].ID, "acme/gateway")
 	waitFor(t, a, sc, "acme/billing")
 
-	typeRunes(sc, "L")
+	changeOnLoop(a, a.toggleClonedOnly)
 	waitFor(t, a, sc, "Showing only the repositories you have cloned")
 	waitGone(t, a, sc, "acme/billing")
 	waitFor(t, a, sc, "acme/gateway")
@@ -55,7 +55,7 @@ func TestClonedOnlyNarrowsBothLists(t *testing.T) {
 		t.Error("the merge request of an uncloned project is still listed")
 	}
 
-	typeRunes(sc, "L")
+	changeOnLoop(a, a.toggleClonedOnly)
 	waitFor(t, a, sc, "Invoice rounding")
 }
 
@@ -153,7 +153,11 @@ func TestSortOrderIsPerListAndRemembered(t *testing.T) {
 	}
 	waitFor(t, a, sc, "by activity")
 
-	typeRunes(sc, "o")
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "order: by activity…")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "order: by activity…")
+	changeOnLoop(a, a.showSortPicker)
 	waitFor(t, a, sc, "Sort repositories")
 	// The orders of Repositories alone are offered here.
 	for _, want := range []string{"by name", "by edits", "by size", "by remote"} {
@@ -176,7 +180,7 @@ func TestSortOrderIsPerListAndRemembered(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "merge requests")
 	waitFor(t, a, sc, "by activity")
-	typeRunes(sc, "o")
+	changeOnLoop(a, a.showSortPicker)
 	waitFor(t, a, sc, "Sort merge requests")
 	waitFor(t, a, sc, "by new commits")
 	waitFor(t, a, sc, "by comments")
@@ -220,7 +224,7 @@ func TestFiltersSurviveARestart(t *testing.T) {
 	// so no row to hide.
 	typeRunes(sc, "x")
 	waitFor(t, a, sc, "⊘ 1")
-	typeRunes(sc, "L")
+	changeOnLoop(a, a.toggleClonedOnly)
 	waitFor(t, a, sc, "cloned only")
 	time.Sleep(80 * time.Millisecond)
 
@@ -274,7 +278,7 @@ func TestGroupByProject(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "Merge requests grouped by project")
 	waitFor(t, a, sc, "grouped")
 
@@ -321,7 +325,7 @@ func TestGroupByProject(t *testing.T) {
 		t.Error("by name, billing should come before gateway")
 	}
 
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "listed flat again")
 	if strings.Contains(a.screenText(sc), "acme/gateway  (2)") {
 		t.Error("the headings are still there")

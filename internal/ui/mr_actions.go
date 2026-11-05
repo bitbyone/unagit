@@ -45,7 +45,7 @@ func (a *App) mergeMR(mr forge.MergeRequest) {
 		tview.Escape(mr.Title),
 		tag(colMuted) + tview.Escape(mr.SourceBranch) + " → " + tview.Escape(mr.TargetBranch) + tagEnd,
 	}
-	for _, w := range mergeWarnings(mr, underway, a.keyName(scopeMergeRequests, "toggle_draft", "Ctrl-D", "Mark as Ready")) {
+	for _, w := range mergeWarnings(mr, underway, a.keyName(scopeMergeRequests, "toggle_draft", "", "Mark as Ready")) {
 		lines = append(lines, tag(colWarn)+"! "+tagEnd+tview.Escape(w))
 	}
 

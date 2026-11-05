@@ -57,10 +57,10 @@ func TestFirstGroupHeadingStaysOnScreen(t *testing.T) {
 				typeRunes(sc, "2")
 				waitFor(t, a, sc, "Rate limiting")
 				heading = "acme/gateway  ("
-				sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+				typeRunes(sc, "z")
 				waitFor(t, a, sc, "· grouped")
 			} else {
-				sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+				typeRunes(sc, "z")
 				waitFor(t, a, sc, "· grouped")
 			}
 			waitFor(t, a, sc, heading)
@@ -110,7 +110,7 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 
 					for _, toggle := range []string{"· grouped", "flat again"} {
 						want := onLoop(a, func() string { return label(pane.selectedIndex()) })
-						sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+						typeRunes(sc, "z")
 						if toggle == "· grouped" {
 							waitFor(t, a, sc, toggle)
 						} else {
@@ -133,7 +133,7 @@ func TestGroupingKeepsTheCursorInView(t *testing.T) {
 	}
 }
 
-// TestGroupRepositories: Ctrl-G in Repositories gathers them under the group
+// TestGroupRepositories: z in Repositories gathers them under the group
 // or subgroup they live in, each named by what is left of its path, and the
 // merge request list keeps a grouping of its own.
 func TestGroupRepositories(t *testing.T) {
@@ -148,7 +148,7 @@ func TestGroupRepositories(t *testing.T) {
 	})
 	waitFor(t, a, sc, "acme/tools/cli")
 
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "Repositories grouped by group")
 	screen := a.screenText(sc)
 	acme, gateway, tools, cli, billing := lineOf(screen, "acme  (2)"), lineOf(screen, "○ gateway"),
@@ -174,7 +174,7 @@ func TestGroupRepositories(t *testing.T) {
 	}
 
 	typeRunes(sc, "1")
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "Repositories listed flat again")
 	waitFor(t, a, sc, "acme/tools/cli")
 }

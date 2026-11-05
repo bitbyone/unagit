@@ -128,7 +128,7 @@ func (a *App) showMRChanges(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	dir := a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch)
 	if !workspace.Exists(dir) {
-		a.flash(fmt.Sprintf("!%d has no branch worktree - %s makes one; a review's changes are the merge request's", mr.IID, a.keyName(scopeMergeRequests, "open", "Ctrl-O", "Open")))
+		a.flash(fmt.Sprintf("!%d has no branch worktree - %s makes one; a review's changes are the merge request's", mr.IID, a.keyName(scopeMergeRequests, "open", "o", "Open")))
 		return
 	}
 	a.showChanges(changesPlace{instance: mr.Instance, path: project.PathWithNamespace, dir: dir,
@@ -738,9 +738,9 @@ func (a *App) changesSelectionActions(v *changesView) []uiAction {
 			run: func() { a.toggleChangeMark(v) }},
 		{name: "Include or Exclude", about: "Tick the files for the commit, or untick them when every one is ticked: the marked ones, or the row under the cursor.", keys: "x", rank: 15, when: someFile,
 			run: func() { a.toggleIncluded(v) }},
-		{name: "Open", about: "Open the repository in your default editor with the file under the cursor in front.", keys: "Ctrl-O", rank: 25, when: onDisk,
+		{name: "Open", about: "Open the repository in your default editor with the file under the cursor in front.", keys: "o", also: []string{"Ctrl-O"}, rank: 25, when: onDisk,
 			run: func() { a.openChangedFile(v, false) }},
-		{name: "Open With…", about: "Choose the editor, then open the repository there with the file under the cursor in front.", keys: "Alt-O", rank: 26, when: onDisk,
+		{name: "Open With…", about: "Choose the editor, then open the repository there with the file under the cursor in front.", keys: "", rank: 26, when: onDisk,
 			run: func() { a.openChangedFile(v, true) }},
 		{name: "Rollback Changes…", about: "Put the marked versioned files - or the one under the cursor - back as the last commit has them; asks first.", keys: "R", rank: 30, when: versioned,
 			run: func() { a.rollbackChanges(v) }},

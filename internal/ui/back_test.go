@@ -21,7 +21,7 @@ func TestCancelGoesBackThroughTheStack(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 
 	// The form: Esc stops typing, the next Esc cancels - back to the log.

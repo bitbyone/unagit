@@ -22,7 +22,7 @@ import (
 // config.yaml (website/guide/keys.md). An action is known there by its id - its
 // name in snake case unless it says otherwise - in the section of the place
 // it is done in; [global] reaches it everywhere. A terminal or a
-// multiplexer that keeps a key for itself (Zellij's Ctrl-O, Windows
+// multiplexer that keeps a key for itself (Zellij's Ctrl-G, Windows
 // Terminal's Alt-Enter) is the reason this exists.
 
 // The sections of keybinds.toml: where an action is done.
@@ -345,8 +345,8 @@ func (a *App) opens(id string, ev *tcell.EventKey) bool {
 }
 
 // opensSelectionActions and opensScreenActions are the keys of the two
-// pickers: Alt-Enter, and Ctrl-A for terminals that keep Alt-Enter for
-// themselves (full screen, mostly); and :.
+// pickers: . and Alt-Enter, the second for those used to it (macOS and
+// Windows Terminal keep it for themselves); and :.
 func (a *App) opensSelectionActions(ev *tcell.EventKey) bool {
 	return a.opens(keymap.SelectionActions, ev)
 }

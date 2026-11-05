@@ -158,7 +158,7 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 	waitFor(t, a, sc, "x take out")
 	typeRunes(sc, "b")
 	waitFor(t, a, sc, "Branches - acme/gateway")
-	waitFor(t, a, sc, "Alt-D on origin")
+	waitFor(t, a, sc, "out in group feat-push")
 	text := a.screenText(sc)
 	if !strings.Contains(text, "feat/push   local · origin  in sync       out in group feat-push") {
 		t.Errorf("feat/push does not say where it is:\n%s", text)
@@ -172,7 +172,7 @@ func TestPushLeavesEmptyBranchesAndBranchesTakeThemBack(t *testing.T) {
 	waitGone(t, a, sc, "is checked out in group feat-push")
 	typeRunes(sc, "b")
 	waitFor(t, a, sc, "Branches - acme/gateway")
-	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)
+	pickAction(t, a, sc, ".", "Delete on Origin…")
 	waitFor(t, a, sc, "on origin?")
 	waitFor(t, a, sc, "The clone keeps it")
 	typeRunes(sc, "d")

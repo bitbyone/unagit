@@ -1,6 +1,6 @@
 # The Commit Log
 
-`Ctrl-L` opens a commit log: of the clone's branch on a repository, of a merge
+`L` opens a commit log: of the clone's branch on a repository, of a merge
 request's commits, of a worktree's branch. What it offers follows from where it
 was opened. The list comes from the server, so a repository not cloned yet is
 cloned only once you pick a commit.
@@ -10,8 +10,8 @@ cloned only once you pick a commit.
 | Key | Does |
 | --- | --- |
 | `Enter` | the commit's detail: author, date, branches and tags at it, the whole message, the files it changed |
-| `D` | the commit in Hunk |
-| `Alt-D` | everything from it to the working tree, in Hunk |
+| `d` | the commit in Hunk |
+| `D` | everything from it to the working tree, in Hunk |
 | `J` | the pipelines of the commit |
 | `w` | open the commit on the server |
 | `y` | copy its id, its link, a markdown link, or a line for a chat |

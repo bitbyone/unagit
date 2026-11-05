@@ -1081,7 +1081,7 @@ func (a *App) activityScreenActions(p *pane) []uiAction {
 			name: "Stop Watching All…", about: "Let every watch go, after asking.", keys: "", rank: 60, when: func() bool { return len(a.watches) > 0 },
 			run: func() { a.stopWatchingAll(p) },
 		},
-		a.runningAgentsAction("Alt-A"),
+		a.runningAgentsAction(""),
 	}
 	return append(acts, a.listActions(p)...)
 }

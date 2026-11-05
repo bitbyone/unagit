@@ -61,7 +61,7 @@ func TestPushUpToHere(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "j")
 	waitFor(t, a, sc, "push to here")
@@ -93,7 +93,7 @@ func TestMoveChangesToNewWorktree(t *testing.T) {
 	waitFor(t, a, sc, "Move Changes to New Worktree")
 	typeRunes(sc, "feat/moved")
 	pressButton(t, a, sc, frontForm(a), "Create")
-	waitFor(t, a, sc, "Ctrl-O opens it")
+	waitFor(t, a, sc, "o opens it")
 	waitFor(t, a, sc, "feat/moved")
 	if got := gitIn(t, p.clone, "status", "--porcelain"); got != "" {
 		t.Errorf("the clone still has %q", got)

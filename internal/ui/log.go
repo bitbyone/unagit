@@ -128,7 +128,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 		func(it pickItem) string { return a.commitURL(place, at(it)) })
 	browser.when = onServer
 	keys := []pickKey{
-		{keys: "D", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk; with commits marked, what the run of them changed together.", marked: true,
+		{keys: "d", hint: "diff", name: "Show Diff in Hunk", about: "What the commit changed, in Hunk; with commits marked, what the run of them changed together.", marked: true,
 			run: func(it pickItem) {
 				if marked := markedNow(); len(marked) > 0 {
 					a.diffMarkedCommits(place, commits, marked, kept(it))
@@ -136,7 +136,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 				}
 				a.showCommitDiff(place, commits, it.Data.(int), false)
 			}},
-		{keys: "Alt-D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
+		{keys: "D", hint: "since", name: "Show Changes Since", about: "Everything from the commit to the working tree, in Hunk.", run: func(it pickItem) { a.showCommitDiff(place, commits, it.Data.(int), true) }},
 	}
 	if place.checkout {
 		keys = append(keys, pickKey{keys: "C", hint: "checkout", name: "Check Out Commit", about: "Put the checkout at this commit, detached; B goes back to the branch.", run: func(it pickItem) { a.checkoutCommit(place, at(it)) },
@@ -173,7 +173,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 		mr := *place.mr
 		keys = append(keys,
 			pickKey{keys: "Ctrl-R", hint: "review from here", name: "Review From Here", about: "Narrow the review to this commit and the ones after it.", run: func(it pickItem) { a.openMRReviewFrom(mr, at(it).SHA, nil) }},
-			pickKey{keys: "Alt-R", hint: "…in an editor", name: "Review From Here In…", about: "The same, opened in an editor you choose.", run: func(it pickItem) {
+			pickKey{keys: "", hint: "…in an editor", name: "Review From Here In…", about: "The same, opened in an editor you choose.", run: func(it pickItem) {
 				sha := at(it).SHA
 				a.withEditor(true, func(ed *editors.Editor) { a.openMRReviewFrom(mr, sha, ed) })
 			}})

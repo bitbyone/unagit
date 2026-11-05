@@ -57,7 +57,7 @@ func changesFixture(t *testing.T, a *App) *realProject {
 func openChanges(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	t.Helper()
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlK, 0, tcell.ModCtrl)
+	typeRunes(sc, "s")
 	waitFor(t, a, sc, "2 of 3 to commit")
 	waitFor(t, a, sc, "+ edited")
 }
@@ -378,7 +378,7 @@ func TestChangesHAndL(t *testing.T) {
 	}
 }
 
-// TestChangesOpensTheFileInAnEditor: Ctrl-O opens the whole working tree
+// TestChangesOpensTheFileInAnEditor: o opens the whole working tree
 // in the default editor with the file under the cursor in front, and the
 // dialog is there again after.
 func TestChangesOpensTheFileInAnEditor(t *testing.T) {

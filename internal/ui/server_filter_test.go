@@ -57,7 +57,7 @@ func TestServerFilterSticksAndRefreshKeepsOtherServers(t *testing.T) {
 		a.reindexProjects()
 		a.projectsPane.reload()
 	})
-	typeRunes(sc, "vjjjj ")
+	typeRunes(sc, "vjjjjj ")
 	waitFor(t, a, sc, "Filter by server")
 	for _, width := range []int{120, 80, 60} {
 		resizeApp(a, sc, width, 26)
@@ -104,7 +104,7 @@ func TestServerFilterSticksAndRefreshKeepsOtherServers(t *testing.T) {
 			t.Error("a hidden server's merge request lost its cached details")
 		}
 	}
-	typeRunes(sc, "1vjjjj ")
+	typeRunes(sc, "1vjjjjj ")
 	waitFor(t, a, sc, "Filter by server")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Filter by server")

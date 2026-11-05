@@ -10,7 +10,7 @@
 [global]
 
 # Actions of the Selection…: Every action on what is selected, with its key.
-actions = ["alt+enter", "ctrl+a"]
+actions = [".", "alt+enter"]
 
 # Actions of the Screen…: Every action of the screen, with its key.
 screen_actions = ":"
@@ -23,7 +23,7 @@ running_editors = "E"
 running_agents = []
 
 # New Sandbox Task…: Start an agent on a new task in a sandbox.
-new_sandbox_task = "ctrl+s"
+new_sandbox_task = []
 
 # Find Repository…: Every repository your accounts are members of, in groups
 #   you did not choose and hidden ones too.
@@ -52,14 +52,14 @@ browse_files = []
 
 # Open: Open the clone in your default editor, here, cloning it first when it
 #   is not on disk.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open…: Choose with what - an editor or an agent - and where it opens, the
 #   form filled in as you last used it here.
 open_in = "O"
 
 # Open With…: Choose the editor, then open the clone here.
-open_with = "alt+o"
+open_with = []
 
 # New Worktree…: Check a branch out in a directory of its own beside the
 #   clone, an existing branch or a new one.
@@ -74,7 +74,7 @@ pull = "p"
 commit = "c"
 
 # Changes…: The files not committed and their diffs.
-changes = "ctrl+k"
+changes = "s"
 
 # Push: Push the clone's branch to origin once it has commits origin lacks.
 push = "P"
@@ -107,7 +107,7 @@ refresh = "r"
 hide_merge_requests = "H"
 
 # Show Commit Log: What is out in the clone, newest first.
-show_commit_log = "ctrl+l"
+show_commit_log = "L"
 
 # Show Pipeline…: The jobs of the newest pipeline of the clone's branch.
 show_pipeline = "J"
@@ -117,7 +117,7 @@ toggle_watch = []
 
 # Back to Branch: Leave the commit checked out from the log and check out
 #   again the branch it came from.
-back_to_branch = "B"
+back_to_branch = []
 
 # Clone: Clone it under its root without starting an editor.
 clone = "C"
@@ -150,13 +150,13 @@ set_base = []
 
 # Show Changes Since Base: The branch's commits since its base and what is not
 #   committed, in Hunk.
-show_changes_since_base = "alt+d"
+show_changes_since_base = "B"
 
 # Toggle Favourite: Star it, so it can be kept at the top.
-toggle_favourite = "ctrl+f"
+toggle_favourite = "*"
 
 # Edit Tags…: Put your tags on this repository or take them off.
-edit_tags = "ctrl+t"
+edit_tags = "t"
 
 # Set Clone Directory…: Choose the exact directory this repository is cloned
 #   into, instead of its group's root.
@@ -179,10 +179,6 @@ open_in_sandbox = []
 #   env's tasks or every env's, so a task is given it by name.
 add_to_unibox_index = []
 
-# Running Agents…: Go to a coding agent at work, the ones waiting for an
-#   answer first.
-running_agents = "alt+a"
-
 # Refresh All: Ask the servers for the repositories again, and the pipelines
 #   of the clones' branches.
 refresh_all = "R"
@@ -201,7 +197,7 @@ measure_sizes_again = []
 
 # Pull All Clones: Fetch every clone and fast-forward those origin has moved
 #   past.
-pull_all_clones = "alt+p"
+pull_all_clones = "U"
 
 # View Starred Repositories…: The repositories you starred on GitHub.
 view_starred_repositories = []
@@ -210,12 +206,11 @@ view_starred_repositories = []
 #   has moved past.
 pull_all_favourites = []
 
-# View Options…: What the list shows: server, visibility, grouping,
-#   favourites first, cloned only, and which columns.
+# View Options…: The order, and what the list shows.
 view_options = "v"
 
 # Toggle Grouping: Group the repositories under their groups.
-toggle_grouping = "ctrl+g"
+toggle_grouping = "z"
 
 # Filter by Tags…: Show only the repositories wearing the tags you choose.
 filter_by_tags = "f"
@@ -225,10 +220,10 @@ clear_tag_filter = "F"
 
 # Sort By…: Choose an order for this list, including directory visits in
 #   Repositories and Worktrees.
-sort_by = "o"
+sort_by = []
 
 # Toggle Cloned Only: Show only the repositories on disk.
-toggle_cloned_only = "L"
+toggle_cloned_only = []
 
 # Hidden Repositories…: See what x hid from the lists and bring any of it
 #   back.
@@ -279,7 +274,7 @@ refresh_all_marked = "r"
 
 # Star or Unstar All: Make every marked repository a favourite, or, when all
 #   are, none of them.
-star_or_unstar_all = "ctrl+f"
+star_or_unstar_all = "*"
 
 # Pull All Marked: Fetch the marked clones and fast-forward those origin has
 #   moved past.
@@ -291,7 +286,7 @@ clone_all_marked = "C"
 
 # Edit Tags of All…: Put a tag on every marked repository, or, when all wear
 #   it, take it off them all.
-edit_tags_of_all = "ctrl+t"
+edit_tags_of_all = "t"
 
 # Copy All…: Copy the links, paths, clone addresses or directories of the
 #   marked repositories, one a line.
@@ -310,7 +305,7 @@ review = "ctrl+r"
 
 # Open: Open a worktree of the source branch in your default editor, here, for
 #   committing to it.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open…: Choose with what - an editor or an agent - and where it opens, the
 #   form filled in as you last used it here.
@@ -324,7 +319,7 @@ open_in_browser = "w"
 
 # Show Commit Log: The merge request's commits, those new since your last
 #   review marked.
-show_commit_log = "ctrl+l"
+show_commit_log = "L"
 
 # Refresh: Ask the server about this merge request alone.
 refresh = "r"
@@ -346,7 +341,7 @@ approve = "A"
 merge = "M"
 
 # Mark as Draft: Mark it as a draft, not ready to merge.
-toggle_draft = "ctrl+d"
+toggle_draft = []
 
 # Add/Change Reviewer…: Choose who is asked to review.
 add_change_reviewer = "s"
@@ -362,18 +357,18 @@ labels = "t"
 publish_comments = "P"
 
 # Review With…: Choose the editor, then open the review here.
-review_with = "alt+r"
+review_with = []
 
 # Open With…: Choose the editor, then open the worktree of the source branch
 #   here.
-open_with = "alt+o"
+open_with = []
 
 # Pull Branch: Fetch and fast-forward the branch worktree to the source
 #   branch.
 pull_branch = "p"
 
 # Changes…: The branch worktree's files not committed and their diffs.
-changes = "ctrl+k"
+changes = []
 
 # Prepare Review: Make the review worktree without starting an editor.
 prepare_review = "C"
@@ -387,7 +382,7 @@ show_changes = "D"
 copy = "y"
 
 # Toggle Favourite: Star it, so it can be kept at the top.
-toggle_favourite = "ctrl+f"
+toggle_favourite = "*"
 
 # Hide Author: Keep this author's merge requests out of the list.
 hide_author = "H"
@@ -406,10 +401,6 @@ delete_worktrees = "d"
 # Open in Sandbox…: Start an agent on it in a unibox sandbox.
 open_in_sandbox = []
 
-# Running Agents…: Go to a coding agent at work, the ones waiting for an
-#   answer first.
-running_agents = "alt+a"
-
 # Refresh All: Ask the servers for the open merge requests again, with their
 #   pipelines, approvals and threads.
 refresh_all = "R"
@@ -420,19 +411,18 @@ filter_by_repository = "f"
 # Clear Repository Filter: Show the merge requests of every repository again.
 clear_repository_filter = "F"
 
-# View Options…: What the list shows: server, grouping, favourites first,
-#   cloned only, age, hidden authors, and which columns.
+# View Options…: The order, and what the list shows.
 view_options = "v"
 
 # Toggle Grouping: Group the merge requests under their repositories.
-toggle_grouping = "ctrl+g"
+toggle_grouping = "z"
 
 # Sort By…: Choose an order for this list, including directory visits in
 #   Repositories and Worktrees.
-sort_by = "o"
+sort_by = []
 
 # Toggle Cloned Only: Show only the repositories on disk.
-toggle_cloned_only = "L"
+toggle_cloned_only = []
 
 # Filter: Narrow the list by typing.
 filter = "/"
@@ -483,7 +473,7 @@ copy_all = "y"
 
 # Star or Unstar All: Make every marked merge request a favourite, or, when
 #   all are, none of them.
-star_or_unstar_all = "ctrl+f"
+star_or_unstar_all = "*"
 
 # Worktrees (3): the worktree under the cursor, the marked ones, and the list.
 [worktrees]
@@ -493,20 +483,20 @@ star_or_unstar_all = "ctrl+f"
 browse_files = []
 
 # Open: Open the worktree in your default editor, here.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open With…: Choose the editor, then open the worktree here.
-open_with = "alt+o"
+open_with = []
 
 # Back to Branch: Leave the commit checked out from the log and check out
 #   again the branch it came from.
-back_to_branch = "B"
+back_to_branch = []
 
 # Pull: Bring the branch up to origin.
 pull = "p"
 
 # Changes…: The files not committed and their diffs.
-changes = "ctrl+k"
+changes = "s"
 
 # Commit…: Commit the changes to versioned files with a message you write,
 #   and push them with it if you like.
@@ -527,7 +517,7 @@ show_uncommitted_changes = "D"
 
 # Show Changes Since Base: The branch's commits since its base and what is not
 #   committed, in Hunk.
-show_changes_since_base = "alt+d"
+show_changes_since_base = "B"
 
 # Rebase onto Base: Rebase the branch onto its base even once pushed.
 rebase_onto_base = "ctrl+r"
@@ -587,7 +577,7 @@ open_in_sandbox = []
 refresh = "r"
 
 # Show Commit Log: The worktree's history, newest first.
-show_commit_log = "ctrl+l"
+show_commit_log = "L"
 
 # Remove from Group…: Remove one repository's worktree from the group.
 remove_from_group = "x"
@@ -595,22 +585,18 @@ remove_from_group = "x"
 # Delete from Disk…: Delete the worktree from disk.
 delete_from_disk = "d"
 
-# Running Agents…: Go to a coding agent at work, the ones waiting for an
-#   answer first.
-running_agents = "alt+a"
-
 # Refresh All: Look at the disk again.
 refresh_all = "R"
 
 # Pull All Worktrees: Bring every worktree up to origin.
-pull_all_worktrees = "alt+p"
+pull_all_worktrees = "U"
 
-# View Options…: Which server and columns the list shows.
+# View Options…: The order, and which server and columns the list shows.
 view_options = "v"
 
 # Sort By…: Choose an order for this list, including directory visits in
 #   Repositories and Worktrees.
-sort_by = "o"
+sort_by = []
 
 # Filter: Narrow the list by typing.
 filter = "/"
@@ -649,20 +635,20 @@ quit = "q"
 browse_files = []
 
 # Open: Open the worktree in your default editor, here.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open With…: Choose the editor, then open the worktree here.
-open_with = "alt+o"
+open_with = []
 
 # Back to Branch: Leave the commit checked out from the log and check out
 #   again the branch it came from.
-back_to_branch = "B"
+back_to_branch = []
 
 # Pull: Bring the branch up to origin.
 pull = "p"
 
 # Changes…: The files not committed and their diffs.
-changes = "ctrl+k"
+changes = "s"
 
 # Commit…: Commit the changes to versioned files with a message you write,
 #   and push them with it if you like.
@@ -683,7 +669,7 @@ show_uncommitted_changes = "D"
 
 # Show Changes Since Base: The branch's commits since its base and what is not
 #   committed, in Hunk.
-show_changes_since_base = "alt+d"
+show_changes_since_base = "B"
 
 # Rebase onto Base: Rebase the branch onto its base even once pushed.
 rebase_onto_base = "ctrl+r"
@@ -743,7 +729,7 @@ show_conversation = "c"
 open_in_browser = "w"
 
 # Show Commit Log: The lit repository's history, newest first.
-show_commit_log = "ctrl+l"
+show_commit_log = "L"
 
 # Remove from Group…: Remove this repository's worktree from the group.
 remove_from_group = "x"
@@ -767,11 +753,11 @@ include_or_exclude = "x"
 
 # Open: Open the repository in your default editor with the file under the
 #   cursor in front.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open With…: Choose the editor, then open the repository there with the
 #   file under the cursor in front.
-open_with = "alt+o"
+open_with = []
 
 # Rollback Changes…: Put the marked versioned files.
 rollback_changes = "R"
@@ -811,10 +797,10 @@ refresh = "r"
 [log]
 
 # Show Diff in Hunk: What the commit changed, in Hunk.
-show_diff_in_hunk = "D"
+show_diff_in_hunk = "d"
 
 # Show Changes Since: Everything from the commit to the working tree, in Hunk.
-show_changes_since = "alt+d"
+show_changes_since = "D"
 
 # Check Out Commit: Put the checkout at this commit, detached.
 check_out_commit = "C"
@@ -866,7 +852,7 @@ copy = "y"
 review_from_here = "ctrl+r"
 
 # Review From Here In…: The same, opened in an editor you choose.
-review_from_here_in = "alt+r"
+review_from_here_in = []
 
 # A repository's branches, opened from Repositories; the Branches tab of
 #   unagit -s.
@@ -894,7 +880,7 @@ delete_everywhere = "D"
 rewrite_history = "H"
 
 # Delete on Origin…: Delete the branch on origin.
-delete_on_origin = "alt+d"
+delete_on_origin = []
 
 # Activity (4): the watches, the agents, the editors open, and the log.
 [activity]
@@ -925,10 +911,6 @@ go_to_log = "L"
 # Stop Watching All…: Let every watch go, after asking.
 stop_watching_all = []
 
-# Running Agents…: Go to a coding agent at work, the ones waiting for an
-#   answer first.
-running_agents = "alt+a"
-
 # Filter: Narrow the list by typing.
 filter = "/"
 
@@ -958,10 +940,10 @@ help = "?"
 quit = "q"
 
 # Open: Open the agent's directory in your default editor, here.
-open = "ctrl+o"
+open = ["o", "ctrl+o"]
 
 # Open With…: Choose the editor, then open the agent's directory here.
-open_with = "alt+o"
+open_with = []
 
 # Close Agent…: End the agent in herdr.
 close_agent = "x"
@@ -1015,11 +997,11 @@ make_default_env = []
 
 # Open Env Files: Open the team's repository the env's sbxenv files are in, in
 #   the default editor.
-open = ["ctrl+o", "O"]
+open = ["o", "O", "ctrl+o"]
 
 # Open Env Files With…: Choose the editor, then open the repository the
 #   env's sbxenv files are in there.
-open_with = "alt+o"
+open_with = []
 
 # Update Env Files: Fast-forward the repository the env's files are in.
 update_env_files = []
@@ -1054,7 +1036,7 @@ remove_sandbox = "d"
 
 # Resume…: Run the task's own agent again, Claude Code, on its last
 #   conversation.
-resume = "o"
+resume = "r"
 
 # Resume with Agent…: Run the task with another agent its sandbox has.
 resume_with_agent = "a"

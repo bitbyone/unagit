@@ -13,7 +13,7 @@ import (
 // separator is the line between the favourites and the rest, inside the frame.
 const separator = "│────────"
 
-// TestFavouriteRepositoriesComeFirst: Ctrl-F stars a repository, which then
+// TestFavouriteRepositoriesComeFirst: * stars a repository, which then
 // leads the list under a line, keeps the cursor, and is remembered. Grouped,
 // the headings are the order and the star only marks the row; with
 // favourites first turned off in the order picker it is the same flat.
@@ -27,7 +27,7 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 
 	// billing is second by activity; starred, it comes first.
 	typeRunes(sc, "j")
-	sc.InjectKey(tcell.KeyCtrlF, 0, tcell.ModCtrl)
+	typeRunes(sc, "*")
 	waitFor(t, a, sc, "acme/billing is a favourite")
 	screen := a.screenText(sc)
 	billing, line, gateway := lineOf(screen, "★ ○ acme/billing"), lineOf(screen, separator), lineOf(screen, "○ acme/gateway")
@@ -47,17 +47,17 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 	}
 
 	// Grouped: no separator, the order of activity, the star still there.
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "· grouped")
 	screen = a.screenText(sc)
 	if strings.Contains(screen, separator) || lineOf(screen, "○ gateway") > lineOf(screen, "★  ○ billing") {
 		t.Errorf("grouped, the favourites are not set apart:\n%s", screen)
 	}
-	sc.InjectKey(tcell.KeyCtrlG, 0, tcell.ModCtrl)
+	typeRunes(sc, "z")
 	waitFor(t, a, sc, "listed flat again")
 
 	// Favourites first, turned off in the order picker.
-	typeRunes(sc, "o")
+	changeOnLoop(a, a.showSortPicker)
 	waitFor(t, a, sc, "favourites first: on")
 	typeRunes(sc, strings.Repeat("j", len(config.SortsOf(config.ListRepositories))))
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -66,13 +66,13 @@ func TestFavouriteRepositoriesComeFirst(t *testing.T) {
 	if strings.Contains(screen, separator) || lineOf(screen, "○ acme/gateway") > lineOf(screen, "★ ○ acme/billing") {
 		t.Errorf("the favourite still leads:\n%s", screen)
 	}
-	typeRunes(sc, "o")
+	changeOnLoop(a, a.showSortPicker)
 	waitFor(t, a, sc, "favourites first: off")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "favourites first: off")
 
 	// Unstarred, the star column goes as well.
-	sc.InjectKey(tcell.KeyCtrlF, 0, tcell.ModCtrl)
+	typeRunes(sc, "*")
 	waitFor(t, a, sc, "no longer a favourite")
 	if strings.Contains(a.screenText(sc), glyphFavourite) {
 		t.Errorf("a star is left:\n%s", a.screenText(sc))
@@ -89,7 +89,7 @@ func TestFavouriteMergeRequestsComeFirst(t *testing.T) {
 	waitFor(t, a, sc, "Rate limiting")
 	// By activity: !7, !9, !8.
 	typeRunes(sc, "jj")
-	sc.InjectKey(tcell.KeyCtrlF, 0, tcell.ModCtrl)
+	typeRunes(sc, "*")
 	waitFor(t, a, sc, "acme/gateway !8 is a favourite")
 	screen := a.screenText(sc)
 	drop, line, rate := lineOf(screen, "Drop the old client"), lineOf(screen, separator), lineOf(screen, "Rate limiting")

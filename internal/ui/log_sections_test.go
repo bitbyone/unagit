@@ -48,7 +48,7 @@ func TestTheLogShowsWhereOriginStands(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	waitFor(t, a, sc, "About billing.")
 	text := a.screenText(sc)
@@ -81,7 +81,7 @@ func TestTheLogShowsWhereOriginStands(t *testing.T) {
 	gitIn(t, p.clone, "reset", "-q", "--soft", "HEAD~2")
 	gitIn(t, p.clone, "commit", "-q", "-m", "Count and bill requests")
 	p.rescan()
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Count and bill requests")
 	text = a.screenText(sc)
 	inOrder(t, text, "── only here", "Count and bill requests", "── only on origin",
@@ -119,7 +119,7 @@ func TestTheLogsRefsArePills(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	waitFor(t, a, sc, "HEAD→main  origin")
 	text := a.screenText(sc)

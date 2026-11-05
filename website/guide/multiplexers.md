@@ -5,7 +5,7 @@ with Ghostty, the action pickers offer more places.
 
 ## Zellij
 
-Inside [Zellij](https://zellij.dev), the selection action picker (`Alt-Enter`)
+Inside [Zellij](https://zellij.dev), the selection action picker (`.`)
 has:
 
 - **Open in Zellij Tab**
@@ -18,14 +18,13 @@ terminal editors when the default opens a window. `O` (**Open…**) chooses the
 editor and the place in one form.
 
 A repository is cloned if needed and a merge request gets its branch worktree,
-as with `Ctrl-O`. Tabs are named after the repository, merge request, branch or
+as with `o`. Tabs are named after the repository, merge request, branch or
 group. unagit stays usable while the editor runs, and the pane closes when its
 editor exits.
 
 Zellij's default keys take `Ctrl-O`, `Ctrl-T`, `Ctrl-G`, `Ctrl-S`, `Ctrl-P`
-and `Ctrl-N` for its modes, so in Zellij those of unagit never arrive. Either
-switch Zellij to its *unlock-first* preset, or give the actions other keys in
-[`keybinds.toml`](./actions#your-own-keys).
+and `Ctrl-N` for its modes. Unagit's own keys need none of them; one you gave
+an action in [`keybinds.toml`](./actions#your-own-keys) may.
 
 Neovim in a pane is the same Neovim as in unagit's own terminal: `Ctrl-Z` puts
 it aside, the pane closes, and `E` lists it. Opening its directory again brings

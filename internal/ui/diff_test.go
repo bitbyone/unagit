@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gdamore/tcell/v2"
-
 	"github.com/tobola/unagit/internal/testenv"
 )
 
@@ -139,7 +137,7 @@ func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
 	p.rescan()
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/x")
-	// The row is visible before its base has been read from git. Alt-D needs
+	// The row is visible before its base has been read from git. B needs
 	// that answer; the remote column says it is ready.
 	waitFor(t, a, sc, "no upstream")
 
@@ -150,13 +148,13 @@ func TestAltDShowsEverythingSinceTheBase(t *testing.T) {
 		t.Errorf("D went further than what is not committed: %s", got)
 	}
 
-	sc.InjectKey(tcell.KeyRune, 'd', tcell.ModAlt)
+	typeRunes(sc, "B")
 	got = waitForLog(t, log, dir+" diff ")
 	if strings.Contains(a.screenText(sc), "Show in Hunk") {
-		t.Errorf("Alt-D still asks:\n%s", a.screenText(sc))
+		t.Errorf("B still asks:\n%s", a.screenText(sc))
 	}
 	base := gitIn(t, dir, "merge-base", "HEAD", "origin/main")
 	if !strings.Contains(got, base) && !strings.Contains(got, "origin/main") {
-		t.Errorf("Alt-D did not measure from the base: %s", got)
+		t.Errorf("B did not measure from the base: %s", got)
 	}
 }

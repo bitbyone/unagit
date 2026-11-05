@@ -90,7 +90,7 @@ func TestLogAndBranchesOfferWhatTheRowCanHave(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Show Diff in Hunk")

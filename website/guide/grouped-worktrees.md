@@ -34,7 +34,7 @@ The group is one row marked `◆`, and `REPOS` says how many it holds.
 | Key | Does |
 | --- | --- |
 | `Enter` | open it as a view of its own |
-| `Ctrl-O` | open the folder in your editor |
+| `o` | open the folder in your editor |
 | `p` | update every repository in it |
 | `P` | push every repository that has commits origin lacks |
 | `c` | commit every repository at once, with one message or one each |
@@ -52,7 +52,7 @@ leaving an empty branch on origin.
 repository. `j`/`k` light a block, and the keys act on the one lit. On the
 group, `p`, `C`, `n` and `a` do it for all of them; on a repository the same
 keys do it for that one alone, and `w` opens its merge request, `c` its
-conversation, `Ctrl-L` the commits of its branch.
+conversation, `L` the commits of its branch.
 
 Each block lists what the branch was made from and how far that has moved,
 where it stands against origin, what is not committed, its merge request and

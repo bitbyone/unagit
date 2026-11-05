@@ -56,7 +56,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	text := a.screenText(sc)
 	for _, want := range []string{"Add a token bucket", "Count per client"} {
@@ -86,7 +86,7 @@ func TestReviewFromACommitStartsOnWhatIsNew(t *testing.T) {
 	}
 	answer := mrOnOrigin(t, srv, p, "Answer the review")
 
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "1 new since your last review")
 	row := "● " + answer[:8] + "  " + glyphCommit + " Answer the review"
 	text = a.screenText(sc)
@@ -123,7 +123,7 @@ func TestReviewStartPickerFits(t *testing.T) {
 			resizeApp(a, sc, size.w, size.h)
 			typeRunes(sc, "2")
 			waitFor(t, a, sc, "Rate limiting")
-			sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+			typeRunes(sc, "L")
 			waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 			text := a.screenText(sc)
 			for _, want := range []string{"Add a token bucket", "Count per client", "NORMAL"} {

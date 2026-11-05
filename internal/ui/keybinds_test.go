@@ -95,7 +95,7 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 		dialogs = append(dialogs, onLoop(a, func() []pickKey { return a.offered[scope] })...)
 	}
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	collect(scopeLog)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -114,7 +114,7 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	waitFor(t, a, sc, "review from here")
 	collect(scopeLog)
@@ -130,7 +130,7 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 			}
 		}
 		out[keymap.Global] = []refEntry{
-			{keymap.SelectionActions, "Actions of the Selection…", "Every action on what is selected, with its key; a key of one of them can be nothing else.", []string{"Alt-Enter", "Ctrl-A"}},
+			{keymap.SelectionActions, "Actions of the Selection…", "Every action on what is selected, with its key; a key of one of them can be nothing else.", []string{".", "Alt-Enter"}},
 			{keymap.ScreenActions, "Actions of the Screen…", "Every action of the screen, with its key; a key of one of them can be nothing else.", []string{":"}},
 		}
 		add(keymap.Global, a.globalActions())
@@ -301,16 +301,16 @@ func TestKeybindsMoveAnAction(t *testing.T) {
 actions = "ctrl+space"
 
 [repositories]
-show_commit_log = ["ctrl+t", "f4"]
+show_commit_log = ["t", "f4"]
 `))
 	waitFor(t, a, sc, "acme/gateway")
-	if got := boundKey(a, a.projectsPane, "show_commit_log"); got != "Ctrl-T F4" {
-		t.Errorf("Show Commit Log has %q, want Ctrl-T F4", got)
+	if got := boundKey(a, a.projectsPane, "show_commit_log"); got != "t F4" {
+		t.Errorf("Show Commit Log has %q, want t F4", got)
 	}
 	if got := boundKey(a, a.projectsPane, "edit_tags"); got != "" {
 		t.Errorf("Edit Tags kept %q, the key the file gave Show Commit Log", got)
 	}
-	if got := boundKey(a, a.mrsPane, "show_commit_log"); got != "Ctrl-L" {
+	if got := boundKey(a, a.mrsPane, "show_commit_log"); got != "L" {
 		t.Errorf("Merge requests' Show Commit Log has %q; the file changed it in repositories only", got)
 	}
 	if onLoop(a, func() bool { return a.opensSelectionActions(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModAlt)) }) {
@@ -321,7 +321,7 @@ show_commit_log = ["ctrl+t", "f4"]
 	sc.InjectKey(tcell.KeyCtrlSpace, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Show Commit Log")
 	text := a.screenText(sc)
-	if line := strings.Split(text, "\n")[lineOf(text, "Show Commit Log")]; !strings.Contains(line, "Ctrl-T F4") {
+	if line := strings.Split(text, "\n")[lineOf(text, "Show Commit Log")]; !strings.Contains(line, "t F4") {
 		t.Errorf("the picker does not show the keys the file gave: %q", line)
 	}
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -331,7 +331,7 @@ show_commit_log = ["ctrl+t", "f4"]
 	waitFor(t, a, sc, "Commit Log · acme/gateway")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Commit Log")
-	sc.InjectKey(tcell.KeyCtrlT, 0, tcell.ModCtrl)
+	typeRunes(sc, "t")
 	waitFor(t, a, sc, "Commit Log · acme/gateway")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Commit Log")
@@ -349,7 +349,7 @@ review_from_here = "f6"
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	waitFor(t, a, sc, "F6 review from here")
 	if strings.Contains(a.screenText(sc), "Ctrl-R review") {
@@ -370,8 +370,8 @@ toggle_favourite = "f7"
 	if got := boundKey(a, a.projectsPane, "toggle_favourite"); got != "F7" {
 		t.Errorf("Toggle Favourite has %q after a slip elsewhere, want F7", got)
 	}
-	if got := boundKey(a, a.projectsPane, "show_commit_log"); got != "Ctrl-L" {
-		t.Errorf("the slip's action has %q, want its own Ctrl-L", got)
+	if got := boundKey(a, a.projectsPane, "show_commit_log"); got != "L" {
+		t.Errorf("the slip's action has %q, want its own L", got)
 	}
 }
 
@@ -428,15 +428,12 @@ commit = "p"
 		return "gone"
 	}
 	for text, want := range map[string]string{
-		"open as it is on disk":           "Ctrl-E",
-		"in changes: open the repo":       "Ctrl-O",
-		"every action on the selection":   "Ctrl-Space",
-		"the same, where the terminal":    "Alt-Enter",
-		"hide or show the repository":     "gone",
-		"pull; rebases your work":         "gone",
-		"commit versioned files; push":    "p",
-		"the same, in an editor you":      "Alt-O",
-		"new sandbox task, from anywhere": "Ctrl-S",
+		"open as it is on disk":         "Ctrl-E",
+		"in changes: open the repo":     "o",
+		"every action on the selection": "Ctrl-Space  Alt-Enter",
+		"hide or show the repository":   "gone",
+		"pull; rebases your work":       "gone",
+		"commit versioned files; push":  "p",
 	} {
 		if got := keyOf(text); got != want {
 			t.Errorf("%q: the help says %q, want %q", text, got, want)
@@ -483,7 +480,7 @@ func TestSettingsWritesEveryActionCommentedOut(t *testing.T) {
 		}
 	}
 
-	edited := strings.Replace(string(data), `# open = "ctrl+o"`, `open = "f4"`, 1)
+	edited := strings.Replace(string(data), `# open = ["o", "ctrl+o"]`, `open = "f4"`, 1)
 	if err := os.WriteFile(path, []byte(edited), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -515,7 +512,7 @@ func TestSettingsBringsAnOldFileUp(t *testing.T) {
 	if !strings.Contains(tmpl, clone) {
 		t.Fatalf("no clone paragraph in the template:\n%s", clone)
 	}
-	mine := strings.Replace(tmpl, "\n# open = \"ctrl+o\"\n", "\nopen = \"f4\"\n", 1)
+	mine := strings.Replace(tmpl, "\n# open = [\"o\", \"ctrl+o\"]\n", "\nopen = \"f4\"\n", 1)
 	old := strings.Replace(mine, clone, "", 1)
 	old = strings.Replace(old, "# pull = \"p\"", "# pull = \"alt+p\"", 1)
 
@@ -549,4 +546,34 @@ func cloneAbout(t *testing.T) string {
 	}
 	t.Fatal("no clone action")
 	return ""
+}
+
+// TestTheDefaultKeysKeepTheRules: the keys unagit ships follow the rules
+// they were chosen by, so a new action cannot quietly break them. No key
+// with Alt (macOS terminals send Option as a character, not as Alt), no
+// Ctrl but those no terminal or multiplexer keeps for itself, and none of
+// the keys every list moves by. An old key kept beside the new one for
+// those used to it is let be, as the second.
+func TestTheDefaultKeysKeepTheRules(t *testing.T) {
+	t.Parallel()
+	safeCtrl := map[string]bool{"Ctrl-E": true, "Ctrl-L": true, "Ctrl-R": true, "Ctrl-W": true, "Ctrl-X": true, "Ctrl-Y": true}
+	kept := map[string]bool{"Ctrl-O": true, "Alt-Enter": true}
+	moves := map[string]bool{"j": true, "k": true, "h": true, "l": true, "g": true, "G": true,
+		"Ctrl-D": true, "Ctrl-U": true, "Ctrl-F": true, "Ctrl-B": true}
+	for section, ids := range keyRegistry() {
+		for id, keys := range ids {
+			for i, k := range keys {
+				name := k.String()
+				switch {
+				case i > 0 && kept[name]:
+				case moves[name]:
+					t.Errorf("[%s] %s: %s moves in every list", section, id, name)
+				case k.Mod&tcell.ModAlt != 0:
+					t.Errorf("[%s] %s: %s needs Alt, which a Mac's terminal does not send", section, id, name)
+				case strings.HasPrefix(name, "Ctrl-") && !safeCtrl[name]:
+					t.Errorf("[%s] %s: %s is kept by a terminal or a multiplexer; Ctrl is E L R W X Y", section, id, name)
+				}
+			}
+		}
+	}
 }

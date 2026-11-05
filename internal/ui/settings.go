@@ -1094,7 +1094,7 @@ func (s *settingsView) onRepository() bool {
 	if !ok || ref.repository == "" {
 		return false
 	}
-	s.app.flash("a repository chosen on its own takes its server's directory and tags - d or t on the server, " + s.app.keyName(scopeRepositories, "edit_tags", "Ctrl-T", "Edit Tags…") + " in Repositories")
+	s.app.flash("a repository chosen on its own takes its server's directory and tags - d or t on the server, " + s.app.keyName(scopeRepositories, "edit_tags", "t", "Edit Tags…") + " in Repositories")
 	return true
 }
 

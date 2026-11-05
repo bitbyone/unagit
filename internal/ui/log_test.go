@@ -9,7 +9,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// TestCommitLogs: Ctrl-L lists the commits of a repository not yet cloned
+// TestCommitLogs: L lists the commits of a repository not yet cloned
 // from the server, of a clone from git - what points at each, what is not
 // pushed - and of a merge request; the pane under the list says who made the
 // commit under the cursor and the rest of its message, and Enter opens the
@@ -19,7 +19,7 @@ func TestCommitLogs(t *testing.T) {
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main on the server)")
 	waitFor(t, a, sc, "Add rate limiting")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -31,7 +31,7 @@ func TestCommitLogs(t *testing.T) {
 	commitIn(t, p.clone, "c.txt", "Not pushed yet")
 	p.rescan()
 
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	text := a.screenText(sc)
 	if line := strings.Split(text, "\n")[lineOf(text, "Not pushed yet")]; !strings.Contains(line, "↑") || !strings.Contains(line, "HEAD→main") {
@@ -60,7 +60,7 @@ func TestCommitLogs(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	waitFor(t, a, sc, "Token bucket")
 	waitFor(t, a, sc, "jane ·")
@@ -81,7 +81,7 @@ func TestCheckOutACommitAndComeBack(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "jC")
 	waitFor(t, a, sc, "@"+first[:8])
@@ -90,7 +90,7 @@ func TestCheckOutACommitAndComeBack(t *testing.T) {
 		t.Errorf("HEAD is at %s, want %s", got, first)
 	}
 
-	typeRunes(sc, "B")
+	pickAction(t, a, sc, ".", "Back to Branch")
 	waitFor(t, a, sc, "acme/gateway")
 	waitGone(t, a, sc, "@"+first[:8])
 	if got := gitIn(t, p.clone, "rev-parse", "--abbrev-ref", "HEAD"); got != "main" {
@@ -111,7 +111,7 @@ func TestABranchAndAWorktreeFromACommit(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "jn")
 	waitFor(t, a, sc, "New Branch at "+first[:8])
@@ -158,7 +158,7 @@ func TestCopyACommit(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Copy · "+sha[:8])
@@ -177,7 +177,7 @@ func TestCopyACommit(t *testing.T) {
 	commitIn(t, p.clone, "c.txt", "Bill them")
 	local := gitIn(t, p.clone, "rev-parse", "HEAD")
 	p.rescan()
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "y")
 	waitFor(t, a, sc, "Copy · "+local[:8])
@@ -209,9 +209,9 @@ func TestDiffInALogBringsTheCommit(t *testing.T) {
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
-	typeRunes(sc, "D")
+	typeRunes(sc, "d")
 	waitForLog(t, hunk, p.clone+" show "+head)
 	waitFor(t, a, sc, "Commit Log · acme/gateway !7")
 	if got := gitIn(t, p.clone, "cat-file", "-t", head); got != "commit" {
@@ -231,7 +231,7 @@ func TestTheLogSaysWhoWroteEachCommit(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	line := lineAt(a.screenText(sc), "Count requests per client")
 	if !strings.Contains(line, "Tomáš Hurýn") {
@@ -322,12 +322,12 @@ func TestDiffOfMarkedCommitsIsOneRange(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "· 1 marked")
 	typeRunes(sc, " ")
 	waitFor(t, a, sc, "· 2 marked")
-	typeRunes(sc, "D")
+	typeRunes(sc, "d")
 	waitForLog(t, hunk, p.clone+" diff "+oldest+"~1.."+newest)
 }

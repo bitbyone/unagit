@@ -10,7 +10,7 @@ import (
 )
 
 // TestRemoteColumnAndUpdates: r fetches every clone and REMOTE says how far
-// behind each is; p updates the one under the cursor, Alt-P every other.
+// behind each is; p updates the one under the cursor, U every other.
 func TestRemoteColumnAndUpdates(t *testing.T) {
 	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
@@ -46,7 +46,7 @@ func TestRemoteColumnAndUpdates(t *testing.T) {
 		t.Fatal("p should bring exactly one repository up to origin")
 	}
 
-	sc.InjectKey(tcell.KeyRune, 'p', tcell.ModAlt)
+	typeRunes(sc, "U")
 	waitFor(t, a, sc, "1 updated · 1 up to date")
 	if gitIn(t, left.clone, "rev-parse", "HEAD") != gitIn(t, left.origin, "rev-parse", "main") {
 		t.Error("Alt-P did not bring the other repository up to origin")

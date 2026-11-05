@@ -292,9 +292,9 @@ func (a *App) showViewOptions() {
 		flip  func()
 	}
 	options := []option{
-		{"grouped by group (" + a.keyName(scopeRepositories, "toggle_grouping", "Ctrl-G", "Toggle Grouping") + ")", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
-		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
-		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
+		{"grouped by group (" + a.keyName(scopeRepositories, "toggle_grouping", "z", "Toggle Grouping") + ")", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
+		{"favourites first, flat", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
+		{"only what is cloned", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
 	}
 	a.showToggles(toggles{
 		title: "View · Repositories",
@@ -311,7 +311,7 @@ func (a *App) showViewOptions() {
 			}
 			label := "visibility: " + visibility + "…"
 			items = append(items, toggleItem{Label: tagMark(f.RepositoryVisibility != "") + " " + esc(label), Search: label, Edit: a.showRepositoryVisibility})
-			items = append(items, a.serverFilterItem())
+			items = append(items, a.sortItem(), a.serverFilterItem())
 			return append(items, a.columnItems(config.ListRepositories)...)
 		},
 		toggle: func(it toggleItem) {

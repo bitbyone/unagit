@@ -243,8 +243,8 @@ Case, `…` when a dialog or a list follows - not a description ("Branches:
 switch, see where they are, delete") and not a bare noun ("Browser"). The
 explanation goes into `about`, which the picker shows under the list
 (`TestEveryActionIsNamedAndExplained`). The
-same list answers the keys and fills the two action pickers - `Alt-Enter`
-(`Ctrl-A`) for the selection, `:` for the screen - so a key cannot do one
+same list answers the keys and fills the two action pickers - `.`
+(`Alt-Enter`) for the selection, `:` for the screen - so a key cannot do one
 thing while the picker says another. A new action goes into that list, not
 into a `switch` on runes; one too rare for a key gets `keys: ""` and lives in
 the picker alone (creating a repository does). A key whose action
@@ -252,6 +252,22 @@ cannot be done now is still run, so that it says why; `when` only keeps the
 pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
 guards the lists.
+
+**Which key an action gets** follows rules the user set (2026-11-05), and
+`TestTheDefaultKeysKeepTheRules` holds the shipped keys to the mechanical
+ones. Navigation comes first: no action takes j k h l g G, Ctrl-D/U/F/B or
+what every list keeps. Then the letter is the action's English name (`d`
+delete, `t` tags, `L` log), the same letter for the same action on every
+screen. Lower case is the local, reversible or reading form, upper case the
+bigger form of the same verb - remote, rewriting, or all of them (`p`/`P`
+pull/push, `r`/`R`, `d`/`D`). Ctrl only when the action leaves unagit
+(`Ctrl-R` review) or its letter is navigation's, and only Ctrl-E L R W X Y,
+which no terminal or multiplexer keeps (Zellij takes O T G S P N, VS Code
+K P F, tmux and screen B A). No Alt at all: a Mac's terminal sends Option as
+a character. A "with a choice" variant is `O` or the pickers, not Alt. A
+letter may mean different things on different screens, never something
+dangerous where it is harmless elsewhere. What has no good free key gets
+`keys: ""`. An old key kept for those used to it goes second (`also`).
 
 **The keys are the user's** (`keybinds.toml`, `internal/keymap`,
 `ui/keybinds.go`): an action is bound by its id - its name in snake case,
@@ -563,10 +579,11 @@ one. The origin can carry a token in an https URL; show `chezmoi.Key`, never
 the address.
 
 **Editors.** Every opening action takes the editor as a parameter: nil is
-the favourite, looked up at the moment it starts; Alt with the same key picks
-one first (`withEditor`). Without an installed favourite every open asks -
+the favourite, looked up at the moment it starts; its With… variant (Open
+With…, Review With…, keyless, in the pickers) picks one first
+(`withEditor`). Without an installed favourite every open asks -
 never fall back quietly to another editor, and never look a missing one up
-again by name (a test once started the real Zed that way). Add a new opening action the same way, with its Alt
+again by name (a test once started the real Zed that way). Add a new opening action the same way, with its With…
 variant, rather than calling the favourite directly. A terminal editor
 (nvim, or a custom one) gets the terminal; a window editor (IDEA, VS Code,
 Zed) is only started, because its launcher returns at once.

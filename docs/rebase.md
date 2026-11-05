@@ -52,7 +52,7 @@ them with `gitx.History(dir, "HEAD", historyLimit)` and marks each
 of any remote, `gitx.LocalCommits`). `labelLog` draws the rows; an
 unpushed one starts with `glyphAhead`. Keys are `pickKey`s with a `when`
 per item; one with no `hint` is left out of the hint and found in the
-item's actions (Alt-Enter), as Edit Commit Message and Undo Commit are.
+item's actions (`.`), as Edit Commit Message and Undo Commit are.
 Pickers have no marks today - lists do (`pane.marks`, space, `bandMarked`).
 
 The branch manager (`showBranchManager`, `internal/ui/branches.go`) lists
@@ -238,7 +238,7 @@ form and its question were drawn on the simulation screen and looked at.
 is where it is ("the base now · default", "target of !12", "local only").
 Differences: without a token origin's branches are left out and the
 clone's are listed, rather than nothing. Neither action has a key - both
-are found with `Alt-Enter`. Rebase onto… is offered on a worktree of one
+are found with `.`. Rebase onto… is offered on a worktree of one
 repository only, not on a group as Rebase onto Base is: the picker lists
 one repository's branches (in the worktree view, light a member's block).
 

@@ -170,7 +170,7 @@ func TestEditorCardsFit(t *testing.T) {
 	}
 }
 
-// TestAltOpensInAChosenWindowEditor: Alt-O asks which editor, and a window
+// TestAltOpensInAChosenWindowEditor: Open With… asks which editor, and a window
 // editor is started with the directory while the interface stays up - and
 // the directory is on record for another terminal.
 func TestAltOpensInAChosenWindowEditor(t *testing.T) {
@@ -185,14 +185,11 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 	typeRunes(sc, "3")
 	waitFor(t, a, sc, "feat/window")
 
-	sc.InjectKey(tcell.KeyRune, 'o', tcell.ModAlt)
+	pickAction(t, a, sc, ".", "Open With…")
 	waitFor(t, a, sc, "Open with")
 	text := a.screenText(sc)
 	if !strings.Contains(text, "Neovim (default)") || !strings.Contains(text, "Zed") {
 		t.Fatalf("the editors are not offered, favourite first:\n%s", text)
-	}
-	if strings.Contains(text, "by name") {
-		t.Errorf("Alt-O acted as o and reordered the list:\n%s", text)
 	}
 	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -224,7 +221,7 @@ func TestAltOpensInAChosenWindowEditor(t *testing.T) {
 }
 
 // TestOpeningWithoutAFavouriteAsks: with no favourite - or one that is not
-// installed - Ctrl-O asks which editor, exactly as Alt-O does, rather than
+// installed - o asks which editor, exactly as Open With… does, rather than
 // quietly opening some other one.
 func TestOpeningWithoutAFavouriteAsks(t *testing.T) {
 	fakeEditors(t)

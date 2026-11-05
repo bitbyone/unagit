@@ -31,7 +31,7 @@ func TestSquashInTheLog(t *testing.T) {
 
 	openLog := func() {
 		t.Helper()
-		sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+		typeRunes(sc, "L")
 		waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 		waitFor(t, a, sc, "About billing.")
 	}

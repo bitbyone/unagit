@@ -205,7 +205,7 @@ func TestZoxideCardAndSortPicker(t *testing.T) {
 	waitGone(t, a, sc, "keys · Repositories")
 	typeRunes(sc, "3?")
 	waitFor(t, a, sc, "keys · Worktrees")
-	waitFor(t, a, sc, "or frecency")
+	waitFor(t, a, sc, "view: order · server · columns")
 	t.Logf("Worktrees help:\n%s", a.screenText(sc))
 	assertLegible(t, a, sc, "worktree help with zoxide order")
 }

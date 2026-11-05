@@ -240,7 +240,7 @@ func TestYaziCardAndSelectionActionFit(t *testing.T) {
 	typeRunes(sc, "e")
 	waitFor(t, a, sc, "enabled")
 	typeRunes(sc, "1")
-	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
+	typeRunes(sc, ".")
 	waitFor(t, a, sc, "Browse Files")
 	assertLegible(t, a, sc, "Browse Files action")
 }

@@ -56,7 +56,7 @@ func (a *App) newProjectsPane() *pane {
 		return a.projects[i], true
 	}
 
-	// Enter loads the detail column, Ctrl-O does the actual checkout. Once the
+	// Enter loads the detail column, o does the actual checkout. Once the
 	// column is open it follows the cursor.
 	p.onDetail = func(idx int, focus bool) {
 		if idx >= 0 && idx < len(a.projects) {

@@ -11,7 +11,7 @@
 
 `Enter` switches **that same clone** to the branch, so there is one working
 copy per repository, not a directory per branch. It is a plain checkout:
-nothing is fetched and no editor starts (`p` pulls, `Ctrl-O` opens), and the
+nothing is fetched and no editor starts (`p` pulls, `o` opens), and the
 list closes with the row showing the branch now out.
 
 What is not committed goes along, as git carries it. When the branch has its
@@ -30,7 +30,7 @@ switches to it when you want.
 `Ctrl-W` gives a branch a worktree of its own instead (`n` for a new branch).
 A branch git will not check out again, out in the main clone or in another
 worktree, is listed last, dimmed, with where it is out. Nothing opens: unagit
-moves to Worktrees with the cursor on it, and `Ctrl-O` opens it when you want.
+moves to Worktrees with the cursor on it, and `o` opens it when you want.
 
 ## A merge request from a branch
 
@@ -43,7 +43,7 @@ origin lacks it.
 | --- | --- |
 | `d` | in the clone; origin keeps it |
 | `D` | in the clone and on origin |
-| `Alt-D` | on origin only; the clone keeps it, no longer tracking |
+| `.` › **Delete on Origin…** | on origin only; the clone keeps it, no longer tracking |
 
 The default branch and protected ones are never deleted, and one with an open
 merge request is not deleted on origin. What would be lost, commits and

@@ -146,7 +146,7 @@ func (a *App) soloHeader() string {
 		tag(colTitle) + "[::b]" + esc(s.name) + "[::-]" + tagEnd,
 		tag(colBranch) + esc(s.branch) + tagEnd,
 	}
-	// The base Alt-D and Ctrl-R go by; a guessed one says so, since Set
+	// The base B and Ctrl-R go by; a guessed one says so, since Set
 	// Base… is how it becomes the branch's own.
 	if st := a.wtRemote[s.dir]; st.Base != "" {
 		based := tag(colMuted) + "based on " + tagEnd + tag(colBranch) + esc(st.Base) + tagEnd

@@ -51,14 +51,14 @@ cannot tell what is yours, it leaves the worktree alone rather than reset it.
 | Key | Gives you |
 | --- | --- |
 | `Ctrl-R` | the review worktree: the change as pending edits, for reading |
-| `Ctrl-O` | the branch worktree: the merge request's real branch, for committing and pushing |
+| `o` | the branch worktree: the merge request's real branch, for committing and pushing |
 
-`Ctrl-O` opens the branch as it is; `p` brings it to the merge request's head.
+`o` opens the branch as it is; `p` brings it to the merge request's head.
 A review worktree is never committed: its HEAD is the merge base on purpose.
 
 ## Only what is new
 
-When the author answers your comments in new commits, `Ctrl-L` lists the
+When the author answers your comments in new commits, `L` lists the
 commits, with the ones you have not reviewed marked `●` and the cursor on the
 oldest of them. A rebase does not fool it: "new since the last review" is
 measured with `git cherry`, so rewritten commits you saw still count as seen.
@@ -81,7 +81,7 @@ worktree follows the merge request, and put back.
 
 ## Open it somewhere else
 
-`Alt-R` asks which editor first. **Review with Claude Code…** and the other
+**Review With…** (in `.`) asks which editor first. **Review with Claude Code…** and the other
 agents prepare the same worktree and start the agent there. Inside Zellij or
 herdr, **Review in Zellij Tab** and the like open it beside unagit. See
 [Coding Agents](/guide/agents) and [Zellij, herdr, Ghostty](/guide/multiplexers).

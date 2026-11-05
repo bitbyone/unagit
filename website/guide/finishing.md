@@ -32,12 +32,12 @@ than merged unread, and unagit says to look first.
 
 | Key | Does |
 | --- | --- |
-| `Ctrl-D` | mark a merge request as a draft, or a draft as ready |
+| `.` › **Mark as Draft** | mark a merge request as a draft; **Mark Ready** takes it back |
 | `a` | **Add/Change Assignee…** |
 | `s` | **Add/Change Reviewer…** |
 | `t` | the labels |
 | `V` | mark it reviewed without opening it |
-| `Alt-Enter` › **Close Merge Request…** | close it without merging; its branch stays |
+| `.` › **Close Merge Request…** | close it without merging; its branch stays |
 
 The people pickers put who is assigned at the top, above a line. Below come
 whom you assign most often, then who is about the merge requests on screen,

@@ -97,7 +97,7 @@ func TestEditCommitMessage(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	// Found among a commit's actions, not in the hint, for a pushed
 	// commit too.
@@ -200,7 +200,7 @@ func TestUndoCommit(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
 	waitFor(t, a, sc, "Undo Commit")
@@ -231,7 +231,7 @@ func TestUndoCommit(t *testing.T) {
 	p.rescan()
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Commit Log")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Count requests")
 	typeRunes(sc, "u")
 	waitFor(t, a, sc, counted[:8]+" is on origin. Undoing it")

@@ -10,7 +10,7 @@ import (
 
 // Every screen says what can be done in it as data: a list of actions, each
 // with its name, the key that does it and how often it is wanted. The same
-// list answers the keys and fills two pickers - Alt-Enter (or Ctrl-A) for
+// list answers the keys and fills two pickers - . (or Alt-Enter) for
 // what can be done with the selection, : for what the screen itself can do -
 // so a key cannot do one thing while the picker says another, and an action
 // too rare for a key of its own still has a place to be found.

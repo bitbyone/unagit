@@ -128,7 +128,18 @@ const favouritesFirst = "favourites"
 
 // showSortPicker chooses the order the list on screen is drawn in. Each list
 // keeps its own, since some orders - by size, by comments - are one list's.
-func (a *App) showSortPicker() {
+func (a *App) showSortPicker() { a.sortPicker(nil) }
+
+// sortItem is the order as a row of View Options, which is where the
+// order is chosen now that o opens.
+func (a *App) sortItem() toggleItem {
+	label := "order: " + sortLabel(a.order(listOfTab(a.currentTab()))) + "…"
+	return toggleItem{Label: tagMark(false) + " " + esc(label), Search: label, Edit: a.sortPicker}
+}
+
+// sortPicker chooses the order, then calls changed (when there is one) so
+// View Options can show the order chosen.
+func (a *App) sortPicker(changed func()) {
 	f := &a.cfg.Filters
 	list := listOfTab(a.currentTab())
 	var items []pickItem
@@ -153,6 +164,9 @@ func (a *App) showSortPicker() {
 		config.ListWorktrees:     "Sort worktrees",
 	}[list]
 	a.showPickerWith(title, items, pickerOptions{pack: true}, func(it pickItem) {
+		if changed != nil {
+			defer changed()
+		}
 		if it.Data == favouritesFirst {
 			f.FavouritesInPlace = !f.FavouritesInPlace
 			a.applyFilters()
@@ -323,9 +337,9 @@ func (a *App) showMRViewOptions() {
 		flip  func()
 	}
 	options := []option{
-		{"grouped by repository (" + a.keyName(scopeMergeRequests, "toggle_grouping", "Ctrl-G", "Toggle Grouping") + ")", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
-		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
-		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
+		{"grouped by repository (" + a.keyName(scopeMergeRequests, "toggle_grouping", "z", "Toggle Grouping") + ")", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
+		{"favourites first, flat", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
+		{"only what is cloned", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
 		{"only mine", func() bool { return f.OnlyMine }, func() { f.OnlyMine = !f.OnlyMine }},
 		{"only those I review or am assigned", func() bool { return f.OnlyToReview }, func() { f.OnlyToReview = !f.OnlyToReview }},
 		{"hide drafts", func() bool { return f.HideDrafts }, func() { f.HideDrafts = !f.HideDrafts }},
@@ -352,7 +366,7 @@ func (a *App) showMRViewOptions() {
 			}
 			items = append(items, toggleItem{Label: tagMark(f.HideOlderThanDays > 0) + " " + ageLabel,
 				Search: "hide older than days", Edit: a.showMRAgeFilter})
-			items = append(items, a.serverFilterItem())
+			items = append(items, a.sortItem(), a.serverFilterItem())
 			items = append(items, a.columnItems(config.ListMergeRequests)...)
 			items = append(items, option(last))
 			// The people first, each marked as one, then the repositories.
@@ -509,7 +523,7 @@ func (a *App) showWorktreeViewOptions() {
 		verb:  "change",
 		pack:  true,
 		items: func() []toggleItem {
-			return append([]toggleItem{a.serverFilterItem()}, a.columnItems(config.ListWorktrees)...)
+			return append([]toggleItem{a.sortItem(), a.serverFilterItem()}, a.columnItems(config.ListWorktrees)...)
 		},
 		toggle: func(it toggleItem) {
 			a.toggleColumnItem(it)

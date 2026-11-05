@@ -23,7 +23,7 @@ the user - become new sections later rather than new screens.
 - **One screen, `[5] Watched`, in sections**, after Agents; Settings moves
   to `[6]`. The first and for now only section is Pipelines.
 - **"Watch Pipelines" is an action without a key.** It is in the action
-  pickers (`Alt-Enter`) of a repository, a merge request, a worktree, a
+  pickers (`.`) of a repository, a merge request, a worktree, a
   repository's block in the worktree view, and of the jobs dialog; on
   something watched it is "Stop Watching Pipelines". `keys: ""`.
 - **A watch is on a thing, not on one pipeline.** Watching a merge request

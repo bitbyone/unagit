@@ -7,14 +7,14 @@ picked. These are the keys you will use most.
 
 | Key | Does |
 | --- | --- |
-| `Ctrl-O` | open your editor in the clone, as it is on disk. Only a repository not cloned yet is cloned first. |
-| `Alt-O` | the same, in an editor you choose |
+| `o` | open your editor in the clone, as it is on disk. Only a repository not cloned yet is cloned first. |
+| `O` | open with what, and where: an editor or an agent |
 | `C` | clone to disk without opening anything |
 | `O` | **Open…**: what, with what and where, in one form |
 | `w` | open the repository in the browser |
 | `y` | copy its link, a markdown link, its directory |
 
-`Ctrl-O` fetches nothing and pulls nothing: the list already says where
+`o` fetches nothing and pulls nothing: the list already says where
 everything stands, and `p` updates it first when you want that. `Ctrl-C` is
 left to end unagit, as it ends any program in a terminal.
 
@@ -23,13 +23,13 @@ left to end unagit, as it ends any program in a terminal.
 | Key | Does |
 | --- | --- |
 | `p` | update the clone: a fast-forward when nothing of yours is in the way, a rebase of your commits and edits onto origin when there is |
-| `Alt-P` | the same for every clone at once |
+| `U` | the same for every clone at once |
 | `R` | fetch every clone in the background, and read the pipelines |
 | `r` | the same for the row under the cursor |
 
 If an update would conflict, because your edits touch a file origin changed or
 your commits clash with origin's, `p` refuses and leaves the clone exactly as
-it was, for you to sort out by hand. `Alt-P` passes over clones without an
+it was, for you to sort out by hand. `U` passes over clones without an
 upstream and names the ones it left alone.
 
 ## Working in the clone
@@ -37,14 +37,14 @@ upstream and names the ones it left alone.
 | Key | Does |
 | --- | --- |
 | `b` | the branches. See [Branches](/guide/branches). |
-| `Ctrl-K` | **Changes**: the files not committed and their diffs. See [Changes and Commits](/guide/changes). |
+| `s` | **Changes**: the files not committed and their diffs. See [Changes and Commits](/guide/changes). |
 | `c` | commit the versioned files as they are on disk |
 | `P` | push, after showing what goes |
 | `n` | a merge request from the branch the clone has out, pushed first if origin lacks it |
-| `Ctrl-L` | the commit log. See [The Commit Log](/guide/commit-log). |
+| `L` | the commit log. See [The Commit Log](/guide/commit-log). |
 | `J` | the pipeline's jobs. See [Pipelines](/guide/pipelines). |
 | `m` | that repository's merge requests |
-| `D`, `Alt-D` | the changes in [Hunk](/guide/incomm-hunk): what is not committed, or everything since the base |
+| `D`, `B` | the changes in [Hunk](/guide/incomm-hunk): what is not committed, or everything since the base |
 
 ## Creating a repository
 

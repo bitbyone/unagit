@@ -8,7 +8,7 @@ import (
 
 // Space marks rows of Repositories and Merge requests, and the keys then act
 // on every marked row at once, as they would on one: x and H hide, r
-// refreshes, Ctrl-F stars. A key that toggles turns the state of them all
+// refreshes, * stars. A key that toggles turns the state of them all
 // one way: when every marked row is already so, back; else the rest are
 // made so too, never some one way and some the other. The marks are done
 // with once the key has acted, since the rows it hid are gone.
@@ -80,7 +80,7 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 			}
 			p.reload()
 		}},
-		{name: "Star or Unstar All", about: "Make every marked repository a favourite, or, when all are, none of them.", keys: "Ctrl-F", rank: 45, run: func() {
+		{name: "Star or Unstar All", about: "Make every marked repository a favourite, or, when all are, none of them.", keys: "*", rank: 45, run: func() {
 			done()
 			starred := toggleAll(len(picked),
 				func(i int) bool { return a.cfg.Filters.IsFavourite(picked[i].Instance, picked[i].PathWithNamespace, 0) },
@@ -102,7 +102,7 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 			p.reload()
 			a.cloneProjects(picked)
 		}},
-		{name: "Edit Tags of All…", about: "Put a tag on every marked repository, or, when all wear it, take it off them all.", keys: "Ctrl-T", rank: 60, run: func() {
+		{name: "Edit Tags of All…", about: "Put a tag on every marked repository, or, when all wear it, take it off them all.", keys: "t", rank: 60, run: func() {
 			a.showTagChoice(fmt.Sprintf("Tags of %s", counted(len(picked), "repository", "repositories")),
 				func() []string { return a.tagsOfAll(picked) },
 				func() []string { return nil },
@@ -253,7 +253,7 @@ func (a *App) markedMRActions(p *pane, picked []forge.MergeRequest) []uiAction {
 		{name: "Copy All…", about: "Copy the links, references, branches or titles of the marked merge requests, one a line.", keys: "y", rank: 55, run: func() {
 			a.yankMRs(picked)
 		}},
-		{name: "Star or Unstar All", about: "Make every marked merge request a favourite, or, when all are, none of them.", keys: "Ctrl-F", rank: 50, run: func() {
+		{name: "Star or Unstar All", about: "Make every marked merge request a favourite, or, when all are, none of them.", keys: "*", rank: 50, run: func() {
 			done()
 			path := func(i int) string { return a.projectPathOfMR(picked[i]) }
 			starred := toggleAll(len(picked),

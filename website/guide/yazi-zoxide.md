@@ -47,7 +47,7 @@ Making a clone or worktree alone records nothing. Removing one forgets its
 directory. zoxide's own `_ZO_EXCLUDE_DIRS` rules apply, and a missing or
 failing zoxide never prevents an editor or shell from opening.
 
-**Ordering by frecency:** choose **by frecency** in `o` in Repositories or
+**Ordering by frecency:** choose **by frecency** in `v` › **order** in Repositories or
 Worktrees for frequent and recent visits first. A repository takes the highest
 score of its clone and worktrees. `unagit go` offers the most visited
 directories first.

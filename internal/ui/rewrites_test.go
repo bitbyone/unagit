@@ -28,7 +28,7 @@ func TestRewriteHistoryUndoesASquash(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "  ")
 	waitFor(t, a, sc, "· 2 marked")
@@ -137,7 +137,7 @@ func TestRecoverFromTheReflog(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "R")
 	waitFor(t, a, sc, "Recover from Reflog · acme/gateway (main)")
@@ -175,7 +175,7 @@ func TestShelveAndUnshelve(t *testing.T) {
 	p.rescan()
 
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlK, 0, tcell.ModCtrl)
+	typeRunes(sc, "s")
 	waitFor(t, a, sc, "new.txt")
 	typeRunes(sc, "s")
 	waitFor(t, a, sc, "Shelve Changes · acme/gateway (main)")

@@ -27,7 +27,7 @@ func openTagSettings(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	waitFor(t, a, sc, "REPOSITORIES")
 }
 
-// TestTagsOnRepositories: Ctrl-T puts tags on a repository, one toggle at a
+// TestTagsOnRepositories: t puts tags on a repository, one toggle at a
 // time, and they are drawn as pills after its name; f narrows the list to the
 // tags chosen, any of them, and F shows every repository again.
 func TestTagsOnRepositories(t *testing.T) {
@@ -36,7 +36,7 @@ func TestTagsOnRepositories(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway")
 	inst := onLoop(a, func() string { return a.projects[0].Instance })
 
-	sc.InjectKey(tcell.KeyCtrlT, 0, tcell.ModCtrl)
+	typeRunes(sc, "t")
 	waitFor(t, a, sc, "Tags of acme/gateway")
 	typeRunes(sc, " jj ") // oss, then work
 	waitFor(t, a, sc, "2 on")
@@ -254,7 +254,7 @@ func TestTagFormFitsItsFrame(t *testing.T) {
 }
 
 // TestGroupTagsReachTheRepositories: t in Settings › Groups & roots tags a
-// group, its repositories wear the tag, and Ctrl-T on one of them says where
+// group, its repositories wear the tag, and t on one of them says where
 // the tag comes from and can take it off there alone.
 func TestGroupTagsReachTheRepositories(t *testing.T) {
 	t.Parallel()
@@ -286,7 +286,7 @@ func TestGroupTagsReachTheRepositories(t *testing.T) {
 		}
 	}
 
-	sc.InjectKey(tcell.KeyCtrlT, 0, tcell.ModCtrl)
+	typeRunes(sc, "t")
 	waitFor(t, a, sc, "inherited")
 	typeRunes(sc, "jj ")
 	waitFor(t, a, sc, "taken off here")

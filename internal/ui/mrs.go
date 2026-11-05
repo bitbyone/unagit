@@ -58,7 +58,7 @@ func (a *App) newMRsPane() *pane {
 		return a.mrs[i], true
 	}
 
-	// Enter loads fresh detail from the API, Ctrl-O creates the worktree. Once
+	// Enter loads fresh detail from the API, o creates the worktree. Once
 	// the column is open it follows the cursor.
 	p.onDetail = func(idx int, focus bool) {
 		if idx >= 0 && idx < len(a.mrs) {

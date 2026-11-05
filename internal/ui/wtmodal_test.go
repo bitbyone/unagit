@@ -76,7 +76,7 @@ func TestAWorktreeIsAViewOfBlocks(t *testing.T) {
 	waitFor(t, a, sc, "Remove from Group…")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Actions · acme/gateway")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (feat/view)")
 	waitFor(t, a, sc, "Count requests per client")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

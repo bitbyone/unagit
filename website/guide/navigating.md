@@ -62,15 +62,15 @@ and the pipeline column turns to `?` after a few tries. Never a box in front.
 ## Filtering and ordering
 
 - `/` fuzzy-finds. `Esc` leaves the filter, then clears it.
-- `L` hides everything you have not cloned.
+- **only what is cloned**, in `v`, hides everything you have not cloned.
 - `x` hides a repository you never want to see. `X` lists the hidden ones.
 - `H` on a merge request hides its author's merge requests: Renovate's, a CI bot's.
 - `v` narrows Merge requests to yours, those you review, those assigned to you,
   can leave drafts out, and hides requests older than a number of days. In
   every list it can narrow to one server.
-- `o` chooses the order: by activity or name everywhere, and per list by edits,
+- `v` › **order** chooses the order: by activity or name everywhere, and per list by edits,
   size, remote, new commits, comments or frecency.
-- `Ctrl-G` groups the list: repositories by their group, merge requests by repository.
+- `z` groups the list: repositories by their group, merge requests by repository.
 
 The choices stick between starts.
 
@@ -78,9 +78,9 @@ The choices stick between starts.
 
 `space` marks rows in Repositories and Merge requests. The keys then act on
 every marked row at once: `x` and `H` hide, `r` refreshes, `p` pulls, `C`
-clones, `Ctrl-T` tags, `Ctrl-F` stars, `y` copies one of each a line, `V` marks
+clones, `t` tags, `*` stars, `y` copies one of each a line, `V` marks
 merge requests reviewed, `Ctrl-W` makes one grouped worktree of repositories.
-`Alt-Enter` lists what the marks can do.
+`.` lists what the marks can do.
 
 ## Finding any repository
 
@@ -91,8 +91,8 @@ group of yours has is listed on its own.
 
 ## Tags and favourites
 
-- `Ctrl-F` stars a repository or a merge request. Favourites come first in a
+- `*` stars a repository or a merge request. Favourites come first in a
   flat list, above a line.
-- `Ctrl-T` puts your own tags on a repository: `oss`, `work`, `personal` and
+- `t` puts your own tags on a repository: `oss`, `work`, `personal` and
   whatever else you define in Settings › Tags. `f` shows only the repositories
   wearing the tags you pick, `F` all of them again.

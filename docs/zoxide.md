@@ -11,7 +11,7 @@ where the user goes.
 ## Decisions
 
 - **A directory goes to zoxide when it is opened, not when it is made.**
-  `Alt-P` over forty clones, or `C` down a list of merge requests, would
+  `U` over forty clones, or `C` down a list of merge requests, would
   otherwise put a crowd of directories into zoxide with the same score, and
   frecency would stop meaning anything. What is opened in an editor, in Yazi
   (see [yazi.md](yazi.md)) or in a multiplexer's tab or split

@@ -1,7 +1,7 @@
 # Editors
 
-Everything that opens a directory, `Ctrl-O` and `Ctrl-R`, opens it in your
-default editor. Hold Alt with the same key (`Alt-O`, `Alt-R`) and unagit asks
+Everything that opens a directory, `o` and `Ctrl-R`, opens it in your
+default editor. **Open With…** and **Review With…** (in `.`), and `O`, ask
 which one first.
 
 Settings › Integrations has a card for each editor, saying whether it was

@@ -9,10 +9,11 @@ while the picker says another.
 
 | Key | Lists |
 | --- | --- |
-| `Alt-Enter` or `Ctrl-A` | everything that can be done with the row under the cursor, the marked rows, the lit block of a worktree's view, or the section of Settings |
+| `.` or `Alt-Enter` | everything that can be done with the row under the cursor, the marked rows, the lit block of a worktree's view, or the section of Settings |
 | `:` | everything the screen itself can do |
 
-`Ctrl-A` is there for terminals that keep `Alt-Enter` for themselves.
+`Alt-Enter` is kept for those used to it; a Mac's terminal and Windows
+Terminal keep it for themselves, so `.` is the one that always arrives.
 
 Each action has its key beside it, so the list teaches the keys as it is used.
 What one usually comes for is at the top; what destroys something is at the
@@ -43,10 +44,13 @@ So `cc split` puts Claude Code in a vertical split first.
 
 ## Your own keys
 
-A terminal or a multiplexer can keep a key for itself before unagit sees it:
-Zellij takes `Ctrl-O`, `Ctrl-T`, `Ctrl-G`, `Ctrl-S`, `Ctrl-P` and `Ctrl-N`
-for its modes, Windows Terminal `Alt-Enter` for full screen, tmux and GNU
-screen their prefix (`Ctrl-B`, `Ctrl-A`). `keybinds.toml` in unagit's
+The keys unagit ships keep out of the way of the terminals and multiplexers:
+none needs Alt, which a Mac's terminal sends as a character, and Ctrl is only
+`Ctrl-E`, `Ctrl-L`, `Ctrl-R` and `Ctrl-W`, which Zellij, tmux, GNU screen,
+Windows Terminal and the editors' terminals leave alone. Navigation comes
+first; then the letter is the action's own, small for what stays local and
+capital for the bigger form of the same verb (`p` pull, `P` push). Yours may
+still clash with something of your own: `keybinds.toml` in unagit's
 configuration directory, beside `config.yaml`, gives any action another key,
 several, or none:
 

@@ -879,7 +879,7 @@ func (a *App) showWorktreeAt(dir string) {
 	a.switchTab(pageWorktrees)
 	p.reload()
 	p.selectWhere(func(i int) bool { return i < len(a.worktrees) && sameDir(a.worktrees[i].Dir, dir) })
-	a.done("created " + tildePath(dir) + " · " + a.keyName(scopeWorktrees, "open", "Ctrl-O", "Open") + " opens it")
+	a.done("created " + tildePath(dir) + " · " + a.keyName(scopeWorktrees, "open", "o", "Open") + " opens it")
 }
 
 // moveChangesToWorktree asks for a branch name and takes the clone's

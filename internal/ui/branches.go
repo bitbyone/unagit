@@ -278,7 +278,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 			run: func(pickItem) {
 				a.showRewrites(rewriteScope{project: pr, dir: a.projectDir(pr.Instance, pr.PathWithNamespace)})
 			}},
-		{keys: "Alt-D", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.remote }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
+		{keys: "", hint: "on origin", name: "Delete on Origin…", about: "Delete the branch on origin; the clone keeps it.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.remote }, run: func(it pickItem) { a.deleteBranch(pr, it.Data.(branchInfo), false, true, again) }},
 	}, embed: scope.embed}
 	// Standalone asks no server, so it opens no merge request.
 	if a.solo != nil {
@@ -362,7 +362,7 @@ const (
 // more words than that. What is not committed goes along, as git carries
 // it; changes to files the branch has otherwise are asked about, and Smart
 // Checkout shelves them around the switch. It opens no editor: opening is
-// Ctrl-O's, when the user wants it.
+// o's, when the user wants it.
 func (a *App) switchMainClone(pr forge.Project, branch string) {
 	var way *gitx.ChangesInTheWay
 	a.runTaskThen(fmt.Sprintf("Switching %s to %s", pr.PathWithNamespace, branch),
@@ -442,7 +442,7 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 	}
 	switch {
 	case here && !b.local:
-		a.flash(b.name + " is only on origin - " + a.keyName(scopeBranches, "delete_on_origin", "Alt-D", "Delete on Origin…") + " deletes it there")
+		a.flash(b.name + " is only on origin - " + a.keyName(scopeBranches, "delete_on_origin", "", "Delete on Origin…") + " deletes it there")
 		return
 	case there && !b.remote:
 		a.flash(b.name + " is not on origin")

@@ -228,17 +228,29 @@ func TestAltEnterListsWhatCanBeDoneWithTheRow(t *testing.T) {
 	waitFor(t, a, sc, "Worktree branch - acme/gateway")
 }
 
-// TestCtrlAIsAltEnter: for the terminals that keep Alt-Enter.
-func TestCtrlAIsAltEnter(t *testing.T) {
+// TestDotIsAltEnter: the selection's actions open on a key every terminal
+// sends, and Alt-Enter is kept for those used to it.
+func TestDotIsAltEnter(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Rate limiting")
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlA, 0, tcell.ModCtrl)
+	typeRunes(sc, ".")
 	waitFor(t, a, sc, "Actions · acme/gateway !7")
 	waitFor(t, a, sc, "Review With…")
+}
+
+// pickAction does an action that has no key: it opens the picker (. or :),
+// types the action's name and presses Enter.
+func pickAction(t *testing.T, a *App, sc tcell.SimulationScreen, opener, name string) {
+	t.Helper()
+	typeRunes(sc, opener)
+	waitFor(t, a, sc, name)
+	typeRunes(sc, strings.ToLower(strings.TrimSuffix(name, "…")))
+	waitFor(t, a, sc, "/ "+strings.ToLower(strings.TrimSuffix(name, "…")))
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 }
 
 // TestColonListsWhatTheScreenCanDo: the screen's own actions, a new

@@ -26,7 +26,7 @@ destination restores the inherited one.
   branch list switches that same clone, rather than making a directory per
   branch.
 - **A branch worktree** is a real branch of a merge request, for committing and
-  pushing. `Ctrl-O` on a merge request makes it.
+  pushing. `o` on a merge request makes it.
 - **A review worktree** holds the merge request as pending edits.
   `Ctrl-R` makes it. See [The Review Worktree](/guide/review).
 - **A grouped worktree** puts several repositories in one folder. See

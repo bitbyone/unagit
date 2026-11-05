@@ -114,7 +114,7 @@ of yours. The passphrase is `demo`.
 
 You do not have to learn the keys up front. Three are enough:
 
-- `Alt-Enter` (or `Ctrl-A`) lists everything that can be done with the row under
+- `.` (or `Alt-Enter`) lists everything that can be done with the row under
   the cursor, each with its key beside it.
 - `:` lists everything the screen itself can do.
 - `?` shows the keys of the screen you are on.

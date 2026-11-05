@@ -140,7 +140,7 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 // runPublish posts what was confirmed. The plan is drawn again from the comments
 // as they are now, because time has passed since the confirmation; only what was
 // agreed to goes out. The lines are the ones Incomm has stored: re-anchoring
-// happens when a worktree is updated (Ctrl-O, Ctrl-R), and the editors keep them
+// happens when a worktree is updated (o, Ctrl-R), and the editors keep them
 // current while a file is open.
 func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provider, places []incomm.Place, confirmed []incomm.Step, state map[string]bool) {
 	a.runTask(fmt.Sprintf("Publishing %s !%d", path, mr.IID), func(log func(string)) (string, error) {

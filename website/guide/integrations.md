@@ -58,8 +58,8 @@ Opening is three questions: **what** (the clone, a merge request's branch or
 its review, a worktree), **with what**, and **where**. The action pickers answer
 them in three tiers:
 
-1. At the top, **Open** (`Ctrl-O`) and **Review** (`Ctrl-R`) in the default
-   editor here, **Open With…** (`Alt-O`) in an editor you choose, and
+1. At the top, **Open** (`o`) and **Review** (`Ctrl-R`) in the default
+   editor here, **Open With…** (in `.`) in an editor you choose, and
    **Open…** (`O`), a form of all three questions, filled in as it was last
    used for that kind of row.
 2. At the bottom, **Open with &lt;agent&gt;…** and **Review with &lt;agent&gt;…**,

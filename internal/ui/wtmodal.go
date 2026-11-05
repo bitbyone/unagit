@@ -242,7 +242,7 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 			label = ""
 		}
 		if f.ownCount > 3 {
-			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · %s lists them", f.ownCount-3, a.keyName(scopeWorktreeView, "show_commit_log", "Ctrl-L", "Show Commit Log"))+tagEnd))
+			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · %s lists them", f.ownCount-3, a.keyName(scopeWorktreeView, "show_commit_log", "L", "Show Commit Log"))+tagEnd))
 		}
 	}
 	if len(f.dirty) > 0 {
@@ -309,7 +309,7 @@ func (a *App) worktreeViewActions(v *wtView) []uiAction {
 			}},
 		uiAction{name: "Open in Browser", about: "Open the branch's merge request in the browser, or the repository's page without one.", keys: "w", rank: 38, when: single,
 			run: func() { a.openWorktreeWeb(r) }},
-		uiAction{name: "Show Commit Log", about: "The lit repository's history, newest first: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 39, when: single,
+		uiAction{name: "Show Commit Log", about: "The lit repository's history, newest first: diff, check out, branch from a commit.", keys: "L", rank: 39, when: single,
 			run: func() { a.worktreeLog(r) }},
 		uiAction{name: "Remove from Group…", about: "Remove this repository's worktree from the group; its branch stays.", keys: "x", rank: 65,
 			when: func() bool { return r.Group != "" }, run: func() { a.confirmTakeOut(v.row, r) }},

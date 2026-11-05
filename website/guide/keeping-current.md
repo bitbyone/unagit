@@ -20,7 +20,7 @@ clone does in Repositories. A pushed branch is never rebased onto its base by
 
 The rules are the same as in Repositories: a fast-forward when nothing local is
 in the way, a rebase otherwise, and nothing at all when that would conflict.
-`R` fetches first, `Alt-P` updates every worktree.
+`R` fetches first, `U` updates every worktree.
 
 ## Conflicts forecast
 
@@ -43,10 +43,10 @@ meantime makes git refuse instead of being lost.
 ## A branch made elsewhere
 
 A branch made outside unagit has no base of its own. Origin's default branch
-stands in for it: `Alt-D` diffs against it and `Ctrl-R` rebases onto it when
+stands in for it: `B` diffs against it and `Ctrl-R` rebases onto it when
 asked, but `p` rebases an unpushed branch only onto a base that was set.
 
-- **Set Base…** (in `Alt-Enter`) picks one from the repository's branches and
+- **Set Base…** (in `.`) picks one from the repository's branches and
   records it as unagit would have.
 - **Rebase onto…** rebases the branch onto any branch, once, under the same
   rules as `Ctrl-R`, and leaves the base as it was.

@@ -19,7 +19,7 @@ func openTagForm(t *testing.T, a *App, sc tcell.SimulationScreen, p *realProject
 	commitIn(t, p.clone, "b.txt", "Count requests per client")
 	p.rescan()
 	typeRunes(sc, "g")
-	sc.InjectKey(tcell.KeyCtrlL, 0, tcell.ModCtrl)
+	typeRunes(sc, "L")
 	waitFor(t, a, sc, "Commit Log · acme/gateway (main)")
 	typeRunes(sc, "jt")
 	waitFor(t, a, sc, "New Tag at "+first[:8])

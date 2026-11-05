@@ -4,7 +4,7 @@ What you are waiting for need not be on screen.
 
 ## Watching something
 
-- **Watch Merge Request**, in the actions (`Alt-Enter`) of a merge request or
+- **Watch Merge Request**, in the actions (`.`) of a merge request or
   of its pipeline's jobs, follows it in the background: its pipeline whatever
   its head ran, a push moving the watch on to the new one, its commits,
   comments and approvals.

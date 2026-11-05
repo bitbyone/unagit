@@ -11,9 +11,9 @@ import (
 	"github.com/tobola/unagit/internal/workspace"
 )
 
-// D shows in Hunk what a row's working tree has not committed; Alt-D
+// D shows in Hunk what a row's working tree has not committed; B
 // everything since the branch's base - its commits and what is not committed.
-// One commit at a time is the commit log's (Ctrl-L). A grouped worktree
+// One commit at a time is the commit log's (L). A grouped worktree
 // is one review of all its repositories: Hunk reads one repository at a time,
 // so their changes are put together into a single patch, each path under its
 // repository's folder.
@@ -82,7 +82,7 @@ func (a *App) diffKey(dir string, targets []diffTarget) {
 	go a.runView(bin, v)
 }
 
-// diffSince is Alt-D: everything since the base - the branch's commits and
+// diffSince is B: everything since the base - the branch's commits and
 // what is not committed - in one view, a grouped worktree's repositories
 // together. Finding the base takes git, so it runs off the event loop.
 func (a *App) diffSince(dir string, targets []diffTarget) {
