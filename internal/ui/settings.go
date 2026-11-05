@@ -440,11 +440,8 @@ func (s *settingsView) fillGeneral() {
 	gitName := form.GetFormItemByLabel("Git name").(*tview.InputField)
 	form.AddInputField("Git email", cfg.GitIdentity.Email, 46, nil, nil)
 	gitEmail := form.GetFormItemByLabel("Git email").(*tview.InputField)
-	form.AddTextView("", "Who every clone commits as; blank is git's\n"+
-		"global one. A server or a group sets its own (i).", 46, 2, true, false)
-	form.AddTextView("", "The editors, the custom one among them, are in\n"+
-		"Integrations.", 46, 2, true, false)
-	form.AddTextView("", standaloneNote(cfg.Standalone), 46, 2, true, false)
+	form.AddTextView("", "Every clone commits as this unless a server,\n"+
+		"a group or a repository sets its own.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
 		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}
@@ -470,16 +467,6 @@ func (s *settingsView) fillGeneral() {
 		form.SetFocus(item)
 		s.app.tv.SetFocus(form)
 	}
-}
-
-// standaloneNote says what unagit -s was set to in its own Settings, which
-// are changed there and nowhere else.
-func standaloneNote(st config.Standalone) string {
-	every := "off"
-	if st.AutoRefresh > 0 {
-		every = fmt.Sprintf("every %d seconds", st.AutoRefresh)
-	}
-	return "unagit -s auto refresh: " + every + ".\nIt is set with S in unagit -s."
 }
 
 // ------------------------------------------------------------------ servers

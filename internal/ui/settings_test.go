@@ -79,7 +79,7 @@ func pressButton(t *testing.T, a *App, sc tcell.SimulationScreen, form *tview.Fo
 }
 
 // TestGeneralSectionEditsTheConfig: the root is set from the interface,
-// not from the file, and the editors are no longer there.
+// not from the file, and each field has its note under it.
 func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
@@ -93,9 +93,9 @@ func TestGeneralSectionEditsTheConfig(t *testing.T) {
 	if rootNote < root || !strings.Contains(text, "overrides it.") || strings.Contains(text, "Custom editor") {
 		t.Errorf("the notes are not whole, or not under their fields:\n%s", text)
 	}
-	// What unagit -s keeps in config.yaml is shown, and changed there.
-	if !strings.Contains(text, "unagit -s auto refresh: off.") || !strings.Contains(text, "It is set with S in unagit -s.") {
-		t.Errorf("standalone's auto refresh is not shown whole:\n%s", text)
+	email, emailNote := strings.Index(text, "Git email"), strings.Index(text, "Every clone commits as this unless a server,")
+	if emailNote < email || !strings.Contains(text, "a group or a repository sets its own.") {
+		t.Errorf("the identity's note is not whole, or not under its field:\n%s", text)
 	}
 
 	form := a.settings.general
