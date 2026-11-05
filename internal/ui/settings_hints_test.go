@@ -85,7 +85,7 @@ func TestSettingsHintsStayInsidePanels(t *testing.T) {
 			case sectionGitLab, sectionGitHub:
 				want = "d remove"
 			case sectionGroups:
-				want = "m refresh merge requests"
+				want = "merge requests" // the hint wraps; its last row ends it
 			case sectionTags:
 				want = "s ends:"
 			case sectionKeys:

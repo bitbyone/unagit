@@ -116,7 +116,7 @@ func (a *App) newSettingsView() *settingsView {
 		hintPanel(panel, func() string { return "a add · e edit · t token · v verify · d remove" }, 0, 0, 1, 1)
 	}
 	hintPanel(s.tree.Box, func() string {
-		return "Space select · a add repository · d root directory · t tags · r reload groups · p refresh repositories · m refresh merge requests"
+		return "Space select · a add repository · d root directory · t tags · i git identity · r reload groups · p refresh repositories · m refresh merge requests"
 	}, 0, 0, 1, 1)
 	hintPanel(s.tags.Box, func() string {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())

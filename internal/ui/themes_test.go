@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,12 @@ func TestTheDefaultThemeIsTodaysLook(t *testing.T) {
 	for key, value := range d.glyphs() {
 		if value == "" {
 			t.Errorf("the default theme leaves %s out", key)
+		}
+	}
+	// Keys once came without one, the only section left bare in the list.
+	for _, name := range append(slices.Clone(sectionNames), "Debug") {
+		if d.SectionIcons[name] == "" {
+			t.Errorf("the default theme gives Settings' %s no icon", name)
 		}
 	}
 	if len(d.Tags) != len(tagPalette) {

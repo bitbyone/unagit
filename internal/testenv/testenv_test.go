@@ -79,7 +79,11 @@ func TestTheMachineIsOutOfReach(t *testing.T) {
 			t.Errorf("%s is on PATH at %s", name, path)
 		}
 	}
-	out, err := exec.Command("git", "config", "--get", "user.email").Output()
+	// Asked outside any repository: the checkout these tests run in may
+	// have an identity of its own, which unagit itself writes there.
+	cmd := exec.Command("git", "config", "--get", "user.email")
+	cmd.Dir = t.TempDir()
+	out, err := cmd.Output()
 	if err != nil || strings.TrimSpace(string(out)) != "tests@unagit.invalid" {
 		t.Errorf("git's identity is %q (%v), not the tests'", out, err)
 	}
