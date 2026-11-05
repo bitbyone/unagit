@@ -156,6 +156,8 @@ type App struct {
 	staleMRs      bool
 
 	disk map[projectKey]diskInfo
+	// identities is what git identity was last written into each clone.
+	identities identitySweep
 
 	// chezmoi is the checkout chezmoi keeps and the repository it is, when
 	// that integration is on; chezmoiProblem says why none was found.
@@ -1089,6 +1091,7 @@ func (a *App) newManager(instanceID, projectPath string, log func(string)) *work
 	if a.vault != nil {
 		opts.Token = a.vault.Token(instanceID)
 	}
+	opts.Identity = a.identityFor(instanceID, projectPath)
 	if client := a.client(instanceID); client != nil {
 		opts.GitUser = client.GitUser()
 		opts.HeadRefFormat = strings.Replace(client.HeadRef(0), "0", "%d", 1)
@@ -1756,6 +1759,7 @@ func (a *App) refreshDisk() {
 	// only means something when Incomm is in use.
 	a.disk, a.worktrees = a.scanDisk(a.cfg.Integrations.Incomm)
 	a.localRefreshed = time.Now()
+	a.applyIdentities(nil)
 	a.loadWorktreeRemotes()
 	a.loadWorktreeSizes(false)
 	a.loadRepoSizes(false)

@@ -374,6 +374,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 	if info.Cloned {
 		d.kv("Clone", tag(colOn)+glyphDot+tagEnd+" "+esc(a.projectDir(pr.Instance, pr.PathWithNamespace)))
 		d.kv("Branch", esc(info.Branch))
+		d.kv("Commits as", a.identityLine(pr.Instance, pr.PathWithNamespace))
 	} else {
 		d.kv("Planned path", tag(colDim)+esc(a.projectDir(pr.Instance, pr.PathWithNamespace))+tagEnd)
 		d.kv("Clone", tag(colDim)+glyphRing+" not cloned ("+a.keyName(scopeRepositories, "clone", "C", "Clone")+" clones, "+a.keyName(scopeRepositories, "open", "o", "Open")+" clones and opens)"+tagEnd)

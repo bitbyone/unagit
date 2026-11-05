@@ -158,6 +158,10 @@ toggle_favourite = "*"
 # Edit Tags…: Put your tags on this repository or take them off.
 edit_tags = "t"
 
+# Set Git Identity…: Who this repository's clone, its worktrees and the
+#   agents in them commit as, over what its group or server sets.
+set_git_identity = []
+
 # Set Clone Directory…: Choose the exact directory this repository is cloned
 #   into, instead of its group's root.
 set_clone_directory = "e"

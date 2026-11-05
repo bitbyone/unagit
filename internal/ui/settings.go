@@ -436,13 +436,26 @@ func (s *settingsView) fillGeneral() {
 	root := form.GetFormItemByLabel("Default root").(*tview.InputField)
 	form.AddTextView("", "Projects go here unless a server or a group\n"+
 		"overrides it.", 46, 2, true, false)
+	form.AddInputField("Git name", cfg.GitIdentity.Name, 46, nil, nil)
+	gitName := form.GetFormItemByLabel("Git name").(*tview.InputField)
+	form.AddInputField("Git email", cfg.GitIdentity.Email, 46, nil, nil)
+	gitEmail := form.GetFormItemByLabel("Git email").(*tview.InputField)
+	form.AddTextView("", "Who every clone commits as; blank is git's\n"+
+		"global one. A server or a group sets its own (i).", 46, 2, true, false)
 	form.AddTextView("", "The editors, the custom one among them, are in\n"+
 		"Integrations.", 46, 2, true, false)
 	form.AddTextView("", standaloneNote(cfg.Standalone), 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
+		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}
+		identityChanged := strings.TrimSpace(identity.Name) != cfg.GitIdentity.Name || strings.TrimSpace(identity.Email) != cfg.GitIdentity.Email
+		cfg.SetIdentity("", "", identity)
 		s.app.saveConfig()
 		s.reload()
+		if identityChanged {
+			s.app.identityChanged("", "", "General")
+			return
+		}
 		s.app.note("Saved. Projects already on disk keep their current location.")
 	})
 	form.AddButton("Revert", func() {
@@ -819,6 +832,9 @@ func (s *settingsView) newGroupTree() *tview.TreeView {
 				}
 				s.showRootForm()
 				return nil
+			case 'i':
+				s.editTreeIdentity()
+				return nil
 			case 't':
 				switch ref, ok := s.currentRef(); {
 				case s.onRepository():
@@ -1096,6 +1112,27 @@ func (s *settingsView) onRepository() bool {
 	}
 	s.app.flash("a repository chosen on its own takes its server's directory and tags - d or t on the server, " + s.app.keyName(scopeRepositories, "edit_tags", "t", "Edit Tags…") + " in Repositories")
 	return true
+}
+
+// editTreeIdentity sets the git identity of the server, group or
+// repository under the cursor.
+func (s *settingsView) editTreeIdentity() {
+	ref, ok := s.currentRef()
+	if !ok {
+		return
+	}
+	inst := s.app.cfg.Instance(ref.instance)
+	if inst == nil {
+		return
+	}
+	switch {
+	case ref.repository != "":
+		s.app.showIdentityForm(ref.instance, ref.repository, ref.repository)
+	case ref.group != nil:
+		s.app.showIdentityForm(ref.instance, ref.group.FullPath, ref.group.FullPath)
+	default:
+		s.app.showIdentityForm(ref.instance, "", inst.Label())
+	}
 }
 
 // dropRepository takes back a repository chosen on its own. It stays in

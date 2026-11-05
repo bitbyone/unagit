@@ -55,6 +55,21 @@ So `acme/platform` can live in `~/work/platform` while everything else stays
 under `~/unagit`, and a subgroup can override its parent.
 [Where Things Land](/guide/layout) shows the whole layout.
 
+## Who commits
+
+Without it, a clone commits as whoever your global `~/.gitconfig` names, and
+so does every agent working in it. General takes a git name and email for
+every clone, and `i` in Groups & roots sets them for a server, a group or a
+repository chosen on its own. Everything below inherits, each half from the
+nearest level that sets it, so a client's group can have its own address
+while the name comes from General. **Set Git Identity…** (in `.`) does it
+for one repository.
+
+Unagit writes the outcome into each clone's own `.git/config` as soon as you
+save, before each open, and whenever it looks at the disk. The worktrees
+share it, so editors and agents opened in them commit as that person too.
+The repository's detail column says who, and where each half was set.
+
 ## 5. Refresh
 
 Go to Repositories (`1`) and press `R`. The refresh runs behind the list: the

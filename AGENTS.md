@@ -568,6 +568,19 @@ the other option, and git runs with `BatchMode=yes` - a passphrase-protected
 key with no agent therefore fails immediately instead of hanging; `hint()`
 turns that, and a few other git failures, into an instruction.
 
+**Who commits is unagit's to write** (the user asked, 2026-11-05). A git
+name and email set in General, or on a server, a group or a repository
+(`config.IdentityOf`, inherited a half at a time like the tags), is
+written into the clone's own `.git/config` over whatever was there, so its
+worktrees and the agents in them commit as that person and never as
+`~/.gitconfig`'s. `unagit.identity` marks that unagit wrote it, and only
+then is it taken out again when nothing is set. It is written when a clone
+is made sure of (`workspace.Options.Identity`, before every open), at once
+on a save (`identityChanged`), and on each look at the disk
+(`applyIdentities`, remembering what each clone was given). A pass begun
+earlier never writes over a later one (`identitySweep.generation`).
+Standalone (`unagit -s`) writes none.
+
 **chezmoi's checkout is the main clone, not unagit's.** When chezmoi's
 origin is a repository of the list, `workspace.Options.ManagedDirectory`
 makes that checkout the main clone, while the worktrees still hang off where

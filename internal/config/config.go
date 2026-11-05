@@ -734,6 +734,12 @@ type Config struct {
 	DefaultTagsSeen int      `yaml:"default_tags_seen,omitempty"`
 	GroupTags       []TagSet `yaml:"group_tags,omitempty"`
 	RepositoryTags  []TagSet `yaml:"repository_tags,omitempty"`
+	// GitIdentity is who commits are made as in every clone unagit keeps,
+	// and Identities what a server (path ""), a group or a repository sets
+	// over it for everything below; unagit writes the outcome into each
+	// clone's own git configuration (IdentityOf).
+	GitIdentity GitIdentity   `yaml:"git_identity,omitempty"`
+	Identities  []IdentitySet `yaml:"identities,omitempty"`
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`

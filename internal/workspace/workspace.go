@@ -62,7 +62,16 @@ type Options struct {
 	// HeadRefFormat is where the forge publishes a merge request head, with a
 	// single %d for the number. Empty means GitLab's layout.
 	HeadRefFormat string
+	// Identity is who commits are made as in the clone and its worktrees,
+	// written into the clone's own configuration each time the clone is
+	// made sure of, so an editor or an agent opened on it commits as that
+	// person from the first commit. Nil leaves the configuration alone.
+	Identity *Identity
 }
+
+// Identity is git's user.name and user.email for a clone; an empty half
+// falls back on the global one.
+type Identity struct{ Name, Email string }
 
 // Manager performs all disk side effects.
 type Manager struct {
@@ -247,14 +256,33 @@ func (m *Manager) CloneProject(p forge.Project) (string, error) {
 			return "", err
 		}
 	}
-	if Exists(dir) {
-		return dir, nil
+	if !Exists(dir) {
+		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+			return "", err
+		}
+		m.log("Cloning %s", p.PathWithNamespace)
+		if err := m.git.Clone(m.RemoteURL(p), dir); err != nil {
+			return dir, err
+		}
 	}
-	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-		return "", err
+	m.applyIdentity(dir)
+	return dir, nil
+}
+
+// applyIdentity writes the identity into the clone. A failure to is said in
+// the log and stops nothing: the clone is still there to open.
+func (m *Manager) applyIdentity(dir string) {
+	if id := m.opts.Identity; id != nil {
+		if changed, err := m.git.SetIdentity(dir, id.Name, id.Email); err != nil {
+			m.log("! could not set the git identity: %v", err)
+		} else if changed {
+			who := id.Name
+			if id.Email != "" {
+				who = strings.TrimSpace(who + " <" + id.Email + ">")
+			}
+			m.log("Commits here are made as %s", who)
+		}
 	}
-	m.log("Cloning %s", p.PathWithNamespace)
-	return dir, m.git.Clone(m.RemoteURL(p), dir)
 }
 
 // SetRemote points an existing clone at another address, for switching a

@@ -156,6 +156,8 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			a.toggleFavourite(pr.Instance, pr.PathWithNamespace, 0, pr.PathWithNamespace)
 		}},
 		{name: "Edit Tags…", about: "Put your tags on this repository or take them off.", keys: "t", rank: 110, run: func() { a.showRepositoryTags(pr.Instance, pr.PathWithNamespace) }},
+		{name: "Set Git Identity…", about: "Who this repository's clone, its worktrees and the agents in them commit as, over what its group or server sets.", rank: 115,
+			run: func() { a.showIdentityForm(pr.Instance, pr.PathWithNamespace, pr.PathWithNamespace) }},
 		{name: "Toggle Mark", about: "Mark repositories to put them together in one grouped worktree with Ctrl-W.", keys: "space", rank: 120, run: p.toggleMark},
 		{name: "Set Clone Directory…", about: "Choose the exact directory this repository is cloned into, instead of its group's root.", keys: "e", rank: 130, when: notCloned, run: func() { a.showProjectDirectory(pr) }},
 		a.hideAction(p),

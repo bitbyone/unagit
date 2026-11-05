@@ -53,6 +53,7 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 			a.keyIn(s.tree, "Add Repository…", "Look through every repository your accounts are members of, and list one on its own, without its group.", "a", 15, nil),
 			a.keyIn(s.tree, "Set Clone Directory…", "Choose where the group's repositories are cloned.", "d", 20, nil),
 			a.keyIn(s.tree, "Edit Tags…", "Put tags on the group; its subgroups and repositories wear them too.", "t", 30, nil),
+			a.keyIn(s.tree, "Set Git Identity…", "Who the server's, group's or repository's clones commit as; everything below inherits it, and every clone on disk gets it at once.", "i", 35, nil),
 			a.keyIn(s.tree, "Reload Groups", "Ask the servers for the groups again.", "r", 40, nil),
 			a.keyIn(s.tree, "Refresh Repositories", "Ask the servers for the repositories of the selected groups.", "p", 50, nil),
 			a.keyIn(s.tree, "Refresh Merge Requests", "Ask the servers for the open merge requests of the selected groups.", "m", 60, nil),

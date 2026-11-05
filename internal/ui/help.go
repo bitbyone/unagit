@@ -492,6 +492,7 @@ func helpRows() []helpLine {
 		key("a", "a repository on its own; space on it takes it back"),
 		key("d", "clone directory of a group or a server"),
 		key("t", "tags of a server or group; all below inherit"),
+		key("i", "git name and email; all below inherit"),
 		key("r  p  m", "reload groups · refresh projects · merge requests"),
 		key("h  l", "fold · unfold; h on what is folded: back"),
 		key("Esc", "back to the sections"),

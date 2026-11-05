@@ -1261,6 +1261,16 @@ machines, what you happen to wait for here is not.
   only marks them with `★`. Favourites first can be turned off in the order
   picker (`v` › **order**). A starred merge request is forgotten once a refresh no longer
   lists it, merged or closed.
+- **Who commits.** A clone otherwise commits as whoever `~/.gitconfig` names,
+  and so does every agent at work in it, private repositories of a client
+  included. Settings sets a git name and email in General for everything,
+  and `i` in Groups & roots sets one for a server, a group or a repository
+  chosen on its own; everything below inherits it, each half from the
+  nearest that sets it (**Set Git Identity…**, in `.`, does it for one
+  repository). Unagit writes the outcome into each clone's own
+  `.git/config` - at once on a save, before every open, and on each look at
+  the disk - so its worktrees, editors and agents commit as that person.
+  The repository's detail says who, and where it was set.
 - **Instant startup.** The lists are cached on disk and only refreshed when you
   ask; nothing hits the API behind your back.
 - **Your tokens are encrypted** with Argon2id + AES-256-GCM and exist in
