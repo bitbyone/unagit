@@ -125,7 +125,7 @@ func (a *App) openingActions(targets ...openTarget) []uiAction {
 	for _, t := range targets {
 		object := "the directory"
 		if t.verb == "Review" {
-			object = "the review worktree, made as Ctrl-R makes it - the change unstaged"
+			object = "the review worktree, made as " + a.keyName(scopeMergeRequests, "review", "Ctrl-R", "Review") + " makes it - the change unstaged"
 		}
 		for _, ag := range agents.All {
 			if !a.agentOn(ag) {

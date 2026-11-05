@@ -98,8 +98,8 @@ and Alt is told apart without case. So are the keys every list keeps for
 itself: `j`, `k`, `g`, `G`, `h`, `l`, `q`, `/`, `?`, space, the arrows, Tab,
 Esc and the tab numbers.
 
-The pickers and the hints show the keys as bound. The `?` help still shows
-unagit's own, and Settings keeps its keys. `keybinds.toml` is a choice like
+The pickers, the hints, the messages and the `?` help show the keys as
+bound. Settings keeps its keys. `keybinds.toml` is a choice like
 `config.yaml`, so it belongs in a dotfiles repository beside it.
 
 ## Help

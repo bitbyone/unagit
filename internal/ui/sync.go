@@ -274,7 +274,7 @@ func (a *App) updateFavouriteClones() {
 		}
 	}
 	if len(picked) == 0 {
-		a.note("no repository is a favourite - Ctrl-F stars one")
+		a.note("no repository is a favourite - " + a.keyName(scopeRepositories, "toggle_favourite", "Ctrl-F", "Toggle Favourite") + " stars one")
 		return
 	}
 	a.updateClones("favourite", picked)
@@ -620,7 +620,7 @@ func (a *App) reloadWorktreesHeader() {
 func (a *App) updateMR(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	if !workspace.Exists(a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch)) {
-		a.flash(fmt.Sprintf("!%d has no branch worktree yet - Ctrl-O makes it", mr.IID))
+		a.flash(fmt.Sprintf("!%d has no branch worktree yet - %s makes it", mr.IID, a.keyName(scopeMergeRequests, "open", "Ctrl-O", "Open")))
 		return
 	}
 	integrate := a.cfg.Integrations.Incomm

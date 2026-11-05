@@ -242,7 +242,7 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 			label = ""
 		}
 		if f.ownCount > 3 {
-			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · Ctrl-L lists them", f.ownCount-3)+tagEnd))
+			rows = append(rows, moreRow(tag(colDim)+fmt.Sprintf("… and %d more · %s lists them", f.ownCount-3, a.keyName(scopeWorktreeView, "show_commit_log", "Ctrl-L", "Show Commit Log"))+tagEnd))
 		}
 	}
 	if len(f.dirty) > 0 {

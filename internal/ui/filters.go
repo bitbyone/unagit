@@ -323,7 +323,7 @@ func (a *App) showMRViewOptions() {
 		flip  func()
 	}
 	options := []option{
-		{"grouped by repository (Ctrl-G)", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
+		{"grouped by repository (" + a.keyName(scopeMergeRequests, "toggle_grouping", "Ctrl-G", "Toggle Grouping") + ")", func() bool { return f.GroupByProject }, func() { f.GroupByProject = !f.GroupByProject }},
 		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
 		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
 		{"only mine", func() bool { return f.OnlyMine }, func() { f.OnlyMine = !f.OnlyMine }},

@@ -376,7 +376,7 @@ func (a *App) renderProject(pr forge.Project, det *forge.ProjectDetail, commits 
 		d.kv("Branch", esc(info.Branch))
 	} else {
 		d.kv("Planned path", tag(colDim)+esc(a.projectDir(pr.Instance, pr.PathWithNamespace))+tagEnd)
-		d.kv("Clone", tag(colDim)+glyphRing+" not cloned (C clones, Ctrl-O clones and opens)"+tagEnd)
+		d.kv("Clone", tag(colDim)+glyphRing+" not cloned ("+a.keyName(scopeRepositories, "clone", "C", "Clone")+" clones, "+a.keyName(scopeRepositories, "open", "Ctrl-O", "Open")+" clones and opens)"+tagEnd)
 	}
 	if n := len(info.MRs); n > 0 {
 		d.kv("Worktrees", fmt.Sprintf("%d merge request worktree(s)", n))
@@ -651,12 +651,12 @@ func (a *App) renderMR(mr forge.MergeRequest, path string, det *forge.MergeReque
 	if disk.Branch {
 		d.kv("Branch", tag(colOn)+glyphDiskBranch+tagEnd+" "+esc(a.mrDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Branch", tag(colDim)+glyphDiskNone+" Ctrl-O checks the branch out and opens the editor"+tagEnd)
+		d.kv("Branch", tag(colDim)+glyphDiskNone+" "+a.keyName(scopeMergeRequests, "open", "Ctrl-O", "Open")+" checks the branch out and opens the editor"+tagEnd)
 	}
 	if disk.Review {
 		d.kv("Review", tag(colOn)+glyphDiskReview+tagEnd+" "+esc(a.reviewDir(mr.Instance, path, mr.IID, mr.SourceBranch)))
 	} else {
-		d.kv("Review", tag(colDim)+glyphDiskNone+" Ctrl-R opens the change as pending edits to diff through"+tagEnd)
+		d.kv("Review", tag(colDim)+glyphDiskNone+" "+a.keyName(scopeMergeRequests, "review", "Ctrl-R", "Review")+" opens the change as pending edits to diff through"+tagEnd)
 	}
 
 	if len(problems) > 0 {

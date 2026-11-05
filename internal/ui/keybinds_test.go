@@ -383,3 +383,44 @@ pull = []
 		}
 	}
 }
+
+// TestTheHelpNamesTheBoundKeys: ? says the keys the file gave, where the
+// row is about - a row of the log or the Changes keeps theirs - and a
+// row whose key is gone, or does something else now, goes with it.
+func TestTheHelpNamesTheBoundKeys(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t, withKeybinds(t, `
+[global]
+actions = ["ctrl+space", "alt+enter"]
+
+[repositories]
+open = "ctrl+e"
+hide_or_unhide = []
+commit = "p"
+`))
+	waitFor(t, a, sc, "acme/gateway")
+	rows := onLoop(a, func() []helpLine { return a.helpBound(contextHelpRows(helpRepoList)) })
+	keyOf := func(text string) string {
+		for _, line := range rows {
+			if strings.HasPrefix(line.text, text) {
+				return line.keys
+			}
+		}
+		return "gone"
+	}
+	for text, want := range map[string]string{
+		"open as it is on disk":           "Ctrl-E",
+		"in changes: open the repo":       "Ctrl-O",
+		"every action on the selection":   "Ctrl-Space",
+		"the same, where the terminal":    "Alt-Enter",
+		"hide or show the repository":     "gone",
+		"pull; rebases your work":         "gone",
+		"commit versioned files; push":    "p",
+		"the same, in an editor you":      "Alt-O",
+		"new sandbox task, from anywhere": "Ctrl-S",
+	} {
+		if got := keyOf(text); got != want {
+			t.Errorf("%q: the help says %q, want %q", text, got, want)
+		}
+	}
+}

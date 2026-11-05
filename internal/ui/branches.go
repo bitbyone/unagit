@@ -442,7 +442,7 @@ func (a *App) deleteBranch(pr forge.Project, b branchInfo, here, there bool, aga
 	}
 	switch {
 	case here && !b.local:
-		a.flash(b.name + " is only on origin - Alt-D deletes it there")
+		a.flash(b.name + " is only on origin - " + a.keyName(scopeBranches, "delete_on_origin", "Alt-D", "Delete on Origin…") + " deletes it there")
 		return
 	case there && !b.remote:
 		a.flash(b.name + " is not on origin")

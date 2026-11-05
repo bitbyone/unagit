@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"unicode"
@@ -50,6 +51,10 @@ func KeybindsReference() string { return keybindsReference }
 var (
 	registryOnce sync.Once
 	registry     keymap.Registry
+	// registryOrder is each section's ids in the reference's order, which
+	// is the order of the screen's actions: of two with one key (Clone and
+	// Clone All Marked), the one on a single row comes first.
+	registryOrder map[string][]string
 )
 
 // keyRegistry reads the reference once per process.
@@ -60,6 +65,18 @@ func keyRegistry() keymap.Registry {
 			panic("the keybinds reference is not TOML: " + err.Error())
 		}
 		registry = keymap.Registry{}
+		registryOrder = map[string][]string{}
+		section := ""
+		for _, line := range strings.Split(keybindsReference, "\n") {
+			line = strings.TrimSpace(line)
+			switch {
+			case strings.HasPrefix(line, "["):
+				section = strings.Trim(line, "[]")
+			case section != "" && strings.Contains(line, "=") && !strings.HasPrefix(line, "#"):
+				id := strings.TrimSpace(line[:strings.Index(line, "=")])
+				registryOrder[section] = append(registryOrder[section], id)
+			}
+		}
 		for section, ids := range raw {
 			registry[section] = map[string][]keymap.Key{}
 			for id, v := range ids {
@@ -344,4 +361,91 @@ func (a *App) actionsKey() string {
 		return keys[0].String()
 	}
 	return ""
+}
+
+// helpKeys is a row of the help's keys as the user has them where the row
+// is about (scope; keymap.Global for keys that are the same everywhere):
+// each key some action has by default becomes that action's key in the
+// file - the n-th of its keys the n-th - and "-" when it has none any more,
+// or when the file gave the key to another action. A word that is no
+// action's key (j, a column's name, a glyph) stays as it is. kept is false
+// when every key the row named was taken away, and the row has nothing to
+// say.
+func (a *App) helpKeys(scope, keys string) (out string, kept bool) {
+	if a.keys == nil || scope == "" {
+		return keys, true
+	}
+	reg, order := keyRegistry(), registryOrder
+	sections := []string{scope}
+	if scope != keymap.Global {
+		sections = append(sections, keymap.Global)
+	}
+	claimed := func(k keymap.Key) bool {
+		for _, section := range sections {
+			for _, id := range order[section] {
+				if bound, ok := a.keys.Keys(scope, id); ok && slices.Contains(bound, k) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	rewrite := func(word string) (string, bool) {
+		k, ok := keymap.Display(word)
+		if !ok {
+			return word, false
+		}
+		for _, section := range sections {
+			for _, id := range order[section] {
+				n := slices.Index(reg[section][id], k)
+				if n < 0 {
+					continue
+				}
+				bound, chosen := a.keys.Keys(scope, id)
+				switch {
+				case !chosen && claimed(k):
+					return "-", true
+				case !chosen:
+					return word, true
+				case n < len(bound):
+					return bound[n].String(), true
+				}
+				return "-", true
+			}
+		}
+		return word, false
+	}
+	var b strings.Builder
+	named, left := 0, 0
+	for i := 0; i < len(keys); {
+		j := i
+		for j < len(keys) && keys[j] != ' ' {
+			j++
+		}
+		if j > i {
+			word, isKey := rewrite(keys[i:j])
+			if isKey {
+				named++
+				if word != "-" {
+					left++
+				}
+			}
+			b.WriteString(word)
+		}
+		for j < len(keys) && keys[j] == ' ' {
+			b.WriteByte(' ')
+			j++
+		}
+		i = j
+	}
+	return b.String(), named == 0 || left > 0
+}
+
+// keyName is how a sentence names an action's key - "Ctrl-O makes one" -
+// as the user has it, or the action's name when the user took the key away.
+func (a *App) keyName(scope, id, def, name string) string {
+	if k := a.keyFor(scope, id, def); k != "" {
+		return k
+	}
+	return name
 }

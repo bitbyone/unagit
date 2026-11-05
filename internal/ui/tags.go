@@ -292,7 +292,7 @@ func (a *App) showViewOptions() {
 		flip  func()
 	}
 	options := []option{
-		{"grouped by group (Ctrl-G)", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
+		{"grouped by group (" + a.keyName(scopeRepositories, "toggle_grouping", "Ctrl-G", "Toggle Grouping") + ")", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
 		{"favourites first, flat (o)", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
 		{"only what is cloned (L)", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
 	}

@@ -259,15 +259,17 @@ or `id` where the name changes with the state (Mark as Draft) or two
 names are one action (Open Checkout is `open`) - in the section of
 where it is done (`scope*`: a pane's `scope`, `actionKeys`' scope,
 `pickerOptions.scope`). So a key is never matched outside `matches` and
-`keysMatch`, a hint that names a key is written from the bound actions
-(`keyHints`, `hintFor`), and the pickers' own keys are
+`keysMatch`, a hint or a message that names a key is written from the
+bound actions (`keyHints`, `hintFor`, `keyName`), the `?` help rewrites
+its keys column through `helpKeys` (a row about another place than its
+heading says so with `at`), and the pickers' own keys are
 `opensSelectionActions`. Renaming an action renames its id and quietly
 drops whatever a user bound to it: give it `id` with the old one. The
 reference of every id (`ui/keybinds.toml`, what `unagit keys` prints and
 the file is checked against) is written by
 `TestTheKeybindsReferenceIsCurrent -args -update-keybinds`, which fails
 until a new action or key is in it. Settings keeps its keys, and so do
-dialogs without a scope; the `?` help still names the defaults.
+dialogs without a scope.
 
 A list in a dialog is the same idea at a smaller scale:
 each of its keys (`pickKey`) has a name and an about as an action has, and

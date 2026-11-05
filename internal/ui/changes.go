@@ -128,7 +128,7 @@ func (a *App) showMRChanges(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	dir := a.mrDir(mr.Instance, project.PathWithNamespace, mr.IID, mr.SourceBranch)
 	if !workspace.Exists(dir) {
-		a.flash(fmt.Sprintf("!%d has no branch worktree - Ctrl-O makes one; a review's changes are the merge request's", mr.IID))
+		a.flash(fmt.Sprintf("!%d has no branch worktree - %s makes one; a review's changes are the merge request's", mr.IID, a.keyName(scopeMergeRequests, "open", "Ctrl-O", "Open")))
 		return
 	}
 	a.showChanges(changesPlace{instance: mr.Instance, path: project.PathWithNamespace, dir: dir,

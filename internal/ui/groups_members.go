@@ -23,7 +23,7 @@ import (
 // and goes on with the one picked.
 func (a *App) addToGroup(r worktreeRow) {
 	if !r.grouped() {
-		a.flash("a adds a repository to a grouped worktree; Ctrl-W in Repositories makes one")
+		a.flash("a adds a repository to a grouped worktree; " + a.keyName(scopeRepositories, "new_grouped_worktree", "Ctrl-W", "New Grouped Worktree…") + " in Repositories makes one")
 		return
 	}
 	in := map[projectKey]bool{}

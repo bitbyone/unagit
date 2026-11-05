@@ -759,7 +759,7 @@ func (a *App) cloneMRReview(mr forge.MergeRequest) {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("!%d is ready for review in %s · Ctrl-R opens it", mr.IID, tildePath(dir)), nil
+			return fmt.Sprintf("!%d is ready for review in %s · %s opens it", mr.IID, tildePath(dir), a.keyName(scopeMergeRequests, "review", "Ctrl-R", "Review")), nil
 		})
 }
 

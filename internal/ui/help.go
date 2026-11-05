@@ -9,6 +9,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/editors"
+	"github.com/tobola/unagit/internal/keymap"
 )
 
 // Help captures focus before opening its overlay; it describes the place the
@@ -42,6 +43,15 @@ const (
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
+
+// at says where in keybinds.toml a row's keys are bound, when it is not
+// where its heading's are: "in the log: ..." is the log's.
+func (l helpLine) at(bind string) helpLine { l.bind = bind; return l }
+
+const (
+	helpHere   = ""
+	helpNoKeys = "-"
+)
 
 func (a *App) helpContext() (helpContext, string) {
 	if a.solo != nil {
@@ -133,6 +143,64 @@ func contextHelpRows(context helpContext) []helpLine {
 	return rows
 }
 
+// helpBound is the help with the keys the user gave the actions in
+// keybinds.toml, so it never names a key that does something else now. A
+// row whose every key was taken away goes.
+func (a *App) helpBound(rows []helpLine) []helpLine {
+	if a.keys == nil {
+		return rows
+	}
+	here := a.helpScope()
+	var out []helpLine
+	for _, line := range rows {
+		bind := line.bind
+		if bind == helpHere {
+			bind = here
+		}
+		if line.keys != "" && bind != helpNoKeys {
+			keys, kept := a.helpKeys(bind, line.keys)
+			if !kept {
+				continue
+			}
+			line.keys = keys
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// helpScope is the section of keybinds.toml of the screen the help was
+// opened over; where nothing is bound, global's keys are all it names.
+func (a *App) helpScope() string {
+	if a.solo != nil {
+		switch a.currentTab() {
+		case pageSoloChanges:
+			return scopeChanges
+		case pageSoloLog:
+			return scopeLog
+		case pageSoloBranches:
+			return scopeBranches
+		}
+		return keymap.Global
+	}
+	switch a.currentTab() {
+	case pageProjects:
+		return scopeRepositories
+	case pageMRs:
+		return scopeMergeRequests
+	case pageWorktrees:
+		if a.wtView != nil {
+			return scopeWorktreeView
+		}
+		return scopeWorktrees
+	case pageActivity:
+		return scopeActivity
+	case pageSandboxes:
+		return scopeSandboxes
+	}
+	return keymap.Global
+}
+
 // soloHelpRows keeps of the help what standalone has: the rest is about
 // lists and servers it does not show.
 func soloHelpRows(rows []helpLine) []helpLine {
@@ -158,6 +226,11 @@ type helpLine struct {
 	section string
 	keys    string
 	text    string
+	// bind is the section of keybinds.toml the row's keys are bound in:
+	// a row takes its heading's, and a heading without one is about the
+	// screen the help was opened over (helpHere). helpNoKeys is a part
+	// whose keys nobody binds - Settings, a dialog without a section.
+	bind string
 }
 
 func section(name string, scope helpContext) helpLine { return helpLine{section: name, scope: scope} }
@@ -188,7 +261,7 @@ func helpRows() []helpLine {
 		key("q", "quit"),
 		blank(),
 
-		section("The detail column", helpDetails),
+		section("The detail column", helpDetails).at(helpNoKeys),
 		key("j k g G", "scroll"),
 		key("Ctrl-F Ctrl-B", "page"),
 		key("h  ←  Esc", "back to the list"),
@@ -209,7 +282,7 @@ func helpRows() []helpLine {
 		key("q", "quit"),
 		blank(),
 
-		section("Dialogs", helpStandalone),
+		section("Dialogs", helpStandalone).at(keymap.Global),
 		key("c  Esc", "cancel · go back"),
 		key("letter", "the button whose letter is lit"),
 		key("j k  Tab", "a form: from field to field, over the buttons"),
@@ -227,32 +300,32 @@ func helpRows() []helpLine {
 		key("d", "delete from disk; warns about unsaved work"),
 		key("w", "open in the browser").in(helpLists),
 		key("Ctrl-L", "commit log; Enter shows a commit's detail"),
-		key("D  Alt-D", "in the log: the commit · from it to now, in Hunk"),
-		key("C  B  e", "in the log: checkout · back to branch · edit message"),
-		key("u", "in the log: undo the newest commit"),
-		key("P", "in the log: push up to the commit"),
-		key("space  s", "in the log: mark commits · squash the marked"),
-		key("H", "in the log: rewrite history, to undo a change"),
-		key("R", "in the log: the reflog, to go back anywhere"),
-		key("n  Ctrl-W", "in the log: a branch · a worktree at the commit"),
-		key("t  T", "in the log: a tag on the commit · its tags"),
-		key("w  y", "in the log: browser · copy id, link, reference"),
-		key("J", "in the log: the commit's pipelines"),
+		key("D  Alt-D", "in the log: the commit · from it to now, in Hunk").at(scopeLog),
+		key("C  B  e", "in the log: checkout · back to branch · edit message").at(scopeLog),
+		key("u", "in the log: undo the newest commit").at(scopeLog),
+		key("P", "in the log: push up to the commit").at(scopeLog),
+		key("space  s", "in the log: mark commits · squash the marked").at(scopeLog),
+		key("H", "in the log: rewrite history, to undo a change").at(scopeLog),
+		key("R", "in the log: the reflog, to go back anywhere").at(scopeLog),
+		key("n  Ctrl-W", "in the log: a branch · a worktree at the commit").at(scopeLog),
+		key("t  T", "in the log: a tag on the commit · its tags").at(scopeLog),
+		key("w  y", "in the log: browser · copy id, link, reference").at(scopeLog),
+		key("J", "in the log: the commit's pipelines").at(scopeLog),
 		key("D  Alt-D", "Hunk: not committed · since the base"),
 		key("Ctrl-K", "changes: the files not committed, their diffs"),
-		key("space  x  a", "in changes: mark · tick for the commit · all"),
-		key("c  R  d", "in changes: commit ticked · rollback · delete"),
-		key("s", "in changes: shelve the marked files, or all"),
-		key("A  I", "in changes: add to git · add to .gitignore"),
-		key("/  y  D", "in changes: filter · copy paths or a patch · Hunk"),
-		key("Ctrl-O", "in changes: open the repo, the file in front"),
+		key("space  x  a", "in changes: mark · tick for the commit · all").at(scopeChanges),
+		key("c  R  d", "in changes: commit ticked · rollback · delete").at(scopeChanges),
+		key("s", "in changes: shelve the marked files, or all").at(scopeChanges),
+		key("A  I", "in changes: add to git · add to .gitignore").at(scopeChanges),
+		key("/  y  D", "in changes: filter · copy paths or a patch · Hunk").at(scopeChanges),
+		key("Ctrl-O", "in changes: open the repo, the file in front").at(scopeChanges),
 		key("y", "copy the link, reference, branch or directory"),
 		key("yy", "copy the link"),
 		key("r", "refresh the row: fetch it, ask the server about it"),
 		key("R", "refresh the whole list from the servers"),
 		key("E", "running editors: Enter attach · a in… · x close"),
 		key("Alt-A", "running agents: Enter goes to one"),
-		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit"),
+		key("Ctrl-Z", "in Neovim 0.12+: put aside and return to unagit").at(helpNoKeys),
 		key(editorGlyph(editors.Nvim), "this directory is open in Neovim"),
 		key(glyphAgent, "an agent works here; its colour, what it does"),
 		key(glyphWatched, "its pipelines are watched; see Activity (4)"),
@@ -267,15 +340,15 @@ func helpRows() []helpLine {
 		key("Ctrl-F", glyphFavourite+" star; starred lead a flat list unless o says not"),
 		blank(),
 
-		section("Repositories", helpRepositories),
+		section("Repositories", helpRepositories).at(scopeRepositories),
 		key("C", "clone without opening the editor"),
 		key("e", "set the clone directory of an uncloned repository"),
 		key("b", "branches: where each is; Enter switches the clone"),
-		key("n", "in b: a new branch from the one under the cursor"),
-		key("m", "in b: a merge request from the branch"),
-		key("d  D  Alt-D", "in b: delete in the clone · everywhere · on origin"),
-		key("d  D", "in b: a branch out in a worktree goes with it"),
-		key("Ctrl-W", "in b: a worktree for the branch"),
+		key("n", "in b: a new branch from the one under the cursor").at(scopeBranches),
+		key("m", "in b: a merge request from the branch").at(scopeBranches),
+		key("d  D  Alt-D", "in b: delete in the clone · everywhere · on origin").at(scopeBranches),
+		key("d  D", "in b: a branch out in a worktree goes with it").at(scopeBranches),
+		key("Ctrl-W", "in b: a worktree for the branch").at(scopeBranches),
 		key("p", "pull; rebases your work; refuses on a conflict"),
 		key("Alt-P", "the same for every clone origin has moved past"),
 		key("c", "commit versioned files; push with it if you like"),
@@ -299,7 +372,7 @@ func helpRows() []helpLine {
 		key("SIZE", "on disk: the clone and all its worktrees"),
 		blank(),
 
-		section("Worktrees", helpWorktrees),
+		section("Worktrees", helpWorktrees).at(scopeWorktrees),
 		key("p", "pull; unpushed: rebase onto the branch it came from"),
 		key("Alt-P", "the same for every worktree"),
 		key("Ctrl-R", "rebase onto its base; pushed: force push after"),
@@ -324,7 +397,7 @@ func helpRows() []helpLine {
 		key("CREATED", "when the worktree was made"),
 		blank(),
 
-		section("Activity", helpActivity),
+		section("Activity", helpActivity).at(scopeActivity),
 		key("Enter", "a pipeline's jobs · go to the agent"),
 		key("h j k l", "past a panel's edge: to the panel beside it"),
 		key("Tab", "next panel: detail, log, editors, watching"),
@@ -339,10 +412,10 @@ func helpRows() []helpLine {
 		key(glyphNew, "new since your last visit; counted on the tab"),
 		blank(),
 
-		section("Sandboxes", helpSandboxes),
+		section("Sandboxes", helpSandboxes).at(scopeSandboxes),
 		key("Tab", "next panel: environment, tasks, detail, …"),
 		key("h j k l", "past a panel's edge: to the panel beside it"),
-		key("B  t  N  L  E", "cards · tasks · envs · log · environment"),
+		key("B  t  N  L  E", "cards · tasks · envs · log · environment").at(helpNoKeys),
 		key("Enter", "into the detail of what is chosen"),
 		key("o", "a task: resume its agent; one at work is gone to"),
 		key("a", "a task: resume with another of the sandbox's agents"),
@@ -366,7 +439,7 @@ func helpRows() []helpLine {
 		key(glyphTabProblem+"2", "by the tab: how many things the sandboxes lack"),
 		blank(),
 
-		section("A worktree's view (Enter)", helpWorktreeDetail),
+		section("A worktree's view (Enter)", helpWorktreeDetail).at(scopeWorktreeView),
 		key("j  k", "from block to block: the group, each repository"),
 		key("p  P  C", "pull · push · commit what is lit"),
 		key("w  c  Ctrl-L", "a repository's web page · comments · commits"),
@@ -375,11 +448,11 @@ func helpRows() []helpLine {
 		key("a  x", "add a repository · take the lit one out"),
 		blank(),
 
-		section("Merge requests", helpMergeRequests),
+		section("Merge requests", helpMergeRequests).at(scopeMergeRequests),
 		key("Ctrl-R", "review: the whole change as unstaged edits"),
 		key("Alt-R", "the same, in an editor you choose"),
-		key("Ctrl-R", "in the log: review from that commit to the head"),
-		key(glyphDot, "in the log: a commit new since your last review"),
+		key("Ctrl-R", "in the log: review from that commit to the head").at(scopeLog),
+		key(glyphDot, "in the log: a commit new since your last review").at(scopeLog),
 		key("C", "make the review worktree without opening it"),
 		key("p", "pull the branch worktree; rebases your work"),
 		key("c", "read the conversation, write a comment"),
@@ -398,29 +471,29 @@ func helpRows() []helpLine {
 		key("CI", glyphCIDone+" passed/failed · "+ciFrame()+" running · "+glyphCIIdle+" waiting, skipped"),
 		key("V", "mark as reviewed: NEW counts from the head now"),
 		key("J", "pipeline jobs: Enter log · R run, retry · w web"),
-		key("P", "in the jobs: earlier pipelines, ↺ attempts"),
+		key("P", "in the jobs: earlier pipelines, ↺ attempts").at(helpNoKeys),
 		key("H", "hide the author's merge requests (bots)"),
 		key("x", "hide the repository's MRs; refreshes skip them"),
 		key("space", "mark; x H r V y Ctrl-F then act on all"),
 		key("v", "server · mine · review · drafts · age · columns"),
 		blank(),
 
-		section("Comments  (c)", 0),
+		section("Comments  (c)", 0).at(helpNoKeys),
 		key("i", "write one"),
 		key("Ctrl-S", "send it"),
 		key("A", "approve"),
 		key("r", "reload"),
 		blank(),
 
-		section("Settings  (S)", helpSettingsList),
+		section("Settings  (S)", helpSettingsList).at(helpNoKeys),
 		key("j  k", "move between the sections"),
 		key("Enter  l", "edit the section"),
 		blank(),
-		section("Settings · servers", helpServers),
+		section("Settings · servers", helpServers).at(helpNoKeys),
 		key("a e t v d", "add · edit · token · verify · remove"),
 		key("Esc  h", "back to the sections"),
 		blank(),
-		section("Settings · groups", helpGroups),
+		section("Settings · groups", helpGroups).at(helpNoKeys),
 		key("space", "off → this group → with subgroups (GitHub: on · off)"),
 		key("a", "a repository on its own; space on it takes it back"),
 		key("d", "clone directory of a group or a server"),
@@ -429,12 +502,12 @@ func helpRows() []helpLine {
 		key("h  l", "fold · unfold; h on what is folded: back"),
 		key("Esc", "back to the sections"),
 		blank(),
-		section("Settings · tags", helpTags),
+		section("Settings · tags", helpTags).at(helpNoKeys),
 		key("a e d", "add · edit · remove a tag"),
 		key("s", "pill ends: rounded (Nerd Font) · circles · square"),
 		key("Esc  h", "back to the sections"),
 		blank(),
-		section("Settings · theme", helpTheme),
+		section("Settings · theme", helpTheme).at(helpNoKeys),
 		key("Enter", "draw unagit in the theme under the cursor"),
 		key("f", "fork into a file of yours; each save shows"),
 		key("n", "Nerd Font icons: from the terminal · on · off"),
@@ -442,17 +515,17 @@ func helpRows() []helpLine {
 		key("r", "read <config>/themes/*.json again"),
 		key("Esc  h", "back to the sections"),
 		blank(),
-		section("Settings · security", helpSecurity),
+		section("Settings · security", helpSecurity).at(helpNoKeys),
 		key("c", "change the passphrase"),
 		key("k", "remember it in the macOS Keychain, or forget it"),
 		key("Esc  h", "back to the sections"),
 		blank(),
-		section("Settings · general", helpGeneral),
+		section("Settings · general", helpGeneral).at(helpNoKeys),
 		key("s  r", "save · revert; Esc first while typing"),
 		key("Tab / Shift-Tab", "next / previous field"),
 		key("Esc  h", "back to the sections"),
 		blank(),
-		section("Settings · integrations", helpIntegrations),
+		section("Settings · integrations", helpIntegrations).at(helpNoKeys),
 		key("e", "toggle the selected integration"),
 		key("d", "on an editor: set it as default, or none"),
 		key("o", "on Custom: its command, arguments, kind"),
@@ -461,7 +534,7 @@ func helpRows() []helpLine {
 		key("Esc  h", "back to the sections"),
 		blank(),
 
-		section("Command line · unagit ...", 0),
+		section("Command line · unagit ...", 0).at(helpNoKeys),
 		key("-s [DIR]", "standalone: one repository, git alone"),
 		key("cd", "a shell where unagit has an editor open"),
 		key("cd --print", "just that path, for cd \"$(...)\""),
@@ -471,7 +544,7 @@ func helpRows() []helpLine {
 		key("open URL", "open that link's branch worktree"),
 		blank(),
 
-		section("On disk", helpLists),
+		section("On disk", helpLists).at(helpNoKeys),
 		key(glyphDiskNone+" "+glyphDiskBranch+" "+glyphDiskReview+" "+glyphDiskBoth, "nothing · branch worktree · review worktree · both"),
 		key(glyphHidden, "hidden from the lists"),
 		key(glyphExternal+" Chezmoi", "chezmoi's checkout; worktrees still under the root"),
@@ -483,12 +556,16 @@ func helpRows() []helpLine {
 		blank(),
 	}
 	var scope helpContext
+	bind := helpHere
 	for i := range rows {
 		if rows[i].section != "" {
-			scope = rows[i].scope
+			scope, bind = rows[i].scope, rows[i].bind
 		}
 		if rows[i].scope == 0 {
 			rows[i].scope = scope
+		}
+		if rows[i].bind == helpHere {
+			rows[i].bind = bind
 		}
 	}
 	return rows
@@ -529,7 +606,7 @@ func (a *App) showHelp() {
 	context, title := a.helpContext()
 	box(table.Box, "unagit · keys · "+title).SetBorderPadding(0, 0, 2, 2)
 
-	rows := contextHelpRows(context)
+	rows := a.helpBound(contextHelpRows(context))
 	if a.solo != nil {
 		rows = soloHelpRows(rows)
 	}

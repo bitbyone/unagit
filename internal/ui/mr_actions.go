@@ -45,7 +45,7 @@ func (a *App) mergeMR(mr forge.MergeRequest) {
 		tview.Escape(mr.Title),
 		tag(colMuted) + tview.Escape(mr.SourceBranch) + " → " + tview.Escape(mr.TargetBranch) + tagEnd,
 	}
-	for _, w := range mergeWarnings(mr, underway) {
+	for _, w := range mergeWarnings(mr, underway, a.keyName(scopeMergeRequests, "toggle_draft", "Ctrl-D", "Mark as Ready")) {
 		lines = append(lines, tag(colWarn)+"! "+tagEnd+tview.Escape(w))
 	}
 
@@ -115,10 +115,10 @@ func (a *App) mergeMR(mr forge.MergeRequest) {
 
 // mergeWarnings are what the list knows that may stop a merge, or should
 // make one think twice.
-func mergeWarnings(mr forge.MergeRequest, underway bool) []string {
+func mergeWarnings(mr forge.MergeRequest, underway bool, readyKey string) []string {
 	var out []string
 	if mr.Draft {
-		out = append(out, "it is a draft - Ctrl-D marks it ready")
+		out = append(out, "it is a draft - "+readyKey+" marks it ready")
 	}
 	switch {
 	case ciStateOf(mr.Pipeline) == ciFailed:

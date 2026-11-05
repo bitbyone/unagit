@@ -1159,7 +1159,7 @@ func (a *App) showActivityLog() {
 // showWatches lists everything watched, to go to one or stop watching it.
 func (a *App) showWatches() {
 	if len(a.watches) == 0 {
-		a.note("nothing watched: Watch Merge Request or Watch Branch in the actions of a row (Alt-Enter)")
+		a.note("nothing watched: Watch Merge Request or Watch Branch in the actions of a row (" + a.actionsKey() + ")")
 		return
 	}
 	var picker *livePicker
