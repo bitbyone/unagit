@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/tobola/unagit/internal/config"
 )
 
 // localConfig is a key of a clone's own git configuration.
@@ -108,4 +110,41 @@ func TestTheIdentityFormFits(t *testing.T) {
 		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 		waitGone(t, a, sc, "Git identity · ")
 	}
+}
+
+// TestTheGroupsTreeSaysWhoCommits: a server's or a group's own identity is
+// at the end of its row, a half set alone is shown alone, and a row that
+// only inherits one repeats nothing.
+func TestTheGroupsTreeSaysWhoCommits(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	changeOnLoop(a, func() {
+		id := a.cfg.Instances[0].ID
+		a.cfg.SetIdentity(id, "", config.GitIdentity{Name: "Jan Work", Email: "jan@work.example"})
+		a.cfg.SetIdentity(id, "acme", config.GitIdentity{Email: "bot@acme.example"})
+	})
+	openSection(t, a, sc, sectionGroups)
+	resizeApp(a, sc, 200, 30)
+	changeOnLoop(a, func() { a.settings.fillTree() })
+	waitFor(t, a, sc, "bot@acme.example")
+	screen := a.screenText(sc)
+	server, group := rowOf(t, a, sc, "jan@work.example"), rowOf(t, a, sc, "bot@acme.example")
+	lines := strings.Split(screen, "\n")
+	if !strings.Contains(lines[server], glyphUser+" Jan Work  jan@work.example") {
+		t.Errorf("the server's row: %q", lines[server])
+	}
+	if !strings.Contains(lines[group], "(incl. subgroups)") || !strings.Contains(lines[group], glyphUser+" bot@acme.example") {
+		t.Errorf("the group's row: %q", lines[group])
+	}
+	if strings.Count(screen, "jan@work.example") != 1 {
+		t.Error("a row that inherits the identity repeats it")
+	}
+
+	// Taken away, it is gone from the tree.
+	changeOnLoop(a, func() {
+		a.cfg.SetIdentity(a.cfg.Instances[0].ID, "acme", config.GitIdentity{})
+		a.settings.fillTree()
+	})
+	waitGone(t, a, sc, "bot@acme.example")
 }

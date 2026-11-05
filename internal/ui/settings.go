@@ -941,7 +941,7 @@ func (s *settingsView) fillTree() {
 		for _, r := range inst.Repositories {
 			ref := treeRef{instance: inst.ID, repository: r.FullPath}
 			node := tview.NewTreeNode(tag(colOn) + glyphCheck + tagEnd + " " + esc(r.FullPath) +
-				"  " + tag(colMuted) + "(on its own)" + tagEnd).
+				"  " + tag(colMuted) + "(on its own)" + tagEnd + s.identityMark(inst.ID, r.FullPath)).
 				SetReference(ref).
 				SetSelectable(true)
 			node.SetSelectedTextStyle(styleSelected)
@@ -1002,13 +1002,39 @@ func (s *settingsView) fillTree() {
 func (s *settingsView) instanceNodeText(inst config.Instance) string {
 	root := tildePath(s.app.cfg.RootFor(&inst, "x/y"))
 	root = strings.TrimSuffix(root, "/x")
-	text := fmt.Sprintf("%s[::b]%s[::-]%s  %s→ %s%s",
-		tag(colAccent), inst.Label(), tagEnd, tag(colDim), root, tagEnd)
+	icon := s.app.forgeIcon(inst.ID)
+	if icon != "" {
+		icon = tag(colAccent) + icon + tagEnd + " "
+	}
+	text := fmt.Sprintf("%s%s[::b]%s[::-]%s  %s%s %s%s",
+		icon, tag(colAccent), inst.Label(), tagEnd, tag(role("settings.root")), glyphFolder, root, tagEnd)
 	if tags := s.app.cfg.ServerTagsOf(inst.ID); len(tags) > 0 {
 		markup, _ := s.app.pills(tags, 80, behindList)
 		text += "  " + markup
 	}
-	return text
+	return text + s.identityMark(inst.ID, "")
+}
+
+// identityMark is who commits in a server (path ""), a group or a
+// repository, at the end of its row in the tree - only where it is set, so
+// the rows below that inherit it do not all repeat it; a repository's
+// detail says what it comes to.
+func (s *settingsView) identityMark(instance, path string) string {
+	id := s.app.cfg.OwnIdentity(instance, path)
+	if id.Empty() {
+		return ""
+	}
+	who := tag(role("settings.identity")) + glyphUser + " "
+	if id.Name != "" {
+		who += esc(id.Name) + tagEnd
+		if id.Email != "" {
+			who += "  "
+		}
+	}
+	if id.Email != "" {
+		who += tag(role("settings.email")) + esc(id.Email) + tagEnd
+	}
+	return "    " + tag(role("settings.separator")) + glyphSeparator + tagEnd + "  " + who
 }
 
 func (s *settingsView) groupsOf(instanceID string) []forge.Group {
@@ -1032,9 +1058,10 @@ func (s *settingsView) labelGroup(node *tview.TreeNode, instanceID string, g for
 		suffix = "  " + markup
 	}
 	if sel := inst.Group(g.ID); sel != nil && sel.RootDir != "" {
-		suffix += fmt.Sprintf("  %s→ %s%s", tag(colWarn),
+		suffix += fmt.Sprintf("  %s%s %s%s", tag(colWarn), glyphFolder,
 			tildePath(s.app.cfg.GroupRoot(inst, *sel)), tagEnd)
 	}
+	suffix += s.identityMark(instanceID, g.FullPath)
 	// GitHub has no subgroups, so an organisation is simply on or off.
 	if inst.IsGitHub() {
 		if inst.HasGroup(g.ID) {

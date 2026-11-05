@@ -1267,7 +1267,8 @@ machines, what you happen to wait for here is not.
   and `i` in Groups & roots sets one for a server, a group or a repository
   chosen on its own; everything below inherits it, each half from the
   nearest that sets it (**Set Git Identity…**, in `.`, does it for one
-  repository). Unagit writes the outcome into each clone's own
+  repository); the tree shows each at the end of the row that sets it.
+  Unagit writes the outcome into each clone's own
   `.git/config` - at once on a save, before every open, and on each look at
   the disk - so its worktrees, editors and agents commit as that person.
   The repository's detail says who, and where it was set.

@@ -63,7 +63,8 @@ every clone, and `i` in Groups & roots sets them for a server, a group or a
 repository chosen on its own. Everything below inherits, each half from the
 nearest level that sets it, so a client's group can have its own address
 while the name comes from General. **Set Git Identity…** (in `.`) does it
-for one repository.
+for one repository. The tree shows each identity at the end of the row where it is
+set; the rows below inherit it without repeating it.
 
 Unagit writes the outcome into each clone's own `.git/config` as soon as you
 save, before each open, and whenever it looks at the disk. The worktrees

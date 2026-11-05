@@ -252,6 +252,10 @@ var colourRoles = []colourRole{
 	{"tabs.problem", "sandboxes.problem", "after the Sandboxes tab: how many things a sandbox still lacks"},
 	{"tabs.context", "text.muted", "on the Sandboxes tab: the sandbox unibox works in when not told"},
 	{"tabs.context_on", "tabs.active", "the same on the tab's band while it is in front, between the band and its ink"},
+	{"settings.root", "text.dim", "in Settings' groups: where a server's clones go"},
+	{"settings.separator", "text.dim", "the line between a group's settings and who commits there"},
+	{"settings.identity", "column.author", "who commits in a server, a group or a repository, and its icon"},
+	{"settings.email", "text.dim", "the address commits there are made under"},
 	{"status.auto", "state.good", "beside the help: standalone looks at the repository by itself"},
 
 	// A toast is filled with its severity's colour. Unless a theme names
