@@ -155,3 +155,40 @@ func TestHGoesBackToTheSections(t *testing.T) {
 		t.Fatal("the tree forgot what h folded")
 	}
 }
+
+// TestTheActionPickersKeysAreTypedIntoFields: . and : open the pickers
+// everywhere but where something is typed - a field in INSERT, a list's
+// filter - and there they are only characters. In NORMAL . still opens.
+func TestTheActionPickersKeysAreTypedIntoFields(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "/a.b:c")
+	waitFor(t, a, sc, "a.b:c")
+	if onLoop(a, a.modalOpen) {
+		t.Fatalf("typing into the filter opened a picker:\n%s", a.screenText(sc))
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+
+	openSection(t, a, sc, sectionGeneral)
+	waitFor(t, a, sc, "Git email")
+	form := a.settings.general
+	field := onLoop(a, func() int { return form.GetFormItemIndex("Git email") })
+	onLoop(a, func() bool {
+		form.SetFocus(field)
+		a.tv.SetFocus(form)
+		a.formModes[form].insert = true
+		return true
+	})
+	typeRunes(sc, "jan@work.example:1")
+	waitFocus(t, a, func() bool {
+		return form.GetFormItem(field).(*tview.InputField).GetText() == "jan@work.example:1"
+	})
+	if onLoop(a, a.modalOpen) {
+		t.Fatalf("typing into a field opened a picker:\n%s", a.screenText(sc))
+	}
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone) // stop typing
+	typeRunes(sc, ".")
+	waitFocus(t, a, a.modalOpen)
+}

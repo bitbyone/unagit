@@ -14,6 +14,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/keymap"
 )
@@ -336,10 +337,29 @@ func (a *App) openerKeys(id string) []keymap.Key {
 }
 
 func (a *App) opens(id string, ev *tcell.EventKey) bool {
+	// A picker's key that is a character - . and : - is that character
+	// while something is typed into: a form in INSERT, a filter, a search.
+	if ev.Key() == tcell.KeyRune && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 && a.typing() {
+		return false
+	}
 	for _, k := range a.openerKeys(id) {
 		if k.Matches(ev) {
 			return true
 		}
+	}
+	return false
+}
+
+// typing reports whether the keyboard is with a field that takes what is
+// typed: an input or a text area, unless it is a form's in NORMAL, where
+// letters press buttons and type nothing.
+func (a *App) typing() bool {
+	switch a.tv.GetFocus().(type) {
+	case *tview.InputField, *tview.TextArea:
+		if form, mode := a.focusedForm(); form != nil && !mode.insert {
+			return false
+		}
+		return true
 	}
 	return false
 }

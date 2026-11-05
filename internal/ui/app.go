@@ -714,15 +714,8 @@ func (a *App) dialogTakesColon() bool {
 	case name == pageWorktree, name == pageChanges, name == pageActions, name == pageMessage, name == pageUnlock:
 		return false
 	}
-	switch a.tv.GetFocus().(type) {
-	case *tview.InputField, *tview.TextArea:
-		// A form in NORMAL types nothing; a filter or INSERT does.
-		if form, mode := a.focusedForm(); form != nil && !mode.insert {
-			return true
-		}
-		return false
-	}
-	return true
+	// A form in NORMAL types nothing; a filter or INSERT does.
+	return !a.typing()
 }
 
 // closeModal removes a modal page and gives the keyboard back to whatever was
