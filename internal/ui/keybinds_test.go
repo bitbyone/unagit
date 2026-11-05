@@ -227,9 +227,24 @@ func TestTheKeybindsReferenceIsCurrent(t *testing.T) {
 		}
 		return
 	}
-	if got != keybindsReference {
-		t.Errorf("keybinds.toml is not what the actions are; write it again with\n" +
-			"go test ./internal/ui -run TestTheKeybindsReferenceIsCurrent -args -update-keybinds")
+	// Git on Windows checks the file out with CRLF line ends.
+	want := strings.ReplaceAll(keybindsReference, "\r\n", "\n")
+	if got != want {
+		gotLines, wantLines := strings.Split(got, "\n"), strings.Split(want, "\n")
+		for i := range max(len(gotLines), len(wantLines)) {
+			g, w := "", ""
+			if i < len(gotLines) {
+				g = gotLines[i]
+			}
+			if i < len(wantLines) {
+				w = wantLines[i]
+			}
+			if g != w {
+				t.Errorf("keybinds.toml line %d is %q, the actions make it %q; write it again with\n"+
+					"go test ./internal/ui -run TestTheKeybindsReferenceIsCurrent -args -update-keybinds", i+1, w, g)
+				break
+			}
+		}
 	}
 }
 
