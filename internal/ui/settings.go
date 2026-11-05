@@ -26,9 +26,10 @@ const (
 	sectionSecurity
 	sectionIntegrations
 	sectionNotifications
+	sectionKeys
 )
 
-var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Theme", "Security", "Integrations", "Notifications"}
+var sectionNames = []string{"General", "GitLab servers", "GitHub accounts", "Groups & roots", "Tags", "Theme", "Security", "Integrations", "Notifications", "Keys"}
 
 // settingsView is the whole configuration: a list of sections on the left and
 // the section's editor on the right. Nothing here needs the file to be edited
@@ -52,6 +53,7 @@ type settingsView struct {
 	themePanel   *tview.Flex
 	themeNotes   *tview.TextView
 	security     *tview.TextView
+	keys         *tview.TextView
 	debug        *debugView // nil without --debug
 
 	current int
@@ -92,6 +94,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.tagsKept = newKeptTable(s.tags, 1)
 	s.themes = s.newThemeTable()
 	s.security = s.newSecurityPane()
+	s.keys = s.newKeysPane()
 
 	s.content = tview.NewPages()
 	s.content.AddPage("integrations", s.integrations, true, false)
@@ -103,6 +106,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("theme", s.themePanel, true, false)
 	s.content.AddPage("security", s.security, true, false)
 	s.content.AddPage("notifications", s.notices, true, false)
+	s.content.AddPage("keys", s.keys, true, false)
 	if a.debug {
 		s.debug = s.newDebugView()
 		s.content.AddPage("debug", s.debug, true, false)
@@ -124,6 +128,7 @@ func (a *App) newSettingsView() *settingsView {
 		}
 		return "c change passphrase"
 	}, 1, 1, 2, 2)
+	hintPanel(s.keys.Box, func() string { return "w write every action · e edit · r read again" }, 1, 1, 2, 2)
 	s.root = tview.NewFlex().AddItem(s.list, 24, 0, true).AddItem(s.content, 0, 1, false)
 
 	s.show(sectionGeneral)
@@ -191,6 +196,9 @@ func (s *settingsView) show(section int) {
 		s.content.SwitchToPage("security")
 	case sectionNotifications:
 		s.content.SwitchToPage("notifications")
+	case sectionKeys:
+		s.fillKeys()
+		s.content.SwitchToPage("keys")
 	case sectionDebug:
 		s.debug.fill(s.app)
 		s.content.SwitchToPage("debug")
@@ -221,6 +229,8 @@ func (s *settingsView) focusTarget() tview.Primitive {
 		return s.security
 	case sectionNotifications:
 		return s.notices
+	case sectionKeys:
+		return s.keys
 	case sectionDebug:
 		return s.debug.table
 	}
@@ -246,6 +256,8 @@ func (s *settingsView) contentBox() *tview.Box {
 		return s.security.Box
 	case sectionNotifications:
 		return s.notices.Box
+	case sectionKeys:
+		return s.keys.Box
 	case sectionDebug:
 		return s.debug.Box
 	}
@@ -259,7 +271,7 @@ func (s *settingsView) paintFocus() {
 	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.integrations.Box, s.general.Box, s.notices.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box,
+		s.integrations.Box, s.general.Box, s.notices.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box, s.keys.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -292,6 +304,8 @@ func (s *settingsView) focusContent() {
 		s.app.tv.SetFocus(s.security)
 	case sectionNotifications:
 		s.app.tv.SetFocus(s.notices)
+	case sectionKeys:
+		s.app.tv.SetFocus(s.keys)
 	case sectionDebug:
 		s.app.tv.SetFocus(s.debug.table)
 	}

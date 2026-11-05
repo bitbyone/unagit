@@ -34,12 +34,13 @@ const (
 	helpTheme
 	helpSandboxes
 	helpStandalone
+	helpKeys
 	helpRepositories  = helpRepoList | helpRepoDetail
 	helpMergeRequests = helpMRList | helpMRDetail
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSandboxes | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme
+	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSandboxes | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme | helpKeys
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -106,6 +107,8 @@ func (a *App) helpContext() (helpContext, string) {
 			return helpIntegrations, "Integrations"
 		case sectionSecurity:
 			return helpSecurity, "Security"
+		case sectionKeys:
+			return helpKeys, "Keys"
 		}
 	}
 	return 0, "Help"
@@ -523,6 +526,11 @@ func helpRows() []helpLine {
 		section("Settings · general", helpGeneral).at(helpNoKeys),
 		key("s  r", "save · revert; Esc first while typing"),
 		key("Tab / Shift-Tab", "next / previous field"),
+		key("Esc  h", "back to the sections"),
+		blank(),
+		section("Settings · keys", helpKeys).at(helpNoKeys),
+		key("w", "keybinds.toml with every action, commented out"),
+		key("e  r", "edit it · read it again, no restart needed"),
 		key("Esc  h", "back to the sections"),
 		blank(),
 		section("Settings · integrations", helpIntegrations).at(helpNoKeys),

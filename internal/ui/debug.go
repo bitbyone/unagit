@@ -22,7 +22,7 @@ import (
 // had when it is wanted to see how it looks.
 
 // sectionDebug is the last section, listed only with --debug.
-const sectionDebug = sectionNotifications + 1
+const sectionDebug = sectionKeys + 1
 
 // debugSectionName is its name in the list.
 const debugSectionName = "Debug"

@@ -424,3 +424,60 @@ commit = "p"
 		}
 	}
 }
+
+// TestSettingsWritesEveryActionCommentedOut: w in Settings › Keys starts
+// the file naming every action and changing none; uncommenting a line and
+// reading the file again (r) puts that key on with no restart, and a file
+// that is there already is never written over.
+func TestSettingsWritesEveryActionCommentedOut(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 140, 40)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, "Default root")
+	a.tv.QueueUpdateDraw(func() { a.settings.selectSection(sectionKeys); a.settings.focusContent() })
+	waitFor(t, a, sc, "none yet")
+	typeRunes(sc, "w")
+	waitFor(t, a, sc, "read, nothing wrong")
+	if testing.Verbose() {
+		t.Log("\n" + a.screenText(sc))
+	}
+
+	path := filepath.Join(onLoop(a, func() string { return a.cfg.Dir() }), keymap.FileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, problems, err := keymap.Read(data, keyRegistry())
+	if err != nil || len(problems) > 0 {
+		t.Fatalf("the template does not read: %v %v", err, problems)
+	}
+	for section, ids := range keyRegistry() {
+		for id := range ids {
+			if _, chosen := m.Keys(section, id); chosen {
+				t.Errorf("the template binds [%s] %s", section, id)
+			}
+			if !strings.Contains(string(data), "# "+id+" ") {
+				t.Errorf("the template does not name [%s] %s", section, id)
+			}
+		}
+	}
+
+	edited := strings.Replace(string(data), `# open = "ctrl+o"`, `open = "f4"`, 1)
+	if err := os.WriteFile(path, []byte(edited), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	typeRunes(sc, "w")
+	waitFor(t, a, sc, "is there already")
+	if again, _ := os.ReadFile(path); string(again) != edited {
+		t.Error("w wrote over the user's file")
+	}
+	typeRunes(sc, "\x1b")
+	waitGone(t, a, sc, "is there already")
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Read ")
+	if got := boundKey(a, a.projectsPane, "open"); got != "F4" {
+		t.Errorf("open is %q after reading the file again, want F4", got)
+	}
+}

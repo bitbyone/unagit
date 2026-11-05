@@ -81,6 +81,12 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 			a.keyIn(s.security, "Toggle Keychain", "Keep the passphrase in the macOS login keychain so unagit opens without asking, or forget it again.", "k", 20,
 				func() bool { return passphraseStore.available() }),
 		}
+	case sectionKeys:
+		return sectionNames[s.current], []uiAction{
+			a.keyIn(s.keys, "Write Every Action", "Start keybinds.toml with every action and its key, commented out; uncomment a line to change that key.", "w", 10, nil),
+			a.keyIn(s.keys, "Edit Keys", "Open keybinds.toml in the editor, writing it first when there is none.", "e", 20, nil),
+			a.keyIn(s.keys, "Read Keys Again", "Read keybinds.toml again and put its keys on at once.", "r", 30, nil),
+		}
 	case sectionDebug:
 		return debugSectionName, []uiAction{
 			{name: "Fire", about: "Show the toast, the news or the notification under the cursor, as if a server had said so.", keys: "Enter", rank: 10,

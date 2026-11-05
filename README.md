@@ -139,8 +139,10 @@ over it. A key given to an action is taken from whatever had it there.
 `unagit keys` prints every action with its key, in the shape the file takes;
 `unagit keys --check` says what is wrong in the file, as unagit does when it
 starts, and a wrong line keeps unagit's own key while the rest of the file
-holds. The pickers, the hints and the `?` help show the keys as bound;
-Settings keeps its keys.
+holds. Settings › Keys › `w` writes the file with every action in it,
+commented out, to start from; `r` there reads it again with no restart. The
+pickers, the hints and the `?` help show the keys as bound; Settings keeps
+its keys.
 
 - **Create a new repository** (`:` in Repositories) asks where - one of the
   groups picked in Settings, or a subgroup of one taken with its subgroups -

@@ -64,6 +64,13 @@ toggle_grouping = []                    # no key, the pickers still have it
 review = ["ctrl+v", "f5"]
 ```
 
+The file is not there until you make it, and it names only what you
+change. To see everything there is, Settings › Keys › `w` writes it with
+every action and its key, commented out: uncomment a line and change the
+key. What stays commented keeps unagit's own key, and follows it when a
+release changes it. `e` there opens the file in the editor, and `r` reads
+it again and puts its keys on with no restart.
+
 An action is known by its name in snake case, Open With… being `open_with`,
 in the section for where it is done:
 
