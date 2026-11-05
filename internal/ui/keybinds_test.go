@@ -24,18 +24,44 @@ var updateKeybinds = flag.Bool("update-keybinds", false, "write keybinds.toml ag
 var keybindSections = []string{keymap.Global, scopeRepositories, scopeMergeRequests, scopeWorktrees, scopeWorktreeView,
 	scopeChanges, scopeLog, scopeBranches, scopeActivity, scopeSandboxes}
 
+// keybindSectionAbout says what each section is, above it in the file.
+var keybindSectionAbout = map[string]string{
+	keymap.Global:      "Everywhere: the two action pickers, and what can be done from any screen. A section below that names the same action wins over this one on its screen.",
+	scopeRepositories:  "Repositories (1): the repository under the cursor, the marked ones, and the list.",
+	scopeMergeRequests: "Merge requests (2): the merge request under the cursor, the marked ones, and the list.",
+	scopeWorktrees:     "Worktrees (3): the worktree under the cursor, the marked ones, and the list.",
+	scopeWorktreeView:  "A worktree's view, opened with Enter on a worktree: the repository lit in it.",
+	scopeChanges:       "Changes: the files not committed and their diffs, opened from a list or the worktree view; the Changes tab of unagit -s.",
+	scopeLog:           "The commit log, opened from a list or the worktree view; the Log tab of unagit -s.",
+	scopeBranches:      "A repository's branches, opened from Repositories; the Branches tab of unagit -s.",
+	scopeActivity:      "Activity (4): the watches, the agents, the editors open, and the log.",
+	scopeSandboxes:     "Sandboxes (5): unibox's environments, sandboxes and tasks.",
+}
+
+// briefly is the first clause of an action's about, which is enough to
+// find the action by in a file of two hundred; the pickers say the rest.
+func briefly(about string) string {
+	cut := len(about)
+	for _, sep := range []string{"; ", ". ", " - ", ": ", ", or "} {
+		if i := strings.Index(about, sep); i >= 20 && i < cut {
+			cut = i
+		}
+	}
+	return strings.TrimSuffix(about[:cut], ".") + "."
+}
+
 // refEntry is one line of the reference.
 type refEntry struct {
-	id, name string
-	keys     []string
+	id, name, about string
+	keys            []string
 }
 
 func entryOf(act uiAction) refEntry {
-	return refEntry{act.ident(), act.name, append([]string{act.keys}, act.also...)}
+	return refEntry{act.ident(), act.name, act.about, append([]string{act.keys}, act.also...)}
 }
 
 func entryOfKey(k pickKey) refEntry {
-	return refEntry{k.ident(), k.name, append([]string{k.keys}, k.also...)}
+	return refEntry{k.ident(), k.name, k.about, append([]string{k.keys}, k.also...)}
 }
 
 // fileKeys is an action's keys as the file writes them, without the words
@@ -104,8 +130,8 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 			}
 		}
 		out[keymap.Global] = []refEntry{
-			{keymap.SelectionActions, "Actions of the Selection…", []string{"Alt-Enter", "Ctrl-A"}},
-			{keymap.ScreenActions, "Actions of the Screen…", []string{":"}},
+			{keymap.SelectionActions, "Actions of the Selection…", "Every action on what is selected, with its key; a key of one of them can be nothing else.", []string{"Alt-Enter", "Ctrl-A"}},
+			{keymap.ScreenActions, "Actions of the Screen…", "Every action of the screen, with its key; a key of one of them can be nothing else.", []string{":"}},
 		}
 		add(keymap.Global, a.globalActions())
 
@@ -153,26 +179,16 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 // where an id stands for two actions with different keys.
 func writeKeybindsReference(t *testing.T, entries map[string][]refEntry) string {
 	var b strings.Builder
-	b.WriteString(`# The keys of unagit's actions as they are when keybinds.toml changes none of
-# them; ` + "`unagit keys`" + ` prints this. Copy a line into keybinds.toml beside
-# config.yaml and change it there:
-#
-#   [merge_requests]
-#   review = "ctrl+v"           # one key
-#   open = ["ctrl+e", "f4"]     # several
-#   toggle_draft = []           # none
-#
-# [global] reaches an action in every section that has it, and a section's
-# own line wins over it. A key given to an action is taken from whatever had
-# it there. Keys are written ctrl+e, alt+o, alt+enter, ctrl+space, f5,
-# shift+f5, alt+pageup, P. Settings keeps its keys.
+	b.WriteString(`# The keys of unagit's actions as they are when keybinds.toml changes none
+# of them; unagit keys prints this, and Settings > Keys writes it into
+# keybinds.toml with every binding commented out.
 #
 # This file is written by the tests: go test ./internal/ui -run
 # TestTheKeybindsReferenceIsCurrent -args -update-keybinds
 `)
 	global := map[string]string{}
 	for _, section := range keybindSections {
-		type line struct{ id, value, name string }
+		type line struct{ id, value, about string }
 		var lines []line
 		seen := map[string]string{}
 		for _, e := range entries[section] {
@@ -200,15 +216,19 @@ func writeKeybindsReference(t *testing.T, entries map[string][]refEntry) string 
 				continue
 			}
 			seen[e.id] = value
-			lines = append(lines, line{e.id, value, e.name})
+			lines = append(lines, line{e.id, value, e.name + ": " + briefly(e.about)})
 		}
-		width := 0
-		for _, l := range lines {
-			width = max(width, len(l.id)+3+len(l.value))
+		b.WriteString("\n")
+		for _, l := range keymap.Describe(keybindSectionAbout[section]) {
+			b.WriteString(l + "\n")
 		}
-		fmt.Fprintf(&b, "\n[%s]\n", section)
+		fmt.Fprintf(&b, "[%s]\n", section)
 		for _, l := range lines {
-			fmt.Fprintf(&b, "%-*s  # %s\n", width, l.id+" = "+l.value, l.name)
+			b.WriteString("\n")
+			for _, d := range keymap.Describe(l.about) {
+				b.WriteString(d + "\n")
+			}
+			fmt.Fprintf(&b, "%s = %s\n", l.id, l.value)
 		}
 	}
 	return b.String()
@@ -480,4 +500,54 @@ func TestSettingsWritesEveryActionCommentedOut(t *testing.T) {
 	if got := boundKey(a, a.projectsPane, "open"); got != "F4" {
 		t.Errorf("open is %q after reading the file again, want F4", got)
 	}
+}
+
+// TestSettingsBringsAnOldFileUp: a file written by an older release - an
+// action it did not have, a key that changed since - says so in Settings ›
+// Keys, and u makes it this release's template again, with the line the
+// user uncommented kept and on at once.
+func TestSettingsBringsAnOldFileUp(t *testing.T) {
+	t.Parallel()
+	tmpl := keybindsTemplate()
+	if got, ch := keymap.Update(tmpl, tmpl); got != tmpl || ch.Rewritten {
+		t.Fatalf("the template is not what an update makes of it: %+v", ch)
+	}
+	clone := "\n" + strings.Join(keymap.Describe("Clone: "+briefly(cloneAbout(t))), "\n") + "\n# clone = \"C\"\n"
+	if !strings.Contains(tmpl, clone) {
+		t.Fatalf("no clone paragraph in the template:\n%s", clone)
+	}
+	mine := strings.Replace(tmpl, "\n# open = \"ctrl+o\"\n", "\nopen = \"f4\"\n", 1)
+	old := strings.Replace(mine, clone, "", 1)
+	old = strings.Replace(old, "# pull = \"p\"", "# pull = \"alt+p\"", 1)
+
+	a, sc, _ := newTestAppSrv(t, withKeybinds(t, old))
+	resizeApp(a, sc, 140, 40)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "S")
+	waitFor(t, a, sc, "Default root")
+	a.tv.QueueUpdateDraw(func() { a.settings.selectSection(sectionKeys); a.settings.focusContent() })
+	waitFor(t, a, sc, "1 new action, 1 key unagit changed")
+	typeRunes(sc, "u")
+	waitFor(t, a, sc, "Updated ")
+	path := filepath.Join(onLoop(a, func() string { return a.cfg.Dir() }), keymap.FileName)
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != mine {
+		t.Errorf("the update is not this release's file with the user's line:\n%s", got)
+	}
+	if k := boundKey(a, a.projectsPane, "open"); k != "F4" {
+		t.Errorf("open is %q, want F4", k)
+	}
+}
+
+func cloneAbout(t *testing.T) string {
+	for _, e := range keybindEntries(t)[scopeRepositories] {
+		if e.id == "clone" {
+			return e.about
+		}
+	}
+	t.Fatal("no clone action")
+	return ""
 }

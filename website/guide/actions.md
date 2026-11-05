@@ -64,12 +64,20 @@ toggle_grouping = []                    # no key, the pickers still have it
 review = ["ctrl+v", "f5"]
 ```
 
-The file is not there until you make it, and it names only what you
-change. To see everything there is, Settings › Keys › `w` writes it with
-every action and its key, commented out: uncomment a line and change the
-key. What stays commented keeps unagit's own key, and follows it when a
-release changes it. `e` there opens the file in the editor, and `r` reads
-it again and puts its keys on with no restart.
+The file is not there until you make it. To see everything there is,
+Settings › Keys › `w` (or `unagit keys --update`) writes it with every
+action, a line saying what it does and its key, commented out: uncomment a
+line and change the key. `e` there opens the file in the editor, and `r`
+reads it again and puts its keys on with no restart.
+
+A release that adds actions or changes a key leaves the file as it is, and
+Settings › Keys says what it would bring. `u` (or `unagit keys --update`
+again) brings it: the commented lines are unagit's, so they take the new
+keys and descriptions, the new actions are added where they belong, and the
+ones gone are dropped. A line you uncommented is yours and stays, with any
+note of yours beside it; a line whose action is gone is said at start, as
+any other slip. A comment right above an action that starts with its name
+is unagit's description; a note of your own goes under it or on the line.
 
 An action is known by its name in snake case, Open With… being `open_with`,
 in the section for where it is done:

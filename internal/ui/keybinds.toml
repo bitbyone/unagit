@@ -1,365 +1,1168 @@
-# The keys of unagit's actions as they are when keybinds.toml changes none of
-# them; `unagit keys` prints this. Copy a line into keybinds.toml beside
-# config.yaml and change it there:
-#
-#   [merge_requests]
-#   review = "ctrl+v"           # one key
-#   open = ["ctrl+e", "f4"]     # several
-#   toggle_draft = []           # none
-#
-# [global] reaches an action in every section that has it, and a section's
-# own line wins over it. A key given to an action is taken from whatever had
-# it there. Keys are written ctrl+e, alt+o, alt+enter, ctrl+space, f5,
-# shift+f5, alt+pageup, P. Settings keeps its keys.
+# The keys of unagit's actions as they are when keybinds.toml changes none
+# of them; unagit keys prints this, and Settings > Keys writes it into
+# keybinds.toml with every binding commented out.
 #
 # This file is written by the tests: go test ./internal/ui -run
 # TestTheKeybindsReferenceIsCurrent -args -update-keybinds
 
+# Everywhere: the two action pickers, and what can be done from any screen. A
+#   section below that names the same action wins over this one on its screen.
 [global]
-actions = ["alt+enter", "ctrl+a"]  # Actions of the Selection…
-screen_actions = ":"               # Actions of the Screen…
-running_editors = "E"              # Running Editors…
-running_agents = []                # Running Agents…
-new_sandbox_task = "ctrl+s"        # New Sandbox Task…
-find_repository = "+"              # Find Repository…
-watches = "W"                      # Watches…
-switch_theme = []                  # Switch Theme…
-redraw_screen = []                 # Redraw Screen
 
+# Actions of the Selection…: Every action on what is selected, with its key.
+actions = ["alt+enter", "ctrl+a"]
+
+# Actions of the Screen…: Every action of the screen, with its key.
+screen_actions = ":"
+
+# Running Editors…: Return to a Neovim left aside.
+running_editors = "E"
+
+# Running Agents…: Go to a coding agent at work, the ones waiting for an
+#   answer first.
+running_agents = []
+
+# New Sandbox Task…: Start an agent on a new task in a sandbox.
+new_sandbox_task = "ctrl+s"
+
+# Find Repository…: Every repository your accounts are members of, in groups
+#   you did not choose and hidden ones too.
+find_repository = "+"
+
+# Watches…: Everything watched in one list, from any screen.
+watches = "W"
+
+# Switch Theme…: Put another theme on, everywhere at once.
+switch_theme = []
+
+# Redraw Screen: Send the whole screen to the terminal again, when it shows
+#   remains of what was there before.
+redraw_screen = []
+
+# Repositories (1): the repository under the cursor, the marked ones, and the
+#   list.
 [repositories]
-finish_new_repository = []         # Finish New Repository…
-browse_files = []                  # Browse Files
-open = "ctrl+o"                    # Open
-open_in = "O"                      # Open…
-open_with = "alt+o"                # Open With…
-new_worktree = "ctrl+w"            # New Worktree…
-pull = "p"                         # Pull
-commit = "c"                       # Commit…
-changes = "ctrl+k"                 # Changes…
-push = "P"                         # Push
-move_changes_to_new_worktree = []  # Move Changes to New Worktree…
-new_merge_request = "n"            # New Merge Request…
-show_merge_requests = "m"          # Show Merge Requests
-open_in_browser = "w"              # Open in Browser
-branches = "b"                     # Branches…
-refresh = "r"                      # Refresh
-hide_merge_requests = "H"          # Hide Merge Requests
-show_commit_log = "ctrl+l"         # Show Commit Log
-show_pipeline = "J"                # Show Pipeline…
-toggle_watch = []                  # Watch Branch
-back_to_branch = "B"               # Back to Branch
-clone = "C"                        # Clone
-copy = "y"                         # Copy…
-show_uncommitted_changes = "D"     # Show Uncommitted Changes
-recover_from_reflog = []           # Recover from Reflog…
-shelve_changes = []                # Shelve Changes…
-shelf = []                         # Shelf…
-rewrite_history = []               # Rewrite History…
-set_base = []                      # Set Base…
-show_changes_since_base = "alt+d"  # Show Changes Since Base
-toggle_favourite = "ctrl+f"        # Toggle Favourite
-edit_tags = "ctrl+t"               # Edit Tags…
-set_clone_directory = "e"          # Set Clone Directory…
-hide_or_unhide = "x"               # Hide or Unhide
-delete_from_disk = "d"             # Delete from Disk…
-unibox_init = []                   # Unibox Init…
-open_in_sandbox = []               # Open in Sandbox…
-add_to_unibox_index = []           # Add to Unibox Index…
-running_agents = "alt+a"           # Running Agents…
-refresh_all = "R"                  # Refresh All
-new_repository = []                # New Repository…
-new_repository_from_folder = []    # New Repository from Folder…
-measure_sizes_again = []           # Measure Sizes Again
-pull_all_clones = "alt+p"          # Pull All Clones
-view_starred_repositories = []     # View Starred Repositories…
-pull_all_favourites = []           # Pull All Favourites
-view_options = "v"                 # View Options…
-toggle_grouping = "ctrl+g"         # Toggle Grouping
-filter_by_tags = "f"               # Filter by Tags…
-clear_tag_filter = "F"             # Clear Tag Filter
-sort_by = "o"                      # Sort By…
-toggle_cloned_only = "L"           # Toggle Cloned Only
-hidden_repositories = "X"          # Hidden Repositories…
-filter = "/"                       # Filter
-go_to_repositories = "1"           # Go to Repositories
-go_to_merge_requests = "2"         # Go to Merge Requests
-go_to_worktrees = "3"              # Go to Worktrees
-go_to_activity = "4"               # Go to Activity
-go_to_sandboxes = "5"              # Go to Sandboxes
-go_to_settings = "S"               # Go to Settings
-help = "?"                         # Help
-quit = "q"                         # Quit
-new_grouped_worktree = "ctrl+w"    # New Grouped Worktree…
-hide_or_unhide_all = "x"           # Hide or Unhide All
-hide_or_list_their_mrs = "H"       # Hide or List Their MRs
-refresh_all_marked = "r"           # Refresh All Marked
-star_or_unstar_all = "ctrl+f"      # Star or Unstar All
-pull_all_marked = "p"              # Pull All Marked
-clone_all_marked = "C"             # Clone All Marked
-edit_tags_of_all = "ctrl+t"        # Edit Tags of All…
-copy_all = "y"                     # Copy All…
 
+# Finish New Repository…: Finish a repository made from a local folder.
+finish_new_repository = []
+
+# Browse Files: Browse in Yazi; choose a file to open it in your default
+#   editor.
+browse_files = []
+
+# Open: Open the clone in your default editor, here, cloning it first when it
+#   is not on disk.
+open = "ctrl+o"
+
+# Open…: Choose with what - an editor or an agent - and where it opens, the
+#   form filled in as you last used it here.
+open_in = "O"
+
+# Open With…: Choose the editor, then open the clone here.
+open_with = "alt+o"
+
+# New Worktree…: Check a branch out in a directory of its own beside the
+#   clone, an existing branch or a new one.
+new_worktree = "ctrl+w"
+
+# Pull: Fetch origin and fast-forward the clone's branch when nothing local is
+#   in the way.
+pull = "p"
+
+# Commit…: Commit the clone's changes to versioned files with a message you
+#   write, and push them with it if you like.
+commit = "c"
+
+# Changes…: The files not committed and their diffs.
+changes = "ctrl+k"
+
+# Push: Push the clone's branch to origin once it has commits origin lacks.
+push = "P"
+
+# Move Changes to New Worktree…: Take what is not committed in the clone,
+#   unversioned files too, to a new branch in a worktree of its own at the
+#   same commit.
+move_changes_to_new_worktree = []
+
+# New Merge Request…: Open a merge request on the server from the branch the
+#   clone has out, pushing it first when origin lacks some of it.
+new_merge_request = "n"
+
+# Show Merge Requests: Switch to Merge requests, narrowed to this repository.
+show_merge_requests = "m"
+
+# Open in Browser: Open the repository's page on the server.
+open_in_browser = "w"
+
+# Branches…: Switch the clone to another branch, see where each stands
+#   against origin, delete those you are done with.
+branches = "b"
+
+# Refresh: Fetch this clone from origin, read its branch's pipeline and see
+#   where it stands, leaving the rest of the list as it is.
+refresh = "r"
+
+# Hide Merge Requests: Keep the repository's merge requests out of the list
+#   and out of refreshes, the repository still here.
+hide_merge_requests = "H"
+
+# Show Commit Log: What is out in the clone, newest first.
+show_commit_log = "ctrl+l"
+
+# Show Pipeline…: The jobs of the newest pipeline of the clone's branch.
+show_pipeline = "J"
+
+# Watch Branch: Follow it in the background.
+toggle_watch = []
+
+# Back to Branch: Leave the commit checked out from the log and check out
+#   again the branch it came from.
+back_to_branch = "B"
+
+# Clone: Clone it under its root without starting an editor.
+clone = "C"
+
+# Copy…: Copy the web link, the path, the branch or the directory to the
+#   clipboard.
+copy = "y"
+
+# Show Uncommitted Changes: Show in Hunk what is not committed.
+show_uncommitted_changes = "D"
+
+# Recover from Reflog…: Every place the clone's branch has been, whatever
+#   moved it.
+recover_from_reflog = []
+
+# Shelve Changes…: Put what is not committed in the clone aside under a
+#   name, unversioned files too, the files back as the last commit has them.
+shelve_changes = []
+
+# Shelf…: The changes put aside in this repository.
+shelf = []
+
+# Rewrite History…: Every squash, rebase, edited message, undone commit and
+#   deleted branch of the repository, in order.
+rewrite_history = []
+
+# Set Base…: Choose the branch the clone's branch was made from, which the
+#   diffs since base go by.
+set_base = []
+
+# Show Changes Since Base: The branch's commits since its base and what is not
+#   committed, in Hunk.
+show_changes_since_base = "alt+d"
+
+# Toggle Favourite: Star it, so it can be kept at the top.
+toggle_favourite = "ctrl+f"
+
+# Edit Tags…: Put your tags on this repository or take them off.
+edit_tags = "ctrl+t"
+
+# Set Clone Directory…: Choose the exact directory this repository is cloned
+#   into, instead of its group's root.
+set_clone_directory = "e"
+
+# Hide or Unhide: Take this repository out of the lists.
+hide_or_unhide = "x"
+
+# Delete from Disk…: Delete the clone or one of its worktrees from disk.
+delete_from_disk = "d"
+
+# Unibox Init…: Set unibox up from this repository, your team's sbxenv
+#   files.
+unibox_init = []
+
+# Open in Sandbox…: Start an agent on it in a unibox sandbox.
+open_in_sandbox = []
+
+# Add to Unibox Index…: Name it in Unibox's index of repositories, for one
+#   env's tasks or every env's, so a task is given it by name.
+add_to_unibox_index = []
+
+# Running Agents…: Go to a coding agent at work, the ones waiting for an
+#   answer first.
+running_agents = "alt+a"
+
+# Refresh All: Ask the servers for the repositories again, and the pipelines
+#   of the clones' branches.
+refresh_all = "R"
+
+# New Repository…: Create a repository on a server and clone it.
+new_repository = []
+
+# New Repository from Folder…: Create a repository on a server from a folder
+#   on disk, with or without Git, then keep the folder here or move it to its
+#   planned directory.
+new_repository_from_folder = []
+
+# Measure Sizes Again: Measure what every clone takes on disk, its worktrees
+#   counted.
+measure_sizes_again = []
+
+# Pull All Clones: Fetch every clone and fast-forward those origin has moved
+#   past.
+pull_all_clones = "alt+p"
+
+# View Starred Repositories…: The repositories you starred on GitHub.
+view_starred_repositories = []
+
+# Pull All Favourites: Fetch the starred clones and fast-forward those origin
+#   has moved past.
+pull_all_favourites = []
+
+# View Options…: What the list shows: server, visibility, grouping,
+#   favourites first, cloned only, and which columns.
+view_options = "v"
+
+# Toggle Grouping: Group the repositories under their groups.
+toggle_grouping = "ctrl+g"
+
+# Filter by Tags…: Show only the repositories wearing the tags you choose.
+filter_by_tags = "f"
+
+# Clear Tag Filter: Show the repositories of every tag again.
+clear_tag_filter = "F"
+
+# Sort By…: Choose an order for this list, including directory visits in
+#   Repositories and Worktrees.
+sort_by = "o"
+
+# Toggle Cloned Only: Show only the repositories on disk.
+toggle_cloned_only = "L"
+
+# Hidden Repositories…: See what x hid from the lists and bring any of it
+#   back.
+hidden_repositories = "X"
+
+# Filter: Narrow the list by typing.
+filter = "/"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"
+
+# New Grouped Worktree…: Make one folder holding a worktree of each marked
+#   repository, on a new branch of its own.
+new_grouped_worktree = "ctrl+w"
+
+# Hide or Unhide All: Take every marked repository out of the lists, or, when
+#   all are hidden, bring them back.
+hide_or_unhide_all = "x"
+
+# Hide or List Their MRs: Keep the marked repositories' merge requests out of
+#   Merge requests and its refreshes.
+hide_or_list_their_mrs = "H"
+
+# Refresh All Marked: Fetch every marked clone and read again where it stands.
+refresh_all_marked = "r"
+
+# Star or Unstar All: Make every marked repository a favourite, or, when all
+#   are, none of them.
+star_or_unstar_all = "ctrl+f"
+
+# Pull All Marked: Fetch the marked clones and fast-forward those origin has
+#   moved past.
+pull_all_marked = "p"
+
+# Clone All Marked: Clone the marked repositories not yet on disk, one after
+#   another.
+clone_all_marked = "C"
+
+# Edit Tags of All…: Put a tag on every marked repository, or, when all wear
+#   it, take it off them all.
+edit_tags_of_all = "ctrl+t"
+
+# Copy All…: Copy the links, paths, clone addresses or directories of the
+#   marked repositories, one a line.
+copy_all = "y"
+
+# Merge requests (2): the merge request under the cursor, the marked ones, and
+#   the list.
 [merge_requests]
-browse_files = []                      # Browse Files
-review = "ctrl+r"                      # Review
-open = "ctrl+o"                        # Open
-open_in = "O"                          # Open…
-show_conversation = "c"                # Show Conversation
-open_in_browser = "w"                  # Open in Browser
-show_commit_log = "ctrl+l"             # Show Commit Log
-refresh = "r"                          # Refresh
-mark_as_reviewed = "V"                 # Mark as Reviewed
-show_pipeline = "J"                    # Show Pipeline…
-toggle_watch = []                      # Watch Merge Request
-approve = "A"                          # Approve…
-merge = "M"                            # Merge…
-toggle_draft = "ctrl+d"                # Mark as Draft
-add_change_reviewer = "s"              # Add/Change Reviewer…
-add_change_assignee = "a"              # Add/Change Assignee…
-labels = "t"                           # Labels…
-publish_comments = "P"                 # Publish Comments
-review_with = "alt+r"                  # Review With…
-open_with = "alt+o"                    # Open With…
-pull_branch = "p"                      # Pull Branch
-changes = "ctrl+k"                     # Changes…
-prepare_review = "C"                   # Prepare Review
-show_changes = "D"                     # Show Changes
-copy = "y"                             # Copy…
-toggle_favourite = "ctrl+f"            # Toggle Favourite
-hide_author = "H"                      # Hide Author
-hide_repositorys_merge_requests = "x"  # Hide Repository's Merge Requests
-close_merge_request = []               # Close Merge Request…
-delete_worktrees = "d"                 # Delete Worktrees…
-open_in_sandbox = []                   # Open in Sandbox…
-running_agents = "alt+a"               # Running Agents…
-refresh_all = "R"                      # Refresh All
-filter_by_repository = "f"             # Filter by Repository…
-clear_repository_filter = "F"          # Clear Repository Filter
-view_options = "v"                     # View Options…
-toggle_grouping = "ctrl+g"             # Toggle Grouping
-sort_by = "o"                          # Sort By…
-toggle_cloned_only = "L"               # Toggle Cloned Only
-filter = "/"                           # Filter
-go_to_repositories = "1"               # Go to Repositories
-go_to_merge_requests = "2"             # Go to Merge Requests
-go_to_worktrees = "3"                  # Go to Worktrees
-go_to_activity = "4"                   # Go to Activity
-go_to_sandboxes = "5"                  # Go to Sandboxes
-go_to_settings = "S"                   # Go to Settings
-help = "?"                             # Help
-quit = "q"                             # Quit
-hide_their_repositories_mrs = "x"      # Hide Their Repositories' MRs
-hide_their_authors = "H"               # Hide Their Authors
-refresh_all_marked = "r"               # Refresh All Marked
-mark_all_as_reviewed = "V"             # Mark All as Reviewed
-copy_all = "y"                         # Copy All…
-star_or_unstar_all = "ctrl+f"          # Star or Unstar All
 
+# Browse Files: Browse in Yazi; choose a file to open it in your default
+#   editor.
+browse_files = []
+
+# Review: Open a review worktree.
+review = "ctrl+r"
+
+# Open: Open a worktree of the source branch in your default editor, here, for
+#   committing to it.
+open = "ctrl+o"
+
+# Open…: Choose with what - an editor or an agent - and where it opens, the
+#   form filled in as you last used it here.
+open_in = "O"
+
+# Show Conversation: Read the merge request's threads and write a comment.
+show_conversation = "c"
+
+# Open in Browser: Open the merge request's page on the server.
+open_in_browser = "w"
+
+# Show Commit Log: The merge request's commits, those new since your last
+#   review marked.
+show_commit_log = "ctrl+l"
+
+# Refresh: Ask the server about this merge request alone.
+refresh = "r"
+
+# Mark as Reviewed: Take the head as seen without opening the review.
+mark_as_reviewed = "V"
+
+# Show Pipeline…: The jobs of the head's pipeline, the first that failed
+#   under the cursor.
+show_pipeline = "J"
+
+# Watch Merge Request: Follow it in the background.
+toggle_watch = []
+
+# Approve…: Approve the merge request on the server.
+approve = "A"
+
+# Merge…: Merge it on the server.
+merge = "M"
+
+# Mark as Draft: Mark it as a draft, not ready to merge.
+toggle_draft = "ctrl+d"
+
+# Add/Change Reviewer…: Choose who is asked to review.
+add_change_reviewer = "s"
+
+# Add/Change Assignee…: Choose who the merge request is assigned to.
+add_change_assignee = "a"
+
+# Labels…: Put the forge's labels on the merge request or take them off.
+labels = "t"
+
+# Publish Comments: Post the comments you wrote in Incomm to the merge
+#   request.
+publish_comments = "P"
+
+# Review With…: Choose the editor, then open the review here.
+review_with = "alt+r"
+
+# Open With…: Choose the editor, then open the worktree of the source branch
+#   here.
+open_with = "alt+o"
+
+# Pull Branch: Fetch and fast-forward the branch worktree to the source
+#   branch.
+pull_branch = "p"
+
+# Changes…: The branch worktree's files not committed and their diffs.
+changes = "ctrl+k"
+
+# Prepare Review: Make the review worktree without starting an editor.
+prepare_review = "C"
+
+# Show Changes: Show the whole merge request in Hunk, making its review first
+#   when nothing is on disk.
+show_changes = "D"
+
+# Copy…: Copy the web link, the !reference or the source branch to the
+#   clipboard.
+copy = "y"
+
+# Toggle Favourite: Star it, so it can be kept at the top.
+toggle_favourite = "ctrl+f"
+
+# Hide Author: Keep this author's merge requests out of the list.
+hide_author = "H"
+
+# Hide Repository's Merge Requests: Keep this repository's merge requests out
+#   of the list and out of refreshes, the repository still listed in
+#   Repositories.
+hide_repositorys_merge_requests = "x"
+
+# Close Merge Request…: Close it without merging.
+close_merge_request = []
+
+# Delete Worktrees…: Delete its branch and review worktrees.
+delete_worktrees = "d"
+
+# Open in Sandbox…: Start an agent on it in a unibox sandbox.
+open_in_sandbox = []
+
+# Running Agents…: Go to a coding agent at work, the ones waiting for an
+#   answer first.
+running_agents = "alt+a"
+
+# Refresh All: Ask the servers for the open merge requests again, with their
+#   pipelines, approvals and threads.
+refresh_all = "R"
+
+# Filter by Repository…: Show only the merge requests of one repository.
+filter_by_repository = "f"
+
+# Clear Repository Filter: Show the merge requests of every repository again.
+clear_repository_filter = "F"
+
+# View Options…: What the list shows: server, grouping, favourites first,
+#   cloned only, age, hidden authors, and which columns.
+view_options = "v"
+
+# Toggle Grouping: Group the merge requests under their repositories.
+toggle_grouping = "ctrl+g"
+
+# Sort By…: Choose an order for this list, including directory visits in
+#   Repositories and Worktrees.
+sort_by = "o"
+
+# Toggle Cloned Only: Show only the repositories on disk.
+toggle_cloned_only = "L"
+
+# Filter: Narrow the list by typing.
+filter = "/"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"
+
+# Hide Their Repositories' MRs: Keep the merge requests of the marked ones'
+#   repositories out of the list and out of refreshes.
+hide_their_repositories_mrs = "x"
+
+# Hide Their Authors: Keep the merge requests of the marked ones' authors out
+#   of the list.
+hide_their_authors = "H"
+
+# Refresh All Marked: Ask the server about each marked merge request.
+refresh_all_marked = "r"
+
+# Mark All as Reviewed: Take the heads of the marked ones as seen, so NEW
+#   counts only what is pushed after.
+mark_all_as_reviewed = "V"
+
+# Copy All…: Copy the links, references, branches or titles of the marked
+#   merge requests, one a line.
+copy_all = "y"
+
+# Star or Unstar All: Make every marked merge request a favourite, or, when
+#   all are, none of them.
+star_or_unstar_all = "ctrl+f"
+
+# Worktrees (3): the worktree under the cursor, the marked ones, and the list.
 [worktrees]
-browse_files = []                  # Browse Files
-open = "ctrl+o"                    # Open
-open_with = "alt+o"                # Open With…
-back_to_branch = "B"               # Back to Branch
-pull = "p"                         # Pull
-changes = "ctrl+k"                 # Changes…
-commit = "c"                       # Commit…
-push = "P"                         # Push
-new_merge_request = "n"            # New Merge Request…
-new_linked_merge_requests = "n"    # New Linked Merge Requests…
-show_uncommitted_changes = "D"     # Show Uncommitted Changes
-show_changes_since_base = "alt+d"  # Show Changes Since Base
-rebase_onto_base = "ctrl+r"        # Rebase onto Base
-rebase_onto = []                   # Rebase onto…
-recover_from_reflog = []           # Recover from Reflog…
-shelve_changes = []                # Shelve Changes…
-shelf = []                         # Shelf…
-rewrite_history = []               # Rewrite History…
-set_base = []                      # Set Base…
-show_pipeline = "J"                # Show Pipeline…
-toggle_watch = []                  # Watch Branch
-go_to_merge_request = "m"          # Go to Merge Request
-add_repository = "a"               # Add Repository…
-copy = "y"                         # Copy…
-branches = "b"                     # Branches…
-open_in = "O"                      # Open…
-open_in_sandbox = []               # Open in Sandbox…
-refresh = "r"                      # Refresh
-show_commit_log = "ctrl+l"         # Show Commit Log
-remove_from_group = "x"            # Remove from Group…
-delete_from_disk = "d"             # Delete from Disk…
-running_agents = "alt+a"           # Running Agents…
-refresh_all = "R"                  # Refresh All
-pull_all_worktrees = "alt+p"       # Pull All Worktrees
-view_options = "v"                 # View Options…
-sort_by = "o"                      # Sort By…
-filter = "/"                       # Filter
-go_to_repositories = "1"           # Go to Repositories
-go_to_merge_requests = "2"         # Go to Merge Requests
-go_to_worktrees = "3"              # Go to Worktrees
-go_to_activity = "4"               # Go to Activity
-go_to_sandboxes = "5"              # Go to Sandboxes
-go_to_settings = "S"               # Go to Settings
-help = "?"                         # Help
-quit = "q"                         # Quit
 
+# Browse Files: Browse in Yazi; choose a file to open it in your default
+#   editor.
+browse_files = []
+
+# Open: Open the worktree in your default editor, here.
+open = "ctrl+o"
+
+# Open With…: Choose the editor, then open the worktree here.
+open_with = "alt+o"
+
+# Back to Branch: Leave the commit checked out from the log and check out
+#   again the branch it came from.
+back_to_branch = "B"
+
+# Pull: Bring the branch up to origin.
+pull = "p"
+
+# Changes…: The files not committed and their diffs.
+changes = "ctrl+k"
+
+# Commit…: Commit the changes to versioned files with a message you write,
+#   and push them with it if you like.
+commit = "c"
+
+# Push: Push the branch to origin, setting up its upstream the first time.
+push = "P"
+
+# New Merge Request…: Open a merge request from this branch on the server.
+new_merge_request = "n"
+
+# New Linked Merge Requests…: Open a merge request in each repository of the
+#   group, each linking the others.
+new_linked_merge_requests = "n"
+
+# Show Uncommitted Changes: Show in Hunk what is not committed.
+show_uncommitted_changes = "D"
+
+# Show Changes Since Base: The branch's commits since its base and what is not
+#   committed, in Hunk.
+show_changes_since_base = "alt+d"
+
+# Rebase onto Base: Rebase the branch onto its base even once pushed.
+rebase_onto_base = "ctrl+r"
+
+# Rebase onto…: Rebase the branch onto a branch you pick, once, even once
+#   pushed.
+rebase_onto = []
+
+# Recover from Reflog…: Every place the branch has been, whatever moved it.
+recover_from_reflog = []
+
+# Shelve Changes…: Put what is not committed aside under a name, unversioned
+#   files too, the files back as the last commit has them.
+shelve_changes = []
+
+# Shelf…: The changes put aside in this repository.
+shelf = []
+
+# Rewrite History…: Every squash, rebase, edited message, undone commit and
+#   deleted branch of the repository, in order.
+rewrite_history = []
+
+# Set Base…: Choose the branch this one was made from, which Pull, Rebase
+#   onto Base and the diffs since base go by.
+set_base = []
+
+# Show Pipeline…: The jobs of the branch's newest pipeline, as CI shows it.
+show_pipeline = "J"
+
+# Watch Branch: Follow it in the background.
+toggle_watch = []
+
+# Go to Merge Request: Switch to Merge requests with the cursor on the one
+#   open from this branch.
+go_to_merge_request = "m"
+
+# Add Repository…: Add a worktree of another repository to this group, on
+#   the group's branch.
+add_repository = "a"
+
+# Copy…: Copy the directory or the branch to the clipboard.
+copy = "y"
+
+# Branches…: See where the repository's branches stand against origin and
+#   delete those you are done with.
+branches = "b"
+
+# Open…: Choose with what - an editor or an agent - and where it opens, the
+#   form filled in as you last used it here.
+open_in = "O"
+
+# Open in Sandbox…: Start an agent on it in a unibox sandbox.
+open_in_sandbox = []
+
+# Refresh: Fetch this worktree's repository, read its branch's pipeline and
+#   bring in its merge request's comments, leaving the rest as it is.
+refresh = "r"
+
+# Show Commit Log: The worktree's history, newest first.
+show_commit_log = "ctrl+l"
+
+# Remove from Group…: Remove one repository's worktree from the group.
+remove_from_group = "x"
+
+# Delete from Disk…: Delete the worktree from disk.
+delete_from_disk = "d"
+
+# Running Agents…: Go to a coding agent at work, the ones waiting for an
+#   answer first.
+running_agents = "alt+a"
+
+# Refresh All: Look at the disk again.
+refresh_all = "R"
+
+# Pull All Worktrees: Bring every worktree up to origin.
+pull_all_worktrees = "alt+p"
+
+# View Options…: Which server and columns the list shows.
+view_options = "v"
+
+# Sort By…: Choose an order for this list, including directory visits in
+#   Repositories and Worktrees.
+sort_by = "o"
+
+# Filter: Narrow the list by typing.
+filter = "/"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"
+
+# A worktree's view, opened with Enter on a worktree: the repository lit in
+#   it.
 [worktree_view]
-browse_files = []                  # Browse Files
-open = "ctrl+o"                    # Open
-open_with = "alt+o"                # Open With…
-back_to_branch = "B"               # Back to Branch
-pull = "p"                         # Pull
-changes = "ctrl+k"                 # Changes…
-commit = "C"                       # Commit…
-push = "P"                         # Push
-new_merge_request = "n"            # New Merge Request…
-new_linked_merge_requests = "n"    # New Linked Merge Requests…
-show_uncommitted_changes = "D"     # Show Uncommitted Changes
-show_changes_since_base = "alt+d"  # Show Changes Since Base
-rebase_onto_base = "ctrl+r"        # Rebase onto Base
-rebase_onto = []                   # Rebase onto…
-recover_from_reflog = []           # Recover from Reflog…
-shelve_changes = []                # Shelve Changes…
-shelf = []                         # Shelf…
-rewrite_history = []               # Rewrite History…
-set_base = []                      # Set Base…
-show_pipeline = "J"                # Show Pipeline…
-toggle_watch = []                  # Watch Branch
-go_to_merge_request = "m"          # Go to Merge Request
-add_repository = "a"               # Add Repository…
-copy = "y"                         # Copy…
-branches = "b"                     # Branches…
-open_in = "O"                      # Open…
-show_conversation = "c"            # Show Conversation
-open_in_browser = "w"              # Open in Browser
-show_commit_log = "ctrl+l"         # Show Commit Log
-remove_from_group = "x"            # Remove from Group…
-refresh = "r"                      # Refresh
-refresh_all = "R"                  # Refresh All
-help = "?"                         # Help
 
+# Browse Files: Browse in Yazi; choose a file to open it in your default
+#   editor.
+browse_files = []
+
+# Open: Open the worktree in your default editor, here.
+open = "ctrl+o"
+
+# Open With…: Choose the editor, then open the worktree here.
+open_with = "alt+o"
+
+# Back to Branch: Leave the commit checked out from the log and check out
+#   again the branch it came from.
+back_to_branch = "B"
+
+# Pull: Bring the branch up to origin.
+pull = "p"
+
+# Changes…: The files not committed and their diffs.
+changes = "ctrl+k"
+
+# Commit…: Commit the changes to versioned files with a message you write,
+#   and push them with it if you like.
+commit = "C"
+
+# Push: Push the branch to origin, setting up its upstream the first time.
+push = "P"
+
+# New Merge Request…: Open a merge request from this branch on the server.
+new_merge_request = "n"
+
+# New Linked Merge Requests…: Open a merge request in each repository of the
+#   group, each linking the others.
+new_linked_merge_requests = "n"
+
+# Show Uncommitted Changes: Show in Hunk what is not committed.
+show_uncommitted_changes = "D"
+
+# Show Changes Since Base: The branch's commits since its base and what is not
+#   committed, in Hunk.
+show_changes_since_base = "alt+d"
+
+# Rebase onto Base: Rebase the branch onto its base even once pushed.
+rebase_onto_base = "ctrl+r"
+
+# Rebase onto…: Rebase the branch onto a branch you pick, once, even once
+#   pushed.
+rebase_onto = []
+
+# Recover from Reflog…: Every place the branch has been, whatever moved it.
+recover_from_reflog = []
+
+# Shelve Changes…: Put what is not committed aside under a name, unversioned
+#   files too, the files back as the last commit has them.
+shelve_changes = []
+
+# Shelf…: The changes put aside in this repository.
+shelf = []
+
+# Rewrite History…: Every squash, rebase, edited message, undone commit and
+#   deleted branch of the repository, in order.
+rewrite_history = []
+
+# Set Base…: Choose the branch this one was made from, which Pull, Rebase
+#   onto Base and the diffs since base go by.
+set_base = []
+
+# Show Pipeline…: The jobs of the branch's newest pipeline, as CI shows it.
+show_pipeline = "J"
+
+# Watch Branch: Follow it in the background.
+toggle_watch = []
+
+# Go to Merge Request: Switch to Merge requests with the cursor on the one
+#   open from this branch.
+go_to_merge_request = "m"
+
+# Add Repository…: Add a worktree of another repository to this group, on
+#   the group's branch.
+add_repository = "a"
+
+# Copy…: Copy the directory or the branch to the clipboard.
+copy = "y"
+
+# Branches…: See where the repository's branches stand against origin and
+#   delete those you are done with.
+branches = "b"
+
+# Open…: Choose with what - an editor or an agent - and where it opens, the
+#   form filled in as you last used it here.
+open_in = "O"
+
+# Show Conversation: Read the threads of the merge request open from this
+#   branch and write a comment.
+show_conversation = "c"
+
+# Open in Browser: Open the branch's merge request in the browser.
+open_in_browser = "w"
+
+# Show Commit Log: The lit repository's history, newest first.
+show_commit_log = "ctrl+l"
+
+# Remove from Group…: Remove this repository's worktree from the group.
+remove_from_group = "x"
+
+# Refresh: Fetch this worktree's repositories and bring in its comments.
+refresh = "r"
+
+# Refresh All: Look at the disk again, fetch origin for every worktree and
+#   bring in new comments.
+refresh_all = "R"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Changes: the files not committed and their diffs, opened from a list or the
+#   worktree view; the Changes tab of unagit -s.
 [changes]
-include_or_exclude = "x"   # Include or Exclude
-open = "ctrl+o"            # Open
-open_with = "alt+o"        # Open With…
-rollback_changes = "R"     # Rollback Changes…
-copy = "y"                 # Copy…
-show_diff_in_hunk = "D"    # Show Diff in Hunk
-add_to_gitignore = "I"     # Add to .gitignore
-add_to_git = "A"           # Add to Git
-delete = "d"               # Delete…
-commit = "c"               # Commit…
-include_all_or_none = "a"  # Include All or None
-shelve_changes = "s"       # Shelve Changes…
-refresh = "r"              # Refresh
 
+# Include or Exclude: Tick the files for the commit.
+include_or_exclude = "x"
+
+# Open: Open the repository in your default editor with the file under the
+#   cursor in front.
+open = "ctrl+o"
+
+# Open With…: Choose the editor, then open the repository there with the
+#   file under the cursor in front.
+open_with = "alt+o"
+
+# Rollback Changes…: Put the marked versioned files.
+rollback_changes = "R"
+
+# Copy…: Copy the paths of the marked files.
+copy = "y"
+
+# Show Diff in Hunk: The changes of the marked files.
+show_diff_in_hunk = "D"
+
+# Add to .gitignore: Have git ignore the marked unversioned files.
+add_to_gitignore = "I"
+
+# Add to Git: Put the marked unversioned files.
+add_to_git = "A"
+
+# Delete…: Delete the marked unversioned files.
+delete = "d"
+
+# Commit…: Commit the ticked files as they are on disk, the unversioned
+#   among them added.
+commit = "c"
+
+# Include All or None: Tick every file for the commit, versioned and
+#   unversioned.
+include_all_or_none = "a"
+
+# Shelve Changes…: Put the marked files.
+shelve_changes = "s"
+
+# Refresh: Read again what is not committed, keeping the ticks of the files
+#   still there.
+refresh = "r"
+
+# The commit log, opened from a list or the worktree view; the Log tab of
+#   unagit -s.
 [log]
-show_diff_in_hunk = "D"        # Show Diff in Hunk
-show_changes_since = "alt+d"   # Show Changes Since
-check_out_commit = "C"         # Check Out Commit
-edit_commit_message = "e"      # Edit Commit Message…
-undo_commit = "u"              # Undo Commit
-push_up_to_here = "P"          # Push Up to Here…
-recover_from_reflog = "R"      # Recover from Reflog…
-rewrite_history = "H"          # Rewrite History…
-squash_commits = "s"           # Squash Commits…
-new_branch_here = "n"          # New Branch Here…
-new_worktree_here = "ctrl+w"   # New Worktree Here…
-new_tag = "t"                  # New Tag…
-tags = "T"                     # Tags…
-show_pipelines = "J"           # Show Pipelines…
-open_in_browser = "w"          # Open in Browser
-copy = "y"                     # Copy…
-review_from_here = "ctrl+r"    # Review From Here
-review_from_here_in = "alt+r"  # Review From Here In…
 
+# Show Diff in Hunk: What the commit changed, in Hunk.
+show_diff_in_hunk = "D"
+
+# Show Changes Since: Everything from the commit to the working tree, in Hunk.
+show_changes_since = "alt+d"
+
+# Check Out Commit: Put the checkout at this commit, detached.
+check_out_commit = "C"
+
+# Edit Commit Message…: Write the message of a commit again.
+edit_commit_message = "e"
+
+# Undo Commit: Take the newest commit back.
+undo_commit = "u"
+
+# Push Up to Here…: Send this commit to origin with those below it that
+#   origin lacks.
+push_up_to_here = "P"
+
+# Recover from Reflog…: Every place the branch has been, whatever moved it.
+recover_from_reflog = "R"
+
+# Rewrite History…: Every squash, rebase, edited message, undone commit and
+#   deleted branch of the repository, in order.
+rewrite_history = "H"
+
+# Squash Commits…: Make one commit of the commits marked with space, next to
+#   each other.
+squash_commits = "s"
+
+# New Branch Here…: Start a branch at this commit.
+new_branch_here = "n"
+
+# New Worktree Here…: Start a branch at this commit in a worktree of its
+#   own.
+new_worktree_here = "ctrl+w"
+
+# New Tag…: Put a tag on this commit.
+new_tag = "t"
+
+# Tags…: The tags on this commit.
+tags = "T"
+
+# Show Pipelines…: The pipelines that ran for this commit, and their jobs.
+show_pipelines = "J"
+
+# Open in Browser: The commit's page on the forge.
+open_in_browser = "w"
+
+# Copy…: Copy the commit's id, link or reference.
+copy = "y"
+
+# Review From Here: Narrow the review to this commit and the ones after it.
+review_from_here = "ctrl+r"
+
+# Review From Here In…: The same, opened in an editor you choose.
+review_from_here_in = "alt+r"
+
+# A repository's branches, opened from Repositories; the Branches tab of
+#   unagit -s.
 [branches]
-new_branch = "n"            # New Branch…
-new_worktree = "ctrl+w"     # New Worktree
-new_merge_request = "m"     # New Merge Request…
-delete_locally = "d"        # Delete Locally…
-delete_everywhere = "D"     # Delete Everywhere…
-rewrite_history = "H"       # Rewrite History…
-delete_on_origin = "alt+d"  # Delete on Origin…
 
+# New Branch…: Start a branch of your own from this one.
+new_branch = "n"
+
+# New Worktree: Check the branch out in a directory of its own beside the
+#   clone.
+new_worktree = "ctrl+w"
+
+# New Merge Request…: Propose this branch for merging, on the server.
+new_merge_request = "m"
+
+# Delete Locally…: Delete the branch in the clone, and the worktree it is
+#   out in.
+delete_locally = "d"
+
+# Delete Everywhere…: Delete the branch in the clone, the worktree it is out
+#   in, and on origin.
+delete_everywhere = "D"
+
+# Rewrite History…: What was done to the repository's branches.
+rewrite_history = "H"
+
+# Delete on Origin…: Delete the branch on origin.
+delete_on_origin = "alt+d"
+
+# Activity (4): the watches, the agents, the editors open, and the log.
 [activity]
-refresh_all = "R"               # Refresh All
-show_log = "z"                  # Show Log
-toggle_local_history = "H"      # Show Local History
-go_to_list = "a"                # Go to List
-go_to_open_editors = "e"        # Go to Open Editors
-go_to_detail = "d"              # Go to Detail
-go_to_log = "L"                 # Go to Log
-stop_watching_all = []          # Stop Watching All…
-running_agents = "alt+a"        # Running Agents…
-filter = "/"                    # Filter
-go_to_repositories = "1"        # Go to Repositories
-go_to_merge_requests = "2"      # Go to Merge Requests
-go_to_worktrees = "3"           # Go to Worktrees
-go_to_activity = "4"            # Go to Activity
-go_to_sandboxes = "5"           # Go to Sandboxes
-go_to_settings = "S"            # Go to Settings
-help = "?"                      # Help
-quit = "q"                      # Quit
-open = "ctrl+o"                 # Open
-open_with = "alt+o"             # Open With…
-close_agent = "x"               # Close Agent…
-stop_watching = "x"             # Stop Watching
-open_pipeline_in_browser = "w"  # Open Pipeline in Browser
-go_to_merge_request = "m"       # Go to Merge Request
-refresh = "r"                   # Refresh
-go_to_repository = "m"          # Go to Repository
 
+# Refresh All: Ask the servers about every watch, and herdr about every agent,
+#   now.
+refresh_all = "R"
+
+# Show Log: The log in front, over the screen.
+show_log = "z"
+
+# Show Local History: Show in the log only what was done to the branches here.
+toggle_local_history = "H"
+
+# Go to List: Move to the list of the watches and the agents.
+go_to_list = "a"
+
+# Go to Open Editors: Move to the cards of the editors open.
+go_to_open_editors = "e"
+
+# Go to Detail: Move into the detail of the row under the cursor, to read its
+#   whole story.
+go_to_detail = "d"
+
+# Go to Log: Move into the log: a row of it chooses its thing in the list.
+go_to_log = "L"
+
+# Stop Watching All…: Let every watch go, after asking.
+stop_watching_all = []
+
+# Running Agents…: Go to a coding agent at work, the ones waiting for an
+#   answer first.
+running_agents = "alt+a"
+
+# Filter: Narrow the list by typing.
+filter = "/"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"
+
+# Open: Open the agent's directory in your default editor, here.
+open = "ctrl+o"
+
+# Open With…: Choose the editor, then open the agent's directory here.
+open_with = "alt+o"
+
+# Close Agent…: End the agent in herdr.
+close_agent = "x"
+
+# Stop Watching: Let the watch go: its row leaves the list, its mark the other
+#   lists.
+stop_watching = "x"
+
+# Open Pipeline in Browser: The pipeline's page on the forge.
+open_pipeline_in_browser = "w"
+
+# Go to Merge Request: Switch to Merge requests with the cursor on the merge
+#   request watched.
+go_to_merge_request = "m"
+
+# Refresh: Ask the server about this watch now, rather than at its next turn.
+refresh = "r"
+
+# Go to Repository: Switch to Repositories with the cursor on the repository
+#   of the branch watched.
+go_to_repository = "m"
+
+# Sandboxes (5): unibox's environments, sandboxes and tasks.
 [sandboxes]
-new_task = "n"                    # New Task…
-create_sandbox = "c"              # Create Sandbox…
-values = "V"                      # Values…
-tokens = "K"                      # Tokens…
-ports = "p"                       # Ports…
-repository_index = "i"            # Repository Index…
-use_as_unibox_context = "u"       # Use as Unibox Context
-make_default_env = []             # Make Default Env
-open = ["ctrl+o", "O"]            # Open Env Files
-open_with = "alt+o"               # Open Env Files With…
-update_env_files = []             # Update Env Files
-forget_env = []                   # Forget Env…
-open_shell = "s"                  # Open Shell…
-network = "f"                     # Network…
-resources = "M"                   # Resources…
-stop_sandbox = "x"                # Stop Sandbox
-recreate_sandbox = "C"            # Recreate Sandbox…
-copy_inspect_command = []         # Copy Inspect Command
-remove_sandbox = "d"              # Remove Sandbox…
-resume = "o"                      # Resume…
-resume_with_agent = "a"           # Resume with Agent…
-start_afresh = []                 # Start Afresh…
-open_shell_in_task = "s"          # Open Shell in Task…
-show_instructions = "i"           # Show Instructions
-add_repository = "+"              # Add Repository…
-rename_task = "ctrl+e"            # Rename Task…
-copy_resume_command = "y"         # Copy Resume Command
-open_repository_in_browser = "w"  # Open Repository in Browser
-remove_task = "d"                 # Remove Task…
-resume_with_claude_code = []      # Resume with Claude Code…
-set_up_unibox = "I"               # Set Up Unibox…
-refresh_all = "R"                 # Refresh All
-go_to_sandbox_cards = "B"         # Go to Sandbox Cards
-go_to_tasks = "t"                 # Go to Tasks
-go_to_envs = "N"                  # Go to Envs
-go_to_log = "L"                   # Go to Log
-go_to_environment = "e"           # Go to Environment
-run_unibox_doctor = "D"           # Run Unibox Doctor
-sandbox_tokens_in_unagit = "T"    # Sandbox Tokens in unagit…
-your_unibox_configuration = "Y"   # Your Unibox Configuration…
-unibox_settings = "U"             # Unibox Settings…
-prune_unibox = []                 # Prune Unibox…
-install_herdr_plugin = []         # Install herdr Plugin
-uninstall_herdr_plugin = []       # Uninstall herdr Plugin
-filter = "/"                      # Filter
-go_to_repositories = "1"          # Go to Repositories
-go_to_merge_requests = "2"        # Go to Merge Requests
-go_to_worktrees = "3"             # Go to Worktrees
-go_to_activity = "4"              # Go to Activity
-go_to_sandboxes = "5"             # Go to Sandboxes
-go_to_settings = "S"              # Go to Settings
-help = "?"                        # Help
-quit = "q"                        # Quit
+
+# New Task…: Start an agent on a new task in this env's sandbox.
+new_task = "n"
+
+# Create Sandbox…: Create the env's sandbox, web, without a task in it.
+create_sandbox = "c"
+
+# Values…: What the env asks of you.
+values = "V"
+
+# Tokens…: The tokens the env's sandboxes use and whether sbx has each.
+tokens = "K"
+
+# Ports…: The env's ports, the team's and yours, whether its sandbox is made
+#   or not.
+ports = "p"
+
+# Repository Index…: The repositories the env's tasks are given by name.
+repository_index = "i"
+
+# Use as Unibox Context: Make this env's sandbox the one unibox commands.
+use_as_unibox_context = "u"
+
+# Make Default Env: Make this the env a sandbox is created from when none is
+#   named.
+make_default_env = []
+
+# Open Env Files: Open the team's repository the env's sbxenv files are in, in
+#   the default editor.
+open = ["ctrl+o", "O"]
+
+# Open Env Files With…: Choose the editor, then open the repository the
+#   env's sbxenv files are in there.
+open_with = "alt+o"
+
+# Update Env Files: Fast-forward the repository the env's files are in.
+update_env_files = []
+
+# Forget Env…: Take the env out of unibox's list.
+forget_env = []
+
+# Open Shell…: A shell in the sandbox.
+open_shell = "s"
+
+# Network…: The hosts the sandbox may reach beyond its env's, and those it
+#   was refused lately.
+network = "f"
+
+# Resources…: The CPUs and memory of this sandbox alone, over the env's.
+resources = "M"
+
+# Stop Sandbox: Stop the VM; its disk and its tasks stay, and the next session
+#   starts it again.
+stop_sandbox = "x"
+
+# Recreate Sandbox…: Make the sandbox again from its env as it is now,
+#   keeping its tasks.
+recreate_sandbox = "C"
+
+# Copy Inspect Command: Put unibox sandbox inspect with the sandbox on the
+#   clipboard.
+copy_inspect_command = []
+
+# Remove Sandbox…: Remove the VM and every task in it.
+remove_sandbox = "d"
+
+# Resume…: Run the task's own agent again, Claude Code, on its last
+#   conversation.
+resume = "o"
+
+# Resume with Agent…: Run the task with another agent its sandbox has.
+resume_with_agent = "a"
+
+# Start Afresh…: Run the task's agent on a new conversation rather than its
+#   last one.
+start_afresh = []
+
+# Open Shell in Task…: A shell in the task's directory in the sandbox,
+#   beside its agent.
+open_shell_in_task = "s"
+
+# Show Instructions: What the task's agent reads when a session starts.
+show_instructions = "i"
+
+# Add Repository…: Give the task one more repository of yours.
+add_repository = "+"
+
+# Rename Task…: Give the task a name taken wherever its ID is.
+rename_task = "ctrl+e"
+
+# Copy Resume Command: Put unibox resume with the task on the clipboard, to go
+#   on with it from another terminal.
+copy_resume_command = "y"
+
+# Open Repository in Browser: The forge's page of the task's first repository,
+#   where what its agent pushes arrives.
+open_repository_in_browser = "w"
+
+# Remove Task…: Take the task out of the sandbox.
+remove_task = "d"
+
+# Resume with Claude Code…: Run Claude Code in the task, in the sandbox.
+resume_with_claude_code = []
+
+# Set Up Unibox…: What a first sandbox needs.
+set_up_unibox = "I"
+
+# Refresh All: Read the sandboxes, their tasks, the envs and the environment
+#   from Unibox again.
+refresh_all = "R"
+
+# Go to Sandbox Cards: Move to the cards of the sandboxes.
+go_to_sandbox_cards = "B"
+
+# Go to Tasks: Move to the tasks of every sandbox, where agents are resumed.
+go_to_tasks = "t"
+
+# Go to Envs: Move to the envs: the team's sbxenv files, each one's sandbox,
+#   values and tokens.
+go_to_envs = "N"
+
+# Go to Log: Move to the log of what was asked of unibox and what it said.
+go_to_log = "L"
+
+# Go to Environment: Move to the environment.
+go_to_environment = "e"
+
+# Run Unibox Doctor: Check sbx, every env, your values and tokens and the
+#   sandboxes, each with the command that fixes it.
+run_unibox_doctor = "D"
+
+# Sandbox Tokens in unagit…: The tokens unagit keeps for the sandboxes and
+#   hands to sbx while it runs unlocked.
+sandbox_tokens_in_unagit = "T"
+
+# Your Unibox Configuration…: Everything you said to Unibox, beside the
+#   teams' files, in one list.
+your_unibox_configuration = "Y"
+
+# Unibox Settings…: unibox's own configuration.
+unibox_settings = "U"
+
+# Prune Unibox…: Forget the sandboxes sbx no longer has, and unmount what no
+#   task uses.
+prune_unibox = []
+
+# Install herdr Plugin: Have herdr show the state of sandboxed agents.
+install_herdr_plugin = []
+
+# Uninstall herdr Plugin: Take unibox's plugin out of herdr, and its
+#   background observer with it.
+uninstall_herdr_plugin = []
+
+# Filter: Narrow the list by typing.
+filter = "/"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"

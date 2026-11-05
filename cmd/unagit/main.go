@@ -199,13 +199,21 @@ func whereCmd() *cobra.Command {
 // shape keybinds.toml takes; --check reads the user's file and says what is
 // wrong in it, as the interface would once it is up.
 func keysCmd() *cobra.Command {
-	var check bool
+	var check, update bool
 	c := &cobra.Command{
 		Use:   "keys",
 		Short: "Print the keys of every action, as keybinds.toml writes them",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			if update {
+				said, err := ui.UpdateKeybinds(config.Dir())
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(out, said)
+				return nil
+			}
 			if !check {
 				fmt.Fprint(out, ui.KeybindsReference())
 				return nil
@@ -229,6 +237,8 @@ func keysCmd() *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&check, "check", false, "read keybinds.toml and say what is wrong in it")
+	c.Flags().BoolVar(&update, "update", false, "write keybinds.toml with every action commented out, or bring the commented lines up to this release")
+	c.MarkFlagsMutuallyExclusive("check", "update")
 	return c
 }
 

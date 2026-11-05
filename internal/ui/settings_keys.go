@@ -40,6 +40,8 @@ func (s *settingsView) newKeysPane() *tview.TextView {
 			s.editKeys()
 		case 'r':
 			s.readKeysAgain()
+		case 'u':
+			s.updateKeys()
 		default:
 			return ev
 		}
@@ -67,35 +69,38 @@ func (s *settingsView) fillKeys() {
 	default:
 		b.WriteString(label("State") + "read, nothing wrong in it\n")
 	}
+	if ch, err := bringKeybindsUp(s.app.cfg.Dir(), false); err == nil && ch.Rewritten {
+		b.WriteString(label("Release") + tag(colWarn) + changesSaid(ch) + tagEnd + " since it was written; u brings it up to date\n")
+	}
 	b.WriteString("\nEvery action of a list, the worktree view, the changes, the log and " +
 		"the branches can have keys of your own. w writes the file with every " +
-		"action in it, commented out: uncomment a line and change its key, and " +
-		"what you leave commented keeps unagit's key, so a new release's keys " +
-		"still reach you. r reads the file again after you change it.")
+		"action in it, commented out: uncomment a line and change its key. " +
+		"What stays commented keeps unagit's key, and u rewrites those lines " +
+		"to a new release's keys and adds its new actions, leaving what you " +
+		"uncommented and your notes alone. r reads the file again after you change it.")
 	s.keys.SetText(b.String())
 }
 
 // keybindsTemplate is the reference with every binding commented out: the
-// file a user starts from, naming every action, changing none.
+// file a user starts from, naming every action, changing none. keymap.Update
+// brings a file written from it up to a later release's.
 func keybindsTemplate() string {
 	var b strings.Builder
-	b.WriteString(`# unagit's keys. Every action is here with the key it has, commented
-# out: uncomment a line and change the key to make it yours. A line left
-# commented keeps unagit's own key, and follows it when a release changes
-# it.
+	b.WriteString(`# unagit's keys: every action, with the key it has, commented out.
 #
-#   review = "ctrl+v"           # one key
-#   open = ["ctrl+e", "f4"]     # several
-#   toggle_draft = []           # none
+# Uncomment a line and change its key to make it yours: one key as
+# "ctrl+e", several as ["ctrl+e", "f4"], none as []. Keys are written
+# ctrl+e, alt+o, alt+enter, ctrl+space, f5, shift+f5, alt+pageup, P.
 #
-# [global] reaches an action in every section that has it, and a section's
-# own line wins over it. A key given to an action is taken from whatever had
-# it there. Keys are written ctrl+e, alt+o, alt+enter, ctrl+space, f5,
-# shift+f5, alt+pageup, P. Settings keeps its keys. unagit keys --check
-# says what is wrong in the file; unagit keys prints every action again,
-# with the actions a newer release added.
+# A line left commented keeps unagit's own key. Settings > Keys > u, or
+# unagit keys --update, rewrites the commented lines to a new release's keys
+# and adds its new actions; what you uncommented and your own notes stay.
+#
+# [global] reaches an action on every screen that has it, and a screen's
+# own section wins over it. A key you give an action is taken from whatever
+# had it there. unagit keys --check says what is wrong in the file.
 `)
-	body := keybindsReference[strings.Index(keybindsReference, "\n["):]
+	body := keybindsReference[strings.Index(keybindsReference, "\n\n")+1:]
 	for _, line := range strings.Split(strings.TrimRight(body, "\n"), "\n") {
 		if line != "" && !strings.HasPrefix(line, "[") && !strings.HasPrefix(line, "#") {
 			line = "# " + line
@@ -105,20 +110,89 @@ func keybindsTemplate() string {
 	return b.String()
 }
 
+// writeKeybindsTemplate writes the template to a file that is not there.
+func writeKeybindsTemplate(path string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(keybindsTemplate())
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
+// bringKeybindsUp brings the file in a configuration directory up to this
+// release's template; write false only says what it would change.
+func bringKeybindsUp(dir string, write bool) (keymap.Changes, error) {
+	path := filepath.Join(dir, keymap.FileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return keymap.Changes{}, err
+	}
+	text, ch := keymap.Update(string(data), keybindsTemplate())
+	if write && ch.Rewritten {
+		if _, problems, err := keymap.Read([]byte(text), keyRegistry()); err != nil {
+			return ch, fmt.Errorf("the file would not read after the update, so it is left as it was: %v", err)
+		} else if _, before, _ := keymap.Read(data, keyRegistry()); len(problems) > len(before) {
+			return ch, fmt.Errorf("the update would leave more wrong in it, so it is left as it was")
+		}
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+			return ch, err
+		}
+	}
+	return ch, nil
+}
+
+// UpdateKeybinds is unagit keys --update: the file brought up to this
+// release, or written from the template when there is none, said in a line.
+func UpdateKeybinds(dir string) (string, error) {
+	path := filepath.Join(dir, keymap.FileName)
+	err := writeKeybindsTemplate(path)
+	if err == nil {
+		return "written " + path + ": every action, commented out", nil
+	}
+	if !errors.Is(err, fs.ErrExist) {
+		return "", err
+	}
+	ch, err := bringKeybindsUp(dir, true)
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", path, err)
+	}
+	if !ch.Rewritten {
+		return path + ": up to date", nil
+	}
+	return "updated " + path + ": " + changesSaid(ch), nil
+}
+
+// changesSaid is what an update changes, in words.
+func changesSaid(ch keymap.Changes) string {
+	var parts []string
+	plural := func(n int, one, many string) {
+		if n == 1 {
+			parts = append(parts, "1 "+one)
+		} else if n > 1 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, many))
+		}
+	}
+	plural(ch.Added, "new action", "new actions")
+	plural(ch.Changed, "key unagit changed", "keys unagit changed")
+	plural(ch.Removed, "action gone", "actions gone")
+	if len(parts) == 0 && ch.Rewritten {
+		return "newer descriptions"
+	}
+	return strings.Join(parts, ", ")
+}
+
 // writeKeysTemplate starts keybinds.toml; a file that is there already is
 // the user's, and is never written over.
 func (s *settingsView) writeKeysTemplate() {
 	a, path := s.app, s.keysPath()
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	err := writeKeybindsTemplate(path)
 	if errors.Is(err, fs.ErrExist) {
-		a.flash(tildePath(path) + " is there already, and it is yours - e opens it; unagit keys prints every action")
+		a.flash(tildePath(path) + " is there already, and it is yours - u brings it up to date, e opens it")
 		return
-	}
-	if err == nil {
-		_, err = f.WriteString(keybindsTemplate())
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
 	}
 	if err != nil {
 		a.errorf("cannot write %s: %v", tildePath(path), err)
@@ -156,4 +230,32 @@ func (s *settingsView) readKeysAgain() {
 		return
 	}
 	a.done("Read " + tildePath(s.keysPath()))
+}
+
+// updateKeys rewrites the file to this release's actions and keys, and puts
+// it on.
+func (s *settingsView) updateKeys() {
+	a, path := s.app, s.keysPath()
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		a.flash("there is no " + keymap.FileName + " yet - w writes it")
+		return
+	}
+	ch, err := bringKeybindsUp(a.cfg.Dir(), true)
+	if err != nil {
+		a.errorf("cannot update %s: %v", tildePath(path), err)
+		return
+	}
+	if !ch.Rewritten {
+		s.fillKeys()
+		a.done(tildePath(path) + " is up to date")
+		return
+	}
+	a.keysProblem = ""
+	a.loadKeys()
+	s.fillKeys()
+	if a.keysProblem != "" {
+		a.flash(a.keysProblem)
+		return
+	}
+	a.done("Updated " + tildePath(path) + ": " + changesSaid(ch))
 }

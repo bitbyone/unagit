@@ -140,7 +140,10 @@ over it. A key given to an action is taken from whatever had it there.
 `unagit keys --check` says what is wrong in the file, as unagit does when it
 starts, and a wrong line keeps unagit's own key while the rest of the file
 holds. Settings › Keys › `w` writes the file with every action in it,
-commented out, to start from; `r` there reads it again with no restart. The
+commented out, to start from; `u` brings a file written by an older release
+up to this one's actions and keys, keeping the lines you uncommented; `r`
+reads it again with no restart. `unagit keys --update` does the writing and
+the updating from the command line. The
 pickers, the hints and the `?` help show the keys as bound; Settings keeps
 its keys.
 

@@ -270,7 +270,11 @@ the file is checked against) is written by
 `TestTheKeybindsReferenceIsCurrent -args -update-keybinds`, which fails
 until a new action or key is in it. Settings › Keys (`settings_keys.go`)
 writes the reference as a template, every binding commented out, and
-never over a file that is there. Settings keeps its keys, and so do
+never over a file that is there; `u` (`keymap.Update`) brings a file up to
+a later release by one rule - a commented binding is unagit's, an
+uncommented one the user's - so the reference's shape (a paragraph per
+action, its description from `keymap.Describe`) is what Update reads: do
+not change one without the other. Settings keeps its keys, and so do
 dialogs without a scope.
 
 A list in a dialog is the same idea at a smaller scale:

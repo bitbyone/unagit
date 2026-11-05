@@ -128,7 +128,7 @@ func (a *App) newSettingsView() *settingsView {
 		}
 		return "c change passphrase"
 	}, 1, 1, 2, 2)
-	hintPanel(s.keys.Box, func() string { return "w write every action · e edit · r read again" }, 1, 1, 2, 2)
+	hintPanel(s.keys.Box, func() string { return "w write every action · u update · e edit · r read again" }, 1, 1, 2, 2)
 	s.root = tview.NewFlex().AddItem(s.list, 24, 0, true).AddItem(s.content, 0, 1, false)
 
 	s.show(sectionGeneral)

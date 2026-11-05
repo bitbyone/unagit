@@ -84,6 +84,7 @@ func (s *settingsView) settingsSelection() (string, []uiAction) {
 	case sectionKeys:
 		return sectionNames[s.current], []uiAction{
 			a.keyIn(s.keys, "Write Every Action", "Start keybinds.toml with every action and its key, commented out; uncomment a line to change that key.", "w", 10, nil),
+			a.keyIn(s.keys, "Update Keys", "Rewrite the commented lines of keybinds.toml to this release's keys and add its new actions; what you uncommented stays.", "u", 15, nil),
 			a.keyIn(s.keys, "Edit Keys", "Open keybinds.toml in the editor, writing it first when there is none.", "e", 20, nil),
 			a.keyIn(s.keys, "Read Keys Again", "Read keybinds.toml again and put its keys on at once.", "r", 30, nil),
 		}

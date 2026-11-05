@@ -530,6 +530,7 @@ func helpRows() []helpLine {
 		blank(),
 		section("Settings · keys", helpKeys).at(helpNoKeys),
 		key("w", "keybinds.toml with every action, commented out"),
+		key("u", "bring it up to this release; your lines stay"),
 		key("e  r", "edit it · read it again, no restart needed"),
 		key("Esc  h", "back to the sections"),
 		blank(),
