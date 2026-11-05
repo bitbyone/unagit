@@ -43,7 +43,12 @@ const (
 // is checked against. TestTheKeybindsReferenceIsCurrent writes it.
 //
 //go:embed keybinds.toml
-var keybindsReference string
+var keybindsEmbedded string
+
+// keybindsReference is the reference with LF line ends, whatever a
+// checkout on Windows gave the file: it is written into the user's file,
+// and an update compares against it line by line.
+var keybindsReference = strings.ReplaceAll(keybindsEmbedded, "\r\n", "\n")
 
 // KeybindsReference is the reference, for `unagit keys`.
 func KeybindsReference() string { return keybindsReference }

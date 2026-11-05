@@ -247,8 +247,7 @@ func TestTheKeybindsReferenceIsCurrent(t *testing.T) {
 		}
 		return
 	}
-	// Git on Windows checks the file out with CRLF line ends.
-	want := strings.ReplaceAll(keybindsReference, "\r\n", "\n")
+	want := keybindsReference
 	if got != want {
 		gotLines, wantLines := strings.Split(got, "\n"), strings.Split(want, "\n")
 		for i := range max(len(gotLines), len(wantLines)) {
