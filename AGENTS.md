@@ -196,7 +196,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 
 | Package | What it owns |
 | --- | --- |
-| `cmd/unagit` | cobra commands: the TUI, `-s` standalone, `cd`, `sessions`, `where`, `credential get`, `version` |
+| `cmd/unagit` | cobra commands: the TUI, `-s` standalone, `cd`, `sessions`, `where`, `keys`, `credential get`, `version` |
 | `internal/version` | the release baked in at build time, or dev and its commit |
 | `internal/platform` | what differs by system: file locks, process liveness, exec, the terminal, cross-device renames |
 | `internal/forge` | the neutral vocabulary and the `Provider` interface |
@@ -216,6 +216,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/mux` | Zellij, herdr and Ghostty: tabs, splits and windows, pane IDs and liveness; `unagit launch` |
 | `internal/agents` | the coding agents a directory can be opened in |
 | `internal/chezmoi` | where chezmoi keeps the dotfiles repository, and its origin |
+| `internal/keymap` | keybinds.toml: how a key is written and matched, what a terminal cannot send apart |
 | `internal/fuzzy` | the subsequence matcher behind `/` |
 | `internal/md` | markdown → tview markup |
 | `internal/ui` | everything on screen |
@@ -250,7 +251,25 @@ the picker alone (creating a repository does). A key whose action
 cannot be done now is still run, so that it says why; `when` only keeps the
 pickers to what can be done. In Settings an action presses its own key in
 the section, which keeps the behaviour where it was. `TestNoTwoActionsShareAKey`
-guards the lists. A list in a dialog is the same idea at a smaller scale:
+guards the lists.
+
+**The keys are the user's** (`keybinds.toml`, `internal/keymap`,
+`ui/keybinds.go`): an action is bound by its id - its name in snake case,
+or `id` where the name changes with the state (Mark as Draft) or two
+names are one action (Open Checkout is `open`) - in the section of
+where it is done (`scope*`: a pane's `scope`, `actionKeys`' scope,
+`pickerOptions.scope`). So a key is never matched outside `matches` and
+`keysMatch`, a hint that names a key is written from the bound actions
+(`keyHints`, `hintFor`), and the pickers' own keys are
+`opensSelectionActions`. Renaming an action renames its id and quietly
+drops whatever a user bound to it: give it `id` with the old one. The
+reference of every id (`ui/keybinds.toml`, what `unagit keys` prints and
+the file is checked against) is written by
+`TestTheKeybindsReferenceIsCurrent -args -update-keybinds`, which fails
+until a new action or key is in it. Settings keeps its keys, and so do
+dialogs without a scope; the `?` help still names the defaults.
+
+A list in a dialog is the same idea at a smaller scale:
 each of its keys (`pickKey`) has a name and an about as an action has, and
 so has its Enter (`enterName`); Alt-Enter on an item lists them over the
 dialog (`pageActions`, so the dialog stays). A key that opens the browser is

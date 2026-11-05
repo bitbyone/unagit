@@ -261,7 +261,7 @@ func (a *App) listBranches(scope branchScope, branches []branchInfo) {
 		next.focus, next.done, next.warn = focus, done, ""
 		a.showBranchManager(next)
 	}
-	opts := pickerOptions{start: start, keys: []pickKey{
+	opts := pickerOptions{scope: scopeBranches, start: start, keys: []pickKey{
 		{keys: "n", hint: "new", name: "New Branch…", about: "Start a branch of your own from this one.", run: func(it pickItem) { a.newBranch(pr, branches, it.Data.(branchInfo).name, again) }},
 		{keys: "Ctrl-W", hint: "worktree", name: "New Worktree", about: "Check the branch out in a directory of its own beside the clone; one out somewhere already cannot be.", when: func(it pickItem) bool { b := it.Data.(branchInfo); return b.where == "" }, run: func(it pickItem) {
 			a.branchWorktree(pr, it.Data.(branchInfo), func(why string) {

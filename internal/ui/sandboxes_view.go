@@ -77,7 +77,7 @@ const (
 )
 
 func (a *App) newSandboxesPane() *pane {
-	p := a.newPane("Tasks")
+	p := a.newPane("Tasks", scopeSandboxes)
 	p.stackBelow = sandboxesWide
 	p.listWeight, p.detailWeight = 3, 2
 	p.body.ResizeItem(p.kept, 0, p.listWeight)
@@ -295,7 +295,7 @@ func (a *App) sandboxesOffText() string {
 // Settings, to another tab, help, quit.
 func (v *sandboxesView) offKeys(ev *tcell.EventKey) *tcell.EventKey {
 	a := v.app
-	if a.actionKeys(ev, func() (string, []uiAction) { return "", nil }, func() (string, []uiAction) {
+	if a.actionKeys(ev, scopeSandboxes, func() (string, []uiAction) { return "", nil }, func() (string, []uiAction) {
 		setup := a.setupAction()
 		setup.keys, setup.rank = "Enter", 5
 		integrations := a.integrationsAction()

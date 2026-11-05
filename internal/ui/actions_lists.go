@@ -111,7 +111,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			a.showBranchManager(branchScope{project: pr, checkout: true})
 		}},
 		{name: "Refresh", about: "Fetch this clone from origin, read its branch's pipeline and see where it stands, leaving the rest of the list as it is.", keys: "r", rank: 57, run: func() { a.refreshProjectRow(pr) }},
-		{name: mrsHiddenName(a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace)), about: "Keep the repository's merge requests out of the list and out of refreshes, the repository still here; again lists them.", keys: "H", rank: 470,
+		{id: "hide_merge_requests", name: mrsHiddenName(a.cfg.Filters.HidesMRsOf(pr.Instance, pr.PathWithNamespace)), about: "Keep the repository's merge requests out of the list and out of refreshes, the repository still here; again lists them.", keys: "H", rank: 470,
 			run: func() { a.toggleMRsOf(pr.Instance, pr.PathWithNamespace) }},
 		{name: "Show Commit Log", about: "What is out in the clone, newest first, or the server's default branch before it is cloned: diff, check out, branch from a commit.", keys: "Ctrl-L", rank: 58, run: func() { a.repositoryLog(pr) }},
 		{name: "Show Pipeline…", about: "The jobs of the newest pipeline of the clone's branch, or of the default branch before it is cloned: read a log, retry, open it.", keys: "J", rank: 62, run: func() {
@@ -244,7 +244,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		a.watchMRAction(mr),
 		{name: "Approve…", about: "Approve the merge request on the server; asks first.", keys: "A", rank: 40, run: func() { a.approveMR(mr, nil) }},
 		{name: "Merge…", about: "Merge it on the server - now, or once its pipeline succeeds - after saying what stands in the way.", keys: "M", rank: 41, run: func() { a.mergeMR(mr) }},
-		{name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
+		{id: "toggle_draft", name: draftName, about: draftAbout, keys: "Ctrl-D", rank: 42, run: func() { a.toggleDraft(mr) }},
 		{name: "Add/Change Reviewer…", about: "Choose who is asked to review: space asks or withdraws, x withdraws, Esc saves.", keys: "s", rank: 43, run: func() { a.editReviewers(mr) }},
 		{name: "Add/Change Assignee…", about: "Choose who the merge request is assigned to: space assigns or unassigns, x unassigns, Esc saves.", keys: "a", rank: 43, run: func() { a.editAssignees(mr) }},
 		{name: "Labels…", about: "Put the forge's labels on the merge request or take them off: the repository's labels, and on GitLab its groups'; space puts on or takes off, Esc saves.", keys: "t", rank: 44, run: func() { a.editLabels(mr) }},

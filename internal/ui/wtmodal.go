@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
@@ -171,7 +172,7 @@ func (a *App) readWorktreeFacts() {
 func (a *App) renderWorktreeView() {
 	v := a.wtView
 	v.body.lit = v.at
-	v.footer.SetText(litHint(worktreeViewHint(v.lit())))
+	v.footer.SetText(litHint(a.worktreeViewHint(v)))
 	if !v.loaded {
 		v.body.blocks = nil
 		return
@@ -259,18 +260,28 @@ func (a *App) memberBlock(m worktreeRow, f wtFacts) textBlock {
 }
 
 // worktreeViewHint is the footer: the keys of the block that is lit, the
-// usual ones; Alt-Enter lists every action there is for it.
-func worktreeViewHint(r worktreeRow) string {
+// usual ones, as bound; Alt-Enter lists every action there is for it.
+func (a *App) worktreeViewHint(v *wtView) string {
+	r := v.lit()
+	acts := a.bound(scopeWorktreeView, append(a.worktreeViewActions(v), joinActions(a.worktreeViewScreenActions(), a.globalActions())...))
+	var hints []string
+	if k := a.actionsKey(); k != "" {
+		hints = append(hints, k+" actions")
+	}
+	var pairs []string
 	if r.grouped() {
-		return "Alt-Enter actions · Ctrl-O open · p pull · P push · C commit · n MRs · D diff · " +
-			"Ctrl-R rebase · a add · r refresh · R all"
+		pairs = []string{"open", "open", "pull", "pull", "push", "push", "commit", "commit", "new_linked_merge_requests", "MRs",
+			"show_uncommitted_changes", "diff", "rebase_onto_base", "rebase", "add_repository", "add"}
+	} else {
+		pairs = []string{"open", "open", "open_in_browser", "web", "show_conversation", "comments", "show_commit_log", "log",
+			"branches", "branches", "pull", "pull", "push", "push", "commit", "commit", "new_merge_request", "MR",
+			"show_uncommitted_changes", "diff", "rebase_onto_base", "rebase"}
+		if r.Group != "" {
+			pairs = append(pairs, "remove_from_group", "take out")
+		}
 	}
-	keys := "Alt-Enter actions · Ctrl-O open · w web · c comments · Ctrl-L log · b branches · p pull · " +
-		"P push · C commit · n MR · D diff · Ctrl-R rebase"
-	if r.Group != "" {
-		keys += " · x take out"
-	}
-	return keys + " · r refresh · R all"
+	pairs = append(pairs, "refresh", "refresh", "refresh_all", "all")
+	return strings.Join(append(hints, keyHints(acts, pairs...)...), " · ")
 }
 
 // worktreeViewActions are what can be done with the block that is lit.
@@ -364,7 +375,7 @@ func (a *App) worktreeViewKeys(v *wtView, ev *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 	title := "Actions · " + v.lit().Path
-	a.actionKeys(ev,
+	a.actionKeys(ev, scopeWorktreeView,
 		func() (string, []uiAction) { return title, a.worktreeViewActions(v) },
 		func() (string, []uiAction) { return "Worktree view", a.worktreeViewScreenActions() })
 	return nil

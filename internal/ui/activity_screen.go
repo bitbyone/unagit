@@ -60,7 +60,7 @@ const (
 )
 
 func (a *App) newActivityPane() *pane {
-	p := a.newPane("Activity")
+	p := a.newPane("Activity", scopeActivity)
 	p.markable = true
 	p.stackBelow = activityWide
 	// The list's rows want more room than the detail's lines.
@@ -489,7 +489,7 @@ func (a *App) panelKeys(v panelScreen, self tview.Primitive, own func(*tcell.Eve
 		if own(ev) || v.cycleKeys(ev) {
 			return nil
 		}
-		if a.actionKeys(ev, selection, v.home().screen) {
+		if a.actionKeys(ev, v.home().scope, selection, v.home().screen) {
 			return nil
 		}
 		if t, ok := self.(*tview.Table); ok {

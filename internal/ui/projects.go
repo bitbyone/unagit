@@ -24,7 +24,7 @@ type scored struct {
 }
 
 func (a *App) newProjectsPane() *pane {
-	p := a.newPane("Repositories")
+	p := a.newPane("Repositories", scopeRepositories)
 	// Its rows carry tags and a path; beside a detail column they would be
 	// cut to nothing well before the default width.
 	p.stackBelow = 180

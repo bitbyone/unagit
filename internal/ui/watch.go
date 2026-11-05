@@ -147,10 +147,10 @@ func (a *App) watchPipelinesAction(w watch.Watch) uiAction {
 		what, follows = "Merge Request", "its pipelines, commits, comments and approvals"
 	}
 	if a.isWatched(w) {
-		return uiAction{name: "Stop Watching " + what, about: "Stop following it in the background; the Activity screen lets it go.", rank: 64,
+		return uiAction{id: "toggle_watch", name: "Stop Watching " + what, about: "Stop following it in the background; the Activity screen lets it go.", rank: 64,
 			run: func() { a.setWatched(w, false) }}
 	}
-	return uiAction{name: "Watch " + what, about: "Follow it in the background - " + follows + " - on the Activity screen, each change said as it comes.", rank: 64,
+	return uiAction{id: "toggle_watch", name: "Watch " + what, about: "Follow it in the background - " + follows + " - on the Activity screen, each change said as it comes.", rank: 64,
 		run: func() { a.setWatched(w, true) }}
 }
 
@@ -167,7 +167,7 @@ func (a *App) watchWorktreeAction(r worktreeRow) uiAction {
 	if !r.grouped() {
 		return a.watchPipelinesAction(a.worktreeWatch(r))
 	}
-	return uiAction{name: "Watch Branch…", about: "Choose a repository of the group whose branch to follow in the background - its pipelines, its base - or to stop following.", rank: 64,
+	return uiAction{id: "toggle_watch", name: "Watch Branch…", about: "Choose a repository of the group whose branch to follow in the background - its pipelines, its base - or to stop following.", rank: 64,
 		when: func() bool { return len(r.Members) > 0 }, run: func() {
 			items := make([]pickItem, len(r.Members))
 			for i, m := range r.Members {

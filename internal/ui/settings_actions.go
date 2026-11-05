@@ -135,12 +135,14 @@ func (s *settingsView) settingsScreen() (string, []uiAction) {
 
 // settingsPickers opens Settings' action pickers on their keys.
 func (s *settingsView) settingsPickers(ev *tcell.EventKey) bool {
-	if !opensPicker(ev) {
+	if !s.app.opensPicker(ev) {
 		return false
 	}
 	selection := s.settingsSelection
 	if !s.contentFocused {
 		selection = s.settingsScreen
 	}
-	return s.app.actionKeys(ev, selection, s.settingsScreen)
+	// Settings' keys are its sections' own, pressed by its actions: they
+	// keep them, and keybinds.toml has no section for them.
+	return s.app.actionKeys(ev, "", selection, s.settingsScreen)
 }

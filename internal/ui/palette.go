@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -26,6 +25,13 @@ type uiAction struct {
 	// matched: a letter, Ctrl-X, Alt-x, or a word for a key the list itself
 	// handles (Enter, space, /). "" leaves the action to the picker alone.
 	keys string
+	// also is more keys that do it, when the user gave it several in
+	// keybinds.toml.
+	also []string
+	// id is what keybinds.toml calls it, when its name will not do: a
+	// name that changes with the state (Mark as Draft, Mark Ready), or one
+	// action shown under several names.
+	id string
 	// rank is how often it is wanted; the pickers list the lower first, so
 	// what one usually comes for is near the top.
 	rank int
@@ -62,26 +68,8 @@ func available(actions []uiAction) []uiAction {
 // that the picker shows them; they are never matched here.
 var keyWords = map[string]bool{"Enter": true, "space": true, "Esc": true}
 
-// matches reports whether a key event is an action's key.
-func (act uiAction) matches(ev *tcell.EventKey) bool {
-	spec := act.keys
-	if spec == "" || keyWords[spec] {
-		return false
-	}
-	if rest, ok := strings.CutPrefix(spec, "Ctrl-"); ok && len(rest) == 1 {
-		letter := unicode.ToLower(rune(rest[0]))
-		return letter >= 'a' && letter <= 'z' && ev.Key() == tcell.KeyCtrlA+tcell.Key(letter-'a')
-	}
-	if ev.Key() != tcell.KeyRune || ev.Modifiers()&tcell.ModCtrl != 0 {
-		return false
-	}
-	alt := ev.Modifiers()&tcell.ModAlt != 0
-	if rest, ok := strings.CutPrefix(spec, "Alt-"); ok && len([]rune(rest)) == 1 {
-		return alt && unicode.ToLower(ev.Rune()) == unicode.ToLower([]rune(rest)[0])
-	}
-	runes := []rune(spec)
-	return !alt && len(runes) == 1 && ev.Rune() == runes[0]
-}
+// matches reports whether a key event is one of an action's keys.
+func (act uiAction) matches(ev *tcell.EventKey) bool { return keysMatch(act.keys, act.also, ev) }
 
 // runKey does the action whose key this is. When several share a key the one
 // that can be done now wins; when none can, the first is done anyway, so that
@@ -108,17 +96,6 @@ func runKey(actions []uiAction, ev *tcell.EventKey) bool {
 	return false
 }
 
-// opensSelectionActions and opensScreenActions are the keys of the two
-// pickers. Alt-Enter is the natural one; Ctrl-A is there for terminals that
-// keep Alt-Enter for themselves (full screen, mostly).
-func opensSelectionActions(ev *tcell.EventKey) bool {
-	return ev.Key() == tcell.KeyEnter && ev.Modifiers()&tcell.ModAlt != 0 || ev.Key() == tcell.KeyCtrlA
-}
-
-func opensScreenActions(ev *tcell.EventKey) bool {
-	return ev.Key() == tcell.KeyRune && ev.Rune() == ':' && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0
-}
-
 // showActions opens a picker of actions, typing into its filter: an action
 // is found by name, Enter does it, Esc goes to the list, where j/k move. The
 // key of each is beside it, so the picker teaches the keys as it is used.
@@ -134,8 +111,8 @@ func (a *App) showActions(title string, actions []uiAction) {
 	}
 	items := make([]pickItem, len(acts))
 	for i, act := range acts {
-		keys := act.keys
-		if keys == "" {
+		keys := strings.Join(append([]string{act.keys}, act.also...), " ")
+		if act.keys == "" {
 			keys = "·"
 		}
 		label := fmt.Sprintf("%-*s", width, act.name)
@@ -166,32 +143,42 @@ func (a *App) showActions(title string, actions []uiAction) {
 
 // actionKeys answers the keys of a screen: the two pickers, then the action
 // whose key it is. It reports whether the key was used.
-func (a *App) actionKeys(ev *tcell.EventKey, selection func() (string, []uiAction), screen func() (string, []uiAction)) bool {
+//
+// scope is the section of keybinds.toml the screen's actions are bound in.
+// The selection's actions, the screen's and the global ones are bound as
+// one list, so a key the user gave one of them is taken from all others.
+func (a *App) actionKeys(ev *tcell.EventKey, scope string, selection func() (string, []uiAction), screen func() (string, []uiAction)) bool {
+	var selTitle, screenTitle string
+	var sel, scr []uiAction
+	if selection != nil {
+		selTitle, sel = selection()
+	}
+	if screen != nil {
+		screenTitle, scr = screen()
+		scr = joinActions(scr, a.globalActions())
+	}
+	if a.keys != nil {
+		all := a.bound(scope, append(append([]uiAction{}, sel...), scr...))
+		if sel != nil {
+			sel = all[:len(sel)]
+		}
+		if scr != nil {
+			scr = all[len(sel):]
+		}
+	}
 	switch {
-	case opensSelectionActions(ev) && selection != nil:
-		title, acts := selection()
-		if acts == nil {
+	case a.opensSelectionActions(ev) && selection != nil:
+		if sel == nil {
 			a.flash("nothing is selected")
 			return true
 		}
-		a.showActions(title, acts)
+		a.showActions(selTitle, sel)
 		return true
-	case opensScreenActions(ev) && screen != nil:
-		title, acts := screen()
-		a.showActions(title, joinActions(acts, a.globalActions()))
+	case a.opensScreenActions(ev) && screen != nil:
+		a.showActions(screenTitle, scr)
 		return true
 	}
-	if selection != nil {
-		if _, acts := selection(); runKey(acts, ev) {
-			return true
-		}
-	}
-	if screen != nil {
-		if _, acts := screen(); runKey(joinActions(acts, a.globalActions()), ev) {
-			return true
-		}
-	}
-	return false
+	return runKey(sel, ev) || runKey(scr, ev)
 }
 
 // globalActions can be done from any screen: the : picker lists them after

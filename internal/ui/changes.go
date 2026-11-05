@@ -591,22 +591,27 @@ func (a *App) changesFocus(v *changesView) {
 		return
 	}
 	v.table.SetBorderColor(colBorderFocus).SetTitleColor(colBorderFocus)
-	v.hint.SetText(litHint(v.listHint()))
+	v.hint.SetText(litHint(a.changesListHint(v)))
 }
 
-// listHint names what can be done with what the actions would act on now:
-// a versioned file is rolled back, an unversioned one added or deleted.
-func (v *changesView) listHint() string {
+// changesListHint names what can be done with what the actions would act
+// on now: a versioned file is rolled back, an unversioned one added or
+// deleted. The keys are the actions' own, as bound.
+func (a *App) changesListHint(v *changesView) string {
 	versioned, unversioned := split(v.targets())
-	parts := []string{"space mark", "x commit or not", "c commit"}
-	// Standalone keeps R for reading the repository again.
-	if len(versioned) > 0 && v.place.embed.keyless("R") != "" {
-		parts = append(parts, "R rollback")
+	e := v.place.embed
+	// Standalone keeps R for reading the repository again: keyless takes
+	// it off the actions, and the hint follows.
+	acts := a.bound(scopeChanges, append(e.keylessActions(a.changesSelectionActions(v)), e.keylessActions(a.changesScreenActions(v))...))
+	pairs := []string{"toggle_mark", "mark", "include_or_exclude", "commit or not", "commit", "commit"}
+	if len(versioned) > 0 {
+		pairs = append(pairs, "rollback_changes", "rollback")
 	}
 	if len(unversioned) > 0 {
-		parts = append(parts, "A add to git", "d delete")
+		pairs = append(pairs, "add_to_git", "add to git", "delete", "delete")
 	}
-	return strings.Join(append(parts, "s shelve", "Ctrl-O open"), " · ")
+	pairs = append(pairs, "shelve_changes", "shelve", "open", "open")
+	return strings.Join(keyHints(acts, pairs...), " · ")
 }
 
 // changesListKeys answers the list's keys: folding, the panes, then the
@@ -615,7 +620,7 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 	r, ok := v.row()
 	switch {
 	// Alt-Enter is an Enter too: the pickers come before the tree has it.
-	case opensSelectionActions(ev) || opensScreenActions(ev):
+	case a.opensPicker(ev):
 		a.changesActionKeys(v, ev)
 		return nil
 	case ev.Key() == tcell.KeyEsc:
@@ -683,7 +688,7 @@ func (a *App) changesListKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKe
 func (a *App) changesActionKeys(v *changesView, ev *tcell.EventKey) {
 	e := v.place.embed
 	selection := func() []uiAction { return e.keylessActions(a.changesSelectionActions(v)) }
-	a.actionKeys(ev,
+	a.actionKeys(ev, scopeChanges,
 		func() (string, []uiAction) { return "Actions · " + v.targetsName(), selection() },
 		func() (string, []uiAction) {
 			own := e.keylessActions(a.changesScreenActions(v))
@@ -700,7 +705,7 @@ func (a *App) changesActionKeys(v *changesView, ev *tcell.EventKey) {
 // list only from there.
 func (a *App) changesDiffKeys(v *changesView, ev *tcell.EventKey) *tcell.EventKey {
 	switch {
-	case opensSelectionActions(ev) || opensScreenActions(ev):
+	case a.opensPicker(ev):
 		a.changesActionKeys(v, ev)
 		return nil
 	case ev.Key() == tcell.KeyRune && ev.Modifiers() == 0 && ev.Rune() == 'h':

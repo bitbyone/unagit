@@ -211,7 +211,7 @@ func (a *App) showMarkedLog(place logPlace, commits []logCommit, start int, mark
 
 	// Not packed: the rows are short, but the keys are many, and their hints
 	// should fit on a line or two rather than wrap down the side.
-	opts := pickerOptions{start: start, wide: true, explain: true, enterHint: "details", keys: keys,
+	opts := pickerOptions{scope: scopeLog, start: start, wide: true, explain: true, enterHint: "details", keys: keys,
 		enterName: "Show Details", enterAbout: "The whole commit: its message, refs and the files it changed.",
 		relabel: func(items []pickItem, width int) { labelLog(items, commits, width, ends) },
 		embed:   place.embed}

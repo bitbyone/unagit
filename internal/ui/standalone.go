@@ -171,6 +171,10 @@ func (a *App) startStandalone() {
 		defer a.flash(a.themeProblem)
 		a.themeProblem = ""
 	}
+	if a.keysProblem != "" {
+		defer a.flash(a.keysProblem)
+		a.keysProblem = ""
+	}
 	s := a.solo
 	// Held in memory only: the state is never saved here.
 	a.cfg.State.SetLocalRepository("", s.name, s.dir)

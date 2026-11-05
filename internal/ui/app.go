@@ -25,6 +25,7 @@ import (
 	"github.com/tobola/unagit/internal/gitlab"
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/index"
+	"github.com/tobola/unagit/internal/keymap"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/secret"
 	"github.com/tobola/unagit/internal/session"
@@ -213,6 +214,13 @@ type App struct {
 
 	themes       themeSet
 	themeProblem string
+	// keys is what keybinds.toml changes of the actions' keys, nil when
+	// nothing; keysProblem says what was wrong in it, until it is said.
+	keys        *keymap.Map
+	keysProblem string
+	// offered is the keys a dialog of each section of keybinds.toml last
+	// offered: what the reference of the keys is written from.
+	offered map[string][]pickKey
 	// themeFile is the file of the theme in use, "" for a built-in one;
 	// watchTheme reads it from its own goroutine.
 	themeFile atomic.Value
@@ -516,6 +524,7 @@ func (a *App) Run() error {
 	a.detectMultiplexer()
 	applyTheme()
 	a.chooseTheme()
+	a.loadKeys()
 	var layout tview.Primitive
 	if a.solo != nil {
 		layout = a.buildStandalone()
@@ -624,6 +633,10 @@ func (a *App) start() {
 		defer a.flash(a.themeProblem)
 		a.themeProblem = ""
 	}
+	if a.keysProblem != "" {
+		defer a.flash(a.keysProblem)
+		a.keysProblem = ""
+	}
 	a.loadIndexes()
 	a.startWatching()
 	a.serveCredentials()
@@ -680,8 +693,8 @@ func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
 	// : in a dialog lists what can be done from anywhere. A main screen
 	// answers : itself, its own actions first, and so do the worktree view
 	// and the Changes dialog; what only a main screen can do is not offered over a dialog.
-	if opensScreenActions(ev) && a.dialogTakesColon() {
-		a.showActions("Actions", a.globalActions())
+	if a.opensScreenActions(ev) && a.dialogTakesColon() {
+		a.showActions("Actions", a.bound(keymap.Global, a.globalActions()))
 		return nil
 	}
 	return ev

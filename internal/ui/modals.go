@@ -210,6 +210,9 @@ func (a *App) showPickerAt(title string, items []pickItem, start int, onSelect f
 
 // pickerOptions are the ways a picker can differ from the plain one.
 type pickerOptions struct {
+	// scope is the section of keybinds.toml the keys are bound in; a
+	// dialog without one keeps its keys as they are.
+	scope    string
 	start    int            // the item the cursor starts on
 	onNew    func()         // n while browsing, when set
 	onDelete func(pickItem) // d while browsing, when set
@@ -488,6 +491,10 @@ func (a *App) browserKey(keys, hint, name, about string, url func(pickItem) stri
 // pickKey is a key of a picker that acts on the item under the cursor.
 type pickKey struct {
 	keys string
+	// also and id are as an action's (uiAction): more keys the user gave
+	// it, and what keybinds.toml calls it when its name will not do.
+	also []string
+	id   string
 	hint string
 	// name and about are what the key is called and does, as an action is
 	// (uiAction): the item's actions (Alt-Enter) list it by them.
@@ -582,6 +589,13 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		opts.back = claimed
 	}
 	start, onNew, onDelete := opts.start, opts.onNew, opts.onDelete
+	opts.keys = a.boundPickKeys(opts.scope, opts.keys)
+	if opts.scope != "" {
+		if a.offered == nil {
+			a.offered = map[string][]pickKey{}
+		}
+		a.offered[opts.scope] = opts.keys
+	}
 	if opts.embed != nil {
 		keys := make([]pickKey, len(opts.keys))
 		for i, k := range opts.keys {
@@ -765,6 +779,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			taken := []uiAction{{keys: "Enter"}, {keys: "/"}, {keys: "j"}, {keys: "k"}, {keys: "g"}, {keys: "G"}}
 			for _, k := range opts.keys {
 				taken = append(taken, uiAction{keys: k.keys})
+				for _, more := range k.also {
+					taken = append(taken, uiAction{keys: more})
+				}
 			}
 			if onNew != nil {
 				taken = append(taken, uiAction{keys: "n"})
@@ -965,7 +982,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 	list.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
 		// What can be done with the item under the cursor, as a list of
 		// actions, the way every list of the main screens has it.
-		if opensSelectionActions(ev) {
+		if a.opensSelectionActions(ev) {
 			i := list.GetCurrentItem()
 			if i < 0 || i >= len(shown) || isRule(i) {
 				a.flash("nothing is selected")
@@ -989,7 +1006,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 				if name == "" || !k.can(it) || marking && !k.marked {
 					continue
 				}
-				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, rank: 10 + n, run: func() {
+				acts = append(acts, uiAction{name: name, about: about, keys: k.keys, also: k.also, rank: 10 + n, run: func() {
 					if !k.stay {
 						leave()
 						dismiss()
@@ -1014,7 +1031,7 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			}
 		}
 		for _, k := range opts.keys {
-			if (uiAction{keys: k.keys}).matches(ev) {
+			if keysMatch(k.keys, k.also, ev) {
 				if marks.count() > 0 && !k.marked {
 					a.flash(oneItemOnly(k.name))
 					return nil
@@ -1118,11 +1135,11 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 			// Runes are shortcuts in tview's List; nothing here uses them.
 			// A screen's own keys come after the picker's.
 			if opts.embed != nil {
-				a.actionKeys(ev, nil, embedScreen)
+				a.actionKeys(ev, opts.scope, nil, embedScreen)
 			}
 			return nil
 		}
-		if opts.embed != nil && a.actionKeys(ev, nil, embedScreen) {
+		if opts.embed != nil && a.actionKeys(ev, opts.scope, nil, embedScreen) {
 			return nil
 		}
 		return ev

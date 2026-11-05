@@ -24,7 +24,7 @@ import (
 )
 
 func (a *App) newMRsPane() *pane {
-	p := a.newPane("Merge requests")
+	p := a.newPane("Merge requests", scopeMergeRequests)
 	p.stackBelow = 130
 	// Space marks merge requests for what can be done to several at once.
 	p.markable = true

@@ -56,7 +56,9 @@ type pane struct {
 
 	onQuery  func(string)              // rebuild rows for a new query
 	onDetail func(idx int, focus bool) // fill the detail column for a row
-	onOpen   func(ask bool)            // Ctrl-O: clone/update and open the editor; Alt-O asks which editor
+	onOpen   func(ask bool)            // the Open and Open With… actions: clone/update and open the editor, or ask which first
+	// scope is the section of keybinds.toml the list's actions are bound in.
+	scope string
 	// selection and screen are what can be done with the row under the
 	// cursor (or the marked rows) and with the list itself: they answer the
 	// keys and fill the two action pickers (palette.go). selection says nil
@@ -98,8 +100,8 @@ const detailDebounce = 300 * time.Millisecond
 // wider rows sets its own (pane.stackBelow).
 const narrowBodyWidth = 100
 
-func (a *App) newPane(title string) *pane {
-	p := &pane{app: a, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth, listWeight: 1, detailWeight: 1}
+func (a *App) newPane(title, scope string) *pane {
+	p := &pane{app: a, scope: scope, detailFor: -1, bodyDirection: tview.FlexColumn, stackBelow: narrowBodyWidth, listWeight: 1, detailWeight: 1}
 
 	p.header = tview.NewTextView().SetDynamicColors(true)
 	p.helpHint = tview.NewTextView().SetDynamicColors(true).SetText(litHint("? help")).SetTextAlign(tview.AlignRight)
@@ -403,11 +405,6 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 		p.focusTable()
 		p.enter()
 		return nil
-	case tcell.KeyCtrlO:
-		if p.onOpen != nil {
-			p.onOpen(false)
-		}
-		return nil
 	case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
 		p.forwardToTable(ev)
 		return nil
@@ -418,7 +415,28 @@ func (p *pane) filterKeys(ev *tcell.EventKey) *tcell.EventKey {
 		p.forwardToTable(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
 		return nil
 	}
+	if p.openWhileFiltering(ev) {
+		return nil
+	}
 	return ev
+}
+
+// openWhileFiltering opens what the filter found on the keys of Open and
+// Open With…, as bound; every other key is the filter's, and so is any
+// plain character, whatever the user bound it to.
+func (p *pane) openWhileFiltering(ev *tcell.EventKey) bool {
+	if p.selection == nil || ev.Key() == tcell.KeyRune && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 {
+		return false
+	}
+	_, acts := p.selection()
+	acts = p.app.bound(p.scope, acts)
+	for _, act := range acts {
+		if id := act.ident(); (id == "open" || id == "open_with") && act.matches(ev) {
+			act.run()
+			return true
+		}
+	}
+	return false
 }
 
 func (p *pane) forwardToTable(ev *tcell.EventKey) {
@@ -455,16 +473,11 @@ func selectionInTable(p tview.Primitive) {
 	t.Select(min(max(row, 0), rows-1), min(max(column, 0), columns-1))
 }
 
-// altKeys handles Alt with a letter: an opening key that first asks which
-// editor to open in. Any other Alt letter is swallowed, so it cannot act as
-// the plain letter - Alt-o must never reorder the list.
+// altKeys handles Alt with a letter: an action's key, or swallowed, so it
+// cannot act as the plain letter - Alt-o must never reorder the list.
 func (p *pane) altKeys(ev *tcell.EventKey) bool {
 	if ev.Key() != tcell.KeyRune || ev.Modifiers()&tcell.ModAlt == 0 {
 		return false
-	}
-	if ev.Rune() == 'o' && p.onOpen != nil {
-		p.onOpen(true)
-		return true
 	}
 	p.actionKeys(ev)
 	return true
@@ -472,12 +485,7 @@ func (p *pane) altKeys(ev *tcell.EventKey) bool {
 
 // actionKeys answers the action pickers' keys and the actions' own.
 func (p *pane) actionKeys(ev *tcell.EventKey) bool {
-	return p.app.actionKeys(ev, p.selection, p.screen)
-}
-
-// opensPicker reports whether a key opens one of the action pickers.
-func opensPicker(ev *tcell.EventKey) bool {
-	return opensSelectionActions(ev) || opensScreenActions(ev)
+	return p.app.actionKeys(ev, p.scope, p.selection, p.screen)
 }
 
 // tableKeys implements NORMAL mode.
@@ -486,18 +494,13 @@ func (p *pane) tableKeys(ev *tcell.EventKey) *tcell.EventKey {
 	if p.extraKeys != nil && p.extraKeys(ev) {
 		return nil
 	}
-	if opensPicker(ev) && p.actionKeys(ev) {
+	if p.app.opensPicker(ev) && p.actionKeys(ev) {
 		return nil
 	}
 	if p.altKeys(ev) {
 		return nil
 	}
 	switch ev.Key() {
-	case tcell.KeyCtrlO:
-		if p.onOpen != nil {
-			p.onOpen(false)
-		}
-		return nil
 	case tcell.KeyEsc:
 		switch {
 		case p.query != "":
@@ -566,7 +569,7 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 	if p.extraKeys != nil && p.extraKeys(ev) {
 		return nil
 	}
-	if opensPicker(ev) && p.actionKeys(ev) {
+	if p.app.opensPicker(ev) && p.actionKeys(ev) {
 		return nil
 	}
 	if p.altKeys(ev) {
@@ -575,14 +578,6 @@ func (p *pane) detailKeys(ev *tcell.EventKey) *tcell.EventKey {
 	switch ev.Key() {
 	case tcell.KeyEsc, tcell.KeyLeft:
 		p.focusTable()
-		return nil
-	case tcell.KeyCtrlO:
-		if p.onOpen != nil {
-			p.onOpen(false)
-		}
-		return nil
-	case tcell.KeyCtrlR:
-		p.actionKeys(ev)
 		return nil
 	case tcell.KeyRune:
 		switch ev.Rune() {

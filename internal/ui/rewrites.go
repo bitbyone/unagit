@@ -388,7 +388,7 @@ func (a *App) localHistoryAction() uiAction {
 	if a.activityLocal {
 		name, about = "Show Everything", "Show in the log everything again: the watches' news, the agents, and the local history."
 	}
-	return uiAction{name: name, about: about, keys: "H", rank: 22, run: a.toggleLocalHistory}
+	return uiAction{id: "toggle_local_history", name: name, about: about, keys: "H", rank: 22, run: a.toggleLocalHistory}
 }
 
 // withRewriteWarnings says what makes rewriting what origin has of a

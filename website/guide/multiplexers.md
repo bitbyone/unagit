@@ -22,6 +22,11 @@ as with `Ctrl-O`. Tabs are named after the repository, merge request, branch or
 group. unagit stays usable while the editor runs, and the pane closes when its
 editor exits.
 
+Zellij's default keys take `Ctrl-O`, `Ctrl-T`, `Ctrl-G`, `Ctrl-S`, `Ctrl-P`
+and `Ctrl-N` for its modes, so in Zellij those of unagit never arrive. Either
+switch Zellij to its *unlock-first* preset, or give the actions other keys in
+[`keybinds.toml`](./actions#your-own-keys).
+
 Neovim in a pane is the same Neovim as in unagit's own terminal: `Ctrl-Z` puts
 it aside, the pane closes, and `E` lists it. Opening its directory again brings
 it back where you ask. While it still has its pane, opening the directory goes

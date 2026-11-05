@@ -233,7 +233,7 @@ const (
 // openAction is Open… for a kind of row, what it is called and what it
 // opens.
 func (a *App) openAction(kind, label string, targets ...openTarget) uiAction {
-	return uiAction{name: "Open…", about: "Choose with what - an editor or an agent - and where it opens, the form filled in as you last used it here.",
+	return uiAction{id: "open_in", name: "Open…", about: "Choose with what - an editor or an agent - and where it opens, the form filled in as you last used it here.",
 		keys: "O", rank: 12, run: func() { a.showOpenForm(kind, label, targets) }}
 }
 

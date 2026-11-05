@@ -117,6 +117,31 @@ by what it does; `Enter` does it, the arrows move, and `Esc` goes to the list
 (`j`/`k`) - or, with nothing typed, closes it. Some actions are rare enough to have no key at
 all and live only there.
 
+**The keys are yours to change.** A terminal or a multiplexer can keep a key
+for itself: Zellij takes `Ctrl-O`, `Ctrl-T`, `Ctrl-G` and `Ctrl-S`, Windows
+Terminal `Alt-Enter`, tmux its prefix. `keybinds.toml` beside `config.yaml`
+gives any action another key, several, or none:
+
+```toml
+[global]
+actions = ["ctrl+space", "alt+enter"]   # the selection's action picker
+
+[repositories]
+open = "ctrl+e"
+toggle_grouping = []
+```
+
+An action is known by its name in snake case (Open With… is `open_with`), in
+the section for where it is done: `repositories`, `merge_requests`,
+`worktrees`, `worktree_view`, `changes`, `log`, `branches`, `activity`,
+`sandboxes`. `[global]` reaches it everywhere, and a section's own line wins
+over it. A key given to an action is taken from whatever had it there.
+`unagit keys` prints every action with its key, in the shape the file takes;
+`unagit keys --check` says what is wrong in the file, as unagit does when it
+starts, and a wrong line keeps unagit's own key while the rest of the file
+holds. The pickers and the hints show the keys as bound; the `?` help still
+shows unagit's own, and Settings keeps its keys.
+
 - **Create a new repository** (`:` in Repositories) asks where - one of the
   groups picked in Settings, or a subgroup of one taken with its subgroups -
   and for its name, description, visibility, first branch, a README, a license

@@ -358,7 +358,7 @@ func remoteCell(st remoteState, known bool, width int) string {
 // newWorktreesPane is the list of every branch worktree on disk, across all
 // repositories.
 func (a *App) newWorktreesPane() *pane {
-	p := a.newPane("Worktrees")
+	p := a.newPane("Worktrees", scopeWorktrees)
 	var filtered []int
 
 	p.headline = func() string {

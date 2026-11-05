@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tobola/unagit/internal/config"
+	"github.com/tobola/unagit/internal/keymap"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/platform"
 	"github.com/tobola/unagit/internal/ui"
@@ -68,7 +69,7 @@ func rootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "list Settings › Debug, which fires toasts and notifications by hand")
 	// --version prints the version alone, the same line as unagit version.
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.AddCommand(attachCmd(), cdCmd(), credentialCmd(), goCmd(), sessionsCmd(), whereCmd(), launchCmd(), holdCmd(), versionCmd(),
+	root.AddCommand(attachCmd(), cdCmd(), credentialCmd(), goCmd(), sessionsCmd(), whereCmd(), keysCmd(), launchCmd(), holdCmd(), versionCmd(),
 		goalCmd("review", "Open a merge request for review, from its link", true),
 		goalCmd("open", "Open a merge request's branch worktree, from its link", false))
 	return root
@@ -189,8 +190,46 @@ func whereCmd() *cobra.Command {
 			fmt.Println("projects:", config.IndexPath("projects"))
 			fmt.Println("mrs:     ", config.IndexPath("mrs"))
 			fmt.Println("groups:  ", config.IndexPath("groups"))
+			fmt.Println("keys:    ", filepath.Join(config.Dir(), keymap.FileName))
 		},
 	}
+}
+
+// keysCmd prints every action that can be bound, with its key, in the
+// shape keybinds.toml takes; --check reads the user's file and says what is
+// wrong in it, as the interface would once it is up.
+func keysCmd() *cobra.Command {
+	var check bool
+	c := &cobra.Command{
+		Use:   "keys",
+		Short: "Print the keys of every action, as keybinds.toml writes them",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			if !check {
+				fmt.Fprint(out, ui.KeybindsReference())
+				return nil
+			}
+			path, problems, err := ui.CheckKeybinds(config.Dir())
+			if err != nil {
+				return err
+			}
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				fmt.Fprintln(out, "no "+path+": every key is unagit's own")
+				return nil
+			}
+			if len(problems) == 0 {
+				fmt.Fprintln(out, path+": nothing wrong")
+				return nil
+			}
+			for _, p := range problems {
+				fmt.Fprintln(out, p)
+			}
+			return fmt.Errorf("%s: %d things wrong; what they would bind keeps unagit's keys", path, len(problems))
+		},
+	}
+	c.Flags().BoolVar(&check, "check", false, "read keybinds.toml and say what is wrong in it")
+	return c
 }
 
 func versionCmd() *cobra.Command {
