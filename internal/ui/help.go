@@ -262,6 +262,15 @@ func helpRows() []helpLine {
 		key("q", "quit"),
 		blank(),
 
+		section("The mouse  (Settings › General)", helpNavigation).at(helpNoKeys),
+		key("click", "the cursor there; on the bar, that tab"),
+		key("double click", "Enter"),
+		key("right click", "every action on what it is on"),
+		key("Ctrl-click", "mark or unmark the row; Alt-click too"),
+		key("Shift-click", "mark from the cursor to the row"),
+		key("drag", "mark the rows it passes over"),
+		blank(),
+
 		section("The detail column", helpDetails).at(helpNoKeys),
 		key("j k g G", "scroll"),
 		key("Ctrl-F Ctrl-B", "page"),

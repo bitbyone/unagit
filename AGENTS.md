@@ -321,6 +321,27 @@ not wire a dialog's Cancel to a bare `closeModal` and think it done:
 `confirmChoices` its Cancel; a new kind of dialog takes `peekBack` the
 same way.
 
+**The mouse does what the keys do** (the user asked for it, 2026-11-06),
+and `mouse.go` answers all of it: `onMouse` is tview's mouse capture and
+routes every event itself. Over a list - a `Table`, a `List`, a
+`TreeView`, whatever wraps one - a press puts the cursor there and nothing
+more (tview's own List and TreeView run their Enter on a click), a double
+click is Enter, the right button sends `mouseActionsKey`, which `opens`
+takes for the selection's picker whatever it is bound to, Ctrl- or
+Alt-click marks as space does, and a drag over a pane's rows marks them.
+Everything else goes to tview as it would. unagit tells a double click
+itself (same cell, `tview.DoubleClickInterval`): tview counts any two
+clicks in quick succession, wherever and whichever button. A dialog in
+front is all the mouse reaches (`mouseTop`, and `modalBox` consumes what
+its content does not), and `afterMouse` puts the screens' own state in
+step with where a click left the keys - a pane's list, detail or filter,
+Settings' halves, a form's mode - and takes them back from what has no use
+for keys. A widget that keeps a state of its own about where the keys are
+follows its focus (`SetFocusFunc`, as the picker's filter and the Changes
+dialog do), so a click and a key cannot tell it different things. Settings
+› General › Mouse turns it off (`config.MouseOn`), for a terminal's own
+selection.
+
 **A message goes where the eye is, and weighs what it says.** `flash`
 (warning), `note` (info), `done` (success) and `errorf` (`say`) are the only
 way to say something. A warning or an error asks for attention: it always

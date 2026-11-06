@@ -442,8 +442,13 @@ func (s *settingsView) fillGeneral() {
 	gitEmail := form.GetFormItemByLabel("Git email").(*tview.InputField)
 	form.AddTextView("", "Every clone commits as this unless a server,\n"+
 		"a group or a repository sets its own.", 46, 2, true, false)
+	mouse := addCheckbox(form, "Mouse", cfg.MouseOn())
+	form.AddTextView("", "On, a drag marks rows; Shift-drag (Option in\n"+
+		"iTerm) still selects text in the terminal.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
+		cfg.SetMouse(mouse.IsChecked())
+		s.app.applyMouse()
 		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}
 		identityChanged := strings.TrimSpace(identity.Name) != cfg.GitIdentity.Name || strings.TrimSpace(identity.Email) != cfg.GitIdentity.Email
 		cfg.SetIdentity("", "", identity)

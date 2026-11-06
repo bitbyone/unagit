@@ -140,7 +140,7 @@ func (a *App) remakeInterface(disk func()) {
 	if a.settings != nil {
 		section, inside = a.settings.current, a.settings.contentFocused
 	}
-	a.tv.SetRoot(a.buildInterface(), true)
+	a.setRoot(a.buildInterface())
 	disk()
 	a.projectsPane.reload()
 	a.mrsPane.reload()

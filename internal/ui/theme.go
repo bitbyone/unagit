@@ -390,8 +390,17 @@ func (m *modalBox) InputHandler() func(*tcell.EventKey, func(tview.Primitive)) {
 	return m.content.InputHandler()
 }
 
+// MouseHandler gives the dialog what is on it and keeps the rest: a click
+// beside a dialog reaches nothing beneath it.
 func (m *modalBox) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
-	return m.content.MouseHandler()
+	handler := m.content.MouseHandler()
+	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		if handler == nil {
+			return true, nil
+		}
+		_, capture := handler(action, ev, setFocus)
+		return true, capture
+	}
 }
 
 // dimFactor is how much of the original brightness survives behind a modal.

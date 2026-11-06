@@ -916,6 +916,18 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		footer.SetText(normalHint())
 		a.tv.SetFocus(list)
 	}
+	// A click on the list or into the filter goes there as the keys would,
+	// footer and all.
+	list.SetFocusFunc(func() {
+		if filtering {
+			setMode(false)
+		}
+	})
+	input.SetFocusFunc(func() {
+		if !filtering {
+			setMode(true)
+		}
+	})
 
 	move := func(delta int) {
 		if n := list.GetItemCount(); n > 0 {

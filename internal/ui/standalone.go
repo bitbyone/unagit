@@ -192,7 +192,7 @@ func (a *App) startStandalone() {
 // again in the theme now on, every tab read into it - the log's cursor on
 // the commit it was on - and the tab that was in front brought back.
 func (a *App) remakeStandalone(tab string) {
-	a.tv.SetRoot(a.buildStandalone(), true)
+	a.setRoot(a.buildStandalone())
 	for _, t := range soloTabs {
 		a.openSoloTab(t.page)
 		delete(a.solo.stale, t.page)

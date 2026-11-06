@@ -42,6 +42,24 @@ Opening actions can be found by short words shown under the picker:
 
 So `cc split` puts Claude Code in a vertical split first.
 
+## The mouse
+
+The mouse does what the keys do, nothing of its own:
+
+| Do | And |
+| --- | --- |
+| click | the cursor goes to the row, the section of Settings or the field; on the bar, to that tab |
+| double click | `Enter` |
+| right click | the actions of what it is on, as `.` lists them |
+| Ctrl-click, Alt-click | mark or unmark the row, as space does |
+| Shift-click | mark from the cursor to the row |
+| drag over rows | mark every row it passes over |
+| wheel | scroll |
+
+A click beside a dialog reaches nothing beneath it. While unagit has the
+mouse, the terminal selects text with Shift-drag (Option-drag in iTerm);
+Settings › General › **Mouse** gives the mouse back to the terminal.
+
 ## Your own keys
 
 The keys unagit ships keep out of the way of the terminals and multiplexers:

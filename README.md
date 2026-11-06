@@ -124,6 +124,15 @@ leaving unagit (`Ctrl-R` review) and for the few keys no terminal or
 multiplexer keeps (`Ctrl-W`, `Ctrl-E`); nothing needs Alt, which a Mac's
 terminal does not send. What is rare has no key and lives in the pickers.
 
+**The mouse does what the keys do.** A click puts the cursor on a row, on a
+section of Settings or into a field, and a click on the bar goes to that tab;
+a double click is `Enter`, and the right button opens the actions of what it
+is on, as `.` does. Ctrl-click (or Alt-click) marks a row as space does,
+Shift-click marks from the cursor to it, and a drag over a list's rows marks
+them all. A click beside a dialog reaches nothing beneath it. While unagit
+has the mouse, the terminal selects text with Shift-drag (Option-drag in
+iTerm); Settings › General › Mouse gives it back.
+
 **The keys are yours to change.** A terminal or a multiplexer can still keep a
 key for itself: tmux its prefix, a terminal its own shortcuts. `keybinds.toml` beside `config.yaml`
 gives any action another key, several, or none:

@@ -278,7 +278,13 @@ type App struct {
 	// what went wrong with the last, whether Activity is in front - read
 	// from the watcher's goroutine - and a nudge for a read now.
 	// tabsWidth is the terminal's width the tab bar was last laid out for.
-	tabsWidth     int
+	tabsWidth int
+	// tabSpans are where the tabs were last drawn, for a click on the bar.
+	tabSpans []tabSpan
+	// root is what the application draws, for the mouse to find what is
+	// under it (mouse.go); mouse is what a press of a button began.
+	root          tview.Primitive
+	mouse         mouseState
 	agentRows     []agentRow
 	agentsReading bool
 	agentsError   string
@@ -576,7 +582,10 @@ func (a *App) Run() error {
 	} else {
 		go a.pollSolo(stopWatching)
 	}
-	err := a.tv.SetRoot(layout, true).EnableMouse(false).Run()
+	a.setRoot(layout)
+	a.tv.SetMouseCapture(a.onMouse)
+	a.applyMouse()
+	err := a.tv.Run()
 	a.stopCredentials()
 	close(stopWatching)
 	// The watches' follower gives up its lock and its presence before

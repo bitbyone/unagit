@@ -740,6 +740,10 @@ type Config struct {
 	// clone's own git configuration (IdentityOf).
 	GitIdentity GitIdentity   `yaml:"git_identity,omitempty"`
 	Identities  []IdentitySet `yaml:"identities,omitempty"`
+	// Mouse says whether unagit takes the mouse: clicks, the wheel, a drag
+	// over rows. Unset is on; false leaves the mouse to the terminal, which
+	// then selects text with a plain drag.
+	Mouse *bool `yaml:"mouse,omitempty"`
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`
@@ -1203,4 +1207,16 @@ func (c *Config) ProjectDir(inst *Instance, projectPath string) string {
 		}
 	}
 	return filepath.Join(c.RootFor(inst, projectPath), filepath.FromSlash(projectPath))
+}
+
+// MouseOn reports whether unagit takes the mouse; it does unless told not to.
+func (c *Config) MouseOn() bool { return c.Mouse == nil || *c.Mouse }
+
+// SetMouse sets whether unagit takes the mouse, leaving the default unwritten.
+func (c *Config) SetMouse(on bool) {
+	if on {
+		c.Mouse = nil
+		return
+	}
+	c.Mouse = &on
 }

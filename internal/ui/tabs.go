@@ -30,6 +30,22 @@ var tabs = []tab{
 	{pageSettings, 'S', "Settings", "Settings"},
 }
 
+// tabSpan is where a tab is drawn on the bar, from one column up to another.
+type tabSpan struct {
+	page     string
+	from, to int
+}
+
+// tabAt is the tab drawn at a column of the bar, or "".
+func (a *App) tabAt(x int) string {
+	for _, s := range a.tabSpans {
+		if x >= s.from && x < s.to {
+			return s.page
+		}
+	}
+	return ""
+}
+
 // settingsTab is how a message points at Settings.
 const settingsTab = "Settings [S]"
 
@@ -127,8 +143,11 @@ func (a *App) drawTabs() {
 		iconless = !fits(true, true)
 	}
 	var parts []string
-	settings := ""
+	var partPages []string
+	var partWidths []int
+	settings, settingsWidth := "", 0
 	for _, t := range shown {
+		w := cells(label(t, short, tight))
 		// tview reads "[P]" as a colour tag, so the brackets have to be escaped.
 		var text string
 		switch {
@@ -161,15 +180,19 @@ func (a *App) drawTabs() {
 			// Outside the tab's own band, a cell off it, on the screen's
 			// background whatever the tab's style.
 			text += "[" + role("tabs.new").String() + ":" + colBackground.String() + ":b] " + esc(badge) + "[-:-:-] "
+			w += cells(badge) + 2
 		}
 		if t.page == pageSandboxes && problems != "" {
 			text += "[" + role("tabs.problem").String() + ":" + colBackground.String() + ":b] " + esc(problems) + "[-:-:-] "
+			w += cells(problems) + 2
 		}
 		if t.page == pageSettings {
-			settings = text
+			settings, settingsWidth = text, w
 			continue
 		}
 		parts = append(parts, text)
+		partPages = append(partPages, t.page)
+		partWidths = append(partWidths, w)
 	}
 	// The room left between the screens and Settings, which keeps to the
 	// right end.
@@ -187,6 +210,18 @@ func (a *App) drawTabs() {
 		}
 		// A cell kept free at the end, as at the start.
 		gap = max(1, a.tabsWidth-used-1)
+	}
+	// Where each tab is on the bar, for a click: one cell in, a separator
+	// between, Settings after the gap.
+	a.tabSpans = a.tabSpans[:0]
+	x := 1
+	for i, page := range partPages {
+		a.tabSpans = append(a.tabSpans, tabSpan{page, x, x + partWidths[i]})
+		x += partWidths[i] + 1
+	}
+	if settings != "" {
+		at := x - 1 + gap
+		a.tabSpans = append(a.tabSpans, tabSpan{pageSettings, at, at + settingsWidth})
 	}
 	a.tabs.SetText(" " + strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator)) + strings.Repeat(" ", gap) + settings)
 }
