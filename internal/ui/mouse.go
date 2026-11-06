@@ -234,6 +234,9 @@ func (a *App) afterMouse(before tview.Primitive) {
 		a.tv.SetFocus(before)
 		return
 	}
+	if a.focusPanel(now) {
+		return
+	}
 	for _, p := range a.mainPanes() {
 		switch now {
 		case p.detail:
@@ -277,6 +280,35 @@ func takesKeys(p tview.Primitive) bool {
 		GetInputCapture() func(*tcell.EventKey) *tcell.EventKey
 	}:
 		return v.GetInputCapture() != nil
+	}
+	return false
+}
+
+// panelled is a screen of panels around a pane - Activity, Sandboxes -
+// whose focus lights the one border and turns the screen to that panel.
+type panelled interface {
+	panels() []tview.Primitive
+	focus(tview.Primitive)
+}
+
+// focusPanel gives the keys to a panel of such a screen the way its keys
+// do, and reports whether it was one: tview's focus alone left the panel
+// before it lit and the screen still turned to it.
+func (a *App) focusPanel(to tview.Primitive) bool {
+	var screens []panelled
+	if a.activity != nil {
+		screens = append(screens, a.activity)
+	}
+	if a.sandboxes != nil {
+		screens = append(screens, a.sandboxes)
+	}
+	for _, v := range screens {
+		for _, panel := range v.panels() {
+			if panel == to {
+				v.focus(to)
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -525,6 +557,8 @@ func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.Mo
 	switch action {
 	case tview.MouseLeftDown, tview.MouseRightDown:
 		a.focusRows(rows, p)
+		// A panel may draw its rows anew as it takes the keys.
+		row = rows.at(x, y)
 		if row < 0 {
 			return
 		}
@@ -570,6 +604,9 @@ func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.Mo
 
 // focusRows gives a list the keys, by the way its screen would.
 func (a *App) focusRows(rows *rowsUnder, p *pane) {
+	if a.tv.GetFocus() != rows.focus && a.focusPanel(rows.focus) {
+		return
+	}
 	switch {
 	case p != nil:
 		if !p.table.HasFocus() || p.filtering || p.detailFocused {

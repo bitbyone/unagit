@@ -254,3 +254,28 @@ func TestAClickInSettingsGoesStraightIn(t *testing.T) {
 		})
 	}
 }
+
+// TestAClickLightsThePanelItGoesTo: on a screen of panels a click goes to
+// the panel the way its key does - its border lit and the others' not -
+// and back to the list the same way.
+func TestAClickLightsThePanelItGoesTo(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "4")
+	waitFor(t, a, sc, "Nothing has happened yet")
+	v := a.activity
+	lit := func(b *tview.Box) bool { return b.GetBorderColor() == colBorderFocus }
+
+	x, y := at(t, a, sc, "Nothing has happened yet")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the log with the keys, lit alone", func() bool {
+		return v.current == v.log && v.log.HasFocus() && lit(v.log.Box) && !lit(v.pane.table.Box)
+	})
+
+	x, y = at(t, a, sc, "Nothing under way")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the list with the keys, lit alone", func() bool {
+		return v.current == v.pane.table && v.pane.table.HasFocus() && lit(v.pane.table.Box) && !lit(v.log.Box)
+	})
+}
