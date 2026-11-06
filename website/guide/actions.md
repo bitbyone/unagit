@@ -56,7 +56,8 @@ The mouse does what the keys do, nothing of its own:
 | drag over rows | mark every row it passes over |
 | wheel | scroll |
 
-A click beside a dialog reaches nothing beneath it. While unagit has the
+A click beside a dialog closes it, as `Esc` does, typing or not, and
+reaches nothing beneath it. While unagit has the
 mouse, the terminal selects text with Shift-drag (Option-drag in iTerm);
 Settings › General › **Mouse** gives the mouse back to the terminal.
 

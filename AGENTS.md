@@ -333,7 +333,14 @@ Everything else goes to tview as it would. unagit tells a double click
 itself (same cell, `tview.DoubleClickInterval`): tview counts any two
 clicks in quick succession, wherever and whichever button. A dialog in
 front is all the mouse reaches (`mouseTop`, and `modalBox` consumes what
-its content does not), and `afterMouse` puts the screens' own state in
+its content does not); a click beside it is Esc, pressed until it goes
+(`closeFrontByMouse`). tview draws after a mouse event only when one of its
+widgets took it, so `onMouse` draws itself - without it a click showed
+seconds later. Keys a gesture stands for are pressed at once
+(`pressKey`), never through `QueueEvent`, which waits for room in the
+queue the event loop itself empties; and the terminal is asked for the
+buttons and a drag only (`quietScreen.EnableMouse`), not every move of the
+pointer - together they stalled unagit. And `afterMouse` puts the screens' own state in
 step with where a click left the keys - a pane's list, detail or filter,
 Settings' halves, a form's mode - and takes them back from what has no use
 for keys. A widget that keeps a state of its own about where the keys are

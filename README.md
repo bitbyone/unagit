@@ -129,7 +129,8 @@ section of Settings or into a field, and a click on the bar goes to that tab;
 a double click is `Enter`, and the right button opens the actions of what it
 is on, as `.` does. Ctrl-click (or Alt-click) marks a row as space does,
 Shift-click marks from the cursor to it, and a drag over a list's rows marks
-them all. A click beside a dialog reaches nothing beneath it. While unagit
+them all. A click beside a dialog closes it, as `Esc` does, and reaches
+nothing beneath it. While unagit
 has the mouse, the terminal selects text with Shift-drag (Option-drag in
 iTerm); Settings › General › Mouse gives it back.
 

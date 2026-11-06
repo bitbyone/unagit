@@ -269,6 +269,7 @@ func helpRows() []helpLine {
 		key("Ctrl-click", "mark or unmark the row; Alt-click too"),
 		key("Shift-click", "mark from the cursor to the row"),
 		key("drag", "mark the rows it passes over"),
+		key("click beside", "close the dialog, as Esc does"),
 		blank(),
 
 		section("The detail column", helpDetails).at(helpNoKeys),

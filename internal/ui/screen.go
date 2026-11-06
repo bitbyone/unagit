@@ -57,6 +57,14 @@ func (s *quietScreen) Init() error {
 	return nil
 }
 
+// EnableMouse asks the terminal for the buttons and for a drag, never for
+// the pointer's every move: unagit follows nothing but a drag, and a hand
+// resting on the mouse sent a stream of events the event loop had to wade
+// through before the next click.
+func (s *quietScreen) EnableMouse(...tcell.MouseFlags) {
+	s.Screen.EnableMouse(tcell.MouseButtonEvents | tcell.MouseDragEvents)
+}
+
 // PollEvent passes every event on but the focus ones, which tview would drop
 // anyway; regaining focus calls onFocus.
 func (s *quietScreen) PollEvent() tcell.Event {

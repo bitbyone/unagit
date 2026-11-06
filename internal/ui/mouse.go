@@ -48,7 +48,7 @@ type rowDrag struct {
 // the rest of what the same event means - the press after a move.
 const mouseHandled tview.MouseAction = -1
 
-// mouseActionsKey is what a right click sends: the selection's action
+// mouseActionsKey is what a right click presses: the selection's action
 // picker opens on it whatever keys the picker is bound to, and nothing
 // else answers it.
 var mouseActionsKey = tcell.NewEventKey(tcell.KeyF64, 0, tcell.ModNone)
@@ -71,7 +71,17 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 		return ev, action
 	}
 	before := a.tv.GetFocus()
-	defer a.afterMouse(before)
+	defer func() {
+		a.afterMouse(before)
+		// tview draws after an event only when one of its widgets says it
+		// took it, and none does here: unagit answered it. Without a draw
+		// of its own, the cursor and the marks a click moved showed only
+		// when something else drew, seconds later. The pointer's mere
+		// moving changes nothing and draws nothing.
+		if action != tview.MouseMove || a.mouse.drag != nil || a.mouse.captured != nil {
+			a.tv.ForceDraw()
+		}
+	}()
 	x, y := ev.Position()
 	switch action {
 	case tview.MouseLeftClick, tview.MouseLeftDoubleClick:
@@ -83,10 +93,12 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 			action = tview.MouseLeftClick
 			a.mouse.clickX, a.mouse.clickY, a.mouse.clickAt = x, y, now
 		}
-	case tview.MouseRightDoubleClick:
+	case tview.MouseRightClick, tview.MouseRightDoubleClick:
 		action = tview.MouseRightClick
-	case tview.MouseMiddleDoubleClick:
+		a.mouse.clickAt = time.Time{}
+	case tview.MouseMiddleClick, tview.MouseMiddleDoubleClick:
 		action = tview.MouseMiddleClick
+		a.mouse.clickAt = time.Time{}
 	}
 
 	if drag := a.mouse.drag; drag != nil {
@@ -111,9 +123,15 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 	if a.mouseOnTabs(x, y, action) {
 		return ev, mouseHandled
 	}
-	if top := a.mouseTop(); top != a.root && !inRect(top, x, y) && a.mouse.captured == nil {
-		// Beside the dialog in front: nothing beneath it is reached.
-		return ev, mouseHandled
+	if top := a.mouseTop(); top != a.root && a.mouse.captured == nil {
+		if _, beside := primitiveAt(top, x, y).(*modalBox); beside || !inRect(top, x, y) {
+			// Beside the dialog in front: nothing beneath it is reached,
+			// and a click there closes it, as Esc does.
+			if action == tview.MouseLeftClick || action == tview.MouseLeftDoubleClick {
+				a.closeFrontByMouse()
+			}
+			return ev, mouseHandled
+		}
 	}
 	if a.mouse.captured == nil {
 		if rows := a.rowsAt(x, y); rows != nil {
@@ -126,9 +144,44 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 		// A right click on a field or a button takes the keys there - it
 		// presses nothing - then opens the actions of where it landed.
 		a.dispatchMouse(ev, tview.MouseLeftDown)
-		a.tv.QueueEvent(mouseActionsKey)
+		a.pressKey(mouseActionsKey)
 	}
 	return ev, mouseHandled
+}
+
+// closeFrontByMouse does with the dialog in front what Esc does - goes
+// back to what it was opened from - as many times as it takes for that
+// dialog to go: in a field or a filter, the first Esc only stops typing.
+// The passphrase is not left that way.
+func (a *App) closeFrontByMouse() {
+	name, front := a.pages.GetFrontPage()
+	if name == pageUnlock {
+		return
+	}
+	for range 3 {
+		a.pressKey(tcell.NewEventKey(tcell.KeyEsc, 0, tcell.ModNone))
+		if now, p := a.pages.GetFrontPage(); now != name || p != front {
+			return
+		}
+	}
+}
+
+// pressKey handles a key at once, the way tview hands it on: the
+// application's capture, then whatever has the focus. Never through
+// QueueEvent: that waits for room in the very queue the event loop, which
+// runs this, is the one to empty - a hand moving the mouse fills it, and
+// unagit stopped.
+func (a *App) pressKey(ev *tcell.EventKey) {
+	if capture := a.tv.GetInputCapture(); capture != nil {
+		if ev = capture(ev); ev == nil {
+			return
+		}
+	}
+	if a.root != nil && a.root.HasFocus() {
+		if handler := a.root.InputHandler(); handler != nil {
+			handler(ev, func(p tview.Primitive) { a.tv.SetFocus(p) })
+		}
+	}
 }
 
 // mouseTop is what the mouse can reach: the dialog in front, or all.
@@ -496,7 +549,7 @@ func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.Mo
 				// A picker's marks are its own: its space marks the row
 				// and moves on, as it does from the keys.
 				rows.move(row)
-				a.tv.QueueEvent(tcell.NewEventKey(tcell.KeyRune, ' ', tcell.ModNone))
+				a.pressKey(tcell.NewEventKey(tcell.KeyRune, ' ', tcell.ModNone))
 				return
 			}
 		}
@@ -506,11 +559,11 @@ func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.Mo
 		}
 	case tview.MouseLeftDoubleClick:
 		if row >= 0 && ev.Modifiers()&(tcell.ModCtrl|tcell.ModAlt|tcell.ModShift) == 0 {
-			a.tv.QueueEvent(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone))
+			a.pressKey(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone))
 		}
 	case tview.MouseRightClick:
 		if row >= 0 {
-			a.tv.QueueEvent(mouseActionsKey)
+			a.pressKey(mouseActionsKey)
 		}
 	}
 }

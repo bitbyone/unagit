@@ -93,15 +93,13 @@ func TestTheMouseDoesWhatTheKeysDo(t *testing.T) {
 		t.Errorf("the right button left the cursor on %q", got)
 	}
 
-	// Beside the picker, the list under it is out of reach.
+	// A click beside the picker closes it, typing into its filter as it
+	// is, and reaches nothing under it.
 	click(sc, x, y, tcell.ModNone)
-	time.Sleep(100 * time.Millisecond)
+	eventually(t, a, "the picker gone", func() bool { return !a.modalOpen() })
 	if got := onLoop(a, func() string { return selectedRepository(a) }); got != "acme/gateway" {
 		t.Errorf("a click beside the picker moved the list under it to %q", got)
 	}
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	eventually(t, a, "the picker gone", func() bool { return !a.modalOpen() })
 
 	tx, ty := at(t, a, sc, "Merge requests")
 	click(sc, tx+2, ty, tcell.ModNone)
@@ -154,4 +152,105 @@ func TestTheMouseInSettings(t *testing.T) {
 	click(sc, cx, cy, tcell.ModNone)
 	click(sc, cx, cy, tcell.ModNone)
 	waitGone(t, a, sc, "incl. subgroups")
+}
+
+// TestAClickIsDrawnAtOnce: what a click changes is on screen at once - the
+// cursor and the marks - not when something else happens to draw. tview
+// draws only after an event one of its widgets took, and unagit answers
+// the mouse itself.
+func TestAClickIsDrawnAtOnce(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	bx, by := at(t, a, sc, "acme/billing")
+	gx, gy := at(t, a, sc, "acme/gateway")
+	background := func(x, y int) tcell.Color {
+		cells, width, _ := onLoopCells(a, sc)
+		_, bg, _ := cells[y*width+x].Style.Decompose()
+		return bg
+	}
+	drawn := func(what string, holds func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			if holds() {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatalf("%s is not drawn", what)
+	}
+	plain := background(bx, by)
+	band := background(gx, gy)
+	if plain == band {
+		t.Fatal("the cursor's row looks like any other")
+	}
+
+	click(sc, bx, by, tcell.ModNone)
+	drawn("the cursor on billing", func() bool { return background(bx, by) == band && background(gx, gy) == plain })
+
+	click(sc, gx, gy, tcell.ModCtrl)
+	drawn("gateway marked", func() bool { return background(gx, gy) != plain })
+	click(sc, bx, by, tcell.ModNone)
+	drawn("gateway still marked with the cursor away", func() bool {
+		return background(bx, by) == band && background(gx, gy) != plain
+	})
+}
+
+// TestAClickBesideADialogClosesIt: the backdrop is Esc, as many as it takes
+// - a form being typed into goes in one click - and the dialog it was
+// opened from comes back, as it does from the keys.
+func TestAClickBesideADialogClosesIt(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGroups)
+	waitFor(t, a, sc, "incl. subgroups")
+	typeRunes(sc, "ji")
+	waitFor(t, a, sc, "Git identity · acme")
+	eventually(t, a, "the form typing", func() bool {
+		_, mode := a.focusedForm()
+		return mode != nil && mode.insert
+	})
+	click(sc, 1, 30, tcell.ModNone)
+	waitGone(t, a, sc, "Git identity · acme")
+	if onLoop(a, a.modalOpen) {
+		t.Error("something is still in front")
+	}
+}
+
+// TestAClickInSettingsGoesStraightIn: from the sections, one click on the
+// content takes the keys there - a group of the tree, a field of a form -
+// and a click on another field moves into that one, typing.
+func TestAClickInSettingsGoesStraightIn(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	openSection(t, a, sc, sectionGroups)
+	waitFor(t, a, sc, "incl. subgroups")
+	changeOnLoop(a, func() { a.settings.focusList() })
+
+	x, y := at(t, a, sc, "incl. subgroups")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the group under the cursor, the tree with the keys", func() bool {
+		ref, ok := a.settings.currentRef()
+		return ok && ref.group != nil && a.settings.tree.HasFocus() && a.settings.contentFocused
+	})
+
+	gx, gy := at(t, a, sc, "General")
+	click(sc, gx, gy, tcell.ModNone)
+	waitFor(t, a, sc, "Git email")
+	eventually(t, a, "the sections with the keys", func() bool { return a.settings.list.HasFocus() })
+	for _, label := range []string{"Git name", "Git email", "Default root"} {
+		fx, fy := at(t, a, sc, label)
+		click(sc, fx+len(label)+4, fy, tcell.ModNone)
+		eventually(t, a, label+" typing", func() bool {
+			form, mode := a.focusedForm()
+			if form == nil || !mode.insert || !a.settings.contentFocused {
+				return false
+			}
+			f, ok := focusedItem(form).(*tview.InputField)
+			return ok && f.GetLabel() == label
+		})
+	}
 }
