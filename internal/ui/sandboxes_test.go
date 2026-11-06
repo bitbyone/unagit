@@ -516,6 +516,10 @@ func TestTheSandboxFormsFitTheirFrames(t *testing.T) {
 			waitFor(t, a, sc, "Unibox settings")
 			assertFormFits(t, a, sc, frontForm(a), "Default env", "Stop a sandbox when idle", "Paste images from the clipboard", "Save", "Cancel")
 			assertLegible(t, a, sc, "Unibox settings")
+			// Esc is the form's only once it has the keys: before, it
+			// went to the screen beneath and the form stayed.
+			form := frontForm(a)
+			eventually(t, a, "the form with the keys", form.HasFocus)
 			sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 			waitGone(t, a, sc, "Unibox settings")
 
