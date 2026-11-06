@@ -304,3 +304,96 @@ func onLoopRect(a *App, b *tview.Box) (int, int, int, int) {
 	r := onLoop(a, func() [4]int { x, y, w, h := b.GetRect(); return [4]int{x, y, w, h} })
 	return r[0], r[1], r[2], r[3]
 }
+
+// TestTheWheelMovesTheCursorAndKeepsUp: the wheel moves a list's cursor as
+// j and k do - a picker's too, which did not scroll at all - and a burst of
+// it, as a trackpad sends, leaves the keys answered at once after it.
+func TestTheWheelMovesTheCursorAndKeepsUp(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	x, y := at(t, a, sc, "acme/gateway")
+	sc.InjectMouse(x, y, tcell.WheelDown, tcell.ModNone)
+	eventually(t, a, "the cursor a row down", func() bool { return selectedRepository(a) == "acme/billing" })
+	sc.InjectMouse(x, y, tcell.WheelUp, tcell.ModNone)
+	eventually(t, a, "the cursor back up", func() bool { return selectedRepository(a) == "acme/gateway" })
+
+	typeRunes(sc, ".")
+	waitFor(t, a, sc, "Actions · acme/gateway")
+	px, py := onLoopPair(a, func() (int, int) {
+		var list *bandedList
+		var find func(p tview.Primitive)
+		find = func(p tview.Primitive) {
+			switch v := p.(type) {
+			case *bandedList:
+				list = v
+			case *modalBox:
+				find(v.content)
+			case interface {
+				GetItemCount() int
+				GetItem(int) tview.Primitive
+			}:
+				for i := range v.GetItemCount() {
+					find(v.GetItem(i))
+				}
+			}
+		}
+		find(a.mouseTop())
+		lx, ly, _, _ := list.GetInnerRect()
+		return lx + 2, ly + 1
+	})
+	current := func() int {
+		return onLoop(a, func() int {
+			if list, ok := primitiveAt(a.mouseTop(), px, py).(*bandedList); ok {
+				return list.GetCurrentItem()
+			}
+			return -1
+		})
+	}
+	before := current()
+	sc.InjectMouse(px, py, tcell.WheelDown, tcell.ModNone)
+	if before < 0 {
+		t.Fatal("no picker under the pointer")
+	}
+	eventually(t, a, "the picker's cursor a row down", func() bool {
+		list, ok := primitiveAt(a.mouseTop(), px, py).(*bandedList)
+		return ok && list.GetCurrentItem() > before
+	})
+
+	for range 200 {
+		sc.InjectMouse(px, py, tcell.WheelDown, tcell.ModNone)
+		sc.InjectMouse(px, py, tcell.WheelUp, tcell.ModNone)
+	}
+	start := time.Now()
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	eventually(t, a, "the picker closed", func() bool { return !a.modalOpen() })
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("Esc after the wheel took %v", took)
+	}
+}
+
+// TestAClickOnACardLightsItsPanelAlone: the cards are a widget of unagit's
+// own, built on a Box, and a click on one gave that Box the focus - the
+// card lit as chosen while the screen still lit the tasks. It goes to the
+// panel the way B goes there, and back to the tasks the way t does.
+func TestAClickOnACardLightsItsPanelAlone(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	v := a.sandboxes
+	lit := func(b *tview.Box) bool { return b.GetBorderColor() == colBorderFocus }
+
+	x, y := at(t, a, sc, "2 tasks")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the cards with the keys, lit alone", func() bool {
+		return a.tv.GetFocus() == v.cards && v.current == v.cards && lit(v.cards.Box) && !lit(v.pane.table.Box)
+	})
+
+	x, y = at(t, a, sc, "rate ")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the tasks with the keys, lit alone", func() bool {
+		return v.pane.table.HasFocus() && v.current == v.pane.table && lit(v.pane.table.Box) && !lit(v.cards.Box) && !v.cards.HasFocus()
+	})
+}

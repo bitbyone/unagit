@@ -32,6 +32,10 @@ type mouseState struct {
 	// quick succession as one, wherever they were and whichever button.
 	clickX, clickY int
 	clickAt        time.Time
+	// scrollBy is the wheel's turn not yet applied, over the list at
+	// scrollX, scrollY; scrollQueued says its frame is on the way.
+	scrollBy, scrollX, scrollY int
+	scrollQueued               bool
 }
 
 // rowDrag marks the rows a drag passes over: from the row it began on to
@@ -78,7 +82,17 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 		// of its own, the cursor and the marks a click moved showed only
 		// when something else drew, seconds later. The pointer's mere
 		// moving changes nothing and draws nothing.
-		if action != tview.MouseMove || a.mouse.drag != nil || a.mouse.captured != nil {
+		switch action {
+		case tview.MouseScrollUp, tview.MouseScrollDown, tview.MouseScrollLeft, tview.MouseScrollRight:
+			// A wheel - a trackpad more so - sends dozens of these a
+			// second; drawn after each, they queued up behind one another
+			// and a key or a click after them waited seconds.
+			a.drawSoon()
+		case tview.MouseMove:
+			if a.mouse.drag != nil || a.mouse.captured != nil {
+				a.drawSoon()
+			}
+		default:
 			a.tv.ForceDraw()
 		}
 	}()
@@ -210,7 +224,20 @@ func (a *App) dispatchMouse(ev *tcell.EventMouse, action tview.MouseAction) {
 	if handler == nil {
 		return
 	}
-	_, a.mouse.captured = handler(action, ev, func(p tview.Primitive) { a.tv.SetFocus(p) })
+	x, y := ev.Position()
+	_, a.mouse.captured = handler(action, ev, func(p tview.Primitive) {
+		// A widget of unagit's own - the cards, the worktree's blocks -
+		// takes a click with the Box it is built on, which then asks for
+		// the focus itself: a Box nobody knows, the widget lit as if it had
+		// the keys and its screen none the wiser. The widget drawn there
+		// is what gets it.
+		if _, bare := p.(*tview.Box); bare {
+			if under := primitiveAt(a.mouseTop(), x, y); under != nil {
+				p = under
+			}
+		}
+		a.tv.SetFocus(p)
+	})
 }
 
 // mouseOnTabs switches to the tab clicked on the bar, while no dialog is in
@@ -350,6 +377,8 @@ type rowsUnder struct {
 	at     func(x, y int) int
 	cursor func() int
 	move   func(row int)
+	// step moves the cursor to the next row that can have it, up or down.
+	step func(dir int)
 	// edge is the row beyond the top (-1) or the bottom (1) of what is
 	// drawn, for a drag that goes past it; -1 when there is none.
 	edge func(side int) int
@@ -457,6 +486,15 @@ func tableRows(t *tview.Table) *rowsUnder {
 			_, column := t.GetSelection()
 			t.Select(row, max(column, 0))
 		},
+		step: func(dir int) {
+			row, column := t.GetSelection()
+			for row += dir; row >= 0 && row < t.GetRowCount(); row += dir {
+				if selectable(row) {
+					t.Select(row, max(column, 0))
+					return
+				}
+			}
+		},
 		edge: func(side int) int {
 			// The first and the last row drawn, a heading kept on top
 			// passed over, and the row beyond.
@@ -496,7 +534,12 @@ func listRows(l *tview.List) *rowsUnder {
 		},
 		cursor: l.GetCurrentItem,
 		move:   func(i int) { l.SetCurrentItem(i) },
-		edge:   func(int) int { return -1 },
+		step: func(dir int) {
+			if i := l.GetCurrentItem() + dir; i >= 0 && i < l.GetItemCount() {
+				l.SetCurrentItem(i)
+			}
+		},
+		edge: func(int) int { return -1 },
 	}
 }
 
@@ -542,6 +585,21 @@ func treeRows(t *tview.TreeView) *rowsUnder {
 				t.SetCurrentNode(nodes[i])
 			}
 		},
+		step: func(dir int) {
+			nodes := visible()
+			at := -1
+			for i, node := range nodes {
+				if node == t.GetCurrentNode() {
+					at = i
+				}
+			}
+			for i := at + dir; i >= 0 && i < len(nodes); i += dir {
+				if nodes[i].GetReference() != nil {
+					t.SetCurrentNode(nodes[i])
+					return
+				}
+			}
+		},
 		edge: func(int) int { return -1 },
 	}
 }
@@ -551,8 +609,17 @@ func treeRows(t *tview.TreeView) *rowsUnder {
 func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.MouseAction) {
 	x, y := ev.Position()
 	switch action {
-	case tview.MouseScrollUp, tview.MouseScrollDown, tview.MouseScrollLeft, tview.MouseScrollRight:
-		a.dispatchMouse(ev, action)
+	case tview.MouseScrollUp, tview.MouseScrollDown:
+		// The wheel moves the cursor, as j and k do: tview scrolls a
+		// list's view alone, and a List puts it back to the cursor at
+		// once, so a picker did not scroll at all.
+		dir := 1
+		if action == tview.MouseScrollUp {
+			dir = -1
+		}
+		a.queueScroll(x, y, dir)
+		return
+	case tview.MouseScrollLeft, tview.MouseScrollRight:
 		return
 	}
 	row := rows.at(x, y)
@@ -606,6 +673,65 @@ func (a *App) mouseOnRows(rows *rowsUnder, ev *tcell.EventMouse, action tview.Mo
 			a.pressKey(mouseActionsKey)
 		}
 	}
+}
+
+// queueScroll adds a notch of the wheel to what the next frame applies: a
+// trackpad sends dozens a second, and moving the cursor for each - a picker
+// explaining every action it passed - fell seconds behind, Esc waiting at
+// the back. Ups and downs in between cancel out. Everything here runs on
+// the event loop, the frame's update too.
+func (a *App) queueScroll(x, y, dir int) {
+	a.mouse.scrollBy += dir
+	a.mouse.scrollX, a.mouse.scrollY = x, y
+	if a.mouse.scrollQueued {
+		return
+	}
+	a.mouse.scrollQueued = true
+	time.AfterFunc(16*time.Millisecond, func() {
+		a.tv.QueueUpdateDraw(func() {
+			by, x, y := a.mouse.scrollBy, a.mouse.scrollX, a.mouse.scrollY
+			a.mouse.scrollBy, a.mouse.scrollQueued = 0, false
+			// Read again: what was under the pointer may have closed.
+			rows := a.rowsAt(x, y)
+			if rows == nil || by == 0 {
+				return
+			}
+			dir := 1
+			if by < 0 {
+				dir, by = -1, -by
+			}
+			for range by {
+				a.scrollRows(rows, dir)
+			}
+		})
+	})
+}
+
+// scrollRows moves a list's cursor a row: by its own keys when it, or the
+// dialog it is in, has them - a picker passes over its rules that way, and
+// moves its list from the filter too - and on its own when it is a panel
+// beside the one with the keys, which keeps them.
+func (a *App) scrollRows(rows *rowsUnder, dir int) {
+	if rows.focus.HasFocus() || a.modalOpen() {
+		key := tcell.KeyDown
+		if dir < 0 {
+			key = tcell.KeyUp
+		}
+		a.pressKey(tcell.NewEventKey(key, 0, tcell.ModNone))
+		return
+	}
+	rows.step(dir)
+}
+
+// drawSoon draws once the frame's worth of events is in: as many as come
+// in the meantime are drawn by the one draw.
+func (a *App) drawSoon() {
+	if a.drawPending.Swap(true) {
+		return
+	}
+	time.AfterFunc(16*time.Millisecond, func() {
+		a.tv.QueueUpdateDraw(func() { a.drawPending.Store(false) })
+	})
 }
 
 // focusRows gives a list the keys, by the way its screen would.

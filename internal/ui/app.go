@@ -285,8 +285,10 @@ type App struct {
 	closeMarks []closeMark
 	// root is what the application draws, for the mouse to find what is
 	// under it (mouse.go); mouse is what a press of a button began.
-	root          tview.Primitive
-	mouse         mouseState
+	root  tview.Primitive
+	mouse mouseState
+	// drawPending says a draw for the wheel is on its way (drawSoon).
+	drawPending   atomic.Bool
 	agentRows     []agentRow
 	agentsReading bool
 	agentsError   string

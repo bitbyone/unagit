@@ -397,6 +397,12 @@ func (m *modalBox) InputHandler() func(*tcell.EventKey, func(tview.Primitive)) {
 func (m *modalBox) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
 	handler := m.content.MouseHandler()
 	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		// What unagit answered itself, tview still walks the widgets
+		// with: taken here, tview would draw the whole screen for each,
+		// and a wheel over a dialog fell seconds behind.
+		if action == mouseHandled {
+			return false, nil
+		}
 		if handler == nil {
 			return true, nil
 		}

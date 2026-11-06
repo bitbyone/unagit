@@ -342,7 +342,13 @@ seconds later. Keys a gesture stands for are pressed at once
 (`pressKey`), never through `QueueEvent`, which waits for room in the
 queue the event loop itself empties; and the terminal is asked for the
 buttons and a drag only (`quietScreen.EnableMouse`), not every move of the
-pointer - together they stalled unagit. And `afterMouse` puts the screens' own state in
+pointer - together they stalled unagit. The wheel moves a list's cursor
+as j and k do (a List puts tview's scrolled view back at once), its notches
+summed and applied once a frame (`queueScroll`); and what `onMouse`
+answered goes on through tview as `mouseHandled`, which no widget may claim
+- `modalBox` once did, and tview drew the whole screen for every notch. A
+widget built on a Box asks tview's focus for its Box, not itself;
+`dispatchMouse` gives it the widget drawn there instead. And `afterMouse` puts the screens' own state in
 step with where a click left the keys - a pane's list, detail or filter,
 Settings' halves, a form's mode - and takes them back from what has no use
 for keys. A widget that keeps a state of its own about where the keys are
