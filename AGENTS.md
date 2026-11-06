@@ -334,7 +334,9 @@ itself (same cell, `tview.DoubleClickInterval`): tview counts any two
 clicks in quick succession, wherever and whichever button. A dialog in
 front is all the mouse reaches (`mouseTop`, and `modalBox` consumes what
 its content does not); a click beside it is Esc, pressed until it goes
-(`closeFrontByMouse`). tview draws after a mouse event only when one of its
+(`closeFrontByMouse`). The detail column wears a close mark in its
+corner (`drawCloseMarks`, the theme's `close` glyph) while the mouse is
+unagit's. tview draws after a mouse event only when one of its
 widgets took it, so `onMouse` draws itself - without it a click showed
 seconds later. Keys a gesture stands for are pressed at once
 (`pressKey`), never through `QueueEvent`, which waits for room in the

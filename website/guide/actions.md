@@ -54,6 +54,7 @@ The mouse does what the keys do, nothing of its own:
 | Ctrl-click, Alt-click | mark or unmark the row, as space does |
 | Shift-click | mark from the cursor to the row |
 | drag over rows | mark every row it passes over |
+| `×` in the detail's corner | close the detail column |
 | wheel | scroll |
 
 A click beside a dialog closes it, as `Esc` does, typing or not, and

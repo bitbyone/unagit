@@ -281,6 +281,8 @@ type App struct {
 	tabsWidth int
 	// tabSpans are where the tabs were last drawn, for a click on the bar.
 	tabSpans []tabSpan
+	// closeMarks are the close marks last drawn, for a click on one.
+	closeMarks []closeMark
 	// root is what the application draws, for the mouse to find what is
 	// under it (mouse.go); mouse is what a press of a button began.
 	root          tview.Primitive
@@ -556,6 +558,7 @@ func (a *App) Run() error {
 		a.drawActivityHint(screen)
 		a.drawSandboxesHint(screen)
 		a.drawToasts(screen)
+		a.drawCloseMarks(screen)
 	})
 
 	if !a.screenGiven {

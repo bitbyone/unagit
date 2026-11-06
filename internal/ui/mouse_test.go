@@ -279,3 +279,28 @@ func TestAClickLightsThePanelItGoesTo(t *testing.T) {
 		return v.current == v.pane.table && v.pane.table.HasFocus() && lit(v.pane.table.Box) && !lit(v.log.Box)
 	})
 }
+
+// TestTheDetailClosesByItsMark: the detail column has a close mark in its
+// corner, on the border, and a click on it closes the column as Esc does.
+func TestTheDetailClosesByItsMark(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	p := a.projectsPane
+	eventually(t, a, "the detail", func() bool { return p.detailShown })
+	mark := " " + glyphClose + " ╮"
+	waitFor(t, a, sc, mark)
+	x, y := at(t, a, sc, mark)
+	if dx, dy, dw, _ := onLoopRect(a, p.detail.Box); y != dy || x+len([]rune(mark))-1 != dx+dw-1 {
+		t.Errorf("the mark is at %d,%d, not in the detail's corner %d,%d", x, y, dx+dw-1, dy)
+	}
+	click(sc, x+1, y, tcell.ModNone)
+	eventually(t, a, "the detail closed", func() bool { return !p.detailShown && p.table.HasFocus() })
+	waitGone(t, a, sc, mark)
+}
+
+func onLoopRect(a *App, b *tview.Box) (int, int, int, int) {
+	r := onLoop(a, func() [4]int { x, y, w, h := b.GetRect(); return [4]int{x, y, w, h} })
+	return r[0], r[1], r[2], r[3]
+}

@@ -133,6 +133,12 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 			return ev, mouseHandled
 		}
 	}
+	if mark := a.closeMarkAt(x, y); mark != nil && a.mouse.captured == nil {
+		if action == tview.MouseLeftClick || action == tview.MouseLeftDoubleClick {
+			mark.close()
+		}
+		return ev, mouseHandled
+	}
 	if a.mouse.captured == nil {
 		if rows := a.rowsAt(x, y); rows != nil {
 			a.mouseOnRows(rows, ev, action)
@@ -692,4 +698,55 @@ func copyMarks(m map[int]bool) map[int]bool {
 		out[k] = v
 	}
 	return out
+}
+
+// ------------------------------------------------------------ close marks
+
+// closeMark is a close mark drawn in a panel's corner: where, and what a
+// click on it does - what Esc does there.
+type closeMark struct {
+	x0, x1, y int
+	close     func()
+}
+
+// drawCloseMarks puts a close mark in the top right corner of every detail
+// column on the screen in front, on its border, for the mouse: the keys
+// close it with Esc and need no mark. None is drawn under a dialog, where
+// it would stand undimmed on the dimmed screen and could not be clicked.
+func (a *App) drawCloseMarks(screen tcell.Screen) {
+	a.closeMarks = a.closeMarks[:0]
+	if a.pages == nil || a.modalOpen() || !a.cfg.MouseOn() || glyphClose == "" {
+		return
+	}
+	_, front := a.pages.GetFrontPage()
+	for _, p := range a.mainPanes() {
+		if !p.detailShown || front != p.root {
+			continue
+		}
+		x, y, w, h := p.detail.GetRect()
+		// Measured and drawn as tview draws text, so a mark of two cells
+		// in this terminal still ends at the corner and leaves it whole.
+		mark := " " + glyphClose + " "
+		width := tview.TaggedStringWidth(tview.Escape(mark))
+		if w < width+8 || h < 2 {
+			continue
+		}
+		at := x + w - 1 - width
+		tview.Print(screen, tview.Escape(mark), at, y, width, tview.AlignLeft, role("panel.close"))
+		pane := p
+		a.closeMarks = append(a.closeMarks, closeMark{at, at + width, y, pane.hideDetail})
+	}
+}
+
+// closeMarkAt is the close mark at a cell, or nil.
+func (a *App) closeMarkAt(x, y int) *closeMark {
+	if a.modalOpen() {
+		return nil
+	}
+	for i := range a.closeMarks {
+		if m := &a.closeMarks[i]; y == m.y && x >= m.x0 && x < m.x1 {
+			return m
+		}
+	}
+	return nil
 }

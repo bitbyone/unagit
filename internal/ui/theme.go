@@ -85,6 +85,7 @@ var (
 	glyphCIUnknown                                          string
 	glyphColumnShown, glyphColumnHidden                     string
 	glyphTabProblem                                         string
+	glyphClose                                              string
 	glyphSeparator, glyphFolder                             string
 	glyphMask                                               rune
 	// selectMarker ends a closed select, so it looks like something that
@@ -226,6 +227,7 @@ func setTheme(t Theme) {
 	glyphSeparator, glyphFolder = g.Separator, g.Folder
 	glyphColumnShown, glyphColumnHidden = g.ColumnShown, g.ColumnHidden
 	glyphTabProblem = g.TabProblem
+	glyphClose = g.Close
 	toastIcons = map[severity]string{sevInfo: g.ToastInfo, sevSuccess: g.ToastSuccess, sevWarning: g.ToastWarning, sevError: g.ToastDanger}
 	glyphMask = rune0(g.Mask)
 	selectMarker = " " + g.Select

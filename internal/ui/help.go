@@ -270,6 +270,7 @@ func helpRows() []helpLine {
 		key("Shift-click", "mark from the cursor to the row"),
 		key("drag", "mark the rows it passes over"),
 		key("click beside", "close the dialog, as Esc does"),
+		key("click "+glyphClose, "close the detail column"),
 		blank(),
 
 		section("The detail column", helpDetails).at(helpNoKeys),
