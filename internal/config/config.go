@@ -744,6 +744,10 @@ type Config struct {
 	// over rows. Unset is on; false leaves the mouse to the terminal, which
 	// then selects text with a plain drag.
 	Mouse *bool `yaml:"mouse,omitempty"`
+	// TabTitle says whether unagit names the terminal's tab after where in
+	// it the user is - "Unagit · Repositories". Unset is on; false keeps
+	// it "Unagit".
+	TabTitle *bool `yaml:"tab_title,omitempty"`
 	// TagEnds is how a tag's pill ends: TagEndsRounded, TagEndsCircles or
 	// TagEndsSquare.
 	TagEnds string `yaml:"tag_ends,omitempty"`
@@ -1207,6 +1211,19 @@ func (c *Config) ProjectDir(inst *Instance, projectPath string) string {
 		}
 	}
 	return filepath.Join(c.RootFor(inst, projectPath), filepath.FromSlash(projectPath))
+}
+
+// TabTitleOn reports whether the terminal's tab follows where unagit is;
+// it does unless told not to.
+func (c *Config) TabTitleOn() bool { return c.TabTitle == nil || *c.TabTitle }
+
+// SetTabTitle sets whether the tab follows, leaving the default unwritten.
+func (c *Config) SetTabTitle(on bool) {
+	if on {
+		c.TabTitle = nil
+		return
+	}
+	c.TabTitle = &on
 }
 
 // MouseOn reports whether unagit takes the mouse; it does unless told not to.

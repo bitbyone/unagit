@@ -272,8 +272,10 @@ type App struct {
 	editorsOpen []session.Record
 	editorsSeen atomic.Pointer[[]session.Record]
 	// titleGen counts the notifications that named the window, so only
-	// the last gives the title back.
-	titleGen atomic.Uint64
+	// the last gives the title back; windowTitle is the one unagit gave it
+	// last (followTitle).
+	titleGen    atomic.Uint64
+	windowTitle string
 	// The agents: the rows as last read, whether a read is under way,
 	// what went wrong with the last, whether Activity is in front - read
 	// from the watcher's goroutine - and a nudge for a read now.
@@ -561,6 +563,7 @@ func (a *App) Run() error {
 		a.drawSandboxesHint(screen)
 		a.drawToasts(screen)
 		a.drawCloseMarks(screen)
+		a.followTitle(screen)
 	})
 
 	if !a.screenGiven {

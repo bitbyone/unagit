@@ -138,8 +138,9 @@ func (t TerminalInfo) Sequence(title, body string) []byte {
 	return []byte(seq)
 }
 
-// WindowTitle is the title unagit gives its terminal window.
-const WindowTitle = "unagit"
+// WindowTitle is the title unagit gives its terminal window, and the
+// start of every title it gives it after (the tab says where unagit is).
+const WindowTitle = "Unagit"
 
 // TitleBack is how long the window keeps the title a notification set
 // before it is given back: Ghostty reads the title when it shows the
@@ -149,22 +150,22 @@ const TitleBack = 2 * time.Second
 
 // SequenceAbout is Sequence with a line of what the news is about. Ghostty
 // shows the window's title between a notification's heading and its body,
-// so there the title is set to that line, and back - the restore, written
-// TitleBack later - to WindowTitle. Where the title is not shown, or
-// under tmux, whose window it would name, the line follows the body and
-// there is nothing to restore.
-func (t TerminalInfo) SequenceAbout(title, about, body string) (seq, restore []byte) {
+// so there the title is set to that line, and titled says it is to be
+// given back TitleBack later. Where the title is not shown, or under tmux,
+// whose window it would name, the line follows the body and the title is
+// left alone.
+func (t TerminalInfo) SequenceAbout(title, about, body string) (seq []byte, titled bool) {
 	if about == "" {
-		return t.Sequence(title, body), nil
+		return t.Sequence(title, body), false
 	}
 	if t.Name != "Ghostty" || t.Tmux || t.Protocol != OSC777 {
-		return t.Sequence(title, body+" · "+about), nil
+		return t.Sequence(title, body+" · "+about), false
 	}
 	notice := t.Sequence(title, body)
 	if notice == nil {
-		return nil, nil
+		return nil, false
 	}
-	return []byte(WindowTitleSequence(about) + string(notice)), []byte(WindowTitleSequence(WindowTitle))
+	return []byte(WindowTitleSequence(about) + string(notice)), true
 }
 
 // WindowTitleSequence names the terminal's window.

@@ -914,7 +914,7 @@ func (a *App) sendNotificationAs(mode, title, subtitle, body string) (string, er
 	term := notify.Detect(os.Getenv)
 	toTerminal, toSystem := notify.Route(mode, term, free, away)
 	if toTerminal {
-		seq, restore := term.SequenceAbout(title, subtitle, body)
+		seq, titled := term.SequenceAbout(title, subtitle, body)
 		write := func(b []byte) {
 			if q == nil || q.suspended.Load() {
 				return
@@ -925,13 +925,14 @@ func (a *App) sendNotificationAs(mode, title, subtitle, body string) (string, er
 		}
 		gen := a.titleGen.Add(1)
 		a.tv.QueueUpdate(func() { write(seq) })
-		if restore != nil {
+		if titled {
 			// The title goes back once Ghostty has shown the notification,
-			// unless a later one has taken it meanwhile.
+			// unless a later one has taken it meanwhile - to the one the tab
+			// has by then.
 			time.AfterFunc(notify.TitleBack, func() {
 				a.tv.QueueUpdate(func() {
 					if a.titleGen.Load() == gen {
-						write(restore)
+						write([]byte(notify.WindowTitleSequence(a.titleNow())))
 					}
 				})
 			})

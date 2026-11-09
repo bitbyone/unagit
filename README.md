@@ -134,6 +134,13 @@ nothing beneath it; `×` in the corner of the detail column closes that. While u
 has the mouse, the terminal selects text with Shift-drag (Option-drag in
 iTerm); Settings › General › Mouse gives it back.
 
+**The terminal's tab says where unagit is.** Ghostty, iTerm2, kitty and
+WezTerm name a tab by its window's title, and unagit gives it the screen in
+front - `Unagit · Repositories`, `Unagit · Merge requests` - the worktree
+open in its view (`Unagit · acme/gateway · feat/rate`), or in standalone the
+repository and its branch. The shell's own title comes back when unagit
+quits. Settings › General › Tab title keeps it at `Unagit`.
+
 **The keys are yours to change.** A terminal or a multiplexer can still keep a
 key for itself: tmux its prefix, a terminal its own shortcuts. `keybinds.toml` beside `config.yaml`
 gives any action another key, several, or none:

@@ -62,6 +62,20 @@ reaches nothing beneath it. While unagit has the
 mouse, the terminal selects text with Shift-drag (Option-drag in iTerm);
 Settings › General › **Mouse** gives the mouse back to the terminal.
 
+## The terminal's tab
+
+Ghostty, iTerm2, kitty and WezTerm name a tab by its window's title, and
+unagit keeps it saying where you are:
+
+| Where | The tab |
+| --- | --- |
+| a screen | `Unagit · Repositories`, `Unagit · Merge requests`, … |
+| the worktree view | `Unagit · acme/gateway · feat/rate` |
+| [standalone](./standalone) | `Unagit · toolbox · main` |
+
+The shell's own title comes back when unagit quits. Settings › General ›
+**Tab title** keeps it at `Unagit`.
+
 ## Your own keys
 
 The keys unagit ships keep out of the way of the terminals and multiplexers:

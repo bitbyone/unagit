@@ -445,9 +445,13 @@ func (s *settingsView) fillGeneral() {
 	mouse := addCheckbox(form, "Mouse", cfg.MouseOn())
 	form.AddTextView("", "On, a drag marks rows; Shift-drag (Option in\n"+
 		"iTerm) still selects text in the terminal.", 46, 2, true, false)
+	tabTitle := addCheckbox(form, "Tab title", cfg.TabTitleOn())
+	form.AddTextView("", "On, the terminal's tab says where unagit is:\n"+
+		"Unagit · Repositories.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
 		cfg.SetMouse(mouse.IsChecked())
+		cfg.SetTabTitle(tabTitle.IsChecked())
 		s.app.applyMouse()
 		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}
 		identityChanged := strings.TrimSpace(identity.Name) != cfg.GitIdentity.Name || strings.TrimSpace(identity.Email) != cfg.GitIdentity.Email
