@@ -498,8 +498,11 @@ func (a *App) panelKeys(v panelScreen, self tview.Primitive, own func(*tcell.Eve
 		if t, ok := self.(*tview.Table); ok {
 			first, last := selectableEnds(t)
 			row, _ := t.GetSelection()
-			if isKey(ev, 'k', tcell.KeyUp) && row <= first && v.move(self, 'k') ||
-				isKey(ev, 'j', tcell.KeyDown) && row >= last && v.move(self, 'j') ||
+			// A panel with nothing to choose - an empty log - is at both
+			// its ends at once.
+			empty := first < 0
+			if isKey(ev, 'k', tcell.KeyUp) && (empty || row <= first) && v.move(self, 'k') ||
+				isKey(ev, 'j', tcell.KeyDown) && (empty || row >= last) && v.move(self, 'j') ||
 				isKey(ev, 'h', tcell.KeyLeft) && v.move(self, 'h') ||
 				isKey(ev, 'l', tcell.KeyRight) && v.move(self, 'l') {
 				return nil

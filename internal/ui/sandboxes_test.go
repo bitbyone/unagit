@@ -965,3 +965,21 @@ func TestOnlyTheFocusedPanelHasABand(t *testing.T) {
 		t.Fatalf("the task under the cursor became %q", got)
 	}
 }
+
+// TestAnEmptyLogIsLeftUpwards: k out of a log with nothing in it goes back
+// to the panel above, as j came into it - an empty panel is at both ends.
+func TestAnEmptyLogIsLeftUpwards(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "[5]")
+	resizeApp(a, sc, 180, 44)
+	openSandboxes(t, a, sc)
+	waitFor(t, a, sc, "Nothing asked of unibox yet")
+	onLoop(a, func() bool { a.sandboxes.focus(a.sandboxes.log); return true })
+	sc.InjectKey(tcell.KeyRune, 'k', tcell.ModNone)
+	eventually(t, a, "k left the empty log", func() bool { return !a.sandboxes.log.HasFocus() })
+	onLoop(a, func() bool { a.sandboxes.focus(a.sandboxes.log); return true })
+	sc.InjectKey(tcell.KeyUp, 0, tcell.ModNone)
+	eventually(t, a, "the up arrow left the empty log", func() bool { return !a.sandboxes.log.HasFocus() })
+}
