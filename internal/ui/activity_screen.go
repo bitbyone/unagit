@@ -937,6 +937,73 @@ func drawCardFrame(screen tcell.Screen, x, y, width, h int, title string, chosen
 	return lines
 }
 
+// cardAt is the place of a band of cards under x: one of the shown, shown
+// itself for the count of the rest, or -1 between them and past them. The
+// band starts at left and each card is width wide, a cell apart.
+func cardAt(x, left, width, shown int, more bool) int {
+	if x < left {
+		return -1
+	}
+	if i, off := (x-left)/(width+1), (x-left)%(width+1); i < shown {
+		if off == width {
+			return -1
+		}
+		return i
+	}
+	if start := left + shown*(width+1); more && x < start+moreWidth {
+		return shown
+	}
+	return -1
+}
+
+// cardsMouse is a band of cards' mouse, as a list's is: a press chooses
+// the card under it - the right button too, so the actions it opens are
+// that card's - and a double click is Enter. The Box the band is built on
+// takes the focus as it would.
+func cardsMouse(a *App, b *tview.Box, at func(x, y int) int, choose func(int)) func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		x, y := ev.Position()
+		if !b.InRect(x, y) {
+			return false, nil
+		}
+		consumed, capture := b.MouseHandler()(action, ev, setFocus)
+		i := at(x, y)
+		if i < 0 {
+			return consumed, capture
+		}
+		switch action {
+		case tview.MouseLeftDown, tview.MouseRightClick:
+			choose(i)
+			return true, capture
+		case tview.MouseLeftDoubleClick:
+			a.pressKey(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone))
+			return true, capture
+		}
+		return consumed, capture
+	}
+}
+
+// MouseHandler chooses the card clicked.
+func (c *cardsView) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	return cardsMouse(c.app, c.Box, func(x, y int) int {
+		ix, iy, w, _ := c.GetInnerRect()
+		if y < iy || y >= iy+c.lines() {
+			return -1
+		}
+		shown, more := c.fit(w-2, len(c.app.editorsOpen))
+		return cardAt(x, ix+1, cardWidth, shown, more)
+	}, func(i int) { c.at = i })
+}
+
+// lines is how high a card is drawn.
+func (c *cardsView) lines() int {
+	_, _, _, h := c.GetInnerRect()
+	if c.compact {
+		return 1
+	}
+	return min(h, 4)
+}
+
 // drawCard draws one card at x, y: the editor in its border, the
 // repository, then where it is open and for how long.
 func (c *cardsView) drawCard(screen tcell.Screen, r session.Record, x, y, h int, chosen bool) {

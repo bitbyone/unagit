@@ -7,6 +7,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/unibox/uniboxtest"
 )
 
 // eventually waits for a state read on the event loop.
@@ -396,4 +398,66 @@ func TestAClickOnACardLightsItsPanelAlone(t *testing.T) {
 	eventually(t, a, "the tasks with the keys, lit alone", func() bool {
 		return v.pane.table.HasFocus() && v.current == v.pane.table && lit(v.pane.table.Box) && !lit(v.cards.Box) && !v.cards.HasFocus()
 	})
+}
+
+// TestAClickChoosesTheCardUnderIt: a click on a card of Sandboxes chose
+// nothing - the panel took the keys and the card chosen stayed the first.
+// It chooses the card under the pointer, and the detail follows it as it
+// follows h and l.
+func TestAClickChoosesTheCardUnderIt(t *testing.T) {
+	t.Parallel()
+	boxes := strings.Replace(uniboxtest.Overview()["sandbox ls --json"].Out, `"sandboxes":[`,
+		`"sandboxes":[{"name":"spare","env":"api","state":"stopped"},`, 1)
+	_, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{"sandbox ls --json": uniboxtest.JSON(boxes)})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	openSandboxes(t, a, sc)
+	v := a.sandboxes
+	eventually(t, a, "two cards", func() bool { return len(v.boxes) == 2 })
+	waitFor(t, a, sc, "2 tasks")
+
+	// "2 tasks" is on web's card; x is the same column of the first card.
+	x, y := at(t, a, sc, "2 tasks")
+	if onLoop(a, func() string { return v.boxes[1].sandbox.Name }) == "web" {
+		x -= sandboxCardWidth + 1
+	}
+	click(sc, x+sandboxCardWidth+1, y, tcell.ModNone)
+	eventually(t, a, "the second card chosen, with the keys", func() bool {
+		return v.current == v.cards && v.cards.at == 1
+	})
+	name := onLoop(a, func() string { return v.boxes[1].sandbox.Name })
+	eventually(t, a, "the detail on the second card", func() bool {
+		return v.pane.detailShown && strings.Contains(v.pane.detail.GetTitle(), name)
+	})
+
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the first card chosen again", func() bool { return v.cards.at == 0 })
+}
+
+// TestCardAtTellsTheCards: a band of two cards ten wide and the count of
+// the rest - the gaps between them are no card.
+func TestCardAtTellsTheCards(t *testing.T) {
+	t.Parallel()
+	for x, want := range map[int]int{0: -1, 1: 0, 10: 0, 11: -1, 12: 1, 21: 1, 22: -1, 23: 2, 23 + moreWidth - 1: 2, 23 + moreWidth: -1} {
+		if got := cardAt(x, 1, 10, 2, true); got != want {
+			t.Errorf("cardAt(%d) = %d, want %d", x, got, want)
+		}
+	}
+	if got := cardAt(23, 1, 10, 2, false); got != -1 {
+		t.Errorf("past the last card without a count: %d, want -1", got)
+	}
+}
+
+// TestAClickChoosesTheEditorCardUnderIt: Activity's cards of the editors
+// open are chosen by a click as the sandboxes' are.
+func TestAClickChoosesTheEditorCardUnderIt(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := activityFixture(t)
+	x, y := at(t, a, sc, "tobola/incomm")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the second editor chosen, with the keys", func() bool {
+		return a.tv.GetFocus() == a.activity.cards && a.activity.cards.at == 1
+	})
+	x, y = at(t, a, sc, "tobola/unagit")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the first editor chosen again", func() bool { return a.activity.cards.at == 0 })
 }

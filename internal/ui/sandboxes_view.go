@@ -764,11 +764,7 @@ func (c *sandboxCards) Draw(screen tcell.Screen) {
 	}
 	x, w = x+1, w-1
 	width := c.width()
-	shown := len(boxes)
-	more := false
-	if shown*(width+1)-1 > w-1 {
-		shown, more = max(0, (w-1-moreWidth)/(width+1)), true
-	}
+	shown, more := c.fit(w - 1)
 	c.at = min(c.at, len(boxes)-1)
 	focused := c.HasFocus()
 	for i := range shown {
@@ -784,6 +780,38 @@ func (c *sandboxCards) Draw(screen tcell.Screen) {
 		}
 		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+fmt.Sprintf("+%d more", len(boxes)-shown), cx+1, row, rest-2, tview.AlignCenter, colMuted)
 	}
+}
+
+// fit is how many cards are drawn in a width, and whether the last place
+// is the count of the rest.
+func (c *sandboxCards) fit(width int) (shown int, more bool) {
+	n, card := len(c.v.boxes), c.width()
+	if n*(card+1)-1 <= width {
+		return n, false
+	}
+	return max(0, (width-moreWidth)/(card+1)), true
+}
+
+// MouseHandler chooses the card clicked, and the detail follows it as it
+// follows h and l.
+func (c *sandboxCards) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	return cardsMouse(c.v.app, c.Box, func(x, y int) int {
+		ix, iy, w, h := c.GetInnerRect()
+		lines := min(h, 4)
+		if c.compact {
+			lines = 1
+		}
+		if y < iy || y >= iy+lines {
+			return -1
+		}
+		shown, more := c.fit(w - 2)
+		return cardAt(x, ix+1, c.width(), shown, more)
+	}, func(i int) {
+		c.at = i
+		if c.v.current == c {
+			c.v.followDetail()
+		}
+	})
 }
 
 // width is a card's, its border included.

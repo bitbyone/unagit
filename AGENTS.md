@@ -328,7 +328,8 @@ routes every event itself. Over a list - a `Table`, a `List`, a
 more (tview's own List and TreeView run their Enter on a click), a double
 click is Enter, the right button sends `mouseActionsKey`, which `opens`
 takes for the selection's picker whatever it is bound to, Ctrl- or
-Alt-click marks as space does, and a drag over a pane's rows marks them.
+Alt-click marks as space does, and a drag over a pane's rows marks them. A band of cards - the sandboxes, the
+editors open - is a list as well (`cardsMouse`).
 Everything else goes to tview as it would. unagit tells a double click
 itself (same cell, `tview.DoubleClickInterval`): tview counts any two
 clicks in quick succession, wherever and whichever button. A dialog in
