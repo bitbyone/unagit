@@ -11,6 +11,10 @@ What you are waiting for need not be on screen.
 - **Watch Branch**, in the actions of a repository, a worktree or a block of
   the worktree view, follows a branch: its newest pipeline, how far behind its
   base it is, whether it is still on origin.
+- **Watch Local Changes**, in the actions of a cloned repository or a
+  worktree, follows the clone on disk: new commits on a branch, branches and
+  tags made or deleted - by an agent, in a terminal, by anything but unagit
+  itself. Nothing is asked of a server.
 
 The row wears `◎` in every list, and on something watched the same action is
 **Stop Watching**. A merged or closed merge request's watch goes by itself, and
@@ -23,6 +27,10 @@ passed, failed, was cancelled or waits for a manual job, a new commit, a merge
 request merged or closed. A toast is coloured by how it went, never takes the
 keys from what you are typing, and goes by itself, after five seconds of your
 looking at it (Settings › Notifications sets how long).
+
+A watched clone's news is the exception: it goes to the log, the row's mark
+and the tab's count, and never comes up as a toast or a notification, since
+an agent at work commits often.
 
 When no unagit is in front, a **desktop notification** goes out, through
 Notification Centre or `notify-send`. Settings › Integrations › Notifications

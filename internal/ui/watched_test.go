@@ -159,6 +159,7 @@ func watchApp(t *testing.T, cfg *config.Config, notified *atomic.Int64) (*App, t
 	app.ciAskEvery = 40 * time.Millisecond
 	app.watchIdleEvery = 40 * time.Millisecond
 	app.watchLookEvery = 20 * time.Millisecond
+	app.localAskEvery = 40 * time.Millisecond
 	app.notifier = func(title, body string) { notified.Add(1) }
 	a, sc, stopped := startAppWithStop(t, app)
 	a.quiet.focused.Store(false)

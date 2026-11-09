@@ -115,6 +115,10 @@ show_pipeline = "J"
 # Watch Branch: Follow it in the background.
 toggle_watch = []
 
+# Watch Local Changes: Follow the clone's branches and tags on the Activity
+#   screen.
+toggle_local_watch = []
+
 # Back to Branch: Leave the commit checked out from the log and check out
 #   again the branch it came from.
 back_to_branch = []
@@ -554,6 +558,10 @@ show_pipeline = "J"
 # Watch Branch: Follow it in the background.
 toggle_watch = []
 
+# Watch Local Changes: Follow the clone's branches and tags on the Activity
+#   screen.
+toggle_local_watch = []
+
 # Go to Merge Request: Switch to Merge requests with the cursor on the one
 #   open from this branch.
 go_to_merge_request = "m"
@@ -705,6 +713,10 @@ show_pipeline = "J"
 
 # Watch Branch: Follow it in the background.
 toggle_watch = []
+
+# Watch Local Changes: Follow the clone's branches and tags on the Activity
+#   screen.
+toggle_local_watch = []
 
 # Go to Merge Request: Switch to Merge requests with the cursor on the one
 #   open from this branch.

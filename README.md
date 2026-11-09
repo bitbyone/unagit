@@ -1125,6 +1125,15 @@ behind its base it is, whether it is still on origin. A grouped worktree
 asks which of its repositories. The row wears `◎` in every list, and on
 something watched the same action is **Stop Watching**.
 
+**Watch Local Changes**, in the actions of a cloned repository or a
+worktree, follows the clone on disk instead of a server: what an agent or a
+terminal does there - new commits on a branch, a branch or a tag made or
+deleted - comes to Activity as it happens. What unagit does itself is not
+news; it notes the refs its own git commands move in the clone's git
+directory (`unagit-own.json`, there only while the clone is watched). This
+news is quiet: the log, the row's mark and the tab's count, never a toast or
+a notification, since agents commit often.
+
 **Activity [4]** is what runs in the background and what waits for you,
 on one screen:
 

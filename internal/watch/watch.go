@@ -32,8 +32,13 @@ import (
 // KindPipeline is a watch on the pipelines of a merge request or a branch.
 const KindPipeline = "pipeline"
 
-// Watch is one thing watched: a merge request (IID) or a branch of a
-// repository (Branch).
+// KindLocal is a watch on a clone on disk: its branches and tags, and the
+// commits that come to them from outside unagit - an agent, a terminal.
+// Nothing about it is asked of a server.
+const KindLocal = "local"
+
+// Watch is one thing watched: a merge request (IID), a branch of a
+// repository (Branch), or a repository's clone (KindLocal, at Dir).
 type Watch struct {
 	Kind      string `json:"kind"`
 	Instance  string `json:"instance"`
@@ -45,7 +50,12 @@ type Watch struct {
 	// row to read before the first answer.
 	Title string    `json:"title,omitempty"`
 	Since time.Time `json:"since"`
+	// Dir is the clone a local watch reads.
+	Dir string `json:"dir,omitempty"`
 }
+
+// Local reports whether the watch is on a clone rather than on a server.
+func (w Watch) Local() bool { return w.Kind == KindLocal }
 
 // Key tells two watches apart: the same thing watched twice is one watch.
 func (w Watch) Key() string {
@@ -56,8 +66,12 @@ func (w Watch) Key() string {
 	return strings.Join([]string{w.Kind, w.Instance, w.Project, what}, "\x00")
 }
 
-// Label is how a person names it: "acme/api !42", "acme/api · main".
+// Label is how a person names it: "acme/api !42", "acme/api · main",
+// "acme/api · on disk".
 func (w Watch) Label() string {
+	if w.Local() {
+		return w.Project + " · on disk"
+	}
 	if w.IID > 0 {
 		return fmt.Sprintf("%s !%d", w.Project, w.IID)
 	}
@@ -67,6 +81,9 @@ func (w Watch) Label() string {
 // Subject is how a sentence names the watch where its repository is said
 // beside it: "!42" for a merge request, the branch's name for a branch.
 func (w Watch) Subject() string {
+	if w.Local() {
+		return "the clone"
+	}
 	if w.IID > 0 {
 		return fmt.Sprintf("!%d", w.IID)
 	}
@@ -141,6 +158,10 @@ type State struct {
 	// spares the full read, but never for long.
 	Print string    `json:"print,omitempty"`
 	Full  time.Time `json:"full,omitzero"`
+	// Heads and Tags are how many branches and tags a watched clone had
+	// when last read.
+	Heads int `json:"heads,omitempty"`
+	Tags  int `json:"tags,omitempty"`
 }
 
 // Event is one change worth saying: a pipeline failed, passed, began.
@@ -171,6 +192,10 @@ type Event struct {
 	Local bool   `json:"local,omitempty"`
 	Dir   string `json:"dir,omitempty"`
 	Ref   string `json:"ref,omitempty"`
+	// Quiet is news for the log and the marks alone - a commit an agent
+	// made in a watched clone - never a toast or a notification: agents
+	// commit often.
+	Quiet bool `json:"quiet,omitempty"`
 }
 
 // Level is an event's severity.

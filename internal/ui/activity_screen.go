@@ -133,9 +133,12 @@ func (a *App) newActivityPane() *pane {
 			return
 		}
 		if focus {
-			if it.kind == activityAgent {
+			switch {
+			case it.kind == activityAgent:
 				a.goToAgent(it.agent)
-			} else {
+			case it.watch.Local():
+				a.localWatchLog(it.watch)
+			default:
 				a.showWatchedPipeline(it.watch)
 			}
 			return
@@ -651,17 +654,21 @@ func (v *activityView) drawBand() {
 		one, many   string
 		glyph, role string
 	}
-	mrs, branches := 0, 0
+	mrs, branches, clones := 0, 0, 0
 	for _, w := range a.watches {
-		if w.IID > 0 {
+		switch {
+		case w.Local():
+			clones++
+		case w.IID > 0:
 			mrs++
-		} else {
+		default:
 			branches++
 		}
 	}
 	all := []count{
 		{mrs, "merge request", "merge requests", glyphWatched, "activity.watching"},
 		{branches, "repository branch", "repository branches", glyphWatched, "activity.watching"},
+		{clones, "clone on disk", "clones on disk", glyphWatched, "activity.watching"},
 		{len(a.agentRows), "agent", "agents", glyphAgent, "mark.agent"},
 		{len(a.editorsOpen), "editor open", "editors open", glyphEditor, "mark.editor"},
 	}
@@ -1240,9 +1247,13 @@ func (a *App) showWatches() {
 				kind = "merge request"
 			}
 			glyph, colour := ciMark(st.Status)
+			state := tag(colour) + glyph + tagEnd + " " + tag(stateColour2(st.Status)) + esc(watchPipelineWords(st)) + tagEnd
+			if w.Local() {
+				kind, state = "clone", tag(role("activity.watching"))+glyphWatched+tagEnd+" "+esc(localWords(st))
+			}
 			table[i] = []string{
 				tag(colMuted) + kind + tagEnd, tag(role("activity.what")) + esc(w.Label()) + tagEnd,
-				tag(colour) + glyph + tagEnd + " " + tag(stateColour2(st.Status)) + esc(watchPipelineWords(st)) + tagEnd,
+				state,
 				tag(colMuted) + humanAge(w.Since) + tagEnd, esc(trunc(a.watchTitle(w), 50)),
 			}
 			items[i] = pickItem{About: strings.TrimSpace(a.watchTitle(w) + " · watched since " + w.Since.Format("Jan 2 15:04")), Data: w}

@@ -122,6 +122,12 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			a.showBranchPipeline(pr.Instance, pr.PathWithNamespace, branch)
 		}},
 		a.watchPipelinesAction(pipelineWatch(pr.Instance, pr.PathWithNamespace, pr.ID, 0, a.repositoryWatchBranch(pr))),
+		a.watchLocalAction(pr.Instance, pr.PathWithNamespace, func() string {
+			if a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+				return a.projectDir(pr.Instance, pr.PathWithNamespace)
+			}
+			return ""
+		}),
 		{name: "Back to Branch", about: "Leave the commit checked out from the log and check out again the branch it came from.", keys: "", rank: 59,
 			when: func() bool { return strings.HasPrefix(a.diskOf(pr.Instance, pr.PathWithNamespace).Branch, "@") },
 			run:  func() { a.backToBranch(pr, a.projectDir(pr.Instance, pr.PathWithNamespace)) }},
@@ -394,6 +400,12 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			when: func() bool { return single() && r.Branch != "(detached)" }, run: func() { a.setBase(a.worktreeBase(r)) }},
 		{name: "Show Pipeline…", about: "The jobs of the branch's newest pipeline, as CI shows it; in a group, of the repository you pick.", keys: "J", rank: 52, run: func() { a.worktreePipeline(r) }},
 		a.watchWorktreeAction(r),
+		a.watchLocalAction(r.Instance, r.Path, func() string {
+			if r.grouped() {
+				return ""
+			}
+			return r.Dir
+		}),
 		{name: "Go to Merge Request", about: "Switch to Merge requests with the cursor on the one open from this branch; in a group, the one you pick.", keys: "m", rank: 36,
 			when: func() bool { return len(a.worktreeMRs(r)) > 0 }, run: func() { a.goToWorktreeMR(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},

@@ -87,7 +87,21 @@ func (g *Git) runEnv(dir string, env []string, args ...string) (string, error) {
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	g.Log("$ git " + strings.Join(args, " "))
+	// In a clone watched for local changes, what this command moves is
+	// unagit's, not news from outside.
+	var own string
+	var before map[string]string
+	if dir != "" && movesRefs(args) {
+		if own = followed(dir); own != "" {
+			before, _ = LocalRefs(dir)
+		}
+	}
 	err := cmd.Run()
+	if own != "" {
+		if after, lerr := LocalRefs(dir); lerr == nil && before != nil {
+			noteOwn(own, before, after)
+		}
+	}
 	out := buf.String()
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
 		if line != "" {

@@ -362,6 +362,19 @@ another way than above:
 - **A reading that fails** keeps the last state, says why in the row, and is
   tried again at the idle interval.
 
+- **A clone is watched too** (the user asked, 2026-11-09): `KindLocal`,
+  Watch Local Changes on a cloned repository or a worktree, read from the
+  disk every three seconds by the poller (`localwatch.go`) - its branches
+  and tags, kept in `watch/local/<key>.json` rather than state.json, which
+  every instance rereads. New commits on a branch and branches and tags made
+  or deleted are news; a branch moved back onto nothing new is not. What
+  unagit moved itself is told apart by `gitx`: while a clone is watched,
+  `<common git dir>/unagit-own.json` is there, and every git command of
+  unagit's that can move a ref notes in it where it left each one - any
+  instance's, so another unagit's commit is not news either. The news is
+  `Quiet`: the log, the marks and the tab's count, never a toast or a
+  notification (the user chose it: agents commit often).
+
 Still to do:
 
 - The other sections of "Later sections": a watch on a query (asked to

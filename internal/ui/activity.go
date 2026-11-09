@@ -223,6 +223,9 @@ func (a *App) itemAbout(it activityItem) string {
 		}
 		return what
 	}
+	if it.watch.Local() {
+		return tildePath(it.watch.Dir)
+	}
 	return a.watchTitle(it.watch)
 }
 
@@ -236,6 +239,12 @@ func (a *App) itemState(it activityItem) (glyph, words string, colour string) {
 		return glyph, word, role
 	}
 	st := a.watchSnap.States[it.watch.Key()]
+	if it.watch.Local() {
+		if st.Error != "" {
+			return glyphWatched, "unread", "watched.error"
+		}
+		return glyphWatched, localWords(st), ""
+	}
 	glyph, _ = ciMark(st.Status)
 	words = watchPipelineWords(st)
 	if st.Error != "" {
@@ -450,6 +459,22 @@ func (a *App) activityDetail(it activityItem, width int) string {
 		st := a.watchSnap.States[w.Key()]
 		line(tag(colMuted) + esc(w.Project) + " · watched " + humanAge(w.Since) + tagEnd)
 		line("")
+		if w.Local() {
+			line(label("DISK") + esc(tildePath(w.Dir)))
+			line(label("REFS") + esc(localWords(st)))
+			if st.Error != "" {
+				line(label("READ") + tag(role("watched.error")) + esc(st.Error) + tagEnd)
+			}
+			line("")
+			var story []watch.Event
+			for _, e := range a.activityLog {
+				if e.Key == it.key() {
+					story = append(story, e)
+				}
+			}
+			b.WriteString(a.storyText(story, width, false))
+			return b.String()
+		}
 		glyph, colour := ciMark(st.Status)
 		ci := tag(colour) + glyph + tagEnd + " " + tag(stateColour2(st.Status)) + esc(watchPipelineWords(st)) + tagEnd
 		if st.Pipeline > 0 {

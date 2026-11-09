@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/notify"
 	"github.com/tobola/unagit/internal/watch"
 )
@@ -198,10 +199,19 @@ func (a *App) setWatched(w watch.Watch, on bool) {
 		a.flash("watching starts once the tokens are unlocked")
 		return
 	}
-	w.Kind = watch.KindPipeline
+	if w.Kind == "" {
+		w.Kind = watch.KindPipeline
+	}
 	w.Since = time.Now()
 	key := w.Key()
+	unfollow := a.localDirs([]string{key})
 	go func() {
+		if w.Local() && on {
+			gitx.Follow(w.Dir, true)
+		}
+		if !on {
+			unfollowClones(unfollow)
+		}
 		watches, err := a.watchStore.Change(func(ws []watch.Watch) []watch.Watch {
 			ws = slices.DeleteFunc(ws, func(have watch.Watch) bool { return have.Key() == key })
 			if on {
@@ -247,7 +257,9 @@ func (a *App) stopWatching(keys []string, then func()) {
 			stopped = append(stopped, watchBegun(w, false))
 		}
 	}
+	unfollow := a.localDirs(keys)
 	go func() {
+		unfollowClones(unfollow)
 		watches, err := a.watchStore.Change(func(ws []watch.Watch) []watch.Watch {
 			return slices.DeleteFunc(ws, func(w watch.Watch) bool { return slices.Contains(keys, w.Key()) })
 		})
@@ -263,6 +275,25 @@ func (a *App) stopWatching(keys []string, then func()) {
 			then()
 		})
 	}()
+}
+
+// localDirs are the clones of the local watches among keys.
+func (a *App) localDirs(keys []string) []string {
+	var dirs []string
+	for _, w := range a.watches {
+		if w.Local() && slices.Contains(keys, w.Key()) {
+			dirs = append(dirs, w.Dir)
+		}
+	}
+	return dirs
+}
+
+// unfollowClones takes back the mark of a watched clone, so unagit's git
+// commands there stop noting what they move.
+func unfollowClones(dirs []string) {
+	for _, dir := range dirs {
+		gitx.Follow(dir, false)
+	}
 }
 
 // setWatches puts what is watched in place and draws what shows it. It
@@ -514,6 +545,7 @@ func (f *watchFollower) poll() {
 	for k := range snap.States {
 		if !keys[k] {
 			delete(snap.States, k)
+			f.store.ForgetLocalRefs(k)
 		}
 	}
 	running := a.ciAskEvery
@@ -526,6 +558,9 @@ func (f *watchFollower) poll() {
 	}
 	var ask []watch.Watch
 	for _, w := range f.watches {
+		if w.Local() {
+			continue
+		}
 		st, read := snap.States[w.Key()]
 		every := idle
 		if st.Error == "" && ciStateOf(st.Status) == ciRunning {
@@ -584,6 +619,7 @@ func (f *watchFollower) poll() {
 			gone = append(gone, w.Key())
 		}
 	}
+	events = append(events, f.pollLocal(&snap, due)...)
 	seq := snap.Seq
 	snap.Add(events...)
 	// Each thing's story keeps the news for longer than state.json does.
@@ -617,6 +653,9 @@ func (f *watchFollower) poll() {
 		}
 	}
 	for _, e := range events {
+		if e.Quiet {
+			continue
+		}
 		if len(inFront) > 0 {
 			a.logNotice(e, "not sent: unagit "+strings.Join(inFront, ", ")+" in front")
 			continue
@@ -684,7 +723,7 @@ func (a *App) shareWatchStates() {
 	branches := false
 	for _, w := range a.watches {
 		st, ok := a.watchSnap.States[w.Key()]
-		if !ok || st.Read.IsZero() || st.Error != "" {
+		if !ok || st.Read.IsZero() || st.Error != "" || w.Local() {
 			continue
 		}
 		if w.IID > 0 {
@@ -741,6 +780,8 @@ func (a *App) watchHeard(w watch.Watch, status string) {
 // sayWatchEvents shows the news as toasts, the newest few; the rest are on
 // the Activity screen.
 func (a *App) sayWatchEvents(events []watch.Event) {
+	// A watched clone's news is quiet: the log and the marks have it.
+	events = slices.DeleteFunc(slices.Clone(events), func(e watch.Event) bool { return e.Quiet })
 	if over := len(events) - toastsKept; over > 0 {
 		a.showToast(sevInfo, fmt.Sprintf("%d more changes", over), "They are on the Activity screen ([4]).")
 		events = events[over:]

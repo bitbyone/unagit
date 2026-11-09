@@ -548,6 +548,14 @@ new action that moves a branch backwards or sideways goes through
 `Rewriting` too, or it cannot be undone and nobody is told. See
 [docs/rebase.md](docs/rebase.md).
 
+**What unagit moves is not news from outside.** A clone watched for local
+changes (Watch Local Changes) says on Activity what an agent or a terminal
+did to its branches and tags; unagit's own moves are told apart by the note
+`gitx` keeps in the clone's git directory (`own.go`), written by `runEnv`
+around every command that can move a ref. A git command that moves one
+outside `gitx.Git` - an `exec.Command("git", …)` of its own - escapes the
+note and shows up as somebody else's doing.
+
 **Commits are IntelliJ's, not git's.** A file is versioned or unversioned;
 a change to a versioned file is committed as it is on disk, staged or not
 (`CommitVersioned`, `commit --all`), and an unversioned one only when it is

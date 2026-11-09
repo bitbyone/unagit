@@ -76,6 +76,18 @@ func (a *App) watchedActions(p *pane, w watch.Watch) []uiAction {
 	if w.IID == 0 {
 		goTo.name, goTo.about = "Go to Repository", "Switch to Repositories with the cursor on the repository of the branch watched."
 	}
+	if w.Local() {
+		goTo.about = "Switch to Repositories with the cursor on the repository whose clone is watched."
+		return []uiAction{
+			{name: "Show Commit Log", about: "The clone's commits, newest first: what came, diff it, check it out.", keys: "Enter", rank: 5,
+				run: p.enter},
+			{name: "Stop Watching", about: "Let the watch go: its row leaves the list.", keys: "x", rank: 10,
+				run: func() { a.unwatch(p, []watch.Watch{w}) }},
+			goTo,
+			{name: "Refresh", about: "Read the clone's branches and tags now, rather than at its next turn.", keys: "r", rank: 40,
+				run: func() { a.watchAsk([]string{w.Key()}) }},
+		}
+	}
 	return []uiAction{
 		{name: "Show Pipeline…", about: "The jobs of the pipeline watched, the first that failed under the cursor: read its log, retry it, open it.", keys: "Enter", rank: 5, run: p.enter},
 		{name: "Stop Watching", about: "Let the watch go: its row leaves the list, its mark the other lists.", keys: "x", rank: 10,

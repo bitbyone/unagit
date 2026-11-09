@@ -323,6 +323,7 @@ type App struct {
 	followDone     chan struct{}
 	watchLookEvery time.Duration
 	watchIdleEvery time.Duration
+	localAskEvery  time.Duration
 	// notifier, when set, takes the desktop notifications instead of the
 	// terminal and the system; tests count them.
 	notifier func(title, body string)
