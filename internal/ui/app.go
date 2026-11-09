@@ -244,10 +244,12 @@ type App struct {
 	// findMux keeps each fixture independent of the terminal running its tests.
 	findMux     func() *mux.Client
 	multiplexer *mux.Client
-	// findHerdr and findGhostty do the same for herdr's server and Ghostty,
-	// which agents and editors can be opened in from outside them too.
+	// findHerdr, findGhostty and findRex do the same for herdr's server,
+	// Ghostty and Rex, which agents and editors can be opened in from
+	// outside them too.
 	findHerdr   func() *mux.Client
 	findGhostty func() *mux.Client
+	findRex     func() *mux.Client
 	// The Activity screen (activity.go): its list, the rest of it, the
 	// rows as last laid out, the histories as last read, and when the
 	// screen was visited before this visit.

@@ -1,5 +1,5 @@
 // Package mux opens terminal programs beside their caller: in Zellij, in
-// herdr, or in Ghostty. A connection names the session explicitly so its
+// herdr, in Ghostty or in Rex. A connection names the session explicitly so its
 // panes can be found from another shell.
 package mux
 
@@ -17,7 +17,8 @@ const (
 	Tab Placement = iota
 	Vertical
 	Horizontal
-	// Window is a place of its own: a Ghostty window, a herdr workspace.
+	// Window is a place of its own: a Ghostty window, a herdr workspace,
+	// a Rex session.
 	Window
 )
 
@@ -26,12 +27,14 @@ const (
 	Zellij  = "zellij"
 	Herdr   = "herdr"
 	Ghostty = "ghostty"
+	Rex     = "rex"
 )
 
 // Connection is also the identity used when reading a session's panes once
 // for several editor records. Binary is the launcher that was detected;
-// Session is Zellij's session name, herdr's socket, and nothing for
-// Ghostty, which has one of everything.
+// Session is Zellij's session name, herdr's socket, Rex's server when it
+// is not the usual one, and nothing for Ghostty, which has one of
+// everything.
 type Connection struct{ Kind, Binary, Session string }
 
 type Client struct {
@@ -39,7 +42,8 @@ type Client struct {
 	// SourcePane is where unagit itself runs, when it runs there: splits
 	// open beside it.
 	SourcePane string
-	// Workspace is the herdr workspace unagit runs in, where tabs open.
+	// Workspace is the herdr workspace or the Rex session unagit runs in,
+	// where tabs open.
 	Workspace string
 	// Self is the unagit binary, which herdr and Ghostty start to run the
 	// command: they take a line of text, not separate arguments.
@@ -53,6 +57,8 @@ func (c Connection) Name() string {
 		return "Zellij"
 	case Ghostty:
 		return "Ghostty"
+	case Rex:
+		return "Rex"
 	}
 	return c.Kind
 }
@@ -168,6 +174,11 @@ func (c *Client) Places() []Placement {
 			return []Placement{Window, Tab}
 		}
 		return []Placement{Window, Tab, Vertical, Horizontal}
+	case Rex:
+		if c.SourcePane == "" {
+			return []Placement{Window}
+		}
+		return []Placement{Tab, Vertical, Horizontal, Window}
 	}
 	return nil
 }
@@ -182,8 +193,10 @@ func (c *Client) Open(where Placement, dir, name string, command *exec.Cmd) (str
 		return c.openHerdr(where, dir, name, command.Args)
 	case Ghostty:
 		return c.openGhostty(where, dir, command.Args)
+	case Rex:
+		return c.openRex(where, dir, name, command.Args)
 	}
-	return "", fmt.Errorf("unknown multiplexer; open it again from Zellij, herdr or Ghostty")
+	return "", fmt.Errorf("unknown multiplexer; open it again from Zellij, herdr, Ghostty or Rex")
 }
 
 // Focus brings one of the session's panes to the front: the editor already
@@ -196,6 +209,8 @@ func (c *Client) Focus(paneID string) error {
 		return c.focusHerdr(paneID)
 	case Ghostty:
 		return c.focusGhostty(paneID)
+	case Rex:
+		return c.focusRex(paneID)
 	}
 	return fmt.Errorf("unknown multiplexer; go to the editor yourself")
 }
@@ -211,6 +226,8 @@ func (c Connection) Panes() (map[string]bool, error) {
 		return c.herdrPanes()
 	case Ghostty:
 		return c.ghosttyPanes()
+	case Rex:
+		return c.rexPanes()
 	}
 	return nil, fmt.Errorf("unknown multiplexer; open the editor again")
 }

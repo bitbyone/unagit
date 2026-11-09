@@ -42,7 +42,7 @@ func TestIntegrationsAreTilesUnderTheirKind(t *testing.T) {
 	}
 	for _, step := range []struct{ key, want string }{
 		{"l", "IntelliJ IDEA"}, {"l", "IntelliJ IDEA"}, {"j", "Zed"}, {"j", "Custom"}, {"j", "Incomm"}, {"l", "Hunk"},
-		{"j", "Herdr"}, {"h", "Zellij"}, {"j", "Ghostty"}, {"j", "Claude Code"}, {"k", "Ghostty"}, {"k", "Zellij"}, {"h", "Zellij"},
+		{"j", "Herdr"}, {"h", "Zellij"}, {"j", "Ghostty"}, {"l", "Rex"}, {"j", "Notifications"}, {"k", "Ghostty"}, {"k", "Zellij"}, {"h", "Zellij"},
 	} {
 		typeRunes(sc, step.key)
 		// The condition runs on the event loop already.

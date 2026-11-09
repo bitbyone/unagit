@@ -43,6 +43,14 @@ func (a *App) ghosttyOn() bool {
 	return a.findGhosttyClient() != nil
 }
 
+// rexOn is the same for Rex.
+func (a *App) rexOn() bool {
+	if on := a.cfg.Integrations.Rex; on != nil && !*on {
+		return false
+	}
+	return a.findRexClient() != nil
+}
+
 // agentOn says whether an agent is offered: what the user chose, or,
 // unset, whether it is installed.
 func (a *App) agentOn(ag agents.Agent) bool {
@@ -101,6 +109,22 @@ func (a *App) findGhosttyClient() *mux.Client {
 	return mux.DetectGhostty(os.Getenv, a.executable, os.Getenv("TERM_PROGRAM") == "ghostty" && a.multiplexer == nil)
 }
 
+// rex is Rex, when it is on. Tabs and splits open beside unagit only when
+// it runs in a Rex terminal of its own, not in a multiplexer inside one.
+func (a *App) rex() *mux.Client {
+	if on := a.cfg.Integrations.Rex; on != nil && !*on {
+		return nil
+	}
+	return a.findRexClient()
+}
+
+func (a *App) findRexClient() *mux.Client {
+	if a.findRex != nil {
+		return a.findRex()
+	}
+	return mux.DetectRex(os.Getenv, a.executable, a.multiplexer == nil)
+}
+
 // placeKeyOf names a place so the choice can be remembered.
 func placeKeyOf(place editorPlace) string {
 	if place.client == nil {
@@ -121,7 +145,7 @@ func (a *App) clientPlaces(c *mux.Client) []pickItem {
 		switch where {
 		case mux.Tab:
 			label, about = name+" Tab", "A new tab of its own, named after what it opens."
-			if c.Kind == mux.Herdr || c.Kind == mux.Zellij {
+			if c.Kind == mux.Herdr || c.Kind == mux.Zellij || c.Kind == mux.Rex {
 				about = "A new tab beside unagit's, named after what it opens."
 			}
 		case mux.Vertical:
@@ -129,9 +153,12 @@ func (a *App) clientPlaces(c *mux.Client) []pickItem {
 		case mux.Horizontal:
 			label, about = name+" Split Below", "Below unagit, in the same "+map[bool]string{true: "terminal", false: "tab"}[c.Kind == mux.Ghostty]+"."
 		case mux.Window:
-			if c.Kind == mux.Herdr {
+			switch c.Kind {
+			case mux.Herdr:
 				label, about = "herdr · "+mux.AgentsWorkspace, "A tab of herdr's "+mux.AgentsWorkspace+" workspace, named after what it opens, brought forward in herdr - wherever herdr is shown. The workspace is made the first time."
-			} else {
+			case mux.Rex:
+				label, about = "Rex · "+mux.RexSession+" Session", "A tab of Rex's "+mux.RexSession+" session, named after what it opens, from anywhere - Rex keeps it running on its server. The session is made the first time."
+			default:
 				label, about = name+" Window", "A new window of its own."
 			}
 		}
@@ -169,6 +196,9 @@ func (a *App) places(here string, herdr bool) []pickItem {
 		items = append(items, a.clientPlaces(c)...)
 	}
 	if c := a.ghostty(); c != nil {
+		items = append(items, a.clientPlaces(c)...)
+	}
+	if c := a.rex(); c != nil {
 		items = append(items, a.clientPlaces(c)...)
 	}
 	return items

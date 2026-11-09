@@ -35,7 +35,7 @@ returns to unagit, keeping the buffers and unsaved changes.
 | Key | Does |
 | --- | --- |
 | `Enter` | attach in this terminal |
-| `a` | **Attach In…** a tab, split or window of Zellij, herdr or Ghostty |
+| `a` | **Attach In…** a tab, split or window of Zellij, herdr, Ghostty or Rex |
 | `x` | close it; with unsaved changes it attaches first and asks in Neovim |
 
 The list shows the repository, branch or merge request, directory, age and

@@ -708,6 +708,9 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 	if a.findGhostty == nil {
 		a.findGhostty = func() *mux.Client { return nil }
 	}
+	if a.findRex == nil {
+		a.findRex = func() *mux.Client { return nil }
+	}
 	// The machine's own chezmoi is not the fixture's.
 	if a.findChezmoi == nil {
 		a.findChezmoi = func() (chezmoi.Checkout, error) { return chezmoi.Checkout{}, errors.New("no chezmoi in tests") }

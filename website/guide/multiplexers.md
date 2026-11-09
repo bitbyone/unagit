@@ -1,7 +1,7 @@
-# Zellij, herdr, Ghostty
+# Zellij, herdr, Ghostty, Rex
 
-The opening keys use unagit's own terminal. Inside a multiplexer, or on a Mac
-with Ghostty, the action pickers offer more places.
+The opening keys use unagit's own terminal. Inside a multiplexer, on a Mac
+with Ghostty, or with Rex, the action pickers offer more places.
 
 ## Zellij
 
@@ -63,6 +63,25 @@ splits open it beside unagit. Agents can be opened in the same places.
 Ghostty is scripted through AppleScript: macOS asks once whether unagit may
 control it. A tab cannot be opened when tabs are turned off in Ghostty's
 configuration; use a window.
+
+## Rex
+
+**Open in Rex Session** opens the default terminal editor in a tab of
+[Rex](https://www.superlogical.com/rex)'s **Unagit** session, made the first
+time and kept running by Rex's server. It works from any terminal, as long as
+`rex` is on `PATH`.
+
+When unagit runs in a Rex terminal itself, not in a multiplexer inside it,
+there is more:
+
+- **Open in Rex Tab**, a new tab of the session unagit is in
+- **Open in Rex Vertical Split**, beside unagit
+- **Open in Rex Horizontal Split**, below unagit
+
+Agents, and a sandbox task resumed with an agent, can be opened in
+the same places. A tab is named after what it opens. unagit runs the program
+with its own `PATH` and finds it again by its block; while Rex's server cannot
+be reached, nothing it runs is taken for closed.
 
 ## Following them
 

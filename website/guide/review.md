@@ -84,4 +84,4 @@ worktree follows the merge request, and put back.
 **Review With…** (in `.`) asks which editor first. **Review with Claude Code…** and the other
 agents prepare the same worktree and start the agent there. Inside Zellij or
 herdr, **Review in Zellij Tab** and the like open it beside unagit. See
-[Coding Agents](/guide/agents) and [Zellij, herdr, Ghostty](/guide/multiplexers).
+[Coding Agents](/guide/agents) and [Zellij, herdr, Ghostty, Rex](/guide/multiplexers).

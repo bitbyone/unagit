@@ -153,7 +153,7 @@ func standBytes(source string) ([]byte, error) {
 }
 
 func newStand(t *testing.T, source, name, warm string) Stand {
-	testenv.UnixOnly(t, "herdr and Ghostty run on Unix alone")
+	testenv.UnixOnly(t, "herdr, Ghostty and Rex run on Unix alone")
 	t.Helper()
 	dir := t.TempDir()
 	s := Stand{Binary: filepath.Join(dir, name), Log: filepath.Join(dir, "calls"), Failure: filepath.Join(dir, "failure"), dir: dir}
@@ -181,6 +181,28 @@ func NewHerdr(t *testing.T) Stand {
 // NewGhostty is an osascript stand-in answering for Ghostty.
 func NewGhostty(t *testing.T) Stand {
 	return newStand(t, "fake_osascript.go", "osascript", "UNAGIT_FAKE_OSASCRIPT_WARM")
+}
+
+// NewRex is a rex stand-in.
+func NewRex(t *testing.T) Stand {
+	return newStand(t, "fake_rex.go", "rex", "UNAGIT_FAKE_REX_WARM")
+}
+
+// RexCall is one call of the rex stand-in, with the server it was pointed
+// at.
+type RexCall struct {
+	Args   []string
+	Server string
+}
+
+// RexClient is a client of the stand-in as unagit inside a Rex terminal
+// has it; without inside, as from anywhere else.
+func (s Stand) RexClient(inside bool) *mux.Client {
+	c := &mux.Client{Connection: mux.Connection{Kind: mux.Rex, Binary: s.Binary, Session: "studio"}}
+	if inside {
+		c.SourcePane, c.Workspace = "block:self", "session:here"
+	}
+	return c
 }
 
 // HerdrClient is a client of the stand-in as unagit inside herdr has it;
@@ -212,7 +234,8 @@ func (s Stand) SetTerminals(t *testing.T, ids ...string) {
 }
 
 // Fail makes the stand-in fail: herdr with an error code, on one command
-// ("pane list") or on all; osascript with what it prints.
+// ("pane list") or on all; rex with an exit status, the same way;
+// osascript with what it prints.
 func (s Stand) Fail(t *testing.T, failure string) {
 	t.Helper()
 	if err := os.WriteFile(s.Failure, []byte(failure), 0o600); err != nil {

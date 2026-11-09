@@ -297,7 +297,7 @@ func (a *App) agentRecord(r agentRow) session.Record {
 
 // goToAgent brings an agent forward where it runs: in herdr, and herdr's
 // Ghostty terminal with it when unagit is not in herdr itself; in its
-// Zellij pane or Ghostty terminal.
+// Zellij pane, Ghostty terminal or Rex block.
 func (a *App) goToAgent(r agentRow) {
 	go func() {
 		err := a.reachAgent(r)
@@ -402,7 +402,7 @@ func (a *App) agentsNowAsk() {
 // agentActionsOf are what can be done with one agent.
 func (a *App) agentActionsOf(p *pane, r agentRow) []uiAction {
 	return []uiAction{
-		{name: "Go to Agent", about: "Bring the agent forward where it runs: its herdr tab - and herdr's Ghostty terminal with it - or its Zellij pane or Ghostty terminal.", keys: "Enter", rank: 10, run: p.enter},
+		{name: "Go to Agent", about: "Bring the agent forward where it runs: its herdr tab - and herdr's Ghostty terminal with it - or its Zellij pane, Ghostty terminal or Rex block.", keys: "Enter", rank: 10, run: p.enter},
 		{name: "Open", about: "Open the agent's directory in your default editor, here.", keys: "o", also: []string{"Ctrl-O"}, rank: 20, run: func() { p.onOpen(false) }},
 		{name: "Open With…", about: "Choose the editor, then open the agent's directory here.", keys: "", rank: 25, run: func() { p.onOpen(true) }},
 		{name: "Close Agent…", about: "End the agent in herdr: its pane closes, and what it was doing stops. Asks first.", keys: "x", rank: 60,

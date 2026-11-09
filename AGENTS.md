@@ -213,7 +213,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/watch` | what is watched and what was last seen of it, the poller's lock, each instance's presence, each thing's history |
 | `internal/notify` | desktop notifications: the terminals' escape sequences, the system's notifiers |
 | `internal/editors` | which editors are installed, and the command that opens one |
-| `internal/mux` | Zellij, herdr and Ghostty: tabs, splits and windows, pane IDs and liveness; `unagit launch` |
+| `internal/mux` | Zellij, herdr, Ghostty and Rex: tabs, splits and windows, pane IDs and liveness; `unagit launch` |
 | `internal/agents` | the coding agents a directory can be opened in |
 | `internal/chezmoi` | where chezmoi keeps the dotfiles repository, and its origin |
 | `internal/keymap` | keybinds.toml: how a key is written and matched, what a terminal cannot send apart |

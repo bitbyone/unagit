@@ -173,7 +173,8 @@ func (a *App) inSessionOf(r session.Record) bool {
 
 // clientOf is the client that can bring a record's pane forward: the
 // multiplexer unagit runs in, when the pane is in its session; Ghostty,
-// which reaches any of its terminals; herdr's server, from anywhere.
+// which reaches any of its terminals; herdr's and Rex's server, from
+// anywhere.
 func (a *App) clientOf(r session.Record) *mux.Client {
 	if c := a.multiplexer; c != nil && c.Kind == r.Mux && c.Session == r.MuxSession {
 		return c
@@ -183,6 +184,10 @@ func (a *App) clientOf(r session.Record) *mux.Client {
 		return a.ghostty()
 	case mux.Herdr:
 		if c := a.herdr(); c != nil && c.Session == r.MuxSession {
+			return c
+		}
+	case mux.Rex:
+		if c := a.rex(); c != nil && c.Session == r.MuxSession {
 			return c
 		}
 	}

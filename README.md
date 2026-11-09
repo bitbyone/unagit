@@ -721,6 +721,20 @@ whether unagit may control it. Ghostty keeps a terminal whose program has
 ended open until a key; unagit closes it instead. A tab cannot be opened
 when tabs are turned off in Ghostty's configuration - use a window.
 
+### [Rex](https://www.superlogical.com/rex)
+
+**Open in Rex Session** opens the default terminal editor in a tab of Rex's
+Unagit session - made the first time, and kept running by Rex's server -
+from any terminal, as long as `rex` is on PATH. When unagit runs in a Rex
+terminal itself, not in a multiplexer inside it, **Open in Rex Tab** opens a
+new tab of the session unagit is in and the Rex splits open it beside
+unagit; agents, and a sandbox task's **Resume with <agent> in …**, can be
+opened in the same places. A tab is named after what it opens. unagit drives
+Rex through its `rex` command (the copy beside the server, `REX_BIN_DIR`,
+when it says), runs the program with unagit's PATH, and finds what it opened
+again by the block's id; while Rex's server cannot be reached, nothing it
+runs is taken for closed.
+
 ### Coding agents
 
 Claude Code, Codex, Copilot CLI, opencode and Antigravity are integrations of
@@ -732,7 +746,8 @@ prepares it - cloned, the branch worktree made - or the review as `Ctrl-R`
 makes it, the change unstaged, and then the agent starts there, where you
 choose: **This Terminal** (unagit is suspended until the agent ends), a tab
 or split of the Zellij or herdr unagit runs in, a tab of herdr's Unagit
-Agents workspace, or a Ghostty window, tab or split. The places are listed
+Agents workspace, a Ghostty window, tab or split, or a Rex tab, split or
+the Rex Unagit session. The places are listed
 in the order they are usually chosen.
 
 ### [unibox](https://github.com/bitbyone/unibox)
@@ -848,7 +863,7 @@ in herdr, what it is doing - **waiting** for an answer is under *needs you*,
 **working** under *under way*, **idle** and **ended** (the agent left only
 its shell) under *quiet* - and its detail says where it runs. The number
 waiting is on the tab from every screen. `Enter` goes to the agent: its herdr tab, its Zellij
-pane or its Ghostty terminal; with Ghostty on and unagit outside herdr, the
+pane, its Ghostty terminal or its Rex block; with Ghostty on and unagit outside herdr, the
 Ghostty terminal herdr runs in comes forward too - a quick terminal included
 - found by the title herdr gives it, `<host>: <workspace>`. `x` closes an
 agent in herdr after asking, `o` opens its directory in the editor, and

@@ -33,6 +33,7 @@ Most are on as soon as their program is found on `PATH`.
 | [Zellij](/guide/multiplexers#zellij) | tabs and splits beside unagit |
 | [herdr](/guide/multiplexers#herdr) | a multiplexer for coding agents |
 | [Ghostty](/guide/multiplexers#ghostty) | windows, tabs and splits on a Mac |
+| [Rex](/guide/multiplexers#rex) | a session of unagit's own, and tabs and splits beside unagit |
 
 ## AI agents
 

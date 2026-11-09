@@ -322,3 +322,52 @@ func TestOpeningComesInTiers(t *testing.T) {
 		}
 	}
 }
+
+// TestAnAgentOpensInRex: inside Rex, its tabs and splits are offered
+// beside its session of unagit's own, and an agent opened in a split is
+// recorded by its block, which Go to Agent brings forward.
+func TestAnAgentOpensInRex(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	_, prepareAgents := fakeAgents(t, "", "claude")
+	a, sc, _ := newTestAppSrv(t, prepareAgents, func(a *App) { a.findRex = func() *mux.Client { return r.RexClient(true) } })
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+
+	pickMuxAction(t, a, sc, "Open with Claude Code")
+	for _, want := range []string{"Rex Tab", "Rex Split Right", "Rex Split Below", "Rex · Unagit Session"} {
+		waitFor(t, a, sc, want)
+	}
+	pickPlaceNamed(t, a, sc, "claude", "Rex Split Right")
+	waitEditorState(t, a, func() bool {
+		return strings.Contains(a.transient, "opened Claude Code in Rex: "+p.path)
+	})
+	rows := a.sessions.List()
+	if len(rows) != 1 || rows[0].Editor != "claude" || rows[0].Mux != mux.Rex || rows[0].Pane != "block:1" || rows[0].MuxSession != "studio" {
+		t.Fatalf("recorded: %+v", rows)
+	}
+	var calls []muxtest.RexCall
+	r.Calls(t, &calls)
+	var split []string
+	for _, call := range calls {
+		if call.Args[0] == "split" {
+			split = call.Args
+		}
+	}
+	if split[0] != "split" || split[2] != "block:self" || split[4] != "right" || split[6] != p.clone || !strings.HasSuffix(split[len(split)-1], "/claude") {
+		t.Fatalf("split: %v", split)
+	}
+
+	if err := a.reachAgent(agentRow{Kind: "claude", Dir: p.clone, Pane: rows[0].Pane, Record: &rows[0]}); err != nil {
+		t.Fatal(err)
+	}
+	calls = nil
+	r.Calls(t, &calls)
+	focused := false
+	for _, call := range calls {
+		focused = focused || reflect.DeepEqual(call.Args, []string{"block", "focus", "block:1"})
+	}
+	if !focused {
+		t.Fatalf("Go to Agent did not focus the block: %v", calls)
+	}
+}

@@ -606,6 +606,10 @@ type Integrations struct {
 	// Ghostty opens editors and agents in Ghostty windows and splits on a
 	// Mac. Unset, it is on whenever Ghostty is installed.
 	Ghostty *bool `yaml:"ghostty,omitempty"`
+	// Rex opens editors and agents in Rex's tabs and splits while unagit
+	// runs in it, and in a session of their own from anywhere. Unset, it
+	// is on whenever rex is installed.
+	Rex *bool `yaml:"rex,omitempty"`
 	// Unibox shows the sandboxes coding agents run in - unibox's profiles,
 	// sandboxes and tasks - on a tab of their own. Unset, it is on whenever
 	// unibox is installed.

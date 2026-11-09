@@ -30,7 +30,8 @@ type openTarget struct {
 }
 
 // placeName is a place as an action names it: "Zellij Vertical Split",
-// "Ghostty Window", and herdr alone for the agents' workspace.
+// "Ghostty Window", herdr alone for the agents' workspace, "Rex Session"
+// for Rex's.
 func placeName(place editorPlace) string {
 	name := place.client.Name()
 	switch place.where {
@@ -41,8 +42,11 @@ func placeName(place editorPlace) string {
 	case mux.Horizontal:
 		return name + " Horizontal Split"
 	case mux.Window:
-		if place.client.Kind == mux.Herdr {
+		switch place.client.Kind {
+		case mux.Herdr:
 			return name
+		case mux.Rex:
+			return name + " Session"
 		}
 		return name + " Window"
 	}
@@ -60,8 +64,11 @@ func placeAbout(place editorPlace) string {
 	case mux.Horizontal:
 		return "a split below unagit, in " + name
 	case mux.Window:
-		if place.client.Kind == mux.Herdr {
+		switch place.client.Kind {
+		case mux.Herdr:
 			return "a tab of herdr's " + mux.AgentsWorkspace + " workspace"
+		case mux.Rex:
+			return "a tab of Rex's " + mux.RexSession + " session"
 		}
 		return "a new " + name + " window"
 	}

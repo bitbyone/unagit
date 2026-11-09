@@ -25,6 +25,7 @@ the agent starts there, where you choose:
 - a tab or split of the Zellij or herdr unagit runs in
 - a tab of herdr's **Unagit Agents** workspace
 - a Ghostty window, tab or split
+- a Rex tab or split, or a tab of Rex's **Unagit** session
 
 The places are listed in the order they are usually chosen. Typing finds them
 at once: `cc split` puts Claude Code in a vertical split.
@@ -41,7 +42,7 @@ runs. For those in herdr it says what each is doing:
 | **idle**, **ended** | *quiet* |
 
 The number waiting is on the tab from every screen. `Enter` goes to the agent:
-its herdr tab, its Zellij pane or its Ghostty terminal. `x` closes an agent in
+its herdr tab, its Zellij pane, its Ghostty terminal or its Rex block. `x` closes an agent in
 herdr after asking, `o` opens its directory in the editor, and **Running Agents…** (in `:`)
 lists the agents over any screen.
 

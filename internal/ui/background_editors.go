@@ -128,7 +128,7 @@ func (a *App) attachWhere(r session.Record) {
 		}
 	}
 	if len(places) == 0 {
-		a.flash("no tab, split or window to attach in - run unagit in Zellij or herdr, or turn Ghostty on; Enter attaches here")
+		a.flash("no tab, split or window to attach in - run unagit in Zellij, herdr or Rex, or turn Ghostty on; Enter attaches here")
 		return
 	}
 	a.pickPlace(placeOfAttach, "Attach "+r.Label()+" · where", places, func(place editorPlace) {

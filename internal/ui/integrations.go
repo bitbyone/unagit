@@ -134,6 +134,15 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 			s.app.cfg.Integrations.Ghostty = &on
 		},
 	}
+	byName["Rex"] = &integrationCard{
+		name: "Rex", command: "rex",
+		description: "Editors and agents can also be opened in a session of their own in Rex, from anywhere, and in a new tab or a split beside unagit when it runs in Rex.",
+		enabled:     s.app.rexOn,
+		toggle: func() {
+			on := !s.app.rexOn()
+			s.app.cfg.Integrations.Rex = &on
+		},
+	}
 	byName["unibox"] = &integrationCard{
 		name: "unibox", command: "unibox",
 		description: "Runs coding agents in Docker Sandboxes made from your team's envs. The Sandboxes tab [5] shows the sandboxes, their tasks and the envs; Sandbox with… starts an agent on a repository or a worktree in one.",
@@ -163,7 +172,7 @@ func (s *settingsView) newIntegrationsView() *integrationsView {
 	v.categories = []integrationCategory{
 		{"Editors", editorCards},
 		{"Review", []*integrationCard{byName["Incomm"], byName["Hunk"]}},
-		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"], byName["Notifications"]}},
+		{"Terminals", []*integrationCard{byName["Zellij"], byName["Herdr"], byName["Ghostty"], byName["Rex"], byName["Notifications"]}},
 		{"AI Agents", agentCards},
 		{"Files & Navigation", []*integrationCard{byName["Zoxide"], byName["Yazi"], byName["Chezmoi"]}},
 		{"Sandboxes", []*integrationCard{byName["unibox"]}},
@@ -620,6 +629,11 @@ func (v *integrationsView) integrationBinary(command string) string {
 			return app
 		}
 		return "Ghostty"
+	case "rex":
+		if c := v.settings.app.findRexClient(); c != nil {
+			return c.Binary
+		}
+		return ""
 	}
 	bin, _ := v.settings.app.executable(command)
 	return bin
