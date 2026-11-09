@@ -473,3 +473,25 @@ func TestADoubleClickOnATextPanelIsItsEnter(t *testing.T) {
 	eventually(t, a, "the watches listed", func() bool { return a.modalOpen() })
 	waitFor(t, a, sc, "KIND")
 }
+
+// TestARightClickOnATabIsItsColon: the right button on a tab goes there
+// and opens what : opens on it - the screen's actions.
+func TestARightClickOnATabIsItsColon(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	x, y := at(t, a, sc, "Sandboxes")
+	press(sc, x, y, tcell.ButtonSecondary, tcell.ModNone)
+	release(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "Go to Merge Requests")
+	if got := onLoop(a, func() string { return a.currentTab() }); got != pageSandboxes {
+		t.Errorf("the right button left the tab on %q", got)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Go to Merge Requests")
+
+	x, y = at(t, a, sc, "Settings")
+	press(sc, x, y, tcell.ButtonSecondary, tcell.ModNone)
+	release(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "Go to Merge Requests")
+}

@@ -50,7 +50,7 @@ The mouse does what the keys do, nothing of its own:
 | --- | --- |
 | click | the cursor goes to the row, the section of Settings or the field; on the bar, to that tab |
 | double click | `Enter` |
-| right click | the actions of what it is on, as `.` lists them |
+| right click | the actions of what it is on, as `.` lists them; on a tab, that screen's, as `:` does |
 | Ctrl-click, Alt-click | mark or unmark the row, as space does |
 | Shift-click | mark from the cursor to the row |
 | drag over rows | mark every row it passes over |

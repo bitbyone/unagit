@@ -127,7 +127,8 @@ terminal does not send. What is rare has no key and lives in the pickers.
 **The mouse does what the keys do.** A click puts the cursor on a row, on a
 section of Settings or into a field, and a click on the bar goes to that tab;
 a double click is `Enter`, and the right button opens the actions of what it
-is on, as `.` does. Ctrl-click (or Alt-click) marks a row as space does,
+is on, as `.` does - on a tab of the bar, that screen's actions, as `:`
+does. Ctrl-click (or Alt-click) marks a row as space does,
 Shift-click marks from the cursor to it, and a drag over a list's rows marks
 them all. A click beside a dialog closes it, as `Esc` does, and reaches
 nothing beneath it; `×` in the corner of the detail column closes that. While unagit

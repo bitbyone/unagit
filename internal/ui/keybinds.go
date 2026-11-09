@@ -341,6 +341,9 @@ func (a *App) opens(id string, ev *tcell.EventKey) bool {
 	if ev == mouseActionsKey {
 		return id == keymap.SelectionActions
 	}
+	if ev == mouseScreenActionsKey {
+		return id == keymap.ScreenActions
+	}
 	// A picker's key that is a character - . and : - is that character
 	// while something is typed into: a form in INSERT, a filter, a search.
 	if ev.Key() == tcell.KeyRune && ev.Modifiers()&(tcell.ModAlt|tcell.ModCtrl) == 0 && a.typing() {

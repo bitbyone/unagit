@@ -57,6 +57,10 @@ const mouseHandled tview.MouseAction = -1
 // else answers it.
 var mouseActionsKey = tcell.NewEventKey(tcell.KeyF64, 0, tcell.ModNone)
 
+// mouseScreenActionsKey is what a right click on a tab presses: the
+// screen's action picker, as : opens it.
+var mouseScreenActionsKey = tcell.NewEventKey(tcell.KeyF63, 0, tcell.ModNone)
+
 // setRoot is what the application draws, kept for the mouse to look into.
 func (a *App) setRoot(root tview.Primitive) {
 	a.root = root
@@ -250,13 +254,17 @@ func (a *App) dispatchMouse(ev *tcell.EventMouse, action tview.MouseAction) {
 
 // mouseOnTabs switches to the tab clicked on the bar, while no dialog is in
 // front: what a dialog is in the middle of is not left by a click beside it.
+// The right button opens that tab's screen actions, as : does.
 func (a *App) mouseOnTabs(x, y int, action tview.MouseAction) bool {
 	if a.tabs == nil || !a.tabs.InRect(x, y) {
 		return false
 	}
-	if action == tview.MouseLeftClick && !a.modalOpen() {
+	if (action == tview.MouseLeftClick || action == tview.MouseRightClick) && !a.modalOpen() {
 		if page := a.tabAt(x); page != "" {
 			a.switchTab(page)
+			if action == tview.MouseRightClick {
+				a.pressKey(mouseScreenActionsKey)
+			}
 		}
 	}
 	return true
