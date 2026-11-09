@@ -1,0 +1,30 @@
+{
+  "version": "0.4",
+  "description": "Universal Navigator Around GIT: repositories, worktrees and merge request reviews",
+  "homepage": "https://github.com/bitbyone/unagit",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/bitbyone/unagit/releases/download/v0.4/unagit_0.4_windows_amd64.zip",
+      "hash": "8c4337abd70fa1e8c91cddd4131ce23c8ae569c9e0569f1ddd2c68ba9e2a6cf0"
+    },
+    "arm64": {
+      "url": "https://github.com/bitbyone/unagit/releases/download/v0.4/unagit_0.4_windows_arm64.zip",
+      "hash": "a24adc49b5bc55e51ce28ac7ec61f339a47d0e3d596d410e633a6e95e2d267fe"
+    }
+  },
+  "bin": "unagit.exe",
+  "checkver": {
+    "github": "https://github.com/bitbyone/unagit"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/bitbyone/unagit/releases/download/v$version/unagit_$version_windows_amd64.zip"
+      },
+      "arm64": {
+        "url": "https://github.com/bitbyone/unagit/releases/download/v$version/unagit_$version_windows_arm64.zip"
+      }
+    }
+  }
+}
