@@ -160,6 +160,12 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 		}
 	}
 	a.dispatchMouse(ev, action)
+	if action == tview.MouseLeftDoubleClick && a.textPanelAt(x, y) {
+		// A panel that is a few lines of text - Watching, the environment
+		// - has no row to double click: the whole panel is its row, and
+		// Enter its action.
+		a.pressKey(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone))
+	}
 	if action == tview.MouseRightClick {
 		// A right click on a field or a button takes the keys there - it
 		// presses nothing - then opens the actions of where it landed.
@@ -324,10 +330,8 @@ type panelled interface {
 	focus(tview.Primitive)
 }
 
-// focusPanel gives the keys to a panel of such a screen the way its keys
-// do, and reports whether it was one: tview's focus alone left the panel
-// before it lit and the screen still turned to it.
-func (a *App) focusPanel(to tview.Primitive) bool {
+// panelledScreens are the screens made of panels.
+func (a *App) panelledScreens() []panelled {
 	var screens []panelled
 	if a.activity != nil {
 		screens = append(screens, a.activity)
@@ -335,10 +339,40 @@ func (a *App) focusPanel(to tview.Primitive) bool {
 	if a.sandboxes != nil {
 		screens = append(screens, a.sandboxes)
 	}
-	for _, v := range screens {
+	return screens
+}
+
+// focusPanel gives the keys to a panel of such a screen the way its keys
+// do, and reports whether it was one: tview's focus alone left the panel
+// before it lit and the screen still turned to it.
+func (a *App) focusPanel(to tview.Primitive) bool {
+	for _, v := range a.panelledScreens() {
 		for _, panel := range v.panels() {
 			if panel == to {
 				v.focus(to)
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// textPanelAt says whether a panel of text is under the pointer: one of a
+// screen's panels that is neither a list nor the detail column, whose text
+// is about what is chosen elsewhere.
+func (a *App) textPanelAt(x, y int) bool {
+	tv, ok := primitiveAt(a.mouseTop(), x, y).(*tview.TextView)
+	if !ok {
+		return false
+	}
+	for _, p := range a.mainPanes() {
+		if tv == p.detail {
+			return false
+		}
+	}
+	for _, v := range a.panelledScreens() {
+		for _, panel := range v.panels() {
+			if panel == tv {
 				return true
 			}
 		}

@@ -461,3 +461,15 @@ func TestAClickChoosesTheEditorCardUnderIt(t *testing.T) {
 	click(sc, x, y, tcell.ModNone)
 	eventually(t, a, "the first editor chosen again", func() bool { return a.activity.cards.at == 0 })
 }
+
+// TestADoubleClickOnATextPanelIsItsEnter: Watching is a few lines of
+// text, no rows; a double click anywhere on it does what Enter does there.
+func TestADoubleClickOnATextPanelIsItsEnter(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := activityFixture(t)
+	x, y := at(t, a, sc, "repository branch")
+	click(sc, x, y, tcell.ModNone)
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "the watches listed", func() bool { return a.modalOpen() })
+	waitFor(t, a, sc, "KIND")
+}
