@@ -92,6 +92,12 @@ func (f *watchFollower) pollLocal(snap *watch.Snapshot, due map[string]bool) []w
 				after.Heads++
 			}
 		}
+		// A command of unagit's moving refs this instant may have moved one
+		// the note does not name yet: look again next time.
+		if gitx.Busy(w.Dir) {
+			delete(f.asked, key)
+			continue
+		}
 		seen, known := f.store.LocalRefs(key)
 		var evs []watch.Event
 		if known {

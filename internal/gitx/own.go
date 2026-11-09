@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tobola/unagit/internal/platform"
@@ -151,6 +152,41 @@ func noteOwn(path string, before, after map[string]string) {
 		moves[ref] = m
 	}
 	writeOwn(path, moves)
+}
+
+// busyKept is how long a mark of a command under way stands, should the
+// process die before taking it back.
+const busyKept = 10 * time.Minute
+
+var busySeq atomic.Int64
+
+// markBusy says a command of unagit's is moving refs until the returned
+// func is called: in between, a watcher may already see a ref moved that
+// the note does not name yet, and must not take it for news.
+func markBusy(own string) func() {
+	path := own + ".busy-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(busySeq.Add(1), 10)
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		return func() {}
+	}
+	return func() { os.Remove(path) }
+}
+
+// Busy reports whether a command of unagit's, of any instance, is moving
+// refs in a watched clone right now. A watcher asks after reading the refs
+// and before reading the note: a move seen then is either in the note or
+// still marked.
+func Busy(dir string) bool {
+	path := followed(dir)
+	if path == "" {
+		return false
+	}
+	marks, _ := filepath.Glob(path + ".busy-*")
+	for _, m := range marks {
+		if st, err := os.Stat(m); err == nil && time.Since(st.ModTime()) < busyKept {
+			return true
+		}
+	}
+	return false
 }
 
 // movesRefs reports whether a git command can move a branch or a tag.

@@ -93,6 +93,7 @@ func (g *Git) runEnv(dir string, env []string, args ...string) (string, error) {
 	var before map[string]string
 	if dir != "" && movesRefs(args) {
 		if own = followed(dir); own != "" {
+			defer markBusy(own)()
 			before, _ = LocalRefs(dir)
 		}
 	}

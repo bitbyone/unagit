@@ -552,7 +552,10 @@ new action that moves a branch backwards or sideways goes through
 changes (Watch Local Changes) says on Activity what an agent or a terminal
 did to its branches and tags; unagit's own moves are told apart by the note
 `gitx` keeps in the clone's git directory (`own.go`), written by `runEnv`
-around every command that can move a ref. A git command that moves one
+around every command that can move a ref. While one runs it is marked busy
+(`markBusy`), and the watcher skips a look that reads the refs mid-command:
+the ref may already have moved before the note names it, which once made
+unagit's own tag news on the slower runners. A git command that moves one
 outside `gitx.Git` - an `exec.Command("git", …)` of its own - escapes the
 note and shows up as somebody else's doing.
 

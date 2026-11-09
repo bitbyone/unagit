@@ -99,7 +99,9 @@ func (a *App) onMouse(ev *tcell.EventMouse, action tview.MouseAction) (*tcell.Ev
 	x, y := ev.Position()
 	switch action {
 	case tview.MouseLeftClick, tview.MouseLeftDoubleClick:
-		now := time.Now()
+		// When the terminal sent it, not when the loop got to it: a click
+		// kept waiting behind a draw is not the first half of a double one.
+		now := ev.When()
 		if x == a.mouse.clickX && y == a.mouse.clickY && now.Sub(a.mouse.clickAt) <= tview.DoubleClickInterval {
 			action = tview.MouseLeftDoubleClick
 			a.mouse.clickAt = time.Time{}
