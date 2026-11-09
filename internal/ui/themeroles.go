@@ -203,6 +203,7 @@ var colourRoles = []colourRole{
 	{"sandboxes.resource", "text.muted", "the icons of a sandbox's processors, memory and tasks"},
 	{"sandboxes.agent", "agents.agent", ""},
 	{"sandboxes.branch", "column.branch", ""},
+	{"sandboxes.where", "text.muted", "the terminal a task's agent is at work in"},
 	{"sandboxes.memory", "column.size", ""},
 	{"sandboxes.allowed", "state.good", "a host a sandbox may reach beyond its env's"},
 	{"sandboxes.denied", "state.bad", "a host a sandbox may not reach"},

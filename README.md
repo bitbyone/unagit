@@ -800,7 +800,11 @@ command; unagit reads none of its files. On a task `r` resumes its agent and
 `a` another of the sandbox's, where you choose - this terminal, a Zellij or
 herdr tab or split, herdr's agents workspace, a Ghostty window - and typing
 in the picker finds each agent in each place (**Resume with Claude Code in
-Zellij Vertical Split**); `s` is a shell in it, `i` its instructions, `+`
+Zellij Vertical Split**). A task at work shows under WHERE the terminal its
+agent runs in, where unagit can tell - a Rex block, found by the process
+unibox runs it in whoever started it there, or the tab or split unagit
+opened - and `f` (**Go to Agent**) brings it forward, as `r` does rather
+than starting it twice; `s` is a shell in it, `i` its instructions, `+`
 adds a repository, `Ctrl-E` renames it, `d` removes it. On a sandbox `n` starts a
 new task - **New Sandbox Task…** (in `:`) does from any screen, in the context's sandbox, the
 repository or worktree under the cursor marked: Space marks as many

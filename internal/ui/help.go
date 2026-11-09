@@ -424,6 +424,7 @@ func helpRows() []helpLine {
 		key("h j k l", "past a panel's edge: to the panel beside it"),
 		key("B  t  N  L  E", "cards · tasks · envs · log · environment").at(helpNoKeys),
 		key("Enter", "into the detail of what is chosen"),
+		key("f", "a task: go to its agent where it is at work"),
 		key("r", "a task: resume its agent; one at work is gone to"),
 		key("a", "a task: resume with another of the sandbox's agents"),
 		key("s", "a shell in the task or the sandbox"),

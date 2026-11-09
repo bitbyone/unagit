@@ -77,7 +77,11 @@ it.
 | **Log** | `L` | every command given to unibox, and what it said |
 
 On a task `r` resumes its agent, `a` with another, `s` opens a shell, `i`
-shows what the agent is told. On a sandbox `n` starts a task - **New Sandbox Task…** in `:` from any screen, in the
+shows what the agent is told. A task at work shows under **WHERE** the
+terminal its agent runs in, where unagit can tell: a Rex block is found by
+the process unibox runs it in, whether unagit or a shell in Rex started it,
+and a tab or split unagit opened is known. `f` (**Go to Agent**) brings it
+forward, and so does `r` rather than starting it twice. On a sandbox `n` starts a task - **New Sandbox Task…** in `:` from any screen, in the
 context's sandbox: Space marks its repositories, then a form takes its
 name, branch, checkouts, push and agent. `p` `f` `M`
 are its ports, network and resources, `C` recreates it. On an env `V`, `K`

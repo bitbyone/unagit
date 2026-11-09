@@ -80,6 +80,16 @@ func main() {
 		return ""
 	}
 	switch {
+	case command == "block call":
+		// What a test said runs in the block, as Rex nests it.
+		pid, err := os.ReadFile(filepath.Join(dir, "process-"+strings.ReplaceAll(flag("-b"), ":", "-")))
+		if err != nil {
+			reply(map[string]any{"child": nil, "foreground": nil})
+			break
+		}
+		n, _ := strconv.Atoi(strings.TrimSpace(string(pid)))
+		reply(map[string]any{"child": map[string]any{"pid": 99999, "name": "zsh"},
+			"foreground": map[string]any{"pid": n + 1, "name": "sbx", "ancestors": []any{map[string]any{"pid": n, "name": "unibox"}}}})
 	case command == "ls --json":
 		// Every session with a block, as Rex lists them, and those made.
 		sessions := st.Sessions

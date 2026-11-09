@@ -1050,6 +1050,9 @@ copy_inspect_command = []
 # Remove Sandbox…: Remove the VM and every task in it.
 remove_sandbox = "d"
 
+# Go to Agent: Bring forward the terminal the task's agent is at work in.
+go_to_agent = "f"
+
 # Resume…: Run the task's own agent again, Claude Code, on its last
 #   conversation.
 resume = "r"

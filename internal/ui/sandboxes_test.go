@@ -1020,3 +1020,35 @@ func TestARunningTaskIsGoneToInRex(t *testing.T) {
 		t.Fatalf("made %d blocks and showed one %d times: %v", made, shown, calls)
 	}
 }
+
+// TestATaskStartedInRexIsFound: an agent unagit did not start - unibox
+// resume typed into a Rex terminal - is found by its run's process, its
+// session shown under WHERE, and f - Go to Agent - goes there.
+func TestATaskStartedInRexIsFound(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	block, err := r.RexClient(true).Open(mux.Tab, t.TempDir(), "zsh", exec.Command("zsh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.RexProcess(t, block, 1) // the fixture's run of gateway-1a2b3c4d
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { a.findRex = func() *mux.Client { return r.RexClient(true) } })
+	resizeApp(a, sc, 180, 44)
+	openSandboxes(t, a, sc)
+	waitFor(t, a, sc, "WHERE")
+	waitFor(t, a, sc, "Rex · here")
+	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
+	typeRunes(sc, "f")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to Claude Code · rate in Rex") })
+	var calls []muxtest.RexCall
+	r.Calls(t, &calls)
+	made, shown := 0, false
+	for _, call := range calls {
+		made += map[bool]int{true: 1}[call.Args[0] == "run"]
+		shown = shown || reflect.DeepEqual(call.Args, []string{"do", "session.select", "session_id=session:here", "window_id=window:" + block})
+	}
+	if made != 1 || !shown {
+		t.Fatalf("made %d blocks, shown %v: %v", made, shown, calls)
+	}
+}

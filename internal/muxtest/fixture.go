@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -203,6 +204,16 @@ func (s Stand) RexClient(inside bool) *mux.Client {
 		c.SourcePane, c.Workspace = "block:self", "session:here"
 	}
 	return c
+}
+
+// RexProcess says that the process pid runs in a block of the Rex
+// stand-in, under the program in its foreground.
+func (s Stand) RexProcess(t *testing.T, block string, pid int) {
+	t.Helper()
+	name := filepath.Join(filepath.Dir(s.Binary), "process-"+strings.ReplaceAll(block, ":", "-"))
+	if err := os.WriteFile(name, []byte(strconv.Itoa(pid)), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // HerdrClient is a client of the stand-in as unagit inside herdr has it;

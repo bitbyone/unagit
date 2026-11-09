@@ -219,8 +219,8 @@ type rexSessionInfo struct {
 	Label string `json:"label"`
 }
 
-func (c *Client) rexSessions(ctx context.Context) ([]rexSessionInfo, error) {
-	out, err := c.rex(ctx, "ls", "--json")
+func (c *Client) rexSessions(ctx context.Context, flags ...string) ([]rexSessionInfo, error) {
+	out, err := c.rex(ctx, append([]string{"ls", "--json"}, flags...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,4 +308,93 @@ func (c Connection) rexPanes() (map[string]bool, error) {
 		live[id] = true
 	}
 	return live, nil
+}
+
+// RexPlace is where a block of Rex is: its session, by id and by the
+// label the app shows, and its window.
+type RexPlace struct {
+	Session, SessionLabel, Window, Block string
+}
+
+// RexFind finds the blocks the given processes run in, wherever they were
+// started - unagit or a shell in Rex alike: each block of a window is asked
+// for its processes, the child it started, the one in the foreground and
+// that one's ancestors, and a pid among them is the block's. Detached blocks
+// show nothing, so they are not asked.
+func (c *Client) RexFind(pids []int) (map[int]RexPlace, error) {
+	want := map[int]bool{}
+	for _, pid := range pids {
+		if pid > 0 {
+			want[pid] = true
+		}
+	}
+	found := map[int]RexPlace{}
+	if len(want) == 0 {
+		return found, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	// A server that is not running has no blocks to find.
+	sessions, err := c.rexSessions(ctx, "--autostart=false")
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range sessions {
+		out, err := c.rex(ctx, "window", "ls", "-s", s.ID, "-q", "--short=false")
+		if err != nil {
+			return nil, err
+		}
+		for _, w := range strings.Fields(out) {
+			out, err := c.rex(ctx, "block", "ls", "-s", s.ID, "-w", w, "-q", "--short=false")
+			if err != nil {
+				return nil, err
+			}
+			for _, b := range strings.Fields(out) {
+				out, err := c.rex(ctx, "block", "call", "-s", s.ID, "-b", b, "process")
+				if err != nil {
+					// A block that is no terminal has no processes.
+					continue
+				}
+				var described any
+				if json.Unmarshal([]byte(out), &described) != nil {
+					continue
+				}
+				for _, pid := range pidsIn(described) {
+					if want[pid] {
+						found[pid] = RexPlace{Session: s.ID, SessionLabel: s.Label, Window: w, Block: b}
+					}
+				}
+			}
+		}
+	}
+	return found, nil
+}
+
+// pidsIn are the numbers under a "pid" key anywhere in what a terminal says
+// of its processes, so its shape - which nests the ancestors - need not be
+// followed field by field.
+func pidsIn(v any) []int {
+	var pids []int
+	switch v := v.(type) {
+	case map[string]any:
+		for k, x := range v {
+			if n, ok := x.(float64); ok && k == "pid" {
+				pids = append(pids, int(n))
+				continue
+			}
+			pids = append(pids, pidsIn(x)...)
+		}
+	case []any:
+		for _, x := range v {
+			pids = append(pids, pidsIn(x)...)
+		}
+	}
+	return pids
+}
+
+// FocusRexPlace brings a block found by RexFind forward in the app.
+func (c *Client) FocusRexPlace(p RexPlace) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.focusRexIn(ctx, p.Session, p.Window, p.Block)
 }

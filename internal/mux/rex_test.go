@@ -174,3 +174,32 @@ func TestRexShowsWhatItOpens(t *testing.T) {
 		t.Fatalf("without Remote Control: %v", err)
 	}
 }
+
+// TestRexFindsWhereAProcessRuns: a block is found by a process anywhere
+// under it - here the foreground program's ancestor - in any session, and
+// a pid in no block is not found.
+func TestRexFindsWhereAProcessRuns(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	c := r.RexClient(true)
+	if _, err := c.Open(mux.Tab, t.TempDir(), "one", exec.Command("nvim")); err != nil {
+		t.Fatal(err)
+	}
+	other, err := c.Open(mux.Window, t.TempDir(), "two", exec.Command("unibox", "resume", "rate"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.RexProcess(t, other, 4242)
+	found, err := c.RexFind([]int{4242, 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int]mux.RexPlace{4242: {Session: "session:1", SessionLabel: mux.RexSession, Window: "window:" + other, Block: other}}
+	if !reflect.DeepEqual(found, want) {
+		t.Fatalf("found %+v", found)
+	}
+	r.Fail(t, "4 ls")
+	if _, err := c.RexFind([]int{4242}); err == nil {
+		t.Fatal("a server not running was searched")
+	}
+}

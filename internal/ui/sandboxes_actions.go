@@ -17,6 +17,7 @@ import (
 	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/unibox"
 )
@@ -72,6 +73,8 @@ func (a *App) taskActions(r sandboxRow) []uiAction {
 	t := r.task
 	mounted := func() bool { return len(t.HostPaths()) > 0 }
 	acts := []uiAction{
+		{name: "Go to Agent", about: "Bring forward the terminal the task's agent is at work in - a Rex block, found whoever started it, or the tab or split unagit opened it in.",
+			keys: "f", rank: 8, aliases: []string{"focus"}, when: func() bool { return a.taskReachable(r) }, run: func() { a.goToTask(r) }},
 		{name: "Resume…", about: "Run the task's own agent again, " + agentLabel(t.Agent) + ", on its last conversation: here, or in a tab, split or window, the usual place first. One at work is gone to.",
 			keys: "r", rank: 10, run: func() { a.resumeTask(r, t.Agent, false) }},
 		{name: "Resume with Agent…", about: "Run the task with another agent its sandbox has: which first, then where.",
@@ -401,12 +404,9 @@ func (a *App) resumeTask(r sandboxRow, agent string, fresh bool) {
 	if agent == "" {
 		agent = r.task.Agent
 	}
-	if agent == r.task.Agent && r.working() && !fresh {
-		if rec, ok := a.taskSession(r.task); ok {
-			row := agentRow{Kind: rec.Editor, Dir: rec.Dir, Pane: rec.Pane, Record: &rec}
-			a.goToAgent(row)
-			return
-		}
+	if agent == r.task.Agent && !fresh && a.taskReachable(r) {
+		a.goToTask(r)
+		return
 	}
 	ag := agentFor(agent)
 	title := "Resume " + r.task.Name() + " with " + ag.Name + " · where"
@@ -416,6 +416,56 @@ func (a *App) resumeTask(r sandboxRow, agent string, fresh bool) {
 	a.pickPlace(placeOfAgent, title, a.agentPlaces(ag), func(place editorPlace) {
 		a.resumeTaskIn(r, agent, fresh, place)
 	})
+}
+
+// taskReachable says whether a task's agent is at work where unagit can
+// bring it forward.
+func (a *App) taskReachable(r sandboxRow) bool {
+	if !r.working() {
+		return false
+	}
+	if _, ok := a.ubx.inRex[r.task.ID]; ok {
+		return true
+	}
+	_, ok := a.taskSession(r.task)
+	return ok
+}
+
+// goToTask brings a task's agent forward where it is at work.
+func (a *App) goToTask(r sandboxRow) {
+	if !r.working() {
+		a.flash(r.task.Name() + " has no agent at work; resume it")
+		return
+	}
+	if place, ok := a.ubx.inRex[r.task.ID]; ok {
+		a.goToRexTask(r, place)
+		return
+	}
+	if rec, ok := a.taskSession(r.task); ok {
+		a.goToAgent(agentRow{Kind: rec.Editor, Dir: rec.Dir, Pane: rec.Pane, Record: &rec})
+		return
+	}
+	a.flash(r.task.Name() + "'s agent is at work in a terminal unagit cannot reach; go there")
+}
+
+// goToRexTask brings forward the Rex block a task's agent was found at
+// work in, whoever started it there.
+func (a *App) goToRexTask(r sandboxRow, place mux.RexPlace) {
+	rex := a.rex()
+	if rex == nil {
+		a.flash("Rex is off; turn it on in Settings › Integrations")
+		return
+	}
+	go func() {
+		err := rex.FocusRexPlace(place)
+		a.tv.QueueUpdateDraw(func() {
+			if err != nil {
+				a.errorf("%v", err)
+				return
+			}
+			a.done("went to " + agentLabel(r.task.Agent) + " · " + r.task.Name() + " in Rex")
+		})
+	}()
 }
 
 // taskSession is the record of the agent unagit started in a task, still

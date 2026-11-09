@@ -10,6 +10,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/agents"
+	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/unibox"
 )
 
@@ -52,6 +53,10 @@ type uniboxState struct {
 	// env's values and tokens, a sandbox's ports - by row key, read
 	// when the row is first looked at and dropped with every refresh.
 	details map[string]*sandboxDetail
+	// inRex is the Rex block each task's agent runs in, by task id, found
+	// by its run's process after the overview is drawn - unagit started it
+	// or a shell in Rex did.
+	inRex map[string]mux.RexPlace
 }
 
 // sandboxDetail is what was read for one row's detail.
@@ -179,16 +184,73 @@ func (a *App) refreshSandboxes() {
 	}
 	a.ubx.loading = true
 	job := a.startJob("Reading the sandboxes")
+	rex := a.rex()
 	go func() {
 		o, err := c.Overview()
+		at := time.Now()
 		a.tv.QueueUpdateDraw(func() {
 			a.endJob(job)
-			a.ubx = uniboxState{overview: o, err: err, read: true, at: time.Now(), details: map[string]*sandboxDetail{}}
+			a.ubx = uniboxState{overview: o, err: err, read: true, at: at, details: map[string]*sandboxDetail{}}
 			a.sandboxRows = sandboxRows(o)
 			a.sandboxesPane.reload()
 			a.drawTabs()
 		})
+		if err != nil || rex == nil {
+			return
+		}
+		inRex := tasksInRex(rex, o)
+		a.tv.QueueUpdateDraw(func() {
+			if a.ubx.at.Equal(at) && len(inRex) > 0 {
+				a.ubx.inRex = inRex
+				a.sandboxesPane.reload()
+			}
+		})
 	}()
+}
+
+// tasksInRex finds the Rex block of each task at work, by the process
+// unibox runs it in. Rex not running, or not answering, finds none.
+func tasksInRex(rex *mux.Client, o unibox.Overview) map[string]mux.RexPlace {
+	byPid := map[int]string{}
+	var pids []int
+	for _, s := range o.Sandboxes {
+		for _, run := range s.Runs {
+			if run.Task != "" && run.PID > 0 {
+				byPid[run.PID] = run.Task
+				pids = append(pids, run.PID)
+			}
+		}
+	}
+	if len(pids) == 0 {
+		return nil
+	}
+	found, err := rex.RexFind(pids)
+	if err != nil {
+		return nil
+	}
+	inRex := map[string]mux.RexPlace{}
+	for pid, place := range found {
+		inRex[byPid[pid]] = place
+	}
+	return inRex
+}
+
+// taskWhere is a task's WHERE column: the terminal its agent is at work
+// in, where unagit knows it.
+func (a *App) taskWhere(r sandboxRow) string {
+	if r.kind != rowTask || !r.working() {
+		return ""
+	}
+	if place, ok := a.ubx.inRex[r.task.ID]; ok {
+		return "Rex · " + firstOf(place.SessionLabel, "session")
+	}
+	if rec, ok := a.taskSession(r.task); ok {
+		return muxName(rec.Mux)
+	}
+	if run, _ := r.sandbox.RunOf(r.task.ID); run.Pane != "" {
+		return "herdr"
+	}
+	return ""
 }
 
 // sandboxesStale is how long what was read is shown without reading again
@@ -344,13 +406,14 @@ func (a *App) drawSandboxTasks(p *pane) {
 	// The agent is an icon before the task's name where every agent has
 	// one; without the icons - no Nerd Font - it keeps a column of its own.
 	icons := true
-	var names, boxes, states, agentsW, repos, branches []int
+	var names, boxes, states, agentsW, wheres, repos, branches []int
 	for _, r := range v.tasks {
 		names = append(names, cells(r.task.Name()))
 		boxes = append(boxes, cells(r.sandbox.Name))
 		state, _ := a.sandboxState(r)
 		states = append(states, cells(state))
 		agentsW = append(agentsW, cells(agentLabel(r.task.Agent))+2)
+		wheres = append(wheres, cells(a.taskWhere(r)))
 		repos = append(repos, cells(sandboxRepos(r)))
 		branches = append(branches, cells(sandboxBranch(r)))
 		icons = icons && agentIcons[r.task.Agent] != ""
@@ -359,13 +422,20 @@ func (a *App) drawSandboxTasks(p *pane) {
 	boxCol := flexColumn("SANDBOX", boxes, 6, 1)
 	stateCol := flexColumn("STATE", states, 8, 1)
 	agentCol := flexColumn("AGENT", agentsW, 7, 1)
+	whereCol := flexColumn("WHERE", wheres, 5, 1)
 	reposCol := flexColumn("REPOS", repos, 8, 1)
 	branchCol := flexColumn("BRANCH", branches, 10, 1.5)
-	reposCol.drop, boxCol.drop, agentCol.drop = 1, 2, 3
-	cols := []*listColumn{fixedColumn(1), nameCol, boxCol, stateCol, agentCol, reposCol, branchCol}
+	reposCol.drop, whereCol.drop, boxCol.drop, agentCol.drop = 1, 2, 3, 4
+	cols := []*listColumn{fixedColumn(1), nameCol, boxCol, stateCol, agentCol, whereCol, reposCol, branchCol}
 	if icons {
 		agentCol.width = 0
 		cols = slices.Delete(cols, 4, 5)
+	}
+	// Nothing at work anywhere unagit can tell leaves the column out.
+	showWhere := slices.ContainsFunc(wheres, func(w int) bool { return w > 0 })
+	if !showWhere {
+		whereCol.width = 0
+		cols = slices.DeleteFunc(cols, func(c *listColumn) bool { return c == whereCol })
 	}
 	spare := layoutColumns(p.contentWidth()-1, cols...)
 	// What the columns leave goes between the task and where it works, so
@@ -381,6 +451,9 @@ func (a *App) drawSandboxTasks(p *pane) {
 	}
 	if !icons {
 		head = append(head, field{text: "AGENT", width: agentCol.width, colour: heading})
+	}
+	if showWhere {
+		head = append(head, field{text: "WHERE", width: whereCol.width, colour: heading})
 	}
 	if spare > 1 {
 		head = append(head, gap)
@@ -402,6 +475,9 @@ func (a *App) drawSandboxTasks(p *pane) {
 			field{text: state, width: stateCol.width, colour: role(stateRole)})
 		if !icons {
 			row = append(row, field{text: agentLabel(r.task.Agent), width: agentCol.width, colour: role("sandboxes.agent")})
+		}
+		if showWhere {
+			row = append(row, field{text: a.taskWhere(r), width: whereCol.width, colour: role("sandboxes.where")})
 		}
 		if spare > 1 {
 			row = append(row, gap)
