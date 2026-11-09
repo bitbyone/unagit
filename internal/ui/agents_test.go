@@ -363,11 +363,12 @@ func TestAnAgentOpensInRex(t *testing.T) {
 	}
 	calls = nil
 	r.Calls(t, &calls)
-	focused := false
+	focused, shown := false, false
 	for _, call := range calls {
-		focused = focused || reflect.DeepEqual(call.Args, []string{"block", "focus", "block:1"})
+		focused = focused || reflect.DeepEqual(call.Args, []string{"block", "focus", "-s", "session:here", "block:1"})
+		shown = shown || reflect.DeepEqual(call.Args, []string{"do", "session.select", "session_id=session:here", "window_id=window:here"})
 	}
-	if !focused {
-		t.Fatalf("Go to Agent did not focus the block: %v", calls)
+	if !focused || !shown {
+		t.Fatalf("Go to Agent did not bring the block forward: %v", calls)
 	}
 }

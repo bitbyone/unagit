@@ -16,6 +16,7 @@ import (
 type block struct {
 	ID      string `json:"id"`
 	Session string `json:"session"`
+	Window  string `json:"window"`
 }
 
 type state struct {
@@ -56,9 +57,14 @@ func main() {
 		os.WriteFile(path+".write", data, 0o600)
 		os.Rename(path+".write", path)
 	}
-	add := func(session string) string {
+	// Each block made by run or new is a window of its own; a split's is
+	// its anchor's.
+	add := func(session, window string) string {
 		id := fmt.Sprintf("block:%d", len(st.Blocks)+1)
-		st.Blocks = append(st.Blocks, block{id, session})
+		if window == "" {
+			window = "window:" + id
+		}
+		st.Blocks = append(st.Blocks, block{id, session, window})
 		return id
 	}
 	reply := func(v any) {
@@ -75,29 +81,57 @@ func main() {
 	}
 	switch {
 	case command == "ls --json":
-		reply(map[string]any{"sessions": st.Sessions})
+		// Every session with a block, as Rex lists them, and those made.
+		sessions := st.Sessions
+		known := map[string]bool{}
+		for _, s := range sessions {
+			known[s["session_id"]] = true
+		}
+		for _, b := range st.Blocks {
+			if b.Session != "" && !known[b.Session] {
+				known[b.Session] = true
+				sessions = append(sessions, map[string]string{"session_id": b.Session, "label": "here"})
+			}
+		}
+		reply(map[string]any{"sessions": sessions})
 	case args[0] == "new":
 		id := fmt.Sprintf("session:%d", len(st.Sessions)+1)
 		st.Sessions = append(st.Sessions, map[string]string{"session_id": id, "label": args[1]})
-		add(id)
+		add(id, "")
 		save()
 		reply(map[string]any{"session_id": id})
 	case args[0] == "run":
-		b := add(flag("-s"))
+		b := add(flag("-s"), "")
 		save()
 		reply(map[string]any{"block_ids": []string{b}, "window_id": "window:" + b})
 	case args[0] == "split":
-		b := add("")
+		// An anchor it did not make is unagit's own block, in the session
+		// muxtest's client runs in.
+		session, window := "session:here", "window:here"
+		for _, b := range st.Blocks {
+			if b.ID == flag("-b") {
+				session, window = b.Session, b.Window
+			}
+		}
+		b := add(session, window)
 		save()
 		reply(map[string]any{"anchor_block_id": flag("-b"), "block_ids": []string{b}, "split_ids": []string{"split:1"}})
 	case command == "block ls":
-		session := flag("-s")
+		session, window := flag("-s"), flag("-w")
 		for _, b := range st.Blocks {
-			if session == "" || b.Session == session {
+			if (session == "" || b.Session == session) && (window == "" || b.Window == window) {
 				fmt.Println(b.ID)
 			}
 		}
-	case command == "block focus", command == "window rename":
+	case command == "window ls":
+		seen := map[string]bool{}
+		for _, b := range st.Blocks {
+			if b.Session == flag("-s") && !seen[b.Window] {
+				seen[b.Window] = true
+				fmt.Println(b.Window)
+			}
+		}
+	case command == "block focus", command == "window rename", args[0] == "do":
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unknown command %q\n", strings.Join(args, " "))
 		os.Exit(2)

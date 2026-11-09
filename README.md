@@ -735,6 +735,12 @@ when it says), runs the program with unagit's PATH, and finds what it opened
 again by the block's id; while Rex's server cannot be reached, nothing it
 runs is taken for closed.
 
+Rex's app keeps its own tab in each session, apart from the server's focus,
+so unagit asks the app to show what it opened, and what Go to Agent or
+**Resume…** of a task at work goes back to (`rex do session.select`). The app
+takes that from `rex` only with **Remote Control** on (Settings › Server ›
+Client Info); without it the tab opens, and unagit says what to turn on.
+
 ### Coding agents
 
 Claude Code, Codex, Copilot CLI, opencode and Antigravity are integrations of

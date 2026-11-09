@@ -83,6 +83,12 @@ the same places. A tab is named after what it opens. unagit runs the program
 with its own `PATH` and finds it again by its block; while Rex's server cannot
 be reached, nothing it runs is taken for closed.
 
+Rex's app keeps its own tab in each session, apart from the server's focus,
+so unagit asks the app to show what it opened, and what **Go to Agent** or
+**Resume…** of a task at work goes back to. The app takes that from `rex`
+only with **Remote Control** on, in Rex's Settings › Server › Client Info.
+Without it the tab still opens, and unagit says what to turn on.
+
 ## Following them
 
 `unagit sessions` and `unagit cd` include these panes. Records follow the pane

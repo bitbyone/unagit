@@ -123,3 +123,54 @@ func TestRexWithoutItsServer(t *testing.T) {
 		t.Fatalf("asked %q", last)
 	}
 }
+
+// TestRexShowsWhatItOpens: the server's focus is not what the app shows,
+// so a tab or a session opened is brought forward in the app as well, by
+// its session and window; a block is found again from its id alone, in any
+// session; and an app that takes no actions from rex says what to turn on.
+func TestRexShowsWhatItOpens(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	c := r.RexClient(true)
+	shown := func() [][]string {
+		var calls []muxtest.RexCall
+		r.Calls(t, &calls)
+		var out [][]string
+		for _, call := range calls {
+			if call.Args[0] == "do" || call.Args[0] == "block" && call.Args[1] == "focus" {
+				out = append(out, call.Args)
+			}
+		}
+		return out
+	}
+	tab, err := c.Open(mux.Tab, t.TempDir(), "tab", exec.Command("nvim"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Open(mux.Vertical, t.TempDir(), "split", exec.Command("nvim")); err != nil {
+		t.Fatal(err)
+	}
+	own, err := c.Open(mux.Window, t.TempDir(), "own", exec.Command("nvim"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{
+		{"block", "focus", "-s", "session:here", tab},
+		{"do", "session.select", "session_id=session:here", "window_id=window:" + tab},
+		{"block", "focus", "-s", "session:1", own},
+		{"do", "session.select", "session_id=session:1"},
+	}
+	if got := shown(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("brought forward\n%q\nnot\n%q", got, want)
+	}
+	if err := c.Focus(tab); err != nil {
+		t.Fatal(err)
+	}
+	if got := shown()[len(want):]; !reflect.DeepEqual(got, want[:2]) {
+		t.Fatalf("went to the tab with %q", got)
+	}
+	r.Fail(t, "1 do session.select")
+	if err := c.Focus(own); err == nil || !strings.Contains(err.Error(), "Remote Control") {
+		t.Fatalf("without Remote Control: %v", err)
+	}
+}

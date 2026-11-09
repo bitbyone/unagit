@@ -126,7 +126,11 @@ func (c *Client) openRex(where Placement, dir, name string, args []string) (stri
 		if c.Workspace == "" {
 			return "", fmt.Errorf("a Rex tab opens beside unagit; run unagit in Rex, or open a Rex session")
 		}
-		return c.rexTab(ctx, c.Workspace, dir, name, command)
+		pane, window, err := c.rexTab(ctx, c.Workspace, dir, name, command)
+		if err != nil {
+			return pane, err
+		}
+		return pane, c.focusRexIn(ctx, c.Workspace, window, pane)
 	case Vertical, Horizontal:
 		if c.SourcePane == "" {
 			return "", fmt.Errorf("a Rex split opens beside unagit; run unagit in Rex")
@@ -146,11 +150,11 @@ func (c *Client) openRex(where Placement, dir, name string, args []string) (stri
 			return "", err
 		}
 		if session != "" {
-			pane, err := c.rexTab(ctx, session, dir, name, command)
+			pane, window, err := c.rexTab(ctx, session, dir, name, command)
 			if err != nil {
 				return pane, err
 			}
-			return pane, c.focusRexIn(ctx, pane)
+			return pane, c.focusRexIn(ctx, session, window, pane)
 		}
 		made, err := c.rexCreate(ctx, append([]string{"new", RexSession, "--window", name, "--cwd", dir, "--json"}, command...)...)
 		if err != nil {
@@ -168,47 +172,41 @@ func (c *Client) openRex(where Placement, dir, name string, args []string) (stri
 		if err != nil {
 			return "", err
 		}
-		return pane, c.focusRexIn(ctx, pane)
+		if made.SessionID == "" {
+			return pane, c.focusRexIn(ctx, RexSession, made.WindowID, pane)
+		}
+		return pane, c.focusRexIn(ctx, made.SessionID, made.WindowID, pane)
 	}
 	return "", fmt.Errorf("unknown placement; choose a tab, a split or a session")
 }
 
 // rexTab opens a window of a session - a tab, in Rex's words - named after
-// what it opens.
-func (c *Client) rexTab(ctx context.Context, session, dir, name string, command []string) (string, error) {
+// what it opens, and says which block and window it made.
+func (c *Client) rexTab(ctx context.Context, session, dir, name string, command []string) (string, string, error) {
 	made, err := c.rexCreate(ctx, append([]string{"run", "-s", session, "--cwd", dir, "--label", name, "--json"}, command...)...)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	pane, err := made.block()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if made.WindowID != "" {
 		if _, err := c.rex(ctx, "window", "rename", "-s", session, made.WindowID, name); err != nil {
-			return pane, err
+			return pane, made.WindowID, err
 		}
 	}
-	return pane, nil
+	return pane, made.WindowID, nil
 }
 
 // rexSession finds the session places of their own open in, "" when there
 // is none yet.
 func (c *Client) rexSession(ctx context.Context) (string, error) {
-	out, err := c.rex(ctx, "ls", "--json")
+	sessions, err := c.rexSessions(ctx)
 	if err != nil {
 		return "", err
 	}
-	var list struct {
-		Sessions []struct {
-			ID    string `json:"session_id"`
-			Label string `json:"label"`
-		} `json:"sessions"`
-	}
-	if err := json.Unmarshal([]byte(out), &list); err != nil {
-		return "", fmt.Errorf("cannot read Rex's sessions; update Rex")
-	}
-	for _, s := range list.Sessions {
+	for _, s := range sessions {
 		if s.Label == RexSession {
 			return s.ID, nil
 		}
@@ -216,15 +214,84 @@ func (c *Client) rexSession(ctx context.Context) (string, error) {
 	return "", nil
 }
 
+type rexSessionInfo struct {
+	ID    string `json:"session_id"`
+	Label string `json:"label"`
+}
+
+func (c *Client) rexSessions(ctx context.Context) ([]rexSessionInfo, error) {
+	out, err := c.rex(ctx, "ls", "--json")
+	if err != nil {
+		return nil, err
+	}
+	var list struct {
+		Sessions []rexSessionInfo `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(out), &list); err != nil {
+		return nil, fmt.Errorf("cannot read Rex's sessions; update Rex")
+	}
+	return list.Sessions, nil
+}
+
 func (c *Client) focusRex(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return c.focusRexIn(ctx, id)
+	session, window, err := c.rexWhere(ctx, id)
+	if err != nil {
+		return err
+	}
+	return c.focusRexIn(ctx, session, window, id)
 }
 
-func (c *Client) focusRexIn(ctx context.Context, id string) error {
-	_, err := c.rex(ctx, "block", "focus", id)
-	return err
+// focusRexIn brings a block forward. The server's focus - the active window
+// of a session and its focused block - is not what the app shows: the app
+// keeps a tab of its own in each session, so it is asked to go there too,
+// which it takes from rex only with Remote Control on. A block is named
+// with its session, since rex in a Rex terminal looks in that terminal's
+// session alone, full ids and all.
+func (c *Client) focusRexIn(ctx context.Context, session, window, id string) error {
+	if _, err := c.rex(ctx, "block", "focus", "-s", session, id); err != nil {
+		return err
+	}
+	args := []string{"do", "session.select", "session_id=" + session}
+	if window != "" {
+		args = append(args, "window_id="+window)
+	}
+	if _, err := c.rex(ctx, args...); err != nil {
+		var unreachable *rexUnreachableError
+		if errors.As(err, &unreachable) {
+			return err
+		}
+		return fmt.Errorf("the Rex app did not go there (%v); turn on Remote Control in Rex's Settings › Server", err)
+	}
+	return nil
+}
+
+// rexWhere finds the session and window a block is in, asking each in
+// turn: rex lists ids, but not where a block of another session is.
+func (c *Client) rexWhere(ctx context.Context, block string) (string, string, error) {
+	sessions, err := c.rexSessions(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	for _, s := range sessions {
+		out, err := c.rex(ctx, "window", "ls", "-s", s.ID, "-q", "--short=false")
+		if err != nil {
+			return "", "", err
+		}
+		for _, w := range strings.Fields(out) {
+			out, err := c.rex(ctx, "block", "ls", "-s", s.ID, "-w", w, "-q", "--short=false")
+			if err != nil {
+				return "", "", err
+			}
+			for _, b := range strings.Fields(out) {
+				if b == block {
+					return s.ID, w, nil
+				}
+			}
+		}
+	}
+	return "", "", fmt.Errorf("the Rex block is gone; open it again")
 }
 
 // rexPanes are the blocks of every session. The server is never started

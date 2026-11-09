@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os/exec"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/tobola/unagit/internal/agents"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/mux"
+	"github.com/tobola/unagit/internal/muxtest"
 	"github.com/tobola/unagit/internal/unibox/uniboxtest"
 )
 
@@ -982,4 +985,38 @@ func TestAnEmptyLogIsLeftUpwards(t *testing.T) {
 	onLoop(a, func() bool { a.sandboxes.focus(a.sandboxes.log); return true })
 	sc.InjectKey(tcell.KeyUp, 0, tcell.ModNone)
 	eventually(t, a, "the up arrow left the empty log", func() bool { return !a.sandboxes.log.HasFocus() })
+}
+
+// TestARunningTaskIsGoneToInRex: a task resumed in a Rex tab is at work
+// there, and resuming it again brings that tab forward in the app rather
+// than starting the agent a second time.
+func TestARunningTaskIsGoneToInRex(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { a.findRex = func() *mux.Client { return r.RexClient(true) } })
+	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Resume rate with Claude Code · where")
+	pickPlace(t, a, sc, "claude", "Rex Tab")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "opened Claude Code in Rex: web/rate") })
+
+	selectSandboxRow(t, a, "t:gateway-1a2b3c4d")
+	typeRunes(sc, "r")
+	waitEditorState(t, a, func() bool { return strings.Contains(a.transient, "went to Claude Code") })
+	var calls []muxtest.RexCall
+	r.Calls(t, &calls)
+	made, shown := 0, 0
+	for _, call := range calls {
+		switch {
+		case call.Args[0] == "run":
+			made++
+		case reflect.DeepEqual(call.Args, []string{"do", "session.select", "session_id=session:here", "window_id=window:block:1"}):
+			shown++
+		}
+	}
+	if made != 1 || shown != 2 {
+		t.Fatalf("made %d blocks and showed one %d times: %v", made, shown, calls)
+	}
 }
