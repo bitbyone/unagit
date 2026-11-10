@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 // TestIntegrationsAreTilesUnderTheirKind: the cards stand under headings,
@@ -148,4 +150,34 @@ func TestAVeryWideScreenHasFourColumnsOfCards(t *testing.T) {
 			t.Errorf("%d wide: %d columns, want %d", c.width, got, c.want)
 		}
 	}
+}
+
+// TestTheWheelScrollsTheIntegrations: the wheel over the cards moves the
+// cursor a row of the grid, as j and k do, and a click puts it on a card.
+func TestTheWheelScrollsTheIntegrations(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 140, 40)
+	openSection(t, a, sc, sectionIntegrations)
+	waitFor(t, a, sc, "╭ Neovim")
+	x, y := at(t, a, sc, "╭ Neovim")
+	for range 3 {
+		sc.InjectMouse(x+3, y+2, tcell.WheelDown, tcell.ModNone)
+	}
+	eventually(t, a, "three notches down", func() bool {
+		v := a.settings.integrations
+		return v.cards[v.current].name == "Incomm"
+	})
+	sc.InjectMouse(x+3, y+2, tcell.WheelUp, tcell.ModNone)
+	eventually(t, a, "a notch up", func() bool {
+		v := a.settings.integrations
+		return v.cards[v.current].name == "Custom"
+	})
+	x, y = at(t, a, sc, "╭ Hunk")
+	click(sc, x+3, y+1, tcell.ModNone)
+	eventually(t, a, "the click on Hunk", func() bool {
+		v := a.settings.integrations
+		return v.cards[v.current].name == "Hunk"
+	})
 }

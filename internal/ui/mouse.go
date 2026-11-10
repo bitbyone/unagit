@@ -442,6 +442,8 @@ func (a *App) rowsAt(x, y int) *rowsUnder {
 		return listRows(v)
 	case *tview.TreeView:
 		return treeRows(v)
+	case *integrationsView:
+		return v.rows()
 	}
 	return nil
 }

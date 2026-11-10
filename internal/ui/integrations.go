@@ -419,6 +419,36 @@ func (v *integrationsView) InputHandler() func(*tcell.EventKey, func(tview.Primi
 	})
 }
 
+// rows are the cards as the mouse has them: a click puts the cursor on the
+// card under it, the wheel moves it a row of the grid, as j and k do.
+func (v *integrationsView) rows() *rowsUnder {
+	move := func(i int) {
+		if i >= 0 && i < len(v.cards) && i != v.current {
+			v.current = i
+			v.paintFocus(v.HasFocus())
+		}
+	}
+	return &rowsUnder{
+		focus: v,
+		at: func(x, y int) int {
+			_, top, _, room := v.GetInnerRect()
+			if y < top || y >= top+room {
+				return -1
+			}
+			for i, c := range v.cards {
+				if c.view.InRect(x, y) {
+					return i
+				}
+			}
+			return -1
+		},
+		cursor: func() int { return v.current },
+		move:   move,
+		step:   func(dir int) { move(v.neighbour(dir, 0)) },
+		edge:   func(int) int { return -1 },
+	}
+}
+
 // neighbour is the card a move by rows and columns lands on: along a row,
 // the next one or none; across rows, the same column, or the last card of a
 // shorter row.
