@@ -118,8 +118,19 @@ func webOfClone(url string) string {
 // where, and - found only by typing - each agent in each place at once.
 func (a *App) taskAgentActions(r sandboxRow) []uiAction {
 	var acts []uiAction
-	for _, id := range rowAgents(r) {
+	// The task's own agent - the one it last ran - comes first, and is
+	// preferred among the places found alike: "res split" is it in a split,
+	// another agent only when typed by name.
+	ids := slices.Clone(rowAgents(r))
+	slices.SortStableFunc(ids, func(x, y string) int {
+		return boolOrder(x != r.task.Agent) - boolOrder(y != r.task.Agent)
+	})
+	for _, id := range ids {
 		ag := agentFor(id)
+		other := 0
+		if id != r.task.Agent {
+			other = placePreferOther
+		}
 		aliases := append([]string{}, agentAliases[id]...)
 		acts = append(acts, uiAction{
 			name:  "Resume with " + ag.Name + "…",
@@ -131,7 +142,7 @@ func (a *App) taskAgentActions(r sandboxRow) []uiAction {
 			acts = append(acts, uiAction{
 				name:  "Resume with " + ag.Name + " in " + placeName(place),
 				about: "Run " + ag.Name + " in the task, in the sandbox, in " + placeAbout(place) + ".",
-				rank:  700, icon: agentIcons[id], filterOnly: true, prefer: placePrefer(place.where),
+				rank:  700, icon: agentIcons[id], filterOnly: true, prefer: other + placePrefer(place.where),
 				aliases: append(append([]string{}, aliases...), placeAliases(place.where)...),
 				run: func() {
 					a.cfg.State.UsePlace(placeOfAgent, placeKeyOf(place))

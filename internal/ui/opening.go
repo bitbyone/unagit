@@ -98,6 +98,17 @@ func placePrefer(where mux.Placement) int {
 	return 0
 }
 
+// placePreferOther puts an agent other than the one asked for after every
+// place of that one, whatever placePrefer says of each.
+const placePreferOther = 10
+
+func boolOrder(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // agentAliases are the short words an agent is typed as.
 var agentAliases = map[string][]string{
 	"claude":   {"cc", "claude"},

@@ -1052,3 +1052,39 @@ func TestATaskStartedInRexIsFound(t *testing.T) {
 		t.Fatalf("made %d blocks, shown %v: %v", made, shown, calls)
 	}
 }
+
+// TestATasksOwnAgentResumesFirst: typing a place finds the task's own
+// agent there first - billing's is Copilot, though Claude Code comes first
+// in the sandbox - and naming another agent still finds that one.
+func TestATasksOwnAgentResumesFirst(t *testing.T) {
+	t.Parallel()
+	r := muxtest.NewRex(t)
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare, func(a *App) { a.findRex = func() *mux.Client { return r.RexClient(true) } })
+	resizeApp(a, sc, 180, 44)
+	openSandboxes(t, a, sc)
+	selectSandboxRow(t, a, "t:billing-5e6f7a8b")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModAlt)
+	waitFor(t, a, sc, "Actions · ")
+	order := func(query string, want ...string) {
+		t.Helper()
+		typeRunes(sc, query)
+		waitFor(t, a, sc, want[len(want)-1])
+		text := a.screenText(sc)
+		at := -1
+		for _, w := range want {
+			i := strings.Index(text, w)
+			if i < at {
+				t.Fatalf("%q: %q is not after the one before:\n%s", query, w, text)
+			}
+			at = i
+		}
+		for range query {
+			sc.InjectKey(tcell.KeyBackspace2, 0, tcell.ModNone)
+		}
+		waitGone(t, a, sc, want[0])
+	}
+	order("resume split", "Resume with Copilot CLI in Rex Vertical Split", "Resume with Copilot CLI in Rex Horizontal Split",
+		"Resume with Claude Code in Rex Vertical Split")
+	order("cc split", "Resume with Claude Code in Rex Vertical Split", "Resume with Claude Code in Rex Horizontal Split")
+}
