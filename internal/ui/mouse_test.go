@@ -495,3 +495,21 @@ func TestARightClickOnATabIsItsColon(t *testing.T) {
 	release(sc, x, y, tcell.ModNone)
 	waitFor(t, a, sc, "Go to Merge Requests")
 }
+
+// TestAClickOnADialogsTabOpensIt: the sections of a picker are tabs a
+// click opens, as their numbers do.
+func TestAClickOnADialogsTabOpensIt(t *testing.T) {
+	t.Parallel()
+	_, prepare := fakeUnibox(t, nil)
+	a, sc, _ := newTestAppSrv(t, prepare)
+	resizeApp(a, sc, 140, 40)
+	openSandboxes(t, a, sc)
+	typeRunes(sc, "Y")
+	waitFor(t, a, sc, "Your Unibox configuration")
+	x, y := at(t, a, sc, "Tokens 2")
+	click(sc, x+1, y, tcell.ModNone)
+	waitFor(t, a, sc, "USED BY")
+	x, y = at(t, a, sc, "Ports 1")
+	click(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "AT START")
+}

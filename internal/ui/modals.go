@@ -554,6 +554,48 @@ func (t *pickTabs) strip() string {
 	return strings.Join(parts, fmt.Sprintf("[%s]%s[-]", colTabSeparator.String(), glyphTabSeparator))
 }
 
+// under is the section drawn at column x of the strip, or -1: each is its
+// name, count and key padded by a space, and a separator between them.
+func (t *pickTabs) under(x int) int {
+	at := 0
+	for i, name := range t.names {
+		count := ""
+		if i < len(t.counts) {
+			count = fmt.Sprintf(" %d", t.counts[i])
+		}
+		width := cells(" " + name + count + fmt.Sprintf(" [%d] ", i+1))
+		if x >= at && x < at+width {
+			return i
+		}
+		at += width + cells(glyphTabSeparator)
+	}
+	return -1
+}
+
+// tabStrip is the strip of a picker's sections, which a click on one
+// opens as its number would.
+type tabStrip struct {
+	*tview.TextView
+	tabs *pickTabs
+	open func(to int)
+}
+
+func (s *tabStrip) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	return func(action tview.MouseAction, ev *tcell.EventMouse, _ func(tview.Primitive)) (bool, tview.Primitive) {
+		x, y := ev.Position()
+		if !s.InRect(x, y) {
+			return false, nil
+		}
+		if action == tview.MouseLeftClick {
+			rx, _, _, _ := s.GetInnerRect()
+			if to := s.tabs.under(x - rx); to >= 0 && to != s.tabs.at {
+				s.open(to)
+			}
+		}
+		return true, nil
+	}
+}
+
 // to is the section a key goes to, or -1: Tab and Shift-Tab round them, a
 // digit straight to one.
 func (t *pickTabs) to(ev *tcell.EventKey) int {
@@ -1163,7 +1205,9 @@ func (a *App) showPickerWith(title string, items []pickItem, opts pickerOptions,
 		strip = opts.tabs.strip()
 		// The strip and a blank line under it, so the sections read as
 		// tabs and not as the list's first row.
-		flex.AddItem(tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetText(strip), 1, 0, false).
+		tabs := opts.tabs
+		flex.AddItem(&tabStrip{TextView: tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetText(strip), tabs: tabs,
+			open: func(to int) { dismiss(); tabs.open(to) }}, 1, 0, false).
 			AddItem(tview.NewTextView(), 1, 0, false)
 	}
 	flex.AddItem(input, 1, 0, false)
