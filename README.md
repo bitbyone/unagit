@@ -1356,6 +1356,12 @@ that slept, lost a display or was drawn over by its multiplexer while
 unagit was away would otherwise keep the remains, since only the cells
 unagit changed are sent. `:` › Redraw Screen does the same at any time.
 
+Settings › Theme keeps how the themes are drawn in a narrower **Display**
+pane beside them (under them on a narrow terminal), reached with `Tab` or
+`l`: **Nerd Font icons** and **Background**, each with its values side by
+side, the chosen one lit, `h` and `l` choosing the one before or after; `n`
+and `b` change them from either pane.
+
 `b` in Settings › Theme leaves the terminal's own background under every
 theme, so a translucent or blurred terminal shows through; every other
 colour - text, borders, fields, the selection - still comes from the theme,

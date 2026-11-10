@@ -314,9 +314,9 @@ func TestTheTerminalsBackgroundCanStayUnderATheme(t *testing.T) {
 		t.Fatal("the theme paints no background to begin with")
 	}
 	openSection(t, a, sc, sectionTheme)
-	waitFor(t, a, sc, "Background the theme's")
+	waitFor(t, a, sc, "‹theme› terminal")
 	sc.InjectKey(tcell.KeyRune, 'b', tcell.ModNone)
-	waitFor(t, a, sc, "Background the terminal's own")
+	waitFor(t, a, sc, "theme ‹terminal›")
 	if got := onLoop(a, func() tcell.Color { return colBackground }); got != tcell.ColorDefault {
 		t.Errorf("the theme's background is still painted: %v", got)
 	}
@@ -330,7 +330,7 @@ func TestTheTerminalsBackgroundCanStayUnderATheme(t *testing.T) {
 	}
 	assertLegible(t, a, sc, "Settings › Theme on the terminal's background")
 	sc.InjectKey(tcell.KeyRune, 'b', tcell.ModNone)
-	waitFor(t, a, sc, "Background the theme's")
+	waitFor(t, a, sc, "‹theme› terminal")
 	if got := onLoop(a, func() tcell.Color { return colBackground }); got != painted {
 		t.Errorf("the theme's background did not come back: %v", got)
 	}
@@ -464,4 +464,59 @@ func TestATasksAgentIsAnIconBeforeItsName(t *testing.T) {
 	}
 	rightEdge("billing-5e6f7a8b", "fix/round")
 	assertLegible(t, a, sc, "the tasks with their agents' icons")
+}
+
+// TestTheDisplayPaneChoosesWithHAndL: Tab goes from the themes over to the
+// Display pane, h and l choose a value of the choice under the cursor and
+// stop at its ends, the keys stay there as everything is drawn again, and
+// Tab goes back. Too narrow for both side by side, it stands under the
+// themes. Serial: the glyphs and the theme are the process's.
+func TestTheDisplayPaneChoosesWithHAndL(t *testing.T) {
+	restoreDefaultTheme(t)
+	t.Cleanup(func() { nerdFont, terminalBackground = false, false })
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 160, 34)
+	openSection(t, a, sc, sectionTheme)
+	waitFor(t, a, sc, "Nerd Font icons ‹auto›")
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	eventually(t, a, "the Display pane has the keys", func() bool { return a.settings.display.HasFocus() })
+	typeRunes(sc, "l")
+	waitFor(t, a, sc, "‹on›")
+	eventually(t, a, "the keys stay on Display", func() bool { return a.settings.display.HasFocus() })
+	typeRunes(sc, "ll")
+	waitFor(t, a, sc, "‹off›")
+	typeRunes(sc, "hh")
+	waitFor(t, a, sc, "‹auto›")
+	typeRunes(sc, "h")
+	typeRunes(sc, "j")
+	eventually(t, a, "j down to the background", func() bool { return a.settings.displayRow() == 1 })
+	typeRunes(sc, "l")
+	waitFor(t, a, sc, "‹terminal›")
+	if !onLoop(a, func() bool { return a.cfg.TerminalBackground }) {
+		t.Fatal("l did not choose the terminal's background")
+	}
+	typeRunes(sc, "h")
+	waitFor(t, a, sc, "‹theme›")
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	eventually(t, a, "Tab back to the themes", func() bool { return a.settings.themes.HasFocus() })
+	if got := onLoop(a, func() string { return a.cfg.NerdFont }); got != "" {
+		t.Fatalf("h past the first value left %q", got)
+	}
+
+	resizeApp(a, sc, 100, 34)
+	waitFor(t, a, sc, "Display")
+	themesTop, displayTop := -1, -1
+	for i, line := range strings.Split(a.screenText(sc), "\n") {
+		if strings.Contains(line, "╭ Themes") {
+			themesTop = i
+		}
+		if strings.Contains(line, "╭ Display") {
+			displayTop = i
+		}
+	}
+	if themesTop < 0 || displayTop <= themesTop {
+		t.Fatalf("narrow, Display is not under the themes:\n%s", a.screenText(sc))
+	}
+	assertLegible(t, a, sc, "Settings › Theme, the two panes")
 }

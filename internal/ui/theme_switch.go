@@ -47,7 +47,13 @@ func (a *App) chooseTheme() {
 // cycleNerdFont steps the Nerd Font icons from telling by the terminal, to
 // on, to off, and draws everything again with the glyphs that follow.
 func (a *App) cycleNerdFont() {
-	next := map[string]string{"": config.NerdFontOn, config.NerdFontOn: config.NerdFontOff, config.NerdFontOff: ""}[a.cfg.NerdFont]
+	a.setNerdFont(map[string]string{"": config.NerdFontOn, config.NerdFontOn: config.NerdFontOff, config.NerdFontOff: ""}[a.cfg.NerdFont])
+}
+
+// setNerdFont chooses the Nerd Font icons - "" to tell by the terminal,
+// on or off - remembers it, and draws everything again with the glyphs
+// that follow.
+func (a *App) setNerdFont(next string) {
 	a.cfg.NerdFont = next
 	if err := a.cfg.Save(); err != nil {
 		a.errorf("cannot save the config: %v", err)
@@ -136,9 +142,10 @@ func (a *App) remakeInterface(disk func()) {
 		a.remakeStandalone(tab)
 		return
 	}
-	section, inside := sectionGeneral, false
+	section, inside, display, displayRow := sectionGeneral, false, false, 0
 	if a.settings != nil {
 		section, inside = a.settings.current, a.settings.contentFocused
+		display, displayRow = a.settings.themeDisplay, a.settings.displayRow()
 	}
 	a.setRoot(a.buildInterface())
 	disk()
@@ -150,6 +157,10 @@ func (a *App) remakeInterface(disk func()) {
 	a.switchTab(tab)
 	if tab == pageSettings {
 		a.settings.selectSection(section)
+		// A choice of the Display pane draws everything again; the keys
+		// stay where they were, on the same choice.
+		a.settings.themeDisplay = display
+		a.settings.display.Select(displayRow, 0)
 		if inside {
 			a.settings.focusContent()
 		}

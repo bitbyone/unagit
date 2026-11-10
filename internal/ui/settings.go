@@ -51,6 +51,13 @@ type settingsView struct {
 	themesKept   *keptTable
 	themes       *tview.Table
 	themePanel   *tview.Flex
+	// display is the pane beside the themes of how they are drawn, and
+	// themeDisplay whether it, not the themes, has the keys.
+	display      *tview.Table
+	displayPanel *tview.Flex
+	displayAbout *tview.TextView
+	themeSection *themeSection
+	themeDisplay bool
 	themeNotes   *tview.TextView
 	security     *tview.TextView
 	keys         *tview.TextView
@@ -103,7 +110,7 @@ func (a *App) newSettingsView() *settingsView {
 	s.content.AddPage("github", s.github, true, false)
 	s.content.AddPage("groups", s.tree, true, false)
 	s.content.AddPage("tags", s.tagsKept, true, false)
-	s.content.AddPage("theme", s.themePanel, true, false)
+	s.content.AddPage("theme", s.themeSection, true, false)
 	s.content.AddPage("security", s.security, true, false)
 	s.content.AddPage("notifications", s.notices, true, false)
 	s.content.AddPage("keys", s.keys, true, false)
@@ -122,6 +129,7 @@ func (a *App) newSettingsView() *settingsView {
 		return "a add · e edit · d remove · s ends: " + tagEndsLabel(s.app.cfg.Ends())
 	}, 0, 0, 1, 1)
 	hintPanel(s.themePanel.Box, func() string { return "Enter use · f fork to edit · r read the themes again" }, 0, 0, 1, 1)
+	hintPanel(s.displayPanel.Box, func() string { return "h l change" }, 0, 0, 1, 1)
 	hintPanel(s.security.Box, func() string {
 		if passphraseStore.available() {
 			return "c change passphrase · k keychain"
@@ -224,6 +232,9 @@ func (s *settingsView) focusTarget() tview.Primitive {
 	case sectionIntegrations:
 		return s.integrations
 	case sectionTheme:
+		if s.themeDisplay {
+			return s.display
+		}
 		return s.themes
 	case sectionSecurity:
 		return s.security
@@ -251,6 +262,9 @@ func (s *settingsView) contentBox() *tview.Box {
 	case sectionIntegrations:
 		return s.integrations.cards[s.integrations.current].view.Box
 	case sectionTheme:
+		if s.themeDisplay {
+			return s.displayPanel.Box
+		}
 		return s.themePanel.Box
 	case sectionSecurity:
 		return s.security.Box
@@ -271,7 +285,7 @@ func (s *settingsView) paintFocus() {
 	s.integrations.paintFocus(s.contentFocused && s.current == sectionIntegrations)
 	focusBox(s.list.Box, !s.contentFocused)
 	for _, b := range []*tview.Box{
-		s.integrations.Box, s.general.Box, s.notices.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.security.Box, s.keys.Box,
+		s.integrations.Box, s.general.Box, s.notices.Box, s.gitlab.Box, s.github.Box, s.tree.Box, s.tags.Box, s.themePanel.Box, s.displayPanel.Box, s.security.Box, s.keys.Box,
 	} {
 		focusBox(b, false)
 	}
@@ -299,7 +313,11 @@ func (s *settingsView) focusContent() {
 	case sectionTags:
 		s.app.tv.SetFocus(s.tags)
 	case sectionTheme:
-		s.app.tv.SetFocus(s.themes)
+		if s.themeDisplay {
+			s.app.tv.SetFocus(s.display)
+		} else {
+			s.app.tv.SetFocus(s.themes)
+		}
 	case sectionSecurity:
 		s.app.tv.SetFocus(s.security)
 	case sectionNotifications:

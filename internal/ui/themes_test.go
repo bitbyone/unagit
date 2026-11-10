@@ -335,6 +335,7 @@ func TestAForkIsAFileToTuneAndIsFollowed(t *testing.T) {
 	}
 	a, sc := startApp(t, app)
 	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 160, 50)
 	openSection(t, a, sc, sectionTheme)
 	waitFor(t, a, sc, "retro-block")
 	typeRunes(sc, "f")
@@ -427,6 +428,7 @@ func TestSwatchesKeepTheirColoursUnderTheCursor(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
 	waitFor(t, a, sc, "acme/gateway")
+	resizeApp(a, sc, 160, 50)
 	openSection(t, a, sc, sectionTheme)
 	waitFor(t, a, sc, "retro-block")
 	text := a.screenText(sc)
