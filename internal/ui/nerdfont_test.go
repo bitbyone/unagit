@@ -500,18 +500,38 @@ func TestTheDisplayPaneChoosesWithHAndL(t *testing.T) {
 	waitFor(t, a, sc, "‹theme›")
 	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
 	eventually(t, a, "Tab back to the themes", func() bool { return a.settings.themes.HasFocus() })
+	// Its key, the arrows and a click on the pane, not on a row, go over too.
+	typeRunes(sc, "d")
+	eventually(t, a, "d to Display", func() bool { return a.settings.display.HasFocus() })
+	typeRunes(sc, "t")
+	eventually(t, a, "t to the themes", func() bool { return a.settings.themes.HasFocus() })
+	sc.InjectKey(tcell.KeyRight, 0, tcell.ModNone)
+	eventually(t, a, "→ to Display", func() bool { return a.settings.display.HasFocus() })
+	// There the arrows choose, as h and l do: the cursor is on Background.
+	sc.InjectKey(tcell.KeyRight, 0, tcell.ModNone)
+	waitFor(t, a, sc, "theme ‹terminal›")
+	sc.InjectKey(tcell.KeyLeft, 0, tcell.ModNone)
+	waitFor(t, a, sc, "‹theme› terminal")
+	typeRunes(sc, "t")
+	eventually(t, a, "t to the themes", func() bool { return a.settings.themes.HasFocus() })
+	x, y := at(t, a, sc, "h l change")
+	click(sc, x, y-2, tcell.ModNone)
+	eventually(t, a, "a click in the pane", func() bool { return a.settings.display.HasFocus() && a.settings.contentFocused })
+	x, y = at(t, a, sc, "Your own themes go in")
+	click(sc, x, y, tcell.ModNone)
+	eventually(t, a, "a click in the themes' pane", func() bool { return a.settings.themes.HasFocus() })
 	if got := onLoop(a, func() string { return a.cfg.NerdFont }); got != "" {
 		t.Fatalf("h past the first value left %q", got)
 	}
 
 	resizeApp(a, sc, 100, 34)
-	waitFor(t, a, sc, "Display")
+	waitFor(t, a, sc, "Display [d]")
 	themesTop, displayTop := -1, -1
 	for i, line := range strings.Split(a.screenText(sc), "\n") {
-		if strings.Contains(line, "╭ Themes") {
+		if strings.Contains(line, "╭ Themes [t]") {
 			themesTop = i
 		}
-		if strings.Contains(line, "╭ Display") {
+		if strings.Contains(line, "╭ Display [d]") {
 			displayTop = i
 		}
 	}

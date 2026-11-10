@@ -33,11 +33,11 @@ quietly beside an editor. Twenty-eight more paint a background of their own:
 | `r` | read the themes folder again |
 | `b` | keep the terminal's own background under every theme |
 | `n` | Nerd Font icons on, off, or back to guessing |
-| `Tab` `l` | over to the **Display** pane, and `Tab` back |
+| `d` `→` `Tab` | over to the **Display** pane; `t` or `Tab` back to the themes |
 
 Beside the themes, a narrower **Display** pane holds the two choices of how
 they are drawn, **Nerd Font icons** and **Background**, each with its values
-side by side and the one chosen lit: `h` and `l` choose the one before or
+side by side and the one chosen lit: `h` and `l`, or the arrows, choose the one before or
 after, `j` and `k` move between the choices, and what the one under the
 cursor does is written below them. Where the two panes would not fit side by
 side, Display stands under the themes.

@@ -30,13 +30,19 @@ func (s *settingsView) newThemeTable() *tview.Table {
 	s.themePanel = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(s.themesKept, 0, 1, true).
 		AddItem(s.themeNotes, 3, 0, false)
-	box(s.themePanel.Box, "Themes").SetBorderPadding(0, 0, 1, 1)
+	box(s.themePanel.Box, "").SetBorderPadding(0, 0, 1, 1).SetTitle(panelTitle("Themes", "t"))
 	s.newDisplayPane()
 	s.themeSection = newThemeSection(s.themePanel, s.displayPanel)
+	// A click anywhere in a pane gives it the keys, not on a row alone.
+	s.themeSection.chose = func(display bool) {
+		s.themeDisplay = display
+		s.focusContent()
+	}
 	t.SetFocusFunc(func() { s.themeDisplay = false })
 	t.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		// Tab and l go over to the pane of how the themes are drawn.
-		if ev.Key() == tcell.KeyTab || ev.Key() == tcell.KeyRune && ev.Rune() == 'l' {
+		// Tab, d, l and the right arrow go over to the pane of how the
+		// themes are drawn.
+		if ev.Key() == tcell.KeyTab || ev.Key() == tcell.KeyRight || ev.Key() == tcell.KeyRune && (ev.Rune() == 'l' || ev.Rune() == 'd') {
 			s.themeDisplay = true
 			s.focusContent()
 			return nil
@@ -205,7 +211,7 @@ func (s *settingsView) newDisplayPane() {
 		AddItem(d, len(s.displayChoices()), 0, true).
 		AddItem(tview.NewBox(), 1, 0, false).
 		AddItem(s.displayAbout, 0, 1, false)
-	box(s.displayPanel.Box, "Display").SetBorderPadding(1, 0, 1, 1)
+	box(s.displayPanel.Box, "").SetBorderPadding(1, 0, 1, 1).SetTitle(panelTitle("Display", "d"))
 	d.SetFocusFunc(func() { s.themeDisplay = true })
 	d.SetSelectionChangedFunc(func(int, int) { s.fillDisplayAbout() })
 	d.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -232,6 +238,10 @@ func (s *settingsView) newDisplayPane() {
 				return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
 			case 'k':
 				return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone)
+			case 't':
+				s.themeDisplay = false
+				s.focusContent()
+				return nil
 			case 'n':
 				s.app.cycleNerdFont()
 				return nil
@@ -309,6 +319,18 @@ type themeSection struct {
 	*tview.Flex
 	themes, display tview.Primitive
 	stacked         bool
+	chose           func(display bool)
+}
+
+func (t *themeSection) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	inner := t.Flex.MouseHandler()
+	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		x, y := ev.Position()
+		if action == tview.MouseLeftClick && t.chose != nil && t.InRect(x, y) {
+			t.chose(inRect(t.display, x, y))
+		}
+		return inner(action, ev, setFocus)
+	}
 }
 
 // themeSectionWide is the narrowest the two fit side by side in: the
