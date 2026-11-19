@@ -780,6 +780,26 @@ func (a *App) projectTarget(pr forge.Project) sandboxTarget {
 	return sandboxTarget{label: pr.PathWithNamespace, dirs: []string{a.httpsAddress(pr)}, clone: true}
 }
 
+// projectsTarget is marked repositories as one sandbox task works on them:
+// their clones mounted when every one is on disk, else all cloned in the
+// sandbox from the forge, since a task either mounts or clones.
+func (a *App) projectsTarget(picked []forge.Project) sandboxTarget {
+	t := sandboxTarget{label: counted(len(picked), "repository", "repositories")}
+	for _, pr := range picked {
+		if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned {
+			t.clone = true
+		}
+	}
+	for _, pr := range picked {
+		one := a.projectTarget(pr)
+		if t.clone && !one.clone {
+			one.dirs = []string{a.httpsAddress(pr)}
+		}
+		t.dirs = append(t.dirs, one.dirs...)
+	}
+	return t
+}
+
 // httpsAddress is where a sandbox clones a repository from: unibox takes a
 // forge's HTTPS address, its token the proxy's, never the host's SSH key.
 func (a *App) httpsAddress(pr forge.Project) string {

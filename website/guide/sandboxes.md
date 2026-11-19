@@ -15,7 +15,8 @@ unibox up.
 
 ## From anywhere
 
-On a repository, a worktree, a grouped worktree or a merge request:
+On a repository, marked repositories, a worktree, a grouped worktree or a
+merge request:
 
 - **Sandbox with Claude Code in platform…** - the sandbox of unibox's
   context, asking only where the agent runs.
@@ -26,7 +27,8 @@ On a repository, a worktree, a grouped worktree or a merge request:
 A clone is **mounted**: the agent works on your files as they are. A
 worktree, and each repository of a grouped one, is **cloned** in the
 sandbox at its branch; so is a merge request, on its source branch, with
-nothing needed on disk. Typing finds each agent in each place:
+nothing needed on disk. Marked repositories go into one task together:
+mounted while every one is cloned, else all cloned from the forge. Typing finds each agent in each place:
 **Sandbox with Codex in Zellij Tab**.
 
 **Add to Unibox Index…** on a repository names it for unibox's tasks; on

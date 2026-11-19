@@ -665,6 +665,58 @@ func TestTheContextsSandboxIsOfferedWithoutAsking(t *testing.T) {
 	waitCalled(t, a, fake, "run --repo "+gateway+" --repo "+billing+" -s web --clone --agent copilot")
 }
 
+// TestMarkedRepositoriesGoIntoOneSandbox: the marked repositories offer
+// the sandbox's actions as one row does, and go into one task together -
+// mounted while every one is cloned, else all cloned in the sandbox.
+func TestMarkedRepositoriesGoIntoOneSandbox(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":true,"needs":[],"repositories":[]}`),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	gw := newRealProject(t, a, "acme/gateway")
+	bl := newRealProject(t, a, "acme/billing")
+	changeOnLoop(a, a.refreshDisk)
+	openSandboxes(t, a, sc)
+	picked := onLoop(a, func() []forge.Project {
+		var out []forge.Project
+		for _, path := range []string{"acme/gateway", "acme/billing"} {
+			out = append(out, a.projByKey[projectKey{a.cfg.Instances[0].ID, path}])
+		}
+		return out
+	})
+	run := func(projects []forge.Project, name string) {
+		t.Helper()
+		ran := onLoop(a, func() bool {
+			for _, act := range a.markedRepositoryActions(a.projectsPane, projects) {
+				if act.name == name && act.when() {
+					act.run()
+					return true
+				}
+			}
+			return false
+		})
+		if !ran {
+			t.Fatalf("%q is not offered for the marked repositories", name)
+		}
+	}
+	run(picked, "Sandbox with Claude Code in web…")
+	waitFor(t, a, sc, "2 repositories with Claude Code in web · where")
+	pickPlace(t, a, sc, "claude", "This Terminal")
+	waitCalled(t, a, fake, "run --repo "+gw.clone+" --repo "+bl.clone+" -s web --agent claude")
+
+	// One not on disk sends them all in cloned.
+	tool := forge.Project{Instance: picked[0].Instance, PathWithNamespace: "acme/tool"}
+	url := onLoop(a, func() string { return a.httpsAddress(tool) })
+	run(append(picked, tool), "Sandbox with Claude Code in web…")
+	waitFor(t, a, sc, "3 repositories with Claude Code in web · where")
+	pickPlace(t, a, sc, "claude", "This Terminal")
+	gwURL := onLoop(a, func() string { return a.httpsAddress(picked[0]) })
+	blURL := onLoop(a, func() string { return a.httpsAddress(picked[1]) })
+	waitCalled(t, a, fake, "run --repo "+gwURL+" --repo "+blURL+" --repo "+url+" -s web --clone --agent claude")
+}
+
 // TestAMergeRequestGoesIntoASandboxCloned: Sandbox with… on a merge
 // request clones its repository in the sandbox on its source branch,
 // whatever is on disk.

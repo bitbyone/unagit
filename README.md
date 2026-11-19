@@ -831,13 +831,16 @@ the running, unlocked unagit over a socket - closed or locked, there is
 none, and nothing keeps the passphrase. Every handout is in Activity; a
 forge token is never one.
 
-From a repository, a worktree, a grouped worktree or a merge request,
+From a repository, marked repositories, a worktree, a grouped worktree or
+a merge request,
 **Sandbox with Claude Code in web…** starts an agent in the context's
 sandbox, asking only where; **Sandbox with Claude Code…** asks which sandbox
 only when more than one runs it; **Open in Sandbox…** asks everything. A
 clone is mounted; a worktree - or each repository of a grouped one - is
 cloned in the sandbox at its branch, as unibox cannot mount a worktree; a
-merge request is cloned on its source branch. **Add to Unibox Index…**
+merge request is cloned on its source branch. Marked repositories go into
+one task together, mounted while every one is cloned, else all cloned from
+the forge. **Add to Unibox Index…**
 names a repository in unibox's index of repositories - on marked
 repositories, all of them at once. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).

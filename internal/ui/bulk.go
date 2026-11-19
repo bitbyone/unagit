@@ -40,7 +40,7 @@ func counted(n int, one, more string) string {
 // together.
 func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiAction {
 	done := func() { p.marks = nil }
-	return []uiAction{
+	acts := []uiAction{
 		{name: "New Grouped Worktree…", about: "Make one folder holding a worktree of each marked repository, on a new branch of its own.", keys: "Ctrl-W", rank: 10, run: func() { a.startGroupWorktree(picked) }},
 		{name: "Hide or Unhide All", about: "Take every marked repository out of the lists, or, when all are hidden, bring them back.", keys: "x", rank: 30, run: func() {
 			done()
@@ -120,6 +120,14 @@ func (a *App) markedRepositoryActions(p *pane, picked []forge.Project) []uiActio
 		{name: "Toggle Mark", about: "Mark the row under the cursor, or take its mark away.", keys: "space", rank: 20, run: p.toggleMark},
 		{name: "Clear Marks", about: "Take every mark away.", keys: "Esc", rank: 900, run: p.clearMarks},
 	}
+	return append(acts, a.openInSandboxActions(func() sandboxTarget { return a.projectsTarget(picked) }, func() bool {
+		for _, pr := range picked {
+			if !a.diskOf(pr.Instance, pr.PathWithNamespace).Cloned && a.httpsAddress(pr) == "" {
+				return false
+			}
+		}
+		return true
+	})...)
 }
 
 // wears reports whether a list of tags has one.
