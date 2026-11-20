@@ -717,7 +717,10 @@ func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	waitGone(t, a, sc, "log(4)")
 	waitFor(t, a, sc, "limit.go:7-8")
 	waitFor(t, a, sc, "this sleeps on every retry")
+	// The note of the change is the next card down.
+	typeRunes(sc, "j")
 	waitFor(t, a, sc, "dave changed this line in version 2 of the diff")
+	typeRunes(sc, "k")
 	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Reply to carol")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -883,25 +886,36 @@ func openPlanConversation(t *testing.T) (*App, tcell.SimulationScreen) {
 }
 
 // TestJAndKGoAWholeCommentAtATime: j and k go from a comment to the next
-// whatever its length, its start shown; a comment taller than the view is
-// read to its end with the cursor in it (v).
+// whatever its length, its start shown - in a view shorter than the
+// comment too. A comment longer than commentClip rows is clipped, what is
+// not shown said under it, and read to its end with the cursor in it (v),
+// which moves its window and not the conversation.
 func TestJAndKGoAWholeCommentAtATime(t *testing.T) {
 	t.Parallel()
 	a, sc := openPlanConversation(t)
+	waitFor(t, a, sc, "more lines")
+	if strings.Contains(a.screenText(sc), "resource 20 will be created") {
+		t.Error("the long comment is not clipped")
+	}
 	typeRunes(sc, "j")
 	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Reply to carol")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Reply to carol")
-	// Back on the long one, its start shows, not its end.
+
+	// Back on the long one in a view shorter than it: its start shows.
+	resizeApp(a, sc, 160, 18)
 	typeRunes(sc, "k")
-	waitFor(t, a, sc, "resource 01 will be created")
-	if strings.Contains(a.screenText(sc), "resource 60 will be created") {
-		t.Error("k came back to the long comment at its end")
-	}
+	waitFor(t, a, sc, "Ran Plan for dir")
+	resizeApp(a, sc, 160, 40)
+
 	typeRunes(sc, "vG")
 	waitFor(t, a, sc, "resource 60 will be created")
+	waitFor(t, a, sc, "lines above")
+	if strings.Contains(a.screenText(sc), "resource 01 will be created") {
+		t.Error("the window did not move down the comment")
+	}
 }
 
 // TestTextIsSelectedInACommentAndCopied: v puts a cursor in the comment;

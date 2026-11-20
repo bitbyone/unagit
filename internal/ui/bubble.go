@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -35,6 +36,18 @@ type bubble struct {
 	// Selected is the comment chosen in the conversation, framed as a
 	// focused box is.
 	Selected bool
+	// Clip shows no more than that many rows of the body, from Offset: a
+	// comment never fills the view, and the rest is read with a cursor in
+	// it. 0 shows it all.
+	Clip, Offset int
+}
+
+// bubbleLayout is a card as drawn: its rows, the row its body starts at,
+// and every row of the body, shown or not, as markup.
+type bubbleLayout struct {
+	text   string
+	bodyAt int
+	body   []string
 }
 
 // tview's own tag grammar: [foreground:background:attributes], any part may be
@@ -103,7 +116,10 @@ func onCard(text, bg string) string {
 
 // renderBubble draws one message as a card that is width cells wide, the
 // indent included.
-func renderBubble(b bubble, width int) string {
+func renderBubble(b bubble, width int) string { return layBubble(b, width).text }
+
+// layBubble draws a card and says where its body is.
+func layBubble(b bubble, width int) bubbleLayout {
 	total := max(width-b.Indent, minBubbleWidth)
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
@@ -169,16 +185,51 @@ func renderBubble(b bubble, width int) string {
 	if where != "" {
 		rows = append(rows, row(&ink{}, where))
 	}
+	layout := bubbleLayout{bodyAt: len(rows)}
 	if body := strings.TrimRight(renderMarkdown(b.Body, ""), "\n"); body != "" {
-		st := &ink{}
 		for _, l := range strings.Split(body, "\n") {
-			for _, part := range tview.WordWrap(l, inner) {
-				rows = append(rows, row(st, part))
-			}
+			layout.body = append(layout.body, tview.WordWrap(l, inner)...)
 		}
 	}
-	rows = append(rows, lead+line(string(tview.Borders.BottomLeft)+rule(total-2)+string(tview.Borders.BottomRight))+inkReset)
-	return strings.Join(rows, "\n")
+	from, to := 0, len(layout.body)
+	if b.Clip > 0 && len(layout.body) > b.Clip {
+		from = max(0, min(b.Offset, len(layout.body)-b.Clip))
+		to = from + b.Clip
+	}
+	// A row hidden above still sets the style the next ones are drawn in.
+	st := &ink{}
+	for i, part := range layout.body {
+		if i < from || i >= to {
+			st.scan(part)
+			continue
+		}
+		rows = append(rows, row(st, part))
+	}
+	bottom := string(tview.Borders.BottomLeft) + rule(total-2) + string(tview.Borders.BottomRight)
+	if from > 0 || to < len(layout.body) {
+		// What is not shown is said in the middle of the frame under it.
+		above, below := from, len(layout.body)-to
+		var said string
+		switch {
+		case above > 0 && below > 0:
+			said = fmt.Sprintf("%d above · %d more lines", above, below)
+		case above > 0:
+			said = fmt.Sprintf("%d lines above", above)
+		default:
+			said = fmt.Sprintf("%d more lines", below)
+		}
+		label := " " + glyphElided + " " + said + " " + glyphElided + " "
+		if w := textCells(label); w < total-4 {
+			left := (total - 2 - w) / 2
+			rows = append(rows, lead+line(string(tview.Borders.BottomLeft)+rule(left))+reset+tag(role("comments.meta"))+esc(label)+tagEnd+
+				line(rule(total-2-left-w)+string(tview.Borders.BottomRight))+inkReset)
+			layout.text = strings.Join(rows, "\n")
+			return layout
+		}
+	}
+	rows = append(rows, lead+line(bottom)+inkReset)
+	layout.text = strings.Join(rows, "\n")
+	return layout
 }
 
 // renderBubbles draws a conversation, one box under the other.

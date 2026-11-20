@@ -1291,8 +1291,10 @@ machines, what you happen to wait for here is not.
   a list, and in an expanded file. The mouse does what the keys do: a
   click chooses a comment or a line, a double click is `Enter`, the right
   button lists the actions, the wheel moves as `j` and `k` do, a comment
-  at a time, its start shown. `v` puts a cursor in the comment chosen - to
-  read a comment taller than the view to its end, or to copy some of it: `v` again selects from there,
+  at a time, its start shown. A comment longer than 15 rows is clipped,
+  what is not shown said under it, so no comment fills the view. `v` puts
+  a cursor in the comment chosen - which moves a clipped one's window, to
+  read it to its end, or copies some of it: `v` again selects from there,
   `V` whole lines, the mouse by dragging; `y` copies the selection, `Y`
   the comment as written, and `Esc` goes back.
 - **A file expanded** (`Enter` on a comment): the whole file at the version

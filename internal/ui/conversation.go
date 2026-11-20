@@ -41,6 +41,30 @@ type commentCard struct {
 	// so a step of the cursor draws the conversation again and no more.
 	band  bandArea
 	block *bandArea
+	// body is every row of a comment's text, shown or not; bodyFrom the
+	// row its first shown one is drawn at, offset which one that is, and
+	// textLeft the cell its text starts at.
+	body             []string
+	bodyFrom, offset int
+	textLeft         int
+}
+
+// commentClip is how many rows of a comment the conversation shows: a
+// longer one is clipped, said under it, and read with a cursor in it.
+const commentClip = 15
+
+// laidCard is a comment's card as the conversation draws it: clipped, from
+// where the reader left it, and the card that says where its text is.
+func (c *conversation) laidCard(b bubble, n forge.Note, width, from, left int) (string, commentCard) {
+	b.Clip, b.Offset = commentClip, c.offsets[n.ID]
+	lay := layBubble(b, width)
+	offset := 0
+	if len(lay.body) > commentClip {
+		offset = max(0, min(b.Offset, len(lay.body)-commentClip))
+	}
+	band := cardBand(from, from+strings.Count(lay.text, "\n"), left, b.Indent, width)
+	return lay.text, commentCard{top: from, from: from, to: band.to, note: n, band: band,
+		body: lay.body, bodyFrom: from + lay.bodyAt, offset: offset, textLeft: band.left + 2}
 }
 
 // cardBand is the band of a card width wide, nested by indent, at left.
@@ -70,6 +94,8 @@ type conversation struct {
 	// noCode draws the threads on code as their comments alone, for
 	// reading the conversation through.
 	noCode bool
+	// offsets are where the reader left a clipped comment, by its id.
+	offsets map[int]int
 	// onCode is whether the cursor is on the code of the chosen comment's
 	// thread rather than on the comment.
 	onCode bool
@@ -176,10 +202,9 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 		}
 		top := len(rows)
 		for j, b := range bubblesOf(thread) {
-			from := len(rows)
-			add(renderBubble(b, width))
-			cards = append(cards, commentCard{top: from, from: from, to: len(rows) - 1, note: thread[j],
-				band: cardBand(from, len(rows)-1, 0, b.Indent, width)})
+			text, card := c.laidCard(b, thread[j], width, len(rows), 0)
+			add(text)
+			cards = append(cards, card)
 		}
 		cards[len(cards)-len(thread)].top = top
 	}
@@ -255,8 +280,10 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 		} else {
 			b := bubbles[j]
 			b.Where = ""
-			inside(renderBubble(b, inner))
-			band = cardBand(0, 0, 2, b.Indent, inner)
+			text, card := c.laidCard(b, n, inner, first, 2)
+			inside(text)
+			*cards = append(*cards, card)
+			continue
 		}
 		band.from, band.to = first, len(*rows)-1
 		*cards = append(*cards, commentCard{top: first, from: first, to: len(*rows) - 1, note: n, band: band})
@@ -288,8 +315,10 @@ func (c *conversation) drawCards(thread []forge.Note, width int, rows *[]string,
 			if j == 0 && b.Where != "" {
 				b.Where = where(n)
 			}
-			text = renderBubble(b, width)
-			band = cardBand(0, 0, 0, b.Indent, width)
+			text, card := c.laidCard(b, n, width, from, 0)
+			*rows = append(*rows, strings.Split(text, "\n")...)
+			*cards = append(*cards, card)
+			continue
 		}
 		*rows = append(*rows, strings.Split(text, "\n")...)
 		band.from, band.to = from, len(*rows)-1

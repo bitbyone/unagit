@@ -266,7 +266,8 @@ func (d *commentsDialog) toggleCode() {
 	d.reveal()
 }
 
-// reveal scrolls so that the chosen card shows, all of it when it fits.
+// reveal scrolls so that the chosen card shows, all of it when it fits,
+// and its start when it does not: a comment is read from its beginning.
 func (d *commentsDialog) reveal() {
 	c, ok := d.chosen()
 	if !ok {
@@ -275,10 +276,10 @@ func (d *commentsDialog) reveal() {
 	_, _, _, height := d.view.GetInnerRect()
 	row, _ := d.view.GetScrollOffset()
 	switch {
-	case c.top < row:
+	case c.top < row, c.to-c.top+1 > height:
 		d.view.ScrollTo(c.top, 0)
 	case c.to >= row+height:
-		d.view.ScrollTo(max(c.top, c.to-height+1), 0)
+		d.view.ScrollTo(c.to-height+1, 0)
 	}
 }
 

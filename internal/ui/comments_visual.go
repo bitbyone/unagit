@@ -28,8 +28,9 @@ type visual struct {
 	dragging  bool
 }
 
-// visualLine is a row of a comment's card as text: where the text starts
-// in the row, in cells, and the text itself.
+// visualLine is a row of a comment's text: the row of the conversation it
+// is drawn at, -1 while its card is clipped above or below it, the cell
+// its text starts at, and the text.
 type visualLine struct {
 	row  int
 	lead int
@@ -49,34 +50,34 @@ func plainRow(markup string) string {
 // textCells is how wide a text is drawn, a wide character two cells.
 func textCells(s string) int { return tview.TaggedStringWidth(tview.Escape(s)) }
 
-// visualLines are the rows of the chosen comment's text: its card's rows
-// within its frame, each from after the frames on its left - a thread's,
-// the card's - to before those on its right.
-func (d *commentsDialog) visualLines() []visualLine {
-	var card commentCard
-	found := false
+// visualCard is the card the cursor is in.
+func (d *commentsDialog) visualCard() (commentCard, bool) {
 	for _, c := range d.cards {
 		if c.note.ID == d.vis.note && !c.code {
-			card, found = c, true
+			return c, len(c.body) > 0
 		}
 	}
-	if !found || card.to-card.from < 2 {
+	return commentCard{}, false
+}
+
+// visualLines are the rows of the chosen comment's text - all of them, a
+// clipped card's too - each where its card shows it, if it does.
+func (d *commentsDialog) visualLines() []visualLine {
+	card, ok := d.visualCard()
+	if !ok {
 		return nil
 	}
-	var out []visualLine
-	for row := card.from + 1; row < card.to && row < len(d.rows); row++ {
-		plain := []rune(strings.TrimRight(plainRow(d.rows[row]), " │"))
-		// The text starts a space after the last frame on its left.
-		start := 0
-		for i, r := range plain {
-			if r == '│' {
-				start = i + 2
-			} else if r != ' ' {
-				break
-			}
+	shown := commentClip
+	if len(card.body) <= commentClip {
+		shown = len(card.body)
+	}
+	out := make([]visualLine, len(card.body))
+	for i, part := range card.body {
+		row := -1
+		if i >= card.offset && i < card.offset+shown {
+			row = card.bodyFrom + i - card.offset
 		}
-		start = min(start, len(plain))
-		out = append(out, visualLine{row: row, lead: textCells(string(plain[:start])), text: string(plain[start:])})
+		out[i] = visualLine{row: row, lead: card.textLeft, text: plainRow(part)}
 	}
 	return out
 }
@@ -88,7 +89,7 @@ func (d *commentsDialog) startVisual() {
 		d.a.flash("v works in a comment - choose one with j and k")
 		return
 	}
-	d.vis = visual{on: true, note: card.note.ID}
+	d.vis = visual{on: true, note: card.note.ID, line: card.offset}
 	if len(d.visualLines()) == 0 {
 		d.vis = visual{}
 		d.a.flash("this comment has no text to select")
@@ -109,13 +110,37 @@ func (d *commentsDialog) visualHint() {
 		litHint("v select · V lines · y copy · Y copy all · Esc back"))
 }
 
-// revealVisual scrolls so that the cursor's row shows.
+// revealVisual scrolls so that the cursor's row shows: a clipped comment's
+// own window first, then the conversation.
 func (d *commentsDialog) revealVisual() {
+	card, ok := d.visualCard()
+	if !ok {
+		return
+	}
+	if len(card.body) > commentClip {
+		offset := card.offset
+		switch {
+		case d.vis.line < offset:
+			offset = d.vis.line
+		case d.vis.line >= offset+commentClip:
+			offset = d.vis.line - commentClip + 1
+		}
+		if offset != card.offset {
+			if d.conv.offsets == nil {
+				d.conv.offsets = map[int]int{}
+			}
+			d.conv.offsets[card.note.ID] = offset
+			d.changed()
+		}
+	}
 	lines := d.visualLines()
 	if len(lines) == 0 {
 		return
 	}
 	row := lines[d.vis.line].row
+	if row < 0 {
+		return
+	}
 	_, _, _, height := d.view.GetInnerRect()
 	top, _ := d.view.GetScrollOffset()
 	switch {
@@ -333,6 +358,9 @@ func (d *commentsDialog) drawVisual(screen tcell.Screen) {
 	fill := role("comments.visual_selection")
 	paint := func(i, col int, style func(tcell.Style) tcell.Style) {
 		l := lines[i]
+		if l.row < 0 {
+			return
+		}
 		y := top + l.row - scroll
 		if y < top || y >= top+room {
 			return
