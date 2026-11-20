@@ -35,32 +35,48 @@ type commentCard struct {
 }
 
 // conversation is what the comments dialog draws from: the comments, the
-// diffs they are read beside, and what the reader opened.
+// code they are read beside, and what the reader opened.
 type conversation struct {
 	notes []forge.Note
-	// latest is the merge request's diff now; versions the diffs comments
-	// were written on, by versionKey; changes the changes later versions
-	// made to commented lines, by changeKey, nil while being read.
-	latest   []forge.FileDiff
-	versions map[string][]forge.FileDiff
-	changes  map[string][]forge.FileDiff
-	// expanded are the notes of a change whose change is shown.
-	expanded map[int]bool
-	selected int
 	// drafts are the comments saved in unagit, drawn as threads of their
 	// own, not published.
 	drafts []draft.Draft
+	// base and head are the commits of the merge request's latest version;
+	// latest its diff as the forge sends it, for a forge that names no
+	// merge base (GitHub) and for a file whose versions cannot be read.
+	base, head string
+	latest     []forge.FileDiff
+	// diffs are single files' diffs between two commits, worked out from
+	// the file at each, by diffKey; reading those being worked out now.
+	diffs   map[string]forge.FileDiff
+	reading map[string]bool
+	// expanded are the notes of a change whose change is shown.
+	expanded map[int]bool
+	selected int
+	// noCode draws the threads on code as their comments alone, for
+	// reading the conversation through.
+	noCode bool
 }
 
-func versionKey(n forge.Note) string { return n.Base + ".." + n.Head }
+func diffKey(from, to, path string) string { return from + ".." + to + ":" + path }
 
-func changeKey(ch *forge.LineChange) string { return ch.From + ".." + ch.To }
+// versionOf is the commits of the diff a comment was written on: its own
+// when the forge says them, else the latest version's, which a comment
+// saved in unagit is on, and GitHub numbers its lines in.
+func (c *conversation) versionOf(n forge.Note) (base, head string, ok bool) {
+	if n.Base != "" && n.Head != "" {
+		return n.Base, n.Head, true
+	}
+	return c.base, c.head, c.head != ""
+}
 
 // diffsOf is the diff a comment was written on, or the latest when that
-// one is not known.
+// one could not be worked out.
 func (c *conversation) diffsOf(n forge.Note) []forge.FileDiff {
-	if d, ok := c.versions[versionKey(n)]; ok && n.Base != "" {
-		return d
+	if base, head, ok := c.versionOf(n); ok && base != "" {
+		if d, ok := c.diffs[diffKey(base, head, n.Path)]; ok {
+			return []forge.FileDiff{d}
+		}
 	}
 	return c.latest
 }
@@ -101,19 +117,36 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 	add := func(text string) {
 		rows = append(rows, strings.Split(text, "\n")...)
 	}
+	// What is said of the merge request as a whole comes first, the threads
+	// on its code after, each part headed when there are both.
+	var general, onCode [][]forge.Note
 	for _, thread := range groupIntoThreads(notes) {
 		// A thread whose comment is gone is only the forge's note.
-		if thread[0].Changed != nil {
-			continue
+		switch {
+		case thread[0].Changed != nil:
+		case thread[0].Path == "":
+			general = append(general, thread)
+		default:
+			onCode = append(onCode, thread)
 		}
+	}
+	both := len(general) > 0 && len(onCode) > 0
+	heading := func(title string) {
+		if len(rows) > 0 {
+			add("")
+		}
+		label := " " + title + " "
+		add(tag(role("comments.heading")) + "[::b]" + strings.Repeat(string(tview.Borders.Horizontal), 2) + label + "[::-]" +
+			strings.Repeat(string(tview.Borders.Horizontal), max(0, width-2-len([]rune(label)))) + tagEnd)
+	}
+	if both {
+		heading("On the merge request")
+	}
+	for _, thread := range general {
 		if len(rows) > 0 {
 			add("")
 		}
 		top := len(rows)
-		if c.drawCodeThread(thread, width, &rows, &cards) {
-			cards[len(cards)-len(thread)].top = top
-			continue
-		}
 		for j, b := range bubblesOf(thread) {
 			b.Selected = thread[j].ID == c.selected
 			from := len(rows)
@@ -122,17 +155,32 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 		}
 		cards[len(cards)-len(thread)].top = top
 	}
+	if both {
+		heading("On the code")
+	}
+	for _, thread := range onCode {
+		if len(rows) > 0 {
+			add("")
+		}
+		top := len(rows)
+		if c.noCode {
+			c.drawCards(thread, width, &rows, &cards)
+		} else {
+			c.drawCodeThread(thread, width, &rows, &cards)
+		}
+		cards[len(cards)-len(thread)].top = top
+	}
 	return strings.Join(rows, "\n"), cards
 }
 
-// drawCodeThread draws a thread on code as one block, when its code is in
-// the diff it was written on.
+// drawCodeThread draws a thread on code as one block: the code, when its
+// lines are in the diff it was written on, then the comments.
 func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]string, cards *[]commentCard) bool {
 	root := thread[0]
-	lines, from, to := commentedRange(root, c.diffsOf(root))
-	if from < 0 {
+	if root.Path == "" {
 		return false
 	}
+	lines, from, to := commentedRange(root, c.diffsOf(root))
 	total := max(width, minBubbleWidth)
 	inner := total - 4
 	frame := tag(role("comments.code_border"))
@@ -145,16 +193,20 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	}
 
 	add(frameTop(where(root), total, frame))
-	start, end := codeWindow(lines, from, to)
-	for _, line := range strings.Split(strings.TrimRight(drawDiffLines(root.Path, lines[start:end+1], total-2, from-start, to-start, true), "\n"), "\n") {
-		add(edge + line + inkReset + edge)
+	if from < 0 {
+		inside(padMarkup(tag(colDim)+"the code is not in the diff it was written on"+tagEnd, inner))
+	} else {
+		start, end := codeWindow(lines, from, to)
+		for _, line := range strings.Split(strings.TrimRight(drawDiffLines(root.Path, lines[start:end+1], total-2, from-start, to-start, true), "\n"), "\n") {
+			add(edge + line + inkReset + edge)
+		}
 	}
 	add(frame + "├" + strings.Repeat(string(tview.Borders.Horizontal), total-2) + "┤" + inkReset)
 	bubbles := bubblesOf(thread)
 	for j, n := range thread {
 		first := len(*rows)
 		if n.Changed != nil {
-			inside(c.drawChange(n, root, inner))
+			inside(c.drawChange(n, root, inner, n.ID == c.selected))
 		} else {
 			b := bubbles[j]
 			b.Where, b.Selected = "", n.ID == c.selected
@@ -164,6 +216,28 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	}
 	add(frame + string(tview.Borders.BottomLeft) + strings.Repeat(string(tview.Borders.Horizontal), total-2) + string(tview.Borders.BottomRight) + inkReset)
 	return true
+}
+
+// drawCards draws a thread as its comments alone, the place it is on in
+// the first one's frame, and the forge's notes of a change as a line each.
+func (c *conversation) drawCards(thread []forge.Note, width int, rows *[]string, cards *[]commentCard) {
+	bubbles := bubblesOf(thread)
+	for j, n := range thread {
+		from := len(*rows)
+		text := ""
+		if n.Changed != nil {
+			text = c.drawChange(n, thread[0], width, n.ID == c.selected)
+		} else {
+			b := bubbles[j]
+			b.Selected = n.ID == c.selected
+			if j == 0 && b.Where != "" {
+				b.Where = where(n)
+			}
+			text = renderBubble(b, width)
+		}
+		*rows = append(*rows, strings.Split(text, "\n")...)
+		*cards = append(*cards, commentCard{top: from, from: from, to: len(*rows) - 1, note: n})
+	}
 }
 
 // bubblesOf is a thread as cards, a comment saved in unagit saying so.
@@ -222,11 +296,7 @@ var linkInMarkdown = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
 
 // drawChange is the forge's note that a later version changed the line a
 // thread is on, one line, and under it the change while it is opened.
-func (c *conversation) drawChange(n, root forge.Note, width int) string {
-	fill := ""
-	if n.ID == c.selected {
-		fill = role("comments.selected_fill").String()
-	}
+func (c *conversation) drawChange(n, root forge.Note, width int, selected bool) string {
 	text := linkInMarkdown.ReplaceAllString(strings.TrimSpace(n.Body), "$1")
 	open := c.expanded[n.ID]
 	hint := "Enter compare"
@@ -239,19 +309,19 @@ func (c *conversation) drawChange(n, root forge.Note, width int) string {
 		line = tag(role("comments.meta")) + glyphDot + tagEnd + " " + tag(colText) + "[::b]" + esc(trunc(personName(n.Author)+" "+text, width-2)) + "[::-]" + tagEnd
 	}
 	line += strings.Repeat(" ", max(0, width-tview.TaggedStringWidth(line)))
-	if fill != "" {
+	if selected {
 		line = onFill(line, role("comments.selected_fill"))
 	}
 	if !open {
 		return line
 	}
-	diffs, read := c.changes[changeKey(n.Changed)]
-	switch {
-	case !read || diffs == nil:
+	key := diffKey(n.Changed.From, n.Changed.To, root.Path)
+	diff, read := c.diffs[key]
+	if !read {
 		return line + "\n" + padMarkup(tag(colDim)+"  Reading the change…"+tagEnd, width)
 	}
 	change := forge.Note{Path: root.Path, From: n.Changed.Line, To: n.Changed.Line}
-	lines, from, to := commentedRange(change, diffs)
+	lines, from, to := commentedRange(change, []forge.FileDiff{diff})
 	if from < 0 {
 		return line + "\n" + padMarkup(tag(colDim)+"  that change no longer has the line"+tagEnd, width)
 	}

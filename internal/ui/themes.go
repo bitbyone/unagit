@@ -327,8 +327,10 @@ type Glyphs struct {
 	ElidedGroup string `json:"elided_group"`
 	// Edits heads the column counting the files not committed.
 	Edits string `json:"edits"`
-	// Commented marks the lines of a diff a comment is on.
+	// Commented marks the lines of a diff a comment is on; Comment, beside
+	// a line of a file, that there are comments on it.
 	Commented string `json:"commented"`
+	Comment   string `json:"comment"`
 	// Picked and Unpicked say whether a file goes into a commit; Folded
 	// and Unfolded whether a group of files is open.
 	// CIUnknown stands for a pipeline whose state the server stopped
@@ -650,7 +652,7 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.merge": g.Merge, "glyphs.select": g.Select, "glyphs.mask": g.Mask,
 		"glyphs.commit": g.Commit, "glyphs.tag": g.Tag, "glyphs.ref": g.Ref,
 		"glyphs.bar": g.Bar, "glyphs.tab_separator": g.TabSeparator, "glyphs.separator": g.Separator, "glyphs.folder": g.Folder, "glyphs.elided": g.Elided,
-		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits, "glyphs.commented": g.Commented,
+		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits, "glyphs.commented": g.Commented, "glyphs.comment": g.Comment,
 		"glyphs.ci_unknown": g.CIUnknown, "glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,
 		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden, "glyphs.tab_problem": g.TabProblem, "glyphs.close": g.Close,
 		"glyphs.toast_info": g.ToastInfo, "glyphs.toast_success": g.ToastSuccess,

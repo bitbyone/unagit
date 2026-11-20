@@ -17,8 +17,15 @@ marked, or on a change note the change itself; `e` shows the whole file,
 asking first which version when the comment is on an older one. `x`
 resolves the chosen thread, or opens it again.
 
-In the whole file of the latest version, `j` and `k` move a cursor and `c`
-writes a comment on its line. **Publish** starts a thread on the forge at
+What is said of the merge request as a whole comes first, the threads on
+its code after. `s` hides the code, to read the comments through, and
+shows it again, staying on the comment chosen. In the whole file (`e`) a mark and a count stand beside
+each line with comments; `s` shows the comments under their lines, and
+`j` and `k` go over them as over the lines - `i` answers one, `x`
+resolves its thread, and `v` switches to another version of the file.
+
+In the whole file of the latest version, `c` writes a comment on the
+cursor's line. **Publish** starts a thread on the forge at
 once; **Save** keeps it in unagit until `P` publishes it with the rest -
 it counts in `PUB` meanwhile, and `d` in the conversation deletes it. With
 Incomm on, opening or syncing a worktree of the merge request moves a

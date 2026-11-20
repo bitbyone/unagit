@@ -61,6 +61,7 @@ var colourRoles = []colourRole{
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},
 	{"comments.where", "column.path", "the file and line a comment is anchored to"},
+	{"comments.heading", "text.accent", "the headings between the comments on the merge request and those on its code"},
 	{"approvals.missing", "state.warning", "approvals still missing"},
 	{"approvals.done", "state.good", "every approval asked for is in"},
 	{"approvals.mine", "state.good", "the mark of your own approval"},

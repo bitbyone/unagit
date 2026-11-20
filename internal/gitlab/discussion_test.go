@@ -293,15 +293,9 @@ func TestNotesSayTheirDiffTheirRangeAndWhatChangedThem(t *testing.T) {
 	}
 }
 
-func TestCompareAndFilesAreReadAtTheirCommits(t *testing.T) {
+func TestFilesAreReadAtTheirCommits(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/v4/projects/42/repository/compare":
-			if q := r.URL.Query(); q.Get("from") != "a" || q.Get("to") != "b" || q.Get("straight") != "true" {
-				t.Errorf("compare asked %v", q)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"diffs":[{"old_path":"x.go","new_path":"x.go","diff":"@@ -1 +1 @@\n-a\n+b\n"}]}`)
 		case r.URL.EscapedPath() == "/api/v4/projects/42/repository/files/src%2Fx.go/raw" && r.URL.Query().Get("ref") == "b":
 			fmt.Fprint(w, "package x\n")
 		default:
@@ -310,10 +304,6 @@ func TestCompareAndFilesAreReadAtTheirCommits(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := New(srv.URL, "t")
-	diffs, err := c.CompareDiffs(context.Background(), discussionMR, "a", "b")
-	if err != nil || len(diffs) != 1 || !strings.Contains(diffs[0].Diff, "+b") {
-		t.Errorf("diffs = %+v, %v", diffs, err)
-	}
 	text, err := c.FileAt(context.Background(), discussionMR, "src/x.go", "b")
 	if err != nil || text != "package x\n" {
 		t.Errorf("file = %q, %v", text, err)

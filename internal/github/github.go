@@ -382,29 +382,6 @@ func quote(body string) string {
 	return strings.Join(lines, "\n")
 }
 
-// CompareDiffs reads what changed from one commit to the other.
-func (c *Client) CompareDiffs(ctx context.Context, mr forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
-	var compare struct {
-		Files []struct {
-			Filename         string `json:"filename"`
-			PreviousFilename string `json:"previous_filename"`
-			Patch            string `json:"patch"`
-		} `json:"files"`
-	}
-	if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/compare/"+url.PathEscape(from)+"..."+url.PathEscape(to), nil, &compare); err != nil {
-		return nil, err
-	}
-	out := make([]forge.FileDiff, len(compare.Files))
-	for i, f := range compare.Files {
-		old := f.PreviousFilename
-		if old == "" {
-			old = f.Filename
-		}
-		out[i] = forge.FileDiff{OldPath: old, Path: f.Filename, Diff: f.Patch}
-	}
-	return out, nil
-}
-
 // FileAt reads a file of the repository at ref.
 func (c *Client) FileAt(ctx context.Context, mr forge.MergeRequest, path, ref string) (string, error) {
 	segments := strings.Split(path, "/")

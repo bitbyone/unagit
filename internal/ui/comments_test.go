@@ -326,11 +326,12 @@ func TestCommentsOpenAtTheTop(t *testing.T) {
 	waitFor(t, a, sc, "retry loop")
 }
 
-// codeForge is the fake server's client with a thread on a range of code
-// added to the conversation - written on an older version of the diff,
-// which numbers its lines differently from the latest, and a later
-// version's change to the line noted in it - the diffs and the file those
-// are read in, and the replies kept instead of sent.
+// codeForge is the fake server's client with two more threads: one on a
+// range of code, written on an older version of the merge request than
+// the latest - which numbers the file's lines differently - with the
+// forge's note that a later version changed its line, and one on the
+// merge request as a whole. It serves the file at each commit, and keeps
+// what it is asked to post instead of posting it.
 type codeForge struct {
 	forge.Provider
 	mu       sync.Mutex
@@ -339,36 +340,65 @@ type codeForge struct {
 	started  []string
 }
 
-const (
-	// The latest diff has a line more before the commented ones.
-	latestLimit = "@@ -8,5 +8,7 @@ func limit() {\n \tfor {\n+\t\tcount++\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t}\n"
-	olderLimit  = "@@ -8,9 +8,10 @@ func limit() {\n \tfor {\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t\tlog(1)\n \t\tlog(2)\n \t\tlog(3)\n \t\tlog(4)\n \t\tlog(5)\n \t}\n"
-	changeLimit = "@@ -11,3 +11,3 @@\n \t\t}\n-\t\ttime.Sleep(backoff)\n+\t\ttime.Sleep(jitter(backoff))\n \t}\n"
-)
+// limitAt is limit.go at the commits of the fixture: b1 and b2 the bases
+// of the older version and the latest, h1 the older head - which adds the
+// sleep - and h2 the latest, which changed it.
+func limitAt(ref string) (string, bool) {
+	lines := []string{"package limit", "", "func limit() {", "\tfor {", "\t\tif ok() {", "\t\t\treturn", "\t\t}",
+		"\t\tlog(1)", "\t\tlog(2)", "\t\tlog(3)", "\t\tlog(4)", "\t\tlog(5)", "\t}", "}"}
+	sleep := func(call string) []string {
+		return append(append(append([]string{}, lines[:7]...), "\t\ttime.Sleep("+call+")"), lines[7:]...)
+	}
+	switch ref {
+	case "b1", "b2":
+	case "h1":
+		lines = sleep("backoff")
+	case "h2", "feat/rate":
+		lines = sleep("jitter(backoff)")
+	default:
+		return "", false
+	}
+	return strings.Join(lines, "\n") + "\n", true
+}
 
 func (f *codeForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
 	notes, err := f.Provider.MergeRequestNotes(ctx, mr, limit)
 	return append(notes,
-		forge.Note{ID: 70, Thread: "on-code", Body: "this sleeps on every retry", Path: "limit.go", Line: 12,
-			Base: "b1", Head: "h1", From: forge.LineRef{Old: 11, New: 11}, To: forge.LineRef{New: 12},
+		forge.Note{ID: 70, Thread: "on-code", Body: "this sleeps on every retry", Path: "limit.go", Line: 8,
+			Base: "b1", Head: "h1", From: forge.LineRef{Old: 7, New: 7}, To: forge.LineRef{New: 8},
 			CreatedAt: time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "carol"}, Resolvable: true},
 		forge.Note{ID: 71, Thread: "on-code", System: true, Body: "changed this line in [version 2 of the diff](/x)",
-			Changed:   &forge.LineChange{From: "h1", To: "h2", Line: forge.LineRef{New: 12}},
-			CreatedAt: time.Date(2026, 9, 23, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "dave"}}), err
+			Changed:   &forge.LineChange{From: "h1", To: "h2", Line: forge.LineRef{Old: 8, New: 8}},
+			CreatedAt: time.Date(2026, 9, 23, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "dave"}},
+		forge.Note{ID: 72, Thread: "general", Body: "please split this merge request",
+			CreatedAt: time.Date(2026, 9, 23, 9, 0, 0, 0, time.UTC), Author: forge.User{Username: "erin"}}), err
+}
+
+func (f *codeForge) MergeRequestDetail(ctx context.Context, mr forge.MergeRequest) (*forge.MergeRequestDetail, error) {
+	d, err := f.Provider.MergeRequestDetail(ctx, mr)
+	if err != nil {
+		return nil, err
+	}
+	d.DiffRefs.BaseSHA, d.DiffRefs.HeadSHA = "b2", "h2"
+	return d, nil
 }
 
 func (f *codeForge) MergeRequestDiffs(context.Context, forge.MergeRequest) ([]forge.FileDiff, error) {
-	return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: latestLimit}}, nil
+	return nil, nil
 }
 
-func (f *codeForge) CompareDiffs(_ context.Context, _ forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
-	switch from + ".." + to {
-	case "b1..h1":
-		return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: olderLimit}}, nil
-	case "h1..h2":
-		return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: changeLimit}}, nil
+func (f *codeForge) FileAt(_ context.Context, _ forge.MergeRequest, path, ref string) (string, error) {
+	if text, ok := limitAt(ref); ok && path == "limit.go" {
+		return text, nil
 	}
-	return nil, fmt.Errorf("no compare of %s..%s", from, to)
+	return "", fmt.Errorf("no %s at %s", path, ref)
+}
+
+func (f *codeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, thread, body string) (*forge.Note, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = append(f.replies, thread+": "+body)
+	return &forge.Note{Thread: thread, Body: body}, nil
 }
 
 func (f *codeForge) ResolveDiscussion(_ context.Context, _ forge.MergeRequest, thread string, resolved bool) error {
@@ -392,34 +422,11 @@ func (f *codeForge) kept(what *[]string) []string {
 	return append([]string(nil), (*what)...)
 }
 
-func (f *codeForge) FileAt(_ context.Context, _ forge.MergeRequest, path, ref string) (string, error) {
-	if path != "limit.go" || ref != "h1" && ref != "feat/rate" {
-		return "", fmt.Errorf("no %s at %s", path, ref)
-	}
-	var b strings.Builder
-	for i := 1; i <= 40; i++ {
-		fmt.Fprintf(&b, "line %d of the file\n", i)
-	}
-	return b.String(), nil
-}
-
-func (f *codeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, thread, body string) (*forge.Note, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.replies = append(f.replies, thread+": "+body)
-	return &forge.Note{Thread: thread, Body: body}, nil
-}
-
-// TestCommentsAreChosenAnsweredAndReadBesideTheirCode: a thread on code is
-// one block - the lines it is about, from the diff it was written on, and
-// its comments under them; j and k choose a comment, i answers it in its
-// thread, Enter shows the whole diff of its file, or on the note of a later
-// change, that change; e shows the whole file. However wide the terminal,
-// the conversation is no wider than reads well.
-func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
-	t.Parallel()
+// openCodeConversation opens the conversation with codeForge's threads.
+func openCodeConversation(t *testing.T, w, h int) (*App, tcell.SimulationScreen, *codeForge) {
+	t.Helper()
 	a, sc := newTestApp(t)
-	resizeApp(a, sc, 220, 60)
+	resizeApp(a, sc, w, h)
 	openMRDetail(t, a, sc)
 	fake := onLoop(a, func() *codeForge {
 		id := a.cfg.Instances[0].ID
@@ -427,16 +434,33 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 		a.clients[id] = f
 		return f
 	})
-
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
-	waitFor(t, a, sc, "limit.go:11-12")
-	// The older diff's lines, the four after the commented ones too.
-	waitFor(t, a, sc, "log(4)")
-	if text := a.screenText(sc); strings.Contains(text, "count++") || strings.Contains(text, "log(5)") {
-		t.Errorf("the code is not the diff the comment was written on, or not round its lines:\n%s", text)
-	}
 	waitFor(t, a, sc, "this sleeps on every retry")
+	return a, sc, fake
+}
+
+// TestCommentsAreChosenAnsweredAndReadBesideTheirCode: what is said of the
+// merge request comes first; a thread on code is one block - the lines it
+// is about, from the version it was written on, worked out from the file
+// at either end, and its comments under them. j and k choose a comment, i
+// answers it in its thread, Enter shows the whole diff of its file, or on
+// the note of a later change, that change. However wide the terminal, the
+// conversation is no wider than reads well.
+func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
+	t.Parallel()
+	a, sc, fake := openCodeConversation(t, 220, 60)
+	waitFor(t, a, sc, "limit.go:7-8")
+	// The older version's lines, the four after the commented ones too.
+	waitFor(t, a, sc, "log(4)")
+	text := a.screenText(sc)
+	if strings.Contains(text, "jitter") || strings.Contains(text, "log(5)") {
+		t.Errorf("the code is not the version the comment was written on, or not round its lines:\n%s", text)
+	}
+	general, code := strings.Index(text, "please split this merge request"), strings.Index(text, "On the code")
+	if general < 0 || code < 0 || general > code {
+		t.Errorf("what is said of the merge request should come before the code:\n%s", text)
+	}
 	waitFor(t, a, sc, "dave changed this line in version 2 of the diff")
 	width := onLoop(a, func() int {
 		_, prim := a.pages.GetFrontPage()
@@ -447,7 +471,8 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 		t.Errorf("the conversation is %d wide on a 220 wide terminal, want at most %d", width, commentsWidth)
 	}
 
-	// The thread on code is the newest: G chooses its change, k its comment.
+	// The general thread is first, the thread on code after: G chooses
+	// the change, k the comment.
 	typeRunes(sc, "G")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "jitter(backoff)")
@@ -457,33 +482,116 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 	typeRunes(sc, "it backs off")
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Reply to carol posted")
-	fake.mu.Lock()
-	replies := append([]string(nil), fake.replies...)
-	fake.mu.Unlock()
-	if len(replies) != 1 || replies[0] != "on-code: it backs off" {
-		t.Fatalf("replies = %q, want one in the thread on code", replies)
+	if got := fake.kept(&fake.replies); len(got) != 1 || got[0] != "on-code: it backs off" {
+		t.Fatalf("replies = %q, want one in the thread on code", got)
 	}
 
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "limit.go:11-12 · acme/gateway !7")
+	waitFor(t, a, sc, "limit.go:7-8 · acme/gateway !7")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "limit.go:11-12 · acme/gateway !7")
-
-	typeRunes(sc, "e")
-	waitFor(t, a, sc, "Which version of limit.go")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "line 12 of the file")
-	typeRunes(sc, "G")
-	waitFor(t, a, sc, "line 40 of the file")
-	typeRunes(sc, "q")
-	waitGone(t, a, sc, "line 40 of the file")
-	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitGone(t, a, sc, "limit.go:7-8 · acme/gateway !7")
 
 	// g goes to the oldest comment, which is on no line.
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "not on a line")
+}
+
+// TestAFileIsReadWithItsCommentsAndCommentedOn: x resolves the chosen
+// thread; e on a comment written on an older version asks which version
+// to read, in a box no bigger than its rows. The file marks the lines with
+// comments and counts them, s shows the comments under their lines, and
+// the cursor goes over them as over the lines; on the latest version c
+// comments the cursor's line - saved, to be published with P, or published
+// at once.
+func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
+	t.Parallel()
+	a, sc, fake := openCodeConversation(t, 180, 50)
+	typeRunes(sc, "Gk")
+
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "Thread resolved")
+	if got := fake.kept(&fake.resolved); len(got) != 1 || got[0] != "on-code true" {
+		t.Fatalf("resolved = %q", got)
+	}
+
+	// The version it was written on: its lines, its comment counted.
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Which version of limit.go")
+	if rows := onLoop(a, func() int {
+		_, prim := a.pages.GetFrontPage()
+		_, _, _, h := prim.(*modalBox).content.(tview.Primitive).GetRect()
+		return h
+	}); rows > 12 {
+		t.Errorf("the choice of two versions is %d rows high", rows)
+	}
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	waitFor(t, a, sc, glyphComment+"1")
+	if strings.Contains(a.screenText(sc), "this sleeps on every retry") {
+		t.Errorf("the comments are shown before s asks for them")
+	}
+	typeRunes(sc, "s")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	// The cursor is on the commented line; j goes to its comment, i
+	// answers it.
+	typeRunes(sc, "j")
+	typeRunes(sc, "i")
+	waitFor(t, a, sc, "Reply to carol")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Reply to carol")
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "a new comment goes on the latest version")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "a new comment goes on the latest version")
+
+	// The latest, the cursor on the same line: a comment saved there.
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · latest")
+	waitFor(t, a, sc, "jitter(backoff)")
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comment on limit.go:8")
+	typeRunes(sc, "worth a test")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Comment on limit.go:8 saved")
+	// Saved, it is a comment on the latest version, drawn there at once.
+	waitFor(t, a, sc, "worth a test")
+	saved := onLoop(a, func() int {
+		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
+		return len(drafts)
+	})
+	if saved != 1 {
+		t.Fatalf("%d comments saved, want 1", saved)
+	}
+
+	// And one published at once, a line further.
+	typeRunes(sc, "k")
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comment on limit.go:7")
+	typeRunes(sc, "ship it")
+	pressButton(t, a, sc, frontForm(a), "Publish")
+	waitFor(t, a, sc, "Comment on limit.go:7 published")
+	if got := fake.kept(&fake.started); len(got) != 1 || got[0] != "limit.go:7 ship it" {
+		t.Fatalf("started = %q", got)
+	}
+	typeRunes(sc, "q")
+	waitFor(t, a, sc, "saved · not published")
+
+	// P publishes what was saved, and it is saved no longer.
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "comment saved in unagit: worth a test")
+	typeRunes(sc, "y")
+	eventually(t, a, "the saved comment is published", func() bool {
+		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
+		return len(drafts) == 0
+	})
+	if got := fake.kept(&fake.started); len(got) != 2 || got[1] != "limit.go:8 worth a test" {
+		t.Fatalf("started = %q", got)
+	}
 }
 
 // TestACommentIsReadAmongTheLinesItIsAbout: the code of a thread is a few
@@ -537,80 +645,28 @@ func renderConversationWith(n forge.Note, diffs []forge.FileDiff, width int) str
 	return text
 }
 
-// TestCommentsAreResolvedWrittenOnTheFileAndSaved: x resolves the chosen
-// thread; e on a comment written on an older version asks which version
-// to read, and on the latest a comment goes on the cursor's line - saved,
-// to be published with P, or published at once.
-func TestCommentsAreResolvedWrittenOnTheFileAndSaved(t *testing.T) {
+// TestTheCodeCanBeHiddenToReadTheConversation: s draws the threads on code
+// as their comments alone, the place in the first one's frame, and back;
+// the comment chosen stays chosen and on screen.
+func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	t.Parallel()
-	a, sc := newTestApp(t)
-	resizeApp(a, sc, 180, 50)
-	openMRDetail(t, a, sc)
-	fake := onLoop(a, func() *codeForge {
-		id := a.cfg.Instances[0].ID
-		f := &codeForge{Provider: a.clients[id]}
-		a.clients[id] = f
-		return f
-	})
-	typeRunes(sc, "c")
-	waitFor(t, a, sc, "this sleeps on every retry")
+	a, sc, _ := openCodeConversation(t, 160, 60)
 	typeRunes(sc, "Gk")
-
-	typeRunes(sc, "x")
-	waitFor(t, a, sc, "Thread resolved")
-	if got := fake.kept(&fake.resolved); len(got) != 1 || got[0] != "on-code true" {
-		t.Fatalf("resolved = %q", got)
-	}
-
-	// The version it was written on: its lines, and no comment there.
-	typeRunes(sc, "e")
-	waitFor(t, a, sc, "Which version of limit.go")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "a comment goes on the latest version")
-	typeRunes(sc, "q")
-	waitGone(t, a, sc, "a comment goes on the latest version")
-
-	// The latest: a comment saved on the cursor's line.
-	typeRunes(sc, "e")
-	waitFor(t, a, sc, "Which version of limit.go")
-	typeRunes(sc, "j")
-	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "limit.go · latest")
-	typeRunes(sc, "jc")
-	waitFor(t, a, sc, "Comment on limit.go:13")
-	typeRunes(sc, "worth a test")
-	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
-	waitFor(t, a, sc, "Comment on limit.go:13 saved")
-	saved := onLoop(a, func() int {
-		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
-		return len(drafts)
-	})
-	if saved != 1 {
-		t.Fatalf("%d comments saved, want 1", saved)
-	}
-
-	// And one published at once.
-	typeRunes(sc, "jc")
-	waitFor(t, a, sc, "Comment on limit.go:14")
-	typeRunes(sc, "ship it")
-	pressButton(t, a, sc, frontForm(a), "Publish")
-	waitFor(t, a, sc, "Comment on limit.go:14 published")
-	if got := fake.kept(&fake.started); len(got) != 1 || got[0] != "limit.go:14 ship it" {
-		t.Fatalf("started = %q", got)
-	}
-	typeRunes(sc, "q")
-	waitFor(t, a, sc, "saved · not published")
-	waitFor(t, a, sc, "worth a test")
-
-	// P publishes what was saved, and it is saved no longer.
-	typeRunes(sc, "P")
-	waitFor(t, a, sc, "comment saved in unagit: worth a test")
-	typeRunes(sc, "y")
-	eventually(t, a, "the saved comment is published", func() bool {
-		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
-		return len(drafts) == 0
-	})
-	if got := fake.kept(&fake.started); len(got) != 2 || got[1] != "limit.go:13 worth a test" {
-		t.Fatalf("started = %q", got)
-	}
+	// Small enough that the conversation scrolls; choosing scrolls to it.
+	resizeApp(a, sc, 160, 30)
+	typeRunes(sc, "kj")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	typeRunes(sc, "s")
+	waitGone(t, a, sc, "log(4)")
+	waitFor(t, a, sc, "limit.go:7-8")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	waitFor(t, a, sc, "dave changed this line in version 2 of the diff")
+	typeRunes(sc, "i")
+	waitFor(t, a, sc, "Reply to carol")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Reply to carol")
+	typeRunes(sc, "s")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	waitFor(t, a, sc, "time.Sleep(backoff)")
 }

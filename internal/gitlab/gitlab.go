@@ -379,27 +379,6 @@ func (c *Client) versionHeads(ctx context.Context, mr forge.MergeRequest, heads 
 	return nil
 }
 
-// CompareDiffs reads what changed from one commit to the other, straight
-// from one to the other rather than from where they part.
-func (c *Client) CompareDiffs(ctx context.Context, mr forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
-	var compare struct {
-		Diffs []struct {
-			OldPath string `json:"old_path"`
-			NewPath string `json:"new_path"`
-			Diff    string `json:"diff"`
-		} `json:"diffs"`
-	}
-	q := url.Values{"from": {from}, "to": {to}, "straight": {"true"}}
-	if _, err := c.get(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/repository/compare", q, &compare); err != nil {
-		return nil, err
-	}
-	out := make([]forge.FileDiff, len(compare.Diffs))
-	for i, d := range compare.Diffs {
-		out[i] = forge.FileDiff{OldPath: d.OldPath, Path: d.NewPath, Diff: d.Diff}
-	}
-	return out, nil
-}
-
 // FileAt reads a file of the repository at ref, raw.
 func (c *Client) FileAt(ctx context.Context, mr forge.MergeRequest, path, ref string) (string, error) {
 	return c.getText(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/repository/files/"+url.PathEscape(path)+"/raw?ref="+url.QueryEscape(ref))
@@ -427,6 +406,9 @@ func convertNote(mr forge.MergeRequest, thread string, n note) *forge.Note {
 	if n.Position != nil {
 		pos := n.Position
 		converted.Base, converted.Head = pos.BaseSHA, pos.HeadSHA
+		if pos.OldPath != pos.NewPath {
+			converted.OldPath = pos.OldPath
+		}
 		converted.From = forge.LineRef{Old: pos.OldLine, New: pos.NewLine}
 		converted.To = converted.From
 		if r := pos.LineRange; r != nil && (r.Start.OldLine > 0 || r.Start.NewLine > 0) {

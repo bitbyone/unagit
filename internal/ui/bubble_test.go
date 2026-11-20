@@ -110,8 +110,9 @@ func TestConversationIsBoxesInThreads(t *testing.T) {
 		{ID: 2, Thread: "t", Body: "answer", Author: forge.User{Username: "john"}},
 	}
 	got := renderConversation(notes, 60)
-	if strings.Count(got, "╭") != 2 || strings.Count(got, "╰") != 2 {
-		t.Errorf("want one box per comment:\n%s", got)
+	// A thread on code is one block, framed, a card for each comment in it.
+	if strings.Count(got, "╭") != 3 || strings.Count(got, "╰") != 3 {
+		t.Errorf("want one block and one card per comment:\n%s", got)
 	}
 	if !strings.Contains(got, "a.go:3") || !strings.Contains(got, "unresolved") {
 		t.Errorf("the root should say where it is and whether it is resolved:\n%s", got)

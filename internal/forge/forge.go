@@ -369,6 +369,8 @@ type Note struct {
 	// number differently from the latest; empty, the forge does not say.
 	Base string `json:"base,omitempty"`
 	Head string `json:"head,omitempty"`
+	// OldPath is where the file was at Base, when it has moved since.
+	OldPath string `json:"old_path,omitempty"`
 	// From and To are the first and the last line a comment on code is
 	// on, in the diff of Base and Head - the same line when it is on one.
 	From LineRef `json:"from,omitempty"`
@@ -467,11 +469,10 @@ type Provider interface {
 	// MergeRequestDiffs is what the merge request changes, file by file:
 	// what a comment on a line is read beside.
 	MergeRequestDiffs(ctx context.Context, mr MergeRequest) ([]FileDiff, error)
-	// CompareDiffs is what changed from one commit of the merge request's
-	// repository to another, file by file: the diff a comment was written
-	// on, or the change a later version made to its line.
-	CompareDiffs(ctx context.Context, mr MergeRequest, from, to string) ([]FileDiff, error)
-	// FileAt is a file of the merge request's repository as it is at ref.
+	// FileAt is a file of the merge request's repository as it is at ref:
+	// what the diff a comment was written on is worked out from, a version
+	// at a time, however much of a large merge request's diff the forge
+	// would send.
 	FileAt(ctx context.Context, mr MergeRequest, path, ref string) (string, error)
 	// MergeRequestCommits returns the newest commits, newest first, and how
 	// many there are; a limit of zero returns all of them.
