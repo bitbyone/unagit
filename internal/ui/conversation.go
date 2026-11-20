@@ -45,6 +45,7 @@ type commentCard struct {
 	// row its first shown one is drawn at, offset which one that is, and
 	// textLeft the cell its text starts at.
 	body             []string
+	plain            []string
 	bodyFrom, offset int
 	textLeft         int
 }
@@ -53,18 +54,36 @@ type commentCard struct {
 // longer one is clipped, said under it, and read with a cursor in it.
 const commentClip = 15
 
+// laidKey is all a card's layout comes of.
+type laidKey struct {
+	b     bubble
+	width int
+}
+
 // laidCard is a comment's card as the conversation draws it: clipped, from
 // where the reader left it, and the card that says where its text is.
 func (c *conversation) laidCard(b bubble, n forge.Note, width, from, left int) (string, commentCard) {
 	b.Clip, b.Offset = commentClip, c.offsets[n.ID]
-	lay := layBubble(b, width)
+	key := laidKey{b, width}
+	lay, ok := c.laid[key]
+	if !ok {
+		lay = layBubble(b, width)
+		lay.plain = make([]string, len(lay.body))
+		for i, part := range lay.body {
+			lay.plain[i] = plainRow(part)
+		}
+		if c.laid == nil {
+			c.laid = map[laidKey]bubbleLayout{}
+		}
+		c.laid[key] = lay
+	}
 	offset := 0
 	if len(lay.body) > commentClip {
 		offset = max(0, min(b.Offset, len(lay.body)-commentClip))
 	}
 	band := cardBand(from, from+strings.Count(lay.text, "\n"), left, b.Indent, width)
 	return lay.text, commentCard{top: from, from: from, to: band.to, note: n, band: band,
-		body: lay.body, bodyFrom: from + lay.bodyAt, offset: offset, textLeft: band.left + 2}
+		body: lay.body, plain: lay.plain, bodyFrom: from + lay.bodyAt, offset: offset, textLeft: band.left + 2}
 }
 
 // cardBand is the band of a card width wide, nested by indent, at left.
@@ -103,8 +122,11 @@ type conversation struct {
 	// without its own yet says.
 	pending bool
 	// drawn are code blocks already coloured, by codeKey: colouring is the
-	// slow part of a draw, and the cursor draws at every step.
+	// slow part of a draw, and the cursor draws at every step. laid are
+	// cards already laid out, by all that makes them: moving a clipped
+	// comment's window lays out that one alone again.
 	drawn map[string]string
+	laid  map[laidKey]bubbleLayout
 }
 
 // isChosen reports whether a card is the one the cursor is on.

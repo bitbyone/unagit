@@ -48,6 +48,8 @@ type bubbleLayout struct {
 	text   string
 	bodyAt int
 	body   []string
+	// plain is the body as it reads, for a cursor in it.
+	plain []string
 }
 
 // tview's own tag grammar: [foreground:background:attributes], any part may be

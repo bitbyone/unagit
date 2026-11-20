@@ -169,7 +169,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	d.view.SetInputCapture(d.keys)
 	// Another theme put on with the conversation open: drawn in it.
 	a.onRepaint(d.view, func() {
-		d.conv.drawn = nil
+		d.conv.drawn, d.conv.laid = nil, nil
 		d.draw()
 	})
 	a.onRepaint(footer, func() {
@@ -353,7 +353,7 @@ func (d *commentsDialog) load(quietly bool) {
 			if detail != nil {
 				c.base, c.head = detail.DiffRefs.BaseSHA, detail.DiffRefs.HeadSHA
 			}
-			c.drawn = nil
+			c.drawn, c.laid = nil, nil
 			d.local = localThreads
 			wanted := d.codeWanted()
 			c.pending = len(wanted) > 0

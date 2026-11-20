@@ -668,6 +668,9 @@ func startAppWithStop(t *testing.T, a *App) (*App, tcell.SimulationScreen, chan 
 		a.newAnimationTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
 		t.Cleanup(func() { close(ticks) })
 	}
+	// A screen read after each key needs a draw after each key; pacing the
+	// draws to frames is a test of its own.
+	a.unpaced = true
 	// Never the machine's own application in front.
 	if a.frontApp == nil {
 		a.frontApp = func() string { return "" }
@@ -1106,4 +1109,30 @@ func sourceOf(body []byte, fallback string) string {
 		return fallback
 	}
 	return req.Source
+}
+
+// TestHeldKeysAreDrawnOnceAFrame: keys that come faster than frames - a
+// key held down - are answered as they come but drawn once a frame, and
+// what they came to is drawn after the last of them.
+func TestHeldKeysAreDrawnOnceAFrame(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	onLoop(a, func() bool { a.unpaced = false; return true })
+	draws := onLoop(a, func() *atomic.Int64 {
+		n := &atomic.Int64{}
+		a.tv.SetAfterDrawFunc(func(tcell.Screen) { n.Add(1) })
+		return n
+	})
+	for range 60 {
+		sc.InjectKey(tcell.KeyRune, 'j', tcell.ModNone)
+		sc.InjectKey(tcell.KeyRune, 'k', tcell.ModNone)
+	}
+	sc.InjectKey(tcell.KeyRune, 'j', tcell.ModNone)
+	eventually(t, a, "the last key answered and drawn", func() bool { return selectedRepository(a) == "acme/billing" })
+	time.Sleep(3 * frameInterval)
+	if n := draws.Load(); n >= 121 {
+		t.Errorf("%d draws for 121 keys: they were not paced", n)
+	}
+	waitFor(t, a, sc, "acme/billing")
 }

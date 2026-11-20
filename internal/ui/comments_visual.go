@@ -72,12 +72,12 @@ func (d *commentsDialog) visualLines() []visualLine {
 		shown = len(card.body)
 	}
 	out := make([]visualLine, len(card.body))
-	for i, part := range card.body {
+	for i := range card.body {
 		row := -1
 		if i >= card.offset && i < card.offset+shown {
 			row = card.bodyFrom + i - card.offset
 		}
-		out[i] = visualLine{row: row, lead: card.textLeft, text: plainRow(part)}
+		out[i] = visualLine{row: row, lead: card.textLeft, text: card.plain[i]}
 	}
 	return out
 }

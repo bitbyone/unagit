@@ -295,7 +295,16 @@ type App struct {
 	root  tview.Primitive
 	mouse mouseState
 	// drawPending says a draw for the wheel is on its way (drawSoon).
-	drawPending   atomic.Bool
+	drawPending atomic.Bool
+	// lastDraw is when the screen was last drawn, in nanoseconds; frameLate
+	// says a draw put off to the next frame is on its way.
+	lastDraw  atomic.Int64
+	frameLate atomic.Bool
+	// keyed says the next draw answers a key, which may wait for a frame;
+	// unpaced draws after every key, as the tests that read the screen
+	// after each want.
+	keyed         atomic.Bool
+	unpaced       bool
 	agentRows     []agentRow
 	agentsReading bool
 	agentsError   string
@@ -555,6 +564,17 @@ func (a *App) Run() error {
 	a.tv.SetInputCapture(a.globalKeys)
 	a.tv.SetBeforeDrawFunc(func(screen tcell.Screen) bool {
 		a.screen = screen
+		// tview draws after every key; a key held down repeats faster than
+		// a frame is drawn, and the keys queued behind the draws ran on
+		// after it was let go. A draw sooner than a frame after the last is
+		// put off to that frame, and the keys meanwhile are answered
+		// without one: what they came to is drawn once.
+		now := time.Now().UnixNano()
+		if since := time.Duration(now - a.lastDraw.Load()); a.keyed.Swap(false) && !a.unpaced && since < frameInterval {
+			a.drawNextFrame(frameInterval - since)
+			return true
+		}
+		a.lastDraw.Store(now)
 		if w, _ := screen.Size(); w != a.tabsWidth && a.tabs != nil {
 			a.tabsWidth = w
 			a.drawTabs()
@@ -704,6 +724,7 @@ func (a *App) selectedGroups() []config.Group {
 
 // globalKeys handles the keys that work on every page.
 func (a *App) globalKeys(ev *tcell.EventKey) *tcell.EventKey {
+	a.keyed.Store(true)
 	selectionInTable(a.tv.GetFocus())
 	// A key on a screen starts afresh: no dialog to go back to.
 	a.forgetReturn()
@@ -739,6 +760,21 @@ func (a *App) dialogTakesColon() bool {
 	}
 	// A form in NORMAL types nothing; a filter or INSERT does.
 	return !a.typing()
+}
+
+// frameInterval is the least time between two draws of the screen.
+const frameInterval = 16 * time.Millisecond
+
+// drawNextFrame draws the screen once wait is over, unless such a draw is
+// on its way already.
+func (a *App) drawNextFrame(wait time.Duration) {
+	if a.frameLate.Swap(true) {
+		return
+	}
+	time.AfterFunc(wait, func() {
+		a.frameLate.Store(false)
+		a.tv.QueueUpdateDraw(func() {})
+	})
 }
 
 // closeModal removes a modal page and gives the keyboard back to whatever was
