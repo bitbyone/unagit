@@ -53,11 +53,11 @@ var colourRoles = []colourRole{
 	// A comment drawn as a card: its fill, its frame, and what the top of
 	// the frame carries.
 	{"comments.card", "card.background", "a comment card's background; unnamed, every card's"},
-	{"comments.border", "text.accent", "the frame of a conversation's first comment"},
-	{"comments.reply_border", "text.dim", "the frame of a reply, quieter than what it answers"},
+	{"comments.border", "tags.azure.ink", "the frame of a comment, and of its thread, that cannot be resolved"},
+	{"comments.unresolved_border", "tags.lavender.ink", "the frame of a thread still to resolve: its comments, its code"},
+	{"comments.resolved_border", "tags.mint.ink", "the frame of a thread resolved"},
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
 	{"comments.selected_fill", "selection.marked", "its background, as a marked row's"},
-	{"comments.code_border", "comments.reply_border", "the frame of the code a thread is on"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},
 	{"comments.where", "column.path", "the file and line a comment is anchored to"},

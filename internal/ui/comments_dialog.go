@@ -251,7 +251,11 @@ func (d *commentsDialog) load(quietly bool) {
 			} else {
 				d.draw()
 				// The forge's conversation comes first and the local
-				// Incomm threads after it, so it opens at the top.
+				// Incomm threads after it, so it opens at the top, on the
+				// first comment.
+				if _, ok := d.chosen(); !ok {
+					d.choose(0)
+				}
 				d.view.ScrollToBeginning()
 				if d.loaded != nil {
 					d.loaded()

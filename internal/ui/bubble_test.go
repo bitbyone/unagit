@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -69,7 +70,7 @@ func TestStyleSurvivesAWrappedLine(t *testing.T) {
 
 // TestACardKeepsItsFill: markup in a comment that resets the background -
 // a code span's end - goes back to the card's, never the view's, so the
-// card has no holes; and a reply's frame is the quieter one.
+// card has no holes; and a reply is framed as its thread is.
 func TestACardKeepsItsFill(t *testing.T) {
 	t.Parallel()
 	out := renderBubbles([]bubble{
@@ -88,8 +89,8 @@ func TestACardKeepsItsFill(t *testing.T) {
 		}
 	}
 	rows := strings.Split(out, "\n")
-	if !strings.Contains(rows[0], "["+role("comments.border").String()+":") || !strings.Contains(rows[len(rows)-1], "["+role("comments.reply_border").String()+":") {
-		t.Errorf("the first comment and the reply should be framed apart:\n%s", out)
+	if !strings.Contains(rows[0], "["+role("comments.border").String()+":") || !strings.Contains(rows[len(rows)-1], "["+role("comments.border").String()+":") {
+		t.Errorf("a reply should be framed as its thread is:\n%s", out)
 	}
 }
 
@@ -162,5 +163,32 @@ func TestOnlyTheFirstCommentSaysWhetherTheConversationIsResolved(t *testing.T) {
 	}
 	if got := noteMeta(forge.Note{Resolvable: true, Resolved: true}, false); !strings.Contains(got, " · resolved") {
 		t.Errorf("a resolved conversation should say so: %q", got)
+	}
+}
+
+// TestAThreadIsFramedByItsState: a thread still to resolve, a resolved one
+// and a comment that cannot be resolved are framed apart, each in a colour
+// of its own that its replies wear too - none of them the cursor's.
+func TestAThreadIsFramedByItsState(t *testing.T) {
+	t.Parallel()
+	frames := map[string]tcell.Color{}
+	for name, root := range map[string]forge.Note{
+		"open":     {Resolvable: true},
+		"resolved": {Resolvable: true, Resolved: true},
+		"plain":    {},
+	} {
+		bubbles := threadBubbles([]forge.Note{root, {Body: "reply"}}, false)
+		if bubbles[0].Frame != bubbles[1].Frame {
+			t.Errorf("%s: the reply is framed %v, its thread %v", name, bubbles[1].Frame, bubbles[0].Frame)
+		}
+		frames[name] = bubbles[0].Frame
+	}
+	if frames["open"] == frames["resolved"] || frames["open"] == frames["plain"] || frames["resolved"] == frames["plain"] {
+		t.Errorf("the states are not framed apart: %v", frames)
+	}
+	for name, c := range frames {
+		if c == role("comments.selected") {
+			t.Errorf("%s is framed as the cursor is", name)
+		}
 	}
 }

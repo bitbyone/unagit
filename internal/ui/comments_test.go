@@ -727,3 +727,13 @@ func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	waitFor(t, a, sc, "this sleeps on every retry")
 	waitFor(t, a, sc, "time.Sleep(backoff)")
 }
+
+// TestTheFirstCommentIsChosenOnOpening: the keys act on a comment as soon
+// as the conversation is open.
+func TestTheFirstCommentIsChosenOnOpening(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := openCodeConversation(t, 160, 60)
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Reply to carol")
+	waitFor(t, a, sc, "oldest comment")
+}

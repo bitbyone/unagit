@@ -203,12 +203,13 @@ func (a *App) resolveThread(mr forge.MergeRequest, root forge.Note, changed func
 // replies nested under it. short cuts a very long comment down.
 func threadBubbles(thread []forge.Note, short bool) []bubble {
 	bubbles := make([]bubble, len(thread))
+	frame := threadFrame(thread[0])
 	for j, n := range thread {
 		body := n.Body
 		if short {
 			body = trimBody(body)
 		}
-		b := bubble{Name: personName(n.Author), Colour: colAccent, Meta: noteMeta(n, j > 0), Body: body}
+		b := bubble{Name: personName(n.Author), Colour: colAccent, Meta: noteMeta(n, j > 0), Body: body, Frame: frame}
 		if j > 0 {
 			b.Indent = 2
 		} else if n.Path != "" {
@@ -217,6 +218,19 @@ func threadBubbles(thread []forge.Note, short bool) []bubble {
 		bubbles[j] = b
 	}
 	return bubbles
+}
+
+// threadFrame is the colour a thread is framed in, by its state: open, or
+// resolved, or a comment that is neither. Its replies and its code wear it
+// too, so a thread reads as one.
+func threadFrame(root forge.Note) tcell.Color {
+	switch {
+	case root.Resolvable && root.Resolved:
+		return role("comments.resolved_border")
+	case root.Resolvable:
+		return role("comments.unresolved_border")
+	}
+	return role("comments.border")
 }
 
 // groupIntoThreads collects the notes of each conversation, oldest first

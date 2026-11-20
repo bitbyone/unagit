@@ -201,7 +201,7 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	lines, from, to := commentedRange(root, c.diffsOf(root))
 	total := max(width, minBubbleWidth)
 	inner := total - 4
-	frame := tag(role("comments.code_border"))
+	frame := tag(threadFrame(root))
 	if c.onCode && c.selected == root.ID {
 		frame = tag(role("comments.selected"))
 	}
