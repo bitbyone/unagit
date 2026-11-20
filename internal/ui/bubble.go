@@ -8,8 +8,11 @@ import (
 	"github.com/rivo/tview"
 )
 
-// Comments are drawn the way Incomm draws them: one bordered box per message,
-// the author and time in its first row, replies nested under what they answer.
+// Comments are drawn as cards: each message a box filled with the card
+// background, its frame in the comments' own colour, the author, the time
+// and where it is anchored written into the top of the frame, as the
+// sandboxes' cards carry their titles; replies nested under what they
+// answer, in a quieter frame.
 
 const (
 	// defaultBubbleWidth is used until the view says how wide it really is.
@@ -20,9 +23,10 @@ const (
 // bubble is one message.
 type bubble struct {
 	Name   string      // who wrote it, plain text
-	Colour tcell.Color // the colour of the name and of the border
+	Icon   string      // drawn before the name; the person glyph when empty
+	Colour tcell.Color // the colour of the name
 	Meta   string      // tview markup after the name: when, what state
-	Where  string      // plain text: the file and line it is anchored to; on the header when it fits, on its own row when not
+	Where  string      // plain text: the file and line it is anchored to; on the frame when it fits, on its own row when not
 	Body   string      // markdown
 	Indent int         // cells of nesting, for a reply
 }
@@ -66,68 +70,102 @@ func (s *ink) scan(text string) {
 	}
 }
 
-func (s ink) restore() string {
-	dash := func(v string) string {
+// restore puts the style back on a card whose background is bg.
+func (s ink) restore(bg string) string {
+	dash := func(v, none string) string {
 		if v == "" {
-			return "-"
+			return none
 		}
 		return v
 	}
-	return "[" + dash(s.fg) + ":" + dash(s.bg) + ":" + dash(s.attr) + "]"
+	return "[" + dash(s.fg, "-") + ":" + dash(s.bg, bg) + ":" + dash(s.attr, "-") + "]"
 }
 
 const inkReset = "[-:-:-]"
 
-// renderBubble draws one message in a box that is width cells wide, the
+// onCard keeps markup on a card: a tag that resets the background to the
+// view's would punch a hole in the card's fill, so it resets to the card's.
+func onCard(text, bg string) string {
+	return styleTag.ReplaceAllStringFunc(text, func(t string) string {
+		m := styleTag.FindStringSubmatch(t)
+		if t == "[]" || m[3] != "-" {
+			return t
+		}
+		return "[" + m[1] + ":" + bg + m[4] + "]"
+	})
+}
+
+// renderBubble draws one message as a card that is width cells wide, the
 // indent included.
 func renderBubble(b bubble, width int) string {
 	total := max(width-b.Indent, minBubbleWidth)
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
-	edge := tag(b.Colour) + string(tview.Borders.Vertical) + inkReset
+	bg := role("comments.card").String()
+	reset := "[-:" + bg + ":-]"
+	frame := role("comments.border")
+	if b.Indent > 0 {
+		frame = role("comments.reply_border")
+	}
+	line := func(text string) string { return "[" + frame.String() + ":" + bg + ":-]" + text }
+	edge := line(string(tview.Borders.Vertical))
 	row := func(st *ink, text string) string {
 		pad := strings.Repeat(" ", max(0, inner-tview.TaggedStringWidth(text)))
-		line := st.restore() + text + inkReset + pad
+		out := lead + edge + reset + " " + st.restore(bg) + onCard(text, bg) + reset + pad + " " + edge + inkReset
 		st.scan(text)
-		return lead + edge + " " + line + " " + edge
+		return out
 	}
-	rule := func(l, r string) string {
-		return lead + tag(b.Colour) + l + strings.Repeat(string(tview.Borders.Horizontal), total-2) + r + inkReset
-	}
+	rule := func(n int) string { return strings.Repeat(string(tview.Borders.Horizontal), max(0, n)) }
 
-	head := tag(b.Colour) + "[::b]" + tview.Escape(trunc(b.Name, inner)) + inkReset
+	// The top of the frame carries the title, ╭─ icon name · meta ── where ─╮,
+	// in what is left after the corners, a rule and a space each side.
+	room := total - 6
+	icon := b.Icon
+	if icon == "" {
+		icon = glyphUser
+	}
+	title := tag(role("comments.icon")) + icon + " " + tag(b.Colour) + "[::b]" + tview.Escape(trunc(b.Name, max(1, room-cells(icon)-1))) + "[::-]" + tagEnd
 	if b.Meta != "" {
-		if with := head + "  " + b.Meta; tview.TaggedStringWidth(with) <= inner {
-			head = with
+		if with := title + tag(role("comments.meta")) + " · " + tagEnd + b.Meta; tview.TaggedStringWidth(with) <= room {
+			title = with
 		}
 	}
-	// The place is the longest thing a header can carry, so it never costs the
-	// time and the state their room: it joins them when it fits and has a row
-	// of its own when it does not, cut from the left because the end of a path
-	// is the part that says which file.
-	var where string
+	// The place is the longest thing a title can carry, so it never costs the
+	// time and the state their room: it goes to the right of the frame when
+	// it fits and has a row of its own when it does not, cut from the left
+	// because the end of a path is the part that says which file.
+	var right, where string
 	if b.Where != "" {
-		place := tag(colDim) + " · " + tview.Escape(b.Where) + tagEnd
-		if with := head + place; tview.TaggedStringWidth(with) <= inner {
-			head = with
+		place := tag(role("comments.where")) + tview.Escape(b.Where) + tagEnd
+		if tview.TaggedStringWidth(title)+tview.TaggedStringWidth(place)+3 <= room {
+			right = place
 		} else {
-			where = tag(colDim) + tview.Escape(truncLeft(b.Where, inner)) + tagEnd
+			where = tag(role("comments.where")) + tview.Escape(truncLeft(b.Where, inner)) + tagEnd
 		}
 	}
+	title = onCard(title, bg)
+	tw := tview.TaggedStringWidth(title)
+	top := lead + line(string(tview.Borders.TopLeft)+string(tview.Borders.Horizontal)+" ") + reset + title + reset + " "
+	if right != "" {
+		top += line(rule(room-tw-tview.TaggedStringWidth(right)-2)+" ") + reset + right + reset + " "
+	} else {
+		top += line(rule(room - tw))
+	}
+	top += line(string(tview.Borders.Horizontal)+string(tview.Borders.TopRight)) + inkReset
 
-	rows := []string{rule(string(tview.Borders.TopLeft), string(tview.Borders.TopRight)), row(&ink{}, head)}
+	rows := []string{top}
 	if where != "" {
 		rows = append(rows, row(&ink{}, where))
 	}
 	if body := strings.TrimRight(renderMarkdown(b.Body, ""), "\n"); body != "" {
 		st := &ink{}
-		for _, line := range strings.Split(body, "\n") {
-			for _, part := range tview.WordWrap(line, inner) {
+		for _, l := range strings.Split(body, "\n") {
+			for _, part := range tview.WordWrap(l, inner) {
 				rows = append(rows, row(st, part))
 			}
 		}
 	}
-	rows = append(rows, rule(string(tview.Borders.BottomLeft), string(tview.Borders.BottomRight)))
+	rows = append(rows, lead+line(string(tview.Borders.BottomLeft)+rule(total-2)+string(tview.Borders.BottomRight))+inkReset)
 	return strings.Join(rows, "\n")
 }
 

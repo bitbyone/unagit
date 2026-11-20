@@ -184,15 +184,15 @@ func renderLocalThreads(threads []incomm.Thread, width int) string {
 		strings.Join(parts, "\n\n")
 }
 
-// localBubble is one Incomm comment as a box: green for the agent and blue for a
+// localBubble is one Incomm comment as a card: green for the agent and blue for a
 // person, as Incomm draws them, with whether it has reached the forge.
 func localBubble(c incomm.Comment, indent int) bubble {
-	name, colour := c.Title, colAccent
+	name, colour, icon := c.Title, colAccent, ""
 	switch {
 	case c.Author == "agent" && name != "":
-		name, colour = "Agent ("+name+")", colOn
+		name, colour, icon = "Agent ("+name+")", colOn, glyphAgent
 	case c.Author == "agent":
-		name, colour = "Agent", colOn
+		name, colour, icon = "Agent", colOn, glyphAgent
 	case name == "":
 		name = "you"
 	}
@@ -205,7 +205,7 @@ func localBubble(c incomm.Comment, indent int) bubble {
 	default:
 		meta = tag(colDim) + "local" + tagEnd
 	}
-	return bubble{Name: name, Colour: colour, Meta: meta, Body: c.Content, Indent: indent}
+	return bubble{Name: name, Icon: icon, Colour: colour, Meta: meta, Body: c.Content, Indent: indent}
 }
 
 // syncWorktreeComments brings the comments of the merge requests open from the

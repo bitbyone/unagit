@@ -14,8 +14,8 @@ func TestBubbleIsABoxOfTheAskedWidth(t *testing.T) {
 	out := renderBubble(bubble{Name: "jane", Colour: colAccent, Meta: tag(colDim) + "2h ago" + tagEnd,
 		Body: "a comment that is a good deal longer than the box it has to fit into, so it must wrap"}, 40)
 	rows := strings.Split(out, "\n")
-	if len(rows) < 5 {
-		t.Fatalf("expected a top, a header, wrapped text and a bottom, got:\n%s", out)
+	if len(rows) < 4 {
+		t.Fatalf("expected a top carrying the author, wrapped text and a bottom, got:\n%s", out)
 	}
 	for _, r := range rows {
 		if w := tview.TaggedStringWidth(r); w != 40 {
@@ -25,8 +25,8 @@ func TestBubbleIsABoxOfTheAskedWidth(t *testing.T) {
 	if !strings.Contains(rows[0], "╭") || !strings.Contains(rows[len(rows)-1], "╰") {
 		t.Errorf("the box is not closed:\n%s", out)
 	}
-	if !strings.Contains(rows[1], "jane") || !strings.Contains(rows[1], "2h ago") {
-		t.Errorf("the header row lacks the author or time: %q", rows[1])
+	if !strings.Contains(rows[0], glyphUser) || !strings.Contains(rows[0], "jane") || !strings.Contains(rows[0], "2h ago") {
+		t.Errorf("the top of the frame lacks the author or time: %q", rows[0])
 	}
 }
 
@@ -57,13 +57,39 @@ func TestStyleSurvivesAWrappedLine(t *testing.T) {
 	rows := strings.Split(out, "\n")
 	code := colWarn.String()
 	carried := 0
-	for _, r := range rows[2 : len(rows)-1] {
+	for _, r := range rows[1 : len(rows)-1] {
 		if strings.Contains(r, "["+code+":") {
 			carried++
 		}
 	}
 	if carried < 2 {
 		t.Errorf("the code colour was not put back on the wrapped row:\n%s", out)
+	}
+}
+
+// TestACardKeepsItsFill: markup in a comment that resets the background -
+// a code span's end - goes back to the card's, never the view's, so the
+// card has no holes; and a reply's frame is the quieter one.
+func TestACardKeepsItsFill(t *testing.T) {
+	t.Parallel()
+	out := renderBubbles([]bubble{
+		{Name: "ann", Colour: colAccent, Body: "use `retry()` here"},
+		{Name: "john", Colour: colAccent, Body: "ok", Indent: 2},
+	}, 40)
+	card := role("comments.card").String()
+	for _, r := range strings.Split(out, "\n") {
+		for _, m := range styleTag.FindAllStringSubmatch(r, -1) {
+			if m[3] == "-" && !strings.HasSuffix(r, m[0]) {
+				t.Errorf("a tag inside the card resets its background: %q in %q", m[0], r)
+			}
+		}
+		if !strings.Contains(r, ":"+card) {
+			t.Errorf("a row of the card is not on its fill: %q", r)
+		}
+	}
+	rows := strings.Split(out, "\n")
+	if !strings.Contains(rows[0], "["+role("comments.border").String()+":") || !strings.Contains(rows[len(rows)-1], "["+role("comments.reply_border").String()+":") {
+		t.Errorf("the first comment and the reply should be framed apart:\n%s", out)
 	}
 }
 
@@ -102,14 +128,14 @@ func TestAPlaceThatDoesNotFitGetsItsOwnRowAndKeepsTheTime(t *testing.T) {
 		Meta:  tag(colDim) + "2d ago" + tagEnd + tag(colWarn) + " · unresolved" + tagEnd,
 		Where: long, Body: "text"}, 60)
 	rows := strings.Split(out, "\n")
-	if !strings.Contains(rows[1], "2d ago") || !strings.Contains(rows[1], "unresolved") {
-		t.Errorf("the time and the state must stay on the header: %q", rows[1])
+	if !strings.Contains(rows[0], "2d ago") || !strings.Contains(rows[0], "unresolved") {
+		t.Errorf("the time and the state must stay on the frame: %q", rows[0])
 	}
-	if strings.Contains(rows[1], "src/pages") {
-		t.Errorf("the place should not squeeze the header: %q", rows[1])
+	if strings.Contains(rows[0], "src/pages") {
+		t.Errorf("the place should not squeeze the frame's title: %q", rows[0])
 	}
-	if !strings.Contains(rows[2], "…") || !strings.Contains(rows[2], "addOrganizationSchema.ts:10") {
-		t.Errorf("the place should be cut from the left, keeping the file name: %q", rows[2])
+	if !strings.Contains(rows[1], "…") || !strings.Contains(rows[1], "addOrganizationSchema.ts:10") {
+		t.Errorf("the place should be cut from the left, keeping the file name: %q", rows[1])
 	}
 	for _, r := range rows {
 		if w := tview.TaggedStringWidth(r); w != 60 {
@@ -119,8 +145,8 @@ func TestAPlaceThatDoesNotFitGetsItsOwnRowAndKeepsTheTime(t *testing.T) {
 
 	short := renderBubble(bubble{Name: "tomas", Colour: colAccent, Meta: tag(colDim) + "2d ago" + tagEnd,
 		Where: "a.go:3", Body: "text"}, 60)
-	if got := strings.Split(short, "\n"); !strings.Contains(got[1], "a.go:3") {
-		t.Errorf("a place that fits joins the header: %q", got[1])
+	if got := strings.Split(short, "\n"); !strings.Contains(got[0], "a.go:3") {
+		t.Errorf("a place that fits goes on the frame: %q", got[0])
 	}
 }
 

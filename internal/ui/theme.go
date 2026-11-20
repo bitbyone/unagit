@@ -190,6 +190,10 @@ func setTheme(t Theme) {
 	activityRoles(t, roleColours)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
+	// A comment is a card like any other unless the theme says otherwise.
+	if t.Roles["comments.card"] == "" {
+		roleColours["comments.card"] = colCard
+	}
 	colOpen = openRowBackground(colBackground)
 	heatScale = legibleOn(heatShades(t.Heat), colour(t.Background), colour(t.Text.Muted))
 

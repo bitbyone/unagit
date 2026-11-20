@@ -6,8 +6,8 @@ has.
 
 ## Comments
 
-`c` opens the conversation: comments as markdown, threaded the way they were
-written. `i` replies. With [Incomm](/guide/incomm-hunk) the comments are in
+`c` opens the conversation: each comment a card, its author, age and line on
+its frame, the markdown rendered, threaded the way they were written. `i` replies. With [Incomm](/guide/incomm-hunk) the comments are in
 your editor too, beside the lines they are about, and `P` publishes the ones
 you wrote there.
 

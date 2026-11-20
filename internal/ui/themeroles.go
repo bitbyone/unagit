@@ -50,6 +50,14 @@ var colourRoles = []colourRole{
 	{"comments.unresolved", "state.warning", "threads still to resolve"},
 	{"comments.resolved", "state.good", "threads resolved"},
 	{"comments.all", "column.mr", "comments in all"},
+	// A comment drawn as a card: its fill, its frame, and what the top of
+	// the frame carries.
+	{"comments.card", "card.background", "a comment card's background; unnamed, every card's"},
+	{"comments.border", "text.accent", "the frame of a conversation's first comment"},
+	{"comments.reply_border", "text.dim", "the frame of a reply, quieter than what it answers"},
+	{"comments.icon", "text.accent", "the mark before a comment's author"},
+	{"comments.meta", "text.dim", "the dot between the author and the time"},
+	{"comments.where", "column.path", "the file and line a comment is anchored to"},
 	{"approvals.missing", "state.warning", "approvals still missing"},
 	{"approvals.done", "state.good", "every approval asked for is in"},
 	{"approvals.mine", "state.good", "the mark of your own approval"},
