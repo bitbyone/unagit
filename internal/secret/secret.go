@@ -15,8 +15,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/argon2"
+
+	"github.com/tobola/unagit/internal/platform"
 )
 
 const (
@@ -123,13 +126,23 @@ func newGCM(key []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// Save writes the blob to path with 0600 permissions.
+// Save writes the blob to path with 0600 permissions. On a first run the
+// vault is the first thing written, so its directory may not exist yet;
+// and it is written beside and then moved over, so a write cut short
+// leaves the tokens as they were.
 func Save(path string, b *Blob) error {
 	data, err := json.MarshalIndent(b, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o600)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
+		return err
+	}
+	return platform.Replace(tmp, path)
 }
 
 // Load reads a blob from path.

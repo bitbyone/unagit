@@ -149,3 +149,23 @@ func TestUnlockQuitsFromNormal(t *testing.T) {
 		})
 	}
 }
+
+// TestAFirstRunMakesTheConfigurationDirectory: a fresh install has no
+// configuration directory at all, and the passphrase chosen on the first
+// run is what is written first - the vault's directory has to be made for
+// it, or the dialog says it cannot find the file and nobody gets in.
+func TestAFirstRunMakesTheConfigurationDirectory(t *testing.T) {
+	t.Parallel()
+	cfg := writeTestConfig(t, fakeGitLab(t).URL)
+	cfg.SetDir(filepath.Join(t.TempDir(), "fresh", "unagit"))
+	a, sc, _ := startLocked(t, cfg)
+	waitFor(t, a, sc, "Repeat")
+	typeRunes(sc, "hunter2")
+	sc.InjectKey(tcell.KeyTab, 0, tcell.ModNone)
+	typeRunes(sc, "hunter2")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Repeat")
+	if _, err := os.Stat(cfg.VaultPath()); err != nil {
+		t.Fatalf("the vault was not written: %v", err)
+	}
+}
