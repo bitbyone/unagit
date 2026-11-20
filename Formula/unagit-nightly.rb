@@ -6,9 +6,9 @@ class UnagitNightly < Formula
   desc "Universal Navigator Around GIT (nightly test builds)"
   homepage "https://github.com/bitbyone/unagit"
   url "https://github.com/bitbyone/unagit.git",
-      tag:      "v0.5-pre.1",
-      revision: "9e5451df310647821b385115800a8a0379e01375"
-  version "0.5-pre.1"
+      tag:      "v0.5-pre.2",
+      revision: "ad399df9c3d655794ebe306bb1030647e19625a0"
+  version "0.5-pre.2"
   license "MIT"
 
   conflicts_with "unagit", because: "both install the unagit command"
