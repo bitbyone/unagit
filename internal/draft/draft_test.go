@@ -21,6 +21,12 @@ func TestDraftsAreKeptByMergeRequestAndCounted(t *testing.T) {
 	if got := s.Counts(); got[a] != 2 || got[b] != 1 || len(got) != 2 {
 		t.Errorf("counts = %v", got)
 	}
+	if err := s.Update(a, first.ID, "why not?"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.List(a); got[0].Body != "why not?" {
+		t.Errorf("updated = %+v", got[0])
+	}
 	if err := s.Remove(a, first.ID); err != nil {
 		t.Fatal(err)
 	}

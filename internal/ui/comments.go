@@ -38,36 +38,10 @@ func renderMarkdown(body, indent string) string {
 // across a wide monitor is read like a line of a newspaper.
 const commentsWidth = 140
 
-// showCommentCode shows the whole diff of the file a comment is on, at its
-// lines - Enter on a comment in the conversation.
-func (a *App) showCommentCode(mr forge.MergeRequest, n forge.Note, diffs []forge.FileDiff) {
-	if n.Path == "" {
-		a.flash("this comment is on the merge request, not on a line")
-		return
-	}
-	lines, from, to := commentedRange(n, diffs)
-	if from < 0 {
-		a.flash(where(n) + " is not in the diff it was written on")
-		return
-	}
-	view := tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetScrollable(true)
-	view.SetTextColor(colText)
-	box(view.Box, esc(fmt.Sprintf("%s · %s !%d", where(n), a.projectPathOfMR(mr), mr.IID))).SetBorderPadding(0, 0, 1, 1)
-	fit := a.widthAware(view)
-	fit(func(width int) string { return drawDiffLines(n.Path, lines, width, from, to, false) })
-	// The first hunk's header is not drawn, so the lines are a row higher.
-	row := from
-	if len(lines) > 0 && lines[0].kind == '@' {
-		row--
-	}
-	view.ScrollTo(max(0, row-codeBefore-2), 0)
-	a.showReader(view)
-}
-
 // showLineComposer writes a comment on a line of the latest version:
 // Publish starts a thread on it on the forge, Save keeps it in unagit to
 // publish later with P - or, with Incomm on, for the worktree to take in.
-func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, changed func()) {
+func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, changed func(posted *forge.Note)) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
@@ -94,14 +68,15 @@ func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, cha
 		}
 		return text, !busy
 	}
-	finish := func(said string) {
+	finish := func(said string, posted *forge.Note) {
 		a.closeModal(pageForm)
-		a.refreshDisk()
-		a.mrsPane.reload()
 		if changed != nil {
-			changed()
+			changed(posted)
 		}
 		a.done(said)
+		// The counts in the list follow, after what was written is drawn.
+		a.refreshDisk()
+		a.mrsPane.reload()
 	}
 	publish := func() {
 		text, ok := body()
@@ -113,14 +88,14 @@ func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, cha
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
-			_, err := client.CreateDiscussion(ctx, mr, path, line, text)
+			posted, err := client.CreateDiscussion(ctx, mr, path, line, text)
 			a.tv.QueueUpdateDraw(func() {
 				busy = false
 				if err != nil {
 					note().SetText(err.Error())
 					return
 				}
-				finish("Comment on " + where + " published")
+				finish("Comment on "+where+" published", posted)
 			})
 		}()
 	}
@@ -133,7 +108,7 @@ func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, cha
 			note().SetText(err.Error())
 			return
 		}
-		finish("Comment on " + where + " saved · P publishes it")
+		finish("Comment on "+where+" saved · P publishes it", nil)
 	}
 	form.AddButton("Publish", publish)
 	form.AddButton("Save", save)
@@ -146,6 +121,51 @@ func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, cha
 		return ev
 	})
 	a.showFormModal("Comment on "+where, form, 19)
+}
+
+// showNoteEditor edits the text of a comment: save gets the new text and
+// says, by calling back, whether it was kept.
+func (a *App) showNoteEditor(title, text string, save func(body string, done func(error))) {
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddTextArea("", text, 66, 10, 0, nil)
+	form.AddTextView("", "Markdown is understood.\nCtrl-S saves it, Esc closes without saving.", 66, 2, true, false)
+	area := func() *tview.TextArea { return form.GetFormItem(0).(*tview.TextArea) }
+	note := func() *tview.TextView { return form.GetFormItem(1).(*tview.TextView) }
+	busy := false
+	keep := func() {
+		body := strings.TrimSpace(area().GetText())
+		switch {
+		case busy:
+			return
+		case body == "":
+			note().SetText("Nothing written - d deletes a comment.")
+			return
+		case body == strings.TrimSpace(text):
+			a.closeModal(pageForm)
+			return
+		}
+		busy = true
+		note().SetText("Saving …")
+		save(body, func(err error) {
+			busy = false
+			if err != nil {
+				note().SetText(err.Error())
+				return
+			}
+			a.closeModal(pageForm)
+		})
+	}
+	form.AddButton("Save", keep)
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyCtrlS {
+			keep()
+			return nil
+		}
+		return ev
+	})
+	a.showFormModal(title, form, 19)
 }
 
 // resolveThread resolves a thread on the forge, or opens it again, and
@@ -177,25 +197,6 @@ func (a *App) resolveThread(mr forge.MergeRequest, root forge.Note, changed func
 			}
 		})
 	}()
-}
-
-// showReader puts a view of code to read in front of the conversation: j
-// k g G and the pages move, Esc or q go back to it.
-func (a *App) showReader(view *tview.TextView) {
-	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		if halfPage(view, ev) {
-			return nil
-		}
-		if ev.Key() == tcell.KeyEsc || ev.Rune() == 'q' {
-			a.closeModal(pageCommit)
-			return nil
-		}
-		return ev
-	})
-	a.pages.AddPage(pageCommit, modalFit(view, func(w, h int) (int, int) {
-		return min(w*90/100, commentsWidth+20), h * 85 / 100
-	}), true, true)
-	a.tv.SetFocus(view)
 }
 
 // threadBubbles is a conversation as boxes: the first comment, then its
@@ -265,8 +266,9 @@ func noteMeta(n forge.Note, reply bool) string {
 }
 
 // showComposer writes a new comment, or with to a reply to it in its
-// thread. onSent runs once it is posted.
-func (a *App) showComposer(mr forge.MergeRequest, to *forge.Note, onSent func()) {
+// thread. onSent runs once it is posted, with what the forge made of it
+// when it says.
+func (a *App) showComposer(mr forge.MergeRequest, to *forge.Note, onSent func(*forge.Note)) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
@@ -305,11 +307,14 @@ func (a *App) showComposer(mr forge.MergeRequest, to *forge.Note, onSent func())
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
-			var err error
+			var (
+				posted *forge.Note
+				err    error
+			)
 			if to != nil && to.Thread != "" {
-				_, err = client.ReplyToDiscussion(ctx, mr, to.Thread, body)
+				posted, err = client.ReplyToDiscussion(ctx, mr, to.Thread, body)
 			} else {
-				err = client.Comment(ctx, mr, body)
+				posted, err = client.CommentNote(ctx, mr, body)
 			}
 			a.tv.QueueUpdateDraw(func() {
 				sending = false
@@ -324,7 +329,7 @@ func (a *App) showComposer(mr forge.MergeRequest, to *forge.Note, onSent func())
 					a.done(fmt.Sprintf("Comment posted on %s !%d", path, mr.IID))
 				}
 				if onSent != nil {
-					onSent()
+					onSent(posted)
 				}
 				a.reloadMRDetail(mr)
 			})

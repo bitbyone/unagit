@@ -31,12 +31,15 @@ type commentsDialog struct {
 	// for the views of a file; read off the event loop, hence the lock.
 	filesMu sync.Mutex
 	files   map[string]fileText
-	// loaded runs whenever the conversation was read again, for a view of
-	// a file open over it to draw its comments anew.
+	// loaded runs whenever what is drawn changed, for a view of a file
+	// open over the conversation to draw it too.
 	loaded func()
-	// inline is whether a view of a file shows its comments, which stays
-	// as the reader left it while the conversation is open.
-	inline bool
+	// hideInline is whether a view of a file leaves its comments out,
+	// which stays as the reader left it while the conversation is open.
+	hideInline bool
+	// generation tells the code read for one reading of the conversation
+	// from that of a later one.
+	generation int
 }
 
 // fileText is a file read at a commit, or that it is not there.
@@ -46,8 +49,8 @@ type fileText struct {
 }
 
 // showComments opens the whole conversation of a merge request, oldest first,
-// with the markdown rendered: j and k go from comment to comment, i answers
-// the one chosen, Enter shows the code it is on, e the whole file.
+// with the markdown rendered: j and k go from comment to comment, r answers
+// the one chosen, Enter opens the file it is on with its comments.
 func (a *App) showComments(mr forge.MergeRequest) {
 	d := &commentsDialog{a: a, mr: mr, files: map[string]fileText{},
 		conv: &conversation{diffs: map[string]forge.FileDiff{}, reading: map[string]bool{}, expanded: map[int]bool{}}}
@@ -61,7 +64,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	box(d.view.Box, fmt.Sprintf("Comments · %s !%d", path, mr.IID)).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	footer.SetText(" " + litHint("i reply · c comment · x resolve · Enter code · e file · s code · P publish · A approve · r reload"))
+	footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · s toggle code · P publish · A approve · R reload"))
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(d.view, 0, 1, true).
 		AddItem(footer, 1, 0, false)
@@ -73,7 +76,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		return min(max(w*80/100, min(w, 60)), commentsWidth), h * 85 / 100
 	}), true, true)
 	a.tv.SetFocus(d.view)
-	d.load()
+	d.load(false)
 }
 
 func (d *commentsDialog) draw() {
@@ -87,9 +90,25 @@ func (d *commentsDialog) draw() {
 	})
 }
 
+// changed draws again what changed under the reader - here and in a view
+// of a file over it - keeping the comment chosen where it was on screen.
+func (d *commentsDialog) changed() {
+	card, ok := d.chosen()
+	row, _ := d.view.GetScrollOffset()
+	d.draw()
+	if moved, still := d.chosen(); ok && still {
+		d.view.ScrollTo(max(0, moved.from-(card.from-row)), 0)
+	} else {
+		d.view.ScrollTo(row, 0)
+	}
+	if d.loaded != nil {
+		d.loaded()
+	}
+}
+
 func (d *commentsDialog) chosen() (commentCard, bool) {
 	for _, c := range d.cards {
-		if c.note.ID == d.conv.selected {
+		if d.conv.isChosen(c) {
 			return c, true
 		}
 	}
@@ -107,14 +126,14 @@ func (d *commentsDialog) rootOf(n forge.Note) forge.Note {
 	return n
 }
 
-// choose moves to the comment at i, scrolling so that it shows - and the
-// code a thread is on, when it fits too.
+// choose moves to the card at i - a comment, or the code of a thread -
+// scrolling so that it shows.
 func (d *commentsDialog) choose(i int) {
 	if len(d.cards) == 0 {
 		return
 	}
 	i = max(0, min(i, len(d.cards)-1))
-	d.conv.selected = d.cards[i].note.ID
+	d.conv.selected, d.conv.onCode = d.cards[i].note.ID, d.cards[i].code
 	d.draw()
 	d.reveal()
 }
@@ -122,20 +141,24 @@ func (d *commentsDialog) choose(i int) {
 // toggleCode shows the code of the threads, or draws them as their comments
 // alone; the comment chosen stays where it was on screen.
 func (d *commentsDialog) toggleCode() {
-	card, ok := d.chosen()
-	row, _ := d.view.GetScrollOffset()
 	d.conv.noCode = !d.conv.noCode
-	d.draw()
-	if !ok {
+	if d.conv.noCode && d.conv.onCode {
+		// With no code to be on, the cursor is on the comment under it.
+		card, ok := d.chosen()
+		row, _ := d.view.GetScrollOffset()
+		d.conv.onCode = false
+		d.draw()
+		if moved, still := d.chosen(); ok && still {
+			d.view.ScrollTo(max(0, moved.from-(card.from-row)), 0)
+		}
+		d.reveal()
 		return
 	}
-	if moved, ok := d.chosen(); ok {
-		d.view.ScrollTo(max(0, moved.from-(card.from-row)), 0)
-		d.reveal()
-	}
+	d.changed()
+	d.reveal()
 }
 
-// reveal scrolls so that the chosen comment shows, all of it when it fits.
+// reveal scrolls so that the chosen card shows, all of it when it fits.
 func (d *commentsDialog) reveal() {
 	c, ok := d.chosen()
 	if !ok {
@@ -153,7 +176,7 @@ func (d *commentsDialog) reveal() {
 
 func (d *commentsDialog) step(by int) {
 	for i, c := range d.cards {
-		if c.note.ID == d.conv.selected {
+		if d.conv.isChosen(c) {
 			d.choose(i + by)
 			return
 		}
@@ -161,24 +184,32 @@ func (d *commentsDialog) step(by int) {
 	d.choose(0)
 }
 
-// load reads the conversation again, and the code its threads are on.
-func (d *commentsDialog) load() {
+// load reads the conversation, and draws it as soon as it has it: the code
+// of a thread on the latest version is in the merge request's diff, read
+// with it; that of one on an older version comes after, a file at a time,
+// each thread drawn once its code is there. quietly, what is on screen
+// stays until the new reading replaces it - after something was done.
+func (d *commentsDialog) load(quietly bool) {
 	a, mr := d.a, d.mr
-	a.stopTextWait(d.view)
-	d.fit(nil)
 	client := a.client(mr.Instance)
 	if client == nil {
 		d.view.SetText(tag(colBad) + a.instanceLabel(mr.Instance) + " has no token" + tagEnd)
 		return
 	}
-	finish := a.waitText(d.view, func() string { return a.loadingLine("Loading the conversation…") })
+	finish := func() bool { return true }
+	if !quietly {
+		a.stopTextWait(d.view)
+		d.fit(nil)
+		finish = a.waitText(d.view, func() string { return a.loadingLine("Loading the conversation…") })
+	}
 	// The worktrees are looked up here, where the configuration belongs to
 	// the event loop; reading their files can wait for the goroutine.
 	var places []incomm.Place
 	if a.cfg.Integrations.Incomm {
 		places = a.mrPlaces(mr)
 	}
-	known := d.conv.diffs
+	d.generation++
+	generation := d.generation
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
@@ -194,75 +225,108 @@ func (d *commentsDialog) load() {
 		go func() { defer wg.Done(); detail, _ = client.MergeRequestDetail(ctx, mr) }()
 		read, err := client.MergeRequestNotes(ctx, mr, 200)
 		saved, _ := a.draftStore().List(a.draftKey(mr))
-		wg.Wait()
-		probe := &conversation{notes: read, drafts: saved}
-		if detail != nil {
-			probe.base, probe.head = detail.DiffRefs.BaseSHA, detail.DiffRefs.HeadSHA
-		}
-		var diffs map[string]forge.FileDiff
-		if err == nil {
-			diffs = d.readCode(ctx, client, probe, known)
-		}
 		localThreads := incomm.ThreadsAt(places...)
+		wg.Wait()
 		a.tv.QueueUpdateDraw(func() {
-			if !finish() {
+			if !finish() || generation != d.generation {
 				return
 			}
 			if err != nil {
-				d.view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)
+				if !quietly {
+					d.view.SetText(tag(colBad) + tview.Escape(err.Error()) + tagEnd)
+				}
 				return
 			}
 			c := d.conv
-			c.notes, c.drafts, c.latest, c.base, c.head = a.namedNotes(mr.Instance, read), saved, latest, probe.base, probe.head
-			for k, v := range diffs {
-				c.diffs[k] = v
+			c.notes, c.drafts, c.latest = a.namedNotes(mr.Instance, read), saved, latest
+			if detail != nil {
+				c.base, c.head = detail.DiffRefs.BaseSHA, detail.DiffRefs.HeadSHA
 			}
+			c.drawn = nil
 			d.local = localThreads
-			d.draw()
-			// The forge's conversation comes first and the local Incomm
-			// threads after it, so it opens at the top - on what others
-			// said - rather than on the last local note; a reload stays on
-			// the comment chosen.
-			if card, ok := d.chosen(); ok {
-				d.view.ScrollTo(card.top, 0)
+			wanted := d.codeWanted()
+			c.pending = len(wanted) > 0
+			if quietly {
+				d.changed()
 			} else {
+				d.draw()
+				// The forge's conversation comes first and the local
+				// Incomm threads after it, so it opens at the top.
 				d.view.ScrollToBeginning()
+				if d.loaded != nil {
+					d.loaded()
+				}
 			}
-			if d.loaded != nil {
-				d.loaded()
+			if len(wanted) > 0 {
+				go d.readCode(client, wanted, generation)
 			}
 		})
 	}()
 }
 
-// readCode works out the diff of each file a thread is on, in the version
-// it was written on, from the file at either end - however much of a large
-// merge request's diff the forge would send. What is known already is not
-// read again; a file that cannot be read is left to the latest diff.
-func (d *commentsDialog) readCode(ctx context.Context, client forge.Provider, c *conversation, known map[string]forge.FileDiff) map[string]forge.FileDiff {
-	type want struct{ base, head, oldPath, path string }
-	wanted := map[string]want{}
+// codeWant is a file whose diff in a version is to be read.
+type codeWant struct{ base, head, oldPath, path string }
+
+// codeWanted are the files whose diffs the threads need and the merge
+// request's diff does not give: those of a version older than the latest,
+// and those the forge left out of a large merge request's diff.
+func (d *commentsDialog) codeWanted() map[string]codeWant {
+	c := d.conv
+	wanted := map[string]codeWant{}
 	for _, n := range append(shown(c.notes), draftNotes(c.drafts)...) {
 		base, head, ok := c.versionOf(n)
 		if n.Path == "" || !ok || base == "" {
 			continue
 		}
 		key := diffKey(base, head, n.Path)
-		if _, done := known[key]; done {
+		if _, done := c.diffs[key]; done {
 			continue
+		}
+		if base == c.base && head == c.head {
+			if _, from, _ := commentedRange(n, c.latest); from >= 0 {
+				continue
+			}
 		}
 		old := n.OldPath
 		if old == "" {
 			old = n.Path
 		}
-		wanted[key] = want{base, head, old, n.Path}
+		wanted[key] = codeWant{base, head, old, n.Path}
 	}
+	return wanted
+}
+
+// readCode works out the diff of each file wanted from the file at either
+// end, a few at a time, and draws what has come in a few times a second.
+func (d *commentsDialog) readCode(client forge.Provider, wanted map[string]codeWant, generation int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
 	var (
-		mu  sync.Mutex
-		wg  sync.WaitGroup
-		out = map[string]forge.FileDiff{}
-		sem = make(chan struct{}, 6)
+		mu        sync.Mutex
+		ready     = map[string]forge.FileDiff{}
+		scheduled bool
+		wg        sync.WaitGroup
+		sem       = make(chan struct{}, 6)
 	)
+	flush := func(last bool) {
+		mu.Lock()
+		batch := ready
+		ready, scheduled = map[string]forge.FileDiff{}, false
+		mu.Unlock()
+		d.a.tv.QueueUpdateDraw(func() {
+			if generation != d.generation {
+				return
+			}
+			for k, v := range batch {
+				d.conv.diffs[k] = v
+			}
+			if last {
+				d.conv.pending = false
+			}
+			d.conv.drawn = nil
+			d.changed()
+		})
+	}
 	for key, w := range wanted {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -273,12 +337,17 @@ func (d *commentsDialog) readCode(ctx context.Context, client forge.Provider, c 
 				return
 			}
 			mu.Lock()
-			out[key] = diff
+			ready[key] = diff
+			later := !scheduled
+			scheduled = true
 			mu.Unlock()
+			if later {
+				time.AfterFunc(150*time.Millisecond, func() { flush(false) })
+			}
 		}()
 	}
 	wg.Wait()
-	return out
+	flush(true)
 }
 
 // fileDiff is a file's diff from one commit to another, worked out from
@@ -318,18 +387,19 @@ func (d *commentsDialog) fileAt(ctx context.Context, client forge.Provider, ref,
 
 // compare opens or closes the change a later version made to a commented
 // line, reading it the first time.
-func (d *commentsDialog) compare(n, root forge.Note, redraw func()) {
+func (d *commentsDialog) compare(n, root forge.Note) {
 	c := d.conv
 	if c.expanded[n.ID] {
 		delete(c.expanded, n.ID)
-		redraw()
+		d.changed()
 		return
 	}
 	c.expanded[n.ID] = true
 	ch := *n.Changed
 	key := diffKey(ch.From, ch.To, root.Path)
 	if _, read := c.diffs[key]; read || c.reading[key] {
-		redraw()
+		d.changed()
+		d.reveal()
 		return
 	}
 	client := d.a.client(d.mr.Instance)
@@ -337,7 +407,7 @@ func (d *commentsDialog) compare(n, root forge.Note, redraw func()) {
 		return
 	}
 	c.reading[key] = true
-	redraw()
+	d.changed()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
@@ -346,14 +416,39 @@ func (d *commentsDialog) compare(n, root forge.Note, redraw func()) {
 			delete(c.reading, key)
 			if !ok {
 				delete(c.expanded, n.ID)
-				redraw()
+				d.changed()
 				d.a.flash("cannot read the change of " + root.Path)
 				return
 			}
 			c.diffs[key] = diff
-			redraw()
+			d.changed()
+			d.reveal()
 		})
 	}()
+}
+
+// posted puts a comment the forge has just made into the conversation at
+// once, and reads the conversation again behind it.
+func (d *commentsDialog) posted(n *forge.Note) {
+	if n != nil && n.ID != 0 {
+		named := d.a.namedNotes(d.mr.Instance, []forge.Note{*n})
+		d.conv.notes = append(d.conv.notes, named...)
+		d.changed()
+	}
+	d.load(true)
+}
+
+// saved draws the comments saved in unagit again, which are on disk here.
+func (d *commentsDialog) saved() {
+	d.conv.drafts, _ = d.a.draftStore().List(d.a.draftKey(d.mr))
+	// A comment on a line the diff does not reach needs its file read.
+	if wanted := d.codeWanted(); len(wanted) > 0 {
+		if client := d.a.client(d.mr.Instance); client != nil {
+			d.conv.pending = true
+			go d.readCode(client, wanted, d.generation)
+		}
+	}
+	d.changed()
 }
 
 // reply answers a comment in its thread, or with none writes a new one.
@@ -362,7 +457,7 @@ func (d *commentsDialog) reply(n *forge.Note) {
 		d.a.flash("a saved comment is not on the forge yet - P publishes it")
 		return
 	}
-	d.a.showComposer(d.mr, n, d.load)
+	d.a.showComposer(d.mr, n, d.posted)
 }
 
 // resolve resolves a comment's thread, or opens it again.
@@ -372,25 +467,120 @@ func (d *commentsDialog) resolve(n forge.Note) {
 		d.a.flash("this thread cannot be resolved")
 		return
 	}
-	d.a.resolveThread(d.mr, root, d.load)
+	d.a.resolveThread(d.mr, root, func() {
+		for i := range d.conv.notes {
+			if d.conv.notes[i].Thread == root.Thread {
+				d.conv.notes[i].Resolved = !root.Resolved
+			}
+		}
+		d.changed()
+		d.load(true)
+	})
 }
 
-// remove deletes a comment saved in unagit, after asking.
-func (d *commentsDialog) remove(n forge.Note) {
+// own reports whether a comment is the reader's to change: one saved in
+// unagit, or one the forge says they wrote.
+func (d *commentsDialog) own(n forge.Note) bool {
+	if n.ID < 0 {
+		return true
+	}
+	me := d.a.me[d.mr.Instance]
+	return me != "" && strings.EqualFold(n.Author.Username, me) && !n.System
+}
+
+// edit puts new text in a comment of the reader's own.
+func (d *commentsDialog) edit(n forge.Note) {
 	a := d.a
-	saved, ok := draftOf(n, d.conv.drafts)
-	if !ok {
-		a.flash("only a comment saved in unagit can be deleted here")
+	if !d.own(n) {
+		a.flash("only a comment of your own can be edited")
 		return
 	}
-	a.confirmWith("Delete", fmt.Sprintf("Delete the comment saved on [::b]%s:%d[::-]?\n\n%s", esc(saved.Path), saved.Line, esc(trunc(saved.Body, 200))), "Delete", nil, func() {
-		if err := a.draftStore().Remove(a.draftKey(d.mr), saved.ID); err != nil {
-			a.errorf("%v", err)
+	if saved, ok := draftOf(n, d.conv.drafts); ok {
+		a.showNoteEditor("Edit the comment saved on "+fmt.Sprintf("%s:%d", saved.Path, saved.Line), saved.Body, func(body string, done func(error)) {
+			err := a.draftStore().Update(a.draftKey(d.mr), saved.ID, body)
+			done(err)
+			if err == nil {
+				d.saved()
+			}
+		})
+		return
+	}
+	client := a.client(d.mr.Instance)
+	if client == nil {
+		return
+	}
+	a.showNoteEditor("Edit your comment", n.Body, func(body string, done func(error)) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			err := client.EditNote(ctx, d.mr, n, body)
+			a.tv.QueueUpdateDraw(func() {
+				done(err)
+				if err != nil {
+					return
+				}
+				for i := range d.conv.notes {
+					if d.conv.notes[i].ID == n.ID {
+						d.conv.notes[i].Body = body
+					}
+				}
+				d.changed()
+				a.done("Comment edited")
+			})
+		}()
+	})
+}
+
+// remove deletes a comment of the reader's own, after asking.
+func (d *commentsDialog) remove(n forge.Note) {
+	a := d.a
+	if !d.own(n) {
+		a.flash("only a comment of your own can be deleted")
+		return
+	}
+	text := strings.TrimSpace(n.Body)
+	saved, isDraft := draftOf(n, d.conv.drafts)
+	question := "Delete your comment?\n\n" + esc(trunc(text, 200))
+	if isDraft {
+		question = fmt.Sprintf("Delete the comment saved on [::b]%s:%d[::-]?\n\n%s", esc(saved.Path), saved.Line, esc(trunc(text, 200)))
+	} else {
+		question += "\n\nEveryone on the merge request loses it."
+	}
+	a.confirmWith("Delete", question, "Delete", nil, func() {
+		if isDraft {
+			if err := a.draftStore().Remove(a.draftKey(d.mr), saved.ID); err != nil {
+				a.errorf("%v", err)
+				return
+			}
+			d.saved()
+			a.refreshDisk()
+			a.mrsPane.reload()
 			return
 		}
-		a.refreshDisk()
-		a.mrsPane.reload()
-		d.load()
+		client := a.client(d.mr.Instance)
+		if client == nil {
+			return
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			err := client.DeleteNote(ctx, d.mr, n)
+			a.tv.QueueUpdateDraw(func() {
+				if err != nil {
+					a.errorf("cannot delete the comment: %v", err)
+					return
+				}
+				kept := d.conv.notes[:0]
+				for _, m := range d.conv.notes {
+					if m.ID != n.ID {
+						kept = append(kept, m)
+					}
+				}
+				d.conv.notes = kept
+				d.changed()
+				a.done("Comment deleted")
+			})
+		}()
 	})
 }
 
@@ -417,12 +607,15 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 		d.step(-1)
 	case tcell.KeyEnter:
 		need(func(n forge.Note) {
-			if n.Changed != nil {
-				d.compare(n, d.rootOf(n), func() { d.draw(); d.reveal() })
+			if n.Changed != nil && !card.code {
+				d.compare(n, d.rootOf(n))
 				return
 			}
-			root := d.rootOf(n)
-			a.showCommentCode(d.mr, root, d.conv.diffsOf(root))
+			focus := n.ID
+			if card.code {
+				focus = 0
+			}
+			d.openFile(d.rootOf(n), focus)
 		})
 	case tcell.KeyRune:
 		switch ev.Rune() {
@@ -437,7 +630,7 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 			d.choose(0)
 		case 'G':
 			d.choose(len(d.cards) - 1)
-		case 'i':
+		case 'r':
 			if !chosen {
 				d.reply(nil)
 				return nil
@@ -446,7 +639,7 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 		case 'c':
 			d.reply(nil)
 		case 'e':
-			need(func(n forge.Note) { d.openFile(d.rootOf(n)) })
+			need(d.edit)
 		case 'x':
 			need(d.resolve)
 		case 'd':
@@ -462,9 +655,9 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 			}
 			a.openWeb(d.mr.WebURL)
 		case 'A':
-			a.approveMR(d.mr, d.load)
-		case 'r':
-			d.load()
+			a.approveMR(d.mr, func() { d.load(true) })
+		case 'R':
+			d.load(false)
 		default:
 			return ev
 		}

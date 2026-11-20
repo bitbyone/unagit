@@ -373,6 +373,26 @@ func (c *Client) ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, t
 	return &n, nil
 }
 
+// commentPath is where a comment is kept: a review comment's - one on code,
+// or an answer in a thread of them - under the pull request's comments,
+// a comment of the conversation under the issue's.
+func (c *Client) commentPath(mr forge.MergeRequest, n forge.Note) string {
+	if n.Path != "" || n.Thread != strconv.Itoa(n.ID) {
+		return "/repos/" + mr.ProjectPath + "/pulls/comments/" + strconv.Itoa(n.ID)
+	}
+	return "/repos/" + mr.ProjectPath + "/issues/comments/" + strconv.Itoa(n.ID)
+}
+
+// EditNote puts new text in a comment.
+func (c *Client) EditNote(ctx context.Context, mr forge.MergeRequest, n forge.Note, body string) error {
+	return c.send(ctx, http.MethodPatch, c.commentPath(mr, n), map[string]string{"body": body}, nil)
+}
+
+// DeleteNote takes a comment away.
+func (c *Client) DeleteNote(ctx context.Context, mr forge.MergeRequest, n forge.Note) error {
+	return c.send(ctx, http.MethodDelete, c.commentPath(mr, n), nil, nil)
+}
+
 // quote is a comment as markdown quotes it, a "> " before every line.
 func quote(body string) string {
 	lines := strings.Split(strings.TrimSpace(body), "\n")

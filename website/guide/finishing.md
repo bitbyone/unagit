@@ -6,31 +6,32 @@ has.
 
 ## Comments
 
-`c` opens the conversation: each comment a card, its author, age and line on
-its frame, the markdown rendered, threaded the way they were written. A
+`c` opens the conversation at once: each comment a card, its author, age
+and line on its frame, the markdown rendered, threaded the way they were
+written. What is said of the merge request as a whole comes first. A
 thread on code is one block: the lines it is about - three before, four
 after, from the version of the diff the comment was written on - then its
-comments, then GitLab's notes that a later version changed the line. `j`
-and `k` choose a comment, `i` replies to it in its thread, `c` writes a
-new one. `Enter` shows the whole diff of its file with the commented lines
-marked, or on a change note the change itself; `e` shows the whole file,
-asking first which version when the comment is on an older one. `x`
-resolves the chosen thread, or opens it again.
+comments, then GitLab's notes that a later version changed the line; the
+code of a thread on an older version comes in behind the rest.
 
-What is said of the merge request as a whole comes first, the threads on
-its code after. `s` hides the code, to read the comments through, and
-shows it again, staying on the comment chosen. In the whole file (`e`) a mark and a count stand beside
-each line with comments; `s` shows the comments under their lines, and
-`j` and `k` go over them as over the lines - `i` answers one, `x`
-resolves its thread, and `v` switches to another version of the file.
+`j` and `k` go over the comments and the code of each thread. `r` replies
+in the thread, `c` writes a new comment, `e` and `d` edit and delete one of
+your own, `x` resolves the thread or opens it again, and `s` toggles the
+code, staying on the comment chosen. `Enter` on a note of a later change
+compares the change; on a comment it expands the file.
 
-In the whole file of the latest version, `c` writes a comment on the
-cursor's line. **Publish** starts a thread on the forge at
-once; **Save** keeps it in unagit until `P` publishes it with the rest -
-it counts in `PUB` meanwhile, and `d` in the conversation deletes it. With
-Incomm on, opening or syncing a worktree of the merge request moves a
-saved comment into that worktree's Incomm store, and from then on it is
-edited in the editor like any comment written there. With [Incomm](/guide/incomm-hunk) the comments are in
+The expanded file is the version the comment was written on - or the
+latest, asked when they differ - with the cursor on the comment, a mark and
+a count beside each line with comments, and the comments under their lines
+(`s` toggles them). The cursor goes over the comments as over the lines,
+with the same keys, and `v` switches version.
+
+In the latest version, `c` writes a comment on the cursor's line.
+**Publish** starts a thread on the forge at once; **Save** keeps it in
+unagit, drawn at once, until `P` publishes it with the rest - it counts in
+`PUB` meanwhile. With Incomm on, opening or syncing a worktree of the merge
+request moves a saved comment into that worktree's Incomm store, and from
+then on it is edited in the editor like any comment written there. With [Incomm](/guide/incomm-hunk) the comments are in
 your editor too, beside the lines they are about, and `P` publishes the ones
 you wrote there.
 

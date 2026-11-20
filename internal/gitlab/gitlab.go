@@ -384,6 +384,21 @@ func (c *Client) FileAt(ctx context.Context, mr forge.MergeRequest, path, ref st
 	return c.getText(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/repository/files/"+url.PathEscape(path)+"/raw?ref="+url.QueryEscape(ref))
 }
 
+// notePath is a note's place in its discussion.
+func notePath(mr forge.MergeRequest, n forge.Note) string {
+	return mrPath(mr) + "/discussions/" + url.PathEscape(n.Thread) + "/notes/" + strconv.Itoa(n.ID)
+}
+
+// EditNote puts new text in a note.
+func (c *Client) EditNote(ctx context.Context, mr forge.MergeRequest, n forge.Note, body string) error {
+	return c.send(ctx, http.MethodPut, notePath(mr, n), map[string]string{"body": body}, nil)
+}
+
+// DeleteNote takes a note away.
+func (c *Client) DeleteNote(ctx context.Context, mr forge.MergeRequest, n forge.Note) error {
+	return c.send(ctx, http.MethodDelete, notePath(mr, n), nil, nil)
+}
+
 // firstNote is the note a new discussion was started with.
 func firstNote(mr forge.MergeRequest, d discussion) (*forge.Note, error) {
 	if len(d.Notes) == 0 {

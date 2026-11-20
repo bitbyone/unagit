@@ -309,3 +309,28 @@ func TestFilesAreReadAtTheirCommits(t *testing.T) {
 		t.Errorf("file = %q, %v", text, err)
 	}
 }
+
+func TestANoteIsEditedAndDeletedInItsDiscussion(t *testing.T) {
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+string(body))
+		fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "t")
+	n := forge.Note{ID: 9, Thread: "d1"}
+	if err := c.EditNote(context.Background(), discussionMR, n, "better"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteNote(context.Background(), discussionMR, n); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`PUT /api/v4/projects/42/merge_requests/7/discussions/d1/notes/9 {"body":"better"}`,
+		`DELETE /api/v4/projects/42/merge_requests/7/discussions/d1/notes/9 `,
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
+	}
+}

@@ -12,14 +12,14 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 )
 
-// A file opened from the conversation (e) is read whole, at a version of
-// the merge request: its lines numbered, a mark beside each line with
-// comments and how many, and - s - the comments themselves under their
-// line, as in the conversation. The cursor goes over the lines and the
-// comments alike: on a line c writes a comment there, on a comment i
-// answers it and x resolves its thread. Comments are on the version they
-// were written on, so each version shows its own; new ones go on the
-// latest.
+// A file opened from the conversation (Enter) is read whole, at a version
+// of the merge request: its lines numbered, a mark beside each line with
+// comments and how many, and the comments themselves under their line -
+// s hides them and shows them again. The cursor goes over the lines and
+// the comments alike: on a line c writes a comment there, on a comment r
+// answers it, e edits it, d deletes it and x resolves its thread.
+// Comments are on the version they were written on, so each version shows
+// its own; new ones go on the latest.
 
 // fileView is a file of the merge request on screen.
 type fileView struct {
@@ -45,9 +45,10 @@ type fileItem struct {
 	from, to int
 }
 
-// openFile is e on a comment: the file it is on, in the version it was
-// written on or the latest - asked, when they differ.
-func (d *commentsDialog) openFile(root forge.Note) {
+// openFile is Enter on a comment: the file it is on, in the version it was
+// written on or the latest - asked, when they differ - the cursor on the
+// comment focus, or on its line when that is 0.
+func (d *commentsDialog) openFile(root forge.Note, focus int) {
 	if root.Path == "" {
 		d.a.flash("this comment is on the merge request, not on a file")
 		return
@@ -75,7 +76,7 @@ func (d *commentsDialog) openFile(root forge.Note) {
 	}
 	// The cursor starts on the line the comment hangs under, its last.
 	if !ok || ref == "" || ref == latest {
-		d.showFile(path, latest, true, from, to, to)
+		d.showFile(path, latest, true, from, to, to, focus)
 		return
 	}
 	d.a.showPickerWith("Which version of "+root.Path, []pickItem{
@@ -83,10 +84,10 @@ func (d *commentsDialog) openFile(root forge.Note) {
 		{Label: "The latest version", Sub: d.mr.SourceBranch},
 	}, pickerOptions{pack: true}, func(it pickItem) {
 		if it.Data == true {
-			d.showFile(path, ref, false, from, to, to)
+			d.showFile(path, ref, false, from, to, to, focus)
 			return
 		}
-		d.showFile(root.Path, latest, true, 0, 0, to)
+		d.showFile(root.Path, latest, true, 0, 0, to, 0)
 	})
 }
 
@@ -107,8 +108,8 @@ func short(sha string) string {
 }
 
 // showFile reads a file at ref and shows it, the lines from to to marked
-// (0 for none), the cursor on line.
-func (d *commentsDialog) showFile(path, ref string, latest bool, from, to, line int) {
+// (0 for none), the cursor on line - on its comment focus, when not 0.
+func (d *commentsDialog) showFile(path, ref string, latest bool, from, to, line, focus int) {
 	a := d.a
 	client := a.client(d.mr.Instance)
 	if client == nil {
@@ -131,7 +132,7 @@ func (d *commentsDialog) showFile(path, ref string, latest bool, from, to, line 
 			lines[i] = diffLine{kind: ' ', new: i + 1, text: strings.ReplaceAll(t, "\t", "    ")}
 		}
 		fv := &fileView{d: d, path: path, ref: ref, latest: latest, codes: highlightLines(path, lines),
-			markFrom: from, markTo: to, atLine: max(1, min(line, len(texts)))}
+			markFrom: from, markTo: to, atLine: max(1, min(line, len(texts))), atNote: focus}
 		fv.show()
 	})
 }
@@ -146,9 +147,9 @@ func (fv *fileView) show() {
 	}
 	box(fv.view.Box, esc(fmt.Sprintf("%s · %s · %s !%d", fv.path, version, a.projectPathOfMR(d.mr), d.mr.IID))).SetBorderPadding(0, 0, 1, 1)
 	footer := tview.NewTextView().SetDynamicColors(true)
-	hint := "c comment · s comments · v version · i reply · x resolve"
+	hint := "c comment · r reply · e edit · d delete · x resolve · s toggle comments · v version"
 	if !fv.latest {
-		hint = "s comments · v version · i reply · x resolve"
+		hint = "r reply · e edit · d delete · x resolve · s toggle comments · v version"
 	}
 	footer.SetText(" " + litHint(hint))
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(fv.view, 0, 1, true).AddItem(footer, 1, 0, false)
@@ -264,7 +265,7 @@ func (fv *fileView) render(width int) string {
 		}
 		items = append(items, fileItem{line: line, from: len(rows), to: len(rows)})
 		rows = append(rows, row)
-		if !fv.d.inline {
+		if fv.d.hideInline {
 			continue
 		}
 		for _, thread := range threads {
@@ -341,7 +342,7 @@ func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	i := fv.cursor()
 	onNote := func(run func(n, root forge.Note)) {
 		if i < 0 || fv.items[i].note.ID == 0 {
-			a.flash("no comment chosen - s shows them, j and k go to one")
+			a.flash("no comment chosen - j and k go to one, s shows them")
 			return
 		}
 		run(fv.items[i].note, fv.items[i].root)
@@ -364,7 +365,7 @@ func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyEnter:
 		onNote(func(n, root forge.Note) {
 			if n.Changed != nil {
-				d.compare(n, root, fv.draw)
+				d.compare(n, root)
 			}
 		})
 	case tcell.KeyRune:
@@ -380,8 +381,8 @@ func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
 		case 'G':
 			fv.move(len(fv.items) - 1)
 		case 's':
-			d.inline = !d.inline
-			if !d.inline {
+			d.hideInline = !d.hideInline
+			if d.hideInline {
 				fv.atNote = 0
 			}
 			fv.draw()
@@ -390,9 +391,17 @@ func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
 				a.flash("a new comment goes on the latest version - v switches to it")
 				return nil
 			}
-			a.showLineComposer(d.mr, fv.path, fv.atLine, d.load)
-		case 'i':
+			a.showLineComposer(d.mr, fv.path, fv.atLine, func(posted *forge.Note) {
+				if posted != nil {
+					d.posted(posted)
+					return
+				}
+				d.saved()
+			})
+		case 'r':
 			onNote(func(n, _ forge.Note) { d.reply(&n) })
+		case 'e':
+			onNote(func(n, _ forge.Note) { d.edit(n) })
 		case 'x':
 			onNote(func(n, _ forge.Note) { d.resolve(n) })
 		case 'd':
@@ -432,6 +441,6 @@ func (fv *fileView) switchVersion() {
 	d.a.showPickerWith("Which version of "+fv.path, items, pickerOptions{pack: true}, func(it pickItem) {
 		ref := it.Data.(string)
 		fv.close()
-		d.showFile(fv.path, ref, ref == latest, 0, 0, line)
+		d.showFile(fv.path, ref, ref == latest, 0, 0, line, 0)
 	})
 }

@@ -71,7 +71,7 @@ func TestCommentsModalShowsTheWholeConversation(t *testing.T) {
 	if strings.Contains(a.screenText(sc), "changed title") {
 		t.Error("a system note leaked into the conversation")
 	}
-	waitFor(t, a, sc, "i reply")
+	waitFor(t, a, sc, "r reply")
 	waitFor(t, a, sc, "c comment")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -88,7 +88,7 @@ func TestWriteAComment(t *testing.T) {
 
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
-	typeRunes(sc, "i")
+	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comment on acme/gateway !7")
 	waitFor(t, a, sc, "Markdown is understood")
 
@@ -113,7 +113,7 @@ func TestComposerRefusesAnEmptyComment(t *testing.T) {
 	openMRDetail(t, a, sc)
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
-	typeRunes(sc, "i")
+	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comment on acme/gateway !7")
 
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
@@ -338,6 +338,21 @@ type codeForge struct {
 	replies  []string
 	resolved []string
 	started  []string
+	changed  []string
+}
+
+func (f *codeForge) EditNote(_ context.Context, _ forge.MergeRequest, n forge.Note, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.changed = append(f.changed, fmt.Sprintf("edit %d %s", n.ID, body))
+	return nil
+}
+
+func (f *codeForge) DeleteNote(_ context.Context, _ forge.MergeRequest, n forge.Note) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.changed = append(f.changed, fmt.Sprintf("delete %d", n.ID))
+	return nil
 }
 
 // limitAt is limit.go at the commits of the fixture: b1 and b2 the bases
@@ -432,6 +447,11 @@ func openCodeConversation(t *testing.T, w, h int) (*App, tcell.SimulationScreen,
 		id := a.cfg.Instances[0].ID
 		f := &codeForge{Provider: a.clients[id]}
 		a.clients[id] = f
+		// The reader wrote the comment on the merge request as a whole.
+		if a.me == nil {
+			a.me = map[string]string{}
+		}
+		a.me[id] = "erin"
 		return f
 	})
 	typeRunes(sc, "c")
@@ -443,10 +463,11 @@ func openCodeConversation(t *testing.T, w, h int) (*App, tcell.SimulationScreen,
 // TestCommentsAreChosenAnsweredAndReadBesideTheirCode: what is said of the
 // merge request comes first; a thread on code is one block - the lines it
 // is about, from the version it was written on, worked out from the file
-// at either end, and its comments under them. j and k choose a comment, i
-// answers it in its thread, Enter shows the whole diff of its file, or on
-// the note of a later change, that change. However wide the terminal, the
-// conversation is no wider than reads well.
+// at either end, and its comments under them. j and k go over the code of
+// a thread as over its comments, r answers in the thread, Enter on the
+// note of a later change shows that change, and on a comment opens its
+// file at it. However wide the terminal, the conversation is no wider
+// than reads well.
 func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 	t.Parallel()
 	a, sc, fake := openCodeConversation(t, 220, 60)
@@ -471,13 +492,13 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 		t.Errorf("the conversation is %d wide on a 220 wide terminal, want at most %d", width, commentsWidth)
 	}
 
-	// The general thread is first, the thread on code after: G chooses
-	// the change, k the comment.
+	// The thread on code is last: G is its change, k its comment, k again
+	// its code - which answers as its comment does.
 	typeRunes(sc, "G")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "jitter(backoff)")
-	typeRunes(sc, "k")
-	typeRunes(sc, "i")
+	typeRunes(sc, "kk")
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Reply to carol")
 	typeRunes(sc, "it backs off")
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
@@ -486,25 +507,60 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 		t.Fatalf("replies = %q, want one in the thread on code", got)
 	}
 
+	// Enter on the comment: its file, at the version it was written on,
+	// the comment under its line.
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	typeRunes(sc, "j")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "limit.go:7-8 · acme/gateway !7")
-	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "limit.go:7-8 · acme/gateway !7")
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	typeRunes(sc, "q")
+	waitGone(t, a, sc, "limit.go · h1")
 
-	// g goes to the oldest comment, which is on no line.
+	// g goes to the oldest comment, which is on no file.
 	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "not on a line")
+	waitFor(t, a, sc, "not on a file")
+}
+
+// TestOwnCommentsAreEditedAndDeleted: e edits a comment of the reader's
+// own and d deletes it, after asking, both drawn at once; another's is
+// left alone.
+func TestOwnCommentsAreEditedAndDeleted(t *testing.T) {
+	t.Parallel()
+	a, sc, fake := openCodeConversation(t, 160, 60)
+	typeRunes(sc, "g")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "only a comment of your own can be edited")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "only a comment of your own")
+
+	// The general comments are carol's, bob's, ann's thread and erin's.
+	typeRunes(sc, "jjjj")
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Edit your comment")
+	typeRunes(sc, " in two")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitGone(t, a, sc, "Edit your comment")
+	waitFor(t, a, sc, "please split this merge request in two")
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Delete your comment?")
+	typeRunes(sc, "y")
+	waitGone(t, a, sc, "please split this merge request in two")
+	if got := fake.kept(&fake.changed); len(got) != 2 || got[0] != "edit 72 please split this merge request in two" || got[1] != "delete 72" {
+		t.Fatalf("changed = %q", got)
+	}
 }
 
 // TestAFileIsReadWithItsCommentsAndCommentedOn: x resolves the chosen
-// thread; e on a comment written on an older version asks which version
-// to read, in a box no bigger than its rows. The file marks the lines with
-// comments and counts them, s shows the comments under their lines, and
-// the cursor goes over them as over the lines; on the latest version c
-// comments the cursor's line - saved, to be published with P, or published
-// at once.
+// thread; Enter on a comment written on an older version asks which
+// version to read, in a box no bigger than its rows. The file marks the
+// lines with comments and counts them, shows the comments under their
+// lines - s hides them - and the cursor goes over them as over the lines;
+// on the latest version c comments the cursor's line, saved and drawn at
+// once, or published, and P publishes what was saved.
 func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 	t.Parallel()
 	a, sc, fake := openCodeConversation(t, 180, 50)
@@ -516,8 +572,7 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 		t.Fatalf("resolved = %q", got)
 	}
 
-	// The version it was written on: its lines, its comment counted.
-	typeRunes(sc, "e")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "Which version of limit.go")
 	if rows := onLoop(a, func() int {
 		_, prim := a.pages.GetFrontPage()
@@ -529,15 +584,15 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "limit.go · h1")
 	waitFor(t, a, sc, glyphComment+"1")
-	if strings.Contains(a.screenText(sc), "this sleeps on every retry") {
-		t.Errorf("the comments are shown before s asks for them")
-	}
+	waitFor(t, a, sc, "this sleeps on every retry")
+	typeRunes(sc, "s")
+	waitGone(t, a, sc, "this sleeps on every retry")
 	typeRunes(sc, "s")
 	waitFor(t, a, sc, "this sleeps on every retry")
-	// The cursor is on the commented line; j goes to its comment, i
-	// answers it.
+	// Hiding them put the cursor on the line; j is the comment under it,
+	// which r answers.
 	typeRunes(sc, "j")
-	typeRunes(sc, "i")
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Reply to carol")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
@@ -547,7 +602,8 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "a new comment goes on the latest version")
 
-	// The latest, the cursor on the same line: a comment saved there.
+	// The latest, the cursor on the same line: a comment saved there,
+	// drawn under it at once.
 	typeRunes(sc, "v")
 	waitFor(t, a, sc, "Which version of limit.go")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
@@ -558,7 +614,6 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 	typeRunes(sc, "worth a test")
 	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
 	waitFor(t, a, sc, "Comment on limit.go:8 saved")
-	// Saved, it is a comment on the latest version, drawn there at once.
 	waitFor(t, a, sc, "worth a test")
 	saved := onLoop(a, func() int {
 		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
@@ -568,7 +623,7 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 		t.Fatalf("%d comments saved, want 1", saved)
 	}
 
-	// And one published at once, a line further.
+	// And one published at once, a line up.
 	typeRunes(sc, "k")
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comment on limit.go:7")
@@ -579,6 +634,8 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 		t.Fatalf("started = %q", got)
 	}
 	typeRunes(sc, "q")
+	// The saved comment is the last thread.
+	typeRunes(sc, "G")
 	waitFor(t, a, sc, "saved · not published")
 
 	// P publishes what was saved, and it is saved no longer.
@@ -661,7 +718,7 @@ func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	waitFor(t, a, sc, "limit.go:7-8")
 	waitFor(t, a, sc, "this sleeps on every retry")
 	waitFor(t, a, sc, "dave changed this line in version 2 of the diff")
-	typeRunes(sc, "i")
+	typeRunes(sc, "r")
 	waitFor(t, a, sc, "Reply to carol")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

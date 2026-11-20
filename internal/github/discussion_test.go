@@ -251,3 +251,28 @@ func TestMergeRequestDiffsAreItsFiles(t *testing.T) {
 		t.Errorf("a renamed file should keep where it was: %+v", files[1])
 	}
 }
+
+// A comment on code, or an answer in a thread of them, is a review
+// comment; one of the conversation is the issue's.
+func TestACommentIsEditedAndDeletedWhereItIsKept(t *testing.T) {
+	s := newStub(t)
+	var seen []string
+	record := func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+string(body))
+		fmt.Fprint(w, `{}`)
+	}
+	s.mux.HandleFunc("/repos/acme/api/pulls/comments/5", record)
+	s.mux.HandleFunc("/repos/acme/api/issues/comments/6", record)
+	c := s.client()
+	if err := c.EditNote(context.Background(), reviewMR, forge.Note{ID: 5, Thread: "4", Path: "a.go"}, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteNote(context.Background(), reviewMR, forge.Note{ID: 6, Thread: "6"}); err != nil {
+		t.Fatal(err)
+	}
+	want := `PATCH /repos/acme/api/pulls/comments/5 {"body":"x"}` + "\n" + `DELETE /repos/acme/api/issues/comments/6 `
+	if got := strings.Join(seen, "\n"); got != want {
+		t.Errorf("requests:\n%s\nwant:\n%s", got, want)
+	}
+}

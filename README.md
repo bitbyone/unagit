@@ -1272,29 +1272,29 @@ machines, what you happen to wait for here is not.
   everything the API knows: reviewers, approvals, pipeline, labels, commits,
   how far behind the target it is.
 - **Comments as markdown**, each a card with its author, its age and the
-  line it is about on its frame, threaded the way they were written. A
-  thread on code is one block: the lines it is about - three before, four
-  after - from the version of the diff it was written on, then its
-  comments, then GitLab's notes that a later version changed the line.
-  `c` opens the conversation, no wider than reads well; `s` hides the
-  code to read the comments through, and shows it again; `j`/`k` choose a
-  comment, `i` replies in its thread, `c` writes a new one, `Enter` shows
-  the whole diff of its file at its lines - on a change note, the change
-  itself - `e` the whole file (asking which version, when the comment is
-  on an older one), `x` resolves the thread or opens it again, `A`
-  approves (it asks first - everyone sees it).
-- **A file read whole** (`e`): a mark and a count beside each line with
-  comments, `s` shows them under their lines, and the cursor goes over
-  comments as over lines - `i` answers one, `x` resolves its thread; `v`
-  switches to another version. The code of a thread is worked out from
-  the file at either end of its version, so a large merge request whose
-  diff the forge sends only in part still shows it.
-- **Comments written in unagit**: in the whole file of the latest version
-  `c` comments the cursor's line. **Publish** starts a
-  thread on the forge at once; **Save** keeps it in unagit, counted in
-  `PUB` and published with the rest by `P`. With Incomm on, opening or
-  syncing a worktree of the merge request moves it into that worktree's
-  Incomm store, where it is edited in the editor like any other.
+  line it is about on its frame, threaded the way they were written. What
+  is said of the merge request as a whole comes first; a thread on code is
+  one block: the lines it is about - three before, four after - from the
+  version of the diff it was written on, then its comments, then GitLab's
+  notes that a later version changed the line. `c` opens the conversation,
+  no wider than reads well, at once - the code of a thread on an older
+  version comes in behind. `j`/`k` go over the comments and the code of
+  each thread, `r` replies in the thread, `c` writes a new comment, `e`
+  and `d` edit and delete one of your own, `x` resolves the thread or opens
+  it again, `s` toggles the code, `R` reads it all again, and `A` approves
+  (it asks first - everyone sees it).
+- **A file expanded** (`Enter` on a comment): the whole file at the version
+  the comment was written on - or the latest, asked when they differ - the
+  cursor on the comment, a mark and a count beside each line with
+  comments and the comments under their lines (`s` toggles them). The
+  cursor goes over the comments as over the lines, with the same keys;
+  `Enter` on a note of a later change compares it, `v` switches version.
+- **Comments written in unagit**: in the latest version of a file `c`
+  comments the cursor's line. **Publish** starts a thread on the forge at
+  once; **Save** keeps it in unagit, drawn at once, counted in `PUB` and
+  published with the rest by `P`. With Incomm on, opening or syncing a
+  worktree of the merge request moves it into that worktree's Incomm
+  store, where it is edited in the editor like any other.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.

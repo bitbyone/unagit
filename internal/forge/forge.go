@@ -530,6 +530,10 @@ type Provider interface {
 	// thread. The returned note carries thread unchanged. A GitHub comment on
 	// the conversation cannot be replied to, and the call fails.
 	ReplyToDiscussion(ctx context.Context, mr MergeRequest, thread string, body string) (*Note, error)
+	// EditNote puts new text in a comment of one's own, and DeleteNote
+	// takes it away; n is the note as MergeRequestNotes reports it.
+	EditNote(ctx context.Context, mr MergeRequest, n Note, body string) error
+	DeleteNote(ctx context.Context, mr MergeRequest, n Note) error
 
 	// CreateMergeRequest opens a merge request (a pull request on GitHub) from
 	// one branch of p into another. It returns the request as the list would

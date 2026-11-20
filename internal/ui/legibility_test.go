@@ -200,7 +200,7 @@ func walkDialogs(t *testing.T, a *App, sc tcell.SimulationScreen) {
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway")
 	assertLegible(t, a, sc, "the conversation")
-	typeRunes(sc, "i")
+	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Markdown is understood")
 	assertLegible(t, a, sc, "the comment composer")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)

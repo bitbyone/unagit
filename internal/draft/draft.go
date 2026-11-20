@@ -113,6 +113,23 @@ func (s Store) Add(k Key, d Draft) (Draft, error) {
 	return d, s.write(k, append(drafts, d))
 }
 
+// Update puts new text in a draft.
+func (s Store) Update(k Key, id, body string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	drafts, err := s.read(k)
+	if err != nil {
+		return err
+	}
+	for i := range drafts {
+		if drafts[i].ID == id {
+			drafts[i].Body = body
+			return s.write(k, drafts)
+		}
+	}
+	return fmt.Errorf("the saved comment is no longer there")
+}
+
 // Remove takes a draft away: published, moved into Incomm, or deleted.
 func (s Store) Remove(k Key, id string) error {
 	mu.Lock()

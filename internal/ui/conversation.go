@@ -32,6 +32,9 @@ const (
 type commentCard struct {
 	top, from, to int
 	note          forge.Note
+	// code is the code a thread is on, which the cursor stops at too, its
+	// note the thread's first.
+	code bool
 }
 
 // conversation is what the comments dialog draws from: the comments, the
@@ -56,6 +59,20 @@ type conversation struct {
 	// noCode draws the threads on code as their comments alone, for
 	// reading the conversation through.
 	noCode bool
+	// onCode is whether the cursor is on the code of the chosen comment's
+	// thread rather than on the comment.
+	onCode bool
+	// reading is whether code is still being read, which a thread
+	// without its own yet says.
+	pending bool
+	// drawn are code blocks already coloured, by codeKey: colouring is the
+	// slow part of a draw, and the cursor draws at every step.
+	drawn map[string]string
+}
+
+// isChosen reports whether a card is the one the cursor is on.
+func (c *conversation) isChosen(card commentCard) bool {
+	return card.note.ID == c.selected && card.code == c.onCode
 }
 
 func diffKey(from, to, path string) string { return from + ".." + to + ":" + path }
@@ -148,7 +165,7 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 		}
 		top := len(rows)
 		for j, b := range bubblesOf(thread) {
-			b.Selected = thread[j].ID == c.selected
+			b.Selected = thread[j].ID == c.selected && !c.onCode
 			from := len(rows)
 			add(renderBubble(b, width))
 			cards = append(cards, commentCard{top: from, from: from, to: len(rows) - 1, note: thread[j]})
@@ -163,12 +180,13 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 			add("")
 		}
 		top := len(rows)
+		first := len(cards)
 		if c.noCode {
 			c.drawCards(thread, width, &rows, &cards)
 		} else {
 			c.drawCodeThread(thread, width, &rows, &cards)
 		}
-		cards[len(cards)-len(thread)].top = top
+		cards[first].top = top
 	}
 	return strings.Join(rows, "\n"), cards
 }
@@ -184,6 +202,9 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	total := max(width, minBubbleWidth)
 	inner := total - 4
 	frame := tag(role("comments.code_border"))
+	if c.onCode && c.selected == root.ID {
+		frame = tag(role("comments.selected"))
+	}
 	edge := frame + string(tview.Borders.Vertical) + inkReset
 	add := func(text string) { *rows = append(*rows, text) }
 	inside := func(text string) {
@@ -192,24 +213,39 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 		}
 	}
 
+	codeFrom := len(*rows)
 	add(frameTop(where(root), total, frame))
-	if from < 0 {
+	switch {
+	case from < 0 && c.pending:
+		inside(padMarkup(tag(colDim)+"Reading the code…"+tagEnd, inner))
+	case from < 0:
 		inside(padMarkup(tag(colDim)+"the code is not in the diff it was written on"+tagEnd, inner))
-	} else {
+	default:
 		start, end := codeWindow(lines, from, to)
-		for _, line := range strings.Split(strings.TrimRight(drawDiffLines(root.Path, lines[start:end+1], total-2, from-start, to-start, true), "\n"), "\n") {
+		key := fmt.Sprintf("%d/%d/%d/%d/%d/%d", root.ID, total, start, end, from, to)
+		code, ok := c.drawn[key]
+		if !ok {
+			code = strings.TrimRight(drawDiffLines(root.Path, lines[start:end+1], total-2, from-start, to-start, true), "\n")
+			if c.drawn == nil {
+				c.drawn = map[string]string{}
+			}
+			c.drawn[key] = code
+		}
+		for _, line := range strings.Split(code, "\n") {
 			add(edge + line + inkReset + edge)
 		}
 	}
 	add(frame + "├" + strings.Repeat(string(tview.Borders.Horizontal), total-2) + "┤" + inkReset)
+	*cards = append(*cards, commentCard{top: codeFrom, from: codeFrom, to: len(*rows) - 1, note: root, code: true})
 	bubbles := bubblesOf(thread)
 	for j, n := range thread {
 		first := len(*rows)
+		chosen := n.ID == c.selected && !c.onCode
 		if n.Changed != nil {
-			inside(c.drawChange(n, root, inner, n.ID == c.selected))
+			inside(c.drawChange(n, root, inner, chosen))
 		} else {
 			b := bubbles[j]
-			b.Where, b.Selected = "", n.ID == c.selected
+			b.Where, b.Selected = "", chosen
 			inside(renderBubble(b, inner))
 		}
 		*cards = append(*cards, commentCard{top: first, from: first, to: len(*rows) - 1, note: n})
@@ -226,10 +262,10 @@ func (c *conversation) drawCards(thread []forge.Note, width int, rows *[]string,
 		from := len(*rows)
 		text := ""
 		if n.Changed != nil {
-			text = c.drawChange(n, thread[0], width, n.ID == c.selected)
+			text = c.drawChange(n, thread[0], width, n.ID == c.selected && !c.onCode)
 		} else {
 			b := bubbles[j]
-			b.Selected = n.ID == c.selected
+			b.Selected = n.ID == c.selected && !c.onCode
 			if j == 0 && b.Where != "" {
 				b.Where = where(n)
 			}
