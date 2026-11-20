@@ -21,13 +21,17 @@ import (
 // Comments are on the version they were written on, so each version shows
 // its own; new ones go on the latest.
 
+// fileWidth is as wide as a file's dialog grows: code reads in longer
+// lines than a conversation does.
+const fileWidth = 180
+
 // bandView is a text view with a band across the rows the cursor is on,
 // laid over the text as it is drawn: moving the cursor draws the view
 // again and no more, where setting its text anew would read every line of
 // a long file again at every step.
 type bandView struct {
 	*tview.TextView
-	band func() (from, to int, ok bool)
+	band func() (bandArea, bool)
 	// rows are its rows as the mouse finds them.
 	rows func() *rowsUnder
 }
@@ -39,37 +43,60 @@ func (v *bandView) mouseRows() *rowsUnder {
 	return v.rows()
 }
 
+// bandArea is what the band covers: rows of the text, and - for a comment's
+// card - the columns from its left edge, width wide, its frame lit as the
+// chosen comment's is; width 0 is the whole row.
+type bandArea struct {
+	from, to    int
+	left, width int
+	frame       bool
+}
+
+// frameRunes are what a card's frame is drawn with.
+const frameRunes = "─│╭╮╰╯"
+
 func (v *bandView) Draw(screen tcell.Screen) {
 	v.TextView.Draw(screen)
-	from, to, ok := v.band()
+	area, ok := v.band()
 	if !ok {
 		return
 	}
 	x, y, w, h := v.GetRect()
-	_, inY, _, inH := v.GetInnerRect()
+	inX, inY, _, inH := v.GetInnerRect()
 	top, _ := v.GetScrollOffset()
-	// The band is each cell's own background a step darker - the code's,
-	// a diff's fill, a comment's card - so what is under the cursor reads
-	// as it does elsewhere; the terminal's own background, which cannot be
-	// darkened, takes a chosen comment's.
-	plain := deeper(tview.Styles.PrimitiveBackgroundColor, cursorStep)
+	// The band is each cell's own background lifted - the code's, a
+	// diff's fill, a comment's card - so what is under the cursor reads as
+	// it does elsewhere; the terminal's own background, which cannot be
+	// shifted, takes a chosen comment's.
+	plain := lift(tview.Styles.PrimitiveBackgroundColor)
 	if plain == tcell.ColorDefault {
 		plain = role("comments.selected_fill")
 	}
-	// Inside the border, the padding too, so the band reaches the frame.
-	for row := max(from, top); row <= to && row < top+inH; row++ {
+	// Inside the border, the padding too, so a line's band reaches the
+	// frame; a card's covers the card alone.
+	left, right := x+1, x+w-2
+	if area.width > 0 {
+		left, right = inX+area.left, inX+area.left+area.width-1
+	}
+	focus := role("comments.selected")
+	for row := max(area.from, top); row <= area.to && row < top+inH; row++ {
 		sy := inY + row - top
 		if sy < y || sy >= y+h {
 			continue
 		}
-		for sx := x + 1; sx < x+w-1; sx++ {
+		for sx := left; sx <= right && sx < x+w-1; sx++ {
 			r, comb, style, _ := screen.GetContent(sx, sy)
 			_, bg, _ := style.Decompose()
-			fill := deeper(bg, cursorStep)
+			fill := lift(bg)
 			if fill == tcell.ColorDefault {
 				fill = plain
 			}
-			screen.SetContent(sx, sy, r, comb, style.Background(fill))
+			style = style.Background(fill)
+			edge := row == area.from || row == area.to || sx == left || sx == right
+			if area.frame && edge && strings.ContainsRune(frameRunes, r) {
+				style = style.Foreground(focus)
+			}
+			screen.SetContent(sx, sy, r, comb, style)
 		}
 	}
 }
@@ -99,6 +126,8 @@ type fileItem struct {
 	note     forge.Note
 	root     forge.Note
 	from, to int
+	// band is what the cursor's band covers on it.
+	band bandArea
 }
 
 // openFile is Enter on a comment: the file it is on, in the version it was
@@ -197,11 +226,11 @@ func (fv *fileView) show() {
 	a, d := fv.d.a, fv.d
 	fv.view = tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetScrollable(true)
 	fv.view.SetTextColor(colText)
-	fv.band = &bandView{TextView: fv.view, band: func() (int, int, bool) {
+	fv.band = &bandView{TextView: fv.view, band: func() (bandArea, bool) {
 		if i := fv.cursor(); i >= 0 {
-			return fv.items[i].from, fv.items[i].to, true
+			return fv.items[i].band, true
 		}
-		return 0, 0, false
+		return bandArea{}, false
 	}}
 	// A click puts the cursor on a line or a comment, a double click is
 	// Enter, the wheel moves it as j and k do.
@@ -257,7 +286,7 @@ func (fv *fileView) show() {
 	// it, not to the version picker it was chosen in.
 	a.returnTo = nil
 	a.pages.AddPage(pageCommit, modalFit(frame, func(w, h int) (int, int) {
-		return min(w*90/100, commentsWidth+20), h * 85 / 100
+		return min(w*90/100, fileWidth), h * 85 / 100
 	}), true, true)
 	a.tv.SetFocus(fv.band)
 	fv.draw()
@@ -354,7 +383,7 @@ func (fv *fileView) render(width int) string {
 			bubble = tag(role("comments.icon")) + glyphComment + fmt.Sprintf("%-2d", min(count, 99)) + tagEnd
 		}
 		row := mark + number + " " + bubble + " " + code
-		items = append(items, fileItem{line: line, from: len(rows), to: len(rows)})
+		items = append(items, fileItem{line: line, from: len(rows), to: len(rows), band: bandArea{from: len(rows), to: len(rows)}})
 		rows = append(rows, row)
 		if fv.d.hideInline {
 			continue
@@ -364,18 +393,23 @@ func (fv *fileView) render(width int) string {
 			bubbles := bubblesOf(thread)
 			for j, n := range thread {
 				var text string
+				// The band covers the card alone, its frame lit; a note of a
+				// change, its line.
+				band := bandArea{left: gutter, width: inner}
 				if n.Changed != nil {
 					text = c.drawChange(n, root, inner, false)
 				} else {
 					b := bubbles[j]
 					b.Where = ""
 					text = renderBubble(b, inner)
+					band.left, band.width, band.frame = gutter+b.Indent, max(inner-b.Indent, minBubbleWidth), true
 				}
 				from := len(rows)
 				for _, r := range strings.Split(text, "\n") {
 					rows = append(rows, pad+r)
 				}
-				items = append(items, fileItem{line: line, note: n, root: root, from: from, to: len(rows) - 1})
+				band.from, band.to = from, len(rows)-1
+				items = append(items, fileItem{line: line, note: n, root: root, from: from, to: len(rows) - 1, band: band})
 			}
 		}
 	}

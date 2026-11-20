@@ -192,11 +192,11 @@ func setTheme(t Theme) {
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
 	// A comment is a card like any other unless the theme says otherwise,
-	// and the one chosen the card a step darker.
+	// and the one chosen the card lifted, as the cursor's band is.
 	if t.Roles["comments.card"] == "" {
 		roleColours["comments.card"] = colCard
 	}
-	if c := deeper(roleColours["comments.card"], cursorStep); t.Roles["comments.selected_fill"] == "" && c != tcell.ColorDefault {
+	if c := lift(roleColours["comments.card"]); t.Roles["comments.selected_fill"] == "" && c != tcell.ColorDefault {
 		roleColours["comments.selected_fill"] = c
 	}
 	colOpen = openRowBackground(colBackground)

@@ -58,7 +58,7 @@ var colourRoles = []colourRole{
 	{"comments.resolved_border", "state.good", "the frame of the comments of a thread resolved"},
 	{"comments.code_border", "text.dim", "the frame round a thread on code, its code and its comments"},
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
-	{"comments.selected_fill", "selection.marked", "its background; unnamed, the card's a step darker"},
+	{"comments.selected_fill", "selection.marked", "its background; unnamed, the card's lifted a tenth"},
 	{"comments.state_unresolved", "state.bad", "the word unresolved on a thread's first comment"},
 	{"comments.visual_selection", "selection.background", "text selected in a comment, to be copied"},
 	{"comments.state_resolved", "state.good", "the word resolved on it"},
@@ -348,18 +348,18 @@ func shade(background tcell.Color, step float64) tcell.Color {
 	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
-// cursorStep is how much darker what the cursor stands on is drawn.
-const cursorStep = 0.06
-
-// deeper is a background a step of lightness darker, on a light theme as
-// on a dark one: what the cursor stands on, set apart without a colour of
-// its own. ColorDefault for the terminal's own, which cannot be darkened.
-func deeper(background tcell.Color, step float64) tcell.Color {
+// lift is what the cursor stands on: its background a tenth of the way to
+// white - to black on a light theme, where lighter would not show - so it
+// is set apart without a colour of its own. ColorDefault for the
+// terminal's own background, which cannot be shifted.
+func lift(background tcell.Color) tcell.Color {
 	if background == tcell.ColorDefault || !background.Valid() {
 		return tcell.ColorDefault
 	}
-	lab := toOklab(background)
-	return fromOklch(max(0, lab.l-step), math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
+	if toOklab(background).l >= 0.6 {
+		return mix(background, tcell.NewRGBColor(0, 0, 0), 0.10)
+	}
+	return mix(background, tcell.NewRGBColor(255, 255, 255), 0.10)
 }
 
 // mix is the colour a share of the way from one colour to another, in
