@@ -161,8 +161,12 @@ func TestOnlyTheFirstCommentSaysWhetherTheConversationIsResolved(t *testing.T) {
 	if got := noteMeta(root, true); strings.Contains(got, "resolved") {
 		t.Errorf("a reply must not carry the conversation's state: %q", got)
 	}
-	if got := noteMeta(forge.Note{Resolvable: true, Resolved: true}, false); !strings.Contains(got, " · resolved") {
-		t.Errorf("a resolved conversation should say so: %q", got)
+	resolved := noteMeta(forge.Note{Resolvable: true, Resolved: true}, false)
+	if !strings.Contains(stripTags(resolved), " · resolved") || !strings.Contains(resolved, tag(role("comments.state_resolved"))+"resolved") {
+		t.Errorf("a resolved conversation should say so, in its colour: %q", resolved)
+	}
+	if open := noteMeta(root, false); !strings.Contains(open, tag(role("comments.state_unresolved"))+"unresolved") {
+		t.Errorf("an open conversation should say so in its colour: %q", open)
 	}
 }
 

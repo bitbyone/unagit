@@ -39,7 +39,14 @@ func (v *bandView) Draw(screen tcell.Screen) {
 	x, y, w, h := v.GetRect()
 	_, inY, _, inH := v.GetInnerRect()
 	top, _ := v.GetScrollOffset()
-	fill := role("comments.selected_fill")
+	// The band is each cell's own background a step darker - the code's,
+	// a diff's fill, a comment's card - so what is under the cursor reads
+	// as it does elsewhere; the terminal's own background, which cannot be
+	// darkened, takes a chosen comment's.
+	plain := deeper(tview.Styles.PrimitiveBackgroundColor, cursorStep)
+	if plain == tcell.ColorDefault {
+		plain = role("comments.selected_fill")
+	}
 	// Inside the border, the padding too, so the band reaches the frame.
 	for row := max(from, top); row <= to && row < top+inH; row++ {
 		sy := inY + row - top
@@ -48,6 +55,11 @@ func (v *bandView) Draw(screen tcell.Screen) {
 		}
 		for sx := x + 1; sx < x+w-1; sx++ {
 			r, comb, style, _ := screen.GetContent(sx, sy)
+			_, bg, _ := style.Decompose()
+			fill := deeper(bg, cursorStep)
+			if fill == tcell.ColorDefault {
+				fill = plain
+			}
 			screen.SetContent(sx, sy, r, comb, style.Background(fill))
 		}
 	}

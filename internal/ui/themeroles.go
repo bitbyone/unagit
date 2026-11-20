@@ -53,12 +53,14 @@ var colourRoles = []colourRole{
 	// A comment drawn as a card: its fill, its frame, and what the top of
 	// the frame carries.
 	{"comments.card", "card.background", "a comment card's background; unnamed, every card's"},
-	{"comments.border", "tags.azure.ink", "the frame of a comment, and of its thread, that cannot be resolved"},
-	{"comments.unresolved_border", "tags.lavender.ink", "the frame of a thread still to resolve: its comments, its code"},
-	{"comments.resolved_border", "tags.mint.ink", "the frame of a thread resolved"},
+	{"comments.border", "markdown.link", "the frame of a comment, and of its thread, that cannot be resolved"},
+	{"comments.unresolved_border", "state.bad", "the frame of the comments of a thread still to resolve"},
+	{"comments.resolved_border", "state.good", "the frame of the comments of a thread resolved"},
 	{"comments.code_border", "text.dim", "the frame round a thread on code, its code and its comments"},
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
-	{"comments.selected_fill", "selection.background", "its background, as the cursor's band in a list"},
+	{"comments.selected_fill", "selection.marked", "its background; unnamed, the card's a step darker"},
+	{"comments.state_unresolved", "state.bad", "the word unresolved on a thread's first comment"},
+	{"comments.state_resolved", "state.good", "the word resolved on it"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},
 	{"comments.where", "column.path", "the file and line a comment is anchored to"},
@@ -343,6 +345,20 @@ func shade(background tcell.Color, step float64) tcell.Color {
 		step = -step
 	}
 	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
+}
+
+// cursorStep is how much darker what the cursor stands on is drawn.
+const cursorStep = 0.06
+
+// deeper is a background a step of lightness darker, on a light theme as
+// on a dark one: what the cursor stands on, set apart without a colour of
+// its own. ColorDefault for the terminal's own, which cannot be darkened.
+func deeper(background tcell.Color, step float64) tcell.Color {
+	if background == tcell.ColorDefault || !background.Valid() {
+		return tcell.ColorDefault
+	}
+	lab := toOklab(background)
+	return fromOklch(max(0, lab.l-step), math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // mix is the colour a share of the way from one colour to another, in

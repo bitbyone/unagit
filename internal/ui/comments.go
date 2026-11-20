@@ -272,9 +272,9 @@ func noteMeta(n forge.Note, reply bool) string {
 	meta := tag(colDim) + humanAge(n.CreatedAt) + tagEnd
 	if n.Resolvable && !reply {
 		if n.Resolved {
-			meta += tag(colDim) + " · resolved" + tagEnd
+			meta += tag(colDim) + " · " + tagEnd + tag(role("comments.state_resolved")) + "resolved" + tagEnd
 		} else {
-			meta += tag(colWarn) + " · unresolved" + tagEnd
+			meta += tag(colDim) + " · " + tagEnd + tag(role("comments.state_unresolved")) + "unresolved" + tagEnd
 		}
 	}
 	return meta

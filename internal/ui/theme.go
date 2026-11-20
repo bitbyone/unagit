@@ -191,9 +191,13 @@ func setTheme(t Theme) {
 	activityRoles(t, roleColours)
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
-	// A comment is a card like any other unless the theme says otherwise.
+	// A comment is a card like any other unless the theme says otherwise,
+	// and the one chosen the card a step darker.
 	if t.Roles["comments.card"] == "" {
 		roleColours["comments.card"] = colCard
+	}
+	if c := deeper(roleColours["comments.card"], cursorStep); t.Roles["comments.selected_fill"] == "" && c != tcell.ColorDefault {
+		roleColours["comments.selected_fill"] = c
 	}
 	colOpen = openRowBackground(colBackground)
 	heatScale = legibleOn(heatShades(t.Heat), colour(t.Background), colour(t.Text.Muted))

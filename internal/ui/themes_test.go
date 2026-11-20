@@ -474,8 +474,36 @@ func TestAThemeIsTriedOverAnOpenDialog(t *testing.T) {
 	}
 	waitFor(t, a, sc, "oldest comment")
 
+	// More themes tried keep the dialogs in their order.
+	typeRunes(sc, "jj")
+	eventually(t, a, "a third theme is tried", func() bool { return theme.Name != on })
+	pages := onLoop(a, func() []string { return a.pages.GetPageNames(true) })
+	if len(pages) < 2 || pages[0] != pagePicker || pages[1] != pageComments {
+		t.Fatalf("the dialogs are stacked %v, want the picker over the conversation", pages)
+	}
+
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	eventually(t, a, "the theme on is put back", func() bool { return theme.Name == on })
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 	waitFor(t, a, sc, "oldest comment")
+	// The keys are the conversation's again, not the screen's under it.
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Reply to carol")
+}
+
+// TestEveryThemeFramesCommentsApartFromTheCursor: in every built-in theme
+// a thread's frame - open, resolved, or neither - is a colour the chosen
+// comment's frame is not, so the cursor is seen among the comments.
+func TestEveryThemeFramesCommentsApartFromTheCursor(t *testing.T) {
+	restoreDefaultTheme(t)
+	set := loadThemes("")
+	for name := range builtinThemes() {
+		setTheme(set.byName[name])
+		cursor := role("comments.selected")
+		for state, frame := range map[string]string{"plain": "comments.border", "open": "comments.unresolved_border", "resolved": "comments.resolved_border"} {
+			if role(frame) == cursor {
+				t.Errorf("%s: a %s thread is framed in the cursor's colour %v", name, state, cursor)
+			}
+		}
+	}
 }

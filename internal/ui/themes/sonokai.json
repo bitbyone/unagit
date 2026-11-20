@@ -58,6 +58,7 @@
     "heading_fill": "#e7c664"
   },
   "colours": {
+    "comments.border": "#b39df3",
     "ci.running": "#76cce0",
     "starred.stars": "#e7c664",
     "column.branch": "#76cce0",

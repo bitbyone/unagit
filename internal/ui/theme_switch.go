@@ -180,17 +180,21 @@ func (a *App) keepDialogs() func() {
 	}
 	var dialogs []kept
 	if a.pages != nil {
-		for _, name := range a.pages.GetPageNames(true) {
-			if isModalPage(name) {
-				dialogs = append(dialogs, kept{name, a.pages.GetPage(name)})
+		// The names come front first; the dialogs go back the other way
+		// round, the one at the back first, so they stack as they did.
+		names := a.pages.GetPageNames(true)
+		for i := len(names) - 1; i >= 0; i-- {
+			if isModalPage(names[i]) {
+				dialogs = append(dialogs, kept{names[i], a.pages.GetPage(names[i])})
 			}
 		}
 	}
+	// The keys stay with what has them now, not with the screen made again.
+	focus := a.tv.GetFocus()
 	return func() {
 		if len(dialogs) == 0 {
 			return
 		}
-		focus := a.tv.GetFocus()
 		for _, d := range dialogs {
 			if !a.pages.HasPage(d.name) {
 				a.pages.AddPage(d.name, d.page, true, true)
