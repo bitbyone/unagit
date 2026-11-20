@@ -69,3 +69,17 @@ func TestDrawDiffSaysWhyThereAreNoLines(t *testing.T) {
 		t.Errorf("a binary file: %q", got)
 	}
 }
+
+// TestAConfigurationFileIsColoured: the keys of YAML and its bare values
+// have colours of their own, as a language's names and strings do.
+func TestAConfigurationFileIsColoured(t *testing.T) {
+	t.Parallel()
+	lines := []diffLine{{kind: ' ', text: "server:"}, {kind: ' ', text: "  url: jdbc:postgresql://x"}}
+	got := highlightLines("application.yaml", lines)
+	if !strings.Contains(got[0], tag(role("syntax.tag"))+"server") {
+		t.Errorf("a key is not coloured: %q", got[0])
+	}
+	if !strings.Contains(got[1], tag(role("syntax.string"))+"jdbc") {
+		t.Errorf("a bare value is not coloured: %q", got[1])
+	}
+}

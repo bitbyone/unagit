@@ -119,6 +119,7 @@ var colourRoles = []colourRole{
 	{"syntax.number", "text.accent", "a number"},
 	{"syntax.function", "text.branch", "a function's name"},
 	{"syntax.type", "text.accent", "a type's name"},
+	{"syntax.tag", "syntax.function", "a key of YAML or JSON, a tag of XML or HTML and its attributes"},
 
 	// The list of starred repositories.
 	{"starred.description", "text.muted", "what a starred repository says it is"},

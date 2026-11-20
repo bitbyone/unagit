@@ -357,6 +357,12 @@ func syntaxRole(t chroma.TokenType) string {
 		return "syntax.number"
 	case t == chroma.NameFunction || t == chroma.NameFunctionMagic:
 		return "syntax.function"
+	// A key of YAML or JSON is a tag to chroma, and a value with no quotes
+	// a bare literal: without them a configuration file is all one colour.
+	case t == chroma.NameTag || t == chroma.NameAttribute:
+		return "syntax.tag"
+	case t == chroma.Literal || t == chroma.LiteralDate:
+		return "syntax.string"
 	}
 	return ""
 }
