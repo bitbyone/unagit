@@ -21,18 +21,53 @@ import (
 // Comments are on the version they were written on, so each version shows
 // its own; new ones go on the latest.
 
+// bandView is a text view with a band across the rows the cursor is on,
+// laid over the text as it is drawn: moving the cursor draws the view
+// again and no more, where setting its text anew would read every line of
+// a long file again at every step.
+type bandView struct {
+	*tview.TextView
+	band func() (from, to int, ok bool)
+}
+
+func (v *bandView) Draw(screen tcell.Screen) {
+	v.TextView.Draw(screen)
+	from, to, ok := v.band()
+	if !ok {
+		return
+	}
+	x, y, w, h := v.GetRect()
+	_, inY, _, inH := v.GetInnerRect()
+	top, _ := v.GetScrollOffset()
+	fill := role("comments.selected_fill")
+	// Inside the border, the padding too, so the band reaches the frame.
+	for row := max(from, top); row <= to && row < top+inH; row++ {
+		sy := inY + row - top
+		if sy < y || sy >= y+h {
+			continue
+		}
+		for sx := x + 1; sx < x+w-1; sx++ {
+			r, comb, style, _ := screen.GetContent(sx, sy)
+			screen.SetContent(sx, sy, r, comb, style.Background(fill))
+		}
+	}
+}
+
 // fileView is a file of the merge request on screen.
 type fileView struct {
 	d         *commentsDialog
 	path, ref string
 	latest    bool
-	codes     []string
+	// lines are the file's, codes the same in the colours of its language.
+	lines []diffLine
+	codes []string
 	// markFrom and markTo are the lines of the comment it was opened from.
 	markFrom, markTo int
 	// at is where the cursor is: a line, and a comment under it or 0.
 	atLine, atNote int
 	items          []fileItem
 	view           *tview.TextView
+	band           *bandView
 	fit            func(func(int) string)
 }
 
@@ -131,7 +166,7 @@ func (d *commentsDialog) showFile(path, ref string, latest bool, from, to, line,
 		for i, t := range texts {
 			lines[i] = diffLine{kind: ' ', new: i + 1, text: strings.ReplaceAll(t, "\t", "    ")}
 		}
-		fv := &fileView{d: d, path: path, ref: ref, latest: latest, codes: highlightLines(path, lines),
+		fv := &fileView{d: d, path: path, ref: ref, latest: latest, lines: lines, codes: highlightLines(path, lines),
 			markFrom: from, markTo: to, atLine: max(1, min(line, len(texts))), atNote: focus}
 		fv.show()
 	})
@@ -141,6 +176,12 @@ func (fv *fileView) show() {
 	a, d := fv.d.a, fv.d
 	fv.view = tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetScrollable(true)
 	fv.view.SetTextColor(colText)
+	fv.band = &bandView{TextView: fv.view, band: func() (int, int, bool) {
+		if i := fv.cursor(); i >= 0 {
+			return fv.items[i].from, fv.items[i].to, true
+		}
+		return 0, 0, false
+	}}
 	version := "latest"
 	if !fv.latest {
 		version = short(fv.ref)
@@ -151,11 +192,18 @@ func (fv *fileView) show() {
 	if !fv.latest {
 		hint = "r reply · e edit · d delete · x resolve · h toggle comments · v version"
 	}
-	footer.SetText(" " + litHint(hint))
-	frame := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(fv.view, 0, 1, true).AddItem(footer, 1, 0, false)
+	setHint := func() { footer.SetText(" " + litHint(hint)) }
+	setHint()
+	frame := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(fv.band, 0, 1, true).AddItem(footer, 1, 0, false)
 	fitFooter(frame, footer, 0)
 	fv.fit = a.widthAware(fv.view)
 	fv.view.SetInputCapture(fv.keys)
+	// Another theme put on with the file open: its code coloured again.
+	a.onRepaint(fv.view, func() {
+		fv.codes = highlightLines(fv.path, fv.lines)
+		fv.draw()
+	})
+	a.onRepaint(footer, setHint)
 	// The conversation read again - a reply, a thread resolved, a comment
 	// written here - is drawn here too.
 	d.loaded = fv.draw
@@ -165,7 +213,7 @@ func (fv *fileView) show() {
 	a.pages.AddPage(pageCommit, modalFit(frame, func(w, h int) (int, int) {
 		return min(w*90/100, commentsWidth+20), h * 85 / 100
 	}), true, true)
-	a.tv.SetFocus(fv.view)
+	a.tv.SetFocus(fv.band)
 	fv.draw()
 	if i := fv.cursor(); i >= 0 {
 		fv.view.ScrollTo(max(0, fv.items[i].from-codeBefore-2), 0)
@@ -260,9 +308,6 @@ func (fv *fileView) render(width int) string {
 			bubble = tag(role("comments.icon")) + glyphComment + fmt.Sprintf("%-2d", min(count, 99)) + tagEnd
 		}
 		row := mark + number + " " + bubble + " " + code
-		if line == fv.atLine && fv.atNote == 0 {
-			row = onFill(padMarkup(row, width), role("comments.selected_fill"))
-		}
 		items = append(items, fileItem{line: line, from: len(rows), to: len(rows)})
 		rows = append(rows, row)
 		if fv.d.hideInline {
@@ -272,13 +317,12 @@ func (fv *fileView) render(width int) string {
 			root := thread[0]
 			bubbles := bubblesOf(thread)
 			for j, n := range thread {
-				chosen := line == fv.atLine && n.ID == fv.atNote
 				var text string
 				if n.Changed != nil {
-					text = c.drawChange(n, root, inner, chosen)
+					text = c.drawChange(n, root, inner, false)
 				} else {
 					b := bubbles[j]
-					b.Where, b.Selected = "", chosen
+					b.Where = ""
 					text = renderBubble(b, inner)
 				}
 				from := len(rows)
@@ -317,7 +361,8 @@ func (fv *fileView) move(i int) {
 	}
 	it := fv.items[max(0, min(i, len(fv.items)-1))]
 	fv.atLine, fv.atNote = it.line, it.note.ID
-	fv.draw()
+	// What is drawn stays; the band follows the cursor.
+	fv.reveal()
 }
 
 // moveRows moves the cursor by about rows rows: to the item there.

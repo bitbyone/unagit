@@ -448,3 +448,34 @@ func TestSwatchesKeepTheirColoursUnderTheCursor(t *testing.T) {
 		t.Errorf("the selected theme's accent is %q in %v, want █ in %v:\n%s", r, got, want, text)
 	}
 }
+
+// TestAThemeIsTriedOverAnOpenDialog: the theme picker over a dialog tries
+// each theme as the cursor comes to it, the dialog staying open in its
+// colours, and closing the list puts back the one that was on.
+func TestAThemeIsTriedOverAnOpenDialog(t *testing.T) {
+	restoreDefaultTheme(t)
+	a, sc := newTestApp(t)
+	openMRDetail(t, a, sc)
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitFor(t, a, sc, "oldest comment")
+	on := onLoop(a, func() string { return theme.Name })
+
+	typeRunes(sc, ":")
+	waitFor(t, a, sc, "Switch Theme…")
+	typeRunes(sc, "switch theme")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Theme")
+	typeRunes(sc, "j")
+	eventually(t, a, "another theme is tried", func() bool { return theme.Name != on })
+	// The picker stands over the conversation's title, not over its text.
+	if !onLoop(a, func() bool { return a.pages.HasPage(pageComments) }) {
+		t.Fatal("trying a theme closed the conversation")
+	}
+	waitFor(t, a, sc, "oldest comment")
+
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	eventually(t, a, "the theme on is put back", func() bool { return theme.Name == on })
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitFor(t, a, sc, "oldest comment")
+}

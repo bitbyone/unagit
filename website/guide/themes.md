@@ -9,9 +9,10 @@ what something is (`○ ● ◐ ◉`, `◆`, `★`, `✓ ✗`, `↑ ↓`, the bo
 Settings › Theme lists them with a strip of their colours. `Enter` puts one on
 at once and remembers it.
 
-From any screen, `:` › **Switch Theme…** lists them too. Over a main screen it
-tries each theme as the cursor comes to it, drawing the screen behind in it;
-only `Enter` keeps it, and `Esc` puts back the one that was on.
+From any screen, `:` › **Switch Theme…** lists them too. It tries each theme
+as the cursor comes to it, drawing the screen behind in it - and a dialog
+open over the screen, which stays open; only `Enter` keeps it, and `Esc`
+puts back the one that was on.
 
 ## Built in
 

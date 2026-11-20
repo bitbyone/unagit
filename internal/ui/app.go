@@ -216,6 +216,9 @@ type App struct {
 
 	themes       themeSet
 	themeProblem string
+	// repaints draw again what a dialog drew in the colours of the theme
+	// it was opened in, by the widget it drew into, once another is on.
+	repaints map[tview.Primitive]func()
 	// keys is what keybinds.toml changes of the actions' keys, nil when
 	// nothing; keysProblem says what was wrong in it, until it is said.
 	keys        *keymap.Map

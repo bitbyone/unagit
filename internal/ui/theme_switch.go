@@ -137,6 +137,9 @@ func (a *App) repaintInterface() {
 }
 
 func (a *App) remakeInterface(disk func()) {
+	// The dialogs open stay open: the screens are made again under them,
+	// and they are put back on top in the colours put on.
+	defer a.keepDialogs()()
 	tab := a.currentTab()
 	if a.solo != nil {
 		a.remakeStandalone(tab)
@@ -164,6 +167,85 @@ func (a *App) remakeInterface(disk func()) {
 		if inside {
 			a.settings.focusContent()
 		}
+	}
+}
+
+// keepDialogs notes the dialogs in front of the screens, and returns what
+// puts them back over the screens made again, restyled, the keys with the
+// one on top.
+func (a *App) keepDialogs() func() {
+	type kept struct {
+		name string
+		page tview.Primitive
+	}
+	var dialogs []kept
+	if a.pages != nil {
+		for _, name := range a.pages.GetPageNames(true) {
+			if isModalPage(name) {
+				dialogs = append(dialogs, kept{name, a.pages.GetPage(name)})
+			}
+		}
+	}
+	return func() {
+		if len(dialogs) == 0 {
+			return
+		}
+		focus := a.tv.GetFocus()
+		for _, d := range dialogs {
+			if !a.pages.HasPage(d.name) {
+				a.pages.AddPage(d.name, d.page, true, true)
+			}
+			a.restyle(d.page)
+		}
+		if focus != nil {
+			a.tv.SetFocus(focus)
+		}
+	}
+}
+
+// onRepaint has what a dialog drew into p drawn again when another theme
+// is put on with the dialog open.
+func (a *App) onRepaint(p tview.Primitive, repaint func()) {
+	if a.repaints == nil {
+		a.repaints = map[tview.Primitive]func(){}
+	}
+	a.repaints[p] = repaint
+}
+
+// restyle gives a dialog kept over a theme change the colours put on: the
+// frames, backgrounds and text its widgets took from the theme when they
+// were made, and what it drew itself (onRepaint).
+func (a *App) restyle(p tview.Primitive) {
+	restyleBox := func(b *tview.Box) {
+		b.SetBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
+		b.SetBorderColor(colBorder)
+		b.SetTitleColor(colTitle)
+	}
+	switch w := p.(type) {
+	case *modalBox:
+		a.restyle(w.content)
+	case *bandView:
+		a.restyle(w.TextView)
+	case *tview.Flex:
+		restyleBox(w.Box)
+		for i := 0; i < w.GetItemCount(); i++ {
+			a.restyle(w.GetItem(i))
+		}
+	case *tview.TextView:
+		restyleBox(w.Box)
+		// The text keeps a background of its own, which the view's own
+		// setter changes and the box's does not.
+		w.SetBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
+		w.SetTextColor(colText)
+	case *tview.Form:
+		styleForm(w)
+	case *tview.Table:
+		restyleBox(w.Box)
+	case *tview.List:
+		restyleBox(w.Box)
+	}
+	if repaint, ok := a.repaints[p]; ok {
+		repaint()
 	}
 }
 

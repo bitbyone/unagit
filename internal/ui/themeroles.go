@@ -58,7 +58,7 @@ var colourRoles = []colourRole{
 	{"comments.resolved_border", "tags.mint.ink", "the frame of a thread resolved"},
 	{"comments.code_border", "text.dim", "the frame round a thread on code, its code and its comments"},
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
-	{"comments.selected_fill", "selection.marked", "its background, as a marked row's"},
+	{"comments.selected_fill", "selection.background", "its background, as the cursor's band in a list"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},
 	{"comments.where", "column.path", "the file and line a comment is anchored to"},

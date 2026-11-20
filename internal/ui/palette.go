@@ -214,11 +214,10 @@ func (a *App) redrawAction() uiAction {
 // showThemePicker lists the themes, each with its colours, the cursor on
 // the one that is on; Enter puts another on, as Settings › Theme does.
 // Over a main screen the cursor tries each theme on that screen as it comes
-// to it, undimmed, and closing the list without Enter puts back the one
-// that was on. Over a dialog it does not: drawing the screen again would
-// take the dialog with it.
+// to it, undimmed - over a dialog too, which stays and takes the colours -
+// and closing the list without Enter puts back the one that was on.
 func (a *App) showThemePicker() {
-	a.openThemePicker(theme.Name, "", "", !a.modalOpen())
+	a.openThemePicker(theme.Name, "", "", true)
 }
 
 // openThemePicker opens the theme list with on as the theme to come back

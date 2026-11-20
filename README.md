@@ -1376,10 +1376,11 @@ borders). Settings › Theme lists them with a strip of their colours; `Enter`
 puts one on at once and remembers it. From any screen, `:` › Switch Theme…
 lists them too, the one on under the cursor - over a dialog as well, where
 `:` offers what can be done from anywhere and `.` on a list what
-can be done with its item. Over a main screen that list tries each theme as
-the cursor comes to it: the screen behind is drawn in it, undimmed, the list
-on a darker background of its own, and only `Enter` keeps it - `Esc` puts
-back the one that was on.
+can be done with its item. That list tries each theme as the cursor comes
+to it: the screen behind is drawn in it, undimmed - and a dialog open over
+the screen, which stays open in the colours tried - the list on a darker
+background of its own, and only `Enter` keeps it - `Esc` puts back the one
+that was on.
 
 Coming back to unagit's window draws the whole screen again: a terminal
 that slept, lost a display or was drawn over by its multiplexer while

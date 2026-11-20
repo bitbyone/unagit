@@ -64,7 +64,10 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	box(d.view.Box, fmt.Sprintf("Comments · %s !%d", path, mr.IID)).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · h toggle code · P publish · A approve · R reload"))
+	hint := func() {
+		footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · h toggle code · P publish · A approve · R reload"))
+	}
+	hint()
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(d.view, 0, 1, true).
 		AddItem(footer, 1, 0, false)
@@ -72,6 +75,12 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	// The conversation is drawn as boxes, which have to know how wide they are.
 	d.fit = a.widthAware(d.view)
 	d.view.SetInputCapture(d.keys)
+	// Another theme put on with the conversation open: drawn in it.
+	a.onRepaint(d.view, func() {
+		d.conv.drawn = nil
+		d.draw()
+	})
+	a.onRepaint(footer, hint)
 	a.pages.AddPage(pageComments, modalFit(frame, func(w, h int) (int, int) {
 		return min(max(w*80/100, min(w, 60)), commentsWidth), h * 85 / 100
 	}), true, true)
