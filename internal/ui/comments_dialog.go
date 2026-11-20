@@ -40,6 +40,12 @@ type commentsDialog struct {
 	// generation tells the code read for one reading of the conversation
 	// from that of a later one.
 	generation int
+	// rows are the conversation's rows as last drawn; vis the cursor in a
+	// comment (v), footer and hint the keys named under it.
+	rows   []string
+	vis    visual
+	footer *tview.TextView
+	hint   func()
 }
 
 // conversationView is the conversation as the mouse finds it: its rows
@@ -52,6 +58,10 @@ type conversationView struct {
 
 func (v *conversationView) mouseRows() *rowsUnder {
 	d := v.d
+	// With the cursor in a comment the mouse selects its text instead.
+	if d.vis.on {
+		return nil
+	}
 	return &rowsUnder{
 		focus: v,
 		at: func(x, y int) int {
@@ -73,6 +83,33 @@ func (v *conversationView) mouseRows() *rowsUnder {
 		move: d.choose,
 		step: d.step,
 		edge: func(int) int { return -1 },
+	}
+}
+
+func (v *conversationView) Draw(screen tcell.Screen) {
+	v.TextView.Draw(screen)
+	if v.d.vis.on {
+		v.d.drawVisual(screen)
+	}
+}
+
+func (v *conversationView) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
+	if !v.d.vis.on {
+		return v.TextView.MouseHandler()
+	}
+	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		x, y := ev.Position()
+		if !v.InRect(x, y) && !v.d.vis.dragging {
+			return false, nil
+		}
+		if !v.d.visualMouse(action, ev) {
+			return false, nil
+		}
+		setFocus(v)
+		if v.d.vis.dragging {
+			return true, v
+		}
+		return true, nil
 	}
 }
 
@@ -110,9 +147,10 @@ func (a *App) showComments(mr forge.MergeRequest) {
 
 	footer := tview.NewTextView().SetDynamicColors(true)
 	hint := func() {
-		footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · h toggle code · P publish · A approve · R reload"))
+		footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · v select · h toggle code · P publish · A approve · R reload"))
 	}
 	hint()
+	d.footer, d.hint = footer, hint
 	shown := &conversationView{TextView: d.view, d: d}
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(shown, 0, 1, true).
@@ -126,7 +164,13 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		d.conv.drawn = nil
 		d.draw()
 	})
-	a.onRepaint(footer, hint)
+	a.onRepaint(footer, func() {
+		if d.vis.on {
+			d.visualHint()
+			return
+		}
+		hint()
+	})
 	a.pages.AddPage(pageComments, modalFit(frame, func(w, h int) (int, int) {
 		return min(max(w*80/100, min(w, 60)), commentsWidth), h * 85 / 100
 	}), true, true)
@@ -141,6 +185,7 @@ func (d *commentsDialog) draw() {
 		if extra := renderLocalThreads(d.local, width); extra != "" {
 			text += "\n\n" + tag(colDim) + strings.Repeat(glyphBar, 40) + tagEnd + "\n\n" + extra
 		}
+		d.rows = strings.Split(text, "\n")
 		return text
 	})
 }
@@ -229,12 +274,32 @@ func (d *commentsDialog) reveal() {
 	}
 }
 
+// step moves to the next card, or the one before. A card taller than the
+// view is read through first: the step scrolls it a row at a time, and
+// goes on to the next card once its end - or, going back, its start - is
+// on screen.
 func (d *commentsDialog) step(by int) {
 	for i, c := range d.cards {
-		if d.conv.isChosen(c) {
-			d.choose(i + by)
+		if !d.conv.isChosen(c) {
+			continue
+		}
+		_, _, _, height := d.view.GetInnerRect()
+		row, _ := d.view.GetScrollOffset()
+		switch {
+		case by > 0 && c.to >= row+height && c.from <= row+height-1:
+			d.view.ScrollTo(row+1, 0)
+			return
+		case by < 0 && c.from < row && c.to >= row:
+			d.view.ScrollTo(row-1, 0)
 			return
 		}
+		d.choose(i + by)
+		// Going back into a card taller than the view, its end shows
+		// first, to be read up from.
+		if prev, ok := d.chosen(); ok && by < 0 && prev.to-prev.from+1 > height {
+			d.view.ScrollTo(prev.to-height+1, 0)
+		}
+		return
 	}
 	d.choose(0)
 }
@@ -683,6 +748,8 @@ func (d *commentsDialog) actions() []uiAction {
 			when: func() bool { return chosen && d.own(n) }, run: need(d.remove)},
 		{name: "Resolve or Reopen Thread", about: "Resolve the chosen comment's thread on the forge, or open it again.", keys: "x", rank: 50,
 			when: func() bool { root := d.rootOf(n); return chosen && root.Resolvable && root.ID >= 0 }, run: need(d.resolve)},
+		{name: "Select Text", about: "Put a cursor in the chosen comment, to select some of it - v by characters, V by lines - and copy it with y.", keys: "v", rank: 58,
+			when: func() bool { return chosen && !card.code && n.Changed == nil }, run: d.startVisual},
 		{name: "Toggle Code", about: "Hide the code of the threads, to read the comments through, or show it again.", keys: "h", rank: 60,
 			run: d.toggleCode},
 		{name: "Publish Comments…", about: "Publish the comments saved in unagit, and Incomm's, after showing them.", keys: "P", rank: 70,
@@ -715,6 +782,9 @@ func runEnter(actions []uiAction) bool {
 
 func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 	a := d.a
+	if d.vis.on {
+		return d.visualKeys(ev)
+	}
 	if halfPage(d.view, ev) {
 		return nil
 	}

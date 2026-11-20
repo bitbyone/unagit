@@ -60,6 +60,7 @@ var colourRoles = []colourRole{
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
 	{"comments.selected_fill", "selection.marked", "its background; unnamed, the card's a step darker"},
 	{"comments.state_unresolved", "state.bad", "the word unresolved on a thread's first comment"},
+	{"comments.visual_selection", "selection.background", "text selected in a comment, to be copied"},
 	{"comments.state_resolved", "state.good", "the word resolved on it"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},

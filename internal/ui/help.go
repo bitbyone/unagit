@@ -492,6 +492,7 @@ func helpRows() []helpLine {
 		key("x", "resolve its thread, or open it again"),
 		key("Enter", "expand its file; on a change, compare it"),
 		key("h", "hide the code, or show it again"),
+		key("v", "a cursor in it: v V select, y copy, Y all"),
 		key("c", "in the file: comment the cursor's line"),
 		key("h  v", "in the file: hide comments · version"),
 		key("P", "publish the saved and Incomm comments"),

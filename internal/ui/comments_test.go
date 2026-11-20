@@ -848,3 +848,137 @@ func TestALongLineOfCodeIsCutToTheBlock(t *testing.T) {
 		t.Errorf("the long line is not cut:\n%s", block)
 	}
 }
+
+// planForge is codeForge with a comment longer than the view, the oldest,
+// as a plan from Atlantis is: a code block of numbered lines.
+type planForge struct{ *codeForge }
+
+func (f *planForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
+	notes, err := f.codeForge.MergeRequestNotes(ctx, mr, limit)
+	var b strings.Builder
+	b.WriteString("Ran Plan for dir\n\n```\n")
+	for i := 1; i <= 60; i++ {
+		fmt.Fprintf(&b, "  + resource %02d will be created\n", i)
+	}
+	b.WriteString("```\n")
+	return append(notes, forge.Note{ID: 80, Thread: "plan", Body: b.String(), Author: forge.User{Username: "atlantis"},
+		CreatedAt: time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)}), err
+}
+
+// openPlanConversation opens the conversation with the long comment first.
+func openPlanConversation(t *testing.T) (*App, tcell.SimulationScreen) {
+	t.Helper()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 160, 40)
+	openMRDetail(t, a, sc)
+	onLoop(a, func() bool {
+		id := a.cfg.Instances[0].ID
+		a.clients[id] = &planForge{&codeForge{Provider: a.clients[id]}}
+		return true
+	})
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "resource 01 will be created")
+	return a, sc
+}
+
+// TestALongCommentIsReadThroughBeforeTheNext: j on a comment taller than
+// the view scrolls it a row at a time, and goes on to the next comment once
+// its end is on screen.
+func TestALongCommentIsReadThroughBeforeTheNext(t *testing.T) {
+	t.Parallel()
+	a, sc := openPlanConversation(t)
+	steps := 0
+	for !strings.Contains(a.screenText(sc), "resource 60 will be created") {
+		if steps++; steps > 60 {
+			t.Fatal("j did not read the long comment through")
+		}
+		typeRunes(sc, "j")
+	}
+	if steps < 10 {
+		t.Fatalf("the end showed after %d steps: the comment was not read a row at a time", steps)
+	}
+	// Still on the long comment: r answers atlantis.
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Reply to atlantis")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Reply to atlantis")
+	// Its frame's end a row or two below, then j goes on to the next one.
+	for step := 0; ; step++ {
+		if step > 3 {
+			t.Fatal("j stayed on the long comment past its end")
+		}
+		typeRunes(sc, "j")
+		typeRunes(sc, "r")
+		waitFor(t, a, sc, "Reply to")
+		on := strings.Contains(a.screenText(sc), "Reply to carol")
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+		waitGone(t, a, sc, "Reply to")
+		if on {
+			break
+		}
+	}
+}
+
+// TestTextIsSelectedInACommentAndCopied: v puts a cursor in the comment;
+// v there selects from it by characters, V by whole lines, y copies the
+// selection and Y the whole comment as written; Esc goes back.
+func TestTextIsSelectedInACommentAndCopied(t *testing.T) {
+	clip := fakeClipboard(t, true)
+	a, sc := openPlanConversation(t)
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "VISUAL")
+	// The first lines are the heading and a blank; the block's lines are
+	// drawn indented, as markdown draws code.
+	typeRunes(sc, "jj")
+	typeRunes(sc, "llll")
+	typeRunes(sc, "vjj$")
+	typeRunes(sc, "y")
+	eventually(t, a, "the selection copied", func() bool { return clip.get() != "" })
+	want := "+ resource 01 will be created\n    + resource 02 will be created\n    + resource 03 will be created"
+	if got := clip.get(); got != want {
+		t.Fatalf("copied %q, want %q", got, want)
+	}
+	waitGone(t, a, sc, "VISUAL")
+
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "VISUAL")
+	typeRunes(sc, "jjVj")
+	typeRunes(sc, "y")
+	eventually(t, a, "the lines copied", func() bool { return strings.HasPrefix(clip.get(), "    + resource 01") })
+	if got := clip.get(); got != "    + resource 01 will be created\n    + resource 02 will be created" {
+		t.Fatalf("copied %q", got)
+	}
+
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "VISUAL")
+	typeRunes(sc, "Y")
+	eventually(t, a, "the comment copied", func() bool { return strings.HasPrefix(clip.get(), "Ran Plan for dir") })
+
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "VISUAL")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "VISUAL")
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Reply to atlantis")
+}
+
+// TestTheMouseSelectsTextInAComment: with the cursor in a comment, a drag
+// over its text selects it, and y copies what was selected.
+func TestTheMouseSelectsTextInAComment(t *testing.T) {
+	clip := fakeClipboard(t, true)
+	a, sc := openPlanConversation(t)
+	typeRunes(sc, "v")
+	waitFor(t, a, sc, "VISUAL")
+	x1, y1 := at(t, a, sc, "resource 03")
+	x2, y2 := at(t, a, sc, "resource 04")
+	press(sc, x1, y1, tcell.ButtonPrimary, tcell.ModNone)
+	press(sc, x2+len("resource 04")-1, y2, tcell.ButtonPrimary, tcell.ModNone)
+	release(sc, x2+len("resource 04")-1, y2, tcell.ModNone)
+	typeRunes(sc, "y")
+	eventually(t, a, "the drag copied", func() bool { return clip.get() != "" })
+	if got := clip.get(); got != "resource 03 will be created\n    + resource 04" {
+		t.Fatalf("copied %q", got)
+	}
+}

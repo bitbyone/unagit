@@ -23,6 +23,13 @@ everything that can be done, here and in an expanded file. The mouse does
 what the keys do: a click chooses, a double click is `Enter`, the right
 button lists the actions, and the wheel moves as `j` and `k` do.
 
+A comment taller than the view - a plan from Atlantis - is read through a
+row at a time before `j` goes on to the next. To take some of it, `v` puts
+a cursor in the comment chosen: `j` `k` `h` `l` `0` `$` move it, `v` again
+selects from there, `V` selects whole lines, and the mouse selects by
+dragging; `y` copies the selection, `Y` the whole comment as it was
+written, and `Esc` drops the selection, then goes back to the comments.
+
 The expanded file is the version the comment was written on - or the
 latest, asked when they differ - with the cursor on the comment, a mark and
 a count beside each line with comments, and the comments under their lines
