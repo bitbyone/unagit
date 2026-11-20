@@ -331,6 +331,80 @@ func (c *Client) MergeRequestDiffs(ctx context.Context, mr forge.MergeRequest) (
 	return out, nil
 }
 
+// changedLine finds the link of GitLab's note on a thread whose line a
+// later version changed: "changed this line in [version 11 of the diff]
+// (…/diffs?diff_id=123&start_sha=abc#<line code>)", the line code ending
+// in the line's old and new numbers.
+var changedLine = regexp.MustCompile(`changed this line in \[[^\]]*\]\(([^)]+)\)`)
+
+// lineChanged reads that note: the version it names and the change, its
+// To the version's id until versionHeads puts the commit there.
+func lineChanged(n note) (int, forge.LineChange, bool) {
+	m := changedLine.FindStringSubmatch(n.Body)
+	if !n.System || m == nil {
+		return 0, forge.LineChange{}, false
+	}
+	link, err := url.Parse(m[1])
+	if err != nil {
+		return 0, forge.LineChange{}, false
+	}
+	version, err := strconv.Atoi(link.Query().Get("diff_id"))
+	start := link.Query().Get("start_sha")
+	if err != nil || start == "" {
+		return 0, forge.LineChange{}, false
+	}
+	var line forge.LineRef
+	if parts := strings.Split(link.Fragment, "_"); len(parts) == 3 {
+		line.Old, _ = strconv.Atoi(parts[1])
+		line.New, _ = strconv.Atoi(parts[2])
+	}
+	return version, forge.LineChange{From: start, To: strconv.Itoa(version), Line: line}, true
+}
+
+// versionHeads fills in the head commit of each version of the merge
+// request's diff named.
+func (c *Client) versionHeads(ctx context.Context, mr forge.MergeRequest, heads map[int]string) error {
+	versions, err := getAll[struct {
+		ID   int    `json:"id"`
+		Head string `json:"head_commit_sha"`
+	}](ctx, c, mrPath(mr)+"/versions", nil)
+	if err != nil {
+		return err
+	}
+	for _, v := range versions {
+		if _, ok := heads[v.ID]; ok {
+			heads[v.ID] = v.Head
+		}
+	}
+	return nil
+}
+
+// CompareDiffs reads what changed from one commit to the other, straight
+// from one to the other rather than from where they part.
+func (c *Client) CompareDiffs(ctx context.Context, mr forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
+	var compare struct {
+		Diffs []struct {
+			OldPath string `json:"old_path"`
+			NewPath string `json:"new_path"`
+			Diff    string `json:"diff"`
+		} `json:"diffs"`
+	}
+	q := url.Values{"from": {from}, "to": {to}, "straight": {"true"}}
+	if _, err := c.get(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/repository/compare", q, &compare); err != nil {
+		return nil, err
+	}
+	out := make([]forge.FileDiff, len(compare.Diffs))
+	for i, d := range compare.Diffs {
+		out[i] = forge.FileDiff{OldPath: d.OldPath, Path: d.NewPath, Diff: d.Diff}
+	}
+	return out, nil
+}
+
+// FileAt reads a file of the repository at ref, raw.
+func (c *Client) FileAt(ctx context.Context, mr forge.MergeRequest, path, ref string) (string, error) {
+	return c.getText(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath)+"/repository/files/"+url.PathEscape(path)+"/raw?ref="+url.QueryEscape(ref))
+}
+
 // firstNote is the note a new discussion was started with.
 func firstNote(mr forge.MergeRequest, d discussion) (*forge.Note, error) {
 	if len(d.Notes) == 0 {
@@ -351,6 +425,14 @@ func convertNote(mr forge.MergeRequest, thread string, n note) *forge.Note {
 		converted.URL = fmt.Sprintf("%s#note_%d", mr.WebURL, n.ID)
 	}
 	if n.Position != nil {
+		pos := n.Position
+		converted.Base, converted.Head = pos.BaseSHA, pos.HeadSHA
+		converted.From = forge.LineRef{Old: pos.OldLine, New: pos.NewLine}
+		converted.To = converted.From
+		if r := pos.LineRange; r != nil && (r.Start.OldLine > 0 || r.Start.NewLine > 0) {
+			converted.From = forge.LineRef{Old: r.Start.OldLine, New: r.Start.NewLine}
+			converted.To = forge.LineRef{Old: r.End.OldLine, New: r.End.NewLine}
+		}
 		converted.Path, converted.Line = n.Position.NewPath, n.Position.NewLine
 		if converted.Line == 0 && n.Position.OldLine > 0 {
 			converted.Line = n.Position.OldLine
@@ -1098,11 +1180,23 @@ type note struct {
 		Name     string `json:"name"`
 	} `json:"author"`
 	Position *struct {
-		OldPath string `json:"old_path"`
-		OldLine int    `json:"old_line"`
-		NewPath string `json:"new_path"`
-		NewLine int    `json:"new_line"`
+		OldPath   string `json:"old_path"`
+		OldLine   int    `json:"old_line"`
+		NewPath   string `json:"new_path"`
+		NewLine   int    `json:"new_line"`
+		BaseSHA   string `json:"base_sha"`
+		HeadSHA   string `json:"head_sha"`
+		LineRange *struct {
+			Start lineRef `json:"start"`
+			End   lineRef `json:"end"`
+		} `json:"line_range"`
 	} `json:"position"`
+}
+
+// lineRef is a line of a diff as a position's range names it.
+type lineRef struct {
+	OldLine int `json:"old_line"`
+	NewLine int `json:"new_line"`
 }
 
 // discussion is a conversation: one comment, or a thread of them.
@@ -1120,9 +1214,31 @@ func (c *Client) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, l
 		return nil, err
 	}
 	var out []forge.Note
+	versions := map[int]string{}
 	for _, d := range discussions {
 		for _, n := range d.Notes {
-			out = append(out, *convertNote(mr, d.ID, n))
+			converted := convertNote(mr, d.ID, n)
+			if version, change, ok := lineChanged(n); ok {
+				converted.Changed = &change
+				versions[version] = ""
+			}
+			out = append(out, *converted)
+		}
+	}
+	// A change to a line names the version of the diff it came with; what
+	// it changed to is that version's head, which the versions say.
+	if len(versions) > 0 {
+		if err := c.versionHeads(ctx, mr, versions); err != nil {
+			return nil, err
+		}
+		for i := range out {
+			if ch := out[i].Changed; ch != nil {
+				version, _ := strconv.Atoi(ch.To)
+				ch.To = versions[version]
+				if ch.To == "" {
+					out[i].Changed = nil
+				}
+			}
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })

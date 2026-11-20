@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -325,25 +326,58 @@ func TestCommentsOpenAtTheTop(t *testing.T) {
 	waitFor(t, a, sc, "retry loop")
 }
 
-// codeForge is the fake server's client with a thread on a line of code
-// added to the conversation, the diff that line is in, and the replies
-// kept instead of sent.
+// codeForge is the fake server's client with a thread on a range of code
+// added to the conversation - written on an older version of the diff,
+// which numbers its lines differently from the latest, and a later
+// version's change to the line noted in it - the diffs and the file those
+// are read in, and the replies kept instead of sent.
 type codeForge struct {
 	forge.Provider
 	mu      sync.Mutex
 	replies []string
 }
 
+const (
+	// The latest diff has a line more before the commented ones.
+	latestLimit = "@@ -8,5 +8,7 @@ func limit() {\n \tfor {\n+\t\tcount++\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t}\n"
+	olderLimit  = "@@ -8,9 +8,10 @@ func limit() {\n \tfor {\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t\tlog(1)\n \t\tlog(2)\n \t\tlog(3)\n \t\tlog(4)\n \t\tlog(5)\n \t}\n"
+	changeLimit = "@@ -11,3 +11,3 @@\n \t\t}\n-\t\ttime.Sleep(backoff)\n+\t\ttime.Sleep(jitter(backoff))\n \t}\n"
+)
+
 func (f *codeForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
 	notes, err := f.Provider.MergeRequestNotes(ctx, mr, limit)
 	return append(notes,
 		forge.Note{ID: 70, Thread: "on-code", Body: "this sleeps on every retry", Path: "limit.go", Line: 12,
-			CreatedAt: time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "carol"}, Resolvable: true}), err
+			Base: "b1", Head: "h1", From: forge.LineRef{Old: 11, New: 11}, To: forge.LineRef{New: 12},
+			CreatedAt: time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "carol"}, Resolvable: true},
+		forge.Note{ID: 71, Thread: "on-code", System: true, Body: "changed this line in [version 2 of the diff](/x)",
+			Changed:   &forge.LineChange{From: "h1", To: "h2", Line: forge.LineRef{New: 12}},
+			CreatedAt: time.Date(2026, 9, 23, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "dave"}}), err
 }
 
 func (f *codeForge) MergeRequestDiffs(context.Context, forge.MergeRequest) ([]forge.FileDiff, error) {
-	return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go",
-		Diff: "@@ -8,5 +8,6 @@ func limit() {\n \tfor {\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t}\n"}}, nil
+	return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: latestLimit}}, nil
+}
+
+func (f *codeForge) CompareDiffs(_ context.Context, _ forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
+	switch from + ".." + to {
+	case "b1..h1":
+		return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: olderLimit}}, nil
+	case "h1..h2":
+		return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go", Diff: changeLimit}}, nil
+	}
+	return nil, fmt.Errorf("no compare of %s..%s", from, to)
+}
+
+func (f *codeForge) FileAt(_ context.Context, _ forge.MergeRequest, path, ref string) (string, error) {
+	if path != "limit.go" || ref != "h1" {
+		return "", fmt.Errorf("no %s at %s", path, ref)
+	}
+	var b strings.Builder
+	for i := 1; i <= 40; i++ {
+		fmt.Fprintf(&b, "line %d of the file\n", i)
+	}
+	return b.String(), nil
 }
 
 func (f *codeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, thread, body string) (*forge.Note, error) {
@@ -354,13 +388,15 @@ func (f *codeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, t
 }
 
 // TestCommentsAreChosenAnsweredAndReadBesideTheirCode: a thread on code is
-// drawn under the lines it is about; j and k choose a comment, i answers
-// it in its thread, Enter shows the whole diff of its file at its line.
-// However wide the terminal, the conversation is no wider than reads well.
+// one block - the lines it is about, from the diff it was written on, and
+// its comments under them; j and k choose a comment, i answers it in its
+// thread, Enter shows the whole diff of its file, or on the note of a later
+// change, that change; e shows the whole file. However wide the terminal,
+// the conversation is no wider than reads well.
 func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 	t.Parallel()
 	a, sc := newTestApp(t)
-	resizeApp(a, sc, 220, 50)
+	resizeApp(a, sc, 220, 60)
 	openMRDetail(t, a, sc)
 	fake := onLoop(a, func() *codeForge {
 		id := a.cfg.Instances[0].ID
@@ -371,9 +407,14 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 
 	typeRunes(sc, "c")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
-	waitFor(t, a, sc, "limit.go:12")
-	waitFor(t, a, sc, "time.Sleep(backoff)")
+	waitFor(t, a, sc, "limit.go:11-12")
+	// The older diff's lines, the four after the commented ones too.
+	waitFor(t, a, sc, "log(4)")
+	if text := a.screenText(sc); strings.Contains(text, "count++") || strings.Contains(text, "log(5)") {
+		t.Errorf("the code is not the diff the comment was written on, or not round its lines:\n%s", text)
+	}
 	waitFor(t, a, sc, "this sleeps on every retry")
+	waitFor(t, a, sc, "dave changed this line in version 2 of the diff")
 	width := onLoop(a, func() int {
 		_, prim := a.pages.GetFrontPage()
 		_, _, w, _ := prim.(*modalBox).content.(*tview.Flex).GetRect()
@@ -383,8 +424,11 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 		t.Errorf("the conversation is %d wide on a 220 wide terminal, want at most %d", width, commentsWidth)
 	}
 
-	// The thread on code is the newest: G chooses it.
+	// The thread on code is the newest: G chooses its change, k its comment.
 	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "jitter(backoff)")
+	typeRunes(sc, "k")
 	typeRunes(sc, "i")
 	waitFor(t, a, sc, "Reply to carol")
 	typeRunes(sc, "it backs off")
@@ -399,45 +443,71 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
-	waitFor(t, a, sc, "limit.go:12 · acme/gateway !7")
+	waitFor(t, a, sc, "limit.go:11-12 · acme/gateway !7")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "limit.go:12 · acme/gateway !7")
+	waitGone(t, a, sc, "limit.go:11-12 · acme/gateway !7")
+
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "line 12 of the file")
+	typeRunes(sc, "G")
+	waitFor(t, a, sc, "line 40 of the file")
+	typeRunes(sc, "q")
+	waitGone(t, a, sc, "line 40 of the file")
 	waitFor(t, a, sc, "Comments · acme/gateway !7")
 
-	// k goes to an older comment, which is on no line.
-	typeRunes(sc, "gk")
+	// g goes to the oldest comment, which is on no line.
+	typeRunes(sc, "g")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "not on a line")
 }
 
-// TestACommentIsReadUnderTheLinesItIsAbout: the code over a thread ends at
-// the commented line, counted on the side it is on, and stops at the start
-// of its hunk; a line no longer in the diff has no code.
-func TestACommentIsReadUnderTheLinesItIsAbout(t *testing.T) {
+// TestACommentIsReadAmongTheLinesItIsAbout: the code of a thread is a few
+// lines before the commented ones and more after, counted on the side
+// each is on, within its hunk; a line no longer in the diff has none.
+func TestACommentIsReadAmongTheLinesItIsAbout(t *testing.T) {
 	t.Parallel()
 	diffs := []forge.FileDiff{{Path: "a.go", OldPath: "a.go",
-		Diff: "@@ -1,4 +1,4 @@\n one\n-two\n+deux\n three\n four\n"}}
-	code := func(n forge.Note) string {
-		out := codeSnippet(n, diffs, 60)
-		for _, r := range strings.Split(out, "\n") {
-			if out != "" && tview.TaggedStringWidth(r) != 60 {
-				t.Errorf("a row of the code is %d wide, want 60: %q", tview.TaggedStringWidth(r), r)
-			}
+		Diff: "@@ -1,12 +1,12 @@\n l1\n l2\n l3\n l4\n-two\n+deux\n l6\n l7\n l8\n l9\n l10\n l11\n"}}
+	shown := func(n forge.Note) []string {
+		lines, from, to := commentedRange(n, diffs)
+		if from < 0 {
+			return nil
 		}
-		return stripTags(out)
+		start, end := codeWindow(lines, from, to)
+		var out []string
+		for _, l := range lines[start : end+1] {
+			out = append(out, l.text)
+		}
+		return out
 	}
-	added := code(forge.Note{Path: "a.go", Line: 2})
-	if !strings.Contains(added, "deux") || !strings.Contains(added, "one") || strings.Contains(added, "three") {
-		t.Errorf("a comment on the new line 2 should end at deux:\n%s", added)
+	added := shown(forge.Note{Path: "a.go", Line: 5})
+	if strings.Join(added, " ") != "l3 l4 two deux l6 l7 l8 l9" {
+		t.Errorf("a comment on the new line 5 shows %q", added)
 	}
-	deleted := code(forge.Note{Path: "a.go", Line: 2, Orphaned: true})
-	if !strings.Contains(deleted, "two") || strings.Contains(deleted, "deux") {
-		t.Errorf("a comment on the deleted line 2 should end at two:\n%s", deleted)
+	deleted := shown(forge.Note{Path: "a.go", Line: 5, Orphaned: true})
+	if strings.Join(deleted, " ") != "l2 l3 l4 two deux l6 l7 l8" {
+		t.Errorf("a comment on the deleted line 5 shows %q", deleted)
 	}
-	if got := code(forge.Note{Path: "a.go", Line: 40}); got != "" {
+	ranged := shown(forge.Note{Path: "a.go", Line: 7, From: forge.LineRef{Old: 5}, To: forge.LineRef{Old: 7, New: 7}})
+	if strings.Join(ranged, " ") != "l2 l3 l4 two deux l6 l7 l8 l9 l10 l11" {
+		t.Errorf("a comment on lines 5 to 7 shows %q", ranged)
+	}
+	if got := shown(forge.Note{Path: "a.go", Line: 40}); got != nil {
 		t.Errorf("a line not in the diff has no code: %q", got)
 	}
-	if got := code(forge.Note{Path: "b.go", Line: 1}); got != "" {
+	if got := shown(forge.Note{Path: "b.go", Line: 1}); got != nil {
 		t.Errorf("a file not in the diff has no code: %q", got)
 	}
+	block := renderConversationWith(forge.Note{ID: 1, Thread: "t", Body: "x", Path: "a.go", Line: 5}, diffs, 60)
+	for _, r := range strings.Split(block, "\n") {
+		if w := tview.TaggedStringWidth(r); w != 60 {
+			t.Errorf("a row of the block is %d wide, want 60: %q", w, r)
+		}
+	}
+}
+
+// renderConversationWith draws one thread beside its diff.
+func renderConversationWith(n forge.Note, diffs []forge.FileDiff, width int) string {
+	text, _ := (&conversation{notes: []forge.Note{n}, latest: diffs}).draw(width)
+	return text
 }

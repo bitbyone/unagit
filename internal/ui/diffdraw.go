@@ -108,20 +108,27 @@ func drawDiff(path, diff string, width int) string {
 		more = len(lines) - diffLimit
 		lines = lines[:diffLimit]
 	}
-	out := drawDiffLines(path, lines, width, -1, false)
+	out := drawDiffLines(path, lines, width, -1, -1, false)
 	if more > 0 {
 		out += fmt.Sprintf("%s… %d more lines - open the file to read them%s\n", tag(colDim), more, tagEnd)
 	}
 	return out
 }
 
-// drawDiffLines draws lines of a diff, the line at mark (-1 for none) with
-// its numbers lit - the line a comment is on. fit keeps every line to
-// width exactly, a long one cut, for a frame drawn round them.
-func drawDiffLines(path string, lines []diffLine, width, mark int, fit bool) string {
+// drawDiffLines draws lines of a diff, those from mark to markTo (-1 for
+// none) marked in a column of their own and their numbers lit - the lines
+// a comment is on. fit keeps every line to width exactly, a long one cut,
+// for a frame drawn round them.
+func drawDiffLines(path string, lines []diffLine, width, mark, markTo int, fit bool) string {
 	numW := 1
 	for _, l := range lines {
 		numW = max(numW, len(strconv.Itoa(max(l.old, l.new))))
+	}
+	// The marks' column is there only when something is marked.
+	marker := 0
+	if mark >= 0 {
+		marker = 1
+		width--
 	}
 	if fit {
 		room := max(1, width-(2*numW+2)-2)
@@ -146,8 +153,16 @@ func drawDiffLines(path string, lines []diffLine, width, mark int, fit bool) str
 		}
 		gutter := number(l.old) + " " + number(l.new) + " "
 		numbers := tag(role("diff.line_number")) + gutter + tagEnd
-		if i == mark {
+		marked := mark >= 0 && i >= mark && i <= markTo
+		if marked {
 			numbers = tag(role("diff.commented")) + "[::b]" + gutter + "[::-]" + tagEnd
+		}
+		if marker > 0 && l.kind != '@' {
+			if marked {
+				b.WriteString(tag(role("diff.commented")) + glyphCommented + tagEnd)
+			} else {
+				b.WriteString(" ")
+			}
 		}
 		used := len(gutter) + 2 + tview.TaggedStringWidth(codes[i])
 		pad := strings.Repeat(" ", max(width-used, 0))
@@ -157,6 +172,7 @@ func drawDiffLines(path string, lines []diffLine, width, mark int, fit bool) str
 			if i == 0 {
 				continue
 			}
+			b.WriteString(strings.Repeat(" ", marker))
 			text := strings.Repeat(" ", len(gutter)) + "  " + l.text
 			if fit {
 				text = trunc(text, width-3)

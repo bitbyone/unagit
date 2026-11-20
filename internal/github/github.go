@@ -263,7 +263,11 @@ type ghComment struct {
 	Line         int       `json:"line"`
 	OriginalLine int       `json:"original_line"`
 	Side         string    `json:"side"`
-	HTMLURL      string    `json:"html_url"`
+	StartLine    int       `json:"start_line"`
+	StartSide    string    `json:"start_side"`
+	// OriginalCommitID is the head the comment was written on.
+	OriginalCommitID string `json:"original_commit_id"`
+	HTMLURL          string `json:"html_url"`
 	// Review comments hang off each other; the conversation is named
 	// after the one that started it.
 	InReplyTo int `json:"in_reply_to_id"`
@@ -281,11 +285,28 @@ func (cm ghComment) note() forge.Note {
 	if line == 0 && cm.OriginalLine > 0 {
 		line, orphaned = cm.OriginalLine, true
 	}
-	return forge.Note{
+	n := forge.Note{
 		ID: cm.ID, Thread: thread, Body: cm.Body, CreatedAt: cm.CreatedAt,
 		Author: forge.User{Username: cm.User.Login, Name: cm.User.Name},
 		Path:   cm.Path, Line: line, Orphaned: orphaned, URL: cm.HTMLURL,
+		Head: cm.OriginalCommitID,
 	}
+	// GitHub numbers a line by the side it is on alone; the latest diff,
+	// which GitHub's lines are read in, says the other side's number.
+	side := func(line int, s string) forge.LineRef {
+		if s == "LEFT" {
+			return forge.LineRef{Old: line}
+		}
+		return forge.LineRef{New: line}
+	}
+	if cm.Path != "" && line > 0 {
+		n.To = side(line, cm.Side)
+		n.From = n.To
+		if cm.StartLine > 0 {
+			n.From = side(cm.StartLine, cm.StartSide)
+		}
+	}
+	return n
 }
 
 // CreateDiscussion starts a review thread on line of path, on the pull
@@ -359,6 +380,52 @@ func quote(body string) string {
 		lines[i] = strings.TrimRight("> "+l, " ")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// CompareDiffs reads what changed from one commit to the other.
+func (c *Client) CompareDiffs(ctx context.Context, mr forge.MergeRequest, from, to string) ([]forge.FileDiff, error) {
+	var compare struct {
+		Files []struct {
+			Filename         string `json:"filename"`
+			PreviousFilename string `json:"previous_filename"`
+			Patch            string `json:"patch"`
+		} `json:"files"`
+	}
+	if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/compare/"+url.PathEscape(from)+"..."+url.PathEscape(to), nil, &compare); err != nil {
+		return nil, err
+	}
+	out := make([]forge.FileDiff, len(compare.Files))
+	for i, f := range compare.Files {
+		old := f.PreviousFilename
+		if old == "" {
+			old = f.Filename
+		}
+		out[i] = forge.FileDiff{OldPath: old, Path: f.Filename, Diff: f.Patch}
+	}
+	return out, nil
+}
+
+// FileAt reads a file of the repository at ref.
+func (c *Client) FileAt(ctx context.Context, mr forge.MergeRequest, path, ref string) (string, error) {
+	segments := strings.Split(path, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	var raw struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/contents/"+strings.Join(segments, "/"), url.Values{"ref": {ref}}, &raw); err != nil {
+		return "", err
+	}
+	if raw.Encoding != "base64" {
+		return raw.Content, nil
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+	if err != nil {
+		return "", fmt.Errorf("read %s at %s: %w", path, ref, err)
+	}
+	return string(data), nil
 }
 
 // MergeRequestDiffs reads the pull request's files and their patches.

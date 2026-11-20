@@ -1272,12 +1272,15 @@ machines, what you happen to wait for here is not.
   everything the API knows: reviewers, approvals, pipeline, labels, commits,
   how far behind the target it is.
 - **Comments as markdown**, each a card with its author, its age and the
-  line it is about on its frame, threaded the way they were written, a
-  thread on code under the lines of the diff it is about, as GitLab shows
-  it. `c` opens the conversation, no wider than reads well; `j`/`k` choose
-  a comment, `i` replies in its thread, `c` writes a new one, `Enter` shows
-  the whole diff of its file at its line, `A` approves (it asks first -
-  everyone sees it).
+  line it is about on its frame, threaded the way they were written. A
+  thread on code is one block: the lines it is about - three before, four
+  after - from the version of the diff it was written on, then its
+  comments, then GitLab's notes that a later version changed the line.
+  `c` opens the conversation, no wider than reads well; `j`/`k` choose a
+  comment, `i` replies in its thread, `c` writes a new one, `Enter` shows
+  the whole diff of its file at its lines - on a change note, the change
+  itself - `e` the whole file, `A` approves (it asks first - everyone
+  sees it).
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.

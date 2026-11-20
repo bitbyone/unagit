@@ -256,3 +256,66 @@ func TestMergeRequestDiffsFallBackOnChanges(t *testing.T) {
 		}
 	}
 }
+
+// A comment on a range says the diff it was written on and its first and
+// last line; GitLab's note that a later version changed the line says the
+// commits of that change, the version's head read from the versions.
+func TestNotesSayTheirDiffTheirRangeAndWhatChangedThem(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v4/projects/42/merge_requests/7/discussions":
+			fmt.Fprint(w, `[{"id":"d1","notes":[
+				{"id":1,"body":"use mapToSet","created_at":"2026-09-20T10:00:00Z",
+				 "position":{"base_sha":"b1","head_sha":"h1","new_path":"K.kt","old_path":"K.kt","new_line":117,
+				  "line_range":{"start":{"old_line":119,"new_line":null},"end":{"old_line":null,"new_line":117}}}},
+				{"id":2,"system":true,"created_at":"2026-09-21T10:00:00Z",
+				 "body":"changed this line in [version 11 of the diff](/g/p/-/merge_requests/7/diffs?diff_id=5511&start_sha=aaa111#abc_117_118)"}]}]`)
+		case "/api/v4/projects/42/merge_requests/7/versions":
+			fmt.Fprint(w, `[{"id":5511,"head_commit_sha":"h11"},{"id":5500,"head_commit_sha":"h10"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	notes, err := New(srv.URL, "t").MergeRequestNotes(context.Background(), discussionMR, 0)
+	if err != nil || len(notes) != 2 {
+		t.Fatalf("notes = %+v, %v", notes, err)
+	}
+	byID := map[int]forge.Note{notes[0].ID: notes[0], notes[1].ID: notes[1]}
+	c := byID[1]
+	if c.Base != "b1" || c.Head != "h1" || c.From != (forge.LineRef{Old: 119}) || c.To != (forge.LineRef{New: 117}) {
+		t.Errorf("comment = %+v", c)
+	}
+	ch := byID[2].Changed
+	if ch == nil || ch.From != "aaa111" || ch.To != "h11" || ch.Line != (forge.LineRef{Old: 117, New: 118}) {
+		t.Errorf("change = %+v", ch)
+	}
+}
+
+func TestCompareAndFilesAreReadAtTheirCommits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/42/repository/compare":
+			if q := r.URL.Query(); q.Get("from") != "a" || q.Get("to") != "b" || q.Get("straight") != "true" {
+				t.Errorf("compare asked %v", q)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"diffs":[{"old_path":"x.go","new_path":"x.go","diff":"@@ -1 +1 @@\n-a\n+b\n"}]}`)
+		case r.URL.EscapedPath() == "/api/v4/projects/42/repository/files/src%2Fx.go/raw" && r.URL.Query().Get("ref") == "b":
+			fmt.Fprint(w, "package x\n")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "t")
+	diffs, err := c.CompareDiffs(context.Background(), discussionMR, "a", "b")
+	if err != nil || len(diffs) != 1 || !strings.Contains(diffs[0].Diff, "+b") {
+		t.Errorf("diffs = %+v, %v", diffs, err)
+	}
+	text, err := c.FileAt(context.Background(), discussionMR, "src/x.go", "b")
+	if err != nil || text != "package x\n" {
+		t.Errorf("file = %q, %v", text, err)
+	}
+}

@@ -364,6 +364,33 @@ type Note struct {
 	Line       int       `json:"line"`
 	// URL links to the comment itself, when the forge says where it lives.
 	URL string `json:"url,omitempty"`
+	// Base and Head are the commits of the diff a comment on code was
+	// written on, which an older version of the merge request's diff may
+	// number differently from the latest; empty, the forge does not say.
+	Base string `json:"base,omitempty"`
+	Head string `json:"head,omitempty"`
+	// From and To are the first and the last line a comment on code is
+	// on, in the diff of Base and Head - the same line when it is on one.
+	From LineRef `json:"from,omitempty"`
+	To   LineRef `json:"to,omitempty"`
+	// Changed is set on the note a forge adds to a thread when a later
+	// version of the merge request changed the line it is on.
+	Changed *LineChange `json:"changed,omitempty"`
+}
+
+// LineRef is a line of a diff by its numbers: Old on the side before,
+// New on the side after, either 0 where the line has none - an added line
+// has no Old, a deleted one no New.
+type LineRef struct {
+	Old int `json:"old,omitempty"`
+	New int `json:"new,omitempty"`
+}
+
+// LineChange is a change a later version made to a commented line: the
+// commits before and after it, and the line in their diff.
+type LineChange struct {
+	From, To string
+	Line     LineRef
 }
 
 // FileDiff is one file of a merge request's diff: where it is, where it
@@ -440,6 +467,12 @@ type Provider interface {
 	// MergeRequestDiffs is what the merge request changes, file by file:
 	// what a comment on a line is read beside.
 	MergeRequestDiffs(ctx context.Context, mr MergeRequest) ([]FileDiff, error)
+	// CompareDiffs is what changed from one commit of the merge request's
+	// repository to another, file by file: the diff a comment was written
+	// on, or the change a later version made to its line.
+	CompareDiffs(ctx context.Context, mr MergeRequest, from, to string) ([]FileDiff, error)
+	// FileAt is a file of the merge request's repository as it is at ref.
+	FileAt(ctx context.Context, mr MergeRequest, path, ref string) (string, error)
 	// MergeRequestCommits returns the newest commits, newest first, and how
 	// many there are; a limit of zero returns all of them.
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)
