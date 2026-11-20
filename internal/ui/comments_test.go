@@ -739,8 +739,8 @@ func TestTheFirstCommentIsChosenOnOpening(t *testing.T) {
 }
 
 // TestAThreadOnCodeIsLitWhileTheCursorIsInIt: the frame round a thread on
-// code is quiet until the cursor is in the thread - on its code or on any
-// of its comments.
+// code is lit while the cursor is anywhere in the thread - on its code or
+// on any of its comments - and a comment's card is banded alone.
 func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 	t.Parallel()
 	thread := []forge.Note{
@@ -748,21 +748,22 @@ func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 		{ID: 2, Thread: "t", Body: "answer"},
 	}
 	diffs := []forge.FileDiff{{Path: "a.go", OldPath: "a.go", Diff: "@@ -1 +1 @@\n-a\n+b\n"}}
-	lit := tag(role("comments.selected"))
-	top := func(selected int, onCode bool) string {
-		text, _ := (&conversation{notes: thread, latest: diffs, selected: selected, onCode: onCode}).draw(60)
-		return strings.Split(text, "\n")[0]
+	_, cards := (&conversation{notes: thread, latest: diffs}).draw(60)
+	if len(cards) != 3 || !cards[0].code {
+		t.Fatalf("cards = %+v", cards)
 	}
-	if strings.Contains(top(0, false), lit) {
-		t.Errorf("the block is lit with the cursor elsewhere: %q", top(0, false))
+	block := cards[0].block
+	if block == nil || !block.frame || block.lit || block.width != 60 {
+		t.Fatalf("the block's frame is %+v", block)
 	}
-	for _, at := range []struct {
-		id     int
-		onCode bool
-	}{{1, true}, {1, false}, {2, false}} {
-		if !strings.Contains(top(at.id, at.onCode), lit) {
-			t.Errorf("the block is not lit with the cursor on %d (code %v): %q", at.id, at.onCode, top(at.id, at.onCode))
+	for _, c := range cards {
+		if c.block != block {
+			t.Errorf("card %d is not in the thread's block", c.note.ID)
 		}
+	}
+	reply := cards[2].band
+	if !reply.lit || !reply.frame || reply.left != 4 || reply.from < block.from || reply.to > block.to {
+		t.Errorf("the reply's band is %+v, in a block %+v", reply, *block)
 	}
 }
 
@@ -881,44 +882,26 @@ func openPlanConversation(t *testing.T) (*App, tcell.SimulationScreen) {
 	return a, sc
 }
 
-// TestALongCommentIsReadThroughBeforeTheNext: j on a comment taller than
-// the view scrolls it a row at a time, and goes on to the next comment once
-// its end is on screen.
-func TestALongCommentIsReadThroughBeforeTheNext(t *testing.T) {
+// TestJAndKGoAWholeCommentAtATime: j and k go from a comment to the next
+// whatever its length, its start shown; a comment taller than the view is
+// read to its end with the cursor in it (v).
+func TestJAndKGoAWholeCommentAtATime(t *testing.T) {
 	t.Parallel()
 	a, sc := openPlanConversation(t)
-	steps := 0
-	for !strings.Contains(a.screenText(sc), "resource 60 will be created") {
-		if steps++; steps > 60 {
-			t.Fatal("j did not read the long comment through")
-		}
-		typeRunes(sc, "j")
-	}
-	if steps < 10 {
-		t.Fatalf("the end showed after %d steps: the comment was not read a row at a time", steps)
-	}
-	// Still on the long comment: r answers atlantis.
+	typeRunes(sc, "j")
 	typeRunes(sc, "r")
-	waitFor(t, a, sc, "Reply to atlantis")
+	waitFor(t, a, sc, "Reply to carol")
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-	waitGone(t, a, sc, "Reply to atlantis")
-	// Its frame's end a row or two below, then j goes on to the next one.
-	for step := 0; ; step++ {
-		if step > 3 {
-			t.Fatal("j stayed on the long comment past its end")
-		}
-		typeRunes(sc, "j")
-		typeRunes(sc, "r")
-		waitFor(t, a, sc, "Reply to")
-		on := strings.Contains(a.screenText(sc), "Reply to carol")
-		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-		sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
-		waitGone(t, a, sc, "Reply to")
-		if on {
-			break
-		}
+	waitGone(t, a, sc, "Reply to carol")
+	// Back on the long one, its start shows, not its end.
+	typeRunes(sc, "k")
+	waitFor(t, a, sc, "resource 01 will be created")
+	if strings.Contains(a.screenText(sc), "resource 60 will be created") {
+		t.Error("k came back to the long comment at its end")
 	}
+	typeRunes(sc, "vG")
+	waitFor(t, a, sc, "resource 60 will be created")
 }
 
 // TestTextIsSelectedInACommentAndCopied: v puts a cursor in the comment;

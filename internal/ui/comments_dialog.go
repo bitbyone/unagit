@@ -88,6 +88,14 @@ func (v *conversationView) mouseRows() *rowsUnder {
 
 func (v *conversationView) Draw(screen tcell.Screen) {
 	v.TextView.Draw(screen)
+	// The chosen card, and the block it is in, are laid over the text as
+	// drawn: the text is set when what it says changes, not at each step.
+	if card, ok := v.d.chosen(); ok {
+		if card.block != nil {
+			paintBand(screen, v.TextView, *card.block)
+		}
+		paintBand(screen, v.TextView, card.band)
+	}
 	if v.d.vis.on {
 		v.d.drawVisual(screen)
 	}
@@ -234,7 +242,7 @@ func (d *commentsDialog) choose(i int) {
 	}
 	i = max(0, min(i, len(d.cards)-1))
 	d.conv.selected, d.conv.onCode = d.cards[i].note.ID, d.cards[i].code
-	d.draw()
+	// What is drawn stays; the band follows the cursor.
 	d.reveal()
 }
 
@@ -274,32 +282,14 @@ func (d *commentsDialog) reveal() {
 	}
 }
 
-// step moves to the next card, or the one before. A card taller than the
-// view is read through first: the step scrolls it a row at a time, and
-// goes on to the next card once its end - or, going back, its start - is
-// on screen.
+// step moves to the next card, or the one before - a whole card at a
+// time, its start shown: a comment taller than the view is read with v.
 func (d *commentsDialog) step(by int) {
 	for i, c := range d.cards {
-		if !d.conv.isChosen(c) {
-			continue
-		}
-		_, _, _, height := d.view.GetInnerRect()
-		row, _ := d.view.GetScrollOffset()
-		switch {
-		case by > 0 && c.to >= row+height && c.from <= row+height-1:
-			d.view.ScrollTo(row+1, 0)
-			return
-		case by < 0 && c.from < row && c.to >= row:
-			d.view.ScrollTo(row-1, 0)
+		if d.conv.isChosen(c) {
+			d.choose(i + by)
 			return
 		}
-		d.choose(i + by)
-		// Going back into a card taller than the view, its end shows
-		// first, to be read up from.
-		if prev, ok := d.chosen(); ok && by < 0 && prev.to-prev.from+1 > height {
-			d.view.ScrollTo(prev.to-height+1, 0)
-		}
-		return
 	}
 	d.choose(0)
 }

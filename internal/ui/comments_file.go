@@ -43,34 +43,42 @@ func (v *bandView) mouseRows() *rowsUnder {
 	return v.rows()
 }
 
-// bandArea is what the band covers: rows of the text, and - for a comment's
-// card - the columns from its left edge, width wide, its frame lit as the
-// chosen comment's is; width 0 is the whole row.
+// bandArea is what the cursor's band covers: rows of the text, and - for
+// a comment's card - the columns from its left edge, width wide; width 0 is
+// the whole row. lit lifts the background under it, frame draws the frame
+// round it in the focus colour.
 type bandArea struct {
 	from, to    int
 	left, width int
-	frame       bool
+	lit, frame  bool
 }
 
-// frameRunes are what a card's frame is drawn with.
+// frameRunes are what a frame is drawn with.
 const frameRunes = "─│╭╮╰╯"
 
-func (v *bandView) Draw(screen tcell.Screen) {
-	v.TextView.Draw(screen)
-	area, ok := v.band()
-	if !ok {
-		return
-	}
+// paintBand lays a band over a view as drawn: each cell's own background
+// lifted - the code's, a diff's fill, a comment's card - so what is under
+// the cursor reads as it does elsewhere, and its frame in the focus
+// colour. The terminal's own background, which cannot be shifted, takes a
+// chosen comment's. A colour lifted once is not worked out again.
+func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 	x, y, w, h := v.GetRect()
 	inX, inY, _, inH := v.GetInnerRect()
 	top, _ := v.GetScrollOffset()
-	// The band is each cell's own background lifted - the code's, a
-	// diff's fill, a comment's card - so what is under the cursor reads as
-	// it does elsewhere; the terminal's own background, which cannot be
-	// shifted, takes a chosen comment's.
-	plain := lift(tview.Styles.PrimitiveBackgroundColor)
-	if plain == tcell.ColorDefault {
-		plain = role("comments.selected_fill")
+	lifted := map[tcell.Color]tcell.Color{}
+	liftOf := func(bg tcell.Color) tcell.Color {
+		if c, ok := lifted[bg]; ok {
+			return c
+		}
+		c := lift(bg)
+		if c == tcell.ColorDefault {
+			c = lift(tview.Styles.PrimitiveBackgroundColor)
+		}
+		if c == tcell.ColorDefault {
+			c = role("comments.selected_fill")
+		}
+		lifted[bg] = c
+		return c
 	}
 	// Inside the border, the padding too, so a line's band reaches the
 	// frame; a card's covers the card alone.
@@ -86,18 +94,25 @@ func (v *bandView) Draw(screen tcell.Screen) {
 		}
 		for sx := left; sx <= right && sx < x+w-1; sx++ {
 			r, comb, style, _ := screen.GetContent(sx, sy)
-			_, bg, _ := style.Decompose()
-			fill := lift(bg)
-			if fill == tcell.ColorDefault {
-				fill = plain
+			if area.lit {
+				_, bg, _ := style.Decompose()
+				style = style.Background(liftOf(bg))
 			}
-			style = style.Background(fill)
 			edge := row == area.from || row == area.to || sx == left || sx == right
 			if area.frame && edge && strings.ContainsRune(frameRunes, r) {
 				style = style.Foreground(focus)
+			} else if !area.lit {
+				continue
 			}
 			screen.SetContent(sx, sy, r, comb, style)
 		}
+	}
+}
+
+func (v *bandView) Draw(screen tcell.Screen) {
+	v.TextView.Draw(screen)
+	if area, ok := v.band(); ok {
+		paintBand(screen, v.TextView, area)
 	}
 }
 
@@ -383,7 +398,7 @@ func (fv *fileView) render(width int) string {
 			bubble = tag(role("comments.icon")) + glyphComment + fmt.Sprintf("%-2d", min(count, 99)) + tagEnd
 		}
 		row := mark + number + " " + bubble + " " + code
-		items = append(items, fileItem{line: line, from: len(rows), to: len(rows), band: bandArea{from: len(rows), to: len(rows)}})
+		items = append(items, fileItem{line: line, from: len(rows), to: len(rows), band: bandArea{from: len(rows), to: len(rows), lit: true}})
 		rows = append(rows, row)
 		if fv.d.hideInline {
 			continue
@@ -395,7 +410,7 @@ func (fv *fileView) render(width int) string {
 				var text string
 				// The band covers the card alone, its frame lit; a note of a
 				// change, its line.
-				band := bandArea{left: gutter, width: inner}
+				band := bandArea{left: gutter, width: inner, lit: true}
 				if n.Changed != nil {
 					text = c.drawChange(n, root, inner, false)
 				} else {

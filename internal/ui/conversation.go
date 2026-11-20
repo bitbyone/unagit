@@ -35,6 +35,17 @@ type commentCard struct {
 	// code is the code a thread is on, which the cursor stops at too, its
 	// note the thread's first.
 	code bool
+	// band is what the cursor's band covers on it - a card, a line - and
+	// block, for what is in a thread on code, the block's frame, lit while
+	// the cursor is anywhere in it. They are laid over the text as drawn,
+	// so a step of the cursor draws the conversation again and no more.
+	band  bandArea
+	block *bandArea
+}
+
+// cardBand is the band of a card width wide, nested by indent, at left.
+func cardBand(from, to, left, indent, width int) bandArea {
+	return bandArea{from: from, to: to, left: left + indent, width: max(width-indent, minBubbleWidth), lit: true, frame: true}
 }
 
 // conversation is what the comments dialog draws from: the comments, the
@@ -165,10 +176,10 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 		}
 		top := len(rows)
 		for j, b := range bubblesOf(thread) {
-			b.Selected = thread[j].ID == c.selected && !c.onCode
 			from := len(rows)
 			add(renderBubble(b, width))
-			cards = append(cards, commentCard{top: from, from: from, to: len(rows) - 1, note: thread[j]})
+			cards = append(cards, commentCard{top: from, from: from, to: len(rows) - 1, note: thread[j],
+				band: cardBand(from, len(rows)-1, 0, b.Indent, width)})
 		}
 		cards[len(cards)-len(thread)].top = top
 	}
@@ -201,14 +212,7 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	lines, from, to := commentedRange(root, c.diffsOf(root))
 	total := max(width, minBubbleWidth)
 	inner := total - 4
-	// The block is lit while the cursor is anywhere in it - on its code or
-	// on any of its comments, which are part of it.
 	frame := tag(role("comments.code_border"))
-	for _, n := range thread {
-		if n.ID == c.selected {
-			frame = tag(role("comments.selected"))
-		}
-	}
 	edge := frame + string(tview.Borders.Vertical) + inkReset
 	add := func(text string) { *rows = append(*rows, text) }
 	inside := func(text string) {
@@ -239,21 +243,33 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 			add(edge + line + inkReset + edge)
 		}
 	}
+	firstCard := len(*cards)
 	*cards = append(*cards, commentCard{top: codeFrom, from: codeFrom, to: len(*rows) - 1, note: root, code: true})
 	bubbles := bubblesOf(thread)
 	for j, n := range thread {
 		first := len(*rows)
-		chosen := n.ID == c.selected && !c.onCode
+		var band bandArea
 		if n.Changed != nil {
-			inside(c.drawChange(n, root, inner, chosen))
+			inside(c.drawChange(n, root, inner, false))
+			band = bandArea{left: 2, width: inner, lit: true}
 		} else {
 			b := bubbles[j]
-			b.Where, b.Selected = "", chosen
+			b.Where = ""
 			inside(renderBubble(b, inner))
+			band = cardBand(0, 0, 2, b.Indent, inner)
 		}
-		*cards = append(*cards, commentCard{top: first, from: first, to: len(*rows) - 1, note: n})
+		band.from, band.to = first, len(*rows)-1
+		*cards = append(*cards, commentCard{top: first, from: first, to: len(*rows) - 1, note: n, band: band})
 	}
 	add(frame + string(tview.Borders.BottomLeft) + strings.Repeat(string(tview.Borders.Horizontal), total-2) + string(tview.Borders.BottomRight) + inkReset)
+	// The block is lit while the cursor is anywhere in it - on its code or
+	// on any of its comments, which are part of it; on its code, that is
+	// all there is to light.
+	block := &bandArea{from: codeFrom, to: len(*rows) - 1, width: total, frame: true}
+	for k := firstCard; k < len(*cards); k++ {
+		(*cards)[k].block = block
+	}
+	(*cards)[firstCard].band = *block
 	return true
 }
 
@@ -264,18 +280,20 @@ func (c *conversation) drawCards(thread []forge.Note, width int, rows *[]string,
 	for j, n := range thread {
 		from := len(*rows)
 		text := ""
+		band := bandArea{width: width, lit: true}
 		if n.Changed != nil {
-			text = c.drawChange(n, thread[0], width, n.ID == c.selected && !c.onCode)
+			text = c.drawChange(n, thread[0], width, false)
 		} else {
 			b := bubbles[j]
-			b.Selected = n.ID == c.selected && !c.onCode
 			if j == 0 && b.Where != "" {
 				b.Where = where(n)
 			}
 			text = renderBubble(b, width)
+			band = cardBand(0, 0, 0, b.Indent, width)
 		}
 		*rows = append(*rows, strings.Split(text, "\n")...)
-		*cards = append(*cards, commentCard{top: from, from: from, to: len(*rows) - 1, note: n})
+		band.from, band.to = from, len(*rows)-1
+		*cards = append(*cards, commentCard{top: from, from: from, to: len(*rows) - 1, note: n, band: band})
 	}
 }
 

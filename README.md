@@ -1290,9 +1290,9 @@ machines, what you happen to wait for here is not.
   (it asks first - everyone sees it). `.` lists all of it, as it does on
   a list, and in an expanded file. The mouse does what the keys do: a
   click chooses a comment or a line, a double click is `Enter`, the right
-  button lists the actions, the wheel moves as `j` and `k` do. A comment
-  taller than the view is read through a row at a time before `j` goes on.
-  `v` puts a cursor in the comment chosen: `v` again selects from there,
+  button lists the actions, the wheel moves as `j` and `k` do, a comment
+  at a time, its start shown. `v` puts a cursor in the comment chosen - to
+  read a comment taller than the view to its end, or to copy some of it: `v` again selects from there,
   `V` whole lines, the mouse by dragging; `y` copies the selection, `Y`
   the comment as written, and `Esc` goes back.
 - **A file expanded** (`Enter` on a comment): the whole file at the version
