@@ -1283,7 +1283,9 @@ machines, what you happen to wait for here is not.
   and `d` edit and delete one of your own, `x` resolves the thread or opens
   it again, `h` hides the code or shows it again, `R` reads it all again, and `A` approves
   (it asks first - everyone sees it). `.` lists all of it, as it does on
-  a list, and in an expanded file.
+  a list, and in an expanded file. The mouse does what the keys do: a
+  click chooses a comment or a line, a double click is `Enter`, the right
+  button lists the actions, the wheel moves as `j` and `k` do.
 - **A file expanded** (`Enter` on a comment): the whole file at the version
   the comment was written on - or the latest, asked when they differ - the
   cursor on the comment, a mark and a count beside each line with

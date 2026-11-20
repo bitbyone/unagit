@@ -795,3 +795,56 @@ func TestTheCommentsActionsAreInThePicker(t *testing.T) {
 		waitFor(t, a, sc, want)
 	}
 }
+
+// TestTheMouseChoosesAndOpensComments: a click chooses a comment, the
+// right button lists what can be done with it and a double click opens it,
+// in the conversation and in a file, as the keys do.
+func TestTheMouseChoosesAndOpensComments(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := openCodeConversation(t, 160, 60)
+	x, y := at(t, a, sc, "third comment")
+	click(sc, x, y, tcell.ModNone)
+	typeRunes(sc, "r")
+	waitFor(t, a, sc, "Reply to bob")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Reply to bob")
+
+	x, y = at(t, a, sc, "please split this merge request")
+	press(sc, x, y, tcell.ButtonSecondary, tcell.ModNone)
+	release(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "Actions · comments")
+	waitFor(t, a, sc, "Edit Comment…")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · comments")
+
+	x, y = at(t, a, sc, "this sleeps on every retry")
+	click(sc, x, y, tcell.ModNone)
+	click(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	waitFor(t, a, sc, "Enter compare")
+	x, y = at(t, a, sc, "dave changed this line")
+	click(sc, x, y, tcell.ModNone)
+	click(sc, x, y, tcell.ModNone)
+	waitFor(t, a, sc, "jitter(backoff)")
+}
+
+// TestALongLineOfCodeIsCutToTheBlock: a line longer than the block - an
+// ARN, a generated name - is cut at its edge, never carried onto the next
+// row, where it would break the frame.
+func TestALongLineOfCodeIsCutToTheBlock(t *testing.T) {
+	t.Parallel()
+	long := `    role_arn = "arn:aws:iam::123456789012:role/` + strings.Repeat("Terraform", 20) + `Execution"`
+	diffs := []forge.FileDiff{{Path: "main.tf", OldPath: "main.tf", Diff: "@@ -1,2 +1,2 @@\n assume_role {\n-" + long + "\n+" + long + "x\n"}}
+	block := renderConversationWith(forge.Note{ID: 1, Thread: "t", Body: "x", Path: "main.tf", Line: 2}, diffs, 80)
+	for _, r := range strings.Split(block, "\n") {
+		if w := tview.TaggedStringWidth(r); w != 80 {
+			t.Errorf("a row of the block is %d wide, want 80: %q", w, r)
+		}
+	}
+	if !strings.Contains(block, "…") {
+		t.Errorf("the long line is not cut:\n%s", block)
+	}
+}

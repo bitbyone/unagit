@@ -230,6 +230,8 @@ func (a *App) restyle(p tview.Primitive) {
 		a.restyle(w.content)
 	case *bandView:
 		a.restyle(w.TextView)
+	case *conversationView:
+		a.restyle(w.TextView)
 	case *tview.Flex:
 		restyleBox(w.Box)
 		for i := 0; i < w.GetItemCount(); i++ {

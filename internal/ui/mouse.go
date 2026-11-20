@@ -444,6 +444,10 @@ func (a *App) rowsAt(x, y int) *rowsUnder {
 		return treeRows(v)
 	case *integrationsView:
 		return v.rows()
+	case interface{ mouseRows() *rowsUnder }:
+		// A view of unagit's own whose rows are what it says they are -
+		// the cards of a conversation, the lines of a file.
+		return v.mouseRows()
 	}
 	return nil
 }

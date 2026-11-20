@@ -42,6 +42,50 @@ type commentsDialog struct {
 	generation int
 }
 
+// conversationView is the conversation as the mouse finds it: its rows
+// are the cards and the code of the threads, which a click chooses, a
+// double click opens and the wheel goes through, as j and k do.
+type conversationView struct {
+	*tview.TextView
+	d *commentsDialog
+}
+
+func (v *conversationView) mouseRows() *rowsUnder {
+	d := v.d
+	return &rowsUnder{
+		focus: v,
+		at: func(x, y int) int {
+			_, top, _, room := v.GetInnerRect()
+			if y < top || y >= top+room {
+				return -1
+			}
+			scroll, _ := v.GetScrollOffset()
+			return cardAtRow(d.cards, y-top+scroll)
+		},
+		cursor: func() int {
+			for i, c := range d.cards {
+				if d.conv.isChosen(c) {
+					return i
+				}
+			}
+			return -1
+		},
+		move: d.choose,
+		step: d.step,
+		edge: func(int) int { return -1 },
+	}
+}
+
+// cardAtRow is the card a row of the conversation is in, -1 for none.
+func cardAtRow(cards []commentCard, row int) int {
+	for i, c := range cards {
+		if row >= c.from && row <= c.to {
+			return i
+		}
+	}
+	return -1
+}
+
 // fileText is a file read at a commit, or that it is not there.
 type fileText struct {
 	text string
@@ -55,11 +99,12 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	d := &commentsDialog{a: a, mr: mr, files: map[string]fileText{},
 		conv: &conversation{diffs: map[string]forge.FileDiff{}, reading: map[string]bool{}, expanded: map[int]bool{}}}
 	path := a.projectPathOfMR(mr)
+	// Nothing is wrapped by the view: every row is laid out to its width
+	// here, and what would not fit - a long line of code - is cut there.
 	d.view = tview.NewTextView().
 		SetDynamicColors(true).
 		SetScrollable(true).
-		SetWrap(true).
-		SetWordWrap(true)
+		SetWrap(false)
 	d.view.SetTextColor(colText)
 	box(d.view.Box, fmt.Sprintf("Comments · %s !%d", path, mr.IID)).SetBorderPadding(0, 0, 1, 1)
 
@@ -68,8 +113,9 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · h toggle code · P publish · A approve · R reload"))
 	}
 	hint()
+	shown := &conversationView{TextView: d.view, d: d}
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(d.view, 0, 1, true).
+		AddItem(shown, 0, 1, true).
 		AddItem(footer, 1, 0, false)
 	fitFooter(frame, footer, 0)
 	// The conversation is drawn as boxes, which have to know how wide they are.
@@ -84,7 +130,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	a.pages.AddPage(pageComments, modalFit(frame, func(w, h int) (int, int) {
 		return min(max(w*80/100, min(w, 60)), commentsWidth), h * 85 / 100
 	}), true, true)
-	a.tv.SetFocus(d.view)
+	a.tv.SetFocus(shown)
 	d.load(false)
 }
 

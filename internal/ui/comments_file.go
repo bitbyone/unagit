@@ -28,6 +28,15 @@ import (
 type bandView struct {
 	*tview.TextView
 	band func() (from, to int, ok bool)
+	// rows are its rows as the mouse finds them.
+	rows func() *rowsUnder
+}
+
+func (v *bandView) mouseRows() *rowsUnder {
+	if v.rows == nil {
+		return nil
+	}
+	return v.rows()
 }
 
 func (v *bandView) Draw(screen tcell.Screen) {
@@ -194,6 +203,31 @@ func (fv *fileView) show() {
 		}
 		return 0, 0, false
 	}}
+	// A click puts the cursor on a line or a comment, a double click is
+	// Enter, the wheel moves it as j and k do.
+	fv.band.rows = func() *rowsUnder {
+		return &rowsUnder{
+			focus: fv.band,
+			at: func(x, y int) int {
+				_, top, _, room := fv.view.GetInnerRect()
+				if y < top || y >= top+room {
+					return -1
+				}
+				scroll, _ := fv.view.GetScrollOffset()
+				row := y - top + scroll
+				for i, it := range fv.items {
+					if row >= it.from && row <= it.to {
+						return i
+					}
+				}
+				return -1
+			},
+			cursor: fv.cursor,
+			move:   fv.move,
+			step:   func(dir int) { fv.move(fv.cursor() + dir) },
+			edge:   func(int) int { return -1 },
+		}
+	}
 	version := "latest"
 	if !fv.latest {
 		version = short(fv.ref)
