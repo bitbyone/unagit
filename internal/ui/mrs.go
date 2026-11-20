@@ -537,14 +537,17 @@ func (a *App) openMRIn(mr forge.MergeRequest, ed *editors.Editor, place editorPl
 		return
 	}
 	client := a.client(mr.Instance)
-	integrate := a.cfg.Integrations.Incomm
+	integrate := a.incommFor(mr.Instance)
 	a.runTaskOpeningIn(fmt.Sprintf("Opening %s !%d", project.PathWithNamespace, mr.IID),
 		a.sessionOf(mr, project.PathWithNamespace, session.ModeBranch), ed, place,
 		func(log func(string)) (string, error) {
 			mr := a.refreshMR(client, mr, log)
 			dir, err := a.newManager(mr.Instance, project.PathWithNamespace, log).EnsureMR(mr, project)
-			if err == nil && integrate {
+			if err == nil && integrate.on {
 				reanchorAfterUpdate(dir, log)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				a.moveDrafts(ctx, mr, incomm.Place{Dir: dir}, integrate.author, log)
 			}
 			return dir, err
 		})
@@ -734,7 +737,7 @@ func (a *App) openMRReviewFromIn(mr forge.MergeRequest, from string, ed *editors
 	project := a.mrProject(mr)
 	path := project.PathWithNamespace
 	client := a.client(mr.Instance)
-	integrate := a.cfg.Integrations.Incomm
+	integrate := a.incommFor(mr.Instance)
 	title := fmt.Sprintf("Opening %s !%d for review", path, mr.IID)
 	if from != "" {
 		title = fmt.Sprintf("Opening %s !%d for review from %.8s", path, mr.IID, from)
@@ -752,7 +755,7 @@ func (a *App) openMRReviewFromIn(mr forge.MergeRequest, from string, ed *editors
 func (a *App) cloneMRReview(mr forge.MergeRequest) {
 	project := a.mrProject(mr)
 	client := a.client(mr.Instance)
-	integrate := a.cfg.Integrations.Incomm
+	integrate := a.incommFor(mr.Instance)
 	a.runTaskNoting(fmt.Sprintf("Preparing %s !%d for review", project.PathWithNamespace, mr.IID),
 		func(log func(string)) (string, error) {
 			dir, err := a.prepareReview(mr, project, client, "", integrate, log)
@@ -767,7 +770,7 @@ func (a *App) cloneMRReview(mr forge.MergeRequest) {
 // from a commit onwards when from is set, and brings Incomm's comments in when
 // that integration is on. It runs off the event loop.
 func (a *App) prepareReview(mr forge.MergeRequest, project forge.Project, client forge.Provider,
-	from string, integrate bool, log func(string)) (string, error) {
+	from string, integrate incommSync, log func(string)) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -780,7 +783,7 @@ func (a *App) prepareReview(mr forge.MergeRequest, project forge.Project, client
 		// The review has the head now; a mark made without it is past.
 		a.tv.QueueUpdate(func() { a.forgetSeen(mr) })
 	}
-	if err != nil || !integrate {
+	if err != nil || !integrate.on {
 		return dir, err
 	}
 	reanchorAfterUpdate(dir, log)
@@ -795,6 +798,7 @@ func (a *App) prepareReview(mr forge.MergeRequest, project forge.Project, client
 	if err := incomm.Import(ctx, dir, mr, notes, log); err != nil {
 		return "", err
 	}
+	a.moveDrafts(ctx, mr, incomm.Place{Dir: dir}, integrate.author, log)
 	return dir, nil
 }
 

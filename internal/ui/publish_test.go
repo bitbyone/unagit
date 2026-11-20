@@ -214,19 +214,19 @@ func TestPublishSummaryCountsResolvesToo(t *testing.T) {
 	resolve := incomm.Step{File: "a.go", Line: 3, Resolve: true}
 	mr := forge.MergeRequest{IID: 7}
 
-	both := publishSummary("acme/gateway", mr, []incomm.Step{post, resolve, resolve})
+	both := publishSummary("acme/gateway", mr, nil, []incomm.Step{post, resolve, resolve})
 	for _, want := range []string{"Publish 1 comment and resolve 2 threads to", "a.go:3  resolve thread", "closes the conversation", "posted with your token"} {
 		if !strings.Contains(both, want) {
 			t.Errorf("missing %q in:\n%s", want, both)
 		}
 	}
-	only := publishSummary("acme/gateway", mr, []incomm.Step{resolve})
+	only := publishSummary("acme/gateway", mr, nil, []incomm.Step{resolve})
 	if !strings.Contains(only, "Resolve 1 thread on") || strings.Contains(only, "posted with your token") {
 		t.Errorf("resolve only:\n%s", only)
 	}
 	orphan := post
 	orphan.Orphaned = true
-	if got := publishSummary("acme/gateway", mr, []incomm.Step{orphan}); !strings.Contains(got, "orphaned") {
+	if got := publishSummary("acme/gateway", mr, nil, []incomm.Step{orphan}); !strings.Contains(got, "orphaned") {
 		t.Errorf("an orphan must be marked:\n%s", got)
 	}
 }
@@ -238,11 +238,11 @@ func TestPublishSummaryKeepsToOneScreen(t *testing.T) {
 		steps = append(steps, incomm.Step{File: "a.go", Line: i + 1, IsRoot: true,
 			Comment: incomm.Comment{Author: "user", Content: fmt.Sprintf("comment %d", i)}})
 	}
-	got := publishSummary("acme/gateway", forge.MergeRequest{IID: 7}, steps)
+	got := publishSummary("acme/gateway", forge.MergeRequest{IID: 7}, nil, steps)
 	if !strings.Contains(got, "Publish 15 comments to") || !strings.Contains(got, "and 3 more") || strings.Contains(got, "comment 14") {
 		t.Errorf("summary:\n%s", got)
 	}
-	one := publishSummary("acme/gateway", forge.MergeRequest{IID: 7}, steps[:1])
+	one := publishSummary("acme/gateway", forge.MergeRequest{IID: 7}, nil, steps[:1])
 	if !strings.Contains(one, "Publish 1 comment to") {
 		t.Errorf("singular: %s", one)
 	}

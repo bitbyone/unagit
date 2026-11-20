@@ -207,6 +207,7 @@ select (`styleDropDown`), it just was not reused. The rules:
 | `internal/keychain` | the passphrase in the macOS keychain, when chosen |
 | `internal/credential` | the socket that hands the sandboxes' tokens out while unlocked, and its client |
 | `internal/index` | the on-disk JSON caches of the lists |
+| `internal/draft` | comments written in unagit and saved, not yet published, until P or a worktree's Incomm takes them |
 | `internal/workspace` | clones, worktrees, the review arrangement |
 | `internal/gitx` | the git command line, credentials, error hints |
 | `internal/session` | what is open in an editor, files named by pid |

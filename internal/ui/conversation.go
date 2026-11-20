@@ -7,6 +7,7 @@ import (
 
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/draft"
 	"github.com/tobola/unagit/internal/forge"
 )
 
@@ -46,6 +47,9 @@ type conversation struct {
 	// expanded are the notes of a change whose change is shown.
 	expanded map[int]bool
 	selected int
+	// drafts are the comments saved in unagit, drawn as threads of their
+	// own, not published.
+	drafts []draft.Draft
 }
 
 func versionKey(n forge.Note) string { return n.Base + ".." + n.Head }
@@ -86,7 +90,7 @@ func renderConversation(notes []forge.Note, width int) string {
 // draw lays the conversation out, oldest thread first, and says where each
 // comment's card is.
 func (c *conversation) draw(width int) (string, []commentCard) {
-	notes := shown(c.notes)
+	notes := append(shown(c.notes), draftNotes(c.drafts)...)
 	if len(notes) == 0 {
 		return tag(colMuted) + "No comments yet. Press c to write the first one." + tagEnd, nil
 	}
@@ -110,7 +114,7 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 			cards[len(cards)-len(thread)].top = top
 			continue
 		}
-		for j, b := range threadBubbles(thread, false) {
+		for j, b := range bubblesOf(thread) {
 			b.Selected = thread[j].ID == c.selected
 			from := len(rows)
 			add(renderBubble(b, width))
@@ -146,7 +150,7 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 		add(edge + line + inkReset + edge)
 	}
 	add(frame + "├" + strings.Repeat(string(tview.Borders.Horizontal), total-2) + "┤" + inkReset)
-	bubbles := threadBubbles(thread, false)
+	bubbles := bubblesOf(thread)
 	for j, n := range thread {
 		first := len(*rows)
 		if n.Changed != nil {
@@ -160,6 +164,17 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	}
 	add(frame + string(tview.Borders.BottomLeft) + strings.Repeat(string(tview.Borders.Horizontal), total-2) + string(tview.Borders.BottomRight) + inkReset)
 	return true
+}
+
+// bubblesOf is a thread as cards, a comment saved in unagit saying so.
+func bubblesOf(thread []forge.Note) []bubble {
+	bubbles := threadBubbles(thread, false)
+	for j, n := range thread {
+		if n.ID < 0 {
+			bubbles[j].Meta = tag(colWarn) + "saved · not published" + tagEnd
+		}
+	}
+	return bubbles
 }
 
 // where names the lines a comment is on: "path:117", or "path:112-117"

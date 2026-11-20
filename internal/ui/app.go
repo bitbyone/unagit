@@ -1912,6 +1912,18 @@ func (a *App) scanDisk(countPending bool) (map[projectKey]diskInfo, []worktreeRo
 		}
 		worktrees = append(worktrees, row)
 	}
+	// The comments saved in unagit wait to be published as Incomm's do.
+	for k, n := range a.draftStore().Counts() {
+		key := projectKey{k.Instance, k.Project}
+		info, ok := disk[key]
+		if !ok {
+			info = diskInfo{MRs: map[int]mrDisk{}}
+		}
+		d := info.MRs[k.IID]
+		d.Pending += n
+		info.MRs[k.IID] = d
+		disk[key] = info
+	}
 	return disk, worktrees
 }
 

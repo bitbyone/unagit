@@ -851,6 +851,10 @@ func (c *Config) IndexPath(name string) string {
 	return filepath.Join(c.Dir(), "index-"+name+".json")
 }
 
+// DraftsDir is where the comments saved in unagit and not yet published
+// wait, each merge request's in a file of its own.
+func (c *Config) DraftsDir() string { return filepath.Join(c.Dir(), "drafts") }
+
 // WatchDir is where what is watched and what was last seen of it are kept:
 // this machine's state, not configuration (internal/watch).
 func (c *Config) WatchDir() string { return filepath.Join(c.Dir(), "watch") }

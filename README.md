@@ -1279,8 +1279,15 @@ machines, what you happen to wait for here is not.
   `c` opens the conversation, no wider than reads well; `j`/`k` choose a
   comment, `i` replies in its thread, `c` writes a new one, `Enter` shows
   the whole diff of its file at its lines - on a change note, the change
-  itself - `e` the whole file, `A` approves (it asks first - everyone
-  sees it).
+  itself - `e` the whole file (asking which version, when the comment is
+  on an older one), `x` resolves the thread or opens it again, `A`
+  approves (it asks first - everyone sees it).
+- **Comments written in unagit**: in the whole file of the latest version
+  `j`/`k` move a cursor and `c` comments its line. **Publish** starts a
+  thread on the forge at once; **Save** keeps it in unagit, counted in
+  `PUB` and published with the rest by `P`. With Incomm on, opening or
+  syncing a worktree of the merge request moves it into that worktree's
+  Incomm store, where it is edited in the editor like any other.
 - **Filters that stick**: cloned-only, hidden repositories, sort order,
   repositories grouped by their group or subgroup and merge requests by their
   repository, plus a fuzzy filter on everything.

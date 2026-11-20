@@ -210,7 +210,7 @@ func (a *App) diffMR(mr forge.MergeRequest) {
 			return
 		}
 		client := a.client(mr.Instance)
-		integrate := a.cfg.Integrations.Incomm
+		integrate := a.incommFor(mr.Instance)
 		a.runTaskThen(fmt.Sprintf("Preparing %s !%d for Hunk", path, mr.IID), func(log func(string)) (string, error) {
 			return a.prepareReview(mr, project, client, "", integrate, log)
 		}, func(dir string) {

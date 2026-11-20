@@ -9,6 +9,7 @@ import (
 
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/draft"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/incomm"
 )
@@ -46,8 +47,8 @@ const maxListed = 12
 
 // publishSummary is the body of the confirmation: how many comments go out, how
 // many threads are resolved, and what each of them is.
-func publishSummary(path string, mr forge.MergeRequest, steps []incomm.Step) string {
-	posts, resolves := 0, 0
+func publishSummary(path string, mr forge.MergeRequest, drafts []draft.Draft, steps []incomm.Step) string {
+	posts, resolves := len(drafts), 0
 	for _, s := range steps {
 		if s.Resolve {
 			resolves++
@@ -70,12 +71,19 @@ func publishSummary(path string, mr forge.MergeRequest, steps []incomm.Step) str
 		preposition = "on"
 	}
 	fmt.Fprintf(&b, "%s %s [::b]%s !%d[::-]?\n\n", what, preposition, tview.Escape(path), mr.IID)
-	for i, s := range steps {
+	lines := make([]string, 0, len(drafts)+len(steps))
+	for _, d := range drafts {
+		lines = append(lines, fmt.Sprintf("%s:%d  comment saved in unagit: %s", d.Path, d.Line, trunc(strings.Join(strings.Fields(d.Body), " "), 60)))
+	}
+	for _, s := range steps {
+		lines = append(lines, s.Summary())
+	}
+	for i, line := range lines {
 		if i == maxListed {
-			fmt.Fprintf(&b, "%s… and %d more%s\n", tag(colDim), len(steps)-maxListed, tagEnd)
+			fmt.Fprintf(&b, "%s… and %d more%s\n", tag(colDim), len(lines)-maxListed, tagEnd)
 			break
 		}
-		b.WriteString(tview.Escape(s.Summary()) + "\n")
+		b.WriteString(tview.Escape(line) + "\n")
 	}
 	if posts > 0 {
 		b.WriteString("\nThey are posted with your token. Comments the agent wrote are marked as the agent's.")
@@ -86,8 +94,8 @@ func publishSummary(path string, mr forge.MergeRequest, steps []incomm.Step) str
 	return b.String()
 }
 
-// publishMR posts the Incomm comments marked for the forge, after showing them.
-// It only ever runs on request.
+// publishMR posts the comments saved in unagit and the Incomm comments
+// marked for the forge, after showing them. It only ever runs on request.
 //
 // The file and line that go out are the ones Incomm has stored, which are where
 // the code is because worktrees are re-anchored when they are updated; a comment
@@ -95,8 +103,13 @@ func publishSummary(path string, mr forge.MergeRequest, steps []incomm.Step) str
 // is resolved here is on it; if that fails, resolving is left out and the rest
 // is offered as usual.
 func (a *App) publishMR(mr forge.MergeRequest) {
-	if !a.cfg.Integrations.Incomm {
-		a.flash("Incomm is off: turn it on in Settings > Integrations to publish its comments")
+	drafts, err := a.draftStore().List(a.draftKey(mr))
+	if err != nil {
+		a.errorf("%v", err)
+		return
+	}
+	if !a.cfg.Integrations.Incomm && len(drafts) == 0 {
+		a.flash("nothing saved to publish, and Incomm is off: turn it on in Settings > Integrations to publish its comments")
 		return
 	}
 	client := a.client(mr.Instance)
@@ -105,7 +118,10 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 		return
 	}
 	path := a.projectPathOfMR(mr)
-	places := a.mrPlaces(mr)
+	var places []incomm.Place
+	if a.cfg.Integrations.Incomm {
+		places = a.mrPlaces(mr)
+	}
 	a.load(fmt.Sprintf("Preparing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
@@ -123,14 +139,14 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 			}
 		}
 		steps := incomm.PlanResolving(threads, state)
-		if len(steps) == 0 {
-			return "", fmt.Errorf("nothing to publish on !%d: mark a comment external in the editor first", mr.IID)
+		if len(steps) == 0 && len(drafts) == 0 {
+			return "", fmt.Errorf("nothing to publish on !%d: save a comment, or mark one external in the editor first", mr.IID)
 		}
 		// The task's own window closes right after this, so the confirmation is
 		// put up on top of it and outlives it.
 		a.tv.QueueUpdateDraw(func() {
-			a.confirmWith("Publish comments", publishSummary(path, mr, steps), "Publish", nil, func() {
-				a.runPublish(mr, path, client, places, steps, state)
+			a.confirmWith("Publish comments", publishSummary(path, mr, drafts, steps), "Publish", nil, func() {
+				a.runPublish(mr, path, client, places, drafts, steps, state)
 			})
 		})
 		return "", nil
@@ -142,7 +158,7 @@ func (a *App) publishMR(mr forge.MergeRequest) {
 // agreed to goes out. The lines are the ones Incomm has stored: re-anchoring
 // happens when a worktree is updated (o, Ctrl-R), and the editors keep them
 // current while a file is open.
-func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provider, places []incomm.Place, confirmed []incomm.Step, state map[string]bool) {
+func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provider, places []incomm.Place, drafts []draft.Draft, confirmed []incomm.Step, state map[string]bool) {
 	a.runTask(fmt.Sprintf("Publishing %s !%d", path, mr.IID), func(log func(string)) (string, error) {
 		// What went out stays recorded even when a later post fails, so the
 		// lists are refreshed either way.
@@ -152,6 +168,22 @@ func (a *App) runPublish(mr forge.MergeRequest, path string, client forge.Provid
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
+		// The saved comments go first, each taken out of unagit once it is
+		// on the forge, so a failure halfway leaves only the rest saved.
+		store, key := a.draftStore(), a.draftKey(mr)
+		for i, d := range drafts {
+			if _, err := client.CreateDiscussion(ctx, mr, d.Path, d.Line, d.Body); err != nil {
+				log(fmt.Sprintf("Done %d of %d.", i, len(drafts)+len(confirmed)))
+				return "", err
+			}
+			if err := store.Remove(key, d.ID); err != nil {
+				return "", err
+			}
+			log(fmt.Sprintf("Published %s:%d", d.Path, d.Line))
+		}
+		if len(confirmed) == 0 {
+			return "", nil
+		}
 		steps := incomm.Confirmed(incomm.PlanResolving(incomm.ThreadsAt(places...), state), confirmed)
 		if gone := len(confirmed) - len(steps); gone > 0 {
 			log(fmt.Sprintf("%d of the confirmed items are no longer pending and are left out.", gone))
@@ -219,6 +251,7 @@ func (a *App) syncWorktreeComments(rows []worktreeRow, then func()) {
 		mr     forge.MergeRequest
 		client forge.Provider
 		place  incomm.Place
+		author string
 	}
 	var sources []source
 	var prepare []string
@@ -237,7 +270,7 @@ func (a *App) syncWorktreeComments(rows []worktreeRow, then func()) {
 			if r.grouped() {
 				place.Prefix = filepath.Base(m.Dir) + "/"
 			}
-			sources = append(sources, source{mr: mr, client: client, place: place})
+			sources = append(sources, source{mr: mr, client: client, place: place, author: a.me[m.Instance]})
 			prepare = append(prepare, r.Dir)
 		}
 	}
@@ -256,6 +289,9 @@ func (a *App) syncWorktreeComments(rows []worktreeRow, then func()) {
 			notes, err := s.client.MergeRequestNotes(ctx, s.mr, 0)
 			if err == nil {
 				err = incomm.ImportAt(ctx, s.place, s.mr, notes, nil)
+			}
+			if err == nil {
+				a.moveDrafts(ctx, s.mr, s.place, s.author, nil)
 			}
 			if err != nil {
 				failed = append(failed, fmt.Sprintf("!%d: %s", s.mr.IID, firstLine(err.Error())))

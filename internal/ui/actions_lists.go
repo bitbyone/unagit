@@ -233,7 +233,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 	}
 	branchOut := func() bool { return a.diskOf(mr.Instance, path).MRs[mr.IID].Branch }
 	noReview := func() bool { return !a.diskOf(mr.Instance, path).MRs[mr.IID].Review }
-	pending := func() bool { return a.cfg.Integrations.Incomm && a.diskOf(mr.Instance, path).MRs[mr.IID].Pending > 0 }
+	pending := func() bool { return a.diskOf(mr.Instance, path).MRs[mr.IID].Pending > 0 }
 	unseen := func() bool { return mr.SHA != "" && a.seen[seenKey(mr)] != mr.SHA }
 	acts := []uiAction{
 		a.browseFilesAction(func() { a.browseMR(mr) }),

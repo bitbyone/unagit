@@ -333,8 +333,10 @@ func TestCommentsOpenAtTheTop(t *testing.T) {
 // are read in, and the replies kept instead of sent.
 type codeForge struct {
 	forge.Provider
-	mu      sync.Mutex
-	replies []string
+	mu       sync.Mutex
+	replies  []string
+	resolved []string
+	started  []string
 }
 
 const (
@@ -369,8 +371,29 @@ func (f *codeForge) CompareDiffs(_ context.Context, _ forge.MergeRequest, from, 
 	return nil, fmt.Errorf("no compare of %s..%s", from, to)
 }
 
+func (f *codeForge) ResolveDiscussion(_ context.Context, _ forge.MergeRequest, thread string, resolved bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolved = append(f.resolved, fmt.Sprintf("%s %v", thread, resolved))
+	return nil
+}
+
+func (f *codeForge) CreateDiscussion(_ context.Context, _ forge.MergeRequest, path string, line int, body string) (*forge.Note, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.started = append(f.started, fmt.Sprintf("%s:%d %s", path, line, body))
+	return &forge.Note{Path: path, Line: line, Body: body}, nil
+}
+
+// kept is what the fake was asked to do, read under its lock.
+func (f *codeForge) kept(what *[]string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), (*what)...)
+}
+
 func (f *codeForge) FileAt(_ context.Context, _ forge.MergeRequest, path, ref string) (string, error) {
-	if path != "limit.go" || ref != "h1" {
+	if path != "limit.go" || ref != "h1" && ref != "feat/rate" {
 		return "", fmt.Errorf("no %s at %s", path, ref)
 	}
 	var b strings.Builder
@@ -448,6 +471,8 @@ func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
 	waitGone(t, a, sc, "limit.go:11-12 · acme/gateway !7")
 
 	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitFor(t, a, sc, "line 12 of the file")
 	typeRunes(sc, "G")
 	waitFor(t, a, sc, "line 40 of the file")
@@ -510,4 +535,82 @@ func TestACommentIsReadAmongTheLinesItIsAbout(t *testing.T) {
 func renderConversationWith(n forge.Note, diffs []forge.FileDiff, width int) string {
 	text, _ := (&conversation{notes: []forge.Note{n}, latest: diffs}).draw(width)
 	return text
+}
+
+// TestCommentsAreResolvedWrittenOnTheFileAndSaved: x resolves the chosen
+// thread; e on a comment written on an older version asks which version
+// to read, and on the latest a comment goes on the cursor's line - saved,
+// to be published with P, or published at once.
+func TestCommentsAreResolvedWrittenOnTheFileAndSaved(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 180, 50)
+	openMRDetail(t, a, sc)
+	fake := onLoop(a, func() *codeForge {
+		id := a.cfg.Instances[0].ID
+		f := &codeForge{Provider: a.clients[id]}
+		a.clients[id] = f
+		return f
+	})
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	typeRunes(sc, "Gk")
+
+	typeRunes(sc, "x")
+	waitFor(t, a, sc, "Thread resolved")
+	if got := fake.kept(&fake.resolved); len(got) != 1 || got[0] != "on-code true" {
+		t.Fatalf("resolved = %q", got)
+	}
+
+	// The version it was written on: its lines, and no comment there.
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "a comment goes on the latest version")
+	typeRunes(sc, "q")
+	waitGone(t, a, sc, "a comment goes on the latest version")
+
+	// The latest: a comment saved on the cursor's line.
+	typeRunes(sc, "e")
+	waitFor(t, a, sc, "Which version of limit.go")
+	typeRunes(sc, "j")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · latest")
+	typeRunes(sc, "jc")
+	waitFor(t, a, sc, "Comment on limit.go:13")
+	typeRunes(sc, "worth a test")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Comment on limit.go:13 saved")
+	saved := onLoop(a, func() int {
+		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
+		return len(drafts)
+	})
+	if saved != 1 {
+		t.Fatalf("%d comments saved, want 1", saved)
+	}
+
+	// And one published at once.
+	typeRunes(sc, "jc")
+	waitFor(t, a, sc, "Comment on limit.go:14")
+	typeRunes(sc, "ship it")
+	pressButton(t, a, sc, frontForm(a), "Publish")
+	waitFor(t, a, sc, "Comment on limit.go:14 published")
+	if got := fake.kept(&fake.started); len(got) != 1 || got[0] != "limit.go:14 ship it" {
+		t.Fatalf("started = %q", got)
+	}
+	typeRunes(sc, "q")
+	waitFor(t, a, sc, "saved · not published")
+	waitFor(t, a, sc, "worth a test")
+
+	// P publishes what was saved, and it is saved no longer.
+	typeRunes(sc, "P")
+	waitFor(t, a, sc, "comment saved in unagit: worth a test")
+	typeRunes(sc, "y")
+	eventually(t, a, "the saved comment is published", func() bool {
+		drafts, _ := a.draftStore().List(a.draftKey(a.mrs[0]))
+		return len(drafts) == 0
+	})
+	if got := fake.kept(&fake.started); len(got) != 2 || got[1] != "limit.go:13 worth a test" {
+		t.Fatalf("started = %q", got)
+	}
 }

@@ -200,3 +200,30 @@ func TestReanchorMakesThePlanFollowTheCode(t *testing.T) {
 		t.Fatalf("external list: %v %v", listed, err)
 	}
 }
+
+// A comment saved in unagit lands in the store as one written in the
+// editor and not yet published; one whose line is not in the checkout is
+// refused rather than put on other code.
+func TestAddPendingIsAnUnpublishedComment(t *testing.T) {
+	if _, err := CheckCLI(context.Background()); err != nil {
+		t.Fatal("the image's incomm: " + err.Error())
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "api"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "api", "code.go"), []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	place := Place{Dir: dir, Prefix: "api/"}
+	if err := AddPending(context.Background(), place, "code.go", 2, "why two?", "Reviewer"); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddPending(context.Background(), place, "code.go", 9, "past the end", "Reviewer"); err != ErrNoLine {
+		t.Errorf("a line past the end: %v, want ErrNoLine", err)
+	}
+	threads := ThreadsAt(place)
+	if len(threads) != 1 || threads[0].File != "code.go" || threads[0].Line != 2 || threads[0].PendingCount() != 1 {
+		t.Fatalf("threads = %+v", threads)
+	}
+}

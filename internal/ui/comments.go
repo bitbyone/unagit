@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/tobola/unagit/internal/draft"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/incomm"
 	"github.com/tobola/unagit/internal/md"
@@ -54,7 +56,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	box(view.Box, title).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	footer.SetText(" " + litHint("i reply · c comment · Enter code · e file · w browser · A approve · r reload"))
+	footer.SetText(" " + litHint("i reply · c comment · x resolve · Enter code · e file · P publish · A approve · r reload"))
 
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(view, 0, 1, true).
@@ -160,6 +162,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			if err == nil {
 				versions = readVersions(ctx, client, mr, read)
 			}
+			saved, _ := a.draftStore().List(a.draftKey(mr))
 			localThreads := incomm.ThreadsAt(places...)
 			<-done
 			a.tv.QueueUpdateDraw(func() {
@@ -171,6 +174,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 					return
 				}
 				conv.notes, conv.latest, conv.versions, local = a.namedNotes(mr.Instance, read), latest, versions, localThreads
+				conv.drafts = saved
 				draw()
 				// The forge's conversation comes first and the local Incomm
 				// threads after it, so it opens at the top - on what others
@@ -188,6 +192,10 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		c, ok := chosen()
 		if !ok {
 			a.showComposer(mr, nil, load)
+			return
+		}
+		if c.note.ID < 0 {
+			a.flash("a saved comment is not on the forge yet - P publishes it")
 			return
 		}
 		a.showComposer(mr, &c.note, load)
@@ -252,7 +260,41 @@ func (a *App) showComments(mr forge.MergeRequest) {
 			a.flash("no comment chosen - j and k choose one")
 			return
 		}
-		a.showCommentFile(mr, rootOf(c.note))
+		a.showCommentFile(mr, rootOf(c.note), load)
+	}
+	resolve := func() {
+		c, ok := chosen()
+		if !ok {
+			a.flash("no comment chosen - j and k choose one")
+			return
+		}
+		root := rootOf(c.note)
+		if !root.Resolvable || root.ID < 0 {
+			a.flash("this thread cannot be resolved")
+			return
+		}
+		a.resolveThread(mr, root, load)
+	}
+	remove := func() {
+		c, ok := chosen()
+		if !ok {
+			a.flash("no comment chosen - j and k choose one")
+			return
+		}
+		d, ok := draftOf(c.note, conv.drafts)
+		if !ok {
+			a.flash("only a comment saved in unagit can be deleted here")
+			return
+		}
+		a.confirmWith("Delete", fmt.Sprintf("Delete the comment saved on [::b]%s:%d[::-]?\n\n%s", esc(d.Path), d.Line, esc(trunc(d.Body, 200))), "Delete", nil, func() {
+			if err := a.draftStore().Remove(a.draftKey(mr), d.ID); err != nil {
+				a.errorf("%v", err)
+				return
+			}
+			a.refreshDisk()
+			a.mrsPane.reload()
+			load()
+		})
 	}
 
 	view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -299,6 +341,15 @@ func (a *App) showComments(mr forge.MergeRequest) {
 				return nil
 			case 'e':
 				file()
+				return nil
+			case 'x':
+				resolve()
+				return nil
+			case 'd':
+				remove()
+				return nil
+			case 'P':
+				a.publishMR(mr)
 				return nil
 			case 'w':
 				if c, ok := chosen(); ok && c.note.URL != "" {
@@ -385,49 +436,286 @@ func (a *App) showCommentCode(mr forge.MergeRequest, n forge.Note, diffs []forge
 	a.showReader(view)
 }
 
-// showCommentFile shows the whole file a comment is on, as it was in the
-// diff the comment was written on, at its lines - e in the conversation:
-// what the code round it does, without leaving the conversation.
-func (a *App) showCommentFile(mr forge.MergeRequest, n forge.Note) {
+// showCommentFile shows the whole file a comment is on, at its lines - e in
+// the conversation: what the code round it does, without leaving the
+// conversation. A comment written on an older version asks which: that
+// one, where its lines are, or the latest, which a new comment goes on.
+func (a *App) showCommentFile(mr forge.MergeRequest, n forge.Note, changed func()) {
 	if n.Path == "" {
 		a.flash("this comment is on the merge request, not on a file")
 		return
 	}
+	// A comment on deleted lines is on the file before the change.
+	ref, line, first := n.Head, n.To.New, n.From.New
+	if n.To.New == 0 && n.To.Old > 0 {
+		ref, line, first = n.Base, n.To.Old, n.From.Old
+	}
+	if line == 0 {
+		line = n.Line
+	}
+	if first == 0 || first > line {
+		first = line
+	}
+	if ref == "" || ref == mr.SHA {
+		a.openFileAt(mr, n.Path, mr.SourceBranch, true, first, line, changed)
+		return
+	}
+	a.showPicker("Which version of "+n.Path, []pickItem{
+		{Label: "The version the comment was written on", Sub: short(ref), Data: true,
+			About: "The file as it was when the comment was written, its lines marked."},
+		{Label: "The latest version", Sub: mr.SourceBranch,
+			About: "The file as the merge request has it now; comments written here go on it."},
+	}, func(it pickItem) {
+		if it.Data == true {
+			a.openFileAt(mr, n.Path, ref, false, first, line, changed)
+			return
+		}
+		a.openFileAt(mr, n.Path, mr.SourceBranch, true, line, -1, changed)
+	})
+}
+
+// short is a commit's short name.
+func short(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
+}
+
+// openFileAt reads a file of the merge request at ref and shows it with a
+// line cursor, on from, the lines from to to marked (to -1 for none). On
+// the latest version c writes a comment on the cursor's line; changed runs
+// once one is published or saved.
+func (a *App) openFileAt(mr forge.MergeRequest, path, ref string, latest bool, from, to int, changed func()) {
 	client := a.client(mr.Instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
 		return
 	}
-	// A comment on deleted lines is on the file before the change.
-	ref, line, last := n.Head, n.To.New, n.From.New
-	if n.To.New == 0 && n.To.Old > 0 {
-		ref, line, last = n.Base, n.To.Old, n.From.Old
-	}
-	if line == 0 {
-		line = n.Line
-	}
-	if last == 0 || last > line {
-		last = line
-	}
-	if ref == "" {
-		ref = mr.SourceBranch
-	}
 	var text string
-	a.loadThen("Reading "+n.Path, func(func(string)) (string, error) {
+	a.loadThen("Reading "+path, func(func(string)) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		var err error
-		text, err = client.FileAt(ctx, mr, n.Path, ref)
+		text, err = client.FileAt(ctx, mr, path, ref)
 		return "", err
 	}, func(string) {
+		markFrom := from
+		if to < 0 {
+			markFrom = -1
+		}
+		rows := strings.Split(strings.TrimRight(drawFile(path, text, markFrom, to), "\n"), "\n")
 		view := tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetScrollable(true)
 		view.SetTextColor(colText)
-		box(view.Box, esc(fmt.Sprintf("%s · %s !%d", where(n), a.projectPathOfMR(mr), mr.IID))).SetBorderPadding(0, 0, 1, 1)
-		fit := a.widthAware(view)
-		fit(func(width int) string { return drawFile(n.Path, text, last, line) })
-		view.ScrollTo(max(0, last-1-codeBefore-2), 0)
-		a.showReader(view)
+		version := "latest"
+		if !latest {
+			version = short(ref)
+		}
+		box(view.Box, esc(fmt.Sprintf("%s · %s · %s !%d", path, version, a.projectPathOfMR(mr), mr.IID))).SetBorderPadding(0, 0, 1, 1)
+		footer := tview.NewTextView().SetDynamicColors(true)
+		if latest {
+			footer.SetText(" " + litHint("c comment on the line"))
+		} else {
+			footer.SetText(" " + tag(colDim) + "a comment goes on the latest version" + tagEnd)
+		}
+		frame := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(view, 0, 1, true).AddItem(footer, 1, 0, false)
+		cursor := max(0, min(from-1, len(rows)-1))
+		draw := func() {
+			_, _, width, _ := view.GetInnerRect()
+			var b strings.Builder
+			for i, r := range rows {
+				if i == cursor {
+					r = onFill(padMarkup(r, width), role("comments.selected_fill"))
+				}
+				b.WriteString(r + "\n")
+			}
+			view.SetText(b.String())
+			_, _, _, height := view.GetInnerRect()
+			top, _ := view.GetScrollOffset()
+			switch {
+			case cursor < top:
+				view.ScrollTo(cursor, 0)
+			case height > 0 && cursor >= top+height:
+				view.ScrollTo(cursor-height+1, 0)
+			}
+		}
+		move := func(to int) {
+			cursor = max(0, min(to, len(rows)-1))
+			draw()
+		}
+		draw()
+		view.ScrollTo(max(0, cursor-codeBefore-2), 0)
+		view.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+			_, _, _, height := view.GetInnerRect()
+			switch ev.Key() {
+			case tcell.KeyEsc:
+				a.closeModal(pageCommit)
+				return nil
+			case tcell.KeyDown:
+				move(cursor + 1)
+				return nil
+			case tcell.KeyUp:
+				move(cursor - 1)
+				return nil
+			case tcell.KeyCtrlD:
+				move(cursor + max(1, height/2))
+				return nil
+			case tcell.KeyCtrlU:
+				move(cursor - max(1, height/2))
+				return nil
+			case tcell.KeyCtrlF, tcell.KeyPgDn:
+				move(cursor + max(1, height))
+				return nil
+			case tcell.KeyCtrlB, tcell.KeyPgUp:
+				move(cursor - max(1, height))
+				return nil
+			case tcell.KeyRune:
+				switch ev.Rune() {
+				case 'q':
+					a.closeModal(pageCommit)
+				case 'j':
+					move(cursor + 1)
+				case 'k':
+					move(cursor - 1)
+				case 'g':
+					move(0)
+				case 'G':
+					move(len(rows) - 1)
+				case 'c':
+					if !latest {
+						a.flash("a comment goes on the latest version - e on the comment, then the latest")
+						return nil
+					}
+					a.showLineComposer(mr, path, cursor+1, changed)
+				default:
+					return ev
+				}
+				return nil
+			}
+			return ev
+		})
+		a.pages.AddPage(pageCommit, modalFit(frame, func(w, h int) (int, int) {
+			return min(w*90/100, commentsWidth+20), h * 85 / 100
+		}), true, true)
+		a.tv.SetFocus(view)
+		// The cursor's band reaches across the view once it knows its width.
+		go a.tv.QueueUpdateDraw(draw)
 	})
+}
+
+// showLineComposer writes a comment on a line of the latest version:
+// Publish starts a thread on it on the forge, Save keeps it in unagit to
+// publish later with P - or, with Incomm on, for the worktree to take in.
+func (a *App) showLineComposer(mr forge.MergeRequest, path string, line int, changed func()) {
+	client := a.client(mr.Instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
+		return
+	}
+	form := tview.NewForm()
+	styleForm(form)
+	form.AddTextArea("", "", 66, 10, 0, nil)
+	setPlaceholder(form.GetFormItem(0).(*tview.TextArea), "Write a comment…")
+	later := "Save keeps it in unagit until P publishes it."
+	if a.cfg.Integrations.Incomm {
+		later = "Save keeps it in unagit; a worktree opened takes it into Incomm."
+	}
+	form.AddTextView("", "Publish puts it on the forge now.\n"+later, 66, 2, true, false)
+	area := func() *tview.TextArea { return form.GetFormItem(0).(*tview.TextArea) }
+	note := func() *tview.TextView { return form.GetFormItem(1).(*tview.TextView) }
+	where := fmt.Sprintf("%s:%d", path, line)
+	busy := false
+	body := func() (string, bool) {
+		text := strings.TrimSpace(area().GetText())
+		if text == "" {
+			note().SetText("Nothing written yet.")
+			return "", false
+		}
+		return text, !busy
+	}
+	finish := func(said string) {
+		a.closeModal(pageForm)
+		a.refreshDisk()
+		a.mrsPane.reload()
+		if changed != nil {
+			changed()
+		}
+		a.done(said)
+	}
+	publish := func() {
+		text, ok := body()
+		if !ok {
+			return
+		}
+		busy = true
+		note().SetText("Publishing …")
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			_, err := client.CreateDiscussion(ctx, mr, path, line, text)
+			a.tv.QueueUpdateDraw(func() {
+				busy = false
+				if err != nil {
+					note().SetText(err.Error())
+					return
+				}
+				finish("Comment on " + where + " published")
+			})
+		}()
+	}
+	save := func() {
+		text, ok := body()
+		if !ok {
+			return
+		}
+		if _, err := a.draftStore().Add(a.draftKey(mr), draft.Draft{Path: path, Line: line, Body: text}); err != nil {
+			note().SetText(err.Error())
+			return
+		}
+		finish("Comment on " + where + " saved · P publishes it")
+	}
+	form.AddButton("Publish", publish)
+	form.AddButton("Save", save)
+	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
+	form.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		if ev.Key() == tcell.KeyCtrlS {
+			save()
+			return nil
+		}
+		return ev
+	})
+	a.showFormModal("Comment on "+where, form, 19)
+}
+
+// resolveThread resolves a thread on the forge, or opens it again, and
+// reads the conversation again.
+func (a *App) resolveThread(mr forge.MergeRequest, root forge.Note, changed func()) {
+	client := a.client(mr.Instance)
+	if client == nil {
+		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(mr.Instance))
+		return
+	}
+	resolve := !root.Resolved
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		err := client.ResolveDiscussion(ctx, mr, root.Thread, resolve)
+		a.tv.QueueUpdateDraw(func() {
+			switch {
+			case errors.Is(err, forge.ErrNotSupported):
+				a.flash("this forge resolves a thread only on its page - w opens it")
+			case err != nil:
+				a.errorf("cannot change the thread: %v", err)
+			default:
+				if resolve {
+					a.done("Thread resolved")
+				} else {
+					a.done("Thread opened again")
+				}
+				changed()
+			}
+		})
+	}()
 }
 
 // showReader puts a view of code to read in front of the conversation: j

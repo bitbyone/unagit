@@ -13,7 +13,17 @@ after, from the version of the diff the comment was written on - then its
 comments, then GitLab's notes that a later version changed the line. `j`
 and `k` choose a comment, `i` replies to it in its thread, `c` writes a
 new one. `Enter` shows the whole diff of its file with the commented lines
-marked, or on a change note the change itself; `e` shows the whole file. With [Incomm](/guide/incomm-hunk) the comments are in
+marked, or on a change note the change itself; `e` shows the whole file,
+asking first which version when the comment is on an older one. `x`
+resolves the chosen thread, or opens it again.
+
+In the whole file of the latest version, `j` and `k` move a cursor and `c`
+writes a comment on its line. **Publish** starts a thread on the forge at
+once; **Save** keeps it in unagit until `P` publishes it with the rest -
+it counts in `PUB` meanwhile, and `d` in the conversation deletes it. With
+Incomm on, opening or syncing a worktree of the merge request moves a
+saved comment into that worktree's Incomm store, and from then on it is
+edited in the editor like any comment written there. With [Incomm](/guide/incomm-hunk) the comments are in
 your editor too, beside the lines they are about, and `P` publishes the ones
 you wrote there.
 

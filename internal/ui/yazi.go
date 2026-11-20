@@ -66,7 +66,7 @@ func (a *App) browseMR(mr forge.MergeRequest) {
 	case workspace.Exists(branch):
 		a.browseNow(branch, a.sessionOf(mr, path, session.ModeBranch))
 	default:
-		client, integrate := a.client(mr.Instance), a.cfg.Integrations.Incomm
+		client, integrate := a.client(mr.Instance), a.incommFor(mr.Instance)
 		a.runTaskThen(fmt.Sprintf("Preparing %s !%d for Yazi", path, mr.IID), func(log func(string)) (string, error) {
 			return a.prepareReview(mr, project, client, "", integrate, log)
 		}, func(dir string) { a.browseNow(dir, a.sessionOf(mr, path, session.ModeReview)) })
