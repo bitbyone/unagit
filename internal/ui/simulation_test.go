@@ -29,6 +29,8 @@ type observedScreen struct {
 	pending  chan struct{}
 	// syncs counts the times the whole screen was sent again.
 	syncs atomic.Int32
+	// blanks counts the frames shown with nothing on the tab bar's row.
+	blanks atomic.Int32
 }
 
 func (s *observedScreen) Sync() {
@@ -119,6 +121,15 @@ func TestObservedCellsMatchTheSimulationScreen(t *testing.T) {
 }
 
 func (s *observedScreen) Show() {
+	w, _ := s.Size()
+	blank := true
+	for x := 0; x < w && blank; x++ {
+		r, _, _, _ := s.GetContent(x, 0)
+		blank = r == ' ' || r == 0
+	}
+	if blank {
+		s.blanks.Add(1)
+	}
 	s.SimulationScreen.Show()
 	s.dirty = true
 	close(s.next)

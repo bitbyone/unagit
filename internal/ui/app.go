@@ -572,6 +572,9 @@ func (a *App) Run() error {
 		now := time.Now().UnixNano()
 		if since := time.Duration(now - a.lastDraw.Load()); a.keyed.Swap(false) && !a.unpaced && since < frameInterval {
 			a.drawNextFrame(frameInterval - since)
+			if a.quiet != nil {
+				a.quiet.held = true
+			}
 			return true
 		}
 		a.lastDraw.Store(now)

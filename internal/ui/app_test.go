@@ -1134,5 +1134,8 @@ func TestHeldKeysAreDrawnOnceAFrame(t *testing.T) {
 	if n := draws.Load(); n >= 121 {
 		t.Errorf("%d draws for 121 keys: they were not paced", n)
 	}
+	if n := sc.(*observedScreen).blanks.Load(); n > 0 {
+		t.Errorf("the terminal was shown blank %d times while the keys were held", n)
+	}
 	waitFor(t, a, sc, "acme/billing")
 }

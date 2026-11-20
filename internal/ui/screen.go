@@ -40,6 +40,11 @@ type quietScreen struct {
 	// over it dims, and nothing else.
 	dimmed bool
 	under  struct{ x, y, w, h int }
+	// held is a frame put off (drawNextFrame): tview cleared the cells
+	// before asking, and shows them whatever the answer, so the terminal
+	// went blank for a frame at every key held down. The cleared cells
+	// are not shown; the next frame draws them all again.
+	held bool
 }
 
 // Init asks the terminal to report focus; most do (iTerm2, Ghostty, kitty,
@@ -96,6 +101,10 @@ func (s *quietScreen) Resume() error {
 func (s *quietScreen) Show() {
 	s.dimmed = false
 	s.under.w = 0
+	if s.held {
+		s.held = false
+		return
+	}
 	if !s.suspended.Load() {
 		s.Screen.Show()
 	}
