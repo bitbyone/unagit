@@ -15,7 +15,7 @@ import (
 // A file opened from the conversation (Enter) is read whole, at a version
 // of the merge request: its lines numbered, a mark beside each line with
 // comments and how many, and the comments themselves under their line -
-// s hides them and shows them again. The cursor goes over the lines and
+// h hides them and shows them again. The cursor goes over the lines and
 // the comments alike: on a line c writes a comment there, on a comment r
 // answers it, e edits it, d deletes it and x resolves its thread.
 // Comments are on the version they were written on, so each version shows
@@ -147,9 +147,9 @@ func (fv *fileView) show() {
 	}
 	box(fv.view.Box, esc(fmt.Sprintf("%s · %s · %s !%d", fv.path, version, a.projectPathOfMR(d.mr), d.mr.IID))).SetBorderPadding(0, 0, 1, 1)
 	footer := tview.NewTextView().SetDynamicColors(true)
-	hint := "c comment · r reply · e edit · d delete · x resolve · s toggle comments · v version"
+	hint := "c comment · r reply · e edit · d delete · x resolve · h toggle comments · v version"
 	if !fv.latest {
-		hint = "r reply · e edit · d delete · x resolve · s toggle comments · v version"
+		hint = "r reply · e edit · d delete · x resolve · h toggle comments · v version"
 	}
 	footer.SetText(" " + litHint(hint))
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(fv.view, 0, 1, true).AddItem(footer, 1, 0, false)
@@ -380,7 +380,7 @@ func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
 			fv.move(0)
 		case 'G':
 			fv.move(len(fv.items) - 1)
-		case 's':
+		case 'h':
 			d.hideInline = !d.hideInline
 			if d.hideInline {
 				fv.atNote = 0

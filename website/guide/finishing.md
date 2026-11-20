@@ -16,14 +16,14 @@ code of a thread on an older version comes in behind the rest.
 
 `j` and `k` go over the comments and the code of each thread. `r` replies
 in the thread, `c` writes a new comment, `e` and `d` edit and delete one of
-your own, `x` resolves the thread or opens it again, and `s` toggles the
-code, staying on the comment chosen. `Enter` on a note of a later change
+your own, `x` resolves the thread or opens it again, and `h` hides the
+code or shows it again, staying on the comment chosen. `Enter` on a note of a later change
 compares the change; on a comment it expands the file.
 
 The expanded file is the version the comment was written on - or the
 latest, asked when they differ - with the cursor on the comment, a mark and
 a count beside each line with comments, and the comments under their lines
-(`s` toggles them). The cursor goes over the comments as over the lines,
+(`h` hides them and shows them again). The cursor goes over the comments as over the lines,
 with the same keys, and `v` switches version.
 
 In the latest version, `c` writes a comment on the cursor's line.

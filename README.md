@@ -1281,12 +1281,12 @@ machines, what you happen to wait for here is not.
   version comes in behind. `j`/`k` go over the comments and the code of
   each thread, `r` replies in the thread, `c` writes a new comment, `e`
   and `d` edit and delete one of your own, `x` resolves the thread or opens
-  it again, `s` toggles the code, `R` reads it all again, and `A` approves
+  it again, `h` hides the code or shows it again, `R` reads it all again, and `A` approves
   (it asks first - everyone sees it).
 - **A file expanded** (`Enter` on a comment): the whole file at the version
   the comment was written on - or the latest, asked when they differ - the
   cursor on the comment, a mark and a count beside each line with
-  comments and the comments under their lines (`s` toggles them). The
+  comments and the comments under their lines (`h` hides them and shows them again). The
   cursor goes over the comments as over the lines, with the same keys;
   `Enter` on a note of a later change compares it, `v` switches version.
 - **Comments written in unagit**: in the latest version of a file `c`

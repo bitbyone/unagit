@@ -64,7 +64,7 @@ func (a *App) showComments(mr forge.MergeRequest) {
 	box(d.view.Box, fmt.Sprintf("Comments · %s !%d", path, mr.IID)).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · s toggle code · P publish · A approve · R reload"))
+	footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · h toggle code · P publish · A approve · R reload"))
 	frame := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(d.view, 0, 1, true).
 		AddItem(footer, 1, 0, false)
@@ -644,7 +644,7 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 			need(d.resolve)
 		case 'd':
 			need(d.remove)
-		case 's':
+		case 'h':
 			d.toggleCode()
 		case 'P':
 			a.publishMR(d.mr)

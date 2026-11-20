@@ -558,7 +558,7 @@ func TestOwnCommentsAreEditedAndDeleted(t *testing.T) {
 // thread; Enter on a comment written on an older version asks which
 // version to read, in a box no bigger than its rows. The file marks the
 // lines with comments and counts them, shows the comments under their
-// lines - s hides them - and the cursor goes over them as over the lines;
+// lines - h hides them - and the cursor goes over them as over the lines;
 // on the latest version c comments the cursor's line, saved and drawn at
 // once, or published, and P publishes what was saved.
 func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
@@ -585,9 +585,9 @@ func TestAFileIsReadWithItsCommentsAndCommentedOn(t *testing.T) {
 	waitFor(t, a, sc, "limit.go · h1")
 	waitFor(t, a, sc, glyphComment+"1")
 	waitFor(t, a, sc, "this sleeps on every retry")
-	typeRunes(sc, "s")
+	typeRunes(sc, "h")
 	waitGone(t, a, sc, "this sleeps on every retry")
-	typeRunes(sc, "s")
+	typeRunes(sc, "h")
 	waitFor(t, a, sc, "this sleeps on every retry")
 	// Hiding them put the cursor on the line; j is the comment under it,
 	// which r answers.
@@ -702,7 +702,7 @@ func renderConversationWith(n forge.Note, diffs []forge.FileDiff, width int) str
 	return text
 }
 
-// TestTheCodeCanBeHiddenToReadTheConversation: s draws the threads on code
+// TestTheCodeCanBeHiddenToReadTheConversation: h draws the threads on code
 // as their comments alone, the place in the first one's frame, and back;
 // the comment chosen stays chosen and on screen.
 func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
@@ -713,7 +713,7 @@ func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	resizeApp(a, sc, 160, 30)
 	typeRunes(sc, "kj")
 	waitFor(t, a, sc, "this sleeps on every retry")
-	typeRunes(sc, "s")
+	typeRunes(sc, "h")
 	waitGone(t, a, sc, "log(4)")
 	waitFor(t, a, sc, "limit.go:7-8")
 	waitFor(t, a, sc, "this sleeps on every retry")
@@ -723,7 +723,7 @@ func TestTheCodeCanBeHiddenToReadTheConversation(t *testing.T) {
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Reply to carol")
-	typeRunes(sc, "s")
+	typeRunes(sc, "h")
 	waitFor(t, a, sc, "this sleeps on every retry")
 	waitFor(t, a, sc, "time.Sleep(backoff)")
 }
