@@ -220,9 +220,10 @@ func threadBubbles(thread []forge.Note, short bool) []bubble {
 	return bubbles
 }
 
-// threadFrame is the colour a thread is framed in, by its state: open, or
-// resolved, or a comment that is neither. Its replies and its code wear it
-// too, so a thread reads as one.
+// threadFrame is the colour a thread's comments are framed in, by its
+// state: open, or resolved, or a comment that is neither. Its replies wear
+// it too, so a thread reads as one; the block round a thread on code stays
+// quiet.
 func threadFrame(root forge.Note) tcell.Color {
 	switch {
 	case root.Resolvable && root.Resolved:

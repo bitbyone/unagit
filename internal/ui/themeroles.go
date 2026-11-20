@@ -56,6 +56,7 @@ var colourRoles = []colourRole{
 	{"comments.border", "tags.azure.ink", "the frame of a comment, and of its thread, that cannot be resolved"},
 	{"comments.unresolved_border", "tags.lavender.ink", "the frame of a thread still to resolve: its comments, its code"},
 	{"comments.resolved_border", "tags.mint.ink", "the frame of a thread resolved"},
+	{"comments.code_border", "text.dim", "the frame round a thread on code, its code and its comments"},
 	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
 	{"comments.selected_fill", "selection.marked", "its background, as a marked row's"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},

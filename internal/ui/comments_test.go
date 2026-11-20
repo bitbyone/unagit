@@ -737,3 +737,31 @@ func TestTheFirstCommentIsChosenOnOpening(t *testing.T) {
 	waitFor(t, a, sc, "Reply to carol")
 	waitFor(t, a, sc, "oldest comment")
 }
+
+// TestAThreadOnCodeIsLitWhileTheCursorIsInIt: the frame round a thread on
+// code is quiet until the cursor is in the thread - on its code or on any
+// of its comments.
+func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
+	t.Parallel()
+	thread := []forge.Note{
+		{ID: 1, Thread: "t", Body: "first", Path: "a.go", Line: 1, Resolvable: true},
+		{ID: 2, Thread: "t", Body: "answer"},
+	}
+	diffs := []forge.FileDiff{{Path: "a.go", OldPath: "a.go", Diff: "@@ -1 +1 @@\n-a\n+b\n"}}
+	lit := tag(role("comments.selected"))
+	top := func(selected int, onCode bool) string {
+		text, _ := (&conversation{notes: thread, latest: diffs, selected: selected, onCode: onCode}).draw(60)
+		return strings.Split(text, "\n")[0]
+	}
+	if strings.Contains(top(0, false), lit) {
+		t.Errorf("the block is lit with the cursor elsewhere: %q", top(0, false))
+	}
+	for _, at := range []struct {
+		id     int
+		onCode bool
+	}{{1, true}, {1, false}, {2, false}} {
+		if !strings.Contains(top(at.id, at.onCode), lit) {
+			t.Errorf("the block is not lit with the cursor on %d (code %v): %q", at.id, at.onCode, top(at.id, at.onCode))
+		}
+	}
+}

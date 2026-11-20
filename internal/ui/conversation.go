@@ -201,9 +201,13 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 	lines, from, to := commentedRange(root, c.diffsOf(root))
 	total := max(width, minBubbleWidth)
 	inner := total - 4
-	frame := tag(threadFrame(root))
-	if c.onCode && c.selected == root.ID {
-		frame = tag(role("comments.selected"))
+	// The block is lit while the cursor is anywhere in it - on its code or
+	// on any of its comments, which are part of it.
+	frame := tag(role("comments.code_border"))
+	for _, n := range thread {
+		if n.ID == c.selected {
+			frame = tag(role("comments.selected"))
+		}
 	}
 	edge := frame + string(tview.Borders.Vertical) + inkReset
 	add := func(text string) { *rows = append(*rows, text) }
