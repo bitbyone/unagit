@@ -301,6 +301,36 @@ func (c *Client) ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, t
 	return convertNote(mr, thread, created), nil
 }
 
+// MergeRequestDiffs reads the merge request's diff file by file. The diffs
+// endpoint came with GitLab 15.7; an older server has only the changes,
+// which carry the same files in one answer.
+func (c *Client) MergeRequestDiffs(ctx context.Context, mr forge.MergeRequest) ([]forge.FileDiff, error) {
+	type file struct {
+		OldPath string `json:"old_path"`
+		NewPath string `json:"new_path"`
+		Diff    string `json:"diff"`
+	}
+	files, err := getAll[file](ctx, c, mrPath(mr)+"/diffs", nil)
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound {
+		var changes struct {
+			Changes []file `json:"changes"`
+		}
+		if _, err := c.get(ctx, mrPath(mr)+"/changes", nil, &changes); err != nil {
+			return nil, err
+		}
+		files, err = changes.Changes, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.FileDiff, len(files))
+	for i, f := range files {
+		out[i] = forge.FileDiff{OldPath: f.OldPath, Path: f.NewPath, Diff: f.Diff}
+	}
+	return out, nil
+}
+
 // firstNote is the note a new discussion was started with.
 func firstNote(mr forge.MergeRequest, d discussion) (*forge.Note, error) {
 	if len(d.Notes) == 0 {

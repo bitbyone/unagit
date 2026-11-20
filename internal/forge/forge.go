@@ -366,6 +366,13 @@ type Note struct {
 	URL string `json:"url,omitempty"`
 }
 
+// FileDiff is one file of a merge request's diff: where it is, where it
+// was before, and its hunks as a unified diff, without the file headers.
+type FileDiff struct {
+	OldPath, Path string
+	Diff          string
+}
+
 // Approvals is the review state.
 type Approvals struct {
 	Required   int      `json:"required"`
@@ -430,6 +437,9 @@ type Provider interface {
 	MergeRequestDetail(ctx context.Context, mr MergeRequest) (*MergeRequestDetail, error)
 	// MergeRequestNotes returns all comments when limit is zero.
 	MergeRequestNotes(ctx context.Context, mr MergeRequest, limit int) ([]Note, error)
+	// MergeRequestDiffs is what the merge request changes, file by file:
+	// what a comment on a line is read beside.
+	MergeRequestDiffs(ctx context.Context, mr MergeRequest) ([]FileDiff, error)
 	// MergeRequestCommits returns the newest commits, newest first, and how
 	// many there are; a limit of zero returns all of them.
 	MergeRequestCommits(ctx context.Context, mr MergeRequest, limit int) ([]Commit, int, error)

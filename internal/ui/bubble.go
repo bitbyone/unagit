@@ -29,6 +29,9 @@ type bubble struct {
 	Where  string      // plain text: the file and line it is anchored to; on the frame when it fits, on its own row when not
 	Body   string      // markdown
 	Indent int         // cells of nesting, for a reply
+	// Selected is the comment chosen in the conversation, framed as a
+	// focused box is.
+	Selected bool
 }
 
 // tview's own tag grammar: [foreground:background:attributes], any part may be
@@ -102,9 +105,15 @@ func renderBubble(b bubble, width int) string {
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
 	bg := role("comments.card").String()
+	if b.Selected {
+		bg = role("comments.selected_fill").String()
+	}
 	reset := "[-:" + bg + ":-]"
 	frame := role("comments.border")
-	if b.Indent > 0 {
+	switch {
+	case b.Selected:
+		frame = role("comments.selected")
+	case b.Indent > 0:
 		frame = role("comments.reply_border")
 	}
 	line := func(text string) string { return "[" + frame.String() + ":" + bg + ":-]" + text }

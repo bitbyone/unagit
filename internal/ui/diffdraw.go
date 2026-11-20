@@ -108,9 +108,32 @@ func drawDiff(path, diff string, width int) string {
 		more = len(lines) - diffLimit
 		lines = lines[:diffLimit]
 	}
+	out := drawDiffLines(path, lines, width, -1, false)
+	if more > 0 {
+		out += fmt.Sprintf("%s… %d more lines - open the file to read them%s\n", tag(colDim), more, tagEnd)
+	}
+	return out
+}
+
+// drawDiffLines draws lines of a diff, the line at mark (-1 for none) with
+// its numbers lit - the line a comment is on. fit keeps every line to
+// width exactly, a long one cut, for a frame drawn round them.
+func drawDiffLines(path string, lines []diffLine, width, mark int, fit bool) string {
 	numW := 1
 	for _, l := range lines {
 		numW = max(numW, len(strconv.Itoa(max(l.old, l.new))))
+	}
+	if fit {
+		room := max(1, width-(2*numW+2)-2)
+		cut := make([]diffLine, len(lines))
+		for i, l := range lines {
+			l.text = strings.ReplaceAll(l.text, "\t", "    ")
+			if r := []rune(l.text); len(r) > room {
+				l.text = string(r[:room-1]) + "…"
+			}
+			cut[i] = l
+		}
+		lines = cut
 	}
 	codes := highlightLines(path, lines)
 	var b strings.Builder
@@ -122,6 +145,10 @@ func drawDiff(path, diff string, width int) string {
 			return fmt.Sprintf("%*d", numW, n)
 		}
 		gutter := number(l.old) + " " + number(l.new) + " "
+		numbers := tag(role("diff.line_number")) + gutter + tagEnd
+		if i == mark {
+			numbers = tag(role("diff.commented")) + "[::b]" + gutter + "[::-]" + tagEnd
+		}
 		used := len(gutter) + 2 + tview.TaggedStringWidth(codes[i])
 		pad := strings.Repeat(" ", max(width-used, 0))
 		switch l.kind {
@@ -131,23 +158,34 @@ func drawDiff(path, diff string, width int) string {
 				continue
 			}
 			text := strings.Repeat(" ", len(gutter)) + "  " + l.text
-			b.WriteString(tag(role("diff.hunk")) + esc(strings.Repeat("┄", 2)+" "+text) + tagEnd)
-		case '\\':
-			b.WriteString(tag(colDim) + esc(strings.Repeat(" ", len(gutter))+"  "+l.text) + tagEnd)
-		case '+', '-':
-			mark, fill := role("diff.added"), role("diff.added_fill")
-			if l.kind == '-' {
-				mark, fill = role("diff.deleted"), role("diff.deleted_fill")
+			if fit {
+				text = trunc(text, width-3)
+				pad = strings.Repeat(" ", max(width-3-tview.TaggedStringWidth(esc(text)), 0))
 			}
-			b.WriteString(onFill(tag(role("diff.line_number"))+gutter+tagEnd+
-				tag(mark)+string(l.kind)+" "+tagEnd+codes[i]+pad, fill))
+			b.WriteString(tag(role("diff.hunk")) + esc(strings.Repeat("┄", 2)+" "+text) + tagEnd)
+			if fit {
+				b.WriteString(pad)
+			}
+		case '\\':
+			text := strings.Repeat(" ", len(gutter)) + "  " + l.text
+			if fit {
+				text = trunc(text, width)
+				text += strings.Repeat(" ", max(width-len([]rune(text)), 0))
+			}
+			b.WriteString(tag(colDim) + esc(text) + tagEnd)
+		case '+', '-':
+			ink, fill := role("diff.added"), role("diff.added_fill")
+			if l.kind == '-' {
+				ink, fill = role("diff.deleted"), role("diff.deleted_fill")
+			}
+			b.WriteString(onFill(numbers+tag(ink)+string(l.kind)+" "+tagEnd+codes[i]+pad, fill))
 		default:
-			b.WriteString(tag(role("diff.line_number")) + gutter + tagEnd + "  " + codes[i])
+			b.WriteString(numbers + "  " + codes[i])
+			if fit {
+				b.WriteString(pad)
+			}
 		}
 		b.WriteByte('\n')
-	}
-	if more > 0 {
-		fmt.Fprintf(&b, "%s… %d more lines - open the file to read them%s\n", tag(colDim), more, tagEnd)
 	}
 	return b.String()
 }

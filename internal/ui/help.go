@@ -485,7 +485,11 @@ func helpRows() []helpLine {
 		blank(),
 
 		section("Comments  (c)", 0).at(helpNoKeys),
-		key("i", "write one"),
+		key("j  k", "choose a comment"),
+		key("i", "reply to it, in its thread"),
+		key("c", "write a new one"),
+		key("Enter", "the diff of its file, at its line"),
+		key("w", "open it in the browser"),
 		key("Ctrl-S", "send it"),
 		key("A", "approve"),
 		key("r", "reload"),

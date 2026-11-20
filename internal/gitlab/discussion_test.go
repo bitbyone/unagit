@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -230,5 +231,28 @@ func TestResolveDiscussionReportsARefusal(t *testing.T) {
 	})
 	if err := New(srv.URL, "t").ResolveDiscussion(context.Background(), discussionMR, "abc", true); err == nil {
 		t.Fatal("a refusal must be an error")
+	}
+}
+
+// The diffs come from /diffs, or from /changes on a server older than it.
+func TestMergeRequestDiffsFallBackOnChanges(t *testing.T) {
+	for _, old := range []bool{false, true} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			file := `{"old_path":"a.go","new_path":"a.go","diff":"@@ -1 +1,2 @@\n a\n+b\n"}`
+			switch {
+			case r.URL.Path == "/api/v4/projects/42/merge_requests/7/diffs" && !old:
+				fmt.Fprint(w, "["+file+"]")
+			case r.URL.Path == "/api/v4/projects/42/merge_requests/7/changes" && old:
+				fmt.Fprint(w, `{"changes":[`+file+`]}`)
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		files, err := New(srv.URL, "t").MergeRequestDiffs(context.Background(), discussionMR)
+		srv.Close()
+		if err != nil || len(files) != 1 || files[0].Path != "a.go" || !strings.Contains(files[0].Diff, "+b") {
+			t.Errorf("old server %v: files = %+v, %v", old, files, err)
+		}
 	}
 }

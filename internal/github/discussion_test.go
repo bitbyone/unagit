@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/tobola/unagit/internal/forge"
@@ -207,5 +208,46 @@ func TestResolveDiscussionIsNotSupported(t *testing.T) {
 	err := New("token").ResolveDiscussion(context.Background(), forge.MergeRequest{}, "1", true)
 	if !errors.Is(err, forge.ErrNotSupported) {
 		t.Fatalf("err = %v, want forge.ErrNotSupported", err)
+	}
+}
+
+// A comment of the conversation is no review thread: the answer to it is a
+// comment of the conversation quoting it, naming whom it answers.
+func TestAReplyToTheConversationQuotesIt(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/issues/comments/900", `{"id":900,"body":"why not a map?\nit is shorter","user":{"login":"ann"}}`)
+	var posts []map[string]any
+	s.mux.HandleFunc("/repos/acme/api/issues/7/comments", capture(&posts, func(w http.ResponseWriter) {
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{"id":901,"body":"b","user":{"login":"toby"}}`)
+	}))
+
+	n, err := s.client().ReplyToDiscussion(context.Background(), reviewMR, "900", "it is slower")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "> why not a map?\n> it is shorter\n\n@ann it is slower"
+	if len(posts) != 1 || posts[0]["body"] != want {
+		t.Fatalf("posts = %+v, want the body %q", posts, want)
+	}
+	if n.ID != 901 {
+		t.Errorf("note = %+v", n)
+	}
+}
+
+func TestMergeRequestDiffsAreItsFiles(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/pulls/7/files", `[
+		{"filename":"a.go","patch":"@@ -1,2 +1,3 @@\n a\n+b\n c"},
+		{"filename":"new.go","previous_filename":"old.go","patch":"@@ -4 +4 @@\n-x\n+y"}]`)
+	files, err := s.client().MergeRequestDiffs(context.Background(), reviewMR)
+	if err != nil || len(files) != 2 {
+		t.Fatalf("files = %+v, %v", files, err)
+	}
+	if files[0].Path != "a.go" || files[0].OldPath != "a.go" || !strings.Contains(files[0].Diff, "+b") {
+		t.Errorf("first = %+v", files[0])
+	}
+	if files[1].OldPath != "old.go" || files[1].Path != "new.go" {
+		t.Errorf("a renamed file should keep where it was: %+v", files[1])
 	}
 }

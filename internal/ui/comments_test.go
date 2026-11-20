@@ -1,11 +1,16 @@
 package ui
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+
+	"github.com/tobola/unagit/internal/forge"
 )
 
 // openMRDetail selects the first merge request and loads its detail column.
@@ -65,7 +70,8 @@ func TestCommentsModalShowsTheWholeConversation(t *testing.T) {
 	if strings.Contains(a.screenText(sc), "changed title") {
 		t.Error("a system note leaked into the conversation")
 	}
-	waitFor(t, a, sc, "i write a comment")
+	waitFor(t, a, sc, "i reply")
+	waitFor(t, a, sc, "c comment")
 
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Comments · acme/gateway !7")
@@ -317,4 +323,121 @@ func TestCommentsOpenAtTheTop(t *testing.T) {
 		typeRunes(sc, "j")
 	}
 	waitFor(t, a, sc, "retry loop")
+}
+
+// codeForge is the fake server's client with a thread on a line of code
+// added to the conversation, the diff that line is in, and the replies
+// kept instead of sent.
+type codeForge struct {
+	forge.Provider
+	mu      sync.Mutex
+	replies []string
+}
+
+func (f *codeForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
+	notes, err := f.Provider.MergeRequestNotes(ctx, mr, limit)
+	return append(notes,
+		forge.Note{ID: 70, Thread: "on-code", Body: "this sleeps on every retry", Path: "limit.go", Line: 12,
+			CreatedAt: time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC), Author: forge.User{Username: "carol"}, Resolvable: true}), err
+}
+
+func (f *codeForge) MergeRequestDiffs(context.Context, forge.MergeRequest) ([]forge.FileDiff, error) {
+	return []forge.FileDiff{{Path: "limit.go", OldPath: "limit.go",
+		Diff: "@@ -8,5 +8,6 @@ func limit() {\n \tfor {\n \t\tif ok() {\n \t\t\treturn\n \t\t}\n+\t\ttime.Sleep(backoff)\n \t}\n"}}, nil
+}
+
+func (f *codeForge) ReplyToDiscussion(_ context.Context, _ forge.MergeRequest, thread, body string) (*forge.Note, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = append(f.replies, thread+": "+body)
+	return &forge.Note{Thread: thread, Body: body}, nil
+}
+
+// TestCommentsAreChosenAnsweredAndReadBesideTheirCode: a thread on code is
+// drawn under the lines it is about; j and k choose a comment, i answers
+// it in its thread, Enter shows the whole diff of its file at its line.
+// However wide the terminal, the conversation is no wider than reads well.
+func TestCommentsAreChosenAnsweredAndReadBesideTheirCode(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	resizeApp(a, sc, 220, 50)
+	openMRDetail(t, a, sc)
+	fake := onLoop(a, func() *codeForge {
+		id := a.cfg.Instances[0].ID
+		f := &codeForge{Provider: a.clients[id]}
+		a.clients[id] = f
+		return f
+	})
+
+	typeRunes(sc, "c")
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	waitFor(t, a, sc, "limit.go:12")
+	waitFor(t, a, sc, "time.Sleep(backoff)")
+	waitFor(t, a, sc, "this sleeps on every retry")
+	width := onLoop(a, func() int {
+		_, prim := a.pages.GetFrontPage()
+		_, _, w, _ := prim.(*modalBox).content.(*tview.Flex).GetRect()
+		return w
+	})
+	if width > commentsWidth {
+		t.Errorf("the conversation is %d wide on a 220 wide terminal, want at most %d", width, commentsWidth)
+	}
+
+	// The thread on code is the newest: G chooses it.
+	typeRunes(sc, "G")
+	typeRunes(sc, "i")
+	waitFor(t, a, sc, "Reply to carol")
+	typeRunes(sc, "it backs off")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitFor(t, a, sc, "Reply to carol posted")
+	fake.mu.Lock()
+	replies := append([]string(nil), fake.replies...)
+	fake.mu.Unlock()
+	if len(replies) != 1 || replies[0] != "on-code: it backs off" {
+		t.Fatalf("replies = %q, want one in the thread on code", replies)
+	}
+
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go:12 · acme/gateway !7")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "limit.go:12 · acme/gateway !7")
+	waitFor(t, a, sc, "Comments · acme/gateway !7")
+
+	// k goes to an older comment, which is on no line.
+	typeRunes(sc, "gk")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "not on a line")
+}
+
+// TestACommentIsReadUnderTheLinesItIsAbout: the code over a thread ends at
+// the commented line, counted on the side it is on, and stops at the start
+// of its hunk; a line no longer in the diff has no code.
+func TestACommentIsReadUnderTheLinesItIsAbout(t *testing.T) {
+	t.Parallel()
+	diffs := []forge.FileDiff{{Path: "a.go", OldPath: "a.go",
+		Diff: "@@ -1,4 +1,4 @@\n one\n-two\n+deux\n three\n four\n"}}
+	code := func(n forge.Note) string {
+		out := codeSnippet(n, diffs, 60)
+		for _, r := range strings.Split(out, "\n") {
+			if out != "" && tview.TaggedStringWidth(r) != 60 {
+				t.Errorf("a row of the code is %d wide, want 60: %q", tview.TaggedStringWidth(r), r)
+			}
+		}
+		return stripTags(out)
+	}
+	added := code(forge.Note{Path: "a.go", Line: 2})
+	if !strings.Contains(added, "deux") || !strings.Contains(added, "one") || strings.Contains(added, "three") {
+		t.Errorf("a comment on the new line 2 should end at deux:\n%s", added)
+	}
+	deleted := code(forge.Note{Path: "a.go", Line: 2, Orphaned: true})
+	if !strings.Contains(deleted, "two") || strings.Contains(deleted, "deux") {
+		t.Errorf("a comment on the deleted line 2 should end at two:\n%s", deleted)
+	}
+	if got := code(forge.Note{Path: "a.go", Line: 40}); got != "" {
+		t.Errorf("a line not in the diff has no code: %q", got)
+	}
+	if got := code(forge.Note{Path: "b.go", Line: 1}); got != "" {
+		t.Errorf("a file not in the diff has no code: %q", got)
+	}
 }

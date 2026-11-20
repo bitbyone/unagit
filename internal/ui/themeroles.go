@@ -55,6 +55,9 @@ var colourRoles = []colourRole{
 	{"comments.card", "card.background", "a comment card's background; unnamed, every card's"},
 	{"comments.border", "text.accent", "the frame of a conversation's first comment"},
 	{"comments.reply_border", "text.dim", "the frame of a reply, quieter than what it answers"},
+	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
+	{"comments.selected_fill", "selection.marked", "its background, as a marked row's"},
+	{"comments.code_border", "comments.reply_border", "the frame of the code a thread is on"},
 	{"comments.icon", "text.accent", "the mark before a comment's author"},
 	{"comments.meta", "text.dim", "the dot between the author and the time"},
 	{"comments.where", "column.path", "the file and line a comment is anchored to"},
@@ -86,6 +89,7 @@ var colourRoles = []colourRole{
 	{"diff.added_fill", "surface.raised", "the background of a line added"},
 	{"diff.deleted_fill", "surface.raised", "the background of a line deleted"},
 	{"diff.hunk", "text.dim", "where a part of a diff begins"},
+	{"diff.commented", "text.accent", "the numbers of the line a comment is on"},
 	{"diff.line_number", "text.dim", "a line's number beside it"},
 	// The commit log.
 	{"log.boundary", "text.dim", "a line of the commit log where origin's copy of the branch stands, or a section begins"},

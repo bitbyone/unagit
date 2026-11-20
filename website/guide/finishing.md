@@ -7,7 +7,11 @@ has.
 ## Comments
 
 `c` opens the conversation: each comment a card, its author, age and line on
-its frame, the markdown rendered, threaded the way they were written. `i` replies. With [Incomm](/guide/incomm-hunk) the comments are in
+its frame, the markdown rendered, threaded the way they were written. A
+thread on code sits under the last few lines of the diff it is about, as
+on GitLab. `j` and `k` choose a comment, `i` replies to it in its thread,
+`c` writes a new one, and `Enter` shows the whole diff of its file with
+the commented line lit. With [Incomm](/guide/incomm-hunk) the comments are in
 your editor too, beside the lines they are about, and `P` publishes the ones
 you wrote there.
 

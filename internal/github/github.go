@@ -324,14 +324,64 @@ func (c *Client) CreateDiscussion(ctx context.Context, mr forge.MergeRequest, pa
 
 // ReplyToDiscussion answers a review thread. thread is the id of the comment
 // that started it, which is what MergeRequestNotes reports as its Thread.
+// A comment of the conversation is no thread on GitHub: the answer to one
+// is a comment of the conversation that quotes it, as GitHub's own Quote
+// reply writes it.
 func (c *Client) ReplyToDiscussion(ctx context.Context, mr forge.MergeRequest, thread string, body string) (*forge.Note, error) {
 	var created ghComment
-	if err := c.postDecode(ctx, c.pullPath(mr)+"/comments/"+url.PathEscape(thread)+"/replies", map[string]string{"body": body}, &created); err != nil {
+	err := c.postDecode(ctx, c.pullPath(mr)+"/comments/"+url.PathEscape(thread)+"/replies", map[string]string{"body": body}, &created)
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound {
+		var quoted ghComment
+		if _, err := c.get(ctx, "/repos/"+mr.ProjectPath+"/issues/comments/"+url.PathEscape(thread), nil, &quoted); err != nil {
+			return nil, err
+		}
+		reply := quote(quoted.Body) + "\n\n@" + quoted.User.Login + " " + body
+		created = ghComment{}
+		if err := c.postDecode(ctx, c.issuePath(mr)+"/comments", map[string]string{"body": reply}, &created); err != nil {
+			return nil, err
+		}
+		n := created.note()
+		return &n, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	n := created.note()
 	n.Thread = thread
 	return &n, nil
+}
+
+// quote is a comment as markdown quotes it, a "> " before every line.
+func quote(body string) string {
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimRight("> "+l, " ")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// MergeRequestDiffs reads the pull request's files and their patches.
+// GitHub leaves the patch out of a file too large for it, which then has
+// no lines to show.
+func (c *Client) MergeRequestDiffs(ctx context.Context, mr forge.MergeRequest) ([]forge.FileDiff, error) {
+	files, err := getAll[struct {
+		Filename         string `json:"filename"`
+		PreviousFilename string `json:"previous_filename"`
+		Patch            string `json:"patch"`
+	}](ctx, c, c.pullPath(mr)+"/files", nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.FileDiff, len(files))
+	for i, f := range files {
+		old := f.PreviousFilename
+		if old == "" {
+			old = f.Filename
+		}
+		out[i] = forge.FileDiff{OldPath: old, Path: f.Filename, Diff: f.Patch}
+	}
+	return out, nil
 }
 
 // nextLink pulls the "next" URL out of a Link header.
