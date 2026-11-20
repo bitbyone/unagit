@@ -863,3 +863,37 @@ func TestExternalJobsAreListedAndOpenTheirPage(t *testing.T) {
 	}
 	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
 }
+
+// TestAnExternalJobWithNoPageSaysSoOverTheJobs: Enter on a job another
+// tool reports without a page says so in front of the jobs, not behind.
+func TestAnExternalJobWithNoPageSaysSoOverTheJobs(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	onLoop(a, func() bool {
+		id := a.cfg.Instances[0].ID
+		a.clients[id] = noPageForge{a.clients[id]}
+		return true
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "atlantis/apply")
+	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "which gave no page")
+	if name := onLoop(a, func() string { n, _ := a.pages.GetFrontPage(); return n }); name != pageMessage {
+		t.Fatalf("the warning is behind %q", name)
+	}
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "which gave no page")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
+}
+
+// noPageForge reports an external job without a page of its own.
+type noPageForge struct{ forge.Provider }
+
+func (f noPageForge) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, []forge.Job, error) {
+	pipe, jobs, err := f.Provider.PipelineJobs(ctx, mr)
+	return pipe, append(jobs, forge.Job{ID: 901, Name: "atlantis/apply", Stage: "external", Status: "running", External: true}), err
+}

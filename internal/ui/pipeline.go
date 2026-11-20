@@ -240,13 +240,14 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 			a.showDownstream(target, job, back(it))
 			return
 		case job.External && job.WebURL != "":
-			// No log here: the tool that runs it shows what it did.
-			a.openWeb(job.WebURL)
+			// No log here: the tool that runs it shows what it did. The
+			// jobs come back first, so what is said stands over them.
 			back(it)()
+			a.openWeb(job.WebURL)
 			return
 		case job.External:
-			a.flash(job.Name + " is reported by another tool, which gave no page for it")
 			back(it)()
+			a.flash(job.Name + " is reported by another tool, which gave no page for it")
 			return
 		}
 		a.showJobLog(target, job, back(it))
