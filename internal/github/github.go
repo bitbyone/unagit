@@ -1178,8 +1178,7 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 		return nil, nil, err
 	}
 	if len(raw.CheckRuns) == 0 {
-		p, err := c.combinedStatus(ctx, path, ref)
-		return p, nil, err
+		return c.combinedStatuses(ctx, path, ref)
 	}
 	starters := c.runStarters(ctx, path, raw.CheckRuns[0].HeadSHA)
 	jobs := make([]forge.Job, 0, len(raw.CheckRuns))
@@ -1193,6 +1192,11 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 			}
 		}
 		jobs = append(jobs, job)
+	}
+	// What other tools report to the commit as statuses - Atlantis, an
+	// outside CI - stands beside the checks, and counts in its state.
+	if _, statuses, err := c.combinedStatuses(ctx, path, ref); err == nil {
+		jobs = append(jobs, statuses...)
 	}
 	forge.MarkRetried(jobs)
 	// In the order GitHub gives them, a run's attempts together, the
@@ -1290,6 +1294,9 @@ func checkStatus(status, conclusion string) string {
 
 // JobLog is a GitHub Actions job's log; other apps' check runs have none.
 func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (string, error) {
+	if job.External {
+		return "", fmt.Errorf("%s is a status another tool reports, with no log here - w opens its page", job.Name)
+	}
 	if job.Stage != "" && job.Stage != "github-actions" {
 		return "", fmt.Errorf("%s reports through %s, whose log is on its own page - w opens it", job.Name, job.Stage)
 	}
@@ -1316,6 +1323,9 @@ func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (st
 
 // RetryJob runs a GitHub Actions job again.
 func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	if job.External {
+		return fmt.Errorf("%s is a status another tool reports, not run by GitHub: it cannot be run from here - w opens its page", job.Name)
+	}
 	return c.post(ctx, "/repos/"+p.PathWithNamespace+"/actions/jobs/"+strconv.FormatInt(job.ID, 10)+"/rerun", struct{}{})
 }
 
@@ -1533,27 +1543,52 @@ func (c *Client) Threads(ctx context.Context, mr forge.MergeRequest) (int, int, 
 
 // combinedStatus rolls GitHub's per commit statuses into one pipeline.
 func (c *Client) combinedStatus(ctx context.Context, projectPath, ref string) (*forge.Pipeline, error) {
+	pipe, _, err := c.combinedStatuses(ctx, projectPath, ref)
+	return pipe, err
+}
+
+// combinedStatuses is a commit's combined status as a pipeline, and each of
+// its statuses - the latest of each context - as a job another tool
+// reports: no log, nothing to run again.
+func (c *Client) combinedStatuses(ctx context.Context, projectPath, ref string) (*forge.Pipeline, []forge.Job, error) {
 	var raw struct {
 		State      string `json:"state"`
 		SHA        string `json:"sha"`
 		TotalCount int    `json:"total_count"`
 		Statuses   []struct {
+			ID        int64     `json:"id"`
+			Context   string    `json:"context"`
+			State     string    `json:"state"`
+			CreatedAt time.Time `json:"created_at"`
 			UpdatedAt time.Time `json:"updated_at"`
 			TargetURL string    `json:"target_url"`
+			Creator   *user     `json:"creator"`
 		} `json:"statuses"`
 	}
 	if _, err := c.get(ctx, "/repos/"+projectPath+"/commits/"+url.PathEscape(ref)+"/status", nil, &raw); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if raw.TotalCount == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	pipe := &forge.Pipeline{Status: mapStatus(raw.State), Ref: ref, SHA: raw.SHA}
 	if len(raw.Statuses) > 0 {
 		pipe.UpdatedAt = raw.Statuses[0].UpdatedAt
 		pipe.WebURL = raw.Statuses[0].TargetURL
 	}
-	return pipe, nil
+	jobs := make([]forge.Job, 0, len(raw.Statuses))
+	for _, s := range raw.Statuses {
+		job := forge.Job{ID: s.ID, Name: s.Context, Stage: "external", Status: mapStatus(s.State), WebURL: s.TargetURL,
+			StartedAt: s.CreatedAt, External: true}
+		if job.Status != "running" && !s.UpdatedAt.IsZero() {
+			job.Duration = s.UpdatedAt.Sub(s.CreatedAt).Seconds()
+		}
+		if s.Creator != nil {
+			job.User = &forge.User{Username: s.Creator.Login, Name: s.Creator.Name}
+		}
+		jobs = append(jobs, job)
+	}
+	return pipe, jobs, nil
 }
 
 // mapStatus translates GitHub's status vocabulary into GitLab's, which is

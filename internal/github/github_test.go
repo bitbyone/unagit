@@ -1018,3 +1018,29 @@ func TestWorkflowRunsAreThePipelines(t *testing.T) {
 		t.Errorf("a job = %+v", jobs[0])
 	}
 }
+
+// What another tool reports to a commit as a status - Atlantis, an outside
+// CI - stands beside its check runs as an external job, counts in what the
+// commit stands at, and cannot be run again from here.
+func TestCommitStatusesAreJobsBesideTheChecks(t *testing.T) {
+	s := newStub(t)
+	s.handle("/repos/acme/api/commits/main/check-runs",
+		`{"check_runs":[{"id":1,"name":"test","status":"completed","conclusion":"success","app":{"slug":"github-actions"}}]}`)
+	s.handle("/repos/acme/api/commits/main/status", `{"state":"pending","sha":"abc","total_count":1,"statuses":[
+		{"id":40,"context":"atlantis/apply","state":"pending","target_url":"https://atlantis/apply",
+		 "created_at":"2026-11-20T10:00:00Z","updated_at":"2026-11-20T10:00:05Z","creator":{"login":"atlantis-bot"}}]}`)
+	pipe, jobs, err := s.client().BranchPipelineJobs(context.Background(), forge.Project{PathWithNamespace: "acme/api"}, "main")
+	if err != nil || pipe == nil || len(jobs) != 2 {
+		t.Fatalf("pipeline %+v, jobs %+v, %v", pipe, jobs, err)
+	}
+	apply := jobs[1]
+	if !apply.External || apply.Name != "atlantis/apply" || apply.Status != "running" || apply.WebURL != "https://atlantis/apply" {
+		t.Errorf("apply = %+v", apply)
+	}
+	if pipe.Status != "running" {
+		t.Errorf("the commit stands at %q with a status still pending", pipe.Status)
+	}
+	if err := s.client().RetryJob(context.Background(), forge.Project{PathWithNamespace: "acme/api"}, apply); err == nil {
+		t.Error("an external job was run again")
+	}
+}

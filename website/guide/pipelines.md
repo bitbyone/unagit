@@ -35,6 +35,12 @@ In a log, `Ctrl-D`/`Ctrl-U` move by half a page, `Ctrl-F`/`Ctrl-B` by a whole
 one. A job run again keeps its earlier attempts under it (`↺`), whose logs can
 still be read. On a trigger job (`↳`), `Enter` lists the pipeline it started.
 
+What another tool reports to the pipeline - Atlantis's plan and apply, the
+jobs of GitLab's external stage, a commit status on GitHub - is listed
+last, in its stage `external`. It counts in the pipeline's state, so a
+pipeline that runs for it alone shows what runs. It has no log here and is
+not run from here: `Enter` opens its page.
+
 While a pipeline runs, its jobs are read again every few seconds and change in
 place, and a running job's log grows at its end, as `tail -f` does, unless you
 scrolled up.

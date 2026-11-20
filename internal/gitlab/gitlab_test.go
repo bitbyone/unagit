@@ -760,3 +760,72 @@ func TestSetDefaultBranchAfterPublishing(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestAPipelinesExternalJobsAreListed: what other tools report to a
+// pipeline - Atlantis's plan and apply - is listed with its jobs, last, in
+// its external stage: the pipeline's own commit and ref asked for, a status
+// of another pipeline and one that is a job of this one left out, the
+// earlier attempt of one marked. They have no log and cannot be run; a
+// server that will not say leaves them out rather than the pipeline.
+func TestAPipelinesExternalJobsAreListed(t *testing.T) {
+	forbidden := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v4/projects/3/merge_requests/7/pipelines":
+			fmt.Fprint(w, `[{"id":90,"status":"running","sha":"abc","ref":"feat/x"}]`)
+		case "/api/v4/projects/3/pipelines/90/jobs":
+			fmt.Fprint(w, `[{"id":5,"name":"Dummy job","stage":"build","status":"success"}]`)
+		case "/api/v4/projects/3/pipelines/90/bridges":
+			fmt.Fprint(w, `[]`)
+		case "/api/v4/projects/3/repository/commits/abc/statuses":
+			if forbidden {
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+				return
+			}
+			q := r.URL.Query()
+			if q.Get("stage") != "external" || q.Get("ref") != "feat/x" || q.Get("all") != "true" || q.Get("pipeline_id") != "90" {
+				t.Errorf("statuses asked with %v", q)
+			}
+			fmt.Fprint(w, `[
+				{"id":5,"name":"Dummy job","status":"success","pipeline_id":90},
+				{"id":30,"name":"atlantis/plan","status":"success","pipeline_id":90,"target_url":"https://atlantis/plan",
+				 "started_at":"2026-11-20T10:00:00Z","finished_at":"2026-11-20T10:01:30Z","author":{"username":"turon","name":"Turoň Jan"}},
+				{"id":31,"name":"atlantis/apply","status":"failed","pipeline_id":90},
+				{"id":32,"name":"atlantis/apply","status":"running","pipeline_id":90},
+				{"id":33,"name":"atlantis/plan","status":"success","pipeline_id":89}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c, ctx := New(srv.URL, "t"), context.Background()
+	mr := forge.MergeRequest{IID: 7, ProjectID: 3}
+
+	_, jobs, err := c.PipelineJobs(ctx, mr)
+	if err != nil || len(jobs) != 4 {
+		t.Fatalf("jobs %+v, %v", jobs, err)
+	}
+	if jobs[0].Name != "Dummy job" || jobs[0].External {
+		t.Errorf("the pipeline's own job should come first, as it is: %+v", jobs[0])
+	}
+	plan := jobs[1]
+	if !plan.External || plan.Stage != "external" || plan.WebURL != "https://atlantis/plan" || plan.Duration != 90 || plan.User == nil || plan.User.Name != "Turoň Jan" {
+		t.Errorf("plan = %+v", plan)
+	}
+	if !jobs[2].Retried || jobs[3].Retried || jobs[3].Status != "running" {
+		t.Errorf("the apply run again: %+v, %+v", jobs[2], jobs[3])
+	}
+	if _, err := c.JobLog(ctx, forge.Project{ID: 3}, plan); err == nil {
+		t.Error("an external job has a log")
+	}
+	if err := c.RetryJob(ctx, forge.Project{ID: 3}, plan); err == nil {
+		t.Error("an external job was run again")
+	}
+
+	forbidden = true
+	if _, jobs, err := c.PipelineJobs(ctx, mr); err != nil || len(jobs) != 1 {
+		t.Errorf("with the statuses forbidden: jobs %+v, %v", jobs, err)
+	}
+}

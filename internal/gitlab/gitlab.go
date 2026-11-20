@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -822,7 +823,7 @@ func (c *Client) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forg
 	if err != nil || p == nil {
 		return p, nil, err
 	}
-	jobs, err := c.pipelineJobs(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath), p.ID)
+	jobs, err := c.pipelineJobs(ctx, "/projects/"+projectRef(mr.ProjectID, mr.ProjectPath), *p)
 	return p, jobs, err
 }
 
@@ -832,16 +833,17 @@ func (c *Client) BranchPipelineJobs(ctx context.Context, p forge.Project, branch
 	if err != nil || pipe == nil {
 		return pipe, nil, err
 	}
-	jobs, err := c.pipelineJobs(ctx, projectPath(p), pipe.ID)
+	jobs, err := c.pipelineJobs(ctx, projectPath(p), *pipe)
 	return pipe, jobs, err
 }
 
 // pipelineJobs is every job of a pipeline - those still to run, manual and
 // delayed ones included - with its trigger jobs, in the order of its
 // stages: a stage comes where its first job was made, which is how GitLab
-// made them, and a job run again stays in its stage.
-func (c *Client) pipelineJobs(ctx context.Context, project string, pipeline int) ([]forge.Job, error) {
-	base := project + "/pipelines/" + strconv.Itoa(pipeline)
+// made them, and a job run again stays in its stage. The jobs other tools
+// report to the pipeline come last, in their stage, external.
+func (c *Client) pipelineJobs(ctx context.Context, project string, pipe forge.Pipeline) ([]forge.Job, error) {
+	base := project + "/pipelines/" + strconv.Itoa(pipe.ID)
 	// The attempts of a job run again are listed too, so what an earlier
 	// one failed on can still be read.
 	all := url.Values{}
@@ -863,11 +865,22 @@ func (c *Client) pipelineJobs(ctx context.Context, project string, pipeline int)
 		bridges[i].Trigger = true
 	}
 	jobs = append(jobs, bridges...)
+	external, err := c.externalJobs(ctx, project, pipe, jobs)
+	if err != nil {
+		return nil, err
+	}
+	jobs = append(jobs, external...)
 	forge.MarkRetried(jobs)
 	first := map[string]int64{}
 	for _, j := range jobs {
 		if at, ok := first[j.Stage]; !ok || j.ID < at {
 			first[j.Stage] = j.ID
+		}
+	}
+	// GitLab puts the stage of what other tools report after every other.
+	for _, j := range jobs {
+		if j.External {
+			first[j.Stage] = math.MaxInt64
 		}
 	}
 	// In a stage, a job's attempts stand together, the newest last.
@@ -945,7 +958,7 @@ func (c *Client) pipelineDetails(ctx context.Context, project string, pipes []fo
 
 // Jobs is the jobs of one pipeline.
 func (c *Client) Jobs(ctx context.Context, p forge.Project, pipe forge.Pipeline) ([]forge.Job, error) {
-	return c.pipelineJobs(ctx, projectPath(p), pipe.ID)
+	return c.pipelineJobs(ctx, projectPath(p), pipe)
 }
 
 // CommitFiles counts the lines a commit added and deleted in each file,
@@ -985,22 +998,96 @@ func (c *Client) DownstreamJobs(ctx context.Context, job forge.Job) (*forge.Pipe
 	if _, err := c.get(ctx, project+"/pipelines/"+strconv.Itoa(d.ID), nil, &pipe); err != nil {
 		return nil, nil, err
 	}
-	jobs, err := c.pipelineJobs(ctx, project, d.ID)
+	jobs, err := c.pipelineJobs(ctx, project, pipe)
 	return &pipe, jobs, err
+}
+
+// externalJobs are the commit statuses other tools reported to a pipeline
+// - GitLab's external stage, Atlantis's plan and apply - which its jobs do
+// not list though its state counts them. A server that will not say, for
+// want of a right or of the endpoint, leaves them out rather than the
+// pipeline.
+func (c *Client) externalJobs(ctx context.Context, project string, pipe forge.Pipeline, jobs []forge.Job) ([]forge.Job, error) {
+	if pipe.SHA == "" {
+		return nil, nil
+	}
+	q := url.Values{"stage": {"external"}, "all": {"true"}, "pipeline_id": {strconv.Itoa(pipe.ID)}}
+	if pipe.Ref != "" {
+		q.Set("ref", pipe.Ref)
+	}
+	statuses, err := getAll[struct {
+		ID         int64      `json:"id"`
+		Name       string     `json:"name"`
+		Status     string     `json:"status"`
+		TargetURL  string     `json:"target_url"`
+		StartedAt  *time.Time `json:"started_at"`
+		FinishedAt *time.Time `json:"finished_at"`
+		PipelineID int        `json:"pipeline_id"`
+		Author     *struct {
+			Username string `json:"username"`
+			Name     string `json:"name"`
+		} `json:"author"`
+	}](ctx, c, project+"/repository/commits/"+url.PathEscape(pipe.SHA)+"/statuses", q)
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && (apiErr.status == http.StatusNotFound || apiErr.status == http.StatusForbidden) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	listed := map[int64]bool{}
+	for _, j := range jobs {
+		listed[j.ID] = true
+	}
+	var out []forge.Job
+	for _, s := range statuses {
+		// The pipeline's jobs are commit statuses too, and a status of the
+		// same commit can belong to another pipeline of it.
+		if listed[s.ID] || s.PipelineID != 0 && s.PipelineID != pipe.ID {
+			continue
+		}
+		j := forge.Job{ID: s.ID, Name: s.Name, Stage: "external", Status: s.Status, WebURL: s.TargetURL, External: true}
+		if s.StartedAt != nil {
+			j.StartedAt = *s.StartedAt
+			if s.FinishedAt != nil {
+				j.Duration = s.FinishedAt.Sub(*s.StartedAt).Seconds()
+			}
+		}
+		if s.Author != nil {
+			j.User = &forge.User{Username: s.Author.Username, Name: s.Author.Name}
+		}
+		out = append(out, j)
+	}
+	return out, nil
+}
+
+// errExternal is what a job another tool reports answers what only the
+// forge's own jobs do.
+func errExternal(job forge.Job) error {
+	return fmt.Errorf("%s is reported by another tool, not run by GitLab: it has no log here and cannot be run from here - w opens its page", job.Name)
 }
 
 // JobLog is a job's trace.
 func (c *Client) JobLog(ctx context.Context, p forge.Project, job forge.Job) (string, error) {
+	if job.External {
+		return "", errExternal(job)
+	}
 	return c.getText(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/trace")
 }
 
 // RetryJob runs a job again.
 func (c *Client) RetryJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	if job.External {
+		return errExternal(job)
+	}
 	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/retry", struct{}{})
 }
 
 // PlayJob starts a manual or delayed job.
 func (c *Client) PlayJob(ctx context.Context, p forge.Project, job forge.Job) error {
+	if job.External {
+		return errExternal(job)
+	}
 	return c.post(ctx, projectPath(p)+"/jobs/"+strconv.FormatInt(job.ID, 10)+"/play", struct{}{})
 }
 

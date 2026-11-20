@@ -332,6 +332,11 @@ type Job struct {
 	Trigger bool `json:"trigger,omitempty"`
 	// Retried is an earlier attempt of a job that was run again.
 	Retried bool `json:"retried,omitempty"`
+	// External is a job another tool reports to the forge - Atlantis's plan
+	// and apply - rather than one the forge runs: it counts in the
+	// pipeline's state, but has no log and cannot be run from here;
+	// WebURL is that tool's page, empty where it gave none.
+	External bool `json:"external,omitempty"`
 	// StartedAt is when it began to run, zero while it has not; User is
 	// whom it was started by - who pushed, or who ran it again - nil where
 	// the forge does not say.

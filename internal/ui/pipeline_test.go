@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -806,4 +807,59 @@ func TestARunningPipelineBacksOffWhenTheServerIsAway(t *testing.T) {
 	}
 	typeRunes(sc, "r")
 	waitTrue(t, "a refresh did not bring the pipeline back", func() bool { return pipeline() == "success" })
+}
+
+// externalForge is the fake server's client whose merge request pipeline
+// has jobs another tool reports - Atlantis's - one of them still running.
+type externalForge struct{ forge.Provider }
+
+func (f externalForge) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*forge.Pipeline, []forge.Job, error) {
+	pipe, jobs, err := f.Provider.PipelineJobs(ctx, mr)
+	if pipe != nil {
+		pipe.Status = "running"
+	}
+	return pipe, append(jobs,
+		forge.Job{ID: 900, Name: "atlantis/plan", Stage: "external", Status: "success", External: true, WebURL: "https://atlantis/plan"},
+		forge.Job{ID: 901, Name: "atlantis/apply", Stage: "external", Status: "running", External: true, WebURL: "https://atlantis/apply"}), err
+}
+
+// TestExternalJobsAreListedAndOpenTheirPage: what another tool reports to
+// the pipeline is among its jobs, so a pipeline running only for them shows
+// what runs; Enter opens such a job's page, as it has no log here, and R
+// says it cannot be run from here.
+func TestExternalJobsAreListedAndOpenTheirPage(t *testing.T) {
+	opened := make(chan string, 4)
+	saved := openBrowser
+	openBrowser = func(url string) error { opened <- url; return nil }
+	t.Cleanup(func() { openBrowser = saved })
+
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	onLoop(a, func() bool {
+		id := a.cfg.Instances[0].ID
+		a.clients[id] = externalForge{a.clients[id]}
+		return true
+	})
+	typeRunes(sc, "2")
+	waitFor(t, a, sc, "Rate limiting")
+	typeRunes(sc, "gJ")
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
+	waitFor(t, a, sc, "atlantis/apply")
+	waitFor(t, a, sc, "external")
+	typeRunes(sc, "G")
+	waitFor(t, a, sc, "reported by another tool")
+	typeRunes(sc, "R")
+	waitFor(t, a, sc, "cannot be run from here")
+	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
+	waitGone(t, a, sc, "cannot be run from here")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	select {
+	case url := <-opened:
+		if url != "https://atlantis/apply" {
+			t.Errorf("Enter opened %q", url)
+		}
+	case <-time.After(patience):
+		t.Fatal("Enter opened nothing")
+	}
+	waitFor(t, a, sc, "Pipeline · acme/gateway !7")
 }

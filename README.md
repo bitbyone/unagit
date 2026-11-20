@@ -397,7 +397,12 @@ its keys.
   where it asks which repository first. The jobs still to run are there
   too: a manual one (`▶`), which `R` starts, a delayed one (`◷`), which `R`
   starts at once, and a trigger job (`↳`), on which `Enter` lists the
-  pipeline it started and `Esc` comes back. `Enter` reads a job's log - its end,
+  pipeline it started and `Esc` comes back. What another tool reports to
+  the pipeline - Atlantis's plan and apply, GitLab's external stage, a
+  status on GitHub - is listed last, in its stage `external`: it counts in
+  the pipeline's state, so a pipeline running for it alone shows what
+  runs. It has no log here and cannot be run from here: `Enter` opens its
+  page. `Enter` reads a job's log - its end,
   in the colours the job printed it in, `Ctrl-D`/`Ctrl-U` by half a page,
   `Ctrl-F`/`Ctrl-B` by a whole one - `R` runs it again, `w` opens it, `W`
   the pipeline, and the jobs stay open behind the browser. A job run again

@@ -209,7 +209,7 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 		return func() { a.listJobs(target, state.pipe, state.jobs, at(it).ID) }
 	}
 	opts := pickerOptions{start: max(start, 0), wide: true, explain: true, enterHint: "log", back: target.back,
-		enterName: "Show Log", enterAbout: "Read the job's log, or a trigger job's own pipeline.",
+		enterName: "Show Log", enterAbout: "Read the job's log, a trigger job's own pipeline, or the page of a job another tool reports.",
 		same: func(x, y pickItem) bool { return at(x).ID == at(y).ID },
 		keys: []pickKey{
 			{keys: "R", hint: "run", name: "Run Job", about: "Start a manual or delayed job, or run a finished one again.", stay: true, run: func(it pickItem) { a.runJob(target, at(it)) }},
@@ -235,8 +235,18 @@ func (a *App) listJobs(target ciTarget, pipe *forge.Pipeline, jobs []forge.Job, 
 	opts.header = header
 	picker := a.showPickerWith(state.title(target), items, opts, func(it pickItem) {
 		job := at(it)
-		if job.Trigger {
+		switch {
+		case job.Trigger:
 			a.showDownstream(target, job, back(it))
+			return
+		case job.External && job.WebURL != "":
+			// No log here: the tool that runs it shows what it did.
+			a.openWeb(job.WebURL)
+			back(it)()
+			return
+		case job.External:
+			a.flash(job.Name + " is reported by another tool, which gave no page for it")
+			back(it)()
 			return
 		}
 		a.showJobLog(target, job, back(it))
@@ -456,6 +466,8 @@ func jobAbout(j forge.Job) string {
 		parts = append(parts, "starts a pipeline of its own - Enter lists its jobs")
 	case j.Trigger:
 		parts = append(parts, "starts a pipeline of its own, not yet started")
+	case j.External:
+		parts = append(parts, "reported by another tool, which runs it - Enter opens its page")
 	}
 	if d := duration(j.Duration); d != "" {
 		parts = append(parts, d)
@@ -502,6 +514,10 @@ func duration(seconds float64) string {
 // is run again. The jobs stay on screen meanwhile, saying so in their
 // edge, and are then read again in place, the cursor on the job.
 func (a *App) runJob(target ciTarget, job forge.Job) {
+	if job.External {
+		a.flash(job.Name + " is reported by another tool, which runs it: it cannot be run from here - w opens its page")
+		return
+	}
 	client := a.client(target.instance)
 	if client == nil {
 		a.errorf("%s has no token - set one in "+settingsTab, a.instanceLabel(target.instance))
