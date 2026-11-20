@@ -295,6 +295,8 @@ func (a *App) showViewOptions() {
 		{"grouped by group (" + a.keyName(scopeRepositories, "toggle_grouping", "z", "Toggle Grouping") + ")", func() bool { return f.GroupRepositories }, func() { f.GroupRepositories = !f.GroupRepositories }},
 		{"favourites first, flat", f.FavouritesFirst, func() { f.FavouritesInPlace = !f.FavouritesInPlace }},
 		{"only what is cloned", func() bool { return f.ClonedOnly }, func() { f.ClonedOnly = !f.ClonedOnly }},
+		{"only with commits to push", func() bool { return f.ToPushOnly }, func() { f.ToPushOnly = !f.ToPushOnly }},
+		{"only behind origin", func() bool { return f.BehindOnly }, func() { f.BehindOnly = !f.BehindOnly }},
 	}
 	a.showToggles(toggles{
 		title: "View · Repositories",

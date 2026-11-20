@@ -70,7 +70,7 @@ func TestRepositoryVisibilityPickerKeepsTheCacheAndOtherLists(t *testing.T) {
 		}
 		a.projectsPane.reload()
 	})
-	typeRunes(sc, "vjjj ")
+	typeRunes(sc, "vjjjjj ")
 	waitFor(t, a, sc, "Repository visibility")
 	for _, width := range []int{120, 80, 60} {
 		resizeApp(a, sc, width, 26)
@@ -97,7 +97,7 @@ func TestRepositoryVisibilityPickerKeepsTheCacheAndOtherLists(t *testing.T) {
 	}
 	typeRunes(sc, "2")
 	waitFor(t, a, sc, "Invoice rounding")
-	typeRunes(sc, "1vjjj ")
+	typeRunes(sc, "1vjjjjj ")
 	waitFor(t, a, sc, "Repository visibility")
 	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Repository visibility")

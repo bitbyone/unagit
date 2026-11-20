@@ -86,9 +86,19 @@ func (a *App) newProjectsPane() *pane {
 }
 
 func (a *App) filterProjects(projects []forge.Project, query string) []int {
+	return a.filterProjectsBy(projects, query, true)
+}
+
+// filterProjectsBy is filterProjects, narrowed by To Push and Behind or
+// not: a fetch that asks only about the rows shown must not leave out
+// those it could find out of sync.
+func (a *App) filterProjectsBy(projects []forge.Project, query string, bySync bool) []int {
 	var hits []scored
 	for i, p := range projects {
 		if !a.passesFilters(p.Instance, p.PathWithNamespace) {
+			continue
+		}
+		if bySync && !a.passesSyncFilter(projectKey{p.Instance, p.PathWithNamespace}) {
 			continue
 		}
 		if visibility := a.cfg.Filters.RepositoryVisibility; visibility != "" && repositoryVisibility(p) != visibility {

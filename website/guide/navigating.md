@@ -63,6 +63,9 @@ and the pipeline column turns to `?` after a few tries. Never a box in front.
 
 - `/` fuzzy-finds. `Esc` leaves the filter, then clears it.
 - **only what is cloned**, in `v`, hides everything you have not cloned.
+- **only with commits to push** and **only behind origin**, in `v`, keep the
+  clones out of step with origin - either, with both on. **Toggle Out of Sync
+  Only** in `:` turns both on or off at once. `r` fetches before you look.
 - `x` hides a repository you never want to see. `X` lists the hidden ones.
 - `H` on a merge request hides its author's merge requests: Renovate's, a CI bot's.
 - `v` narrows Merge requests to yours, those you review, those assigned to you,

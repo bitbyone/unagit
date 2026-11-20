@@ -289,6 +289,11 @@ type Filters struct {
 	Server string `yaml:"server,omitempty" json:"server,omitempty"`
 	// ClonedOnly narrows both lists to projects that are on disk.
 	ClonedOnly bool `yaml:"cloned_only,omitempty" json:"cloned_only,omitempty"`
+	// ToPushOnly and BehindOnly narrow Repositories to the clones whose
+	// branch has commits origin lacks, or lacks commits origin has; with
+	// both, to either.
+	ToPushOnly bool `yaml:"to_push_only,omitempty" json:"to_push_only,omitempty"`
+	BehindOnly bool `yaml:"behind_only,omitempty" json:"behind_only,omitempty"`
 	// RepositoryVisibility narrows only Repositories; empty shows every
 	// visibility, including repositories an old cache has not learned yet.
 	RepositoryVisibility string `yaml:"repository_visibility,omitempty" json:"repository_visibility,omitempty"`

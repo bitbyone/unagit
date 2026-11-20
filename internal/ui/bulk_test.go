@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -148,5 +149,60 @@ func TestCloningAClonedRepositorySaysSo(t *testing.T) {
 	waitFor(t, a, sc, "acme/gateway is already cloned")
 	if onLoop(a, func() bool { return a.pages.HasPage(pageTask) || a.modalOpen() }) {
 		t.Error("C on a clone opened a dialog")
+	}
+}
+
+// TestRepositoriesNarrowToWhatIsOutOfSync: View Options' To Push and
+// Behind keep only the clones whose branch origin lacks commits of, or has
+// commits the branch lacks - either with both - and the quick action turns
+// both on and off together.
+func TestRepositoriesNarrowToWhatIsOutOfSync(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/gateway")
+	gw := newRealProject(t, a, "acme/gateway")
+	bl := newRealProject(t, a, "acme/billing")
+	commitIn(t, gw.clone, "ahead.txt", "only here")
+	commitIn(t, bl.clone, "gone.txt", "only on origin")
+	gitIn(t, bl.clone, "update-ref", "refs/remotes/origin/main", "HEAD")
+	gitIn(t, bl.clone, "reset", "-q", "--hard", "HEAD~1")
+	changeOnLoop(a, a.refreshDisk)
+	eventually(t, a, "both clones' state is read", func() bool {
+		return len(a.repoSync) == 2
+	})
+
+	shown := func() []string {
+		return onLoop(a, func() []string {
+			var out []string
+			for _, i := range a.filterProjects(a.projects, "") {
+				out = append(out, a.projects[i].PathWithNamespace)
+			}
+			return out
+		})
+	}
+	set := func(push, behind bool) {
+		changeOnLoop(a, func() {
+			a.cfg.Filters.ToPushOnly, a.cfg.Filters.BehindOnly = push, behind
+			a.applyFilters()
+		})
+	}
+	set(true, false)
+	if got := shown(); !slices.Equal(got, []string{"acme/gateway"}) {
+		t.Fatalf("to push only shows %v, want gateway", got)
+	}
+	waitFor(t, a, sc, "to push only")
+	set(false, true)
+	if got := shown(); !slices.Equal(got, []string{"acme/billing"}) {
+		t.Fatalf("behind only shows %v, want billing", got)
+	}
+	set(false, false)
+	changeOnLoop(a, a.toggleOutOfSync)
+	if got := shown(); len(got) != 2 || slices.Contains(got, "acme/tool") {
+		t.Fatalf("out of sync shows %v, want gateway and billing", got)
+	}
+	waitFor(t, a, sc, "to push or behind only")
+	changeOnLoop(a, a.toggleOutOfSync)
+	if f := onLoop(a, func() config.Filters { return a.cfg.Filters }); f.ToPushOnly || f.BehindOnly {
+		t.Fatalf("the action did not turn both off again: %+v", f)
 	}
 }

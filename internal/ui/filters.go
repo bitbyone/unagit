@@ -49,6 +49,9 @@ func (a *App) filterSummary(list string, grouped bool) string {
 	if grouped {
 		parts = append(parts, tag(colOn)+"grouped"+tagEnd+tag(colMuted))
 	}
+	if label := syncFilterLabel(f); list == config.ListRepositories && label != "" {
+		parts = append(parts, tag(colOn)+label+" only"+tagEnd+tag(colMuted))
+	}
 	if list == config.ListRepositories && f.RepositoryVisibility != "" {
 		parts = append(parts, tag(colOn)+esc(f.RepositoryVisibility)+" only"+tagEnd+tag(colMuted))
 	}

@@ -320,6 +320,10 @@ its keys.
   `d` deletes it from disk - after warning about uncommitted or unpushed work.
 - `/` fuzzy-finds, **only what is cloned** in `v` hides everything you have not cloned, `x` hides a
   repository you never want to see.
+- **only with commits to push** and **only behind origin**, in `v`, keep the
+  clones whose branch has commits origin lacks, or lacks commits origin has -
+  either, with both on; **Toggle Out of Sync Only** in `:` turns both on or
+  off at once. They go by what was last read: `r` fetches first.
 - `v` also lists the columns in the order they stand, each with an eye: space
   hides one or shows it again, in Merge requests and Worktrees too. What you
   hide is kept in `config.yaml` under `filters.hidden_columns`; the column a

@@ -217,6 +217,10 @@ pull_all_favourites = []
 # View Options…: The order, and what the list shows.
 view_options = "v"
 
+# Toggle Out of Sync Only: Show only the clones with commits to push or behind
+#   origin.
+toggle_out_of_sync_only = []
+
 # Toggle Grouping: Group the repositories under their groups.
 toggle_grouping = "z"
 

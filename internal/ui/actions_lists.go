@@ -199,7 +199,9 @@ func (a *App) repositoriesActions(p *pane) []uiAction {
 		{name: "View Starred Repositories…", about: "The repositories you starred on GitHub: read a README, open one in the browser, or clone it.", rank: 35,
 			when: a.hasGitHub, run: a.showStarred},
 		{name: "Pull All Favourites", about: "Fetch the starred clones and fast-forward those origin has moved past.", rank: 31, run: a.updateFavouriteClones},
-		{name: "View Options…", about: "The order, and what the list shows: server, visibility, grouping, favourites first, cloned only, and which columns.", keys: "v", rank: 410, run: a.showViewOptions},
+		{name: "View Options…", about: "The order, and what the list shows: server, visibility, grouping, favourites first, cloned only, to push or behind, and which columns.", keys: "v", rank: 410, run: a.showViewOptions},
+		{name: "Toggle Out of Sync Only", about: "Show only the clones with commits to push or behind origin, or every repository again; View Options has each alone.", rank: 415,
+			aliases: []string{"ahead", "behind", "push", "unpushed", "sync"}, run: a.toggleOutOfSync},
 		{name: "Toggle Grouping", about: "Group the repositories under their groups, or list them flat.", keys: "z", rank: 420, run: a.toggleRepositoryGrouping},
 		{name: "Filter by Tags…", about: "Show only the repositories wearing the tags you choose.", keys: "f", rank: 430, run: a.showTagFilter},
 		{name: "Clear Tag Filter", about: "Show the repositories of every tag again.", keys: "F", rank: 440, when: func() bool { return len(a.cfg.Filters.Tags) > 0 }, run: func() {

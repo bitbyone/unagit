@@ -10,6 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/incomm"
@@ -57,7 +58,7 @@ func (a *App) loadRepoSync(fetch bool) {
 	var visible map[projectKey]bool
 	if fetch && a.cfg.Filters.RepositoryVisibility != "" {
 		visible = map[projectKey]bool{}
-		for _, i := range a.filterProjects(a.projects, "") {
+		for _, i := range a.filterProjectsBy(a.projects, "", false) {
 			pr := a.projects[i]
 			visible[projectKey{pr.Instance, pr.PathWithNamespace}] = true
 		}
@@ -171,6 +172,59 @@ func (a *App) syncWords(key projectKey) (string, tcell.Color) {
 		return fmt.Sprintf("%s%d", glyphAhead, u.Ahead), colMuted
 	}
 	return glyphCheck, colOn
+}
+
+// toPush reports whether a clone's branch has commits origin lacks: ahead
+// of its upstream, or a branch never pushed.
+func (st remoteState) toPush() bool {
+	u := st.Upstream
+	return !st.Unreadable && !st.Detached && !u.Gone && (u.Ahead > 0 || u.Name == "")
+}
+
+// behind reports whether origin has commits the clone's branch lacks.
+func (st remoteState) behind() bool {
+	return !st.Unreadable && !st.Detached && !st.Upstream.Gone && st.Upstream.Behind > 0
+}
+
+// passesSyncFilter reports whether a repository survives To Push and
+// Behind: with either on, only a clone in that state, as last read, does.
+func (a *App) passesSyncFilter(key projectKey) bool {
+	f := &a.cfg.Filters
+	if !f.ToPushOnly && !f.BehindOnly {
+		return true
+	}
+	st, known := a.repoSync[key]
+	if !a.disk[key].Cloned || !known {
+		return false
+	}
+	return f.ToPushOnly && st.toPush() || f.BehindOnly && st.behind()
+}
+
+// syncFilterLabel is what the narrowing by sync is called in a header.
+func syncFilterLabel(f *config.Filters) string {
+	switch {
+	case f.ToPushOnly && f.BehindOnly:
+		return "to push or behind"
+	case f.ToPushOnly:
+		return "to push"
+	case f.BehindOnly:
+		return "behind"
+	}
+	return ""
+}
+
+// toggleOutOfSync narrows Repositories to the clones to push or behind,
+// or widens it again.
+func (a *App) toggleOutOfSync() {
+	f := &a.cfg.Filters
+	on := !(f.ToPushOnly && f.BehindOnly)
+	f.ToPushOnly, f.BehindOnly = on, on
+	a.applyFilters()
+	if on {
+		a.note("Showing only the repositories with commits to push or behind origin")
+		return
+	}
+	a.note("Showing every repository again")
 }
 
 // projectEdits is the EDITS column of a repository: its clone's versioned
