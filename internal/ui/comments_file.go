@@ -336,81 +336,94 @@ func (fv *fileView) moveRows(rows int) {
 	fv.move(len(fv.items) - 1)
 }
 
-func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
+// actions are what can be done in the file, on the line or the comment
+// the cursor is on; the keys and the picker of actions answer from them.
+func (fv *fileView) actions() []uiAction {
 	d, a := fv.d, fv.d.a
-	_, _, _, height := fv.view.GetInnerRect()
 	i := fv.cursor()
-	onNote := func(run func(n, root forge.Note)) {
-		if i < 0 || fv.items[i].note.ID == 0 {
-			a.flash("no comment chosen - j and k go to one, s shows them")
-			return
-		}
-		run(fv.items[i].note, fv.items[i].root)
+	var it fileItem
+	if i >= 0 {
+		it = fv.items[i]
 	}
-	switch ev.Key() {
-	case tcell.KeyEsc:
-		fv.close()
-	case tcell.KeyDown:
-		fv.move(i + 1)
-	case tcell.KeyUp:
-		fv.move(i - 1)
-	case tcell.KeyCtrlD:
-		fv.moveRows(max(1, height/2))
-	case tcell.KeyCtrlU:
-		fv.moveRows(-max(1, height/2))
-	case tcell.KeyCtrlF, tcell.KeyPgDn:
-		fv.moveRows(max(1, height))
-	case tcell.KeyCtrlB, tcell.KeyPgUp:
-		fv.moveRows(-max(1, height))
-	case tcell.KeyEnter:
-		onNote(func(n, root forge.Note) {
-			if n.Changed != nil {
-				d.compare(n, root)
+	onComment := func() bool { return it.note.ID != 0 }
+	note := func(run func(n, root forge.Note)) func() {
+		return func() {
+			if !onComment() {
+				a.flash("no comment chosen - j and k go to one, h shows them")
+				return
 			}
-		})
-	case tcell.KeyRune:
-		switch ev.Rune() {
-		case 'q':
-			fv.close()
-		case 'j':
-			fv.move(i + 1)
-		case 'k':
-			fv.move(i - 1)
-		case 'g':
-			fv.move(0)
-		case 'G':
-			fv.move(len(fv.items) - 1)
-		case 'h':
-			d.hideInline = !d.hideInline
-			if d.hideInline {
-				fv.atNote = 0
-			}
-			fv.draw()
-		case 'c':
-			if !fv.latest {
-				a.flash("a new comment goes on the latest version - v switches to it")
-				return nil
-			}
-			a.showLineComposer(d.mr, fv.path, fv.atLine, func(posted *forge.Note) {
-				if posted != nil {
-					d.posted(posted)
+			run(it.note, it.root)
+		}
+	}
+	return []uiAction{
+		{name: "Compare Change", about: "Show, or hide again, what a later version of the merge request changed on the line.",
+			keys: "Enter", rank: 5, when: func() bool { return onComment() && it.note.Changed != nil },
+			run: note(func(n, root forge.Note) { d.compare(n, root) })},
+		{name: "Comment on Line…", about: "Write a comment on the line the cursor is on: publish it at once, or save it to publish later.",
+			keys: "c", rank: 10, when: func() bool { return fv.latest },
+			run: func() {
+				if !fv.latest {
+					a.flash("a new comment goes on the latest version - v switches to it")
 					return
 				}
-				d.saved()
-			})
-		case 'r':
-			onNote(func(n, _ forge.Note) { d.reply(&n) })
-		case 'e':
-			onNote(func(n, _ forge.Note) { d.edit(n) })
-		case 'x':
-			onNote(func(n, _ forge.Note) { d.resolve(n) })
-		case 'd':
-			onNote(func(n, _ forge.Note) { d.remove(n) })
-		case 'v':
-			fv.switchVersion()
-		default:
-			return ev
-		}
+				a.showLineComposer(d.mr, fv.path, fv.atLine, func(posted *forge.Note) {
+					if posted != nil {
+						d.posted(posted)
+						return
+					}
+					d.saved()
+				})
+			}},
+		{name: "Reply…", about: "Answer the chosen comment in its thread.", keys: "r", rank: 20,
+			when: func() bool { return onComment() && it.note.ID >= 0 }, run: note(func(n, _ forge.Note) { d.reply(&n) })},
+		{name: "Edit Comment…", about: "Put new text in a comment of your own, published or saved.", keys: "e", rank: 30,
+			when: func() bool { return onComment() && d.own(it.note) }, run: note(func(n, _ forge.Note) { d.edit(n) })},
+		{name: "Delete Comment…", about: "Take a comment of your own away, after asking.", keys: "d", rank: 40,
+			when: func() bool { return onComment() && d.own(it.note) }, run: note(func(n, _ forge.Note) { d.remove(n) })},
+		{name: "Resolve or Reopen Thread", about: "Resolve the chosen comment's thread on the forge, or open it again.", keys: "x", rank: 50,
+			when: func() bool { return onComment() && it.root.Resolvable && it.root.ID >= 0 },
+			run:  note(func(n, _ forge.Note) { d.resolve(n) })},
+		{name: "Toggle Comments", about: "Hide the comments under their lines, or show them again; the marks beside the lines stay.", keys: "h", rank: 60,
+			run: func() {
+				d.hideInline = !d.hideInline
+				if d.hideInline {
+					fv.atNote = 0
+				}
+				fv.draw()
+			}},
+		{name: "Switch Version…", about: "Read the file at another version: the latest, or one comments were written on.", keys: "v", rank: 70,
+			run: fv.switchVersion},
+	}
+}
+
+func (fv *fileView) keys(ev *tcell.EventKey) *tcell.EventKey {
+	a := fv.d.a
+	_, _, _, height := fv.view.GetInnerRect()
+	i := fv.cursor()
+	switch {
+	case ev.Key() == tcell.KeyEsc, ev.Key() == tcell.KeyRune && ev.Rune() == 'q':
+		fv.close()
+	case ev.Key() == tcell.KeyDown, ev.Key() == tcell.KeyRune && ev.Rune() == 'j':
+		fv.move(i + 1)
+	case ev.Key() == tcell.KeyUp, ev.Key() == tcell.KeyRune && ev.Rune() == 'k':
+		fv.move(i - 1)
+	case ev.Key() == tcell.KeyRune && ev.Rune() == 'g':
+		fv.move(0)
+	case ev.Key() == tcell.KeyRune && ev.Rune() == 'G':
+		fv.move(len(fv.items) - 1)
+	case ev.Key() == tcell.KeyCtrlD:
+		fv.moveRows(max(1, height/2))
+	case ev.Key() == tcell.KeyCtrlU:
+		fv.moveRows(-max(1, height/2))
+	case ev.Key() == tcell.KeyCtrlF, ev.Key() == tcell.KeyPgDn:
+		fv.moveRows(max(1, height))
+	case ev.Key() == tcell.KeyCtrlB, ev.Key() == tcell.KeyPgUp:
+		fv.moveRows(-max(1, height))
+	case a.opensSelectionActions(ev):
+		a.showActions("Actions · "+fv.path, fv.actions())
+	case ev.Key() == tcell.KeyEnter:
+		runEnter(fv.actions())
+	case runKey(fv.actions(), ev):
 	default:
 		return ev
 	}

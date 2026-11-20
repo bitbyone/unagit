@@ -588,83 +588,104 @@ func (d *commentsDialog) remove(n forge.Note) {
 	})
 }
 
+// actions are what can be done in the conversation, with the comment
+// chosen - or with the thread whose code is chosen, through its first
+// comment. The keys answer from them, and so does the picker of actions,
+// so a key cannot do one thing while the picker says another.
+func (d *commentsDialog) actions() []uiAction {
+	a := d.a
+	card, chosen := d.chosen()
+	n := card.note
+	need := func(run func(n forge.Note)) func() {
+		return func() {
+			if !chosen {
+				a.flash("no comment chosen - j and k choose one")
+				return
+			}
+			run(n)
+		}
+	}
+	change := func() bool { return chosen && n.Changed != nil && !card.code }
+	return []uiAction{
+		{name: "Expand File", about: "The whole file the comment is on, at the version it was written on, with its comments under their lines and the cursor on it.",
+			keys: "Enter", rank: 5, when: func() bool { return chosen && !change() && d.rootOf(n).Path != "" },
+			run: need(func(n forge.Note) {
+				focus := n.ID
+				if card.code {
+					focus = 0
+				}
+				d.openFile(d.rootOf(n), focus)
+			})},
+		{name: "Compare Change", about: "Show, or hide again, what a later version of the merge request changed on the commented line.",
+			keys: "Enter", rank: 6, when: change, run: need(func(n forge.Note) { d.compare(n, d.rootOf(n)) })},
+		{name: "Reply…", about: "Answer the chosen comment in its thread.", keys: "r", rank: 10,
+			when: func() bool { return chosen && n.ID >= 0 }, run: need(func(n forge.Note) { d.reply(&n) })},
+		{name: "New Comment…", about: "Write a comment on the merge request as a whole.", keys: "c", rank: 20,
+			run: func() { d.reply(nil) }},
+		{name: "Edit Comment…", about: "Put new text in a comment of your own, published or saved.", keys: "e", rank: 30,
+			when: func() bool { return chosen && d.own(n) }, run: need(d.edit)},
+		{name: "Delete Comment…", about: "Take a comment of your own away, after asking.", keys: "d", rank: 40,
+			when: func() bool { return chosen && d.own(n) }, run: need(d.remove)},
+		{name: "Resolve or Reopen Thread", about: "Resolve the chosen comment's thread on the forge, or open it again.", keys: "x", rank: 50,
+			when: func() bool { root := d.rootOf(n); return chosen && root.Resolvable && root.ID >= 0 }, run: need(d.resolve)},
+		{name: "Toggle Code", about: "Hide the code of the threads, to read the comments through, or show it again.", keys: "h", rank: 60,
+			run: d.toggleCode},
+		{name: "Publish Comments…", about: "Publish the comments saved in unagit, and Incomm's, after showing them.", keys: "P", rank: 70,
+			run: func() { a.publishMR(d.mr) }},
+		{name: "Open in Browser", about: "The chosen comment on the forge's page, or the merge request.", keys: "w", rank: 80,
+			run: func() {
+				if chosen && n.URL != "" {
+					a.openWeb(n.URL)
+					return
+				}
+				a.openWeb(d.mr.WebURL)
+			}},
+		{name: "Approve…", about: "Approve the merge request, after asking - everyone on it sees it.", keys: "A", rank: 90,
+			run: func() { a.approveMR(d.mr, func() { d.load(true) }) }},
+		{name: "Reload", about: "Read the conversation again.", keys: "R", rank: 100, run: func() { d.load(false) }},
+	}
+}
+
+// runEnter does what Enter does now: the first action on Enter that can be
+// done.
+func runEnter(actions []uiAction) bool {
+	for _, act := range available(actions) {
+		if act.keys == "Enter" {
+			act.run()
+			return true
+		}
+	}
+	return false
+}
+
 func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 	a := d.a
 	if halfPage(d.view, ev) {
 		return nil
 	}
-	card, chosen := d.chosen()
-	need := func(run func(n forge.Note)) {
-		if !chosen {
-			a.flash("no comment chosen - j and k choose one")
-			return
-		}
-		run(card.note)
-	}
-	switch ev.Key() {
-	case tcell.KeyEsc:
+	switch {
+	case ev.Key() == tcell.KeyEsc, ev.Key() == tcell.KeyRune && ev.Rune() == 'q':
 		a.stopTextWait(d.view)
 		a.closeModal(pageComments)
-	case tcell.KeyDown:
+	case ev.Key() == tcell.KeyDown, ev.Key() == tcell.KeyRune && ev.Rune() == 'j':
 		d.step(1)
-	case tcell.KeyUp:
+	case ev.Key() == tcell.KeyUp, ev.Key() == tcell.KeyRune && ev.Rune() == 'k':
 		d.step(-1)
-	case tcell.KeyEnter:
-		need(func(n forge.Note) {
-			if n.Changed != nil && !card.code {
-				d.compare(n, d.rootOf(n))
-				return
+	case ev.Key() == tcell.KeyRune && ev.Rune() == 'g':
+		d.choose(0)
+	case ev.Key() == tcell.KeyRune && ev.Rune() == 'G':
+		d.choose(len(d.cards) - 1)
+	case a.opensSelectionActions(ev):
+		a.showActions("Actions · comments", d.actions())
+	case ev.Key() == tcell.KeyEnter:
+		if !runEnter(d.actions()) {
+			if _, chosen := d.chosen(); !chosen {
+				a.flash("no comment chosen - j and k choose one")
+			} else {
+				a.flash("this comment is on the merge request, not on a file")
 			}
-			focus := n.ID
-			if card.code {
-				focus = 0
-			}
-			d.openFile(d.rootOf(n), focus)
-		})
-	case tcell.KeyRune:
-		switch ev.Rune() {
-		case 'q':
-			a.stopTextWait(d.view)
-			a.closeModal(pageComments)
-		case 'j':
-			d.step(1)
-		case 'k':
-			d.step(-1)
-		case 'g':
-			d.choose(0)
-		case 'G':
-			d.choose(len(d.cards) - 1)
-		case 'r':
-			if !chosen {
-				d.reply(nil)
-				return nil
-			}
-			d.reply(&card.note)
-		case 'c':
-			d.reply(nil)
-		case 'e':
-			need(d.edit)
-		case 'x':
-			need(d.resolve)
-		case 'd':
-			need(d.remove)
-		case 'h':
-			d.toggleCode()
-		case 'P':
-			a.publishMR(d.mr)
-		case 'w':
-			if chosen && card.note.URL != "" {
-				a.openWeb(card.note.URL)
-				return nil
-			}
-			a.openWeb(d.mr.WebURL)
-		case 'A':
-			a.approveMR(d.mr, func() { d.load(true) })
-		case 'R':
-			d.load(false)
-		default:
-			return ev
 		}
+	case runKey(d.actions(), ev):
 	default:
 		return ev
 	}

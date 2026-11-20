@@ -1282,7 +1282,8 @@ machines, what you happen to wait for here is not.
   each thread, `r` replies in the thread, `c` writes a new comment, `e`
   and `d` edit and delete one of your own, `x` resolves the thread or opens
   it again, `h` hides the code or shows it again, `R` reads it all again, and `A` approves
-  (it asks first - everyone sees it).
+  (it asks first - everyone sees it). `.` lists all of it, as it does on
+  a list, and in an expanded file.
 - **A file expanded** (`Enter` on a comment): the whole file at the version
   the comment was written on - or the latest, asked when they differ - the
   cursor on the comment, a mark and a count beside each line with

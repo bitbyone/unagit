@@ -239,7 +239,6 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 			add(edge + line + inkReset + edge)
 		}
 	}
-	add(frame + "├" + strings.Repeat(string(tview.Borders.Horizontal), total-2) + "┤" + inkReset)
 	*cards = append(*cards, commentCard{top: codeFrom, from: codeFrom, to: len(*rows) - 1, note: root, code: true})
 	bubbles := bubblesOf(thread)
 	for j, n := range thread {

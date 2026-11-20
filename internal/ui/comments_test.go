@@ -765,3 +765,33 @@ func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 		}
 	}
 }
+
+// TestTheCommentsActionsAreInThePicker: what the conversation and a file
+// can do is listed by the selection's picker too, and done from there.
+func TestTheCommentsActionsAreInThePicker(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := openCodeConversation(t, 160, 60)
+	typeRunes(sc, ".")
+	waitFor(t, a, sc, "Actions · comments")
+	for _, want := range []string{"Reply…", "New Comment…", "Toggle Code", "Reload"} {
+		waitFor(t, a, sc, want)
+	}
+	typeRunes(sc, "toggle code")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitGone(t, a, sc, "Actions · comments")
+	waitGone(t, a, sc, "log(4)")
+
+	typeRunes(sc, "G")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "jitter(backoff)")
+	typeRunes(sc, "k")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	typeRunes(sc, ".")
+	waitFor(t, a, sc, "Actions · limit.go")
+	for _, want := range []string{"Reply…", "Toggle Comments", "Switch Version…"} {
+		waitFor(t, a, sc, want)
+	}
+}
