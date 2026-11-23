@@ -170,9 +170,14 @@ func sandboxOfEnv(o unibox.Overview, e unibox.Env) (unibox.Sandbox, bool) {
 	return unibox.Sandbox{}, false
 }
 
-// refreshSandboxes reads unibox again, behind the interface. It runs on
-// the event loop.
-func (a *App) refreshSandboxes() {
+// refreshSandboxes reads unibox again, behind the interface, after
+// something done to a sandbox. It runs on the event loop.
+func (a *App) refreshSandboxes() { a.readSandboxes(true) }
+
+// readSandboxes reads unibox, as a job on the status line when shown;
+// a read nobody asked for - at the start, the tab or the terminal coming
+// to the front - is quiet.
+func (a *App) readSandboxes(shown bool) {
 	if a.ubx.loading {
 		return
 	}
@@ -183,7 +188,10 @@ func (a *App) refreshSandboxes() {
 		return
 	}
 	a.ubx.loading = true
-	job := a.startJob("Reading the sandboxes")
+	var job *bgJob
+	if shown {
+		job = a.startJob("Reading the sandboxes")
+	}
 	rex := a.rex()
 	go func() {
 		o, err := c.Overview()
@@ -261,7 +269,7 @@ const sandboxesStale = 5 * time.Second
 // on screen was read a moment ago.
 func (a *App) visitSandboxes() {
 	if !a.ubx.read || time.Since(a.ubx.at) > sandboxesStale {
-		a.refreshSandboxes()
+		a.readSandboxes(false)
 	}
 }
 

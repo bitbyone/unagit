@@ -386,9 +386,8 @@ type App struct {
 	// included, and repoSizing those being measured (reposize.go).
 	repoSize   map[projectKey]int64
 	repoSizing map[projectKey]bool
-	// fetchJob is the fetches under way as one job on the status line, and
-	// freshJob the counting of new commits.
-	fetchJob, freshJob *bgJob
+	// fetchJob is the fetches under way as one job on the status line.
+	fetchJob *bgJob
 
 	mrProjectScope projectKey // the project the merge request list is limited to
 
@@ -698,7 +697,7 @@ func (a *App) start() {
 	// its tab is opened: its context rides on the tab bar, and Sandbox
 	// with… in the context's sandbox is offered on every list.
 	if a.uniboxOn() {
-		a.refreshSandboxes()
+		a.readSandboxes(false)
 	}
 
 	switch {

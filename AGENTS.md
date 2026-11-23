@@ -380,10 +380,15 @@ nobody looks, so there it goes to the right of that dialog's bottom edge
 asked for and finished is `done`, not `note`; say it after the dialog it
 belongs to is drawn, or it covers them.
 
-**What is under way is a job.** Anything that runs without a dialog - a
-refresh of a list or of one row, fetches, the comments' sync, counting new
-commits, a lookup - is a job (`startJob`/`endJob`, `jobs.go`), shown with a
-spinner at the right of every status line, never as a count in the summary.
+**What is under way is a job.** Anything the user started that runs
+without a dialog - a refresh of a list or of one row, fetches, the
+comments' sync, a lookup - is a job (`startJob`/`endJob`, `jobs.go`), shown
+with a spinner at the right of every status line, never as a count in the
+summary. What starts on its own - counting new commits, measuring what is
+not measured yet, the polls, reading unibox when its tab or the terminal
+comes to the front - spins nothing: the user asked (2026-11-23) for a
+spinner only where it is worth knowing, and one that comes and goes every
+few seconds only distracts. Its row shows what it waits for, if anything.
 A read from a server that a dialog waits for (a pipeline, a log, the
 commits, the branches for a form) is not a job but the dialog's own wait:
 `load`/`loadThen` (`loading.go`), a small box in front with a spinner and

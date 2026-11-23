@@ -73,7 +73,12 @@ func (a *App) loadRepoSizes(again bool) {
 	if len(jobs) == 0 {
 		return
 	}
-	measuring := a.startJob("measuring repositories")
+	// Measuring again is part of a refresh asked for, and shows as a job;
+	// what was not measured yet is "…" in its row, and measured quietly.
+	var measuring *bgJob
+	if again {
+		measuring = a.startJob("measuring repositories")
+	}
 	left := len(jobs)
 	go func() {
 		// The disk, not the processor, is what they wait for.

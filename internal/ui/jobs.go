@@ -53,6 +53,9 @@ func (a *App) jobProgress(j *bgJob, text string) {
 
 // endJob takes a job off the headers. It runs on the event loop.
 func (a *App) endJob(j *bgJob) {
+	if j == nil {
+		return
+	}
 	for i, other := range a.jobs {
 		if other == j {
 			a.jobs = append(a.jobs[:i], a.jobs[i+1:]...)

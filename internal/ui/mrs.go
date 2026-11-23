@@ -943,11 +943,9 @@ func (a *App) loadMRFresh() {
 	}
 	a.freshGen++
 	gen := a.freshGen
-	// Counting runs git in every review; it is one job on the status line
-	// however often it is started again before it ends.
-	if len(jobs) > 0 && a.freshJob == nil {
-		a.freshJob = a.startJob("counting new commits")
-	}
+	// No job on the status line: nobody asked for the count, and it is
+	// started again by whatever reads the disk - a spinner that comes and
+	// goes on its own only distracts.
 	go func() {
 		fresh := map[mrKey]int{}
 		for _, j := range jobs {
@@ -969,10 +967,6 @@ func (a *App) loadMRFresh() {
 		a.tv.QueueUpdateDraw(func() {
 			if gen != a.freshGen {
 				return
-			}
-			if a.freshJob != nil {
-				a.endJob(a.freshJob)
-				a.freshJob = nil
 			}
 			if !maps.Equal(fresh, a.mrFresh) {
 				a.mrFresh = fresh

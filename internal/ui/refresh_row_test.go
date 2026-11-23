@@ -216,3 +216,51 @@ func TestRRefreshesTheRow(t *testing.T) {
 	typeRunes(sc, "gr")
 	waitFor(t, a, sc, "fetched acme/gateway")
 }
+
+// TestAnAnswerFromTheBackgroundCountsOnlyANewHead: a running pipeline is
+// asked about every few seconds, and each answer once read the disk again
+// and counted the new commits in every review - a spinner that never
+// stopped. Only an answer with a new head counts.
+func TestAnAnswerFromTheBackgroundCountsOnlyANewHead(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	counts := func(change func(*forge.MergeRequest)) bool {
+		return onLoop(a, func() bool {
+			gen := a.freshGen
+			fresh := a.mrs[0]
+			fresh.SHA = "0123456789abcdef"
+			a.mrs[0].SHA = fresh.SHA
+			change(&fresh)
+			a.applyMRRefresh(fresh, false)
+			return a.freshGen != gen
+		})
+	}
+	if counts(func(mr *forge.MergeRequest) { mr.Pipeline = "running" }) {
+		t.Error("a pipeline's news counted the new commits again")
+	}
+	if !counts(func(mr *forge.MergeRequest) { mr.SHA = "fedcba9876543210" }) {
+		t.Error("a new head did not count the new commits")
+	}
+}
+
+// TestWhatNobodyAskedForSpinsNothing: the counting of new commits and the
+// measuring of what is not measured yet start on their own, whenever the
+// disk is read, and are no job on the status line.
+func TestWhatNobodyAskedForSpinsNothing(t *testing.T) {
+	t.Parallel()
+	a, sc := newTestApp(t)
+	waitFor(t, a, sc, "acme/billing")
+	titles := onLoop(a, func() []string {
+		a.loadMRFresh()
+		a.loadRepoSizes(false)
+		var out []string
+		for _, j := range a.jobs {
+			out = append(out, j.title)
+		}
+		return out
+	})
+	if len(titles) > 0 {
+		t.Errorf("background work spins on the status line: %q", titles)
+	}
+}

@@ -146,12 +146,26 @@ func (a *App) applyMRRefresh(fresh forge.MergeRequest, say bool) {
 		})
 		return
 	}
+	moved := true
+	for _, m := range a.mrs {
+		if keyOfMR(m) == keyOfMR(fresh) {
+			moved = m.SHA != fresh.SHA
+		}
+	}
 	a.applyMRUpdate(fresh, true, false)
 	a.watchHeard(pipelineWatch(fresh.Instance, a.projectPathOfMR(fresh), 0, fresh.IID, ""), fresh.Pipeline)
 	if say {
 		a.afterFresh = func() { a.done(fmt.Sprintf("!%d is up to date", fresh.IID)) }
+		a.refreshDisk()
+		return
 	}
-	a.refreshDisk()
+	// An answer from the background - a running pipeline asked about every
+	// few seconds - changes nothing on disk: the disk was read again, and
+	// the new commits counted in every review, at each one. Only a new
+	// head has new commits to count.
+	if moved {
+		a.loadMRFresh()
+	}
 }
 
 // saveMRIndex writes the merge request index as the list now has it, the
