@@ -71,6 +71,21 @@ func TestTheBoardKeepsTasksAsTheyAreWorkedOn(t *testing.T) {
 	if c := find("Ship it").Comments; len(c) != 1 || c[0].Body != "tried the canary" {
 		t.Fatalf("comments: %+v", c)
 	}
+	// The right button on the comment lists what can be done with it, and
+	// what is chosen there is done to it.
+	cx, cy := at(t, a, sc, "tried the canary")
+	press(sc, cx, cy, tcell.ButtonSecondary, tcell.ModNone)
+	release(sc, cx, cy, tcell.ModNone)
+	waitFor(t, a, sc, "Actions · comments")
+	typeRunes(sc, "Edit Comm")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Edit the comment")
+	typeRunes(sc, " twice")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitTrue(t, "the comment edited from its actions", func() bool {
+		c := find("Ship it").Comments
+		return len(c) == 1 && c[0].Body == "tried the canary twice"
+	})
 	sc.InjectKey(tcell.KeyEsc, 0, tcell.ModNone)
 	waitGone(t, a, sc, "Task · Task Board")
 
