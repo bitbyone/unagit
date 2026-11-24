@@ -12,6 +12,7 @@ const guideSidebar = [
       { text: 'Getting Started', link: '/guide/' },
       { text: 'Why unagit', link: '/guide/why' },
       { text: 'First Setup', link: '/guide/setup' },
+      { text: 'Changelog', link: '/reference/changelog' },
     ],
   },
   {
@@ -99,6 +100,7 @@ const referenceSidebar = [
       { text: 'Files on Disk', link: '/reference/files' },
       { text: 'Security', link: '/reference/security' },
       { text: 'Developing unagit', link: '/reference/developing' },
+      { text: 'Changelog', link: '/reference/changelog' },
     ],
   },
 ]
@@ -130,6 +132,7 @@ export default defineConfig({
         text: 'Resources',
         items: [
           { text: 'GitHub', link: repo },
+          { text: 'Changelog', link: '/reference/changelog' },
           { text: 'Releases', link: `${repo}/releases` },
           { text: 'Issues', link: `${repo}/issues` },
           { text: 'Incomm', link: 'https://github.com/bitbyone/incomm' },
