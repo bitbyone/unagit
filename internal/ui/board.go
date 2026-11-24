@@ -40,7 +40,8 @@ type boardView struct {
 	header *tview.TextView
 	line   *statusLine
 	canvas *boardCanvas
-	frames [4]*tview.Box
+	// areas are where each column was drawn, for a click in its empty part.
+	areas [4]struct{ x, y, w, h int }
 
 	spaces []board.Space
 	space  board.Space
@@ -89,9 +90,6 @@ func (a *App) newBoardView() *boardView {
 	v.filter.SetInputCapture(v.filterKeys)
 	v.canvas = &boardCanvas{Box: tview.NewBox(), v: v}
 	v.canvas.SetInputCapture(v.keys)
-	for i := range v.frames {
-		v.frames[i] = box(tview.NewBox(), "")
-	}
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.filter, 1, 0, false).
 		AddItem(v.canvas, 0, 1, true).
@@ -262,6 +260,12 @@ func (c *boardCanvas) Draw(screen tcell.Screen) {
 			cw = x + w - cx
 		}
 		v.drawColumn(screen, col, cx, y, cw, h)
+		// The columns stand apart by a line, not each in a frame.
+		if i < len(shown)-1 {
+			for row := y; row < y+h; row++ {
+				screen.SetContent(cx+cw, row, tview.Borders.Vertical, nil, baseStyle().Foreground(colBorder))
+			}
+		}
 	}
 }
 
@@ -273,17 +277,12 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 	if col != boardHistory {
 		name = board.StateName(board.States[col])
 	}
-	f := v.frames[col]
-	f.SetRect(x, y, w, h)
+	v.areas[col] = struct{ x, y, w, h int }{x, y, w, h}
 	current := col == v.column()
-	border := colBorder
-	if current && v.canvas.HasFocus() {
-		border = colBorderFocus
-	}
-	f.SetBorderColor(border).SetTitle(fmt.Sprintf(" %s %s ", name, tag(colMuted)+fmt.Sprint(len(tasks))+tagEnd))
-	f.Draw(screen)
-	ix, iy, iw, ih := f.GetInnerRect()
-	cx, cw := ix+1, iw-2
+	tview.Print(screen, tag(colTitle)+"[::b]"+esc(name)+"[::-] "+tag(colMuted)+fmt.Sprint(len(tasks))+tagEnd, x+2, y, w-4, tview.AlignLeft, colTitle)
+	// The name above, a row for how many more below.
+	iy, ih := y+1, h-2
+	cx, cw := x+1, w-2
 	if cw < minBubbleWidth || ih < 2 {
 		return
 	}
@@ -341,7 +340,7 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 		rest++
 	}
 	if rest > 0 {
-		tview.Print(screen, tag(colMuted)+fmt.Sprintf(" %d more ", rest)+tagEnd, x+1, y+h-1, w-3, tview.AlignRight, colMuted)
+		tview.Print(screen, tag(colMuted)+fmt.Sprintf("%d more", rest)+tagEnd, cx, y+h-1, cw-1, tview.AlignRight, colMuted)
 	}
 }
 
@@ -551,8 +550,8 @@ func (c *boardCanvas) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, 
 		}
 		if hit < 0 {
 			// A click in a column's empty part goes to the column.
-			for col, f := range v.frames {
-				if col != boardHistory && !v.history && f.InRect(x, y) && action == tview.MouseLeftDown {
+			for col, r := range v.areas {
+				if col != boardHistory && !v.history && x >= r.x && x < r.x+r.w && y >= r.y && y < r.y+r.h && action == tview.MouseLeftDown {
 					v.col = col
 				}
 			}

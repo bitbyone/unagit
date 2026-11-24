@@ -7,11 +7,11 @@ description, a colour if you want one, links and your own comments: what
 you are doing, where you left it, and what you found on the way.
 
 ```
-╭ To do 2 ───────────────────────╮ ╭ In progress 1 ─────────────────╮ ╭ Done 1 ────────────────────────╮
-│ ╭─ ○ Rate limiting · ◇2 ↗1 ──╮ │ │ ╭─ ● Fix login redirect · ◇1─╮ │ │ ╭─ ✓ Bump Go ─── done 1h ago ╮ │
-│ ╰────────────────────────────╯ │ │ ╰────────────────────────────╯ │ │ ╰────────────────────────────╯ │
-│ ╭─ ○ Audit log DLQ ──────────╮ │ │                                │ │                                │
-│ ╰────────────────────────────╯ │ │                                │ │                                │
+ To do 2                          │  In progress 1                    │  Done 1
+╭─ ○ Rate limiting · ◇2 ↗1 ─────╮ │ ╭─ ● Fix login redirect · ◇1 ──╮ │ ╭─ ✓ Bump Go ──── done 1h ago ╮
+╰───────────────────────────────╯ │ ╰──────────────────────────────╯ │ ╰─────────────────────────────╯
+╭─ ○ Audit log DLQ ─────────────╮ │                                  │
+╰───────────────────────────────╯ │                                  │
 ```
 
 ## Cards
