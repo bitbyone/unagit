@@ -226,6 +226,18 @@ var colourRoles = []colourRole{
 	{"sandboxes.allowed", "state.good", "a host a sandbox may reach beyond its env's"},
 	{"sandboxes.denied", "state.bad", "a host a sandbox may not reach"},
 	{"sandboxes.blocked", "state.warning", "a host the policy refused a sandbox lately"},
+	// The Board: a card's frame by its state, and the colours a card can be
+	// given to stand out - its frame, its title, and a tint of its fill.
+	{"board.todo", "text.muted", "the frame of a task to do"},
+	{"board.doing", "text.accent", "the frame of a task in progress"},
+	{"board.done", "state.good", "the frame of a task done, quieter on the card"},
+	{"board.link", "markdown.link", "a task's link in its detail"},
+	{"board.card.red", "state.bad", "a card made red to stand out"},
+	{"board.card.orange", "tags.apricot.ink", "a card made orange"},
+	{"board.card.yellow", "state.warning", "a card made yellow"},
+	{"board.card.green", "state.good", "a card made green"},
+	{"board.card.blue", "tags.azure.ink", "a card made blue"},
+	{"board.card.purple", "tags.lavender.ink", "a card made purple"},
 	// An agent's mark in the lists, in the colour of what it is doing.
 	{"mark.agent", "mark.editor", "a directory an agent unagit started works in"},
 	{"mark.agent_waiting", "agents.waiting", "the agent there waits for an answer"},

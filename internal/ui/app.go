@@ -176,6 +176,7 @@ type App struct {
 	// unibox since unagit started.
 	sandboxesPane *pane
 	sandboxes     *sandboxesView
+	board         *boardView
 	ubx           uniboxState
 	sandboxRows   []sandboxRow
 	ubxLog        []*uniboxEvent
@@ -615,6 +616,7 @@ func (a *App) Run() error {
 	go a.watchEditors(stopWatching)
 	if a.solo == nil {
 		go a.watchAgents(stopWatching)
+		go a.watchBoard(stopWatching)
 	} else {
 		go a.pollSolo(stopWatching)
 	}
@@ -651,6 +653,7 @@ func (a *App) buildInterface() tview.Primitive {
 	a.worktreesPane = a.newWorktreesPane()
 	a.activityPane = a.newActivityPane()
 	a.sandboxesPane = a.newSandboxesPane()
+	a.board = a.newBoardView()
 	a.settings = a.newSettingsView()
 
 	a.pages.AddPage(pageProjects, a.projectsPane.root, true, true)
@@ -658,6 +661,7 @@ func (a *App) buildInterface() tview.Primitive {
 	a.pages.AddPage(pageWorktrees, a.worktreesPane.root, true, false)
 	a.pages.AddPage(pageActivity, a.activityPane.root, true, false)
 	a.pages.AddPage(pageSandboxes, a.sandboxesPane.root, true, false)
+	a.pages.AddPage(pageBoard, a.board.root, true, false)
 	a.tab = pageProjects
 	a.drawTabs()
 
@@ -692,7 +696,8 @@ func (a *App) start() {
 	a.projectsPane.reload()
 	a.mrsPane.reload()
 	a.settings.reload()
-	a.switchTab(pageProjects)
+	a.board.reload()
+	a.switchTab(a.startTab())
 	// unibox is read behind the interface from the start, not first when
 	// its tab is opened: its context rides on the tab bar, and Sandbox
 	// with… in the context's sandbox is offered on every list.
@@ -833,6 +838,8 @@ func (a *App) restoreFocus() {
 		a.tv.SetFocus(a.settings.focusTarget())
 	case pageSandboxes:
 		a.sandboxes.focusAgain()
+	case pageBoard:
+		a.tv.SetFocus(a.board.canvas)
 	}
 }
 

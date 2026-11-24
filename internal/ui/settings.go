@@ -466,11 +466,25 @@ func (s *settingsView) fillGeneral() {
 	tabTitle := addCheckbox(form, "Tab title", cfg.TabTitleOn())
 	form.AddTextView("", "On, the terminal's tab says where unagit is:\n"+
 		"Unagit · Repositories.", 46, 2, true, false)
+	startNames, startAt := startChoices(cfg.StartOn)
+	startOn := addSelect(form, "Start on", startNames, startAt)
+	form.AddTextView("", "The screen unagit opens on.", 46, 1, true, false)
+	afterNames, afterAt := hideAfterChoices(cfg.Board.HideDoneAfter)
+	hideAfter := addSelect(form, "Hide done after", afterNames, afterAt)
+	form.AddTextView("", "A task done leaves the Board after this;\n"+
+		"History keeps every one.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
 		cfg.SetMouse(mouse.IsChecked())
 		cfg.SetTabTitle(tabTitle.IsChecked())
+		if i, _ := startOn.GetCurrentOption(); i >= 0 {
+			cfg.StartOn = startOptions[i].word
+		}
+		if i, _ := hideAfter.GetCurrentOption(); i >= 0 {
+			cfg.Board.HideDoneAfter = hideAfterOptions(cfg.Board.HideDoneAfter)[i].word
+		}
 		s.app.applyMouse()
+		s.app.board.fill()
 		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}
 		identityChanged := strings.TrimSpace(identity.Name) != cfg.GitIdentity.Name || strings.TrimSpace(identity.Email) != cfg.GitIdentity.Email
 		cfg.SetIdentity("", "", identity)
@@ -494,6 +508,52 @@ func (s *settingsView) fillGeneral() {
 		form.SetFocus(item)
 		s.app.tv.SetFocus(form)
 	}
+}
+
+// choiceWord is an option of a select and the word config.yaml keeps for
+// it.
+type choiceWord struct{ name, word string }
+
+// startOptions are the screens Start on offers.
+var startOptions = []choiceWord{
+	{"Repositories", ""}, {"Merge requests", "merge_requests"}, {"Worktrees", "worktrees"},
+	{"Activity", "activity"}, {"Sandboxes", "sandboxes"}, {"Board", "board"},
+}
+
+func startChoices(word string) ([]string, int) {
+	names, at := make([]string, len(startOptions)), 0
+	for i, o := range startOptions {
+		names[i] = o.name
+		if o.word == word || word == "repositories" && o.word == "" {
+			at = i
+		}
+	}
+	return names, at
+}
+
+// hideAfterOptions are the times Hide done after offers, and one written
+// into config.yaml by hand among them.
+func hideAfterOptions(word string) []choiceWord {
+	out := []choiceWord{{"30 minutes", "30m"}, {"An hour", "1h"}, {"12 hours", "12h"}, {"A day", ""},
+		{"3 days", "3d"}, {"A week", "7d"}, {"Never", "never"}}
+	for _, o := range out {
+		if o.word == word || word == "1d" && o.word == "" {
+			return out
+		}
+	}
+	return append(out, choiceWord{word, word})
+}
+
+func hideAfterChoices(word string) ([]string, int) {
+	options := hideAfterOptions(word)
+	names, at := make([]string, len(options)), 0
+	for i, o := range options {
+		names[i] = o.name
+		if o.word == word || word == "1d" && o.word == "" {
+			at = i
+		}
+	}
+	return names, at
 }
 
 // ------------------------------------------------------------------ servers

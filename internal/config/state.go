@@ -38,6 +38,10 @@ type State struct {
 	// ActivityVisit is when the Activity screen was last opened: what
 	// happened since is set apart there.
 	ActivityVisit time.Time `json:"activity_visit,omitzero"`
+	// BoardSpace is the space the Board was last on, and BoardFull whether
+	// its cards were drawn in full rather than compact.
+	BoardSpace string `json:"board_space,omitempty"`
+	BoardFull  bool   `json:"board_full,omitempty"`
 }
 
 // The roles PeopleUses counts by.

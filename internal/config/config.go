@@ -704,6 +704,13 @@ func (c *Config) ToastLife(level string) time.Duration {
 	return DefaultToastSeconds * time.Second
 }
 
+// BoardSettings are the Board's.
+type BoardSettings struct {
+	// HideDoneAfter is how long a task done stays on the board before
+	// only History shows it: "30m", "12h", "1d", "never". Empty is a day.
+	HideDoneAfter string `yaml:"hide_done_after,omitempty"`
+}
+
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).
 // Tokens are not stored here; they live encrypted in the vault.
 type Config struct {
@@ -753,6 +760,11 @@ type Config struct {
 	// over rows. Unset is on; false leaves the mouse to the terminal, which
 	// then selects text with a plain drag.
 	Mouse *bool `yaml:"mouse,omitempty"`
+	// StartOn is the screen unagit opens on: repositories (the default),
+	// merge_requests, worktrees, activity, sandboxes or board.
+	StartOn string `yaml:"start_on,omitempty"`
+	// Board is how the Board behaves.
+	Board BoardSettings `yaml:"board,omitempty"`
 	// TabTitle says whether unagit names the terminal's tab after where in
 	// it the user is - "Unagit · Repositories". Unset is on; false keeps
 	// it "Unagit".
@@ -858,6 +870,10 @@ func (c *Config) DraftsDir() string { return filepath.Join(c.Dir(), "drafts") }
 // WatchDir is where what is watched and what was last seen of it are kept:
 // this machine's state, not configuration (internal/watch).
 func (c *Config) WatchDir() string { return filepath.Join(c.Dir(), "watch") }
+
+// BoardDir is where the Board's spaces and tasks are: this machine's
+// state, not configuration (internal/board).
+func (c *Config) BoardDir() string { return filepath.Join(c.Dir(), "board") }
 
 // VaultPath is the location of the encrypted tokens.
 func VaultPath() string { return filepath.Join(Dir(), "tokens.enc") }

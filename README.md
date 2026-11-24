@@ -17,7 +17,7 @@ GitLab and GitHub at the same time, in one list. Pull requests are merge
 requests here too - one word for one thing.
 
 ```
- Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Sandboxes [5]      Settings [S]
+ Repositories [1] │ Merge requests [2] │ Worktrees [3] │ Activity [4] │ Sandboxes [5] │ Board [6]   Settings [S]
  /
 ╭ Merge requests ─────────────────────────────╮╭ acme/api-gateway !42 ─────────╮
 │   REPO              MR  TITLE           COM ││ !42  Fix login rate limiting  │
@@ -1264,6 +1264,17 @@ about every 10 seconds, a finished one every two minutes, to notice the next
 push. What is watched is kept under `~/.config/unagit/watch/`, beside the
 configuration but not in it: `config.yaml` is what you carry between
 machines, what you happen to wait for here is not.
+
+## The Board
+
+`6` is your tasks as cards in three columns - to do, in progress, done - in
+spaces of your own: per customer, per employer, per project. A card is a
+title, a description, a colour to make it stand out, links and your own
+comments, read in the conversation's dialog with the task's story between
+them. `n` writes a task, `H` `L` move it along, `x` marks it done; a task
+done leaves the board after the time set in Settings, and `y` shows every
+one. It is deliberately not a task manager - no due dates, priorities or
+assignees. More in [The Board](https://bitbyone.github.io/unagit/guide/board).
 
 ## The rest of it
 

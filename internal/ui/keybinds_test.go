@@ -11,6 +11,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/tobola/unagit/internal/board"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/keymap"
 	"github.com/tobola/unagit/internal/unibox"
@@ -22,7 +23,7 @@ var updateKeybinds = flag.Bool("update-keybinds", false, "write keybinds.toml ag
 // keybindSections is the order of the sections in the reference: where one
 // is most of the time first.
 var keybindSections = []string{keymap.Global, scopeRepositories, scopeMergeRequests, scopeWorktrees, scopeWorktreeView,
-	scopeChanges, scopeLog, scopeBranches, scopeActivity, scopeSandboxes}
+	scopeChanges, scopeLog, scopeBranches, scopeActivity, scopeSandboxes, scopeBoard}
 
 // keybindSectionAbout says what each section is, above it in the file.
 var keybindSectionAbout = map[string]string{
@@ -36,6 +37,7 @@ var keybindSectionAbout = map[string]string{
 	scopeBranches:      "A repository's branches, opened from Repositories; the Branches tab of unagit -s.",
 	scopeActivity:      "Activity (4): the watches, the agents, the editors open, and the log.",
 	scopeSandboxes:     "Sandboxes (5): unibox's environments, sandboxes and tasks.",
+	scopeBoard:         "Board (6): your tasks - the one under the cursor, and the board.",
 }
 
 // briefly is the first clause of an action's about, which is enough to
@@ -171,6 +173,8 @@ func keybindEntries(t *testing.T) map[string][]refEntry {
 			add(scopeSandboxes, a.sandboxRowActions(r))
 		}
 		add(scopeSandboxes, a.sandboxesActions(a.sandboxesPane))
+		add(scopeBoard, a.board.taskActions(board.Task{State: board.Todo}), a.board.taskActions(board.Task{State: board.Done}),
+			a.board.screenActions())
 		return out
 	})
 }

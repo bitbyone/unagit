@@ -1,7 +1,8 @@
 # Board
 
-A plan, not built yet. Agreed with the user on 2026-11-24; the phases at
-the end are the order it is built in.
+Agreed with the user on 2026-11-24; the phases at the end are the order
+it is built in. Phase 1 is built - [Where it stands](#where-it-stands)
+says where the code went another way.
 
 unagit already knows everything a piece of work touches: the repositories,
 the merge requests, the worktrees, the sandboxes and their tasks, the
@@ -366,6 +367,28 @@ type Task struct {
 
 Each phase ships on its own, with its tests, its help and its website
 page.
+
+## Where it stands
+
+Phase 1 is built (2026-11-24): `internal/board` (the store, ranks, done
+cut-off), `ui/board.go` (the screen), `ui/board_detail.go` (a task in the
+conversation's dialog, which takes a task as well as a merge request:
+`commentsDialog.task`, `conversation.task` and `conversation.top`).
+Settings › General has Start on and Hide done after. Where it went
+another way:
+
+- **Deleting a space** offers its tasks to another space or deletion with
+  it, not History: History is a space's own, and goes with it.
+- **No drag of a card** to another column yet; `H` `L` and the right
+  button's actions do it.
+- **The detail's title** is the space, the task's title is the first
+  thing in it: a long title is not cut on the frame.
+- **Comments are unsigned** and say when on the frame; an edited one does
+  not say so yet.
+- The other unagit's changes come by a look every two seconds at the
+  space's directory and `spaces.json`, while the Board is in front.
+
+Still to do: phases 2 to 4.
 
 ## Future work: an agent of the user's own
 

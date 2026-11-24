@@ -260,6 +260,9 @@ go_to_activity = "4"
 #   envs they are made from.
 go_to_sandboxes = "5"
 
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
+
 # Go to Settings: Servers, groups, tags, integrations and security.
 go_to_settings = "S"
 
@@ -455,6 +458,9 @@ go_to_activity = "4"
 #   envs they are made from.
 go_to_sandboxes = "5"
 
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
+
 # Go to Settings: Servers, groups, tags, integrations and security.
 go_to_settings = "S"
 
@@ -632,6 +638,9 @@ go_to_activity = "4"
 # Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
 #   envs they are made from.
 go_to_sandboxes = "5"
+
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
 
 # Go to Settings: Servers, groups, tags, integrations and security.
 go_to_settings = "S"
@@ -950,6 +959,9 @@ go_to_activity = "4"
 #   envs they are made from.
 go_to_sandboxes = "5"
 
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
+
 # Go to Settings: Servers, groups, tags, integrations and security.
 go_to_settings = "S"
 
@@ -1162,6 +1174,104 @@ go_to_activity = "4"
 # Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
 #   envs they are made from.
 go_to_sandboxes = "5"
+
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
+
+# Go to Settings: Servers, groups, tags, integrations and security.
+go_to_settings = "S"
+
+# Help: Every key of every screen, the ones that work here lit.
+help = "?"
+
+# Quit: Leave unagit. Window editors it opened stay open.
+quit = "q"
+
+# Board (6): your tasks - the one under the cursor, and the board.
+[board]
+
+# Comment…: Write a comment on the task.
+comment = "c"
+
+# Edit Task…: Change the task's title and description.
+edit_task = "e"
+
+# Move Right: To the next column: to do, in progress, done.
+move_right = "L"
+
+# Move Left: Back to the column before.
+move_left = "H"
+
+# Move Down: Lower in its column; the order is what comes first.
+move_down = "J"
+
+# Move Up: Higher in its column.
+move_up = "K"
+
+# Mark Done: Move it to Done; it leaves the board after the time set in
+#   Settings, History keeps it.
+mark_done = "x"
+
+# Open Again: Take a task done back to the column of things to do.
+open_again = "x"
+
+# Open in Browser: The task's link; a list when it has several.
+open_in_browser = "w"
+
+# Link URL…: Add a link to the task.
+link_url = "i"
+
+# Colour…: Give the card a colour to make it stand out.
+colour = "#"
+
+# Move to Space…: Take the task to another space.
+move_to_space = []
+
+# Delete Task…: Delete the task, its comments and its story, after asking.
+delete_task = "d"
+
+# New Task…: Write a task into the column the cursor is in.
+new_task = "n"
+
+# Spaces…: Switch to another space.
+spaces = "p"
+
+# Next Space: The space after this one.
+next_space = "]"
+
+# Previous Space: The space before this one.
+previous_space = "["
+
+# Toggle Card Size: The cards compact - the title and counts - or in full.
+toggle_card_size = "v"
+
+# Toggle History: Every task done, the newest first.
+toggle_history = "y"
+
+# Filter: Narrow the cards by typing.
+filter = "/"
+
+# Read Again: Read the space's tasks from disk again.
+read_again = "R"
+
+# Go to Repositories: Every repository of the servers and groups you picked.
+go_to_repositories = "1"
+
+# Go to Merge Requests: The open merge requests of those repositories.
+go_to_merge_requests = "2"
+
+# Go to Worktrees: Every worktree on disk, plain and grouped.
+go_to_worktrees = "3"
+
+# Go to Activity: What runs in the background and waits for you.
+go_to_activity = "4"
+
+# Go to Sandboxes: unibox's sandboxes, the tasks agents work on in them, the
+#   envs they are made from.
+go_to_sandboxes = "5"
+
+# Go to Board: Your tasks, in the spaces you keep them in.
+go_to_board = "6"
 
 # Go to Settings: Servers, groups, tags, integrations and security.
 go_to_settings = "S"

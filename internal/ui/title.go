@@ -40,6 +40,9 @@ func (a *App) titleWhere() string {
 		return r.Path + " · " + r.Branch
 	}
 	page := a.currentTab()
+	if page == pageBoard && a.board != nil && a.board.space.Name != "" {
+		return "Board · " + a.board.space.Name
+	}
 	for _, t := range tabs {
 		if t.page == page {
 			return t.title

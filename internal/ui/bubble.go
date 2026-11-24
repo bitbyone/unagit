@@ -33,6 +33,9 @@ type bubble struct {
 	// Frame is the colour of the frame, its thread's; unset, the plain
 	// comment's (comments.border).
 	Frame tcell.Color
+	// Fill is the card's background; unset, the comments' card's. A card
+	// of the Board takes its colour's tint.
+	Fill tcell.Color
 	// Selected is the comment chosen in the conversation, framed as a
 	// focused box is.
 	Selected bool
@@ -126,7 +129,12 @@ func layBubble(b bubble, width int) bubbleLayout {
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
 	bg := role("comments.card").String()
-	if b.Selected {
+	switch {
+	case b.Fill != tcell.ColorDefault && b.Selected:
+		bg = lift(b.Fill).String()
+	case b.Fill != tcell.ColorDefault:
+		bg = b.Fill.String()
+	case b.Selected:
 		bg = role("comments.selected_fill").String()
 	}
 	reset := "[-:" + bg + ":-]"

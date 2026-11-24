@@ -11,7 +11,7 @@ by heart.
 | `Alt-Enter`, `Ctrl-A` | every action on the row, the marks or the lit block, with its key |
 | `:` | every action of the screen |
 | `+` | find any repository of yours, in any group, and list it |
-| `1` `2` `3` `4` `5` | Repositories · Merge requests · Worktrees · Activity · Sandboxes |
+| `1` `2` `3` `4` `5` `6` | Repositories · Merge requests · Worktrees · Activity · Sandboxes · Board |
 | `S` | Settings |
 | `Alt-A` | running agents; `Enter` goes to one |
 | `E` | running Neovims: `Enter` attaches, `a` asks where, `x` closes (on Sandboxes, the Environment panel) |
@@ -88,6 +88,18 @@ by heart.
 | `U` `D` `T` `I` | unibox's settings · doctor · tokens in unagit · set up |
 
 More in [Sandboxes](/guide/sandboxes).
+
+## Board
+
+| Key | |
+| --- | --- |
+| `n` `Enter` `e` `d` | a new task · the task in full · edit it · delete it |
+| `H` `L` `K` `J` | move the card to the column before or after · up or down its column |
+| `x` `c` `i` `w` `#` | done · comment · link a URL · open the link · colour |
+| `v` `y` | cards compact or in full · History |
+| `p` `[` `]` | spaces · the one before, the next |
+
+More in [The Board](/guide/board).
 
 ## Branches
 

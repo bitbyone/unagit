@@ -46,6 +46,10 @@ type commentsDialog struct {
 	vis    visual
 	footer *tview.TextView
 	hint   func()
+	// task, when set, makes this a task's detail on the Board rather than
+	// a merge request's conversation (board_detail.go): what it reads and
+	// what can be done in it are the task's, the rest is the same.
+	task *taskDetail
 }
 
 // conversationView is the conversation as the mouse finds it: its rows
@@ -141,9 +145,16 @@ type fileText struct {
 // with the markdown rendered: j and k go from comment to comment, r answers
 // the one chosen, Enter opens the file it is on with its comments.
 func (a *App) showComments(mr forge.MergeRequest) {
-	d := &commentsDialog{a: a, mr: mr, files: map[string]fileText{},
-		conv: &conversation{diffs: map[string]forge.FileDiff{}, reading: map[string]bool{}, expanded: map[int]bool{}}}
-	path := a.projectPathOfMR(mr)
+	d := &commentsDialog{a: a, mr: mr}
+	a.openCommentsDialog(d, fmt.Sprintf("Comments · %s !%d", a.projectPathOfMR(mr), mr.IID),
+		"r reply · c comment · e edit · d delete · x resolve · Enter expand file · v select · h toggle code · P publish · A approve · R reload")
+}
+
+// openCommentsDialog puts a conversation on screen - a merge request's, or
+// a task's (d.task) - and reads it.
+func (a *App) openCommentsDialog(d *commentsDialog, title, keys string) {
+	d.files = map[string]fileText{}
+	d.conv = &conversation{diffs: map[string]forge.FileDiff{}, reading: map[string]bool{}, expanded: map[int]bool{}, task: d.task != nil}
 	// Nothing is wrapped by the view: every row is laid out to its width
 	// here, and what would not fit - a long line of code - is cut there.
 	d.view = tview.NewTextView().
@@ -151,12 +162,10 @@ func (a *App) showComments(mr forge.MergeRequest) {
 		SetScrollable(true).
 		SetWrap(false)
 	d.view.SetTextColor(colText)
-	box(d.view.Box, fmt.Sprintf("Comments · %s !%d", path, mr.IID)).SetBorderPadding(0, 0, 1, 1)
+	box(d.view.Box, title).SetBorderPadding(0, 0, 1, 1)
 
 	footer := tview.NewTextView().SetDynamicColors(true)
-	hint := func() {
-		footer.SetText(" " + litHint("r reply · c comment · e edit · d delete · x resolve · Enter expand file · v select · h toggle code · P publish · A approve · R reload"))
-	}
+	hint := func() { footer.SetText(" " + litHint(keys)) }
 	hint()
 	d.footer, d.hint = footer, hint
 	shown := &conversationView{TextView: d.view, d: d}
@@ -301,6 +310,10 @@ func (d *commentsDialog) step(by int) {
 // each thread drawn once its code is there. quietly, what is on screen
 // stays until the new reading replaces it - after something was done.
 func (d *commentsDialog) load(quietly bool) {
+	if d.task != nil {
+		d.loadTask()
+		return
+	}
 	a, mr := d.a, d.mr
 	client := a.client(mr.Instance)
 	if client == nil {
@@ -704,6 +717,9 @@ func (d *commentsDialog) remove(n forge.Note) {
 // comment. The keys answer from them, and so does the picker of actions,
 // so a key cannot do one thing while the picker says another.
 func (d *commentsDialog) actions() []uiAction {
+	if d.task != nil {
+		return d.taskActions()
+	}
 	a := d.a
 	card, chosen := d.chosen()
 	n := card.note
@@ -795,7 +811,7 @@ func (d *commentsDialog) keys(ev *tcell.EventKey) *tcell.EventKey {
 		a.showActions("Actions · comments", d.actions())
 	case ev.Key() == tcell.KeyEnter:
 		if !runEnter(d.actions()) {
-			if _, chosen := d.chosen(); !chosen {
+			if _, chosen := d.chosen(); !chosen || d.task != nil {
 				a.flash("no comment chosen - j and k choose one")
 			} else {
 				a.flash("this comment is on the merge request, not on a file")

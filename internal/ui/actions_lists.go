@@ -30,6 +30,8 @@ func (a *App) listActions(p *pane) []uiAction {
 			run: func() { a.switchTab(pageActivity) }},
 		{name: "Go to Sandboxes", about: "unibox's sandboxes, the tasks agents work on in them, the envs they are made from.", keys: "5", rank: 908,
 			when: func() bool { return a.currentTab() != pageSandboxes }, run: func() { a.switchTab(pageSandboxes) }},
+		{name: "Go to Board", about: "Your tasks, in the spaces you keep them in: what is to do, in progress and done.", keys: "6", rank: 909,
+			when: func() bool { return a.currentTab() != pageBoard }, run: func() { a.switchTab(pageBoard) }},
 		{name: "Go to Settings", about: "Servers, groups, tags, integrations and security.", keys: "S", rank: 910, run: func() { a.switchTab(pageSettings) }},
 		{name: "Help", about: "Every key of every screen, the ones that work here lit.", keys: "?", rank: 950, run: a.showHelp},
 		{name: "Quit", about: "Leave unagit. Window editors it opened stay open.", keys: "q", rank: 999, run: a.tv.Stop},

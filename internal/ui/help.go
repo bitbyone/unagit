@@ -33,6 +33,7 @@ const (
 	helpTags
 	helpTheme
 	helpSandboxes
+	helpBoard
 	helpStandalone
 	helpKeys
 	helpRepositories  = helpRepoList | helpRepoDetail
@@ -40,7 +41,7 @@ const (
 	helpWorktrees     = helpWorktreeList | helpWorktreeDetail
 	helpLists         = helpRepositories | helpMergeRequests
 	helpDetails       = helpRepoDetail | helpMRDetail | helpWorktreeDetail
-	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSandboxes | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme | helpKeys
+	helpNavigation    = helpLists | helpWorktrees | helpActivity | helpSandboxes | helpBoard | helpSettingsList | helpServers | helpGroups | helpIntegrations | helpSecurity | helpTags | helpTheme | helpKeys
 )
 
 func (l helpLine) in(scope helpContext) helpLine { l.scope = scope; return l }
@@ -86,6 +87,8 @@ func (a *App) helpContext() (helpContext, string) {
 		return helpActivity, "Activity"
 	case pageSandboxes:
 		return helpSandboxes, "Sandboxes"
+	case pageBoard:
+		return helpBoard, "Board"
 	default:
 		if !a.settings.contentFocused {
 			return helpSettingsList, "Settings"
@@ -200,6 +203,8 @@ func (a *App) helpScope() string {
 		return scopeActivity
 	case pageSandboxes:
 		return scopeSandboxes
+	case pageBoard:
+		return scopeBoard
 	}
 	return keymap.Global
 }
@@ -445,6 +450,24 @@ func helpRows() []helpLine {
 		key("STATE", "an env's missing values · running · an agent"),
 		key("env changed", "an env: its sandbox older than it - C recreates"),
 		key(glyphTabProblem+"2", "by the tab: how many things the sandboxes lack"),
+		blank(),
+
+		section("Board", helpBoard).at(scopeBoard),
+		key("h  l  j  k", "column · card"),
+		key("Enter", "the task: description, links, comments, story"),
+		key("n", "a new task in the column the cursor is in"),
+		key("H  L", "move the card to the column before or after"),
+		key("K  J", "move it up or down its column: what comes first"),
+		key("x", "done · in History, open it again"),
+		key("c  e", "comment on it · edit its title and description"),
+		key("i  w", "link a URL · open its link in the browser"),
+		key("#", "give the card a colour to make it stand out"),
+		key("v", "the cards compact or in full"),
+		key("y", "History: every task done, the newest first"),
+		key("p  [  ]", "spaces: switch, new, rename, delete · the next"),
+		key("d", "delete the task, after asking"),
+		key("E  i  H  L", "in a task: edit it · link · move").at(helpNoKeys),
+		key("c  e  d  h", "in a task: comment · edit · delete · story").at(helpNoKeys),
 		blank(),
 
 		section("A worktree's view (Enter)", helpWorktreeDetail).at(scopeWorktreeView),

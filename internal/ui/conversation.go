@@ -127,6 +127,13 @@ type conversation struct {
 	// comment's window lays out that one alone again.
 	drawn map[string]string
 	laid  map[laidKey]bubbleLayout
+	// task draws the conversation as a task's on the Board: its comments
+	// are the reader's own and unsigned, its story's events (System notes)
+	// stand between them as quiet lines, which noCode hides as it hides
+	// the code of a merge request's threads. top is drawn above it all,
+	// laid out to the width: the task's description and links.
+	task bool
+	top  func(width int) string
 }
 
 // isChosen reports whether a card is the one the cursor is on.
@@ -183,8 +190,8 @@ func renderConversation(notes []forge.Note, width int) string {
 // comment's card is.
 func (c *conversation) draw(width int) (string, []commentCard) {
 	notes := append(shown(c.notes), draftNotes(c.drafts)...)
-	if len(notes) == 0 {
-		return tag(colMuted) + "No comments yet. Press c to write the first one." + tagEnd, nil
+	if c.task {
+		notes = c.taskNotes()
 	}
 	var (
 		rows  []string
@@ -192,6 +199,16 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 	)
 	add := func(text string) {
 		rows = append(rows, strings.Split(text, "\n")...)
+	}
+	if c.top != nil {
+		add(c.top(width))
+	}
+	if len(notes) == 0 {
+		if len(rows) > 0 {
+			add("")
+		}
+		add(tag(colMuted) + "No comments yet. Press c to write the first one." + tagEnd)
+		return strings.Join(rows, "\n"), nil
 	}
 	// What is said of the merge request as a whole comes first, the threads
 	// on its code after, each part headed when there are both.
@@ -218,12 +235,31 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 	if both {
 		heading("On the merge request")
 	}
+	if c.top != nil {
+		heading("Comments")
+	}
+	story := false
 	for _, thread := range general {
+		if c.task && thread[0].System {
+			// The story's lines go one under the other, a card's
+			// width apart from the comments.
+			if !story && len(rows) > 0 {
+				add("")
+			}
+			story = true
+			add(storyLine(thread[0], width))
+			continue
+		}
+		story = false
 		if len(rows) > 0 {
 			add("")
 		}
 		top := len(rows)
 		for j, b := range bubblesOf(thread) {
+			if c.task {
+				// Every comment is the reader's: the card says when.
+				b.Name, b.Meta, b.Icon = humanAge(thread[j].CreatedAt), "", glyphComment
+			}
 			text, card := c.laidCard(b, thread[j], width, len(rows), 0)
 			add(text)
 			cards = append(cards, card)
@@ -247,6 +283,25 @@ func (c *conversation) draw(width int) (string, []commentCard) {
 		cards[first].top = top
 	}
 	return strings.Join(rows, "\n"), cards
+}
+
+// taskNotes are a task's comments and, unless noCode hides them, the
+// lines of its story.
+func (c *conversation) taskNotes() []forge.Note {
+	var out []forge.Note
+	for _, n := range c.notes {
+		if n.System && c.noCode || strings.TrimSpace(n.Body) == "" {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// storyLine is a line of a task's story: what happened and when, quiet.
+func storyLine(n forge.Note, width int) string {
+	text := glyphDot + " " + n.Body + " · " + humanAge(n.CreatedAt)
+	return tag(colDim) + esc(trunc(text, max(1, width))) + tagEnd
 }
 
 // drawCodeThread draws a thread on code as one block: the code, when its

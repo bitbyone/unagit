@@ -59,6 +59,10 @@ const guideSidebar = [
     items: [{ text: 'Watching and Activity', link: '/guide/watching' }],
   },
   {
+    text: 'Your Work',
+    items: [{ text: 'The Board', link: '/guide/board' }],
+  },
+  {
     text: 'Integrations',
     items: [
       { text: 'Overview', link: '/guide/integrations' },

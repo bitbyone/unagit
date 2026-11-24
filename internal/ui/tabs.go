@@ -27,6 +27,7 @@ var tabs = []tab{
 	{pageWorktrees, '3', "Worktrees", "Worktrees"},
 	{pageActivity, '4', "Activity", "Activity"},
 	{pageSandboxes, '5', "Sandboxes", "Boxes"},
+	{pageBoard, '6', "Board", "Board"},
 	{pageSettings, 'S', "Settings", "Settings"},
 }
 
@@ -284,6 +285,13 @@ func (a *App) switchTab(page string) {
 		if a.uniboxOn() {
 			a.visitSandboxes()
 		}
+	case pageBoard:
+		a.board.reload()
+		if a.board.filtering {
+			a.tv.SetFocus(a.board.filter)
+		} else {
+			a.tv.SetFocus(a.board.canvas)
+		}
 	}
 	a.drawTabs()
 	if a.helpHint != nil {
@@ -294,6 +302,23 @@ func (a *App) switchTab(page string) {
 		}
 	}
 	a.clearSaid()
+}
+
+// startTab is the screen unagit opens on (Settings › General › Start on).
+func (a *App) startTab() string {
+	for _, t := range tabs {
+		if t.page == startPages[a.cfg.StartOn] && t.page != pageSettings {
+			return t.page
+		}
+	}
+	return pageProjects
+}
+
+// startPages are the screens Start on can name, by the word config.yaml
+// keeps.
+var startPages = map[string]string{
+	"repositories": pageProjects, "merge_requests": pageMRs, "worktrees": pageWorktrees,
+	"activity": pageActivity, "sandboxes": pageSandboxes, "board": pageBoard,
 }
 
 // tabKey switches tabs when the event is one of the tab shortcuts.
