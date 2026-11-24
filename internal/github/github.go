@@ -1237,7 +1237,9 @@ func (c *Client) checkRuns(ctx context.Context, path, ref, branch string) (*forg
 	if ref == branch {
 		sha = ""
 	}
-	return &forge.Pipeline{Status: worst, SHA: sha, Ref: branch}, jobs, nil
+	// Its page is the commit's checks: GitHub has no page of a pipeline.
+	web := WebBase + "/" + path + "/commit/" + raw.CheckRuns[0].HeadSHA + "/checks"
+	return &forge.Pipeline{Status: worst, SHA: sha, Ref: branch, WebURL: web}, jobs, nil
 }
 
 // unfinishedRun is how far the furthest workflow run of a commit that has
@@ -1575,6 +1577,9 @@ func (c *Client) combinedStatuses(ctx context.Context, projectPath, ref string) 
 	if len(raw.Statuses) > 0 {
 		pipe.UpdatedAt = raw.Statuses[0].UpdatedAt
 		pipe.WebURL = raw.Statuses[0].TargetURL
+	}
+	if pipe.WebURL == "" && raw.SHA != "" {
+		pipe.WebURL = WebBase + "/" + projectPath + "/commit/" + raw.SHA
 	}
 	jobs := make([]forge.Job, 0, len(raw.Statuses))
 	for _, s := range raw.Statuses {

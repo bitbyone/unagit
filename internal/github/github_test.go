@@ -311,12 +311,17 @@ func TestNoStatusesMeansNoPipeline(t *testing.T) {
 func TestLatestPipelineReadsCheckRuns(t *testing.T) {
 	s := newStub(t)
 	s.handle("/repos/acme/api/commits/main/check-runs",
-		`{"check_runs":[{"id":1,"name":"test","status":"completed","conclusion":"success"},
-		  {"id":2,"name":"lint","status":"in_progress"}]}`)
+		`{"check_runs":[{"id":1,"name":"test","status":"completed","conclusion":"success","head_sha":"abc123"},
+		  {"id":2,"name":"lint","status":"in_progress","head_sha":"abc123"}]}`)
 	pipe, err := s.client().LatestPipeline(context.Background(),
 		forge.Project{PathWithNamespace: "acme/api"}, "main")
 	if err != nil || pipe == nil || pipe.Status != "running" {
 		t.Fatalf("pipeline = %+v, err = %v", pipe, err)
+	}
+	// What w on its watch opens: GitHub has no page of a pipeline, so the
+	// checks of the commit.
+	if want := "https://github.com/acme/api/commit/abc123/checks"; pipe.WebURL != want {
+		t.Errorf("web URL = %q, want %q", pipe.WebURL, want)
 	}
 }
 
