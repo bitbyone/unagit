@@ -36,6 +36,8 @@ type bubble struct {
 	// Fill is the card's background; unset, the comments' card's. A card
 	// of the Board takes its colour's tint.
 	Fill tcell.Color
+	// IconColour colours the icon; unset, every card's icon colour.
+	IconColour tcell.Color
 	// Selected is the comment chosen in the conversation, framed as a
 	// focused box is.
 	Selected bool
@@ -162,7 +164,11 @@ func layBubble(b bubble, width int) bubbleLayout {
 	if icon == "" {
 		icon = glyphUser
 	}
-	title := tag(role("comments.icon")) + icon + " " + tag(b.Colour) + "[::b]" + tview.Escape(trunc(b.Name, max(1, room-cells(icon)-1))) + "[::-]" + tagEnd
+	iconColour := role("comments.icon")
+	if b.IconColour != tcell.ColorDefault {
+		iconColour = b.IconColour
+	}
+	title := tag(iconColour) + icon + " " + tag(b.Colour) + "[::b]" + tview.Escape(trunc(b.Name, max(1, room-cells(icon)-1))) + "[::-]" + tagEnd
 	if b.Meta != "" {
 		if with := title + tag(role("comments.meta")) + " · " + tagEnd + b.Meta; tview.TaggedStringWidth(with) <= room {
 			title = with

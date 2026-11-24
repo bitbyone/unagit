@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -434,15 +435,12 @@ func (v *boardView) card(t board.Task, width int, chosen bool) string {
 }
 
 func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
-	frame, ink := role("board."+t.State), colText
-	var fill tcell.Color
+	fill, frame := boardCardColours(t.Colour, chosen)
+	ink := colText
 	if t.Colour != "" {
-		c := role("board.card." + t.Colour)
-		frame, ink = c, c
-		fill = mix(role("comments.card"), c, 0.14)
+		ink = boardInk(t.Colour)
 	}
 	if t.State == board.Done {
-		frame = mix(frame, role("comments.card"), 0.45)
 		ink = colMuted
 	}
 	var meta []string
@@ -452,7 +450,7 @@ func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
 	if n := len(t.Links); n > 0 {
 		meta = append(meta, glyphLinkOr()+fmt.Sprint(n))
 	}
-	b := bubble{Name: t.Title, Icon: boardGlyph(t.State), Colour: ink, Frame: frame, Fill: fill, Selected: chosen}
+	b := bubble{Name: t.Title, Icon: boardGlyph(t.State), IconColour: role("board." + t.State), Colour: ink, Frame: frame, Fill: fill}
 	if len(meta) > 0 {
 		b.Meta = tag(role("comments.meta")) + esc(strings.Join(meta, " ")) + tagEnd
 	}
@@ -478,6 +476,53 @@ func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
 		b.Where = "done " + humanAge(t.Done)
 	}
 	return b
+}
+
+// The card's colours are steps off the page, not colours of their own: a
+// card a twentieth lighter than the page - darker on a light theme - and
+// the one under the cursor as much darker; its frame a twentieth lighter
+// than the card, the cursor's the accent. A colour given to a card tints
+// it at the same lightness, so no colour stands out more than another.
+const (
+	boardStep = 0.05
+	// boardTint is how much colour a tinted card takes, in Oklch chroma.
+	boardTint = 0.03
+)
+
+// boardCardColours are a card's fill and frame.
+func boardCardColours(colour string, chosen bool) (fill, frame tcell.Color) {
+	ground := colBackground
+	if ground == tcell.ColorDefault || !ground.Valid() {
+		ground = role("board.ground")
+	}
+	light, dark := tcell.NewRGBColor(255, 255, 255), tcell.NewRGBColor(0, 0, 0)
+	if toOklab(ground).l >= 0.6 {
+		light, dark = dark, light
+	}
+	fill = mix(ground, light, boardStep)
+	if chosen {
+		fill = mix(ground, dark, boardStep)
+	}
+	if colour != "" && fill != tcell.ColorDefault {
+		c, f := toOklab(role("board.card."+colour)), toOklab(fill)
+		fill = fromOklch(f.l, min(boardTint, math.Hypot(c.a, c.b)), math.Atan2(c.b, c.a)*180/math.Pi, 0, 0)
+	}
+	frame = mix(fill, light, boardStep)
+	if chosen {
+		frame = colAccent
+	}
+	return fill, frame
+}
+
+// boardInk is a coloured card's title: the colour at the lightness of the
+// text, so every colour reads as well as any other on its card.
+func boardInk(colour string) tcell.Color {
+	c := role("board.card." + colour)
+	if colText == tcell.ColorDefault || !colText.Valid() || !c.Valid() {
+		return c
+	}
+	lab := toOklab(c)
+	return fromOklch(toOklab(colText).l, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
 // full is whether the cards are drawn in full.

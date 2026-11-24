@@ -228,9 +228,10 @@ var colourRoles = []colourRole{
 	{"sandboxes.blocked", "state.warning", "a host the policy refused a sandbox lately"},
 	// The Board: a card's frame by its state, and the colours a card can be
 	// given to stand out - its frame, its title, and a tint of its fill.
-	{"board.todo", "text.muted", "the frame of a task to do"},
-	{"board.doing", "text.accent", "the frame of a task in progress"},
-	{"board.done", "state.good", "the frame of a task done, quieter on the card"},
+	{"board.ground", "card.background", "the page the cards are worked out from, on the terminal's own background; on a theme's, that background"},
+	{"board.todo", "text.muted", "the mark of a task to do"},
+	{"board.doing", "text.accent", "the mark of a task in progress"},
+	{"board.done", "state.good", "the mark of a task done"},
 	{"board.link", "markdown.link", "a task's link in its detail"},
 	{"board.card.red", "state.bad", "a card made red to stand out"},
 	{"board.card.orange", "tags.apricot.ink", "a card made orange"},
