@@ -979,3 +979,45 @@ func TestTheMouseSelectsTextInAComment(t *testing.T) {
 		t.Fatalf("copied %q", got)
 	}
 }
+
+// TestAFileScrollsARowAtATime: j past the bottom edge of a file brings the
+// next row in, it does not turn the page - Ctrl-D does that.
+func TestAFileScrollsARowAtATime(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := openCodeConversation(t, 180, 50)
+	typeRunes(sc, "Gk")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	resizeApp(a, sc, 180, 22)
+	typeRunes(sc, "g")
+	type at struct{ top, height, to int }
+	where := func() at {
+		return onLoop(a, func() at {
+			v := a.tv.GetFocus().(*bandView)
+			top, _ := v.GetScrollOffset()
+			_, _, _, h := v.GetInnerRect()
+			band, _ := v.band()
+			return at{top, h, band.to}
+		})
+	}
+	scrolled := false
+	for i := 0; i < 20; i++ {
+		before := where()
+		typeRunes(sc, "j")
+		now := where()
+		if now.to >= now.top+now.height || now.to < now.top {
+			t.Fatalf("j %d: the cursor's row %d is out of the view %d+%d", i, now.to, now.top, now.height)
+		}
+		if now.top != before.top {
+			scrolled = true
+			if want := now.to - now.height + 1; now.top != want {
+				t.Fatalf("j %d: scrolled from %d to %d, want %d - the cursor's row at the bottom", i, before.top, now.top, want)
+			}
+		}
+	}
+	if !scrolled {
+		t.Fatal("the file never scrolled: the view is too tall for the test")
+	}
+}

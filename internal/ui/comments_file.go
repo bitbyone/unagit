@@ -432,7 +432,9 @@ func (fv *fileView) render(width int) string {
 	return strings.Join(rows, "\n")
 }
 
-// reveal scrolls so that what the cursor is on shows.
+// reveal scrolls so that what the cursor is on shows, by no more than it
+// takes: a step past the bottom edge brings the next row in, not a page.
+// An item taller than the view shows from its start.
 func (fv *fileView) reveal() {
 	i := fv.cursor()
 	if i < 0 {
@@ -445,7 +447,7 @@ func (fv *fileView) reveal() {
 	case it.from < top:
 		fv.view.ScrollTo(it.from, 0)
 	case height > 0 && it.to >= top+height:
-		fv.view.ScrollTo(max(it.from, it.to-height+1), 0)
+		fv.view.ScrollTo(min(it.from, it.to-height+1), 0)
 	}
 }
 
