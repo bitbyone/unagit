@@ -274,7 +274,11 @@ func (c *boardCanvas) Draw(screen tcell.Screen) {
 		// The columns stand apart by a line, not each in a frame.
 		if i < len(shown)-1 {
 			for row := y; row < y+h; row++ {
-				screen.SetContent(cx+cw, row, tview.Borders.Vertical, nil, baseStyle().Foreground(colBorder))
+				line := tview.Borders.Vertical
+				if row == y+1 {
+					line = tview.Borders.Cross
+				}
+				screen.SetContent(cx+cw, row, line, nil, baseStyle().Foreground(colBorder))
 			}
 		}
 	}
@@ -338,8 +342,11 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 	v.areas[col] = struct{ x, y, w, h int }{x, y, w, h}
 	current := col == v.column()
 	tview.Print(screen, tag(colTitle)+"[::b]"+esc(name)+"[::-] "+tag(colMuted)+fmt.Sprint(len(tasks))+tagEnd, x+2, y, w-4, tview.AlignLeft, colTitle)
-	// The name above, a row for how many more below.
-	iy, ih := y+1, h-2
+	// The name above, ruled off as a header; a row for how many more below.
+	for cx := x; cx < x+w; cx++ {
+		screen.SetContent(cx, y+1, tview.Borders.Horizontal, nil, baseStyle().Foreground(colBorder))
+	}
+	iy, ih := y+2, h-3
 	cx, cw := x+1, w-2
 	if cw < minBubbleWidth || ih < 2 {
 		return
