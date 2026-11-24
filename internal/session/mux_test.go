@@ -132,6 +132,54 @@ func TestANeovimPutAsideFromItsPaneIsAnEditorAside(t *testing.T) {
 	}
 }
 
+// TestANeovimGoneFromAPaneStillOpenIsGone: Rex brings a block back after a
+// restart with a shell in it, the Neovim that ran there gone - its socket
+// silent, the pane listed. It is not offered for attaching to that pane.
+func TestANeovimGoneFromAPaneStillOpenIsGone(t *testing.T) {
+	t.Parallel()
+	tool := muxtest.New(t)
+	tool.SetPanes(t, []muxtest.Pane{{ID: 10}})
+	dir, err := os.MkdirTemp("/tmp", "ug-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "s")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(dir)
+	if _, err := s.Add(Record{Dir: t.TempDir(), Editor: editors.Nvim, Socket: socket, Pane: "terminal_10",
+		Mux: tool.Client().Kind, MuxSession: tool.Client().Session, MuxLauncher: tool.Binary}); err != nil {
+		t.Fatal(err)
+	}
+	// Written long ago, by a unagit long gone.
+	entries, _ := os.ReadDir(s.dir)
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(s.dir, entry.Name())
+		data, _ := os.ReadFile(path)
+		var r Record
+		json.Unmarshal(data, &r)
+		r.PID = 4194303
+		r.Since = time.Now().Add(-time.Hour)
+		data, _ = json.Marshal(r)
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.Running(); len(got) != 1 || got[0].Pane != "terminal_10" {
+		t.Fatalf("Neovim in its pane: %+v", got)
+	}
+	l.Close()
+	if got := s.List(); len(got) != 0 {
+		t.Fatalf("a Neovim gone from its pane is still listed: %+v", got)
+	}
+}
+
 // TestAgentsInHerdrAndGhosttyLiveWithTheirPanes: an agent started in a
 // herdr pane or a Ghostty terminal is listed while that is open, whoever
 // wrote the record, and swept once it is closed.

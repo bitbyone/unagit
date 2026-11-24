@@ -259,7 +259,11 @@ func (s *Store) records(backgroundOnly bool) []Record {
 			case read.err != nil:
 				live = editors.SocketAlive(r.Socket)
 			case read.live[r.Pane]:
-				live = true
+				// A pane can outlive what ran in it: Rex brings its blocks
+				// back after a restart with a shell in them, the Neovim gone.
+				// A Neovim with a socket is there while the socket answers
+				// (or it is just starting and not listening yet).
+				live = r.Socket == "" || editors.SocketAlive(r.Socket) || time.Since(r.Since) < 5*time.Second
 			case r.Socket != "" && editors.SocketAlive(r.Socket):
 				// Put aside from its pane with Ctrl-Z: the pane closed and
 				// the server runs on. From now on it is an editor aside like
