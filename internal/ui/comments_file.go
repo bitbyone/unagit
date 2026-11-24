@@ -138,10 +138,10 @@ type fileView struct {
 	// until the cursor moves: the view's height is not known before it is
 	// drawn, and the first draws lay the file out again at their width.
 	centred bool
-	items          []fileItem
-	view           *tview.TextView
-	band           *bandView
-	fit            func(func(int) string)
+	items   []fileItem
+	view    *tview.TextView
+	band    *bandView
+	fit     func(func(int) string)
 }
 
 // fileItem is what the cursor can be on: a line of the file, or a comment

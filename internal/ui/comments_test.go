@@ -376,7 +376,6 @@ func limitAt(ref string) (string, bool) {
 	return strings.Join(lines, "\n") + "\n", true
 }
 
-
 func (f *codeForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
 	notes, err := f.Provider.MergeRequestNotes(ctx, mr, limit)
 	return append(notes,
