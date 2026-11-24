@@ -297,11 +297,16 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 	for i, t := range tasks {
 		cards[i] = strings.Split(v.card(t, cw, current && i == at), "\n")
 	}
+	// Full cards stand a row apart, to be told one from the next.
+	gap := 0
+	if v.full() {
+		gap = 1
+	}
 	// The cursor's card shows whole when it can: the first drawn moves
 	// down to it, or up.
 	top := min(v.top[col], at)
 	for top < at {
-		rows := 0
+		rows := (at - top) * gap
 		for _, c := range cards[top : at+1] {
 			rows += len(c)
 		}
@@ -311,8 +316,14 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 		top++
 	}
 	v.top[col] = top
-	row := iy
-	for i := top; i < len(tasks) && row < iy+ih; i++ {
+	row, shown := iy, top
+	for i := top; i < len(tasks); i++ {
+		if i > top {
+			row += gap
+		}
+		if row >= iy+ih {
+			break
+		}
 		from := row
 		for _, l := range cards[i] {
 			if row >= iy+ih {
@@ -322,11 +333,15 @@ func (v *boardView) drawColumn(screen tcell.Screen, col, x, y, w, h int) {
 			row++
 		}
 		v.hits = append(v.hits, boardHit{col: col, i: i, x: cx, y: from, w: cw, h: row - from})
-		if row >= iy+ih && i < len(tasks)-1 || i == len(tasks)-1 {
-			if rest := len(tasks) - 1 - i; rest > 0 {
-				tview.Print(screen, tag(colMuted)+fmt.Sprintf(" %d more ", rest)+tagEnd, x+1, y+h-1, w-3, tview.AlignRight, colMuted)
-			}
-		}
+		shown = i + 1
+	}
+	// What is below the frame, a card cut short by it counted with it.
+	rest := len(tasks) - shown
+	if shown > top && row >= iy+ih && len(cards[shown-1]) > row-v.hits[len(v.hits)-1].y {
+		rest++
+	}
+	if rest > 0 {
+		tview.Print(screen, tag(colMuted)+fmt.Sprintf(" %d more ", rest)+tagEnd, x+1, y+h-1, w-3, tview.AlignRight, colMuted)
 	}
 }
 
