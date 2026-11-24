@@ -479,14 +479,15 @@ func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
 }
 
 // The card's colours are steps off the page, not colours of their own: a
-// card a twentieth lighter than the page - darker on a light theme - and
-// the one under the cursor as much darker; its frame a twentieth lighter
-// than the card, the cursor's the accent. A colour given to a card tints
-// it at the same lightness, so no colour stands out more than another.
+// card a tenth lighter than the page - darker on a light theme - and its
+// frame a tenth lighter than the card. The card under the cursor is a
+// tenth darker than the page whatever its colour, framed in the accent. A
+// colour given to a card tints it at the same lightness, so no colour
+// stands out more than another.
 const (
-	boardStep = 0.05
+	boardStep = 0.10
 	// boardTint is how much colour a tinted card takes, in Oklch chroma.
-	boardTint = 0.03
+	boardTint = 0.0255
 )
 
 // boardCardColours are a card's fill and frame.
@@ -499,19 +500,15 @@ func boardCardColours(colour string, chosen bool) (fill, frame tcell.Color) {
 	if toOklab(ground).l >= 0.6 {
 		light, dark = dark, light
 	}
-	fill = mix(ground, light, boardStep)
 	if chosen {
-		fill = mix(ground, dark, boardStep)
+		return mix(ground, dark, boardStep), colAccent
 	}
+	fill = mix(ground, light, boardStep)
 	if colour != "" && fill != tcell.ColorDefault {
 		c, f := toOklab(role("board.card."+colour)), toOklab(fill)
 		fill = fromOklch(f.l, min(boardTint, math.Hypot(c.a, c.b)), math.Atan2(c.b, c.a)*180/math.Pi, 0, 0)
 	}
-	frame = mix(fill, light, boardStep)
-	if chosen {
-		frame = colAccent
-	}
-	return fill, frame
+	return fill, mix(fill, light, boardStep)
 }
 
 // boardInk is a coloured card's title: the colour at the lightness of the
