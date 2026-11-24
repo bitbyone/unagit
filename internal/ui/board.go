@@ -987,7 +987,7 @@ func (v *boardView) addLink(t board.Task, l board.Link) {
 
 // pickColour gives a card a colour, or takes it away.
 func (v *boardView) pickColour(t board.Task) {
-	items := []pickItem{{Label: "none", Sub: "the state's frame", Data: ""}}
+	items := []pickItem{{Label: "none", Sub: "the plain card", Data: ""}}
 	start := 0
 	for i, c := range board.Colours {
 		swatch := tag(role("board.card."+c)) + "████" + tagEnd
