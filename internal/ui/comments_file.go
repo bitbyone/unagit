@@ -34,6 +34,9 @@ type bandView struct {
 	band func() (bandArea, bool)
 	// rows are its rows as the mouse finds them.
 	rows func() *rowsUnder
+	// before runs as it is drawn, before the text: where it may scroll to
+	// what has to be in view, its height known by then.
+	before func()
 }
 
 func (v *bandView) mouseRows() *rowsUnder {
@@ -110,6 +113,9 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 }
 
 func (v *bandView) Draw(screen tcell.Screen) {
+	if v.before != nil {
+		v.before()
+	}
 	v.TextView.Draw(screen)
 	if area, ok := v.band(); ok {
 		paintBand(screen, v.TextView, area)
@@ -128,6 +134,10 @@ type fileView struct {
 	markFrom, markTo int
 	// at is where the cursor is: a line, and a comment under it or 0.
 	atLine, atNote int
+	// centred keeps what the file was opened on in the middle of the view
+	// until the cursor moves: the view's height is not known before it is
+	// drawn, and the first draws lay the file out again at their width.
+	centred bool
 	items          []fileItem
 	view           *tview.TextView
 	band           *bandView
@@ -246,7 +256,7 @@ func (fv *fileView) show() {
 			return fv.items[i].band, true
 		}
 		return bandArea{}, false
-	}}
+	}, before: fv.centre}
 	// A click puts the cursor on a line or a comment, a double click is
 	// Enter, the wheel moves it as j and k do.
 	fv.band.rows = func() *rowsUnder {
@@ -304,10 +314,25 @@ func (fv *fileView) show() {
 		return min(w*90/100, fileWidth), h * 85 / 100
 	}), true, true)
 	a.tv.SetFocus(fv.band)
+	fv.centred = true
 	fv.draw()
-	if i := fv.cursor(); i >= 0 {
-		fv.view.ScrollTo(max(0, fv.items[i].from-codeBefore-2), 0)
+}
+
+// centre scrolls what the file was opened on - a comment, a line - to the
+// middle of the view, the code round it above and below; near the top of
+// the file it stays at the top. One taller than the view shows from its
+// start.
+func (fv *fileView) centre() {
+	if !fv.centred {
+		return
 	}
+	i := fv.cursor()
+	_, _, _, height := fv.view.GetInnerRect()
+	if i < 0 || height <= 0 {
+		return
+	}
+	it := fv.items[i]
+	fv.view.ScrollTo(max(0, min(it.from, it.from-(height-(it.to-it.from+1))/2)), 0)
 }
 
 func (fv *fileView) close() {
@@ -458,6 +483,7 @@ func (fv *fileView) move(i int) {
 	}
 	it := fv.items[max(0, min(i, len(fv.items)-1))]
 	fv.atLine, fv.atNote = it.line, it.note.ID
+	fv.centred = false
 	// What is drawn stays; the band follows the cursor.
 	fv.reveal()
 }

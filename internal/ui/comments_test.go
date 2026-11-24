@@ -376,6 +376,7 @@ func limitAt(ref string) (string, bool) {
 	return strings.Join(lines, "\n") + "\n", true
 }
 
+
 func (f *codeForge) MergeRequestNotes(ctx context.Context, mr forge.MergeRequest, limit int) ([]forge.Note, error) {
 	notes, err := f.Provider.MergeRequestNotes(ctx, mr, limit)
 	return append(notes,
@@ -1019,5 +1020,36 @@ func TestAFileScrollsARowAtATime(t *testing.T) {
 	}
 	if !scrolled {
 		t.Fatal("the file never scrolled: the view is too tall for the test")
+	}
+}
+
+// TestAFileOpensWithItsCommentInTheMiddle: the file opened on a comment has
+// it in the middle of the view, the code above it in sight, until the
+// cursor moves.
+func TestAFileOpensWithItsCommentInTheMiddle(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := openCodeConversation(t, 180, 50)
+	typeRunes(sc, "Gk")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "Which version of limit.go")
+	sc.InjectKey(tcell.KeyEnter, 0, tcell.ModNone)
+	waitFor(t, a, sc, "limit.go · h1")
+	resizeApp(a, sc, 180, 25)
+	type at struct{ top, height, from, to int }
+	where := func() at {
+		return onLoop(a, func() at {
+			v := a.tv.GetFocus().(*bandView)
+			top, _ := v.GetScrollOffset()
+			_, _, _, h := v.GetInnerRect()
+			band, _ := v.band()
+			return at{top, h, band.from, band.to}
+		})
+	}
+	now := where()
+	if now.from == now.to {
+		t.Fatalf("the cursor is on a line, not on the comment: rows %d-%d", now.from, now.to)
+	}
+	if want := now.from - (now.height-(now.to-now.from+1))/2; want <= 0 || now.top != want {
+		t.Fatalf("the comment at rows %d-%d is shown from row %d of a view %d high, want %d", now.from, now.to, now.top, now.height, want)
 	}
 }
