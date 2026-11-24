@@ -66,6 +66,16 @@ type boardView struct {
 	// cards laid out, by all that makes them.
 	hits []boardHit
 	laid map[laidKey]string
+	// drag is the card the mouse carries, while it does.
+	drag *boardDrag
+}
+
+// boardDrag is a card taken by the mouse: where it was taken, and where it
+// is now. It is carried once the pointer leaves the cell it was taken in.
+type boardDrag struct {
+	id           string
+	x0, y0, x, y int
+	moving       bool
 }
 
 // boardHit is a card on screen.
@@ -240,7 +250,7 @@ func (c *boardCanvas) Draw(screen tcell.Screen) {
 	c.Box.DrawForSubclass(screen, c)
 	v := c.v
 	x, y, w, h := c.GetInnerRect()
-	v.hits = v.hits[:0]
+	v.hits, v.areas = v.hits[:0], [4]struct{ x, y, w, h int }{}
 	if v.problem != "" {
 		tview.Print(screen, tag(colBad)+esc(v.problem)+tagEnd, x+1, y+h/2, w-2, tview.AlignCenter, colBad)
 		return
@@ -267,6 +277,53 @@ func (c *boardCanvas) Draw(screen tcell.Screen) {
 			}
 		}
 	}
+	// Where a card carried by the mouse would go: a line between cards.
+	if d := v.drag; d != nil && d.moving {
+		if col, _, row, ok := v.dropAt(d.x, d.y); ok {
+			r := v.areas[col]
+			for cx := r.x + 1; cx < r.x+r.w-1; cx++ {
+				screen.SetContent(cx, row, tview.BoxDrawingsHeavyHorizontal, nil, baseStyle().Foreground(colAccent))
+			}
+		}
+	}
+}
+
+// dropAt is where a card carried to x, y would go: the column, its place
+// among the column's other cards, and the row to mark it on. History takes
+// nothing; the place is read from the cards as they were last drawn.
+func (v *boardView) dropAt(x, y int) (col, at, row int, ok bool) {
+	if v.history || v.drag == nil {
+		return 0, 0, 0, false
+	}
+	col = -1
+	for c := range 3 {
+		if r := v.areas[c]; r.w > 0 && x >= r.x && x < r.x+r.w {
+			col = c
+		}
+	}
+	if col < 0 {
+		return 0, 0, 0, false
+	}
+	r := v.areas[col]
+	// The cards above the first drawn come first, but for the one carried.
+	tasks := v.list(col)
+	at = v.top[col]
+	for i := 0; i < at && i < len(tasks); i++ {
+		if tasks[i].ID == v.drag.id {
+			at--
+		}
+	}
+	row = r.y + 1
+	for _, h := range v.hits {
+		if h.col != col || tasks[h.i].ID == v.drag.id {
+			continue
+		}
+		if y < h.y+h.h/2 {
+			return col, at, max(r.y+1, h.y-1), true
+		}
+		at, row = at+1, min(h.y+h.h, r.y+r.h-2)
+	}
+	return col, at, row, true
 }
 
 // drawColumn draws a column's frame, its name and count on it, and as many
@@ -524,11 +581,32 @@ func (v *boardView) startFilter() {
 }
 
 // MouseHandler chooses the card clicked; a double click opens it, the
-// right button lists what can be done with it, the wheel moves the cursor.
+// right button lists what can be done with it, the wheel moves the cursor,
+// and a card dragged goes where it is dropped.
 func (c *boardCanvas) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
 	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
 		v := c.v
 		x, y := ev.Position()
+		// A card carried follows the pointer even off the board.
+		if d := v.drag; d != nil {
+			switch action {
+			case tview.MouseMove:
+				d.x, d.y = x, y
+				d.moving = d.moving || x != d.x0 || y != d.y0
+				return true, c
+			case tview.MouseLeftUp:
+				col, at, _, ok := v.dropAt(x, y)
+				v.drag = nil
+				if d.moving && ok {
+					for _, t := range v.tasks {
+						if t.ID == d.id {
+							v.place(t, col, at)
+						}
+					}
+				}
+				return true, nil
+			}
+		}
 		if !c.InRect(x, y) {
 			return false, nil
 		}
@@ -568,6 +646,12 @@ func (c *boardCanvas) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, 
 				if title, acts := v.selection(); acts != nil {
 					v.app.showActions(title, acts)
 				}
+				return true, nil
+			}
+			// The button held, the card goes where the pointer takes it.
+			if h.col != boardHistory {
+				v.drag = &boardDrag{id: v.list(h.col)[h.i].ID, x0: x, y0: y, x: x, y: y}
+				return true, c
 			}
 			return true, nil
 		case tview.MouseLeftDoubleClick:
@@ -698,29 +782,42 @@ func (v *boardView) setState(t board.Task, state string) {
 
 // reorder moves a task one place up or down its column.
 func (v *boardView) reorder(t board.Task, by int) {
-	tasks := v.list(v.col)
-	i := slices.IndexFunc(tasks, func(o board.Task) bool { return o.ID == t.ID })
-	j := i + by
-	if i < 0 || j < 0 || j >= len(tasks) {
+	i := slices.IndexFunc(v.list(v.col), func(o board.Task) bool { return o.ID == t.ID })
+	if i < 0 || i+by < 0 || i+by >= len(v.list(v.col)) {
 		return
 	}
+	v.place(t, v.col, i+by)
+}
+
+// place puts a task in a column at a place among the column's other
+// cards, ranked between its neighbours there; to another column, it is
+// moved there as H and L move it.
+func (v *boardView) place(t board.Task, col, at int) {
+	var others []board.Task
+	for _, o := range v.list(col) {
+		if o.ID != t.ID {
+			others = append(others, o)
+		}
+	}
+	at = max(0, min(at, len(others)))
 	var lo, hi string
-	if by < 0 {
-		hi = tasks[j].Rank
-		if j > 0 {
-			lo = tasks[j-1].Rank
-		}
-	} else {
-		lo = tasks[j].Rank
-		if j+1 < len(tasks) {
-			hi = tasks[j+1].Rank
-		}
+	if at > 0 {
+		lo = others[at-1].Rank
+	}
+	if at < len(others) {
+		hi = others[at].Rank
 	}
 	if hi != "" && lo >= hi {
 		hi = ""
 	}
-	rank := board.Between(lo, hi)
-	v.change(t, func(m *board.Task) { m.Rank = rank })
+	rank, state := board.Between(lo, hi), board.States[col]
+	v.change(t, func(m *board.Task) {
+		m.SetState(state, time.Now())
+		m.Rank = rank
+	})
+	if state != t.State {
+		v.app.done(board.StateName(state) + ": " + t.Title)
+	}
 }
 
 // editTask writes a new task into a state's column (t nil), or changes

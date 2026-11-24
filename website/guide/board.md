@@ -21,8 +21,8 @@ you are doing, where you left it, and what you found on the way.
 | `h` `l`, `j` `k` | from column to column, from card to card |
 | `n` | a new task in the column the cursor is in, at its top |
 | `Enter` | the task in full |
-| `H` `L` | move the card to the column before or after |
-| `K` `J` | move it up or down its column: the order is what comes first |
+| `H` `L` (Shift `h` `l`) | move the card to the column before or after |
+| `K` `J` (Shift `k` `j`) | move it up or down its column: the order is what comes first |
 | `x` | done; in History, open it again |
 | `c` | comment on it |
 | `e` | edit its title and description (Markdown) |
@@ -35,7 +35,9 @@ you are doing, where you left it, and what you found on the way.
 A colour makes a card stand out - red for what must not wait - and means
 nothing else: nothing is sorted or filtered by it. The mouse does what the
 keys do: a click chooses a card, a double click opens it, the right button
-lists what can be done with it, and the wheel moves the cursor.
+lists what can be done with it, and the wheel moves the cursor. A card
+dragged goes where it is dropped: up or down its column, or to another
+column at the line shown between the cards there.
 
 ## A task
 

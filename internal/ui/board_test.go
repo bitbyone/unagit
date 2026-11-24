@@ -131,4 +131,16 @@ func TestTheBoardKeepsTasksAsTheyAreWorkedOn(t *testing.T) {
 	if !slices.Equal(titles, []string{"Ship it", "Write the plan", "From elsewhere"}) {
 		t.Errorf("the board's order: %v", titles)
 	}
+
+	// The mouse carries a card to another column, above the card there.
+	fx, fy := at(t, a, sc, "Write the plan")
+	tx, ty := at(t, a, sc, "From elsewhere")
+	press(sc, fx, fy, tcell.ButtonPrimary, tcell.ModNone)
+	press(sc, fx+2, fy, tcell.ButtonPrimary, tcell.ModNone)
+	press(sc, tx, ty-1, tcell.ButtonPrimary, tcell.ModNone)
+	release(sc, tx, ty-1, tcell.ModNone)
+	waitTrue(t, "Write the plan carried to in progress", func() bool { return find("Write the plan").State == board.Doing })
+	if w, f := find("Write the plan"), find("From elsewhere"); w.Rank >= f.Rank {
+		t.Errorf("the card carried went below the one it was put above: %q >= %q", w.Rank, f.Rank)
+	}
 }
