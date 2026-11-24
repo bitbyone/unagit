@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/rivo/tview"
 )
 
 const sampleDiff = `diff --git a/x.go b/x.go
@@ -59,6 +61,21 @@ func TestOnFillKeepsInkAndTakesTheFill(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("%q lacks %q", got, want)
 		}
+	}
+}
+
+// TestOnFillLeavesTheCodesOwnBracketsAlone: `[AUDIT_LOG_EVENTS]` in a
+// changed Kotlin line is no colour, so tview draws it as it is; the fill
+// must not be written into it, or it shows as `[AUDIT_LOG_EVENTS:#3B3E2E]`.
+func TestOnFillLeavesTheCodesOwnBracketsAlone(t *testing.T) {
+	t.Parallel()
+	line := "@EmbeddedKafka(topics = [AUDIT_LOG_EVENTS])"
+	got := onFill(highlight(lexerFor("x.kt"), []string{line})[0], colText)
+	if w := tview.TaggedStringWidth(got); w != len(line) {
+		t.Errorf("%q is %d cells wide, the line %d", got, w, len(line))
+	}
+	if !strings.Contains(got, "[AUDIT_LOG_EVENTS") {
+		t.Errorf("%q lost the code's bracket", got)
 	}
 }
 

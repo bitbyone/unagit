@@ -240,13 +240,24 @@ func onFill(markup string, fill tcell.Color) string {
 	return b.String()
 }
 
-// isColourTag tells a colour tag ("#aabbcc", "red", "-") from an escaped
-// bracket ("[[]" leaves "["), which has none of a tag's shape.
+// isColourTag tells a colour tag ("#aabbcc", "red", "-", ":#aabbcc") from
+// brackets of the code itself: an escaped one ("[[]" leaves "["), or one
+// that is no colour at all - `[AUDIT_LOG_EVENTS]` in Kotlin - which tview
+// draws as it is and so must keep as it is, not take a fill into.
 func isColourTag(inner string) bool {
 	if inner == "" || strings.HasSuffix(inner, "[") {
 		return false
 	}
-	return !strings.ContainsAny(inner, " \"'")
+	fg := strings.SplitN(inner, ":", 2)[0]
+	switch {
+	case fg == "" || fg == "-":
+		return true
+	case strings.HasPrefix(fg, "#"):
+		_, err := strconv.ParseUint(fg[1:], 16, 32)
+		return err == nil && (len(fg) == 7 || len(fg) == 4)
+	}
+	_, named := tcell.ColorNames[strings.ToLower(fg)]
+	return named
 }
 
 // lexerCache holds a lexer per file name's extension: finding one walks
