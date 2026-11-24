@@ -143,4 +143,22 @@ func TestTheBoardKeepsTasksAsTheyAreWorkedOn(t *testing.T) {
 	if w, f := find("Write the plan"), find("From elsewhere"); w.Rank >= f.Rank {
 		t.Errorf("the card carried went below the one it was put above: %q >= %q", w.Rank, f.Rank)
 	}
+
+	// A click in a dialog over the board goes to the dialog's field: the
+	// board under it takes neither the click nor the keys after it.
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New Task · Task Board")
+	typeRunes(sc, "Clicked")
+	dx, dy := at(t, a, sc, "Description")
+	click(sc, dx+20, dy+2, tcell.ModNone)
+	typeRunes(sc, "by the mouse")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitTrue(t, "the description typed after a click", func() bool {
+		for _, task := range tasks() {
+			if task.Title == "Clicked" {
+				return task.Body == "by the mouse"
+			}
+		}
+		return false
+	})
 }

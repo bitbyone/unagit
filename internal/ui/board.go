@@ -627,6 +627,11 @@ func (v *boardView) startFilter() {
 // and a card dragged goes where it is dropped.
 func (c *boardCanvas) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, func(tview.Primitive)) (bool, tview.Primitive) {
 	return func(action tview.MouseAction, ev *tcell.EventMouse, setFocus func(tview.Primitive)) (bool, tview.Primitive) {
+		// What unagit answered itself tview walks the widgets with
+		// still: the board is under a dialog then, and takes nothing.
+		if action == mouseHandled {
+			return false, nil
+		}
 		v := c.v
 		x, y := ev.Position()
 		// A card carried follows the pointer even off the board.
@@ -874,8 +879,7 @@ func (v *boardView) editTask(t *board.Task, state string, then func()) {
 	styleForm(form)
 	form.AddInputField("Title", title, 0, nil, nil)
 	area := addTextArea(form, "Description", body, 9)
-	setPlaceholder(area, "What it is, what done means…")
-	form.AddTextView("", "Markdown is understood. Ctrl-S saves, Esc closes without saving.", 0, 1, true, false)
+	setPlaceholder(area, "What it is, what done means… (Markdown)")
 	save := func() {
 		name := strings.TrimSpace(form.GetFormItemByLabel("Title").(*tview.InputField).GetText())
 		text := strings.TrimSpace(area.GetText())
@@ -919,7 +923,7 @@ func (v *boardView) editTask(t *board.Task, state string, then func()) {
 		}
 		return ev
 	})
-	a.showFormModal(heading, form, 16)
+	a.showFormModal(heading, form, 15)
 }
 
 // openLink opens the task's link, or lists them to choose one.
