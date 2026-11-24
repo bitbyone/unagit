@@ -15,7 +15,8 @@ The place the user comes to first, and goes on from.
 It is not a task manager. Other tools do that well, and unagit must not
 copy them: no due dates, no priorities, no labels of its own, no subtasks,
 no people assigned, no estimates. A card is a title, a description, a
-state, a colour if the user wants one, and links. What makes it worth having is what the links do, and
+state, a colour if the user wants one, links, and the user's own
+comments on it. What makes it worth having is what the links do, and
 that only unagit can do.
 
 ## Decisions
@@ -47,6 +48,11 @@ that only unagit can do.
   priority, no sorting by it, no filter, no rule. A handful of the
   theme's colours (red, orange, yellow, green, blue, purple) or none, the
   default. The order in a column stays what says what comes first.
+- **A task has comments, the user's own.** Notes as the work goes on -
+  what was tried, what is left, what someone said. They are the
+  conversation of a merge request, reused: the same cards, the same
+  dialog, the same keys. Flat, no threads: they are notes to oneself, not
+  a discussion.
 - **Links are to what unagit knows**: a repository, a merge request, a
   branch, a worktree (a grouped one too), a sandbox, a sandbox's task, and
   a URL for anything else. No issues for now; a merge request linked shows
@@ -100,8 +106,11 @@ that only unagit can do.
   not per card.
 - **The detail is a dialog**, as the conversation of a merge request is:
   the title, the description rendered from markdown, the links each with
-  its actions, and the task's history (created, moved, links added and
-  gone). Read with a cursor, selected and copied as a comment is.
+  its actions, then below them the task's comments and its story,
+  together, oldest first (below). Read with a cursor, selected and copied
+  as a comment is.
+- **A comment count on the card**, as an icon with the number, in both
+  zooms; the full zoom shows the newest comment's first line too.
 - **Narrow terminals**: below three columns' width, one column at a time,
   `h` and `l` changing it, its name and the others' counts in the header.
 - **Empty**: a space with no task says how to make one and how "Add to
@@ -123,7 +132,8 @@ against `keymap` and the help when built:
 | `Enter` | the task's detail |
 | `o` | carry on (below) |
 | `e` | edit the title and the description |
-| `c` | the card's colour: a picker of the colours and none |
+| `c` | comment: the task's comments, a new one written at once (below) |
+| `#` | the card's colour: a picker of the colours and none |
 | `w` | open the link in the browser; a picker when there are several |
 | `i` | link something to the task (`Link…`) |
 | `x` | done (to DONE); in History, open again |
@@ -138,6 +148,28 @@ against `keymap` and the help when built:
 The mouse does what the keys do, as everywhere: a click chooses, a double
 click is `Enter`, the right button lists the actions, a drag of a card to
 another column moves it there.
+
+### Comments
+
+The task's comments are the merge request conversation's machinery
+(`ui/comments_dialog.go`, `ui/bubble.go`), fed from the task instead of a
+forge:
+
+- `c` on a card opens the detail at its comments with a new comment being
+  written - what `c` does on a merge request. `Enter` and then the
+  comments are the way to read them without writing.
+- Each comment is a card with its time on the frame, its body markdown.
+  The author is the user and is not drawn: every comment is theirs.
+- The keys are the conversation's: `j` `k` a comment at a time, `c` a new
+  one, `e` edit, `d` delete after asking, `v` a cursor in a long one, `y`
+  and `Y` copy; a long comment is clipped and read through as there.
+- **The story between them.** The task's events - moved to IN PROGRESS,
+  a merge request linked, a worktree gone, its merge request merged -
+  stand between the comments as quiet one-line notes, as GitLab's system
+  notes do in a merge request, so the comments read in the order things
+  happened. `h` hides the notes, as it hides the code in a conversation.
+- Nothing is published anywhere: a task's comment stays in the task. (A
+  comment meant for a merge request is written on the merge request.)
 
 ### Carry on
 
@@ -207,6 +239,15 @@ type LinkState struct {
   its sandbox. Nothing is done without the dialog, and the dialog can be
   turned off. The other way round, a merge request linked being merged
   marks its card ("merged - done?"), never moves it.
+
+```go
+type Comment struct {
+	ID      string
+	Body    string // markdown
+	Written time.Time
+	Edited  time.Time // zero unless edited
+}
+```
 
 ## Spaces
 
@@ -280,8 +321,9 @@ type Task struct {
 	Created time.Time
 	Moved   time.Time // into its state
 	Done    time.Time // zero unless done
-	Links   []Link
-	Story   []Event   // created, moved, linked, link gone, edited
+	Links    []Link
+	Comments []Comment
+	Story    []Event  // created, moved, linked, link gone, edited
 }
 ```
 
@@ -292,6 +334,9 @@ type Task struct {
 - **`ui/board*.go`** (new): the screen, the cards, the detail dialog, the
   spaces picker, carry on.
 - **`ui/bubble.go`**: cards, as they are; a compact form may need a flag.
+- **`ui/comments_dialog.go`**: the conversation, made to take its
+  comments and notes from a task as well as from a forge - a source
+  behind an interface, not a copy of the dialog.
 - **Actions of the lists** (`ui/actions_lists.go`, `wtmodal.go`,
   `sandboxes_actions.go`): "Add to Task…".
 - **`internal/session`**: read to find the editors and agents of a task.
@@ -309,7 +354,7 @@ type Task struct {
 ## Phases
 
 1. **The board.** Spaces, tasks, the three columns, moving, the two zooms,
-   the detail dialog, card colours, URL links with `w`, done going to History after the
+   the detail dialog, comments, card colours, URL links with `w`, done going to History after the
    time set, History. Start on in Settings. Usable alone: a scratchpad of
    what is being done, per space.
 2. **Links to what unagit knows**, alive: repositories, merge requests
@@ -372,7 +417,9 @@ unagit sees of them: commits in its worktree, the merge request's
 pipeline, approvals, merged. That much needs no AI - it is the Activity
 log, kept per task.
 
-What an agent could add is the summary: "Monday: started the branch,
+The user's comments are part of it, and the best part: what was tried
+and why is in them, not in the events. What an agent could add is the
+summary: "Monday: started the branch,
 pipeline failed on lint; Tuesday: review from Jane, two threads, fixed;
 merged Wednesday." Written on demand (a key in the detail), or when the
 task goes to DONE, from the story's events, by the same headless call.
