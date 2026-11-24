@@ -27,6 +27,8 @@ import (
 const (
 	// watchFullEvery is the longest a watch goes without a full read.
 	watchFullEvery = 5 * time.Minute
+	// watchFullNoneEvery is how often one without a pipeline is.
+	watchFullNoneEvery = time.Minute
 	// printsOffFor is how long a server whose fingerprints failed is read
 	// in full only.
 	printsOffFor = 10 * time.Minute
@@ -87,8 +89,15 @@ func (f *watchFollower) read(ws []watch.Watch, due map[string]bool) []watchReadi
 			if prints != nil {
 				print = prints[n]
 			}
+			// A watch with no pipeline yet is read through more often: a
+			// GitHub run waiting its turn leaves the fingerprint as it was
+			// until it starts.
+			every := watchFullEvery
+			if before.Status == "" {
+				every = watchFullNoneEvery
+			}
 			if print != "" && print == before.Print && before.Error == "" && !due[w.Key()] &&
-				time.Since(before.Full) < watchFullEvery {
+				time.Since(before.Full) < every {
 				out[i] = watchReading{state: before, same: true}
 				continue
 			}

@@ -1126,7 +1126,18 @@ func (c *Client) branchRuns(ctx context.Context, path, branch string) (*forge.Pi
 	if sha == "" {
 		return nil, nil, nil
 	}
-	return c.checkRuns(ctx, path, sha, branch)
+	pipe, jobs, err = c.checkRuns(ctx, path, sha, branch)
+	if err != nil || pipe != nil {
+		return pipe, jobs, err
+	}
+	// A run waiting its turn - behind another of its concurrency group -
+	// has no check runs yet, nor its commit any status: the branch said it
+	// had no pipeline while its tests were about to start.
+	if state := c.unfinishedRun(ctx, path, sha); state != "" {
+		return &forge.Pipeline{Status: state, SHA: sha, Ref: branch,
+			WebURL: WebBase + "/" + path + "/commit/" + sha + "/checks"}, nil, nil
+	}
+	return nil, nil, nil
 }
 
 // latestRunSHA is the commit the newest workflow run of a branch ran for,
