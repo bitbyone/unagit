@@ -15,7 +15,7 @@ The place the user comes to first, and goes on from.
 It is not a task manager. Other tools do that well, and unagit must not
 copy them: no due dates, no priorities, no labels of its own, no subtasks,
 no people assigned, no estimates. A card is a title, a description, a
-state and links. What makes it worth having is what the links do, and
+state, a colour if the user wants one, and links. What makes it worth having is what the links do, and
 that only unagit can do.
 
 ## Decisions
@@ -42,6 +42,11 @@ that only unagit can do.
   what became of it and when ("worktree removed · 3d ago"). Only the user
   removes a link. The card is a record of what the work was, as well as a
   way back into it.
+- **A card can have a colour**, the user's way of making it stand out -
+  red for what must not wait, say. It means nothing to unagit: no
+  priority, no sorting by it, no filter, no rule. A handful of the
+  theme's colours (red, orange, yellow, green, blue, purple) or none, the
+  default. The order in a column stays what says what comes first.
 - **Links are to what unagit knows**: a repository, a merge request, a
   branch, a worktree (a grouped one too), a sandbox, a sandbox's task, and
   a URL for anything else. No issues for now; a merge request linked shows
@@ -79,10 +84,14 @@ that only unagit can do.
 
 - **Cards are the cards unagit has**: the comments' bubbles
   (`ui/bubble.go`), the title on the frame, the body filled with the card
-  background. The frame takes the state's colour from the theme (new
-  roles, `board.todo`, `board.doing`, `board.done`), the selected card is
-  framed as a focused box is, and the column with the cursor is lit as a
-  focused panel.
+  background. The frame takes the card's colour when it has one, else
+  the state's (new roles, `board.todo`, `board.doing`, `board.done`) -
+  the column already says the state, so the frame is free for the
+  colour. The title on the frame takes it too, and the fill a faint tint
+  of it, so a red card is seen from across the board in both zooms. The
+  selected card is framed as a focused box is, and the column with the
+  cursor is lit as a focused panel. A card in DONE keeps its colour,
+  quieter.
 - **Two zooms.** *Compact*: the title and one row of the links as icons
   with their state's colour - `⎇` a worktree, `!42` a merge request,
   `●` its pipeline, `✎` an editor open, `⚙` an agent at work, `↗` a URL.
@@ -114,6 +123,7 @@ against `keymap` and the help when built:
 | `Enter` | the task's detail |
 | `o` | carry on (below) |
 | `e` | edit the title and the description |
+| `c` | the card's colour: a picker of the colours and none |
 | `w` | open the link in the browser; a picker when there are several |
 | `i` | link something to the task (`Link…`) |
 | `x` | done (to DONE); in History, open again |
@@ -266,6 +276,7 @@ type Task struct {
 	Body    string // markdown
 	State   string // todo, doing, done
 	Rank    string // its place in the column
+	Colour  string // "", or one of the card colours: red, orange, yellow, green, blue, purple
 	Created time.Time
 	Moved   time.Time // into its state
 	Done    time.Time // zero unless done
@@ -287,8 +298,10 @@ type Task struct {
 - **`internal/watch`**: its keys, and its news shown on cards.
 - **Settings › General**: Start on. **Settings › Board** (new section):
   hide done after, tidy up on done, move to IN PROGRESS on carry on.
-- **Themes**: the new roles, in every shipped theme and the theme
-  reference.
+- **Themes**: the new roles - the three states, and the card colours
+  (`board.card.red` and the rest, each a frame and a tint) - in every
+  shipped theme and the theme reference, so a red card is the theme's
+  red and readable on its background.
 - **Help, keymap, `keybinds.toml`**: the Board's scope and keys.
 - **Website**: a guide page (`guide/board.md`), Settings, Keys, the
   changelog.
@@ -296,7 +309,7 @@ type Task struct {
 ## Phases
 
 1. **The board.** Spaces, tasks, the three columns, moving, the two zooms,
-   the detail dialog, URL links with `w`, done going to History after the
+   the detail dialog, card colours, URL links with `w`, done going to History after the
    time set, History. Start on in Settings. Usable alone: a scratchpad of
    what is being done, per space.
 2. **Links to what unagit knows**, alive: repositories, merge requests
