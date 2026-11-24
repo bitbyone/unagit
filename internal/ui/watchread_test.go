@@ -47,6 +47,29 @@ func TestAWatchIsReadInFullOnlyWhenItsFingerprintMoves(t *testing.T) {
 	_ = a
 }
 
+// TestAStartReadsEveryWatchThrough: what the last unagit wrote may be from
+// before a run began, the fingerprint the same; a new start reads every
+// watch in full at once rather than trusting it for minutes.
+func TestAStartReadsEveryWatchThrough(t *testing.T) {
+	t.Parallel()
+	srv := newWatchServer(t)
+	srv.mu.Lock()
+	srv.print = "p1"
+	srv.mu.Unlock()
+	cfg := writeTestConfig(t, srv.URL)
+	w := watchMR7(t, cfg)
+	var notified atomic.Int64
+	a, _, stopped := watchApp(t, cfg, &notified)
+	waitState(t, cfg, w.Key(), "running")
+	a.tv.Stop()
+	<-stopped
+	srv.mu.Lock()
+	srv.status = "failed"
+	srv.mu.Unlock()
+	_, _, _ = watchApp(t, cfg, &notified)
+	waitState(t, cfg, w.Key(), "failed")
+}
+
 // TestAMergeRequestsActivityIsNews: new comments, a new approval and new
 // commits are each news, as the pipeline's changes are.
 func TestAMergeRequestsActivityIsNews(t *testing.T) {

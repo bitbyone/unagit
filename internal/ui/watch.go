@@ -59,6 +59,9 @@ func (a *App) startWatching() {
 		stop = make(chan struct{})
 	}
 	a.followDone = make(chan struct{})
+	// Every watch read through once on a start, whatever its fingerprint
+	// says: what the last poller wrote may be from before a run began.
+	a.watchAsk(nil)
 	go func() {
 		defer close(a.followDone)
 		a.followWatches(stop)
