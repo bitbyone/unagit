@@ -45,6 +45,17 @@ type quietScreen struct {
 	// went blank for a frame at every key held down. The cleared cells
 	// are not shown; the next frame draws them all again.
 	held bool
+	// shown is what the terminal has, cell by cell, as last shown; nil
+	// when that is not known (at the start, after a resize, an editor or a
+	// Sync), and the next frame is sent whole.
+	shown []shownCell
+}
+
+// shownCell is one cell as the terminal was sent it.
+type shownCell struct {
+	str   string
+	style tcell.Style
+	width int
 }
 
 // Init asks the terminal to report focus; most do (iTerm2, Ghostty, kitty,
@@ -95,6 +106,8 @@ func (s *quietScreen) Suspend() error {
 func (s *quietScreen) Resume() error {
 	err := s.Screen.Resume()
 	s.suspended.Store(false)
+	// The editor drew over everything.
+	s.shown = nil
 	return err
 }
 
@@ -106,13 +119,66 @@ func (s *quietScreen) Show() {
 		return
 	}
 	if !s.suspended.Load() {
+		locked := s.lockUnchanged()
 		s.Screen.Show()
+		if locked {
+			w, h := s.Screen.Size()
+			s.Screen.LockRegion(0, 0, w, h, false)
+		}
 	}
+}
+
+// lockUnchanged locks the cells that are what the terminal already has, so
+// that Show sends only the rest; it says whether it locked any.
+//
+// tview clears the screen before every frame and draws it all again, and
+// tcell marks a cell changed whenever what is put in it differs from what
+// it held a moment before - a blank, after the clear - not from what the
+// terminal shows. So every frame went out whole: a step of the cursor in a
+// file sent the terminal some 50 kB, and keys held down queued up behind
+// the writes. What the terminal has is kept here instead, and a frame now
+// sends the cells that changed.
+func (s *quietScreen) lockUnchanged() bool {
+	w, h := s.Screen.Size()
+	if len(s.shown) != w*h {
+		s.shown = make([]shownCell, w*h)
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				str, style, width := s.Screen.Get(x, y)
+				s.shown[y*w+x] = shownCell{str, style, width}
+			}
+		}
+		return false
+	}
+	locked := false
+	for y := 0; y < h; y++ {
+		from := -1
+		for x := 0; x <= w; x++ {
+			same := false
+			if x < w {
+				str, style, width := s.Screen.Get(x, y)
+				now := shownCell{str, style, width}
+				if same = s.shown[y*w+x] == now; !same {
+					s.shown[y*w+x] = now
+				}
+			}
+			switch {
+			case same && from < 0:
+				from = x
+			case !same && from >= 0:
+				s.Screen.LockRegion(from, y, x-from, 1, true)
+				locked, from = true, -1
+			}
+		}
+	}
+	return locked
 }
 
 func (s *quietScreen) Sync() {
 	if !s.suspended.Load() {
 		s.Screen.Sync()
+		// Sync sent every cell; the next frame starts from what it sent.
+		s.shown = nil
 	}
 }
 
