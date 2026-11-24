@@ -523,7 +523,7 @@ func boardInk(colour string) tcell.Color {
 }
 
 // full is whether the cards are drawn in full.
-func (v *boardView) full() bool { return v.app.cfg.State.BoardFull }
+func (v *boardView) full() bool { return !v.app.cfg.State.BoardCompact }
 
 // boardGlyph marks a card by its state.
 func boardGlyph(state string) string {
@@ -774,7 +774,7 @@ func (v *boardView) screenActions() []uiAction {
 			run: func() { v.cycleSpace(-1) }},
 		{name: "Toggle Card Size", about: "The cards compact - the title and counts - or in full: the description, the links and the latest comment.", keys: "v", rank: 30,
 			run: func() {
-				a.cfg.State.BoardFull = !a.cfg.State.BoardFull
+				a.cfg.State.BoardCompact = !a.cfg.State.BoardCompact
 				a.saveState()
 			}},
 		{name: "Toggle History", about: "Every task done, the newest first, or the board again.", keys: "y", rank: 32, run: v.toggleHistory},

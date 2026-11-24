@@ -462,7 +462,7 @@ func helpRows() []helpLine {
 		key("c  e", "comment on it · edit its title and description"),
 		key("i  w", "link a URL · open its link in the browser"),
 		key("#", "give the card a colour to make it stand out"),
-		key("v", "the cards compact or in full"),
+		key("v", "the cards in full or compact"),
 		key("y", "History: every task done, the newest first"),
 		key("p  [  ]", "spaces: switch, new, rename, delete · the next"),
 		key("d", "delete the task, after asking"),

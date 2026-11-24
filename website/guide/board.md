@@ -29,7 +29,7 @@ you are doing, where you left it, and what you found on the way.
 | `i`, `w` | link a URL · open the link in the browser, a list when there are several |
 | `#` | give the card a colour, or take it away |
 | `d` | delete the task, after asking |
-| `v` | the cards compact - the title, and how many comments and links - or in full: the description, the links and the latest comment |
+| `v` | the cards in full - the description, the links and the latest comment, as they are at first - or compact: the title, and how many comments and links |
 | `/` | find a card by its title, description, links or comments |
 
 A colour makes a card stand out - red for what must not wait - and means
