@@ -15,6 +15,7 @@ func TestCardsAreStepsOffThePage(t *testing.T) {
 	restoreDefaultTheme(t)
 	chroma := func(c tcell.Color) float64 { l := toOklab(c); return math.Hypot(l.a, l.b) }
 	light := func(c tcell.Color) float64 { return toOklab(c).l }
+	hue := func(c tcell.Color) float64 { l := toOklab(c); return math.Atan2(l.b, l.a) * 180 / math.Pi }
 	red := tcell.NewRGBColor(220, 60, 60)
 	for _, page := range []tcell.Color{tcell.NewRGBColor(0x28, 0x25, 0x27), tcell.NewRGBColor(0xf6, 0xf4, 0xef)} {
 		colCard = cardBackground(page)
@@ -30,15 +31,16 @@ func TestCardsAreStepsOffThePage(t *testing.T) {
 			t.Errorf("%v: the card chosen is not darker: %v %v, unchosen %v %v", page, cfill, cframe, fill, frame)
 		}
 		tfill, tframe := cardColours(tcell.ColorDefault, red, false)
-		if math.Abs(light(tfill)-light(fill)) > 0.01 || chroma(tfill) > cardTint+0.005 || chroma(tfill) <= chroma(fill) {
+		if math.Abs(light(tfill)-light(fill)) > 0.01 || chroma(tfill) > cardTint+0.003 || math.Abs(hue(tfill)-hue(red)) > 25 {
 			t.Errorf("%v: the red card %v is not the card %v touched with red", page, tfill, fill)
 		}
 		if math.Abs(light(tframe)-light(frame)) > 0.01 {
 			t.Errorf("%v: the red card's frame %v is not at its frame's lightness %v", page, tframe, frame)
 		}
-		if cf, _ := cardColours(tcell.ColorDefault, red, true); chroma(cf) >= chroma(tfill) {
-			t.Errorf("%v: the red card chosen %v is not quieter than %v", page, cf, tfill)
-		}
+	}
+	// A fill chosen is quieter: a sixth of its colour gone, past the step.
+	if c := cardChosen(red, true); chroma(c) > cardChosenChroma*chroma(red)+0.01 {
+		t.Errorf("red chosen %v keeps too much of its colour", c)
 	}
 	colCard = cardBackground(tcell.ColorDefault)
 	if fill, frame := cardColours(tcell.ColorDefault, tcell.ColorDefault, false); fill != tcell.ColorDefault || frame != colBorder {

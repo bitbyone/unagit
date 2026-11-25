@@ -30,7 +30,7 @@ const (
 	cardChosenChroma = 0.85
 	// cardTint is how much colour a tinted card's fill takes, in Oklch
 	// chroma: a touch; its frame takes twice that.
-	cardTint = 0.012
+	cardTint = 0.005
 )
 
 var (
