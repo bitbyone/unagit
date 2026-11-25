@@ -12,7 +12,7 @@ import (
 //
 //   - the card is a twentieth darker than the page; on the terminal's own
 //     background, which cannot be darkened, it has no fill, only its frame;
-//   - its frame is a tenth lighter than the card - darker on a light theme,
+//   - its frame is a sixth lighter than the card - darker on a light theme,
 //     where lighter would not show;
 //   - the card chosen keeps its colours a twentieth darker, frame and fill,
 //     the fill's colour a sixth quieter as well: no accent, it is the same
@@ -23,14 +23,14 @@ import (
 // another and none more than the text on it.
 const (
 	cardStep       = 0.05
-	cardFrameStep  = 0.10
+	cardFrameStep  = 0.15
 	cardChosenStep = 0.05
 	// cardChosenChroma is what is left of the fill's colour on the card
 	// chosen.
 	cardChosenChroma = 0.85
 	// cardTint is how much colour a tinted card's fill takes, in Oklch
 	// chroma: a touch; its frame takes twice that.
-	cardTint = 0.005
+	cardTint = 0.003
 )
 
 var (
