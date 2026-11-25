@@ -34,12 +34,12 @@ type bubble struct {
 	// comment's (comments.border).
 	Frame tcell.Color
 	// Fill is the card's background; unset, the comments' card's. A card
-	// of the Board takes its colour's tint.
+	// of the Board takes its colour's tint (cards.go).
 	Fill tcell.Color
 	// IconColour colours the icon; unset, every card's icon colour.
 	IconColour tcell.Color
-	// Selected is the comment chosen in the conversation, framed as a
-	// focused box is.
+	// Selected is the card chosen: its fill and frame a step darker, as
+	// every card chosen is (cards.go).
 	Selected bool
 	// Clip shows no more than that many rows of the body, from Offset: a
 	// comment never fills the view, and the rest is read with a cursor in
@@ -130,23 +130,18 @@ func layBubble(b bubble, width int) bubbleLayout {
 	total := max(width-b.Indent, minBubbleWidth)
 	inner := total - 4
 	lead := strings.Repeat(" ", b.Indent)
-	bg := role("comments.card").String()
-	switch {
-	case b.Fill != tcell.ColorDefault && b.Selected:
-		bg = lift(b.Fill).String()
-	case b.Fill != tcell.ColorDefault:
-		bg = b.Fill.String()
-	case b.Selected:
-		bg = role("comments.selected_fill").String()
+	fill, frame := b.Fill, b.Frame
+	if fill == tcell.ColorDefault {
+		fill = role("comments.card")
 	}
-	reset := "[-:" + bg + ":-]"
-	frame := b.Frame
-	switch {
-	case b.Selected:
-		frame = role("comments.selected")
-	case frame == tcell.ColorDefault:
+	if frame == tcell.ColorDefault {
 		frame = role("comments.border")
 	}
+	if b.Selected {
+		fill, frame = cardChosen(fill, true), cardChosen(frame, false)
+	}
+	bg := fill.String()
+	reset := "[-:" + bg + ":-]"
 	line := func(text string) string { return "[" + frame.String() + ":" + bg + ":-]" + text }
 	edge := line(string(tview.Borders.Vertical))
 	row := func(st *ink, text string) string {

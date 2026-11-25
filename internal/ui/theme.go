@@ -192,11 +192,14 @@ func setTheme(t Theme) {
 	colPicker = pickerBackground(colBackground)
 	colCard = cardBackground(colBackground)
 	// A comment is a card like any other unless the theme says otherwise,
-	// and the one chosen the card lifted, as the cursor's band is.
+	// framed as one, and the one chosen the card chosen.
 	if t.Roles["comments.card"] == "" {
 		roleColours["comments.card"] = colCard
 	}
-	if c := lift(roleColours["comments.card"]); t.Roles["comments.selected_fill"] == "" && c != tcell.ColorDefault {
+	if t.Roles["comments.border"] == "" {
+		roleColours["comments.border"] = cardFrame(roleColours["comments.card"])
+	}
+	if c := cardChosen(roleColours["comments.card"], true); t.Roles["comments.selected_fill"] == "" && c != tcell.ColorDefault {
 		roleColours["comments.selected_fill"] = c
 	}
 	colOpen = openRowBackground(colBackground)
@@ -476,20 +479,9 @@ func openRowBackground(bg tcell.Color) tcell.Color {
 	return tcell.NewRGBColor(step(r), step(g), step(b))
 }
 
-// colCard is a card's background: it stands out from the page it is on.
+// colCard is a card's background: it stands out from the page it is on
+// (cards.go).
 var colCard tcell.Color
-
-// cardBackground is the theme's background a tenth darker. The terminal's
-// own background cannot be darkened, so there it is the role
-// card.background.
-func cardBackground(bg tcell.Color) tcell.Color {
-	if bg == tcell.ColorDefault || !bg.Valid() {
-		return role("card.background")
-	}
-	r, g, b := bg.RGB()
-	scale := func(v int32) int32 { return int32(float64(v) * 0.9) }
-	return tcell.NewRGBColor(scale(r), scale(g), scale(b))
-}
 
 // colDimmedText stands in for the terminal's own foreground, whose RGB we
 // cannot know.

@@ -133,8 +133,10 @@ func TestACardStandsOutAndSaysWhetherItIsOn(t *testing.T) {
 			t.Fatalf("the state's cell is %v, want the state's colour", bg)
 		}
 		_, inside := cellAt(a, sc, len([]rune(line[:strings.Index(line, "╭ Incomm")]))+3, y+2)
-		if _, bg, _ := inside.Decompose(); bg != colCard || bg == colBackground {
-			t.Fatalf("the card's background is %v, want %v off the page's %v", bg, colCard, colBackground)
+		// On the terminal's own background a card has no fill, only its
+		// frame (cards.go).
+		if _, bg, _ := inside.Decompose(); bg != colCard {
+			t.Fatalf("the card's background is %v, want %v", bg, colCard)
 		}
 		return
 	}

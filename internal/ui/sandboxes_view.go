@@ -778,7 +778,7 @@ func (c *sandboxCards) Draw(screen tcell.Screen) {
 		if !c.compact {
 			row = y + 1
 		}
-		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+fmt.Sprintf("+%d more", len(boxes)-shown), cx+1, row, rest-2, tview.AlignCenter, colMuted)
+		tview.Print(screen, "["+colMuted.String()+":"+cardFill(focused && c.at >= shown).String()+"]"+fmt.Sprintf("+%d more", len(boxes)-shown), cx+1, row, rest-2, tview.AlignCenter, colMuted)
 	}
 }
 
@@ -884,7 +884,7 @@ func sandboxStateMark(state string) (string, string) {
 func (c *sandboxCards) drawCard(screen tcell.Screen, r sandboxRow, x, y, h int, chosen bool) {
 	a := c.v.app
 	s := r.sandbox
-	on := ":" + colCard.String()
+	on := ":" + cardFill(chosen).String()
 	glyph, stateRole := sandboxStateMark(s.State)
 	context := a.ubx.overview.Context.Set.Sandbox == s.Name
 	nameInk := colText

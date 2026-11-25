@@ -892,7 +892,7 @@ func (c *cardsView) Draw(screen tcell.Screen) {
 		if !c.compact {
 			row = y + 1
 		}
-		tview.Print(screen, "["+colMuted.String()+":"+colCard.String()+"]"+label, cx+1, row, min(moreWidth, x+w-cx)-2, tview.AlignCenter, colMuted)
+		tview.Print(screen, "["+colMuted.String()+":"+cardFill(focused && c.at >= shown).String()+"]"+label, cx+1, row, min(moreWidth, x+w-cx)-2, tview.AlignCenter, colMuted)
 	}
 }
 
@@ -907,7 +907,8 @@ func (c *cardsView) drawFrame(screen tcell.Screen, x, y, width, h int, title str
 // and its border with a title, as a bordered box draws its own. Compact,
 // it is one line without a border. It returns the lines it has.
 func drawCardFrame(screen tcell.Screen, x, y, width, h int, title string, chosen, compact bool) int {
-	fill := baseStyle().Background(colCard).Foreground(colText)
+	bg, line := cardColours(tcell.ColorDefault, tcell.ColorDefault, chosen)
+	fill := baseStyle().Background(bg).Foreground(colText)
 	lines := min(h, 4)
 	if compact {
 		lines = 1
@@ -919,10 +920,6 @@ func drawCardFrame(screen tcell.Screen, x, y, width, h int, title string, chosen
 	}
 	if compact {
 		return lines
-	}
-	line := colBorder
-	if chosen {
-		line = colBorderFocus
 	}
 	border := fill.Foreground(line)
 	for col := x + 1; col < x+width-1; col++ {
@@ -942,7 +939,7 @@ func drawCardFrame(screen tcell.Screen, x, y, width, h int, title string, chosen
 		if chosen {
 			titleColour = colBorderFocus
 		}
-		tview.Print(screen, "["+titleColour.String()+":"+colCard.String()+"] "+title+" ", x+1, y, width-2, tview.AlignLeft, titleColour)
+		tview.Print(screen, "["+titleColour.String()+":"+bg.String()+"] "+title+" ", x+1, y, width-2, tview.AlignLeft, titleColour)
 	}
 	return lines
 }
@@ -1017,7 +1014,7 @@ func (c *cardsView) lines() int {
 // drawCard draws one card at x, y: the editor in its border, the
 // repository, then where it is open and for how long.
 func (c *cardsView) drawCard(screen tcell.Screen, r session.Record, x, y, h int, chosen bool) {
-	on := ":" + colCard.String()
+	on := ":" + cardFill(chosen).String()
 	glyph := editorGlyph(r.Editor)
 	project := r.Project
 	if project == "" {

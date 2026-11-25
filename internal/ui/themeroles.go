@@ -52,12 +52,11 @@ var colourRoles = []colourRole{
 	{"comments.all", "column.mr", "comments in all"},
 	// A comment drawn as a card: its fill, its frame, and what the top of
 	// the frame carries.
-	{"comments.card", "card.background", "a comment card's background; unnamed, every card's"},
-	{"comments.border", "markdown.link", "the frame of a comment, and of its thread, that cannot be resolved"},
+	{"comments.card", "card.background", "a comment card's background; unnamed, every card's: the page a twentieth darker"},
+	{"comments.border", "markdown.link", "the frame of a comment, and of its thread, that cannot be resolved; unnamed, the card's own frame"},
 	{"comments.unresolved_border", "state.bad", "the frame of the comments of a thread still to resolve"},
 	{"comments.resolved_border", "state.good", "the frame of the comments of a thread resolved"},
 	{"comments.code_border", "text.dim", "the frame round a thread on code, its code and its comments"},
-	{"comments.selected", "border.focus", "the frame of the comment chosen in the conversation"},
 	{"comments.selected_fill", "selection.marked", "its background; unnamed, the card's lifted a twentieth"},
 	{"comments.state_unresolved", "state.bad", "the word unresolved on a thread's first comment"},
 	{"comments.visual_selection", "selection.background", "text selected in a comment, to be copied"},
@@ -189,7 +188,7 @@ var colourRoles = []colourRole{
 
 	// Integrations: a card stands out from the page, and says whether it is
 	// on.
-	{"card.background", "picker.background", "a card's background on the terminal's own; on a theme's, that a tenth darker"},
+	{"card.background", "picker.background", "what row.open falls back to on the terminal's own background; a card itself is the page a twentieth darker, and on the terminal's own background has no fill"},
 	// A row with something open in it - Neovim, an agent - in the lists.
 	{"row.open", "card.background", "its background on the terminal's own; on a theme's, that a twentieth lighter"},
 	{"integration.enabled", "state.good", "an integration that is on"},
@@ -228,7 +227,6 @@ var colourRoles = []colourRole{
 	{"sandboxes.blocked", "state.warning", "a host the policy refused a sandbox lately"},
 	// The Board: a card's frame by its state, and the colours a card can be
 	// given to stand out - its frame, its title, and a tint of its fill.
-	{"board.ground", "card.background", "the page the cards are worked out from, on the terminal's own background; on a theme's, that background"},
 	{"board.todo", "text.muted", "the mark of a task to do"},
 	{"board.doing", "text.accent", "the mark of a task in progress"},
 	{"board.done", "state.good", "the mark of a task done"},

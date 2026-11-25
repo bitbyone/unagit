@@ -76,7 +76,6 @@
     "sand": {"ink": "#e3d4c0", "fill": "#4d4232"}
   },
   "colours": {
-    "comments.border": "74",
     "ci.running": "74",
     "picker.background": "233",
     "card.background": "234",

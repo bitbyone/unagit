@@ -48,8 +48,8 @@ func (v *bandView) mouseRows() *rowsUnder {
 
 // bandArea is what the cursor's band covers: rows of the text, and - for
 // a comment's card - the columns from its left edge, width wide; width 0 is
-// the whole row. lit lifts the background under it, frame draws the frame
-// round it in the focus colour.
+// the whole row. lit lifts the background under it; frame makes it a card
+// chosen (cards.go), its fill and frame a step darker.
 type bandArea struct {
 	from, to    int
 	left, width int
@@ -60,10 +60,11 @@ type bandArea struct {
 const frameRunes = "─│╭╮╰╯"
 
 // paintBand lays a band over a view as drawn: each cell's own background
-// lifted - the code's, a diff's fill, a comment's card - so what is under
-// the cursor reads as it does elsewhere, and its frame in the focus
-// colour. The terminal's own background, which cannot be shifted, takes a
-// chosen comment's. A colour lifted once is not worked out again.
+// lifted - the code's, a diff's fill - so what is under the cursor reads
+// as it does elsewhere; a comment's card is made the card chosen, its own
+// fill and frame a step darker. The terminal's own background, which
+// cannot be shifted, takes a chosen comment's. A colour worked out once is
+// not worked out again.
 func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 	x, y, w, h := v.GetRect()
 	inX, inY, _, inH := v.GetInnerRect()
@@ -71,6 +72,11 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 	lifted := map[tcell.Color]tcell.Color{}
 	liftOf := func(bg tcell.Color) tcell.Color {
 		if c, ok := lifted[bg]; ok {
+			return c
+		}
+		if area.frame {
+			c := cardChosen(bg, true)
+			lifted[bg] = c
 			return c
 		}
 		c := lift(bg)
@@ -89,7 +95,7 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 	if area.width > 0 {
 		left, right = inX+area.left, inX+area.left+area.width-1
 	}
-	focus := role("comments.selected")
+	framed := map[tcell.Color]tcell.Color{}
 	for row := max(area.from, top); row <= area.to && row < top+inH; row++ {
 		sy := inY + row - top
 		if sy < y || sy >= y+h {
@@ -103,7 +109,11 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 			}
 			edge := row == area.from || row == area.to || sx == left || sx == right
 			if area.frame && edge && strings.ContainsRune(frameRunes, r) {
-				style = style.Foreground(focus)
+				fg, _, _ := style.Decompose()
+				if _, ok := framed[fg]; !ok {
+					framed[fg] = cardChosen(fg, false)
+				}
+				style = style.Foreground(framed[fg])
 			} else if !area.lit {
 				continue
 			}

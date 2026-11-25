@@ -492,17 +492,17 @@ func TestAThemeIsTriedOverAnOpenDialog(t *testing.T) {
 }
 
 // TestEveryThemeFramesCommentsApartFromTheCursor: in every built-in theme
-// a thread's frame - open, resolved, or neither - is a colour the chosen
-// comment's frame is not, so the cursor is seen among the comments.
+// the chosen comment's frame - a thread open, resolved, or neither - is
+// not the colour of the same frame unchosen, so the cursor is seen among
+// the comments.
 func TestEveryThemeFramesCommentsApartFromTheCursor(t *testing.T) {
 	restoreDefaultTheme(t)
 	set := loadThemes("")
 	for name := range builtinThemes() {
 		setTheme(set.byName[name])
-		cursor := role("comments.selected")
 		for state, frame := range map[string]string{"plain": "comments.border", "open": "comments.unresolved_border", "resolved": "comments.resolved_border"} {
-			if role(frame) == cursor {
-				t.Errorf("%s: a %s thread is framed in the cursor's colour %v", name, state, cursor)
+			if c := role(frame); cardChosen(c, false) == c {
+				t.Errorf("%s: a %s thread chosen is framed as it is unchosen, %v", name, state, c)
 			}
 		}
 	}

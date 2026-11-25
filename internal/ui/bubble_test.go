@@ -172,7 +172,7 @@ func TestOnlyTheFirstCommentSaysWhetherTheConversationIsResolved(t *testing.T) {
 
 // TestAThreadIsFramedByItsState: a thread still to resolve, a resolved one
 // and a comment that cannot be resolved are framed apart, each in a colour
-// of its own that its replies wear too - none of them the cursor's.
+// of its own that its replies wear too.
 func TestAThreadIsFramedByItsState(t *testing.T) {
 	t.Parallel()
 	frames := map[string]tcell.Color{}
@@ -189,10 +189,5 @@ func TestAThreadIsFramedByItsState(t *testing.T) {
 	}
 	if frames["open"] == frames["resolved"] || frames["open"] == frames["plain"] || frames["resolved"] == frames["plain"] {
 		t.Errorf("the states are not framed apart: %v", frames)
-	}
-	for name, c := range frames {
-		if c == role("comments.selected") {
-			t.Errorf("%s is framed as the cursor is", name)
-		}
 	}
 }
