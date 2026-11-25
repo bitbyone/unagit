@@ -743,7 +743,8 @@ func TestTheFirstCommentIsChosenOnOpening(t *testing.T) {
 
 // TestAThreadOnCodeIsLitWhileTheCursorIsInIt: the frame round a thread on
 // code is lit while the cursor is anywhere in the thread - on its code or
-// on any of its comments - and a comment's card is banded alone.
+// on any of its comments - framed as a pane with the focus, and a
+// comment's card is chosen alone, as a card.
 func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 	t.Parallel()
 	thread := []forge.Note{
@@ -751,12 +752,12 @@ func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 		{ID: 2, Thread: "t", Body: "answer"},
 	}
 	diffs := []forge.FileDiff{{Path: "a.go", OldPath: "a.go", Diff: "@@ -1 +1 @@\n-a\n+b\n"}}
-	_, cards := (&conversation{notes: thread, latest: diffs}).draw(60)
+	text, cards := (&conversation{notes: thread, latest: diffs}).draw(60)
 	if len(cards) != 3 || !cards[0].code {
 		t.Fatalf("cards = %+v", cards)
 	}
 	block := cards[0].block
-	if block == nil || !block.frame || block.lit || block.width != 60 {
+	if block == nil || !block.frame || !block.pane || block.lit || block.width != 60 {
 		t.Fatalf("the block's frame is %+v", block)
 	}
 	for _, c := range cards {
@@ -765,9 +766,32 @@ func TestAThreadOnCodeIsLitWhileTheCursorIsInIt(t *testing.T) {
 		}
 	}
 	reply := cards[2].band
-	if !reply.lit || !reply.frame || reply.left != 4 || reply.from < block.from || reply.to > block.to {
+	if !reply.lit || !reply.frame || reply.pane || reply.left != 4 || reply.from < block.from || reply.to > block.to {
 		t.Errorf("the reply's band is %+v, in a block %+v", reply, *block)
 	}
+
+	// On screen, the cursor on the reply: the block's frame in the focus
+	// colour, as a pane's; the reply's frame its own, brighter, as a card's.
+	view := tview.NewTextView().SetDynamicColors(true).SetWrap(false).SetText(text)
+	screen := tcell.NewSimulationScreen("UTF-8")
+	must(t, screen.Init())
+	screen.SetSize(62, 40)
+	view.SetRect(0, 0, 62, 40)
+	view.Draw(screen)
+	before, _, _ := screenStyle(screen, reply.left, reply.from).Decompose()
+	paintBand(screen, view, *block)
+	paintBand(screen, view, reply)
+	if fg, _, _ := screenStyle(screen, block.left, block.from).Decompose(); fg != colBorderFocus {
+		t.Errorf("the thread's frame is %v, want the focus colour %v", fg, colBorderFocus)
+	}
+	if fg, _, _ := screenStyle(screen, reply.left, reply.from).Decompose(); fg != cardChosen(before, false) || fg == colBorderFocus {
+		t.Errorf("the reply's frame is %v, want its own %v brighter", fg, before)
+	}
+}
+
+func screenStyle(screen tcell.Screen, x, y int) tcell.Style {
+	_, _, style, _ := screen.GetContent(x, y)
+	return style
 }
 
 // TestTheCommentsActionsAreInThePicker: what the conversation and a file

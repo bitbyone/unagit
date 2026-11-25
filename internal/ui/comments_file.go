@@ -49,11 +49,14 @@ func (v *bandView) mouseRows() *rowsUnder {
 // bandArea is what the cursor's band covers: rows of the text, and - for
 // a comment's card - the columns from its left edge, width wide; width 0 is
 // the whole row. lit lifts the background under it; frame makes it a card
-// chosen (cards.go), its fill and frame a step darker.
+// chosen (cards.go), its fill darker and its frame brighter - or, with
+// pane, frames it as a pane with the focus is framed: a thread on code is
+// a pane, its comments cards in it.
 type bandArea struct {
 	from, to    int
 	left, width int
 	lit, frame  bool
+	pane        bool
 }
 
 // frameRunes are what a frame is drawn with.
@@ -112,6 +115,9 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 				fg, _, _ := style.Decompose()
 				if _, ok := framed[fg]; !ok {
 					framed[fg] = cardChosen(fg, false)
+					if area.pane {
+						framed[fg] = colBorderFocus
+					}
 				}
 				style = style.Foreground(framed[fg])
 			} else if !area.lit {

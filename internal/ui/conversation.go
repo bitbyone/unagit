@@ -366,10 +366,10 @@ func (c *conversation) drawCodeThread(thread []forge.Note, width int, rows *[]st
 		*cards = append(*cards, commentCard{top: first, from: first, to: len(*rows) - 1, note: n, band: band})
 	}
 	add(frame + string(tview.Borders.BottomLeft) + strings.Repeat(string(tview.Borders.Horizontal), total-2) + string(tview.Borders.BottomRight) + inkReset)
-	// The block is lit while the cursor is anywhere in it - on its code or
-	// on any of its comments, which are part of it; on its code, that is
-	// all there is to light.
-	block := &bandArea{from: codeFrom, to: len(*rows) - 1, width: total, frame: true}
+	// The block is a pane, framed in the focus colour while the cursor is
+	// anywhere in it - on its code or on any of its comments, which are
+	// cards in it; on its code, that is all there is to light.
+	block := &bandArea{from: codeFrom, to: len(*rows) - 1, width: total, frame: true, pane: true}
 	for k := firstCard; k < len(*cards); k++ {
 		(*cards)[k].block = block
 	}
