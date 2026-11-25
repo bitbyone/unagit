@@ -168,7 +168,36 @@ func (v *boardView) fill() {
 		v.cols[slices.Index(board.States, t.State)] = append(v.cols[slices.Index(board.States, t.State)], t)
 	}
 	slices.SortStableFunc(v.hist, func(x, y board.Task) int { return y.Done.Compare(x.Done) })
+	v.settle()
 	v.updateHeader()
+}
+
+// settle keeps the cursor on a card: in an empty column it goes to the
+// nearest column with cards - the one before first. Only on a board with
+// no card at all, or none the filter finds, is no card chosen.
+func (v *boardView) settle() {
+	if len(v.cols[v.col]) > 0 {
+		return
+	}
+	for d := 1; d < len(v.cols); d++ {
+		for _, col := range []int{v.col - d, v.col + d} {
+			if col >= 0 && col < len(v.cols) && len(v.cols[col]) > 0 {
+				v.col = col
+				return
+			}
+		}
+	}
+}
+
+// step is the next column with cards from the cursor's, by -1 or 1; the
+// cursor's own when there is none that way.
+func (v *boardView) step(by int) int {
+	for col := v.col + by; col >= 0 && col < len(v.cols); col += by {
+		if len(v.cols[col]) > 0 {
+			return col
+		}
+	}
+	return v.col
 }
 
 // taskHay is what the filter finds a task by.
@@ -537,12 +566,12 @@ func (v *boardView) keys(ev *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case isKey(ev, 'h', tcell.KeyLeft):
 		if !v.history {
-			v.col = max(0, v.col-1)
+			v.col = v.step(-1)
 		}
 		return nil
 	case isKey(ev, 'l', tcell.KeyRight):
 		if !v.history {
-			v.col = min(2, v.col+1)
+			v.col = v.step(1)
 		}
 		return nil
 	case ev.Key() == tcell.KeyEnter:
@@ -652,9 +681,10 @@ func (c *boardCanvas) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, 
 			}
 		}
 		if hit < 0 {
-			// A click in a column's empty part goes to the column.
+			// A click in the empty part of a column with cards goes to the
+			// column; a column with none is never the cursor's.
 			for col, r := range v.areas {
-				if col != boardHistory && !v.history && x >= r.x && x < r.x+r.w && y >= r.y && y < r.y+r.h && action == tview.MouseLeftDown {
+				if col != boardHistory && !v.history && len(v.cols[col]) > 0 && x >= r.x && x < r.x+r.w && y >= r.y && y < r.y+r.h && action == tview.MouseLeftDown {
 					v.col = col
 				}
 			}

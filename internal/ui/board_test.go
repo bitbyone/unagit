@@ -177,3 +177,40 @@ func TestTheBoardKeepsTasksAsTheyAreWorkedOn(t *testing.T) {
 		return false
 	})
 }
+
+// TestTheCursorGoesFromCardToCard: h and l pass a column with no card,
+// and a card gone from under the cursor leaves it on the nearest card, so
+// a card is always chosen on a board that has one.
+func TestTheCursorGoesFromCardToCard(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	store := board.Open(a.cfg.BoardDir())
+	now := time.Now()
+	for _, task := range []board.Task{
+		{ID: "a", Title: "Left card", State: board.Todo},
+		{ID: "b", Title: "Right card", State: board.Done, Done: now},
+	} {
+		task.Space, task.Rank, task.Created, task.Moved = board.DefaultSpace.ID, "m", now, now
+		if err := store.Add(task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	typeRunes(sc, "6")
+	waitFor(t, a, sc, "Right card")
+	chosen := func() string {
+		return onLoop(a, func() string { task, _ := a.board.chosen(); return task.Title })
+	}
+	if got := chosen(); got != "Left card" {
+		t.Fatalf("the board opens on %q", got)
+	}
+	typeRunes(sc, "l")
+	waitTrue(t, "l over the empty column", func() bool { return chosen() == "Right card" })
+	typeRunes(sc, "l")
+	typeRunes(sc, "h")
+	waitTrue(t, "h back over it", func() bool { return chosen() == "Left card" })
+	typeRunes(sc, "d")
+	waitFor(t, a, sc, "Delete Task")
+	typeRunes(sc, "y")
+	waitTrue(t, "the cursor on the card left", func() bool { return chosen() == "Right card" })
+}

@@ -19,7 +19,7 @@ you are doing, where you left it, and what you found on the way.
 
 | Key | Does |
 | --- | --- |
-| `h` `l`, `j` `k` | from column to column, from card to card |
+| `h` `l`, `j` `k` | from card to card: across the columns - past one with no card - and down a column |
 | `n` | a new task in the column the cursor is in, at its top |
 | `Enter` | the task in full |
 | `H` `L` (Shift `h` `l`) | move the card to the column before or after |
