@@ -1076,3 +1076,22 @@ func TestAFileOpensWithItsCommentInTheMiddle(t *testing.T) {
 		t.Fatalf("the comment at rows %d-%d is shown from row %d of a view %d high, want %d", now.from, now.to, now.top, now.height, want)
 	}
 }
+
+// TestTheCursorsLineIsDarker: a line under the cursor in a conversation or
+// a file - code, a diff's fill, a line of a story - is its background made
+// the card chosen's, darker, as a card under the cursor is.
+func TestTheCursorsLineIsDarker(t *testing.T) {
+	t.Parallel()
+	fill := tcell.NewRGBColor(0x3a, 0x4a, 0x30)
+	view := tview.NewTextView().SetDynamicColors(true).SetText("[#ffffff:" + fill.String() + "]some code")
+	screen := tcell.NewSimulationScreen("UTF-8")
+	must(t, screen.Init())
+	screen.SetSize(20, 3)
+	view.SetRect(0, 0, 20, 3)
+	view.Draw(screen)
+	paintBand(screen, view, bandArea{from: 0, to: 0, width: 9, lit: true})
+	_, bg, _ := screenStyle(screen, 2, 0).Decompose()
+	if bg != cardChosen(fill, true) || toOklab(bg).l >= toOklab(fill).l {
+		t.Errorf("the line under the cursor is %v on %v, want it darker: %v", bg, fill, cardChosen(fill, true))
+	}
+}

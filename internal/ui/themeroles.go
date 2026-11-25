@@ -359,23 +359,6 @@ func shade(background tcell.Color, step float64) tcell.Color {
 	return fromOklch(lab.l+step, math.Hypot(lab.a, lab.b), math.Atan2(lab.b, lab.a)*180/math.Pi, 0, 0)
 }
 
-// liftShare is how far lift moves a background.
-const liftShare = 0.05
-
-// lift is what the cursor stands on: its background a twentieth of the way
-// to white - to black on a light theme, where lighter would not show - so it
-// is set apart without a colour of its own. ColorDefault for the
-// terminal's own background, which cannot be shifted.
-func lift(background tcell.Color) tcell.Color {
-	if background == tcell.ColorDefault || !background.Valid() {
-		return tcell.ColorDefault
-	}
-	if toOklab(background).l >= 0.6 {
-		return mix(background, tcell.NewRGBColor(0, 0, 0), liftShare)
-	}
-	return mix(background, tcell.NewRGBColor(255, 255, 255), liftShare)
-}
-
 // mix is the colour a share of the way from one colour to another, in
 // Oklab, so the halfway point looks halfway; ColorDefault where either is
 // the terminal's own.

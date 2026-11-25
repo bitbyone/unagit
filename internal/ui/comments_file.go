@@ -62,12 +62,12 @@ type bandArea struct {
 // frameRunes are what a frame is drawn with.
 const frameRunes = "─│╭╮╰╯"
 
-// paintBand lays a band over a view as drawn: each cell's own background
-// lifted - the code's, a diff's fill - so what is under the cursor reads
-// as it does elsewhere; a comment's card is made the card chosen, its own
-// fill and frame a step darker. The terminal's own background, which
-// cannot be shifted, takes a chosen comment's. A colour worked out once is
-// not worked out again.
+// paintBand lays a band over a view as drawn: what is under the cursor -
+// a line of code, a diff's fill, a line of a thread's story, a comment's
+// card - is its own background made the card chosen's, darker and quieter
+// (cards.go), so the cursor reads the same everywhere in a conversation.
+// The terminal's own background, which cannot be darkened, takes the
+// chosen comment's fill. A colour worked out once is not worked out again.
 func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 	x, y, w, h := v.GetRect()
 	inX, inY, _, inH := v.GetInnerRect()
@@ -77,16 +77,11 @@ func paintBand(screen tcell.Screen, v *tview.TextView, area bandArea) {
 		if c, ok := lifted[bg]; ok {
 			return c
 		}
-		if area.frame {
-			c := cardChosen(bg, true)
-			lifted[bg] = c
-			return c
+		c := cardChosen(bg, true)
+		if c == tcell.ColorDefault && !area.frame {
+			c = cardChosen(tview.Styles.PrimitiveBackgroundColor, true)
 		}
-		c := lift(bg)
-		if c == tcell.ColorDefault {
-			c = lift(tview.Styles.PrimitiveBackgroundColor)
-		}
-		if c == tcell.ColorDefault {
+		if c == tcell.ColorDefault && !area.frame {
 			c = role("comments.selected_fill")
 		}
 		lifted[bg] = c
