@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -205,8 +204,9 @@ func (a *App) ciDue(key any, usual bool) bool {
 }
 
 // ciOutcome counts what the polling learnt of one pipeline. An answer ends
-// its backoff. A failure is said on the status line - never in front, it
-// is the background's - and asked again later, shown as unknown from the
+// its backoff. A failure is said on the status line - in a toast while a
+// dialog is in front, never in the dialog's edge: it is the background's -
+// and asked again later, shown as unknown from the
 // third in a row, and given up after the last wait; what is given up the
 // polling leaves to a refresh. It runs on the event loop.
 func (a *App) ciOutcome(key any, answered bool, what string, unknown func()) {
@@ -228,12 +228,12 @@ func (a *App) ciOutcome(key any, answered bool, what string, unknown func()) {
 	}
 	if r.failures > len(ciRetryAfter) {
 		delete(a.ciRetries, key)
-		a.note(what + ": the server does not answer - its pipeline is not asked about again until r refreshes it")
+		a.backgroundError(what, "the server does not answer", "its pipeline is not asked about again until r refreshes it")
 		return
 	}
 	wait := time.Duration(ciRetryAfter[r.failures-1]) * a.ciAskInterval()
 	r.next = time.Now().Add(wait)
-	a.note(fmt.Sprintf("%s: the server does not answer - asking again in %s", what, wait.Round(time.Second)))
+	a.backgroundError(what, "the server does not answer", "asking again in "+wait.Round(time.Second).String())
 }
 
 // ciAskInterval is how often a running pipeline is asked about.

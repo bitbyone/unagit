@@ -897,3 +897,35 @@ func (f noPageForge) PipelineJobs(ctx context.Context, mr forge.MergeRequest) (*
 	pipe, jobs, err := f.Provider.PipelineJobs(ctx, mr)
 	return pipe, append(jobs, forge.Job{ID: 901, Name: "atlantis/apply", Stage: "external", Status: "running", External: true}), err
 }
+
+// TestABackgroundFailureUnderADialogIsAToast: the polling's failure said
+// while a dialog is in front is an error toast, not words in the dialog's
+// edge - they say what the dialog did - and the dialog keeps the keys.
+func TestABackgroundFailureUnderADialogIsAToast(t *testing.T) {
+	t.Parallel()
+	a, sc, _ := newTestAppSrv(t)
+	waitFor(t, a, sc, "acme/gateway")
+	typeRunes(sc, "6")
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New Task · Task Board")
+	front := onLoop(a, func() string { name, _ := a.pages.GetFrontPage(); return name })
+	changeOnLoop(a, func() { a.backgroundError("!9", "the server does not answer", "asking again in 30s") })
+	got := onLoop(a, func() []string {
+		var out []string
+		for _, t := range a.toasts {
+			out = append(out, fmt.Sprintf("%v|%s|%s|%s", t.sev, t.title, t.about, t.body))
+		}
+		return out
+	})
+	if want := fmt.Sprintf("%v|The server does not answer|!9|Asking again in 30s.", sevError); len(got) != 1 || got[0] != want {
+		t.Errorf("toasts %q, want %q", got, want)
+	}
+	if said := onLoop(a, func() string { return a.dialogSaid.text }); said != "" {
+		t.Errorf("the dialog's edge says %q", said)
+	}
+	if now := onLoop(a, func() string { name, _ := a.pages.GetFrontPage(); return name }); now != front {
+		t.Errorf("%s came in front of the dialog %s", now, front)
+	}
+	typeRunes(sc, "still typing")
+	waitFor(t, a, sc, "still typing")
+}

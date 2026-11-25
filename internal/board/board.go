@@ -395,7 +395,7 @@ func writeJSON(path string, v any) error {
 }
 
 func readJSON(path string, v any) error {
-	b, err := os.ReadFile(path)
+	b, err := platform.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

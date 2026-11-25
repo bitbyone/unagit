@@ -25,6 +25,23 @@ func Replace(from, to string) error {
 	return err
 }
 
+// ReadFile reads a whole file. Windows refuses to open one for the moment
+// another program - or another unagit - is putting a new one in its place,
+// so it tries again for a while before giving up.
+func ReadFile(path string) ([]byte, error) {
+	var (
+		b   []byte
+		err error
+	)
+	for wait := time.Millisecond; wait < time.Second; wait *= 2 {
+		if b, err = os.ReadFile(path); err == nil || !busy(err) {
+			return b, err
+		}
+		time.Sleep(wait)
+	}
+	return b, err
+}
+
 // busy is a file another process has open.
 func busy(err error) bool {
 	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)

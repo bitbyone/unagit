@@ -8,6 +8,10 @@ import "os"
 // or the new one, never half of either.
 func Replace(from, to string) error { return os.Rename(from, to) }
 
+// ReadFile reads a whole file; Unix lets it be read while another process
+// puts a new one in its place.
+func ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
 // SyncPath makes what was written to a file or a directory durable: a
 // directory's entries too, so a rename survives a crash.
 func SyncPath(path string) error {

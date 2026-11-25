@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -886,6 +888,25 @@ func (a *App) note(msg string)  { a.say(msg, sevInfo) }
 func (a *App) done(msg string)  { a.say(msg, sevSuccess) }
 func (a *App) errorf(f string, v ...any) {
 	a.say(fmt.Sprintf(f, v...), sevError)
+}
+
+// backgroundError is a failure of what runs in the background - a server
+// not answering the polling - about something, what happened and what
+// comes of it: on the status line, or, while a dialog is in front, an
+// error toast, which takes no key from it; never in the dialog's edge,
+// which says what the dialog did.
+func (a *App) backgroundError(about, what, then string) {
+	if name, _ := a.pages.GetFrontPage(); isModalPage(name) {
+		a.showToastAbout(sevError, capitalize(what), about, capitalize(then)+".")
+		return
+	}
+	a.note(about + ": " + what + " - " + then)
+}
+
+// capitalize starts a sentence with a capital letter.
+func capitalize(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[n:]
 }
 
 func (a *App) say(msg string, sev severity) {
