@@ -179,8 +179,9 @@ func TestTheBoardKeepsTasksAsTheyAreWorkedOn(t *testing.T) {
 }
 
 // TestTheCursorGoesFromCardToCard: h and l pass a column with no card,
-// and a card gone from under the cursor leaves it on the nearest card, so
-// a card is always chosen on a board that has one.
+// a card gone from under the cursor leaves it on the nearest card, so a
+// card is always chosen on a board that has one - and n, wherever the
+// cursor is, writes into To do.
 func TestTheCursorGoesFromCardToCard(t *testing.T) {
 	t.Parallel()
 	a, sc, _ := newTestAppSrv(t)
@@ -213,4 +214,15 @@ func TestTheCursorGoesFromCardToCard(t *testing.T) {
 	waitFor(t, a, sc, "Delete Task")
 	typeRunes(sc, "y")
 	waitTrue(t, "the cursor on the card left", func() bool { return chosen() == "Right card" })
+
+	// With the cursor in Done, n still writes a task to do, and the
+	// cursor goes to it.
+	typeRunes(sc, "n")
+	waitFor(t, a, sc, "New Task · Task Board")
+	typeRunes(sc, "Fresh card")
+	sc.InjectKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+	waitTrue(t, "the new card chosen", func() bool { return chosen() == "Fresh card" })
+	if got := onLoop(a, func() int { return a.board.col }); got != 0 {
+		t.Errorf("the new card is in column %d, not To do", got)
+	}
 }

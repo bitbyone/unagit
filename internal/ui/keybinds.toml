@@ -1230,7 +1230,7 @@ move_to_space = []
 # Delete Task…: Delete the task, its comments and its story, after asking.
 delete_task = "d"
 
-# New Task…: Write a task into the column the cursor is in.
+# New Task…: Write a task at the top of To do.
 new_task = "n"
 
 # Spaces…: Switch to another space.

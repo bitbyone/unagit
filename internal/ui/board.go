@@ -772,14 +772,11 @@ func (v *boardView) taskActions(t board.Task) []uiAction {
 func (v *boardView) screenActions() []uiAction {
 	a := v.app
 	acts := []uiAction{
-		{name: "New Task…", about: "Write a task into the column the cursor is in.", keys: "n", rank: 10,
-			run: func() {
-				state := board.Todo
-				if !v.history {
-					state = board.States[v.col]
-				}
-				v.editTask(nil, state, nil)
-			}},
+		// A new task is one to do: the cursor is always on a card, so the
+		// column it is in says nothing of where the task belongs - and one
+		// written into Done would have no time done, off the board at once.
+		{name: "New Task…", about: "Write a task at the top of To do.", keys: "n", rank: 10,
+			run: func() { v.editTask(nil, board.Todo, nil) }},
 		{name: "Spaces…", about: "Switch to another space, or make, rename or delete one.", keys: "p", rank: 20, run: v.showSpaces},
 		{name: "Next Space", about: "The space after this one.", keys: "]", rank: 22, when: func() bool { return len(v.spaces) > 1 },
 			run: func() { v.cycleSpace(1) }},
