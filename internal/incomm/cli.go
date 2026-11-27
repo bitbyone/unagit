@@ -29,7 +29,7 @@ const (
 func CheckCLI(ctx context.Context) (string, error) {
 	binary, err := exec.LookPath("incomm")
 	if err != nil {
-		return "", fmt.Errorf("incomm is not on PATH; install it or disable it in Settings > Integrations")
+		return "", fmt.Errorf("incomm is not on PATH; install it (https://github.com/bitbyone/incomm#cli) or disable it in Settings > Integrations")
 	}
 	out, err := exec.CommandContext(ctx, binary, "version", "--json").Output()
 	var info struct {
@@ -38,7 +38,7 @@ func CheckCLI(ctx context.Context) (string, error) {
 	}
 	if err != nil || json.Unmarshal(out, &info) != nil || info.FormatVersion < MinFormat {
 		// An old CLI has no version command at all, which lands here too.
-		return "", fmt.Errorf("incomm is too old for merge request comments (it needs notes format v%d); update incomm", MinFormat)
+		return "", fmt.Errorf("incomm is too old for merge request comments (it needs notes format v%d); update incomm (brew upgrade incomm, or scoop update incomm)", MinFormat)
 	}
 	return binary, nil
 }

@@ -614,8 +614,11 @@ goes back to the sections.
 
 ### [Incomm](https://github.com/bitbyone/incomm)
 
-Incomm displays merge request comments in your editor. Install `incomm` on
-PATH, then enable its integration. When you open a review with `Ctrl-R`,
+Incomm displays merge request comments in your editor. Install `incomm` -
+`brew tap bitbyone/incomm https://github.com/bitbyone/incomm && brew install
+incomm`, or on Windows `scoop bucket add incomm
+https://github.com/bitbyone/incomm; scoop install incomm` - then enable its
+integration. When you open a review with `Ctrl-R`,
 unagit imports comments before starting the editor.
 
 Imported comments keep the reviewer name and a link to the merge request.

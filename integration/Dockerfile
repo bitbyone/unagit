@@ -7,9 +7,10 @@ ARG TARGETARCH
 ARG NVIM_VERSION=v0.12.6
 ARG ZELLIJ_VERSION=v0.45.1
 ARG HERDR_VERSION=v0.9.3
-# incomm has no releases: a commit of its main branch, cloned and built.
+# incomm at a release tag, cloned and built the way its Homebrew formula
+# builds it, the version baked in.
 ARG INCOMM_REPOSITORY=https://github.com/bitbyone/incomm.git
-ARG INCOMM_REF=8a1f48a2bdcf8460e5a6f60247298f040d301fd9
+ARG INCOMM_VERSION=1.1
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl procps \
@@ -29,9 +30,8 @@ RUN set -eu; \
     nvim --version | head -1; zellij --version; herdr --version
 
 RUN set -eu; \
-    git clone --quiet "$INCOMM_REPOSITORY" /tmp/incomm; \
-    git -C /tmp/incomm checkout --quiet "$INCOMM_REF"; \
-    cd /tmp/incomm/cli && go build -o /usr/local/bin/incomm .; \
+    git clone --quiet --depth 1 --branch "v$INCOMM_VERSION" "$INCOMM_REPOSITORY" /tmp/incomm; \
+    cd /tmp/incomm/cli && go build -ldflags "-X incomm/cmd.version=$INCOMM_VERSION" -o /usr/local/bin/incomm .; \
     rm -rf /tmp/incomm "$(go env GOCACHE)" "$(go env GOMODCACHE)"; \
     incomm version --json
 

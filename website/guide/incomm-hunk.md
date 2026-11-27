@@ -5,8 +5,20 @@ Two tools for reading a change: one for the comments, one for the diff.
 ## Incomm
 
 [Incomm](https://github.com/bitbyone/incomm) shows merge request comments in
-your editor, anchored to the lines they are about. Install `incomm` on `PATH`,
-then enable its integration.
+your editor, anchored to the lines they are about. Install `incomm`, then
+enable its integration:
+
+```sh
+brew tap bitbyone/incomm https://github.com/bitbyone/incomm
+brew install incomm
+```
+
+On Windows, with Scoop:
+
+```powershell
+scoop bucket add incomm https://github.com/bitbyone/incomm
+scoop install incomm
+```
 
 When you open a review with `Ctrl-R`, unagit imports the comments before
 starting the editor:
