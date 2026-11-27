@@ -852,7 +852,11 @@ clone is mounted; a worktree - or each repository of a grouped one - is
 cloned in the sandbox at its branch, as unibox cannot mount a worktree; a
 merge request is cloned on its source branch. Marked repositories go into
 one task together, mounted while every one is cloned, else all cloned from
-the forge. **Add to Unibox Index…**
+the forge. A repository's directory in the sandbox is named after it, one
+unibox would not take - `aedi.nvim` - as `aedi-nvim`. unibox takes the task
+it last made for the same repositories and branches; while an agent is at
+work in it, unagit offers to go to it or to start a new task beside it,
+`gateway-2`. **Add to Unibox Index…**
 names a repository in unibox's index of repositories - on marked
 repositories, all of them at once. See the
 [Sandboxes guide](https://bitbyone.github.io/unagit/guide/sandboxes).

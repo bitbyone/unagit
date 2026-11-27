@@ -16,6 +16,7 @@ import (
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/muxtest"
+	"github.com/tobola/unagit/internal/unibox"
 	"github.com/tobola/unagit/internal/unibox/uniboxtest"
 )
 
@@ -1139,4 +1140,75 @@ func TestATasksOwnAgentResumesFirst(t *testing.T) {
 	order("resume split", "Resume with Copilot CLI in Rex Vertical Split", "Resume with Copilot CLI in Rex Horizontal Split",
 		"Resume with Claude Code in Rex Vertical Split")
 	order("cc split", "Resume with Claude Code in Rex Vertical Split", "Resume with Claude Code in Rex Horizontal Split")
+}
+
+// TestARepositoryAtWorkInATaskStartsATaskBesideIt: unibox names a task it
+// is not given a name for after its repositories and refuses it while an
+// agent runs there; unagit asks, and starts a task of its own beside it.
+func TestARepositoryAtWorkInATaskStartsATaskBesideIt(t *testing.T) {
+	t.Parallel()
+	fake, prepare := fakeUnibox(t, map[string]uniboxtest.Answer{
+		"task check * --json": uniboxtest.JSON(`{"api_version":2,"ready":true,"needs":[],"repositories":[]}`),
+	})
+	a, sc, _ := newTestAppSrv(t, prepare)
+	waitFor(t, a, sc, "acme/gateway")
+	p := newRealProject(t, a, "acme/gateway")
+	changeOnLoop(a, a.refreshDisk)
+	fake.Answer(t, "sandbox ls --json", `{"api_version":2,"sandboxes":[
+{"name":"web","env":"web","agent":"claude","agents":{"claude":["claude"]},"state":"running",
+ "tasks":[{"id":"gateway-1a2b3c4d","sandbox":"web","directory":"/work/gateway-1a2b3c4d","agent":"claude","state":"ready",
+   "repositories":[{"name":"gateway","url":"https://gl.test/acme/gateway.git","branch":"main","host_path":"`+p.clone+`","mounted":true}]},
+  {"id":"gateway-2","sandbox":"web","directory":"/work/gateway-2","agent":"claude","state":"ready","repositories":[]}],
+ "runs":[{"id":"r1","sandbox":"web","task":"gateway-1a2b3c4d","agent":"claude","pid":1,"since":"2026-10-19T08:00:00Z"}]}]}`)
+	pickMuxAction(t, a, sc, "Sandbox with Claude Code…")
+	waitFor(t, a, sc, "acme/gateway with Claude Code in web · where")
+	pickPlace(t, a, sc, "claude", "This Terminal")
+	waitFor(t, a, sc, "Start a new task, gateway-3, beside it?")
+	if fake.Called("run --repo " + p.clone + " -s web --agent claude") {
+		t.Fatal("started into the task at work")
+	}
+	typeRunes(sc, string(buttonKeys([]string{"Start New Task"})[0]))
+	waitCalled(t, a, fake, "run --repo "+p.clone+" --task gateway-3 -s web --agent claude")
+}
+
+// TestARunningTaskIsTheStartsOwnOnlyOnItsRepositoriesAndBranches: a task
+// at work is the start's when it has every repository the start names, on
+// the branch the start - or the checkout - is on, in the same sandbox.
+func TestARunningTaskIsTheStartsOwnOnlyOnItsRepositoriesAndBranches(t *testing.T) {
+	t.Parallel()
+	box := unibox.Sandbox{Name: "web", Tasks: []unibox.Task{
+		{ID: "gateway-1a2b3c4d", Repositories: []unibox.Repository{{Name: "gateway", URL: "https://gl.test/acme/gateway.git", Branch: "main", HostPath: "/src/gateway", Mounted: true}}},
+		{ID: "billing-5e6f7a8b", Repositories: []unibox.Repository{{Name: "billing", URL: "https://gl.test/acme/billing.git", Branch: "fix/round"}}},
+		{ID: "idle-00000000", Repositories: []unibox.Repository{{Name: "idle", HostPath: "/src/idle", Mounted: true}}},
+	}, Runs: []unibox.Run{{Task: "gateway-1a2b3c4d"}, {Task: "billing-5e6f7a8b"}}}
+	onMain := func(string) string { return "main" }
+	for _, c := range []struct {
+		start unibox.Start
+		want  string
+	}{
+		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}}, "gateway-1a2b3c4d"},
+		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}, Branch: "feat/x"}, ""},
+		{unibox.Start{Sandbox: "api", Dirs: []string{"/src/gateway"}}, ""},
+		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway", "/src/other"}}, ""},
+		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/idle"}}, ""},
+		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "https://GL.test/acme/billing", Branch: "fix/round"}}}, "billing-5e6f7a8b"},
+		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "https://gl.test/acme/billing.git", Branch: "main"}}}, ""},
+		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "billing"}}}, "billing-5e6f7a8b"},
+		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "notes"}}}, ""},
+	} {
+		_, got, _ := runningTaskOf([]unibox.Sandbox{box}, c.start, onMain)
+		if got.ID != c.want {
+			t.Errorf("%+v: %q, want %q", c.start, got.ID, c.want)
+		}
+	}
+	// The checkout moved to another branch: unibox names another task.
+	if _, got, ok := runningTaskOf([]unibox.Sandbox{box}, unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}}, func(string) string { return "feat/y" }); ok {
+		t.Errorf("a checkout on another branch is the task at work on main: %s", got.ID)
+	}
+	if got := freeTaskName([]unibox.Sandbox{box, {Tasks: []unibox.Task{{ID: "x", Alias: "gateway-2"}}}}, box.Tasks[0]); got != "gateway-3" {
+		t.Errorf("free name %q", got)
+	}
+	if got := freeTaskName(nil, unibox.Task{ID: "gateway-1a2b3c4d", Alias: "rate"}); got != "rate-2" {
+		t.Errorf("free name of a renamed task %q", got)
+	}
 }

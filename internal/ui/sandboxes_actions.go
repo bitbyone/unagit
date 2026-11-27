@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/tobola/unagit/internal/board"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/gitx"
 	"github.com/tobola/unagit/internal/mux"
 	"github.com/tobola/unagit/internal/session"
 	"github.com/tobola/unagit/internal/unibox"
@@ -1125,17 +1128,33 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 		return
 	}
 	var check unibox.Check
+	var boxes []unibox.Sandbox
+	var busyBox unibox.Sandbox
+	var busy unibox.Task
+	var isBusy bool
 	a.loadThen("Checking what the task needs", func(func(string)) (string, error) {
 		var err error
-		check, err = c.Check(start)
-		return "", err
+		if check, err = c.Check(start); err != nil || start.Task != "" {
+			return "", err
+		}
+		// Read again rather than as the screen last did: an agent started
+		// on the same repositories since is what is looked for.
+		if boxes, err = c.Sandboxes(); err != nil {
+			return "", err
+		}
+		busyBox, busy, isBusy = runningTaskOf(boxes, start, gitx.New("", nil).CurrentBranch)
+		return "", nil
 	}, func(string) {
+		if isBusy {
+			a.askBesideRunningTask(start, label, place, busyBox, busy, boxes)
+			return
+		}
 		run := func(push bool) {
 			start.Push = push
 			what := session.Record{Project: start.Sandbox + "/" + label, Mode: session.ModeBranch, Dir: paneDir(),
 				Editor: start.Agent, Sandbox: start.Sandbox}
-			if len(start.Dirs) > 0 && filepath.IsAbs(start.Dirs[0]) {
-				what.Dir = start.Dirs[0]
+			if len(start.Dirs) > 0 && filepath.IsAbs(unibox.RepoSource(start.Dirs[0])) {
+				what.Dir = unibox.RepoSource(start.Dirs[0])
 			}
 			if start.Branch != "" {
 				what.Branch, what.Title = start.Branch, start.Branch
@@ -1204,6 +1223,116 @@ func (a *App) checkAndStart(start unibox.Start, label string, place editorPlace)
 		}
 		a.confirmChoices("New task", body, warnings, choices)
 	})
+}
+
+// runningTaskOf is the task of the start's sandbox an agent is at work in
+// on the start's repositories. unibox names a task it is not given a name
+// for after its repositories and their branches - a directory's the one it
+// is on, unless told - so it would take that one and refuse it while its
+// session runs.
+func runningTaskOf(boxes []unibox.Sandbox, start unibox.Start, branchOf func(dir string) string) (unibox.Sandbox, unibox.Task, bool) {
+	type source struct{ source, branch string }
+	var sources []source
+	add := func(src, branch string) {
+		src = unibox.RepoSource(src)
+		if branch == "" && filepath.IsAbs(src) {
+			branch = branchOf(src)
+		}
+		sources = append(sources, source{src, branch})
+	}
+	for _, d := range start.Dirs {
+		add(d, start.Branch)
+	}
+	for _, r := range start.Repos {
+		add(r.Source, firstOf(r.Branch, start.Branch))
+	}
+	same := func(s source, r unibox.Repository) bool {
+		if s.branch != "" && r.Branch != "" && s.branch != r.Branch {
+			return false
+		}
+		switch {
+		case strings.Contains(s.source, "://"):
+			return sameAddress(s.source, r.URL)
+		case filepath.IsAbs(s.source):
+			return r.HostPath != "" && sameDir(s.source, r.HostPath)
+		default:
+			return s.source == r.Name
+		}
+	}
+	for _, box := range boxes {
+		if box.Name != start.Sandbox || len(sources) == 0 {
+			continue
+		}
+		for _, t := range box.Tasks {
+			if _, ok := box.RunOf(t.ID); !ok {
+				continue
+			}
+			if !slices.ContainsFunc(sources, func(s source) bool {
+				return !slices.ContainsFunc(t.Repositories, func(r unibox.Repository) bool { return same(s, r) })
+			}) {
+				return box, t, true
+			}
+		}
+	}
+	return unibox.Sandbox{}, unibox.Task{}, false
+}
+
+// sameAddress says whether two forge addresses name one repository,
+// whatever their case, trailing slash or .git.
+func sameAddress(a, b string) bool {
+	norm := func(s string) string {
+		return strings.TrimSuffix(strings.TrimRight(strings.ToLower(s), "/"), ".git")
+	}
+	return b != "" && norm(a) == norm(b)
+}
+
+// askBesideRunningTask is a start unibox would refuse: an agent is at work
+// in the task it would take. It is gone to, or the start becomes a task of
+// its own, named after the one at work.
+func (a *App) askBesideRunningTask(start unibox.Start, label string, place editorPlace, box unibox.Sandbox, t unibox.Task, boxes []unibox.Sandbox) {
+	row := sandboxRow{kind: rowTask, sandbox: box, made: true, task: t}
+	name := freeTaskName(boxes, t)
+	body := fmt.Sprintf("%s is at work on %s in %s, in task %s - the task unibox takes for it, and refuses while its agent runs.\n\nStart a new task, %s, beside it?",
+		agentLabel(t.Agent), esc(label), esc(box.Name), esc(t.Name()), esc(name))
+	if len(t.HostPaths()) > 0 {
+		body += " Both agents work in the same checkout of yours."
+	}
+	choices := []choice{{"Start New Task", func() {
+		a.closeModal(pageConfirm)
+		start.Task = name
+		a.checkAndStart(start, label, place)
+	}}}
+	if a.taskReachable(row) {
+		choices = append(choices, choice{"Go to Agent", func() {
+			a.closeModal(pageConfirm)
+			a.goToTask(row)
+		}})
+	}
+	a.confirmChoices("Task at work", body, nil, choices)
+}
+
+// taskDigest is the end of a name unibox gives a task after its
+// repositories.
+var taskDigest = regexp.MustCompile(`-[0-9a-f]{8}$`)
+
+// freeTaskName is a name for a second task on t's repositories: t's own
+// without its digest, numbered, and no task's of any sandbox.
+func freeTaskName(boxes []unibox.Sandbox, t unibox.Task) string {
+	taken := map[string]bool{}
+	for _, b := range boxes {
+		for _, o := range b.Tasks {
+			taken[o.ID], taken[o.Alias] = true, true
+		}
+	}
+	base := taskDigest.ReplaceAllString(t.Name(), "")
+	if len(base) > 56 {
+		base = strings.TrimRight(base[:56], "-")
+	}
+	for n := 2; ; n++ {
+		if name := base + "-" + strconv.Itoa(n); !taken[name] {
+			return name
+		}
+	}
 }
 
 func tildePaths(dirs []string) []string {

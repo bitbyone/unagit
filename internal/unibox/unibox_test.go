@@ -213,6 +213,33 @@ func TestAStartNamesWhatItIsAsked(t *testing.T) {
 	}
 }
 
+// TestARepositoryUniboxCannotNameIsNamedForIt: unibox names a repository's
+// directory in the sandbox after its path or address, and refuses one that
+// is not lowercase letters, digits and hyphens; unagit names it instead.
+func TestARepositoryUniboxCannotNameIsNamedForIt(t *testing.T) {
+	t.Parallel()
+	s := unibox.Start{Sandbox: "web", Dirs: []string{"/w/aedi.nvim", "/w/gateway", "/w/My_Repo"},
+		Repos: []unibox.StartRepo{{Source: "https://gl.test/acme/aedi.nvim.git", Branch: "fix/b"}, {Source: "https://gl.test/acme/b.git"}, {Source: "notes"}, {Source: "/w/..."}}}
+	want := "--repo aedi-nvim=/w/aedi.nvim --repo /w/gateway --repo my-repo=/w/My_Repo" +
+		" --repo aedi-nvim=https://gl.test/acme/aedi.nvim.git --branch fix/b --repo https://gl.test/acme/b.git --repo notes --repo repo=/w/... -s web"
+	if got := strings.Join(s.Args(), " "); got != want {
+		t.Fatalf("args:\n got %s\nwant %s", got, want)
+	}
+	// A worktree cloned in the sandbox is called after its repository,
+	// which the arguments keep, and its source is still where it is.
+	named := unibox.Named("aedi.nvim", "/w/aedi.nvim/wt-feat")
+	s = unibox.Start{Sandbox: "web", Dirs: []string{named, unibox.Named("gateway", "/w/gateway/wt-feat")}, Clone: true}
+	if got := strings.Join(s.Args(), " "); got != "--repo aedi-nvim=/w/aedi.nvim/wt-feat --repo /w/gateway/wt-feat -s web --clone" {
+		t.Fatalf("worktrees: %s", got)
+	}
+	if got := unibox.RepoSource(named); got != "/w/aedi.nvim/wt-feat" {
+		t.Fatalf("source of %s: %s", named, got)
+	}
+	if got := unibox.RepoSource("notes"); got != "notes" {
+		t.Fatalf("source of an index name: %s", got)
+	}
+}
+
 // TestADoctorWithFailedChecksIsAnAnswer: doctor exits 4 when a check
 // fails, its checks on stdout and its progress on stderr; the checks are
 // the answer, never "checking sbx..." as an error. A command that fails

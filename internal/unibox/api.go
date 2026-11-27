@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -731,11 +734,11 @@ func (s Start) Args() []string {
 		args = append(args, "--branch", s.Branch)
 	}
 	for _, d := range s.Dirs {
-		args = append(args, "--repo", d)
+		args = append(args, "--repo", repoArg(d))
 	}
 	// A --branch after a --repo is that repository's alone.
 	for _, r := range s.Repos {
-		args = append(args, "--repo", r.Source)
+		args = append(args, "--repo", repoArg(r.Source))
 		if r.Branch != "" {
 			args = append(args, "--branch", r.Branch)
 		}
@@ -759,6 +762,71 @@ func (s Start) Args() []string {
 		args = append(args, "--push")
 	}
 	return args
+}
+
+// validName is a name unibox takes for a task or a repository's directory.
+var validName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+
+// repoArg is a directory or an address as --repo, named dir=source when
+// the directory unibox would name after it - the last part of the path,
+// an address's without .git - is not a name it takes: aedi.nvim goes in
+// as aedi-nvim. A name of the env's index is passed as it is.
+func repoArg(source string) string {
+	var base string
+	switch {
+	case strings.Contains(source, "://"):
+		address := strings.TrimRight(source, "/")
+		base = strings.TrimSuffix(address[strings.LastIndex(address, "/")+1:], ".git")
+	case filepath.IsAbs(source):
+		base = filepath.Base(source)
+	default:
+		return source
+	}
+	return Named(base, source)
+}
+
+// Named is source as --repo with the directory unibox makes of it in the
+// sandbox called after name: as it is when unibox takes it, else
+// dir=source. A worktree cloned in the sandbox is called after its
+// repository, as unibox would call it after the address, not its own
+// directory.
+func Named(name, source string) string {
+	if validName.MatchString(name) {
+		return source
+	}
+	return dirName(name) + "=" + source
+}
+
+// RepoSource is the source of a --repo, without the directory it names.
+func RepoSource(arg string) string {
+	if name, source, ok := strings.Cut(arg, "="); ok && validName.MatchString(name) {
+		return source
+	}
+	return arg
+}
+
+// dirName is base as unibox takes a directory's name: lowercase, every run
+// of anything but letters and digits a hyphen, at most 63 characters.
+func dirName(base string) string {
+	var b strings.Builder
+	hyphen := false
+	for _, r := range strings.ToLower(base) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+			hyphen = false
+		} else if !hyphen && b.Len() > 0 {
+			b.WriteByte('-')
+			hyphen = true
+		}
+	}
+	name := strings.TrimRight(b.String(), "-")
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "-")
+	}
+	if name == "" {
+		return "repo"
+	}
+	return name
 }
 
 // RunArgs are the arguments of unibox run.

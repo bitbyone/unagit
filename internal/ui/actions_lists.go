@@ -2,12 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/tobola/unagit/internal/board"
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
+	"github.com/tobola/unagit/internal/unibox"
 	"github.com/tobola/unagit/internal/workspace"
 )
 
@@ -446,15 +448,16 @@ func (a *App) worktreeListActions(p *pane, r worktreeRow) []uiAction {
 	}
 	acts := a.worktreeActions(r, p.onOpen, "c")
 	// unibox cannot mount a git worktree, so a worktree or a group's
-	// members are cloned in the sandbox from the forge, at their branch.
+	// members are cloned in the sandbox from the forge, at their branch,
+	// each in a directory called after its repository.
 	acts = append(acts, a.openInSandboxActions(func() sandboxTarget {
 		t := sandboxTarget{label: r.Path, clone: true}
 		if !r.grouped() {
-			t.dirs = []string{r.Dir}
+			t.dirs = []string{unibox.Named(path.Base(r.Path), r.Dir)}
 			return t
 		}
 		for _, m := range r.Members {
-			t.dirs = append(t.dirs, m.Dir)
+			t.dirs = append(t.dirs, unibox.Named(path.Base(m.Path), m.Dir))
 		}
 		return t
 	}, nil)...)

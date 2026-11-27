@@ -31,6 +31,12 @@ nothing needed on disk. Marked repositories go into one task together:
 mounted while every one is cloned, else all cloned from the forge. Typing finds each agent in each place:
 **Sandbox with Codex in Zellij Tab**.
 
+In the sandbox each repository gets a directory named after it; one unibox
+would not take as a name - `aedi.nvim` - goes in as `aedi-nvim`. unibox
+takes the task it last made for the same repositories on the same branches;
+while an agent is at work in that one, unagit offers to **Go to Agent**, or
+to **Start New Task** beside it, named after it - `gateway-2`.
+
 **Add to Unibox Index…** on a repository names it for unibox's tasks; on
 marked repositories it names them all, asking which index and when once.
 
