@@ -72,23 +72,25 @@ var (
 	integrationIcons map[string]string
 	// sectionIcons are the theme's icons of Settings' sections, nil
 	// without a Nerd Font.
-	sectionIcons                                            map[string]string
-	glyphCheck, glyphCross, glyphDot, glyphRing             string
-	glyphManual, glyphScheduled, glyphTrigger, glyphRetried string
-	glyphUser, glyphStarred, glyphAgent                     string
-	glyphCIDone, glyphCIIdle, glyphApproved                 string
-	glyphAhead, glyphBehind                                 string
-	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator  string
-	glyphCommit, glyphTag, glyphRef                         string
-	glyphElided, glyphElidedGroup, glyphEdits               string
-	glyphCommented, glyphComment                            string
-	glyphPicked, glyphUnpicked, glyphFolded, glyphUnfolded  string
-	glyphCIUnknown                                          string
-	glyphColumnShown, glyphColumnHidden                     string
-	glyphTabProblem                                         string
-	glyphClose                                              string
-	glyphSeparator, glyphFolder                             string
-	glyphMask                                               rune
+	sectionIcons                                             map[string]string
+	glyphCheck, glyphCross, glyphDot, glyphRing              string
+	glyphManual, glyphScheduled, glyphTrigger, glyphRetried  string
+	glyphUser, glyphStarred, glyphAgent                      string
+	glyphCIDone, glyphCIIdle, glyphApproved                  string
+	glyphAhead, glyphBehind                                  string
+	glyphExternal, glyphMerge, glyphBar, glyphTabSeparator   string
+	glyphCommit, glyphTag, glyphRef                          string
+	glyphElided, glyphElidedGroup, glyphEdits                string
+	glyphCommented, glyphComment                             string
+	glyphPicked, glyphUnpicked, glyphFolded, glyphUnfolded   string
+	glyphCIUnknown                                           string
+	glyphColumnShown, glyphColumnHidden                      string
+	glyphTabProblem                                          string
+	glyphLinkRepository, glyphLinkWorktree, glyphLinkSandbox string
+	glyphLinkTask, glyphLinkURL                              string
+	glyphClose                                               string
+	glyphSeparator, glyphFolder                              string
+	glyphMask                                                rune
 	// selectMarker ends a closed select, so it looks like something that
 	// opens.
 	selectMarker string
@@ -240,6 +242,8 @@ func setTheme(t Theme) {
 	glyphSeparator, glyphFolder = g.Separator, g.Folder
 	glyphColumnShown, glyphColumnHidden = g.ColumnShown, g.ColumnHidden
 	glyphTabProblem = g.TabProblem
+	glyphLinkRepository, glyphLinkWorktree, glyphLinkSandbox = g.LinkRepository, g.LinkWorktree, g.LinkSandbox
+	glyphLinkTask, glyphLinkURL = g.LinkTask, g.LinkURL
 	glyphClose = g.Close
 	toastIcons = map[severity]string{sevInfo: g.ToastInfo, sevSuccess: g.ToastSuccess, sevWarning: g.ToastWarning, sevError: g.ToastDanger}
 	glyphMask = rune0(g.Mask)

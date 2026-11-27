@@ -354,6 +354,15 @@ type Glyphs struct {
 	// sandbox still lacks: a value, an env that does not load, a sandbox
 	// older than its env.
 	TabProblem string `json:"tab_problem"`
+	// LinkRepository, LinkWorktree, LinkSandbox, LinkTask and LinkURL go
+	// before what a task on the Board links to: a repository, a worktree,
+	// a sandbox, a sandbox's task, an address. A merge request is its
+	// number.
+	LinkRepository string `json:"link_repository"`
+	LinkWorktree   string `json:"link_worktree"`
+	LinkSandbox    string `json:"link_sandbox"`
+	LinkTask       string `json:"link_task"`
+	LinkURL        string `json:"link_url"`
 	// Close stands in the corner of a panel a click closes: the detail.
 	Close string `json:"close"`
 	// Spinner is the frames of what turns while a job runs behind the
@@ -655,6 +664,8 @@ func (t Theme) glyphs() map[string]string {
 		"glyphs.elided_group": g.ElidedGroup, "glyphs.edits": g.Edits, "glyphs.commented": g.Commented, "glyphs.comment": g.Comment,
 		"glyphs.ci_unknown": g.CIUnknown, "glyphs.picked": g.Picked, "glyphs.unpicked": g.Unpicked, "glyphs.folded": g.Folded, "glyphs.unfolded": g.Unfolded,
 		"glyphs.column_shown": g.ColumnShown, "glyphs.column_hidden": g.ColumnHidden, "glyphs.tab_problem": g.TabProblem, "glyphs.close": g.Close,
+		"glyphs.link_repository": g.LinkRepository, "glyphs.link_worktree": g.LinkWorktree, "glyphs.link_sandbox": g.LinkSandbox,
+		"glyphs.link_task": g.LinkTask, "glyphs.link_url": g.LinkURL,
 		"glyphs.toast_info": g.ToastInfo, "glyphs.toast_success": g.ToastSuccess,
 		"glyphs.toast_warning": g.ToastWarning, "glyphs.toast_danger": g.ToastDanger,
 		"borders.horizontal": t.Borders.Horizontal, "borders.vertical": t.Borders.Vertical,

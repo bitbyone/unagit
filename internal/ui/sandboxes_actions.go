@@ -15,6 +15,7 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/tobola/unagit/internal/agents"
+	"github.com/tobola/unagit/internal/board"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
 	"github.com/tobola/unagit/internal/mux"
@@ -98,6 +99,7 @@ func (a *App) taskActions(r sandboxRow) []uiAction {
 		{name: "Open Repository in Browser", about: "The forge's page of the task's first repository, where what its agent pushes arrives.",
 			keys: "w", rank: 46, when: func() bool { return len(t.Repositories) > 0 && t.Repositories[0].URL != "" },
 			run: func() { a.openWeb(webOfClone(t.Repositories[0].URL)) }},
+		a.addToTaskAction(func() board.Link { return linkOfSandboxTask(t) }),
 		{name: "Remove Task…", about: "Take the task out of the sandbox; a mounted checkout is unmounted, never deleted. unibox refuses while it has a session or work not pushed.",
 			keys: "d", rank: 90, run: func() { a.removeTask(r) }},
 	}
@@ -179,6 +181,7 @@ func (a *App) sandboxActions(r sandboxRow) []uiAction {
 			keys: "C", rank: 70, when: func() bool { return !s.Adopted }, run: func() { a.recreateSandbox(r) }},
 		{name: "Copy Inspect Command", about: "Put unibox sandbox inspect with the sandbox on the clipboard: everything unibox keeps of it.",
 			rank: 80, run: func() { a.yank("Inspect command", "unibox sandbox inspect "+s.Name) }},
+		a.addToTaskAction(func() board.Link { return linkOfSandbox(s) }),
 		{name: "Remove Sandbox…", about: "Remove the VM and every task in it; mounted checkouts are unmounted, never deleted. unibox refuses while it has a session or work not pushed.",
 			keys: "d", rank: 90, run: func() { a.removeSandbox(r) }},
 	}

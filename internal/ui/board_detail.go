@@ -32,7 +32,7 @@ const storyID = 1_000_000
 func (v *boardView) openTask(t board.Task, write bool) {
 	d := &commentsDialog{a: v.app, task: &taskDetail{v: v, space: t.Space, id: t.ID, t: t}}
 	v.app.openCommentsDialog(d, "Task · "+esc(v.space.Name),
-		"c comment · e edit · d delete · E edit task · i link · w browser · H L move · x done · h story")
+		"o carry on · c comment · e edit · d delete · E edit task · i link · I links · H L move · x done · h story")
 	if write {
 		d.writeTaskComment()
 	}
@@ -66,7 +66,8 @@ func (d *commentsDialog) loadTask() {
 	}
 	_, had := d.chosen()
 	d.conv.notes = notes
-	d.conv.top = func(width int) string { return taskTop(t, width) }
+	v := td.v
+	d.conv.top = func(width int) string { return v.taskTop(t, width) }
 	d.conv.laid = nil
 	d.changed()
 	if !had {
@@ -75,8 +76,9 @@ func (d *commentsDialog) loadTask() {
 }
 
 // taskTop is what stands above a task's comments: its state, space and
-// colour, its description, its links.
-func taskTop(t board.Task, width int) string {
+// colour, its description, its links and what each is now, the editors
+// and agents open in its directories, its watches' news.
+func (v *boardView) taskTop(t board.Task, width int) string {
 	var rows []string
 	facts := []string{tag(role("board."+t.State)) + "[::b]" + esc(board.StateName(t.State)) + "[::-]" + tagEnd}
 	if t.Colour != "" {
@@ -95,14 +97,25 @@ func taskTop(t board.Task, width int) string {
 	} else {
 		rows = append(rows, tag(colMuted)+"No description - E writes one."+tagEnd)
 	}
-	if len(t.Links) > 0 {
+	if mergedNotDone(t) {
+		rows = append(rows, "", tag(role("board.link.live"))+"Its merge request is merged - x marks the task done."+tagEnd)
+	}
+	var lines []string
+	for _, l := range t.Links {
+		line := linkLine(l)
+		if l.Kind == board.KindURL && l.Label != "" {
+			line += tag(colMuted) + "  " + esc(l.URL) + tagEnd
+		}
+		lines = append(lines, line)
+	}
+	lines = append(lines, foundLines(v.foundOpen(t))...)
+	lines = append(lines, v.watchNews(t)...)
+	if len(lines) > 0 {
 		rows = append(rows, "")
-		for _, l := range t.Links {
-			line := tag(role("board.link")) + "↗ " + esc(l.Name()) + tagEnd
-			if l.Label != "" && l.URL != "" {
-				line += tag(colMuted) + "  " + esc(l.URL) + tagEnd
+		for _, l := range lines {
+			if wrapped := tview.WordWrap(l, max(1, width)); len(wrapped) > 0 {
+				rows = append(rows, wrapped[0])
 			}
-			rows = append(rows, line)
 		}
 	}
 	return strings.Join(rows, "\n")
@@ -175,9 +188,14 @@ func (d *commentsDialog) taskActions() []uiAction {
 			}},
 		{name: "Edit Task…", about: "Change the task's title and description.", keys: "E", rank: 40,
 			run: func() { td.v.editTask(&t, t.State, d.loadTask) }},
-		{name: "Link URL…", about: "Add a link to the task.", keys: "i", rank: 45, run: func() { td.v.linkURL(t, d.loadTask) }},
-		{name: "Open in Browser", about: "The task's link; a list when it has several.", keys: "w", rank: 50,
-			when: func() bool { return len(t.Links) > 0 }, run: func() { td.v.openLink(t) }},
+		{name: "Carry On", about: "Back into the task's work: the editor or agent open in it, else its worktree or clone, else its merge request's review, else its page.", keys: "o", rank: 5,
+			run: func() { td.v.carryOn(t) }},
+		{id: "link_url", name: "Link…", about: "Link something to the task: a repository, a merge request, a worktree, a sandbox, a sandbox's task or an address.", keys: "i", rank: 45,
+			run: func() { td.v.linkSomething(t, d.loadTask) }},
+		{name: "Links…", about: "The task's links and what each is now: go to one in its list, open its page, take it off the task.", keys: "I", rank: 46,
+			when: func() bool { return len(t.Links) > 0 }, run: func() { td.v.showLinks(t, d.loadTask) }},
+		{name: "Open in Browser", about: "The page of the task's link; a list when it has several.", keys: "w", rank: 50,
+			when: func() bool { return hasURL(t) }, run: func() { td.v.openLink(t) }},
 		{name: "Move Right", about: "To the next column: to do, in progress, done.", keys: "L", rank: 60,
 			when: func() bool { return state < 2 }, run: func() { td.v.setState(t, board.States[state+1]); d.loadTask() }},
 		{name: "Move Left", about: "Back to the column before.", keys: "H", rank: 61,

@@ -1273,8 +1273,16 @@ title, a description, a colour to make it stand out, links and your own
 comments, read in the conversation's dialog with the task's story between
 them. `n` writes a task, `H` `L` move it along, `x` marks it done; a task
 done leaves the board after the time set in Settings, and `y` shows every
-one. It is deliberately not a task manager - no due dates, priorities or
-assignees. More in [The Board](https://bitbyone.github.io/unagit/guide/board).
+one. A task links to what unagit knows - repositories, merge requests,
+worktrees, sandboxes and their tasks - or to an address: `i` on a card, or
+**Add to Task…** in the actions of whatever a list has chosen. The links
+are alive, read from what the lists already know, and stay, dimmed, once
+what they point at is gone; the editors and agents open in a task's
+directories show on its card. `o` carries on with a task: to the editor
+open in it, else into its worktree or review. Marking it done offers to
+tidy up what it leaves. It is deliberately not a task manager - no due
+dates, priorities or assignees. More in
+[The Board](https://bitbyone.github.io/unagit/guide/board).
 
 ## The rest of it
 

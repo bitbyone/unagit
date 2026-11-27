@@ -709,6 +709,12 @@ type BoardSettings struct {
 	// HideDoneAfter is how long a task done stays on the board before
 	// only History shows it: "30m", "12h", "1d", "never". Empty is a day.
 	HideDoneAfter string `yaml:"hide_done_after,omitempty"`
+	// StayOnCarryOn keeps a task to do where it is when o carries on with
+	// it; unset, carrying on moves it to In progress.
+	StayOnCarryOn bool `yaml:"stay_on_carry_on,omitempty"`
+	// NoTidyUp leaves out the question, on a task done, of what it linked
+	// to that can go: its worktrees, its review, its sandbox.
+	NoTidyUp bool `yaml:"no_tidy_up,omitempty"`
 }
 
 // Config is the on-disk configuration (~/.config/unagit/config.yaml).

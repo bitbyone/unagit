@@ -29,7 +29,10 @@ type bubble struct {
 	Meta   string      // tview markup after the name: when, what state
 	Where  string      // plain text: the file and line it is anchored to; on the frame when it fits, on its own row when not
 	Body   string      // markdown
-	Indent int         // cells of nesting, for a reply
+	// Lines are rows of markup after the body, each cut to the card's
+	// width: what is drawn, not written, like a Board card's links.
+	Lines  string
+	Indent int // cells of nesting, for a reply
 	// Frame is the colour of the frame, its thread's; unset, the plain
 	// comment's (comments.border).
 	Frame tcell.Color
@@ -200,6 +203,16 @@ func layBubble(b bubble, width int) bubbleLayout {
 	if body := strings.TrimRight(renderMarkdown(b.Body, ""), "\n"); body != "" {
 		for _, l := range strings.Split(body, "\n") {
 			layout.body = append(layout.body, tview.WordWrap(l, inner)...)
+		}
+	}
+	if b.Lines != "" {
+		if len(layout.body) > 0 {
+			layout.body = append(layout.body, "")
+		}
+		for _, l := range strings.Split(b.Lines, "\n") {
+			if wrapped := tview.WordWrap(l, inner); len(wrapped) > 0 {
+				layout.body = append(layout.body, wrapped[0])
+			}
 		}
 	}
 	from, to := 0, len(layout.body)

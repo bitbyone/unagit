@@ -388,7 +388,31 @@ another way:
 - The other unagit's changes come by a look every two seconds at the
   space's directory and `spaces.json`, while the Board is in front.
 
-Still to do: phases 2 to 4.
+Phases 2 and 3 are built (2026-11-27): `ui/board_links.go` - the links,
+what each is now (`boardView.linkNow`, written into the link and the
+story by `alive`), carry on, tidying up, Add to Task… - and the link
+model in `internal/board` (`Link`, `LinkState`, `MRSnapshot`). Where it
+went another way:
+
+- **No branch links.** A branch is linked as its worktree or its merge
+  request; a link to a branch alone would have nothing to open.
+- **Keys are readable**, not the watches': `<instance>/<repository>!<iid>`
+  for a merge request, the directory for a worktree, `<sandbox>/<task id>`
+  for a sandbox's task. A watch's news is found by the fields
+  (`pipelineWatch(...).Key()`), not by the link's key.
+- **Add to Task… has no key**: no letter is free on every list it is on,
+  so it lives in the pickers (`.`, the right button) and can be bound as
+  `add_to_task`.
+- **The settings are in General**, beside Hide done after: Carry on
+  starts, Tidy up on done. There is no Settings › Board section yet.
+- **A repository is gone** only when its server's list no longer has it;
+  a sandbox and its tasks only once unibox has been read, which the Board
+  asks for quietly when a task links one.
+- **Tidying up** offers single worktrees, a merge request's review and
+  branch worktrees, and stopping a running sandbox; a grouped worktree is
+  not offered, and what holds work is named and never offered.
+
+Still to do: phase 4.
 
 ## Future work: an agent of the user's own
 

@@ -473,6 +473,11 @@ func (s *settingsView) fillGeneral() {
 	hideAfter := addSelect(form, "Hide done after", afterNames, afterAt)
 	form.AddTextView("", "A task done leaves the Board after this;\n"+
 		"History keeps every one.", 46, 2, true, false)
+	carryOn := addCheckbox(form, "Carry on starts", !cfg.Board.StayOnCarryOn)
+	form.AddTextView("", "On, o on a task to do moves it to In progress.", 46, 1, true, false)
+	tidyUp := addCheckbox(form, "Tidy up on done", !cfg.Board.NoTidyUp)
+	form.AddTextView("", "On, a task done offers to remove its worktrees,\n"+
+		"its review and to stop its sandbox.", 46, 2, true, false)
 	form.AddButton("Save", func() {
 		cfg.RootDir = strings.TrimSpace(root.GetText())
 		cfg.SetMouse(mouse.IsChecked())
@@ -483,6 +488,7 @@ func (s *settingsView) fillGeneral() {
 		if i, _ := hideAfter.GetCurrentOption(); i >= 0 {
 			cfg.Board.HideDoneAfter = hideAfterOptions(cfg.Board.HideDoneAfter)[i].word
 		}
+		cfg.Board.StayOnCarryOn, cfg.Board.NoTidyUp = !carryOn.IsChecked(), !tidyUp.IsChecked()
 		s.app.applyMouse()
 		s.app.board.fill()
 		identity := config.GitIdentity{Name: gitName.GetText(), Email: gitEmail.GetText()}

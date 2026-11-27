@@ -63,19 +63,72 @@ type Space struct {
 	Order int    `json:"order"`
 }
 
-// Link kinds. Only a URL can be linked yet; the rest of what unagit knows
-// comes in the next phase, and a task keeps whatever it does not know.
-const KindURL = "url"
+// Link kinds: what unagit knows - a repository, a merge request, a
+// worktree, a sandbox and a task in one - and a URL for anything else. A
+// kind this release does not know is kept as it is and drawn by its name.
+const (
+	KindRepository  = "repository"
+	KindMR          = "mr"
+	KindWorktree    = "worktree"
+	KindSandbox     = "sandbox"
+	KindSandboxTask = "sandbox-task"
+	KindURL         = "url"
+)
 
-// Link is something a task points at. Label and URL are kept as they were
-// when it was linked, for when what it points at is gone.
+// Link is something a task points at. Key tells two links apart; Label,
+// URL and Seen are kept as they were last known, for when what it points
+// at is gone. Instance, Project and IID name a repository or a merge
+// request, Path a worktree or a clone on disk, Sandbox and Task what
+// unibox calls them.
 type Link struct {
-	Kind  string    `json:"kind"`
-	Key   string    `json:"key,omitempty"`
-	Label string    `json:"label,omitempty"`
-	URL   string    `json:"url,omitempty"`
-	Path  string    `json:"path,omitempty"`
-	Added time.Time `json:"added"`
+	Kind     string    `json:"kind"`
+	Key      string    `json:"key,omitempty"`
+	Label    string    `json:"label,omitempty"`
+	URL      string    `json:"url,omitempty"`
+	Path     string    `json:"path,omitempty"`
+	Instance string    `json:"instance,omitempty"`
+	Project  string    `json:"project,omitempty"`
+	IID      int       `json:"iid,omitempty"`
+	Sandbox  string    `json:"sandbox,omitempty"`
+	Task     string    `json:"task,omitempty"`
+	Added    time.Time `json:"added"`
+	Seen     LinkState `json:"seen,omitzero"`
+}
+
+// LinkState is what a link last was: kept, so a card draws at once without
+// asking anything, and says what it was once it is gone.
+type LinkState struct {
+	// State is in the words of what owns it: open, draft, merged, closed
+	// for a merge request; cloned, not cloned; present; running, stopped;
+	// working, idle.
+	State string    `json:"state,omitempty"`
+	Since time.Time `json:"since,omitzero"`
+	// Gone is no longer there: the link stays, dimmed, and what needs the
+	// thing itself is not offered.
+	Gone bool `json:"gone,omitempty"`
+	// MR is a merge request's, as the list last had it.
+	MR *MRSnapshot `json:"mr,omitempty"`
+}
+
+// MRSnapshot is what a card shows of a merge request.
+type MRSnapshot struct {
+	Title     string `json:"title,omitempty"`
+	Author    string `json:"author,omitempty"`
+	Target    string `json:"target,omitempty"`
+	Pipeline  string `json:"pipeline,omitempty"`
+	Approved  int    `json:"approved,omitempty"`
+	Required  int    `json:"required,omitempty"`
+	Comments  int    `json:"comments,omitempty"`
+	Conflicts bool   `json:"conflicts,omitempty"`
+}
+
+// Same says whether two states say the same; Since is when it began, not
+// part of what it is.
+func (s LinkState) Same(o LinkState) bool {
+	if s.State != o.State || s.Gone != o.Gone || (s.MR == nil) != (o.MR == nil) {
+		return false
+	}
+	return s.MR == nil || *s.MR == *o.MR
 }
 
 // Name is what a link is called on screen: its label, or its address.
@@ -87,6 +140,16 @@ func (l Link) Name() string {
 		return l.URL
 	}
 	return l.Key
+}
+
+// Has says whether the task links to what a key names already.
+func (t Task) Has(kind, key string) bool {
+	for _, l := range t.Links {
+		if l.Kind == kind && l.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 // Comment is a note of the user's on a task.

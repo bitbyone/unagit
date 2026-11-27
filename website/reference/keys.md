@@ -95,7 +95,9 @@ More in [Sandboxes](/guide/sandboxes).
 | --- | --- |
 | `n` `Enter` `e` `d` | a new task · the task in full · edit it · delete it |
 | `H` `L` `K` `J` | move the card to the column before or after · up or down its column |
-| `x` `c` `i` `w` `#` | done · comment · link a URL · open the link · colour |
+| `o` | carry on: the editor open in the task, its worktree, its review, its page |
+| `x` `c` `#` | done · comment · colour |
+| `i` `I` `w` | link something · the links: go to one, open it, remove it · open a link's page |
 | `v` `y` | cards compact or in full · History |
 | `p` `[` `]` | spaces · the one before, the next |
 

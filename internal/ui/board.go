@@ -69,6 +69,11 @@ type boardView struct {
 	laid map[laidKey]string
 	// drag is the card the mouse carries, while it does.
 	drag *boardDrag
+	// asked are the merge requests linked that the list no longer has,
+	// asked of their servers once (board_links.go); tidyings what a task
+	// done leaves, between looking at it and asking.
+	asked    map[string]board.LinkState
+	tidyings []tidy
 }
 
 // boardDrag is a card taken by the mouse: where it was taken, and where it
@@ -89,7 +94,7 @@ type boardCanvas struct {
 }
 
 func (a *App) newBoardView() *boardView {
-	v := &boardView{app: a, store: board.Open(a.cfg.BoardDir()), laid: map[laidKey]string{}}
+	v := &boardView{app: a, store: board.Open(a.cfg.BoardDir()), laid: map[laidKey]string{}, asked: map[string]board.LinkState{}}
 	v.header = tview.NewTextView().SetDynamicColors(true)
 	help := tview.NewTextView().SetDynamicColors(true).SetText(litHint("? help")).SetTextAlign(tview.AlignRight)
 	v.line = newStatusLine(v.header, help)
@@ -138,6 +143,7 @@ func (v *boardView) reload() {
 	}
 	v.tasks = tasks
 	v.fill()
+	v.alive()
 	if keep != "" {
 		v.focusTask(keep)
 	}
@@ -204,7 +210,7 @@ func (v *boardView) step(by int) int {
 func taskHay(t board.Task) string {
 	parts := []string{t.Title, t.Body, t.Colour}
 	for _, l := range t.Links {
-		parts = append(parts, l.Name(), l.URL)
+		parts = append(parts, l.Name(), l.URL, l.Seen.State)
 	}
 	for _, c := range t.Comments {
 		parts = append(parts, c.Body)
@@ -485,14 +491,24 @@ func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
 	}
 	var meta []string
 	if n := len(t.Comments); n > 0 {
-		meta = append(meta, glyphComment+fmt.Sprint(n))
+		meta = append(meta, tag(role("comments.meta"))+esc(glyphComment+fmt.Sprint(n))+tagEnd)
 	}
-	if n := len(t.Links); n > 0 {
-		meta = append(meta, glyphLinkOr()+fmt.Sprint(n))
+	open := v.foundOpen(t)
+	if !v.full() {
+		// Compact, the links are a row of marks in their states' colours.
+		for _, l := range t.Links {
+			meta = append(meta, linkMark(l))
+		}
+		if m := foundMarks(open); m != "" {
+			meta = append(meta, m)
+		}
 	}
 	b := bubble{Name: t.Title, Icon: boardGlyph(t.State), IconColour: role("board." + t.State), Colour: ink, Frame: frame, Fill: fill, Selected: chosen}
 	if len(meta) > 0 {
-		b.Meta = tag(role("comments.meta")) + esc(strings.Join(meta, " ")) + tagEnd
+		b.Meta = strings.Join(meta, " ")
+	}
+	if mergedNotDone(t) {
+		b.Where = "merged · done?"
 	}
 	if v.full() {
 		var body []string
@@ -503,14 +519,18 @@ func (v *boardView) bubbleOf(t board.Task, chosen bool) bubble {
 			}
 			body = append(body, strings.Join(lines, "\n"))
 		}
-		for _, l := range t.Links {
-			body = append(body, "↗ "+l.Name())
-		}
 		if n := len(t.Comments); n > 0 {
 			first, _, _ := strings.Cut(strings.TrimSpace(t.Comments[n-1].Body), "\n")
 			body = append(body, "> "+first)
 		}
 		b.Body = strings.Join(body, "\n\n")
+		var lines []string
+		for _, l := range t.Links {
+			lines = append(lines, linkLine(l))
+		}
+		lines = append(lines, foundLines(open)...)
+		lines = append(lines, v.watchNews(t)...)
+		b.Lines = strings.Join(lines, "\n")
 	}
 	if t.State == board.Done && !t.Done.IsZero() {
 		b.Where = "done " + humanAge(t.Done)
@@ -542,9 +562,6 @@ func boardGlyph(state string) string {
 	}
 	return "○"
 }
-
-// glyphLinkOr is the mark of a task's links.
-func glyphLinkOr() string { return "↗" }
 
 // ------------------------------------------------------------------ keys
 
@@ -738,6 +755,8 @@ func (v *boardView) taskActions(t board.Task) []uiAction {
 	acts := []uiAction{
 		{name: "Open Task", about: "The task in full: its description, links, comments and story.", keys: "Enter", rank: 5,
 			run: func() { v.openTask(t, false) }},
+		{name: "Carry On", about: "Back into the task's work: the editor or agent open in it, else its worktree or clone, else its merge request's review, else its page.", keys: "o", rank: 7,
+			run: func() { v.carryOn(t) }},
 		{name: "Comment…", about: "Write a comment on the task: a note of what was tried, what is left.", keys: "c", rank: 10,
 			run: func() { v.openTask(t, true) }},
 		{name: "Edit Task…", about: "Change the task's title and description.", keys: "e", rank: 12,
@@ -754,10 +773,12 @@ func (v *boardView) taskActions(t board.Task) []uiAction {
 			when: func() bool { return !done }, run: func() { v.setState(t, board.Done) }},
 		{name: "Open Again", about: "Take a task done back to the column of things to do.", keys: "x", rank: 26,
 			when: func() bool { return done }, run: func() { v.setState(t, board.Todo) }},
-		{name: "Open in Browser", about: "The task's link; a list when it has several.", keys: "w", rank: 30,
-			when: func() bool { return len(t.Links) > 0 }, run: func() { v.openLink(t) }},
-		{name: "Link URL…", about: "Add a link to the task: a ticket, a document, a page.", keys: "i", rank: 32,
-			run: func() { v.linkURL(t, nil) }},
+		{name: "Open in Browser", about: "The page of the task's link; a list when it has several.", keys: "w", rank: 30,
+			when: func() bool { return hasURL(t) }, run: func() { v.openLink(t) }},
+		{id: "link_url", name: "Link…", about: "Link something to the task: a repository, a merge request, a worktree, a sandbox, a sandbox's task or an address.", keys: "i", rank: 32,
+			run: func() { v.linkSomething(t, nil) }},
+		{name: "Links…", about: "The task's links and what each is now: go to one in its list, open its page, take it off the task.", keys: "I", rank: 33,
+			when: func() bool { return len(t.Links) > 0 }, run: func() { v.showLinks(t, nil) }},
 		{name: "Colour…", about: "Give the card a colour to make it stand out, or take it away; it means nothing else.", keys: "#", rank: 40,
 			run: func() { v.pickColour(t) }},
 		{name: "Move to Space…", about: "Take the task to another space.", keys: "", rank: 50,
@@ -830,6 +851,9 @@ func (v *boardView) setState(t board.Task, state string) {
 		v.focusTask(t.ID)
 	}
 	v.app.done(board.StateName(state) + ": " + t.Title)
+	if state == board.Done && t.State != board.Done {
+		v.offerTidyUp(t)
+	}
 }
 
 // reorder moves a task one place up or down its column.
@@ -869,14 +893,31 @@ func (v *boardView) place(t board.Task, col, at int) {
 	})
 	if state != t.State {
 		v.app.done(board.StateName(state) + ": " + t.Title)
+		if state == board.Done {
+			v.offerTidyUp(t)
+		}
 	}
 }
 
 // editTask writes a new task into a state's column (t nil), or changes
 // one's title and description; then, when set, runs once it is saved.
 func (v *boardView) editTask(t *board.Task, state string, then func()) {
+	v.taskForm(t, state, "", func(board.Task) {
+		if then != nil {
+			then()
+		}
+	})
+}
+
+// newTask writes a new task to do, its title begun; then has it once it
+// is saved.
+func (v *boardView) newTask(title string, then func(board.Task)) {
+	v.taskForm(nil, board.Todo, title, then)
+}
+
+func (v *boardView) taskForm(t *board.Task, state, title string, then func(board.Task)) {
 	a := v.app
-	title, body, heading := "", "", "New Task · "+v.space.Name
+	body, heading := "", "New Task · "+v.space.Name
 	if t != nil {
 		title, body, heading = t.Title, t.Body, "Edit Task"
 	}
@@ -903,7 +944,7 @@ func (v *boardView) editTask(t *board.Task, state string, then func()) {
 				m.Tell(now, "edited")
 			})
 			if then != nil {
-				then()
+				then(*t)
 			}
 			return
 		}
@@ -918,6 +959,9 @@ func (v *boardView) editTask(t *board.Task, state string, then func()) {
 		v.reload()
 		v.focusTask(task.ID)
 		a.done("New task: " + name)
+		if then != nil {
+			then(task)
+		}
 	}
 	form.AddButton("Save", save)
 	form.AddButton("Cancel", func() { a.closeModal(pageForm) })
@@ -934,13 +978,19 @@ func (v *boardView) editTask(t *board.Task, state string, then func()) {
 // openLink opens the task's link, or lists them to choose one.
 func (v *boardView) openLink(t board.Task) {
 	a := v.app
-	if len(t.Links) == 1 {
-		a.openWeb(t.Links[0].URL)
-		return
+	var items []pickItem
+	for _, l := range t.Links {
+		if l.URL != "" {
+			items = append(items, pickItem{Label: linkMark(l) + " " + esc(l.Name()), Sub: esc(l.URL), Data: l})
+		}
 	}
-	items := make([]pickItem, len(t.Links))
-	for i, l := range t.Links {
-		items[i] = pickItem{Label: esc(l.Name()), Sub: esc(l.URL), Data: l}
+	switch len(items) {
+	case 0:
+		a.flash("no link of the task has a page")
+		return
+	case 1:
+		a.openWeb(items[0].Data.(board.Link).URL)
+		return
 	}
 	a.showPickerWith("Links · "+t.Title, items, pickerOptions{pack: true, enterHint: "open"}, func(it pickItem) {
 		a.openWeb(it.Data.(board.Link).URL)
@@ -973,14 +1023,9 @@ func (v *boardView) linkURL(t board.Task, then func()) {
 	a.showFormModalSized("Link · "+t.Title, form, 76, 7)
 }
 
-func (v *boardView) addLink(t board.Task, l board.Link) {
-	now := time.Now()
-	l.Added = now
-	v.change(t, func(m *board.Task) {
-		m.Links = append(m.Links, l)
-		m.Tell(now, "linked "+l.Name())
-	})
-	v.app.done("Linked " + l.Name())
+// hasURL says whether a link of the task has a page to open.
+func hasURL(t board.Task) bool {
+	return slices.ContainsFunc(t.Links, func(l board.Link) bool { return l.URL != "" })
 }
 
 // pickColour gives a card a colour, or takes it away.
@@ -1216,8 +1261,15 @@ func (a *App) watchBoard(stop <-chan struct{}) {
 				v.reload()
 			case time.Since(v.filled) > time.Minute:
 				v.fill()
+				v.alive()
 			default:
-				return
+				// What the links are now, from what the lists read
+				// meanwhile; a draw only when one changed.
+				before := v.stamp
+				v.alive()
+				if v.stamp.Equal(before) {
+					return
+				}
 			}
 			go a.tv.QueueUpdateDraw(func() {})
 		})

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tobola/unagit/internal/board"
 	"github.com/tobola/unagit/internal/config"
 	"github.com/tobola/unagit/internal/editors"
 	"github.com/tobola/unagit/internal/forge"
@@ -106,6 +107,7 @@ func (a *App) repositoryActions(p *pane, pr forge.Project) []uiAction {
 			a.switchTab(pageMRs)
 		}},
 		{name: "Show Details", about: "Open the column on the right: what is on disk, the latest commits, the pipeline.", keys: "Enter", rank: 45, run: p.enter},
+		a.addToTaskAction(func() board.Link { return linkOfProject(pr) }),
 		{name: "Open in Browser", about: "Open the repository's page on the server.", keys: "w", rank: 50, when: func() bool { return pr.WebURL != "" }, run: func() {
 			a.openWeb(pr.WebURL)
 		}},
@@ -270,6 +272,7 @@ func (a *App) mergeRequestActions(p *pane, mr forge.MergeRequest) []uiAction {
 		{name: "Prepare Review", about: "Make the review worktree without starting an editor.", keys: "C", rank: 65, when: noReview, run: func() { a.cloneMRReview(mr) }},
 		{name: "Show Changes", about: "Show the whole merge request in Hunk, making its review first when nothing is on disk; one commit is the commit log's.", keys: "D", rank: 70, run: func() { a.diffMR(mr) }},
 		{name: "Copy…", about: "Copy the web link, the !reference or the source branch to the clipboard.", keys: "y", rank: 80, run: func() { a.yankMR(mr) }},
+		a.addToTaskAction(func() board.Link { return a.linkOfMR(mr) }),
 		{name: "Toggle Favourite", about: "Star it, so it can be kept at the top; again takes the star away.", keys: "*", rank: 100, run: func() {
 			a.toggleFavourite(mr.Instance, path, mr.IID, fmt.Sprintf("%s !%d", path, mr.IID))
 		}},
@@ -322,6 +325,7 @@ func (a *App) keptReviewActions(p *pane, r worktreeRow) []uiAction {
 		{name: "Open in Browser", about: "Open the merge request's page on the server.", keys: "w", rank: 35, when: func() bool { return url != "" }, run: func() {
 			a.openWeb(url)
 		}},
+		a.addToTaskAction(func() board.Link { return a.linkOfWorktree(r) }),
 		{name: "Copy…", about: "Copy the directory or the merge request's branch to the clipboard.", keys: "y", rank: 70, run: func() {
 			a.showYank("Copy "+r.Path, []yankItem{{"Directory", r.Dir}, {"Branch", a.worktreeBranch(r)}})
 		}},
@@ -414,6 +418,7 @@ func (a *App) worktreeActions(r worktreeRow, open func(ask bool), commitKey stri
 			when: func() bool { return len(a.worktreeMRs(r)) > 0 }, run: func() { a.goToWorktreeMR(r) }},
 		{name: "Add Repository…", about: "Add a worktree of another repository to this group, on the group's branch.", keys: "a", rank: 60, when: grouped, run: func() { a.addToGroup(r) }},
 		{name: "Copy…", about: "Copy the directory or the branch to the clipboard.", keys: "y", rank: 70, run: func() { a.yankWorktree(r) }},
+		a.addToTaskAction(func() board.Link { return a.linkOfWorktree(r) }),
 		{name: "Branches…", about: "See where the repository's branches stand against origin and delete those you are done with.", keys: "b", rank: 72, when: single, run: func() {
 			if r.grouped() {
 				a.flash("branches are a repository's - light its block, or open the worktree with Enter")

@@ -91,6 +91,9 @@ new_merge_request = "n"
 # Show Merge Requests: Switch to Merge requests, narrowed to this repository.
 show_merge_requests = "m"
 
+# Add to Task…: Link it to a task of the Board.
+add_to_task = []
+
 # Open in Browser: Open the repository's page on the server.
 open_in_browser = "w"
 
@@ -396,6 +399,9 @@ show_changes = "D"
 #   clipboard.
 copy = "y"
 
+# Add to Task…: Link it to a task of the Board.
+add_to_task = []
+
 # Toggle Favourite: Star it, so it can be kept at the top.
 toggle_favourite = "*"
 
@@ -583,6 +589,9 @@ add_repository = "a"
 # Copy…: Copy the directory or the branch to the clipboard.
 copy = "y"
 
+# Add to Task…: Link it to a task of the Board.
+add_to_task = []
+
 # Branches…: See where the repository's branches stand against origin and
 #   delete those you are done with.
 branches = "b"
@@ -741,6 +750,9 @@ add_repository = "a"
 
 # Copy…: Copy the directory or the branch to the clipboard.
 copy = "y"
+
+# Add to Task…: Link it to a task of the Board.
+add_to_task = []
 
 # Branches…: See where the repository's branches stand against origin and
 #   delete those you are done with.
@@ -1063,6 +1075,9 @@ recreate_sandbox = "C"
 #   clipboard.
 copy_inspect_command = []
 
+# Add to Task…: Link it to a task of the Board.
+add_to_task = []
+
 # Remove Sandbox…: Remove the VM and every task in it.
 remove_sandbox = "d"
 
@@ -1190,6 +1205,9 @@ quit = "q"
 # Board (6): your tasks - the one under the cursor, and the board.
 [board]
 
+# Carry On: Back into the task's work.
+carry_on = "o"
+
 # Comment…: Write a comment on the task.
 comment = "c"
 
@@ -1215,11 +1233,14 @@ mark_done = "x"
 # Open Again: Take a task done back to the column of things to do.
 open_again = "x"
 
-# Open in Browser: The task's link; a list when it has several.
+# Open in Browser: The page of the task's link.
 open_in_browser = "w"
 
-# Link URL…: Add a link to the task.
+# Link…: Link something to the task.
 link_url = "i"
+
+# Links…: The task's links and what each is now.
+links = "I"
 
 # Colour…: Give the card a colour to make it stand out.
 colour = "#"
