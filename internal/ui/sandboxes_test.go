@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -1176,21 +1177,24 @@ func TestARepositoryAtWorkInATaskStartsATaskBesideIt(t *testing.T) {
 // the branch the start - or the checkout - is on, in the same sandbox.
 func TestARunningTaskIsTheStartsOwnOnlyOnItsRepositoriesAndBranches(t *testing.T) {
 	t.Parallel()
+	// Absolute on every system: a path without its drive is none on Windows.
+	src := t.TempDir()
+	gateway, other, idle := filepath.Join(src, "gateway"), filepath.Join(src, "other"), filepath.Join(src, "idle")
 	box := unibox.Sandbox{Name: "web", Tasks: []unibox.Task{
-		{ID: "gateway-1a2b3c4d", Repositories: []unibox.Repository{{Name: "gateway", URL: "https://gl.test/acme/gateway.git", Branch: "main", HostPath: "/src/gateway", Mounted: true}}},
+		{ID: "gateway-1a2b3c4d", Repositories: []unibox.Repository{{Name: "gateway", URL: "https://gl.test/acme/gateway.git", Branch: "main", HostPath: gateway, Mounted: true}}},
 		{ID: "billing-5e6f7a8b", Repositories: []unibox.Repository{{Name: "billing", URL: "https://gl.test/acme/billing.git", Branch: "fix/round"}}},
-		{ID: "idle-00000000", Repositories: []unibox.Repository{{Name: "idle", HostPath: "/src/idle", Mounted: true}}},
+		{ID: "idle-00000000", Repositories: []unibox.Repository{{Name: "idle", HostPath: idle, Mounted: true}}},
 	}, Runs: []unibox.Run{{Task: "gateway-1a2b3c4d"}, {Task: "billing-5e6f7a8b"}}}
 	onMain := func(string) string { return "main" }
 	for _, c := range []struct {
 		start unibox.Start
 		want  string
 	}{
-		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}}, "gateway-1a2b3c4d"},
-		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}, Branch: "feat/x"}, ""},
-		{unibox.Start{Sandbox: "api", Dirs: []string{"/src/gateway"}}, ""},
-		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway", "/src/other"}}, ""},
-		{unibox.Start{Sandbox: "web", Dirs: []string{"/src/idle"}}, ""},
+		{unibox.Start{Sandbox: "web", Dirs: []string{gateway}}, "gateway-1a2b3c4d"},
+		{unibox.Start{Sandbox: "web", Dirs: []string{gateway}, Branch: "feat/x"}, ""},
+		{unibox.Start{Sandbox: "api", Dirs: []string{gateway}}, ""},
+		{unibox.Start{Sandbox: "web", Dirs: []string{gateway, other}}, ""},
+		{unibox.Start{Sandbox: "web", Dirs: []string{idle}}, ""},
 		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "https://GL.test/acme/billing", Branch: "fix/round"}}}, "billing-5e6f7a8b"},
 		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "https://gl.test/acme/billing.git", Branch: "main"}}}, ""},
 		{unibox.Start{Sandbox: "web", Repos: []unibox.StartRepo{{Source: "billing"}}}, "billing-5e6f7a8b"},
@@ -1202,7 +1206,7 @@ func TestARunningTaskIsTheStartsOwnOnlyOnItsRepositoriesAndBranches(t *testing.T
 		}
 	}
 	// The checkout moved to another branch: unibox names another task.
-	if _, got, ok := runningTaskOf([]unibox.Sandbox{box}, unibox.Start{Sandbox: "web", Dirs: []string{"/src/gateway"}}, func(string) string { return "feat/y" }); ok {
+	if _, got, ok := runningTaskOf([]unibox.Sandbox{box}, unibox.Start{Sandbox: "web", Dirs: []string{gateway}}, func(string) string { return "feat/y" }); ok {
 		t.Errorf("a checkout on another branch is the task at work on main: %s", got.ID)
 	}
 	if got := freeTaskName([]unibox.Sandbox{box, {Tasks: []unibox.Task{{ID: "x", Alias: "gateway-2"}}}}, box.Tasks[0]); got != "gateway-3" {

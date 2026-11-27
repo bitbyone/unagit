@@ -218,21 +218,25 @@ func TestAStartNamesWhatItIsAsked(t *testing.T) {
 // is not lowercase letters, digits and hyphens; unagit names it instead.
 func TestARepositoryUniboxCannotNameIsNamedForIt(t *testing.T) {
 	t.Parallel()
-	s := unibox.Start{Sandbox: "web", Dirs: []string{"/w/aedi.nvim", "/w/gateway", "/w/My_Repo"},
-		Repos: []unibox.StartRepo{{Source: "https://gl.test/acme/aedi.nvim.git", Branch: "fix/b"}, {Source: "https://gl.test/acme/b.git"}, {Source: "notes"}, {Source: "/w/..."}}}
-	want := "--repo aedi-nvim=/w/aedi.nvim --repo /w/gateway --repo my-repo=/w/My_Repo" +
-		" --repo aedi-nvim=https://gl.test/acme/aedi.nvim.git --branch fix/b --repo https://gl.test/acme/b.git --repo notes --repo repo=/w/... -s web"
+	// Absolute on every system: a path without its drive is none on Windows.
+	w := func(name string) string { return filepath.Join(t.TempDir(), name) }
+	nvim, gateway, mine, dots := w("aedi.nvim"), w("gateway"), w("My_Repo"), w("...")
+	s := unibox.Start{Sandbox: "web", Dirs: []string{nvim, gateway, mine},
+		Repos: []unibox.StartRepo{{Source: "https://gl.test/acme/aedi.nvim.git", Branch: "fix/b"}, {Source: "https://gl.test/acme/b.git"}, {Source: "notes"}, {Source: dots}}}
+	want := "--repo aedi-nvim=" + nvim + " --repo " + gateway + " --repo my-repo=" + mine +
+		" --repo aedi-nvim=https://gl.test/acme/aedi.nvim.git --branch fix/b --repo https://gl.test/acme/b.git --repo notes --repo repo=" + dots + " -s web"
 	if got := strings.Join(s.Args(), " "); got != want {
 		t.Fatalf("args:\n got %s\nwant %s", got, want)
 	}
 	// A worktree cloned in the sandbox is called after its repository,
 	// which the arguments keep, and its source is still where it is.
-	named := unibox.Named("aedi.nvim", "/w/aedi.nvim/wt-feat")
-	s = unibox.Start{Sandbox: "web", Dirs: []string{named, unibox.Named("gateway", "/w/gateway/wt-feat")}, Clone: true}
-	if got := strings.Join(s.Args(), " "); got != "--repo aedi-nvim=/w/aedi.nvim/wt-feat --repo /w/gateway/wt-feat -s web --clone" {
+	wt, other := w("wt-feat"), w("wt-feat")
+	named := unibox.Named("aedi.nvim", wt)
+	s = unibox.Start{Sandbox: "web", Dirs: []string{named, unibox.Named("gateway", other)}, Clone: true}
+	if got := strings.Join(s.Args(), " "); got != "--repo aedi-nvim="+wt+" --repo "+other+" -s web --clone" {
 		t.Fatalf("worktrees: %s", got)
 	}
-	if got := unibox.RepoSource(named); got != "/w/aedi.nvim/wt-feat" {
+	if got := unibox.RepoSource(named); got != wt {
 		t.Fatalf("source of %s: %s", named, got)
 	}
 	if got := unibox.RepoSource("notes"); got != "notes" {
